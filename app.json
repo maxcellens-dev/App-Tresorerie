@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "MyTreasury",
+    "slug": "mytreasury",
+    "version": "1.0.0",
+    "scheme": "mytreasury",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

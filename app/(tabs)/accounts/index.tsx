@@ -1,0 +1,179 @@
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
+
+const COLORS = {
+  bg: '#020617',
+  card: '#0f172a',
+  cardBorder: '#1e293b',
+  text: '#ffffff',
+  textSecondary: '#94a3b8',
+  emerald: '#34d399',
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  checking: 'Courant',
+  savings: 'Épargne',
+  investment: 'Investissement',
+  other: 'Autre',
+};
+
+export default function AccountsListScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { data: accounts = [], isLoading } = useAccounts(user?.id);
+  const { data: archivedAccounts = [] } = useArchivedAccounts(user?.id);
+
+  const total = accounts.reduce((s, a) => s + a.balance, 0);
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <View style={styles.header}>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.addBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(tabs)/accounts/transfer')}
+              accessibilityRole="button"
+            >
+              <Ionicons name="swap-horizontal" size={22} color={COLORS.text} />
+              <Text style={styles.addBtnLabel}>Virement</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.addBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(tabs)/accounts/add')}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add" size={24} color={COLORS.text} />
+              <Text style={styles.addBtnLabel}>Compte</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
+          ) : (
+            <>
+              <View style={styles.totalCard}>
+                <Text style={styles.totalLabel}>Total liquidités</Text>
+                <Text style={styles.totalAmount}>{total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</Text>
+              </View>
+              {accounts.length === 0 ? (
+                <Text style={styles.empty}>Aucun compte. Ajoutez un compte pour suivre vos soldes.</Text>
+              ) : (
+                accounts.map((acc) => (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={styles.accountCard}
+                    onPress={() => router.push(`/(tabs)/accounts/${acc.id}`)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.accountRow}>
+                      <Text style={styles.accountName}>{acc.name}</Text>
+                      <Text style={styles.accountBalance}>
+                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
+                      </Text>
+                    </View>
+                    <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </>
+          )}
+          {archivedAccounts.length > 0 && (
+            <View style={styles.archivedSection}>
+              <Text style={styles.archivedTitle}>Comptes archivés</Text>
+              <Text style={styles.archivedHint}>Comptes fermés, non utilisables pour virements ou nouvelles transactions.</Text>
+              {archivedAccounts.map((acc) => (
+                <View key={acc.id} style={styles.archivedCard}>
+                  <View style={styles.accountRow}>
+                    <Text style={styles.archivedName}>{acc.name}</Text>
+                    <Text style={styles.archivedBalance}>
+                      {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
+                    </Text>
+                  </View>
+                  <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.card,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  addBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
+  loader: { marginVertical: 40 },
+  totalCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    padding: 20,
+    marginBottom: 16,
+  },
+  totalLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
+  totalAmount: { fontSize: 28, fontWeight: '800', color: COLORS.emerald },
+  accountCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    padding: 16,
+    marginBottom: 12,
+  },
+  accountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  accountName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  accountBalance: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  accountType: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
+  empty: { padding: 24, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 },
+  archivedSection: { marginTop: 24, marginBottom: 16 },
+  archivedTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 },
+  archivedHint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 12 },
+  archivedCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    padding: 16,
+    marginBottom: 12,
+    opacity: 0.85,
+  },
+  archivedName: { fontSize: 16, fontWeight: '600', color: COLORS.textSecondary },
+  archivedBalance: { fontSize: 14, color: COLORS.textSecondary },
+  hint: { marginTop: 16, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
+});
