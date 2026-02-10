@@ -153,21 +153,40 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const current_savings = total_savings;
 
   // =====================================================================
-  // STEP 1: Safe to Spend (full calculation - Task 13)
-  // =====================================================================
+  // STEP 1: Safe to Spend
+  // ─────────────────────────────────────────────────────────────────────
+  // Formula:
+  //   remaining_month_net = Σ transactions this month AFTER today (income – expenses)
+  //   committed_projects  = Σ active projects monthly_allocation
+  //   committed_objectives = Σ active objectives target_yearly / 12
+  //   base_to_spend = checking_balance + remaining_month_net
+  //                   - committed_projects - committed_objectives
+  //   safe_to_spend = base_to_spend × (1 - safety_margin_percent / 100)
+  // ─────────────────────────────────────────────────────────────────────
   const current_checking_balance = total_checking;
   const safety_margin_percent = profile?.safety_margin_percent ?? 10;
+  const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  // Remaining fixed expenses: recurring/forecast negative transactions for this month
-  const remaining_fixed_expenses = transactions
+  // Net of all future transactions this month (after today):
+  // income (+) and expenses (–), regardless of type (fixed, variable, forecast…)
+  const remaining_month_net = transactions
     .filter(t => {
       const [tYear, tMonth] = t.date.split('-').map(Number);
-      if (tYear !== currentYear || tMonth !== currentMonth) return false;
-      return (t.is_recurring || t.is_forecast) && t.amount < 0;
+      return tYear === currentYear && tMonth === currentMonth && t.date > todayStr;
     })
-    .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+    .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  // Committed allocations: active projects monthly + active objectives monthly (target_yearly / 12)
+  // Remaining fixed expenses kept for status indicators (absolute value of outflows)
+  const remaining_fixed_expenses = Math.abs(
+    transactions
+      .filter(t => {
+        const [tYear, tMonth] = t.date.split('-').map(Number);
+        return tYear === currentYear && tMonth === currentMonth && t.date > todayStr && Number(t.amount) < 0;
+      })
+      .reduce((sum, t) => sum + Number(t.amount), 0)
+  );
+
+  // Committed allocations: active projects monthly + active objectives monthly
   const committed_project_allocations = projects
     .filter(p => p.status === 'active')
     .reduce((sum, p) => sum + Number(p.monthly_allocation), 0);
@@ -178,15 +197,11 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const committed_allocations = committed_project_allocations + committed_objective_monthly;
 
-  // Safety margin
-  const safety_margin_amount = current_checking_balance * (safety_margin_percent / 100);
+  // Base to spend = checking balance + future net – project/objective commitments
+  const base_to_spend = current_checking_balance + remaining_month_net - committed_allocations;
 
-  const safe_to_spend = Math.max(0,
-    current_checking_balance
-    - remaining_fixed_expenses
-    - committed_allocations
-    - safety_margin_amount
-  );
+  // Apply safety margin on the base (not on gross balance)
+  const safe_to_spend = Math.max(0, base_to_spend * (1 - safety_margin_percent / 100));
 
   // =====================================================================
   // STEP 2: Variable Expense Trend (using is_variable flag)

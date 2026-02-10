@@ -27,7 +27,7 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false 
         <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
           <Text style={{ fontSize: 20 }}>💰</Text>
         </View>
-        <Text style={styles.label}>À dépenser en sécurité</Text>
+        <Text style={styles.label}>À dépenser et placer en sécurité</Text>
       </View>
       <Text style={[styles.amount, { color }]}>
         {amount.toFixed(0)} €

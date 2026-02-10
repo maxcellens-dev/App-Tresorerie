@@ -1,4 +1,5 @@
-import { Redirect, Stack, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, useSegments, useRouter } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,14 +27,22 @@ function ConfigSync() {
 
 function AppChrome() {
   const segments = useSegments();
+  const router = useRouter();
   const { user, loading } = useAuth();
   const root = segments[0] ?? 'index';
-  const hideChrome = root === 'index' || root === 'welcome' || root === 'login' || root === 'register';
+  const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register';
+  const hideChrome = isAuthPage;
   const isTabs = root === '(tabs)';
 
-  if (!loading && root === '(tabs)' && !user) {
-    return <Redirect href="/welcome" />;
-  }
+  // Auth guard: redirect via useEffect so the Stack always mounts first
+  useEffect(() => {
+    if (loading) return;
+    if (isTabs && !user) {
+      router.replace('/welcome');
+    } else if (isAuthPage && user) {
+      router.replace('/(tabs)/home');
+    }
+  }, [loading, user, isTabs, isAuthPage]);
 
   return (
     <View style={styles.root}>

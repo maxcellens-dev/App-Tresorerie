@@ -1,5 +1,13 @@
 import { useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+
+function showAlert(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -24,7 +32,7 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email.trim() || !password) {
-      Alert.alert('Champs requis', 'Renseignez email et mot de passe.');
+      showAlert('Champs requis', 'Renseignez email et mot de passe.');
       return;
     }
     setLoading(true);
@@ -32,13 +40,18 @@ export default function LoginScreen() {
       if (supabase) {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
-        router.replace('/(tabs)/home');
+        // onAuthStateChange met à jour le contexte → le guard dans _layout redirigera vers home
       } else {
-        Alert.alert('Connexion', 'Backend non configuré. Utilisez l’app en mode démo.');
+        showAlert('Connexion', 'Backend non configuré. Utilisez l\u2019app en mode démo.');
         router.back();
       }
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Connexion impossible.');
+      const msg = e instanceof Error ? e.message : 'Connexion impossible.';
+      if (msg.includes('Email not confirmed')) {
+        showAlert('Email non confirmé', 'Vérifiez votre boîte mail et cliquez sur le lien de confirmation avant de vous connecter.');
+      } else {
+        showAlert('Erreur', msg);
+      }
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,13 @@
 import { useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+
+function showAlert(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -24,26 +32,29 @@ export default function RegisterScreen() {
 
   async function handleRegister() {
     if (!email.trim() || !password) {
-      Alert.alert('Champs requis', 'Renseignez email et mot de passe.');
+      showAlert('Champs requis', 'Renseignez email et mot de passe.');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Mot de passe', 'Au moins 6 caractères.');
+      showAlert('Mot de passe', 'Au moins 6 caractères.');
       return;
     }
     setLoading(true);
     try {
       if (supabase) {
-        const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
-        Alert.alert('Inscription', 'Vérifiez votre email pour confirmer le compte.');
-        router.replace('/(tabs)/home');
+        if (!data.session) {
+          showAlert('Inscription', 'Vérifiez votre email pour confirmer le compte.');
+        }
+        // Si session active, onAuthStateChange met à jour le contexte
+        // et le guard dans _layout redirigera automatiquement vers home
       } else {
-        Alert.alert('Inscription', 'Backend non configuré. Mode démo.');
+        showAlert('Inscription', 'Backend non configuré. Mode démo.');
         router.back();
       }
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Inscription impossible.');
+      showAlert('Erreur', e instanceof Error ? e.message : 'Inscription impossible.');
     } finally {
       setLoading(false);
     }
