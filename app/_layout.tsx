@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useConfigSync } from './hooks/useConfigSync';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
+import './global.css';
 
 const queryClient = new QueryClient();
 
