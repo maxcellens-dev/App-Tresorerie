@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-type TabName = 'accounts' | 'treasury-plan' | 'pilotage' | 'transactions' | 'reporting';
+type TabName = 'comptes' | 'tresorerie' | 'pilotage' | 'transactions' | 'reporting';
 type IconName = 'wallet' | 'calendar' | 'home' | 'list' | 'bar-chart';
 
 interface TabItem {
@@ -13,8 +13,8 @@ interface TabItem {
 }
 
 const ITEMS: TabItem[] = [
-  { name: 'accounts', label: 'Comptes', icon: 'wallet' },
-  { name: 'treasury-plan', label: 'Tréso', icon: 'calendar' },
+  { name: 'comptes', label: 'Comptes', icon: 'wallet' },
+  { name: 'tresorerie', label: 'Tréso', icon: 'calendar' },
   { name: 'pilotage', label: 'Pilotage', icon: 'home' },
   { name: 'transactions', label: 'Transactions', icon: 'list' },
   { name: 'reporting', label: 'Reporting', icon: 'bar-chart' },

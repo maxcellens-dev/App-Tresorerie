@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useProfile } from '../hooks/useProfile';
 import {
   useCategories,
   useAddCategory,
@@ -34,6 +35,8 @@ const COLORS = {
   textSecondary: '#94a3b8',
   emerald: '#34d399',
   danger: '#ef4444',
+  teal: '#2dd4bf',
+  amber: '#f59e0b',
 };
 
 function groupCategories(categories: Category[]) {
@@ -51,6 +54,8 @@ function groupCategories(categories: Category[]) {
 export default function CategoriesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
   const [refreshing, setRefreshing] = useState(false);
   
   const categoriesQuery = useCategories(user?.id);
@@ -113,6 +118,10 @@ export default function CategoriesScreen() {
   }
 
   function handleDelete(c: Category) {
+    if (c.is_default && !isAdmin) {
+      Alert.alert('Non autorisé', 'Seul un administrateur peut supprimer les catégories par défaut.');
+      return;
+    }
     const message = `Supprimer « ${c.name} » ? Les transactions liées ne seront plus catégorisées.`;
     const doDelete = () => {
       deleteCategory.mutateAsync(c.id).catch((e: unknown) => {
@@ -127,6 +136,23 @@ export default function CategoriesScreen() {
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: doDelete },
     ]);
+  }
+
+  async function handleToggleVariable(c: Category) {
+    try {
+      await updateCategory.mutateAsync({
+        id: c.id,
+        name: c.name,
+        is_variable: !c.is_variable,
+      });
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de modifier.');
+    }
+  }
+
+  function canEditCategory(c: Category): boolean {
+    if (c.is_default && !isAdmin) return false;
+    return true;
   }
 
   const income = categories.filter((c) => c.type === 'income');
@@ -247,6 +273,7 @@ export default function CategoriesScreen() {
                       <View key={p.id}>
                         <View style={styles.row}>
                           <Text style={styles.rowLabel}>{p.name}</Text>
+                          {canEditCategory(p) && (
                           <View style={styles.rowActions}>
                             <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8}>
                               <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
@@ -255,10 +282,12 @@ export default function CategoriesScreen() {
                               <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                             </TouchableOpacity>
                           </View>
+                          )}
                         </View>
                         {(incomeGrouped.byParent[p.id] ?? []).map((c) => (
                           <View key={c.id} style={[styles.row, styles.rowChild]}>
                             <Text style={styles.rowLabelChild}>{c.name}</Text>
+                            {canEditCategory(c) && (
                             <View style={styles.rowActions}>
                               <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8}>
                                 <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
@@ -267,6 +296,7 @@ export default function CategoriesScreen() {
                                 <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                               </TouchableOpacity>
                             </View>
+                            )}
                           </View>
                         ))}
                       </View>
@@ -281,7 +311,18 @@ export default function CategoriesScreen() {
                     expenseGrouped.parents.map((p) => (
                       <View key={p.id}>
                         <View style={styles.row}>
-                          <Text style={styles.rowLabel}>{p.name}</Text>
+                          <View style={styles.rowLabelGroup}>
+                            <Text style={styles.rowLabel}>{p.name}</Text>
+                            <TouchableOpacity
+                              style={[styles.variableBadge, p.is_variable ? styles.variableBadgeOn : styles.variableBadgeOff]}
+                              onPress={() => handleToggleVariable(p)}
+                            >
+                              <Text style={[styles.variableBadgeText, p.is_variable ? styles.variableBadgeTextOn : styles.variableBadgeTextOff]}>
+                                {p.is_variable ? 'Variable' : 'Fixe'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                          {canEditCategory(p) && (
                           <View style={styles.rowActions}>
                             <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8}>
                               <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
@@ -290,10 +331,12 @@ export default function CategoriesScreen() {
                               <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                             </TouchableOpacity>
                           </View>
+                          )}
                         </View>
                         {(expenseGrouped.byParent[p.id] ?? []).map((c) => (
                           <View key={c.id} style={[styles.row, styles.rowChild]}>
                             <Text style={styles.rowLabelChild}>{c.name}</Text>
+                            {canEditCategory(c) && (
                             <View style={styles.rowActions}>
                               <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8}>
                                 <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
@@ -302,6 +345,7 @@ export default function CategoriesScreen() {
                                 <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                               </TouchableOpacity>
                             </View>
+                            )}
                           </View>
                         ))}
                       </View>
@@ -430,8 +474,15 @@ const styles = StyleSheet.create({
   },
   rowChild: { paddingLeft: 28, backgroundColor: 'rgba(30,41,59,0.3)' },
   rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text, flex: 1 },
+  rowLabelGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowLabelChild: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
+  variableBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
+  variableBadgeOn: { backgroundColor: COLORS.teal + '20', borderColor: COLORS.teal },
+  variableBadgeOff: { backgroundColor: COLORS.cardBorder + '40', borderColor: COLORS.cardBorder },
+  variableBadgeText: { fontSize: 10, fontWeight: '700' },
+  variableBadgeTextOn: { color: COLORS.teal },
+  variableBadgeTextOff: { color: COLORS.textSecondary },
   empty: { padding: 20, color: COLORS.textSecondary, textAlign: 'center' },
   modalOverlay: {
     flex: 1,

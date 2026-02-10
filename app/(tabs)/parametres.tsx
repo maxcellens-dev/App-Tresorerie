@@ -1,10 +1,10 @@
-import { useState } from 'react';import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, RefreshControl } from 'react-native';
+import { useState } from 'react';import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, RefreshControl, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { useProfile } from '../hooks/useProfile';
+import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 
 const COLORS = {
   bg: '#020617',
@@ -23,7 +23,11 @@ export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const profileQuery = useProfile(user?.id);
   const { data: profile } = profileQuery;
+  const updateProfile = useUpdateProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const [marginInput, setMarginInput] = useState<string | null>(null);
+
+  const currentMargin = marginInput ?? String(profile?.safety_margin_percent ?? 10);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -66,6 +70,35 @@ export default function SettingsScreen() {
             <Text style={styles.rowHint}>Recettes et dépenses par défaut, modifiables pour le plan de trésorerie.</Text>
           </View>
 
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Pilotage</Text>
+            <View style={[styles.row, styles.rowLast, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%' }}>
+                <Ionicons name="shield-outline" size={22} color={COLORS.textSecondary} />
+                <Text style={styles.rowLabel}>Marge de sécurité</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <TextInput
+                    style={styles.marginInput}
+                    value={currentMargin}
+                    onChangeText={(text) => setMarginInput(text.replace(/[^0-9]/g, ''))}
+                    onEndEditing={() => {
+                      const val = parseInt(currentMargin) || 10;
+                      const clamped = Math.max(0, Math.min(50, val));
+                      setMarginInput(null);
+                      if (clamped !== (profile?.safety_margin_percent ?? 10)) {
+                        updateProfile.mutate({ safety_margin_percent: clamped });
+                      }
+                    }}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                  <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '600' }}>%</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.rowHint}>Pourcentage retenu sur votre solde courant dans le calcul du « À dépenser en sécurité ».</Text>
+          </View>
+
           {isAdmin && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Administration</Text>
@@ -87,11 +120,6 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Application</Text>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/theme')} accessibilityRole="button">
-              <Ionicons name="moon-outline" size={22} color={COLORS.textSecondary} />
-              <Text style={styles.rowLabel}>Thème</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-            </TouchableOpacity>
             <TouchableOpacity style={[styles.row, styles.rowLast]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/about')} accessibilityRole="button">
               <Ionicons name="information-circle-outline" size={22} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>À propos</Text>
@@ -127,4 +155,17 @@ const styles = StyleSheet.create({
   rowLast: { borderBottomWidth: 1 },
   rowLabel: { flex: 1, fontSize: 16, color: COLORS.text, fontWeight: '500' },
   rowHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: 8, paddingHorizontal: 4 },
+  marginInput: {
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 8,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '600' as const,
+    textAlign: 'center' as const,
+    width: 52,
+    height: 36,
+    paddingHorizontal: 8,
+  },
 });

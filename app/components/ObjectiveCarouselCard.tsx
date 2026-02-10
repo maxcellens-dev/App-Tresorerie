@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import type { Objective } from '../types/database';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../hooks/useAccountTransactionsByYear';
 
@@ -17,9 +17,6 @@ interface ObjectiveCarouselCardProps {
 }
 
 export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCardProps) {
-  const { width } = useWindowDimensions();
-  const cardWidth = width / 2.8; // Further reduced to ensure full visibility
-
   // For annual objectives, fetch transactions from linked account
   const currentYear = new Date().getFullYear();
   const { data: transactions = [] } = useAccountTransactionsByYear(
@@ -44,9 +41,7 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
     return { percentage, currentAmount };
   }, [objective, transactions]);
 
-  const progressBarWidth = useMemo(() => {
-    return Math.max((progress.percentage / 100) * (cardWidth - 50), 2);
-  }, [progress.percentage, cardWidth]);
+  const progressBarWidth = `${Math.max(progress.percentage, 1)}%`;
 
   return (
     <View
@@ -55,7 +50,6 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
         {
           backgroundColor: COLORS.surface,
           borderColor: COLORS.border,
-          width: cardWidth,
         },
       ]}
     >

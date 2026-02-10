@@ -7,6 +7,7 @@ const COLORS = {
   cardBorder: '#1e293b',
   text: '#ffffff',
   textSecondary: '#94a3b8',
+  violet: '#a78bfa',
   emerald: '#34d399',
   orange: '#f59e0b',
   red: '#ef4444',
@@ -33,7 +34,7 @@ export default function SavingsGaugeCard({ current, thresholdMin, thresholdOptim
     color = COLORS.orange;
   } else if (current < thresholdComfort) {
     status = 'Sain';
-    color = COLORS.emerald;
+    color = COLORS.violet;
   } else {
     status = 'Comfortable';
     color = COLORS.blue;

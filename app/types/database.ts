@@ -3,7 +3,7 @@
  */
 
 export type AccountType = 'checking' | 'savings' | 'investment' | 'other';
-export type ProjectStatus = 'active' | 'completed' | 'on_hold';
+export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'archived';
 export type ObjectiveStatus = 'active' | 'completed' | 'paused';
 
 export interface Profile {
@@ -15,6 +15,7 @@ export interface Profile {
   safety_threshold_min: number;
   safety_threshold_optimal: number;
   safety_threshold_comfort: number;
+  safety_margin_percent?: number;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +40,8 @@ export interface Category {
   parent_id?: string | null;
   icon?: string | null;
   color?: string | null;
+  is_variable?: boolean;
+  is_default?: boolean;
   created_at: string;
 }
 
@@ -49,6 +52,7 @@ export interface Transaction {
   profile_id: string;
   account_id: string;
   category_id: string | null;
+  project_id?: string | null;
   amount: number;
   date: string;
   note: string | null;
@@ -85,7 +89,9 @@ export interface Project {
   target_amount: number;
   monthly_allocation?: number | null;
   target_date?: string | null;
+  source_account_id?: string | null;
   linked_account_id?: string | null;
+  transaction_day?: number | null;
   current_accumulated?: number;
   status: ProjectStatus;
   created_at: string;

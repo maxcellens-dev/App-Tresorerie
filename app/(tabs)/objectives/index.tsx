@@ -20,6 +20,7 @@ import {
 import { useAccounts } from '../../hooks/useAccounts';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../../hooks/useAccountTransactionsByYear';
 import AddObjectiveModal from '../../components/AddObjectiveModal';
+import { usePilotageData } from '../../hooks/usePilotageData';
 
 const COLORS = {
   surface: '#0f172a',
@@ -36,8 +37,44 @@ export default function ObjectivesScreen() {
   const objectivesQuery = useObjectives(user?.id || '');
   const { data: objectives = [], isLoading, refetch } = objectivesQuery;
   const { data: accounts = [] } = useAccounts(user?.id || '');
+  const { data: pilotage } = usePilotageData(user?.id);
   const deleteObjectiveMutation = useDeleteObjective(user?.id || '');
   const updateObjectiveMutation = useUpdateObjective(user?.id || '');
+
+  const savingsAdvice = useMemo(() => {
+    if (!pilotage) return null;
+    const { current_savings, safety_threshold_min, safety_threshold_optimal, safety_threshold_comfort } = pilotage;
+    if (current_savings < safety_threshold_min) {
+      return {
+        icon: 'warning' as const,
+        color: '#ef4444',
+        title: 'Épargne critique',
+        message: `Votre épargne (${current_savings.toFixed(0)} €) est en dessous du seuil minimum (${safety_threshold_min.toFixed(0)} €). Concentrez-vous sur la reconstitution de votre épargne de précaution avant de poursuivre vos objectifs.`,
+      };
+    }
+    if (current_savings < safety_threshold_optimal) {
+      return {
+        icon: 'alert-circle' as const,
+        color: '#f59e0b',
+        title: 'Épargne à renforcer',
+        message: `Votre épargne (${current_savings.toFixed(0)} €) n'a pas encore atteint le seuil optimal (${safety_threshold_optimal.toFixed(0)} €). Continuez à épargner et ajustez vos objectifs d'investissement en conséquence.`,
+      };
+    }
+    if (current_savings < safety_threshold_comfort) {
+      return {
+        icon: 'checkmark-circle' as const,
+        color: '#a78bfa',
+        title: 'Bonne dynamique',
+        message: `Votre épargne (${current_savings.toFixed(0)} €) dépasse le seuil optimal. Vous pouvez avancer sereinement sur vos objectifs tout en visant le seuil de confort (${safety_threshold_comfort.toFixed(0)} €).`,
+      };
+    }
+    return {
+      icon: 'shield-checkmark' as const,
+      color: '#34d399',
+      title: 'Situation confortable',
+      message: `Votre épargne (${current_savings.toFixed(0)} €) dépasse le seuil de confort. Vous êtes en excellente position pour investir et atteindre vos objectifs financiers.`,
+    };
+  }, [pilotage]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -186,6 +223,14 @@ export default function ObjectivesScreen() {
             </View>
             <View>
               <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
+                Mensuel
+              </Text>
+              <Text style={[styles.detailValue, { color: COLORS.text }]}>
+                €{(targetAmount / 12).toFixed(2)}
+              </Text>
+            </View>
+            <View>
+              <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
                 Compte lié
               </Text>
               <Text
@@ -295,6 +340,17 @@ export default function ObjectivesScreen() {
             data={objectives.filter((obj) => obj.status !== 'completed')}
             keyExtractor={(item) => item.id}
             renderItem={renderObjectiveItem}
+            ListHeaderComponent={savingsAdvice ? (
+              <View style={[styles.adviceCard, { borderLeftColor: savingsAdvice.color }]}>
+                <View style={styles.adviceHeader}>
+                  <Ionicons name={savingsAdvice.icon} size={22} color={savingsAdvice.color} />
+                  <Text style={[styles.adviceTitle, { color: savingsAdvice.color }]}>
+                    {savingsAdvice.title}
+                  </Text>
+                </View>
+                <Text style={styles.adviceMessage}>{savingsAdvice.message}</Text>
+              </View>
+            ) : null}
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -366,6 +422,30 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 32,
+  },
+  adviceCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderLeftWidth: 4,
+    padding: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  adviceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  adviceTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  adviceMessage: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
   objectiveCard: {
     borderRadius: 12,

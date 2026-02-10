@@ -9,7 +9,15 @@ import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
 import './global.css';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 30, // 30 s
+      refetchOnWindowFocus: true,
+      refetchOnMount: true,
+    },
+  },
+});
 
 function ConfigSync() {
   useConfigSync(supabase);
@@ -37,8 +45,8 @@ function AppChrome() {
       <View style={styles.content}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="index" options={{ title: 'MyTreasury' }} />
-          <Stack.Screen name="welcome" options={{ title: 'MyTreasury' }} />
+          <Stack.Screen name="index" options={{ title: 'Trésorerie' }} />
+          <Stack.Screen name="welcome" options={{ title: 'Trésorerie' }} />
           <Stack.Screen name="login" options={{ title: 'Connexion' }} />
           <Stack.Screen name="register" options={{ title: 'Inscription' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />

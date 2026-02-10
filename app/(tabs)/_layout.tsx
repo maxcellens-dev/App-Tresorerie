@@ -18,23 +18,22 @@ function TabsHeader({ route }: { route: any }) {
   const titleMap: Record<string, string> = {
     '(tabs)/pilotage': '',
     '(tabs)/transactions': 'Transactions',
-    '(tabs)/treasury-plan': 'Plan de trésorerie',
-    '(tabs)/accounts': 'Comptes',
+    '(tabs)/tresorerie': 'Plan de trésorerie',
+    '(tabs)/comptes': 'Comptes',
     '(tabs)/reporting': 'Reporting',
-    '(tabs)/(secondary)/profile': 'Profil',
-    '(tabs)/(secondary)/settings': 'Paramètres',
+    '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
-    '(tabs)/(secondary)/theme': 'Thème',
     '(tabs)/(secondary)/about': 'À propos',
     '(tabs)/(secondary)/admin': 'Panneau Admin',
     '(tabs)/(secondary)/admin/style-editor': 'Style Editor',
     '(tabs)/(secondary)/admin/seo-center': 'SEO Center',
     '(tabs)/(secondary)/admin/stats-hub': 'Stats Hub',
+    '(tabs)/(secondary)/admin/suggestions': 'Suggestions',
   };
   
-  const customHeaderPages = ['profile', 'settings', 'categories', 'theme', 'about', 'admin'];
+  const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
   const routeName = route.name;
-  const displayTitle = titleMap[fullPath] || 'MyTreasury';
+  const displayTitle = titleMap[fullPath] || 'Trésorerie';
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
   const showBack = customHeaderPages.includes(routeName) || fullPath.includes('admin');
@@ -98,7 +97,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="treasury-plan"
+        name="tresorerie"
         options={{
           title: 'Plan de trésorerie',
           tabBarLabel: 'Tréso',
@@ -108,7 +107,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="accounts"
+        name="comptes"
         options={{
           title: 'Comptes',
           tabBarLabel: 'Comptes',

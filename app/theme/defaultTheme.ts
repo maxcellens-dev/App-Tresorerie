@@ -1,5 +1,5 @@
 /**
- * MyTreasury - Default Theme (Fallback when offline or no config)
+ * Trésorerie - Default Theme (Fallback when offline or no config)
  * Used when MMKV is empty and before any remote config is loaded.
  */
 
@@ -61,7 +61,7 @@ export const defaultTheme: AppTheme = {
 };
 
 export const defaultNavigation: NavigationConfig = {
-  tabs: ['home', 'transactions', 'accounts', 'settings'],
+  tabs: ['home', 'transactions', 'accounts', 'parametres'],
   labels: {
     home: 'Accueil',
     transactions: 'Transactions',
@@ -71,8 +71,8 @@ export const defaultNavigation: NavigationConfig = {
 };
 
 export const defaultTexts: AppTexts = {
-  appName: 'MyTreasury',
-  tagline: 'Votre santé financière en un coup d\'œil',
+  appName: 'Trésorerie',
+  tagline: 'Laissez-vous guider pour faire les meilleurs choix pour vos économies.',
   seo: {},
 };
 

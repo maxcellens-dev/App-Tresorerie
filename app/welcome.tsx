@@ -57,8 +57,8 @@ export default function WelcomeScreen() {
             <View style={styles.iconCircle}>
               <Ionicons name="wallet" size={48} color={COLORS.emerald} />
             </View>
-            <Text style={styles.appName}>MyTreasury</Text>
-            <Text style={styles.tagline}>Pilotez votre avenir financier</Text>
+            <Text style={styles.appName}>Trésorerie</Text>
+            <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
             <Text style={styles.subtag}>Trésorerie · Prévisions · Sérénité</Text>
           </Animated.View>
 

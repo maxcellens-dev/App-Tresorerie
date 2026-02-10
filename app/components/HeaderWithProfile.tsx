@@ -31,11 +31,15 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
 
   // Déterminer la page actuelle pour masquer les boutons
   const currentPage = segments[segments.length - 1] ?? '';
-  const isOnSettings = currentPage === 'settings';
-  const isOnProfile = currentPage === 'profile';
+  const isOnSettings = currentPage === 'parametres';
+  const isAdmin = (profile as any)?.is_admin === true;
 
-  function openProfileMenu() {
-    router.push('/(tabs)/(secondary)/profile');
+  function openSettings() {
+    router.push('/(tabs)/(secondary)/parametres');
+  }
+
+  function openAdmin() {
+    router.push('/(tabs)/(secondary)/admin');
   }
 
   // Déterminer le contenu à afficher à gauche
@@ -60,34 +64,32 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
         {leftContentToRender}
       </View>
       <View style={styles.right}>
-        {!isOnSettings && (
+        {isAdmin && (
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push('/(tabs)/(secondary)/settings')}
+            onPress={openAdmin}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Paramètres"
+            accessibilityLabel="Admin"
           >
-            <Ionicons name="settings-outline" size={24} color={COLORS.text} />
+            <Ionicons name="shield-checkmark" size={22} color="#34d399" />
           </TouchableOpacity>
         )}
-        {!isOnProfile && (
-          <TouchableOpacity
-            style={styles.avatarWrap}
-            onPress={openProfileMenu}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Menu Compte et Notifications"
-          >
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} pointerEvents="none" />
-            ) : (
-              <View style={styles.avatarPlaceholder} pointerEvents="none">
-                <Ionicons name="person" size={22} color={COLORS.textSecondary} />
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.avatarWrap}
+          onPress={openSettings}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Paramètres"
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} pointerEvents="none" />
+          ) : (
+            <View style={styles.avatarPlaceholder} pointerEvents="none">
+              <Ionicons name="person" size={22} color={COLORS.textSecondary} />
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
     </View>
   );

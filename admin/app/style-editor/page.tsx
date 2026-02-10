@@ -33,8 +33,8 @@ const defaultTheme: { colors: ThemeColors; fonts: { heading: string; body: strin
 };
 
 const defaultTexts = {
-  appName: 'MyTreasury',
-  tagline: 'Votre santé financière en un coup d\'œil',
+  appName: 'Trésorerie',
+  tagline: 'Laissez-vous guider pour faire les meilleurs choix pour vos économies.',
   seo: {} as Record<string, string>,
 };
 

@@ -1,4 +1,4 @@
-export const metadata = { title: 'MyTreasury Admin' };
+export const metadata = { title: 'Trésorerie Admin' };
 import Link from 'next/link';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               padding: '12px 16px',
             }}
           >
-            <span style={{ fontWeight: 700 }}>MyTreasury Admin</span>
+            <span style={{ fontWeight: 700 }}>Trésorerie Admin</span>
             <nav style={{ display: 'flex', gap: 16 }}>
               <Link href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>
                 Accueil

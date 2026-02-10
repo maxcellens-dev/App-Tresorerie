@@ -38,14 +38,12 @@ export default function EditAccountScreen() {
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
   const [currency, setCurrency] = useState('EUR');
-  const [balance, setBalance] = useState('0');
 
   useEffect(() => {
     if (account) {
       setName(account.name);
       setType(account.type);
       setCurrency(account.currency);
-      setBalance(account.balance.toString());
     }
   }, [account]);
 
@@ -56,18 +54,12 @@ export default function EditAccountScreen() {
       Alert.alert('Nom requis', 'Donnez un nom au compte.');
       return;
     }
-    const num = parseFloat(balance.replace(',', '.'));
-    if (Number.isNaN(num)) {
-      Alert.alert('Solde invalide', 'Saisissez un nombre.');
-      return;
-    }
     try {
       await updateAccount.mutateAsync({
         id,
         name: trimmed,
         type,
         currency: currency || 'EUR',
-        balance: num,
       });
       router.back();
     } catch (e: unknown) {
@@ -142,17 +134,10 @@ export default function EditAccountScreen() {
           <Text style={styles.label}>Devise</Text>
           <TextInput style={styles.input} value={currency} onChangeText={setCurrency} placeholder="EUR" placeholderTextColor={COLORS.textSecondary} />
 
-          <Text style={styles.label}>Solde actuel</Text>
-          <TextInput
-            style={styles.input}
-            value={balance}
-            onChangeText={setBalance}
-            placeholder="0"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="decimal-pad"
-            returnKeyType="done"
-            onSubmitEditing={handleSubmit}
-          />
+          <View style={styles.balanceInfo}>
+            <Ionicons name="information-circle-outline" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.balanceInfoText}>Le solde ne peut être modifié qu'via des transactions.</Text>
+          </View>
 
           <TouchableOpacity style={[styles.submitBtn, updateAccount.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateAccount.isPending} accessibilityRole="button">
             {updateAccount.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
@@ -202,4 +187,16 @@ const styles = StyleSheet.create({
   submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
   closeBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 20, borderWidth: 1, borderColor: COLORS.danger },
   closeBtnLabel: { fontSize: 16, fontWeight: '600', color: COLORS.danger },
+  balanceInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.card,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    marginBottom: 20,
+  },
+  balanceInfoText: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
 });

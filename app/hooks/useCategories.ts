@@ -113,7 +113,7 @@ export function useAddCategory(profileId: string | undefined) {
 export function useUpdateCategory(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; name: string; type?: 'income' | 'expense'; parent_id?: string | null }) => {
+    mutationFn: async (input: { id: string; name: string; type?: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom de la catégorie est requis.');
@@ -141,6 +141,7 @@ export function useUpdateCategory(profileId: string | undefined) {
           name: input.name.trim(),
           ...(input.type != null && { type: input.type }),
           ...(input.parent_id !== undefined && { parent_id: input.parent_id }),
+          ...(input.is_variable !== undefined && { is_variable: input.is_variable }),
         })
         .eq('id', input.id)
         .eq('profile_id', profileId)

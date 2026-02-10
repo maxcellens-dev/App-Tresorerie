@@ -59,6 +59,7 @@ export default function ObjectivesListCard({ objectives, isLoading = false, onVi
           renderItem={({ item }) => <ObjectiveCarouselCard objective={item} />}
           onItemPress={handleObjectivePress}
           height={145}
+          fillParent
         />
       )}
     </View>

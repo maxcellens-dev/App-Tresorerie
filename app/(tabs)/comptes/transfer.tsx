@@ -9,15 +9,18 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Calendar } from 'react-native-calendars';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useAddTransaction } from '../../hooks/useTransactions';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 
 const COLORS = {
   bg: '#020617',
@@ -30,15 +33,18 @@ const COLORS = {
 
 export default function TransferScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
   const addTransaction = useAddTransaction(user?.id);
 
-  const [fromAccountId, setFromAccountId] = useState('');
+  const [fromAccountId, setFromAccountId] = useState(params.from || '');
   const [toAccountId, setToAccountId] = useState('');
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayISO());
+  const [dateDisplay, setDateDisplay] = useState(formatDateFrench(todayISO()));
   const [note, setNote] = useState('Virement interne');
+  const [showCalendar, setShowCalendar] = useState(false);
 
   async function handleSubmit() {
     const num = parseFloat(amount.replace(',', '.'));
@@ -150,13 +156,26 @@ export default function TransferScreen() {
           />
 
           <Text style={styles.label}>Date</Text>
-          <TextInput
-            style={styles.input}
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={COLORS.textSecondary}
-          />
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }]}
+              value={dateDisplay}
+              onChangeText={(text) => {
+                setDateDisplay(text);
+                const parsed = parseDateFromFrench(text);
+                if (parsed) setDate(parsed);
+              }}
+              onBlur={() => { if (date) setDateDisplay(formatDateFrench(date)); }}
+              placeholder="jj-mm-aaaa"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+            <TouchableOpacity
+              style={styles.calendarBtn}
+              onPress={() => setShowCalendar(true)}
+            >
+              <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.label}>Libellé (optionnel)</Text>
           <TextInput
@@ -180,6 +199,43 @@ export default function TransferScreen() {
             )}
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Calendar Modal */}
+        <Modal visible={showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+          <View style={styles.calendarOverlay}>
+            <View style={styles.calendarContainer}>
+              <View style={styles.calendarHeader}>
+                <TouchableOpacity onPress={() => setShowCalendar(false)}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Sélectionner une date</Text>
+                <View style={{ width: 50 }} />
+              </View>
+              <Calendar
+                current={date}
+                maxDate="2050-12-31"
+                onDayPress={(day: any) => {
+                  setDate(day.dateString);
+                  setDateDisplay(formatDateFrench(day.dateString));
+                  setShowCalendar(false);
+                }}
+                markedDates={date ? { [date]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#fff' } } : {}}
+                theme={{
+                  backgroundColor: COLORS.card,
+                  calendarBackground: COLORS.card,
+                  textSectionTitleColor: COLORS.text,
+                  selectedDayBackgroundColor: COLORS.emerald,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: COLORS.emerald,
+                  dayTextColor: COLORS.text,
+                  textDisabledColor: '#334155',
+                  monthTextColor: COLORS.text,
+                  arrowColor: COLORS.emerald,
+                }}
+              />
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -238,4 +294,37 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  calendarBtn: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 12,
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  calendarOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  calendarContainer: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    overflow: 'hidden',
+    padding: 8,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
 });

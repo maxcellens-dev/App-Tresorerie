@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { Account, Transaction, Project, Objective, Profile, RecurrenceRule, TransactionWithDetails } from '../types/database';
+import type { Account, Transaction, Project, Objective, Profile, Category, RecurrenceRule, TransactionWithDetails } from '../types/database';
+
+export interface TransactionWithCategory extends TransactionWithDetails {
+  category?: { name: string; type: string; is_variable?: boolean };
+}
 
 export interface PilotageData {
   // Step 1: Safe to Spend
@@ -58,7 +62,7 @@ export interface PilotageData {
 async function fetchPilotageData(profileId: string): Promise<{
   profile: Profile | null;
   accounts: Account[];
-  transactions: TransactionWithDetails[];
+  transactions: TransactionWithCategory[];
   projects: Project[];
   objectives: Objective[];
 }> {
@@ -67,7 +71,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
-    supabase.from('transactions').select('*, account:accounts(name), category:categories(name, type)').eq('profile_id', profileId),
+    supabase.from('transactions').select('*, account:accounts(name), category:categories(*)').eq('profile_id', profileId),
     supabase.from('projects').select('*').eq('profile_id', profileId),
     supabase.from('objectives').select('*').eq('profile_id', profileId),
   ]);
@@ -86,7 +90,7 @@ async function fetchPilotageData(profileId: string): Promise<{
       amount: Number(t.amount),
       account: t.account,
       category: t.category,
-    })) as TransactionWithDetails[],
+    })) as TransactionWithCategory[],
     projects: (projectsRes.data ?? []).map((p: any) => ({
       ...p,
       target_amount: Number(p.target_amount),
@@ -149,61 +153,75 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const current_savings = total_savings;
 
   // =====================================================================
-  // STEP 1: Safe to Spend
+  // STEP 1: Safe to Spend (full calculation - Task 13)
   // =====================================================================
   const current_checking_balance = total_checking;
+  const safety_margin_percent = profile?.safety_margin_percent ?? 10;
 
-  // Calculate remaining fixed expenses (recurring transactions for current month that haven't passed)
+  // Remaining fixed expenses: recurring/forecast negative transactions for this month
   const remaining_fixed_expenses = transactions
     .filter(t => {
       const [tYear, tMonth] = t.date.split('-').map(Number);
       if (tYear !== currentYear || tMonth !== currentMonth) return false;
-      // Count transactions that are "fixed" (recurring or forecast)
       return (t.is_recurring || t.is_forecast) && t.amount < 0;
     })
     .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
 
-  // Calculate committed allocations (projects monthly + any savings goals)
-  const committed_allocations = projects
+  // Committed allocations: active projects monthly + active objectives monthly (target_yearly / 12)
+  const committed_project_allocations = projects
     .filter(p => p.status === 'active')
     .reduce((sum, p) => sum + Number(p.monthly_allocation), 0);
 
-  const safe_to_spend = Math.max(0, current_checking_balance - remaining_fixed_expenses - committed_allocations);
+  const committed_objective_monthly = objectives
+    .filter(o => o.status === 'active')
+    .reduce((sum, o) => sum + (Number(o.target_yearly_amount) / 12), 0);
+
+  const committed_allocations = committed_project_allocations + committed_objective_monthly;
+
+  // Safety margin
+  const safety_margin_amount = current_checking_balance * (safety_margin_percent / 100);
+
+  const safe_to_spend = Math.max(0,
+    current_checking_balance
+    - remaining_fixed_expenses
+    - committed_allocations
+    - safety_margin_amount
+  );
 
   // =====================================================================
-  // STEP 2: Variable Expense Trend
+  // STEP 2: Variable Expense Trend (using is_variable flag)
   // =====================================================================
-  // Get last 3 months dates
   const lastThreeMonths: Array<{ year: number; month: number }> = [];
   for (let i = 2; i >= 0; i--) {
     const d = new Date(currentYear, currentMonth - 1 - i, 1);
     lastThreeMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
   }
 
-  const variable_expenses_3m_list = transactions
-    .filter(t => {
-      const [tYear, tMonth] = t.date.split('-').map(Number);
-      const category = t.category?.name?.toLowerCase() || '';
-      // Variable category expenses
-      if (category.includes('variable') || category.includes('consumption') || category.includes('shopping')) {
-        return lastThreeMonths.some(m => m.year === tYear && m.month === tMonth && t.amount < 0);
-      }
-      return false;
-    })
-    .map(t => Math.abs(Number(t.amount)));
+  // Variable expenses per month for last 3 months (using is_variable category flag)
+  const variableByMonth: Record<string, number> = {};
+  for (const m of lastThreeMonths) {
+    variableByMonth[`${m.year}-${m.month}`] = 0;
+  }
 
-  const avg_variable_expenses_3m = variable_expenses_3m_list.length > 0 ? variable_expenses_3m_list.reduce((a, b) => a + b) / 3 : 0;
+  for (const t of transactions) {
+    if (t.amount >= 0) continue;
+    const cat = (t as TransactionWithCategory).category;
+    if (!cat?.is_variable) continue;
+    const [tYear, tMonth] = t.date.split('-').map(Number);
+    const key = `${tYear}-${tMonth}`;
+    if (key in variableByMonth) {
+      variableByMonth[key] += Math.abs(Number(t.amount));
+    }
+  }
 
-  const current_month_variable = transactions
-    .filter(t => {
-      const [tYear, tMonth] = t.date.split('-').map(Number);
-      const category = t.category?.name?.toLowerCase() || '';
-      if (category.includes('variable') || category.includes('consumption') || category.includes('shopping')) {
-        return tYear === currentYear && tMonth === currentMonth && t.amount < 0;
-      }
-      return false;
-    })
-    .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+  const monthlyTotals = Object.values(variableByMonth);
+  const nonZeroMonths = monthlyTotals.filter(v => v > 0);
+  const avg_variable_expenses_3m = nonZeroMonths.length > 0
+    ? nonZeroMonths.reduce((a, b) => a + b, 0) / nonZeroMonths.length
+    : 0;
+
+  const currentMonthKey = `${currentYear}-${currentMonth}`;
+  const current_month_variable = variableByMonth[currentMonthKey] ?? 0;
 
   const variable_trend_percentage = avg_variable_expenses_3m > 0 ? (current_month_variable / avg_variable_expenses_3m) * 100 : 0;
 
@@ -221,16 +239,47 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const projects_with_progress = projects
     .filter(p => p.status === 'active')
-    .map(p => ({
-      id: p.id,
-      name: p.name,
-      target_amount: Number(p.target_amount),
-      monthly_allocation: Number(p.monthly_allocation),
-      progress_percentage: sum_all_project_targets > 0 ? (available_savings / Number(p.target_amount)) * 100 : 0,
-      status: p.status,
-    }));
+    .map(p => {
+      // Calculer la progression bas\u00e9e sur les transactions r\u00e9elles li\u00e9es au projet
+      const projectTransactionsTotal = transactions
+        .filter(t => t.project_id === p.id)
+        .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+      
+      // Ajouter aussi les montants r\u00e9currents futurs d\u00e9j\u00e0 pass\u00e9s (instanci\u00e9s)
+      let recurringPastTotal = 0;
+      for (const t of transactions) {
+        if (t.project_id === p.id && t.is_recurring && t.recurrence_rule) {
+          const startDate = new Date(t.date);
+          const endDate = t.recurrence_end_date ? new Date(t.recurrence_end_date) : now;
+          let d = new Date(startDate);
+          d.setMonth(d.getMonth() + 1); // Skip first month (already counted as one-time)
+          while (d <= now && d <= endDate) {
+            recurringPastTotal += Math.abs(Number(t.amount));
+            if (t.recurrence_rule === 'monthly') d.setMonth(d.getMonth() + 1);
+            else if (t.recurrence_rule === 'quarterly') d.setMonth(d.getMonth() + 3);
+            else if (t.recurrence_rule === 'yearly') d.setFullYear(d.getFullYear() + 1);
+            else if (t.recurrence_rule === 'weekly') d.setDate(d.getDate() + 7);
+            else break;
+          }
+        }
+      }
+      
+      const totalAccumulated = projectTransactionsTotal + recurringPastTotal;
+      const progress = Number(p.target_amount) > 0 ? (totalAccumulated / Number(p.target_amount)) * 100 : 0;
 
-  const global_projects_percentage = sum_all_project_targets > 0 ? (available_savings / sum_all_project_targets) * 100 : 0;
+      return {
+        id: p.id,
+        name: p.name,
+        target_amount: Number(p.target_amount),
+        monthly_allocation: Number(p.monthly_allocation),
+        progress_percentage: Math.min(progress, 100),
+        status: p.status,
+      };
+    });
+
+  const global_projects_percentage = sum_all_project_targets > 0 
+    ? (projects_with_progress.reduce((sum, p) => sum + (p.progress_percentage / 100) * p.target_amount, 0) / sum_all_project_targets) * 100 
+    : 0;
 
   // =====================================================================
   // STEP 5: Objectives Achievement

@@ -12,7 +12,7 @@ import {
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { useProjects, useDeleteProject, useUpdateProject } from '../../hooks/useProjects';
+import { useProjects, useDeleteProject, useDeleteProjectFull, useArchiveProject, useUpdateProject, useCheckProjectTransactions } from '../../hooks/useProjects';
 import AddProjectModal from '../../components/AddProjectModal';
 
 const COLORS = {
@@ -30,11 +30,17 @@ export default function ProjectsScreen() {
   const projectsQuery = useProjects(user?.id || '');
   const { data: projects = [], isLoading, refetch } = projectsQuery;
   const deleteProjectMutation = useDeleteProject(user?.id || '');
+  const deleteFullMutation = useDeleteProjectFull(user?.id || '');
+  const archiveMutation = useArchiveProject(user?.id || '');
   const updateProjectMutation = useUpdateProject(user?.id || '');
+  const { check: checkTransactions } = useCheckProjectTransactions(user?.id || '');
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteMode, setDeleteMode] = useState<'simple' | 'choose'>('simple');
+  const [hasPastTxns, setHasPastTxns] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -45,13 +51,56 @@ export default function ProjectsScreen() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    setDeleteConfirmId(id);
+  const handleDelete = async (id: string) => {
+    try {
+      const { past, future } = await checkTransactions(id);
+      setDeleteConfirmId(id);
+      if (past.length > 0) {
+        setDeleteMode('choose');
+        setHasPastTxns(true);
+      } else {
+        setDeleteMode('simple');
+        setHasPastTxns(false);
+      }
+    } catch {
+      setDeleteConfirmId(id);
+      setDeleteMode('simple');
+      setHasPastTxns(false);
+    }
+  };
+
+  const confirmDeleteFull = () => {
+    if (!deleteConfirmId) return;
+    Alert.alert(
+      'Attention',
+      'Toutes les transactions passées et futures liées à ce projet seront supprimées. Cette action est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Tout supprimer',
+          style: 'destructive',
+          onPress: () => {
+            deleteFullMutation.mutate(deleteConfirmId, {
+              onSuccess: () => { setDeleteConfirmId(null); refetch(); },
+              onError: () => setDeleteConfirmId(null),
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmArchive = () => {
+    if (!deleteConfirmId) return;
+    archiveMutation.mutate(deleteConfirmId, {
+      onSuccess: () => { setDeleteConfirmId(null); refetch(); },
+      onError: () => setDeleteConfirmId(null),
+    });
   };
 
   const confirmDelete = () => {
     if (!deleteConfirmId) return;
-    deleteProjectMutation.mutate(deleteConfirmId, {
+    deleteFullMutation.mutate(deleteConfirmId, {
       onSuccess: () => {
         setDeleteConfirmId(null);
         refetch();
@@ -96,12 +145,14 @@ export default function ProjectsScreen() {
       active: COLORS.primary,
       on_hold: COLORS.textSecondary,
       completed: '#10b981',
+      archived: '#f59e0b',
     };
 
     const statusLabels = {
       active: 'Actif',
       on_hold: 'En pause',
       completed: 'Complété',
+      archived: 'Archivé',
     } as const;
 
     return (
@@ -266,9 +317,23 @@ export default function ProjectsScreen() {
           </View>
         ) : (
           <FlatList
-            data={projects.filter((p) => p.status !== 'completed')}
+            data={showArchived
+              ? projects.filter((p) => p.status === 'archived')
+              : projects.filter((p) => p.status !== 'completed' && p.status !== 'archived')
+            }
             keyExtractor={(item) => item.id}
             renderItem={renderProjectItem}
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={[styles.archivedToggle, showArchived && styles.archivedToggleActive]}
+                onPress={() => setShowArchived(!showArchived)}
+              >
+                <Ionicons name={showArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color={showArchived ? COLORS.primary : COLORS.textSecondary} />
+                <Text style={{ color: showArchived ? COLORS.primary : COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>
+                  {showArchived ? 'Voir projets actifs' : 'Voir projets archivés'}
+                </Text>
+              </TouchableOpacity>
+            }
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -289,28 +354,72 @@ export default function ProjectsScreen() {
         <View style={styles.confirmDialogOverlay}>
           <View style={styles.confirmDialog}>
             <Text style={[styles.confirmTitle, { color: COLORS.text }]}>Supprimer le projet</Text>
-            <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
-              Êtes-vous sûr de vouloir supprimer ce projet ?
-            </Text>
-            <View style={styles.confirmButtons}>
-              <TouchableOpacity
-                style={[styles.confirmButtonCancel, { borderColor: COLORS.border }]}
-                onPress={cancelDelete}
-              >
-                <Text style={[styles.confirmButtonText, { color: COLORS.textSecondary }]}>
-                  Annuler
+            {deleteMode === 'choose' ? (
+              <>
+                <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
+                  Ce projet a des transactions passées. Que souhaitez-vous faire ?
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmButtonDelete, { backgroundColor: '#ef4444' }]}
-                onPress={confirmDelete}
-                disabled={deleteProjectMutation.isPending}
-              >
-                <Text style={[styles.confirmButtonText, { color: '#fff' }]}>
-                  {deleteProjectMutation.isPending ? 'Suppression...' : 'Supprimer'}
+                <View style={{ gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.confirmButtonDelete, { backgroundColor: '#ef4444' }]}
+                    onPress={confirmDeleteFull}
+                    disabled={deleteFullMutation.isPending || archiveMutation.isPending}
+                  >
+                    <Text style={[styles.confirmButtonText, { color: '#fff' }]}>
+                      Tout supprimer
+                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, textAlign: 'center' }}>
+                      Supprime le projet et toutes les transactions
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmButtonDelete, { backgroundColor: '#f59e0b' }]}
+                    onPress={confirmArchive}
+                    disabled={deleteFullMutation.isPending || archiveMutation.isPending}
+                  >
+                    <Text style={[styles.confirmButtonText, { color: '#fff' }]}>
+                      {archiveMutation.isPending ? 'Archivage...' : 'Archiver'}
+                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, textAlign: 'center' }}>
+                      Conserve les transactions passées, supprime les futures
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmButtonCancel, { borderColor: COLORS.border }]}
+                    onPress={cancelDelete}
+                  >
+                    <Text style={[styles.confirmButtonText, { color: COLORS.textSecondary }]}>
+                      Annuler
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
+                  Ce projet et toutes ses transactions seront supprimés.
                 </Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.confirmButtons}>
+                  <TouchableOpacity
+                    style={[styles.confirmButtonCancel, { borderColor: COLORS.border }]}
+                    onPress={cancelDelete}
+                  >
+                    <Text style={[styles.confirmButtonText, { color: COLORS.textSecondary }]}>
+                      Annuler
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.confirmButtonDelete, { backgroundColor: '#ef4444' }]}
+                    onPress={confirmDelete}
+                    disabled={deleteFullMutation.isPending}
+                  >
+                    <Text style={[styles.confirmButtonText, { color: '#fff' }]}>
+                      {deleteFullMutation.isPending ? 'Suppression...' : 'Supprimer'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       )}
@@ -505,5 +614,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  archivedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 12,
+  },
+  archivedToggleActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '10',
   },
 });

@@ -36,6 +36,7 @@ interface CarouselProps<T extends CarouselItem = CarouselItem> {
   autoScrollInterval?: number; // ms between auto-scrolls
   itemWidth?: number; // pixels
   height?: number;
+  fillParent?: boolean; // When true, items fill parent width instead of using itemWidth
 }
 
 const screenWidth = Dimensions.get('window').width;
@@ -47,6 +48,7 @@ export default function Carousel<T extends CarouselItem = CarouselItem>({
   autoScrollInterval = 5000,
   itemWidth = screenWidth - 32, // Default: full width minus padding
   height = 150,
+  fillParent = false,
 }: CarouselProps<T>) {
   const scrollViewRef = useRef<ScrollView>(null);
   const autoScrollTimer = useRef<NodeJS.Timeout>();
@@ -88,30 +90,46 @@ export default function Carousel<T extends CarouselItem = CarouselItem>({
 
   return (
     <View style={[styles.container, { height }]}>
-      <ScrollView
-        ref={scrollViewRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-        snapToInterval={itemWidth + 16}
-        decelerationRate="fast"
-        contentContainerStyle={styles.scrollContent}
-      >
-        {items.map((item, index) => (
-          <TouchableOpacity
-            key={item.id}
-            onPress={() => onItemPress(item.id)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.itemWrapper, { width: itemWidth }]}>
-              {renderItem({ item, onPress: onItemPress, index })}
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-
+      {fillParent ? (
+        // Non-scrollable single-item display that fills parent width
+        <View style={styles.fillContent}>
+          {items.map((item, index) => (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => onItemPress(item.id)}
+              activeOpacity={0.7}
+              style={{ width: '100%' }}
+            >
+              <View style={[styles.itemWrapper, { width: '100%' }]}>
+                {renderItem({ item, onPress: onItemPress, index })}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : (
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          snapToInterval={itemWidth + 16}
+          decelerationRate="fast"
+          contentContainerStyle={styles.scrollContent}
+        >
+          {items.map((item, index) => (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => onItemPress(item.id)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.itemWrapper, { width: itemWidth }]}>
+                {renderItem({ item, onPress: onItemPress, index })}
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -121,9 +139,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    gap: 16,
-    paddingRight: 16,
+    paddingHorizontal: 0,
+    gap: 12,
+    paddingRight: 0,
+  },
+  fillContent: {
+    flex: 1,
+    gap: 8,
   },
   itemWrapper: {
     height: '100%',

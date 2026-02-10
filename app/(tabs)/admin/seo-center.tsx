@@ -36,7 +36,7 @@ export default function SEOCenter() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [seoData, setSeoData] = useState<Record<string, string>>({
-    pageTitle: 'MyTreasury – Santé financière prédictive',
+    pageTitle: 'Trésorerie – Gestion de trésorerie personnelle',
     pageDescription: 'Gérez vos comptes, catégories et transactions en mode offline-first.',
     keywords: 'trésorerie, finances, santé financière, offline-first',
   });

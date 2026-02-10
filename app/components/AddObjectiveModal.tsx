@@ -46,6 +46,7 @@ export default function AddObjectiveModal({
     name: '',
     description: '',
     target_yearly_amount: '',
+    monthly_amount: '',
     linked_account_id: null as string | null,
   });
 
@@ -58,6 +59,9 @@ export default function AddObjectiveModal({
         name: editingObjective.name || '',
         description: editingObjective.description || '',
         target_yearly_amount: editingObjective.target_yearly_amount?.toString() || '',
+        monthly_amount: editingObjective.target_yearly_amount
+          ? (editingObjective.target_yearly_amount / 12).toFixed(2).replace(/\.?0+$/, '')
+          : '',
         linked_account_id: editingObjective.linked_account_id || null,
       });
     } else if (visible) {
@@ -65,6 +69,7 @@ export default function AddObjectiveModal({
         name: '',
         description: '',
         target_yearly_amount: '',
+        monthly_amount: '',
         linked_account_id: null,
       });
     }
@@ -73,6 +78,10 @@ export default function AddObjectiveModal({
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.target_yearly_amount.trim()) {
       alert('Veuillez remplir au moins le nom et le montant cible');
+      return;
+    }
+    if (!form.linked_account_id) {
+      alert('Veuillez sélectionner un compte lié');
       return;
     }
 
@@ -91,6 +100,7 @@ export default function AddObjectiveModal({
               name: '',
               description: '',
               target_yearly_amount: '',
+              monthly_amount: '',
               linked_account_id: null,
             });
             onSuccess?.();
@@ -113,6 +123,7 @@ export default function AddObjectiveModal({
               name: '',
               description: '',
               target_yearly_amount: '',
+              monthly_amount: '',
               linked_account_id: null,
             });
             onSuccess?.();
@@ -128,6 +139,7 @@ export default function AddObjectiveModal({
       name: '',
       description: '',
       target_yearly_amount: '',
+      monthly_amount: '',
       linked_account_id: null,
     });
     setShowAccountPicker(false);
@@ -229,12 +241,50 @@ export default function AddObjectiveModal({
                   placeholder="5000"
                   placeholderTextColor={COLORS.textSecondary}
                   value={form.target_yearly_amount}
-                  onChangeText={(text) =>
+                  onChangeText={(text) => {
+                    const clean = text.replace(/[^0-9.]/g, '');
+                    const yearly = parseFloat(clean);
                     setForm({
                       ...form,
-                      target_yearly_amount: text.replace(/[^0-9.]/g, ''),
-                    })
-                  }
+                      target_yearly_amount: clean,
+                      monthly_amount: !isNaN(yearly) && yearly > 0
+                        ? (yearly / 12).toFixed(2).replace(/\.?0+$/, '')
+                        : '',
+                    });
+                  }}
+                  keyboardType="decimal-pad"
+                  editable={!(addObjectiveMutation.isPending || updateObjectiveMutation.isPending)}
+                />
+              </View>
+
+              {/* Monthly Amount (linked) */}
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: COLORS.text }]}>
+                  Mensuel (€)
+                </Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: COLORS.background,
+                      color: COLORS.text,
+                      borderColor: COLORS.border,
+                    },
+                  ]}
+                  placeholder="416.67"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={form.monthly_amount}
+                  onChangeText={(text) => {
+                    const clean = text.replace(/[^0-9.]/g, '');
+                    const monthly = parseFloat(clean);
+                    setForm({
+                      ...form,
+                      monthly_amount: clean,
+                      target_yearly_amount: !isNaN(monthly) && monthly > 0
+                        ? (monthly * 12).toFixed(2).replace(/\.?0+$/, '')
+                        : '',
+                    });
+                  }}
                   keyboardType="decimal-pad"
                   editable={!(addObjectiveMutation.isPending || updateObjectiveMutation.isPending)}
                 />
@@ -243,7 +293,7 @@ export default function AddObjectiveModal({
               {/* Linked Account */}
               <View style={styles.field}>
                 <Text style={[styles.label, { color: COLORS.text }]}>
-                  Compte lié (optionnel)
+                  Compte lié *
                 </Text>
                 <TouchableOpacity
                   style={[

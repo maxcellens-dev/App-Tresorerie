@@ -1,5 +1,5 @@
 # ============================================
-# MyTreasury - .gitignore (Expo + Next.js admin)
+# Trésorerie - .gitignore (Expo + Next.js admin)
 # ============================================
 
 # ----- Env & secrets (ne jamais commiter les clés Supabase) -----

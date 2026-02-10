@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Calendar } from 'react-native-calendars';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useCategories } from '../../../hooks/useCategories';
 import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
+import { formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
 
 const COLORS = {
   bg: '#020617',
@@ -37,6 +39,7 @@ export default function EditTransactionScreen() {
 
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
+  const [dateDisplay, setDateDisplay] = useState('');
   const [note, setNote] = useState('');
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -44,18 +47,20 @@ export default function EditTransactionScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
+  const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
 
   useEffect(() => {
     if (tx) {
       setAmount(Math.abs(tx.amount).toString());
       setDate(tx.date);
+      setDateDisplay(formatDateFrench(tx.date));
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
       setIsExpense(tx.amount < 0);
       setIsRecurring(tx.is_recurring ?? false);
       setRecurrenceRule((tx.recurrence_rule as RecurrenceRule) ?? 'monthly');
-      setRecurrenceEndDateInput(tx.recurrence_end_date ?? '');
+      setRecurrenceEndDateInput(tx.recurrence_end_date ? formatDateFrench(tx.recurrence_end_date) : '');
     }
   }, [tx]);
 
@@ -67,6 +72,9 @@ export default function EditTransactionScreen() {
       return;
     }
     const finalAmount = isExpense ? -Math.abs(num) : Math.abs(num);
+    const endDateISO = isRecurring && recurrenceEndDateInput.trim()
+      ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
+      : null;
     try {
       await updateTx.mutateAsync({
         id,
@@ -77,7 +85,7 @@ export default function EditTransactionScreen() {
         note: note || undefined,
         is_recurring: isRecurring,
         recurrence_rule: isRecurring ? recurrenceRule : null,
-        recurrence_end_date: isRecurring && recurrenceEndDateInput.trim() ? recurrenceEndDateInput.trim() : null,
+        recurrence_end_date: endDateISO,
       });
       router.back();
     } catch (e: unknown) {
@@ -156,7 +164,26 @@ export default function EditTransactionScreen() {
           <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
 
           <Text style={styles.label}>Date</Text>
-          <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={COLORS.textSecondary} />
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }]}
+              value={dateDisplay}
+              onChangeText={(text) => {
+                setDateDisplay(text);
+                const parsed = parseDateFromFrench(text);
+                if (parsed) setDate(parsed);
+              }}
+              onBlur={() => { if (date) setDateDisplay(formatDateFrench(date)); }}
+              placeholder="jj-mm-aaaa"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+            <TouchableOpacity
+              style={styles.calendarBtn}
+              onPress={() => setShowCalendar('date')}
+            >
+              <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.label}>Compte</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
@@ -200,15 +227,23 @@ export default function EditTransactionScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <TextInput
-                  style={styles.input}
-                  value={recurrenceEndDateInput}
-                  onChangeText={setRecurrenceEndDateInput}
-                  placeholder="Fin (YYYY-MM-DD ou vide)"
-                  placeholderTextColor={COLORS.textSecondary}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    value={recurrenceEndDateInput}
+                    onChangeText={setRecurrenceEndDateInput}
+                    placeholder="jj-mm-aaaa ou vide"
+                    placeholderTextColor={COLORS.textSecondary}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit}
+                  />
+                  <TouchableOpacity
+                    style={styles.calendarBtn}
+                    onPress={() => setShowCalendar('end')}
+                  >
+                    <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -222,6 +257,53 @@ export default function EditTransactionScreen() {
             <Text style={styles.deleteLabel}>Supprimer la transaction</Text>
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Calendar Modal */}
+        <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+          <View style={styles.calendarOverlay}>
+            <View style={styles.calendarContainer}>
+              <View style={styles.calendarHeader}>
+                <TouchableOpacity onPress={() => setShowCalendar(false)}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
+                  {showCalendar === 'end' ? 'Date de fin' : 'Sélectionner une date'}
+                </Text>
+                <View style={{ width: 50 }} />
+              </View>
+              <Calendar
+                current={showCalendar === 'end' ? (parseDateFromFrench(recurrenceEndDateInput) || date) : date}
+                maxDate="2050-12-31"
+                onDayPress={(day: any) => {
+                  if (showCalendar === 'end') {
+                    setRecurrenceEndDateInput(formatDateFrench(day.dateString));
+                  } else {
+                    setDate(day.dateString);
+                    setDateDisplay(formatDateFrench(day.dateString));
+                  }
+                  setShowCalendar(false);
+                }}
+                markedDates={(() => {
+                  const d = showCalendar === 'end' ? (parseDateFromFrench(recurrenceEndDateInput) || '') : date;
+                  if (!d) return {};
+                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#fff' } };
+                })()}
+                theme={{
+                  backgroundColor: COLORS.card,
+                  calendarBackground: COLORS.card,
+                  textSectionTitleColor: COLORS.text,
+                  selectedDayBackgroundColor: COLORS.emerald,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: COLORS.emerald,
+                  dayTextColor: COLORS.text,
+                  textDisabledColor: '#334155',
+                  monthTextColor: COLORS.text,
+                  arrowColor: COLORS.emerald,
+                }}
+              />
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -260,4 +342,37 @@ const styles = StyleSheet.create({
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingVertical: 14 },
   deleteLabel: { fontSize: 15, color: COLORS.danger, fontWeight: '600' },
   text: { color: COLORS.text },
+  calendarBtn: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 12,
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  calendarOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  calendarContainer: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    overflow: 'hidden',
+    padding: 8,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
 });

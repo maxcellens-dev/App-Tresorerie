@@ -23,7 +23,12 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false 
   
   return (
     <View style={[styles.container, { borderColor: color + '40' }]}>
-      <Text style={styles.label}>À dépenser en sécurité</Text>
+      <View style={styles.header}>
+        <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
+          <Text style={{ fontSize: 20 }}>💰</Text>
+        </View>
+        <Text style={styles.label}>À dépenser en sécurité</Text>
+      </View>
       <Text style={[styles.amount, { color }]}>
         {amount.toFixed(0)} €
       </Text>
@@ -46,6 +51,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
     gap: 8,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
     fontSize: 13,

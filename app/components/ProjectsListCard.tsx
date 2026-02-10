@@ -59,6 +59,7 @@ export default function ProjectsListCard({ projects, isLoading = false, onViewAl
           renderItem={({ item }) => <ProjectCarouselCard project={item} />}
           onItemPress={handleProjectPress}
           height={145}
+          fillParent
         />
       )}
     </View>

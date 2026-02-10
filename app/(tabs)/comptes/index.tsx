@@ -56,7 +56,7 @@ export default function AccountsListScreen() {
             <TouchableOpacity
               style={styles.addBtn}
               activeOpacity={0.8}
-              onPress={() => router.push('/(tabs)/accounts/add')}
+              onPress={() => router.push('/(tabs)/comptes/add')}
               accessibilityRole="button"
             >
               <Ionicons name="add" size={24} color={COLORS.text} />
@@ -66,7 +66,7 @@ export default function AccountsListScreen() {
             <TouchableOpacity
               style={styles.addBtn}
               activeOpacity={0.8}
-              onPress={() => router.push('/(tabs)/accounts/transfer')}
+              onPress={() => router.push('/(tabs)/comptes/transfer')}
               accessibilityRole="button"
             >
               <Ionicons name="swap-horizontal" size={22} color={COLORS.text} />
@@ -102,7 +102,7 @@ export default function AccountsListScreen() {
                   <TouchableOpacity
                     key={acc.id}
                     style={styles.accountCard}
-                    onPress={() => router.push(`/(tabs)/accounts/${acc.id}`)}
+                    onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
                     activeOpacity={0.8}
                     accessibilityRole="button"
                   >

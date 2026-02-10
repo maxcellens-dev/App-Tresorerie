@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Calendar } from 'react-native-calendars';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
@@ -11,6 +12,7 @@ import { useAddTransaction } from '../../hooks/useTransactions';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../types/database';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 
 const COLORS = {
   bg: '#020617',
@@ -21,25 +23,42 @@ const COLORS = {
   emerald: '#34d399',
 };
 
+type TransactionType = 'expense' | 'income' | 'transfer';
+
 export default function AddTransactionScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ type?: string }>();
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
   const addTransaction = useAddTransaction(user?.id);
 
+  // Déterminer le type initial depuis les params ou par défaut 'expense'
+  const getInitialType = (): TransactionType => {
+    if (params.type === 'income') return 'income';
+    if (params.type === 'transfer') return 'transfer';
+    return 'expense';
+  };
+
   const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayISO());
+  const [dateDisplay, setDateDisplay] = useState(formatDateFrench(todayISO()));
   const [note, setNote] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [targetAccountId, setTargetAccountId] = useState(''); // Pour les virements
   const [categoryId, setCategoryId] = useState('');
-  const [isExpense, setIsExpense] = useState(true);
+  const [transactionType, setTransactionType] = useState<TransactionType>(getInitialType());
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState(''); // vide = sans fin
+  const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
+
+  const isExpense = transactionType === 'expense';
+  const isIncome = transactionType === 'income';
+  const isTransfer = transactionType === 'transfer';
 
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
-  useEffect(() => setCategoryId(''), [isExpense]);
+  useEffect(() => setCategoryId(''), [isExpense, isIncome]);
 
   async function handleSubmit() {
     const num = parseFloat(amount.replace(',', '.'));
@@ -48,25 +67,55 @@ export default function AddTransactionScreen() {
       return;
     }
     if (!accountId) {
-      Alert.alert('Compte requis', 'Choisissez un compte.');
+      Alert.alert('Compte requis', 'Choisissez un compte source.');
       return;
     }
+    
+    if (isTransfer) {
+      if (!targetAccountId) {
+        Alert.alert('Compte cible requis', 'Choisissez un compte de destination.');
+        return;
+      }
+      if (accountId === targetAccountId) {
+        Alert.alert('Comptes identiques', 'Choisissez des comptes différents.');
+        return;
+      }
+    }
+
     const finalAmount = isExpense ? -Math.abs(num) : Math.abs(num);
+    const endDateISO = isRecurring && recurrenceEndDateInput.trim()
+      ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
+      : null;
 
     try {
       await addTransaction.mutateAsync({
         account_id: accountId,
-        category_id: categoryId || null,
+        category_id: isTransfer ? null : (categoryId || null),
         amount: finalAmount,
         date,
-        note: note || undefined,
+        note: note || (isTransfer ? `Virement vers ${accounts.find(a => a.id === targetAccountId)?.name}` : undefined),
         is_recurring: isRecurring,
         recurrence_rule: isRecurring ? recurrenceRule : null,
-        recurrence_end_date: isRecurring && recurrenceEndDateInput.trim() ? recurrenceEndDateInput.trim() : null,
+        recurrence_end_date: endDateISO,
       });
+
+      // Si c'est un virement, créer aussi la transaction opposée sur le compte cible
+      if (isTransfer) {
+        await addTransaction.mutateAsync({
+          account_id: targetAccountId,
+          category_id: null,
+          amount: num, // Montant positif pour le compte récepteur
+          date,
+          note: note || `Virement depuis ${accounts.find(a => a.id === accountId)?.name}`,
+          is_recurring: isRecurring,
+          recurrence_rule: isRecurring ? recurrenceRule : null,
+          recurrence_end_date: endDateISO,
+        });
+      }
+
       router.back();
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     }
   }
 
@@ -93,17 +142,27 @@ export default function AddTransactionScreen() {
           <View style={styles.typeSelector}>
             <TouchableOpacity
               style={[styles.typeBtn, isExpense && styles.typeBtnActive]}
-              onPress={() => setIsExpense(true)}
+              onPress={() => setTransactionType('expense')}
               accessibilityRole="button"
             >
+              <Ionicons name="arrow-down" size={18} color={isExpense ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
               <Text style={[styles.typeBtnLabel, isExpense && styles.typeBtnLabelActive]}>Dépense</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.typeBtn, !isExpense && styles.typeBtnActive]}
-              onPress={() => setIsExpense(false)}
+              style={[styles.typeBtn, isIncome && styles.typeBtnActive]}
+              onPress={() => setTransactionType('income')}
               accessibilityRole="button"
             >
-              <Text style={[styles.typeBtnLabel, !isExpense && styles.typeBtnLabelActive]}>Recette</Text>
+              <Ionicons name="arrow-up" size={18} color={isIncome ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
+              <Text style={[styles.typeBtnLabel, isIncome && styles.typeBtnLabelActive]}>Recette</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.typeBtn, isTransfer && styles.typeBtnActive]}
+              onPress={() => setTransactionType('transfer')}
+              accessibilityRole="button"
+            >
+              <Ionicons name="swap-horizontal" size={18} color={isTransfer ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
+              <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
             </TouchableOpacity>
           </View>
 
@@ -118,15 +177,30 @@ export default function AddTransactionScreen() {
           />
 
           <Text style={styles.label}>Date</Text>
-          <TextInput
-            style={styles.input}
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={COLORS.textSecondary}
-          />
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }]}
+              value={dateDisplay}
+              onChangeText={(text) => {
+                setDateDisplay(text);
+                const parsed = parseDateFromFrench(text);
+                if (parsed) setDate(parsed);
+              }}
+              onBlur={() => {
+                if (date) setDateDisplay(formatDateFrench(date));
+              }}
+              placeholder="jj-mm-aaaa"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+            <TouchableOpacity
+              style={styles.calendarBtn}
+              onPress={() => setShowCalendar('date')}
+            >
+              <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+            </TouchableOpacity>
+          </View>
 
-          <Text style={styles.label}>Compte</Text>
+          <Text style={styles.label}>Compte {isTransfer ? 'source' : ''}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
             {accounts.map((acc) => (
               <TouchableOpacity
@@ -139,23 +213,43 @@ export default function AddTransactionScreen() {
             ))}
           </ScrollView>
           {accounts.length === 0 && (
-            <Text style={styles.hint}>Aucun compte. Ajoutez-en un dans l’onglet Comptes.</Text>
+            <Text style={styles.hint}>Aucun compte. Ajoutez-en un dans l'onglet Comptes.</Text>
           )}
 
-          <CategoryPicker
-            key={isExpense ? 'expense' : 'income'}
-            groups={categoryGroups}
-            selectedCategoryId={categoryId}
-            onSelect={setCategoryId}
-            label="Sous-catégorie (optionnel)"
-          />
+          {isTransfer && (
+            <>
+              <Text style={styles.label}>Compte cible</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                {accounts.map((acc) => (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[styles.chip, targetAccountId === acc.id && styles.chipActive]}
+                    onPress={() => setTargetAccountId(acc.id)}
+                    disabled={acc.id === accountId}
+                  >
+                    <Text style={[styles.chipText, targetAccountId === acc.id && styles.chipTextActive, acc.id === accountId && styles.chipTextDisabled]}>{acc.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
 
-          <Text style={styles.label}>Libellé (optionnel)</Text>
+          {!isTransfer && (
+            <CategoryPicker
+              key={isExpense ? 'expense' : 'income'}
+              groups={categoryGroups}
+              selectedCategoryId={categoryId}
+              onSelect={setCategoryId}
+              label="Sous-catégorie (optionnel)"
+            />
+          )}
+
+          <Text style={styles.label}>Libellé {isTransfer ? '' : '(optionnel)'}</Text>
           <TextInput
             style={styles.input}
             value={note}
             onChangeText={setNote}
-            placeholder="Ex. Courses, Salaire..."
+            placeholder={isTransfer ? "Ex. Virement épargne..." : "Ex. Courses, Salaire..."}
             placeholderTextColor={COLORS.textSecondary}
             returnKeyType="done"
             onSubmitEditing={handleSubmit}
@@ -167,7 +261,7 @@ export default function AddTransactionScreen() {
               onPress={() => setIsRecurring(!isRecurring)}
             >
               <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
-              <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>Récurrent (ex. salaire mensuel)</Text>
+              <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>{isTransfer ? 'Virement récurrent' : 'Récurrent (ex. salaire mensuel)'}</Text>
             </TouchableOpacity>
             {isRecurring && (
               <>
@@ -186,15 +280,23 @@ export default function AddTransactionScreen() {
                   ))}
                 </View>
                 <Text style={styles.label}>Fin (optionnel, vide = sans fin)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={recurrenceEndDateInput}
-                  onChangeText={setRecurrenceEndDateInput}
-                  placeholder="YYYY-MM-DD ou vide"
-                  placeholderTextColor={COLORS.textSecondary}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    value={recurrenceEndDateInput}
+                    onChangeText={setRecurrenceEndDateInput}
+                    placeholder="jj-mm-aaaa ou vide"
+                    placeholderTextColor={COLORS.textSecondary}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit}
+                  />
+                  <TouchableOpacity
+                    style={styles.calendarBtn}
+                    onPress={() => setShowCalendar('end')}
+                  >
+                    <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -212,6 +314,53 @@ export default function AddTransactionScreen() {
             )}
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Calendar Modal */}
+        <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+          <View style={styles.calendarOverlay}>
+            <View style={styles.calendarContainer}>
+              <View style={styles.calendarHeader}>
+                <TouchableOpacity onPress={() => setShowCalendar(false)}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
+                  {showCalendar === 'end' ? 'Date de fin' : 'Sélectionner une date'}
+                </Text>
+                <View style={{ width: 50 }} />
+              </View>
+              <Calendar
+                current={showCalendar === 'end' ? (recurrenceEndDateInput || date) : date}
+                maxDate="2050-12-31"
+                onDayPress={(day: any) => {
+                  if (showCalendar === 'end') {
+                    setRecurrenceEndDateInput(formatDateFrench(day.dateString));
+                  } else {
+                    setDate(day.dateString);
+                    setDateDisplay(formatDateFrench(day.dateString));
+                  }
+                  setShowCalendar(false);
+                }}
+                markedDates={(() => {
+                  const d = showCalendar === 'end' ? recurrenceEndDateInput : date;
+                  if (!d) return {};
+                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#fff' } };
+                })()}
+                theme={{
+                  backgroundColor: COLORS.card,
+                  calendarBackground: COLORS.card,
+                  textSectionTitleColor: COLORS.text,
+                  selectedDayBackgroundColor: COLORS.emerald,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: COLORS.emerald,
+                  dayTextColor: COLORS.text,
+                  textDisabledColor: '#334155',
+                  monthTextColor: COLORS.text,
+                  arrowColor: COLORS.emerald,
+                }}
+              />
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -224,6 +373,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
+  typeSelector: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder },
+  typeBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
+  typeBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  typeBtnLabelActive: { color: COLORS.bg },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
@@ -246,6 +400,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
   chipText: { fontSize: 14, color: COLORS.text },
   chipTextActive: { color: COLORS.bg, fontWeight: '600' },
+  chipTextDisabled: { opacity: 0.5 },
   hint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 16 },
   text: { color: COLORS.text, marginBottom: 16 },
   btn: { backgroundColor: COLORS.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
@@ -269,4 +424,36 @@ const styles = StyleSheet.create({
   submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
   submitBtnDisabled: { opacity: 0.6 },
   submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  calendarBtn: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 12,
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarContainer: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    width: '90%',
+    maxWidth: 380,
+    overflow: 'hidden',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.cardBorder,
+  },
 });

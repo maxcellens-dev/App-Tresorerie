@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "MyTreasury",
-    "slug": "mytreasury",
+    "name": "Trésorerie",
+    "slug": "tresorerie",
     "version": "1.0.0",
-    "scheme": "mytreasury",
+    "scheme": "tresorerie",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "plugins": ["expo-router"],

@@ -46,6 +46,7 @@ export function useAddTransaction(profileId: string | undefined) {
       is_recurring?: boolean;
       recurrence_rule?: RecurrenceRule | null;
       recurrence_end_date?: string | null;
+      project_id?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data, error } = await supabase
@@ -61,6 +62,7 @@ export function useAddTransaction(profileId: string | undefined) {
           is_recurring: input.is_recurring ?? false,
           recurrence_rule: input.recurrence_rule ?? null,
           recurrence_end_date: input.recurrence_end_date ?? null,
+          project_id: input.project_id ?? null,
         })
         .select()
         .single();

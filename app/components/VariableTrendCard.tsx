@@ -7,7 +7,8 @@ const COLORS = {
   cardBorder: '#1e293b',
   text: '#ffffff',
   textSecondary: '#94a3b8',
-  emerald: '#34d399',
+  amber: '#f59e0b',
+  teal: '#2dd4bf',
   orange: '#f59e0b',
   red: '#ef4444',
 };
@@ -20,7 +21,7 @@ interface VariableTrendProps {
 
 export default function VariableTrendCard({ current, average, percentage }: VariableTrendProps) {
   const isOver = percentage > 100;
-  const color = percentage > 100 ? COLORS.orange : COLORS.emerald;
+  const color = percentage > 100 ? COLORS.orange : COLORS.teal;
   const progressWidth = Math.min(percentage, 100);
 
   return (

@@ -1,6 +1,6 @@
-# MyTreasury
+# Trésorerie
 
-Application de santé financière prédictive, **Offline-First** avec contrôle admin du thème via Supabase (Remote Config).
+Application de gestion de trésorerie personnelle, **Offline-First** avec contrôle admin du thème via Supabase (Remote Config).
 
 ## 🚀 Quick Start
 

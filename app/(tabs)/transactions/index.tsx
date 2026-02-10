@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useCategories } from '../../hooks/useCategories';
+import { useAccounts } from '../../hooks/useAccounts';
 import type { TransactionWithDetails, RecurrenceRule } from '../../types/database';
 
 const COLORS = {
@@ -77,9 +78,26 @@ export default function TransactionsListScreen() {
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string }>();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  const [accountFilterId, setAccountFilterId] = useState<string | null>(null);
+  const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null);
+  const [filterInitialized, setFilterInitialized] = useState(false);
+  const [showAccountFilter, setShowAccountFilter] = useState(false);
   
   const transactionsQuery = useTransactions(user?.id);
   const { data: transactions = [], isLoading } = transactionsQuery;
+  const { data: accounts = [] } = useAccounts(user?.id);
+
+  // Par défaut, filtrer sur les comptes courants (premier compte checking trouvé)
+  useEffect(() => {
+    if (!filterInitialized && accounts.length > 0) {
+      const firstChecking = accounts.find((a: any) => a.type === 'checking');
+      if (firstChecking) {
+        setAccountFilterId(firstChecking.id);
+        setDefaultAccountId(firstChecking.id);
+      }
+      setFilterInitialized(true);
+    }
+  }, [accounts, filterInitialized]);
   
   const [periodOffset, setPeriodOffset] = useState(-2);
   const now = new Date();
@@ -165,8 +183,12 @@ export default function TransactionsListScreen() {
         }
       }
     }
+    // Filtre par compte
+    if (accountFilterId) {
+      list = list.filter((t) => t.account_id === accountFilterId);
+    }
     return list;
-  }, [displayedTransactions, params.categoryId, categories]);
+  }, [displayedTransactions, params.categoryId, categories, accountFilterId]);
 
   const byMonth = useMemo(() => {
     const map: Record<string, TransactionWithDetails[]> = {};
@@ -196,7 +218,9 @@ export default function TransactionsListScreen() {
     });
   }, [filtered]);
 
-  const hasFilter = !!params.categoryId;
+  const isManualFilter = !!accountFilterId && accountFilterId !== defaultAccountId;
+  const hasFilter = !!params.categoryId || isManualFilter;
+  const selectedAccountName = accounts.find(a => a.id === accountFilterId)?.name;
   
   // Afficher/cacher boutons nav si singleMonth
   const showPeriodNav = params.singleMonth !== '1';
@@ -230,23 +254,69 @@ export default function TransactionsListScreen() {
             >
               <Ionicons name="chevron-forward" size={24} color={COLORS.text} />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterBtn, accountFilterId && styles.filterBtnActive]}
+              onPress={() => setShowAccountFilter(!showAccountFilter)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="filter" size={18} color={accountFilterId ? COLORS.bg : COLORS.textSecondary} />
+            </TouchableOpacity>
           </View>
+        )}
+        {showAccountFilter && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountFilterScroll}>
+            <TouchableOpacity
+              style={[styles.accountFilterChip, !accountFilterId && styles.accountFilterChipActive]}
+              onPress={() => { setAccountFilterId(null); setShowAccountFilter(false); }}
+            >
+              <Text style={[styles.accountFilterChipText, !accountFilterId && styles.accountFilterChipTextActive]}>Tous</Text>
+            </TouchableOpacity>
+            {accounts.map((acc) => (
+              <TouchableOpacity
+                key={acc.id}
+                style={[styles.accountFilterChip, accountFilterId === acc.id && styles.accountFilterChipActive]}
+                onPress={() => { setAccountFilterId(acc.id); setShowAccountFilter(false); }}
+              >
+                <Text style={[styles.accountFilterChipText, accountFilterId === acc.id && styles.accountFilterChipTextActive]}>{acc.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         )}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.addBtn}
             activeOpacity={0.8}
-            onPress={() => router.push('/(tabs)/transactions/add')}
+            onPress={() => router.push('/(tabs)/transactions/add?type=transfer')}
             accessibilityRole="button"
           >
-            <Ionicons name="add" size={24} color={COLORS.text} />
-            <Text style={styles.addBtnLabel}>Ajouter</Text>
+            <Ionicons name="swap-horizontal" size={20} color={COLORS.text} />
+            <Text style={styles.addBtnLabel}>Virement</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addBtn}
+            activeOpacity={0.8}
+            onPress={() => router.push('/(tabs)/transactions/add?type=expense')}
+            accessibilityRole="button"
+          >
+            <Ionicons name="arrow-down" size={20} color={COLORS.text} />
+            <Text style={styles.addBtnLabel}>Dépenses</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addBtn}
+            activeOpacity={0.8}
+            onPress={() => router.push('/(tabs)/transactions/add?type=income')}
+            accessibilityRole="button"
+          >
+            <Ionicons name="arrow-up" size={20} color={COLORS.text} />
+            <Text style={styles.addBtnLabel}>Recette</Text>
           </TouchableOpacity>
         </View>
         {hasFilter && (
-          <TouchableOpacity style={styles.clearFilter} onPress={() => router.replace('/(tabs)/transactions')}>
+          <TouchableOpacity style={styles.clearFilter} onPress={() => { router.replace('/(tabs)/transactions'); setAccountFilterId(defaultAccountId); }}>
             <Ionicons name="filter" size={18} color={COLORS.emerald} />
-            <Text style={styles.clearFilterText}>Filtre actif · Réinitialiser</Text>
+            <Text style={styles.clearFilterText}>
+              {accountFilterId && selectedAccountName ? `Compte: ${selectedAccountName}` : 'Filtre actif'} · Réinitialiser
+            </Text>
           </TouchableOpacity>
         )}
         <ScrollView
@@ -312,21 +382,23 @@ export default function TransactionsListScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  header: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
   addBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: COLORS.card,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  addBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
   clearFilter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingVertical: 8 },
   clearFilterText: { fontSize: 14, color: COLORS.emerald, fontWeight: '600' },
   scroll: { flex: 1 },
@@ -375,6 +447,44 @@ const styles = StyleSheet.create({
   periodBtn: { 
     padding: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  filterBtn: {
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    marginLeft: 4,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  filterBtnActive: {
+    backgroundColor: COLORS.emerald,
+    borderColor: COLORS.emerald,
+  },
+  accountFilterScroll: {
+    marginBottom: 12,
+    maxHeight: 44,
+  },
+  accountFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    marginRight: 8,
+    backgroundColor: COLORS.card,
+  },
+  accountFilterChipActive: {
+    backgroundColor: COLORS.emerald,
+    borderColor: COLORS.emerald,
+  },
+  accountFilterChipText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  accountFilterChipTextActive: {
+    color: COLORS.bg,
+    fontWeight: '600',
   },
   periodText: { 
     fontSize: 14, 

@@ -9,7 +9,7 @@ import type { AppConfigPayload } from '../../theme/defaultTheme';
 const CONFIG_KEY = 'app_config';
 const CONFIG_UPDATED_AT_KEY = 'app_config_updated_at';
 
-export const configStorage = new MMKV({ id: 'mytreasury-config' });
+export const configStorage = new MMKV({ id: 'tresorerie-config' });
 
 export function getStoredConfig(): AppConfigPayload | null {
   try {

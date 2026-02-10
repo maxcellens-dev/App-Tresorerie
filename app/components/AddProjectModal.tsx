@@ -39,7 +39,9 @@ interface FormState {
   allocation_type: 'monthly' | 'date';
   monthly_allocation: string;
   target_date: string;
+  source_account_id: string | null;
   linked_account_id: string | null;
+  first_payment_date: string;
   current_accumulated: number;
 }
 
@@ -61,12 +63,14 @@ export default function AddProjectModal({
     allocation_type: 'monthly',
     monthly_allocation: '',
     target_date: '',
+    source_account_id: null,
     linked_account_id: null,
+    first_payment_date: '',
     current_accumulated: 0,
   });
 
-  const [showAccountPicker, setShowAccountPicker] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [showAccountPicker, setShowAccountPicker] = useState<'source' | 'destination' | null>(null);
+  const [showCalendar, setShowCalendar] = useState<'target' | 'payment' | false>(false);
 
   // Load editing project data when modal opens
   useEffect(() => {
@@ -78,7 +82,9 @@ export default function AddProjectModal({
         allocation_type: editingProject.target_date ? 'date' : 'monthly',
         monthly_allocation: editingProject.monthly_allocation?.toString() || '',
         target_date: editingProject.target_date || '',
+        source_account_id: editingProject.source_account_id || null,
         linked_account_id: editingProject.linked_account_id || null,
+        first_payment_date: editingProject.transaction_day ? (() => { const d = new Date(); d.setDate(editingProject.transaction_day!); return d.toISOString().slice(0, 10); })() : '',
         current_accumulated: editingProject.current_accumulated || 0,
       });
     } else if (visible) {
@@ -89,7 +95,9 @@ export default function AddProjectModal({
         allocation_type: 'monthly',
         monthly_allocation: '',
         target_date: '',
+        source_account_id: null,
         linked_account_id: null,
+        first_payment_date: '',
         current_accumulated: 0,
       });
     }
@@ -123,6 +131,16 @@ export default function AddProjectModal({
       return;
     }
 
+    if (!form.source_account_id || !form.linked_account_id) {
+      alert('Veuillez sélectionner un compte source et un compte de destination');
+      return;
+    }
+
+    if (form.source_account_id === form.linked_account_id) {
+      alert('Le compte source et le compte de destination doivent être différents');
+      return;
+    }
+
     let monthlyAlloc: number;
     if (form.allocation_type === 'monthly') {
       if (!form.monthly_allocation.trim()) {
@@ -138,8 +156,24 @@ export default function AddProjectModal({
       monthlyAlloc = calculatedAllocation;
     }
 
+    const resetForm = () => {
+      setForm({
+        name: '',
+        description: '',
+        target_amount: '',
+        allocation_type: 'monthly',
+        monthly_allocation: '',
+        target_date: '',
+        source_account_id: null,
+        linked_account_id: null,
+        first_payment_date: '',
+        current_accumulated: 0,
+      });
+      onSuccess?.();
+      onClose();
+    };
+
     if (editingProject) {
-      // Update existing project
       updateProjectMutation.mutate(
         {
           id: editingProject.id,
@@ -149,27 +183,13 @@ export default function AddProjectModal({
           monthly_allocation: monthlyAlloc,
           target_date: form.allocation_type === 'date' ? form.target_date : null,
           current_accumulated: form.current_accumulated,
-          linked_account_id: form.linked_account_id || undefined,
+          source_account_id: form.source_account_id,
+          linked_account_id: form.linked_account_id,
+          transaction_day: form.first_payment_date ? new Date(form.first_payment_date).getDate() : 1,
         },
-        {
-          onSuccess: () => {
-            setForm({
-              name: '',
-              description: '',
-              target_amount: '',
-              allocation_type: 'monthly',
-              monthly_allocation: '',
-              target_date: '',
-              linked_account_id: null,
-              current_accumulated: 0,
-            });
-            onSuccess?.();
-            onClose();
-          },
-        }
+        { onSuccess: resetForm }
       );
     } else {
-      // Create new project
       addProjectMutation.mutate(
         {
           name: form.name,
@@ -178,24 +198,12 @@ export default function AddProjectModal({
           monthly_allocation: monthlyAlloc,
           target_date: form.allocation_type === 'date' ? form.target_date : undefined,
           current_accumulated: form.current_accumulated,
+          source_account_id: form.source_account_id || undefined,
           linked_account_id: form.linked_account_id || undefined,
+          transaction_day: form.first_payment_date ? new Date(form.first_payment_date).getDate() : 1,
+          first_payment_date: form.first_payment_date || undefined,
         },
-        {
-          onSuccess: () => {
-            setForm({
-              name: '',
-              description: '',
-              target_amount: '',
-              allocation_type: 'monthly',
-              monthly_allocation: '',
-              target_date: '',
-              linked_account_id: null,
-              current_accumulated: 0,
-            });
-            onSuccess?.();
-            onClose();
-          },
-        }
+        { onSuccess: resetForm }
       );
     }
   };
@@ -208,10 +216,12 @@ export default function AddProjectModal({
       allocation_type: 'monthly',
       monthly_allocation: '',
       target_date: '',
+      source_account_id: null,
       linked_account_id: null,
+      first_payment_date: '',
       current_accumulated: 0,
     });
-    setShowAccountPicker(false);
+    setShowAccountPicker(null);
     setShowCalendar(false);
     onClose();
   };
@@ -277,6 +287,7 @@ export default function AddProjectModal({
     return `${year}-${month}-${day}`;
   };
 
+  const selectedSourceAccount = accounts.find((acc) => acc.id === form.source_account_id);
   const selectedAccount = accounts.find((acc) => acc.id === form.linked_account_id);
 
   return (
@@ -299,7 +310,7 @@ export default function AddProjectModal({
             <Text style={[styles.title, { color: COLORS.text }]}>
               {editingProject ? 'Modifier Projet' : 'Nouveau Projet'}
             </Text>
-            <TouchableOpacity onPress={handleClose} disabled={(addProjectMutation.isPending || updateProjectMutation.isPending) || showAccountPicker}>
+            <TouchableOpacity onPress={handleClose} disabled={(addProjectMutation.isPending || updateProjectMutation.isPending) || !!showAccountPicker}>
               <Text style={[styles.closeButton, { color: COLORS.primary }]}>✕</Text>
             </TouchableOpacity>
           </View>
@@ -477,7 +488,7 @@ export default function AddProjectModal({
                             borderColor: COLORS.primary,
                           },
                         ]}
-                        onPress={() => setShowCalendar(true)}
+                        onPress={() => setShowCalendar('target')}
                         disabled={addProjectMutation.isPending || updateProjectMutation.isPending}
                       >
                         <Text style={{ fontSize: 20, color: COLORS.primary }}>📅</Text>
@@ -498,10 +509,10 @@ export default function AddProjectModal({
                 </>
               )}
 
-              {/* Linked Account */}
+              {/* Compte source */}
               <View style={styles.field}>
                 <Text style={[styles.label, { color: COLORS.text }]}>
-                  Compte de destination (optionnel)
+                  Compte source *
                 </Text>
                 <TouchableOpacity
                   style={[
@@ -512,7 +523,39 @@ export default function AddProjectModal({
                       justifyContent: 'center',
                     },
                   ]}
-                  onPress={() => setShowAccountPicker(true)}
+                  onPress={() => setShowAccountPicker('source')}
+                  disabled={addProjectMutation.isPending}
+                >
+                  <Text
+                    style={[
+                      styles.pickerText,
+                      {
+                        color: selectedSourceAccount ? COLORS.text : COLORS.textSecondary,
+                      },
+                    ]}
+                  >
+                    {selectedSourceAccount
+                      ? `${selectedSourceAccount.name || 'Compte sans nom'}`
+                      : 'Sélectionner le compte source'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Compte de destination */}
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: COLORS.text }]}>
+                  Compte de destination *
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: COLORS.background,
+                      borderColor: COLORS.border,
+                      justifyContent: 'center',
+                    },
+                  ]}
+                  onPress={() => setShowAccountPicker('destination')}
                   disabled={addProjectMutation.isPending}
                 >
                   <Text
@@ -525,22 +568,67 @@ export default function AddProjectModal({
                   >
                     {selectedAccount
                       ? `${selectedAccount.name || 'Compte sans nom'}`
-                      : 'Sélectionner un compte'}
+                      : 'Sélectionner le compte destination'}
                   </Text>
                 </TouchableOpacity>
+              </View>
+
+              {/* Date du premier virement */}
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: COLORS.text }]}>
+                  Date du premier virement
+                </Text>
+                <View style={styles.dateInputContainer}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.dateTextInput,
+                      {
+                        backgroundColor: COLORS.background,
+                        borderColor: COLORS.border,
+                        color: COLORS.text,
+                      },
+                    ]}
+                    placeholder="jj-mm-aaaa"
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={form.first_payment_date ? formatDateFrench(form.first_payment_date) : ''}
+                    onChangeText={(text) => {
+                      const parsed = parseDateFromFrench(text);
+                      if (parsed) {
+                        setForm({ ...form, first_payment_date: parsed });
+                      } else if (text === '') {
+                        setForm({ ...form, first_payment_date: '' });
+                      }
+                    }}
+                    editable={!(addProjectMutation.isPending || updateProjectMutation.isPending)}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.calendarButton,
+                      {
+                        backgroundColor: COLORS.primary + '20',
+                        borderColor: COLORS.primary,
+                      },
+                    ]}
+                    onPress={() => setShowCalendar('payment')}
+                    disabled={addProjectMutation.isPending || updateProjectMutation.isPending}
+                  >
+                    <Text style={{ fontSize: 20, color: COLORS.primary }}>📅</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </ScrollView>
           ) : (
             /* Account Picker */
             <View style={styles.form}>
               <View style={styles.pickerHeader}>
-                <TouchableOpacity onPress={() => setShowAccountPicker(false)}>
+                <TouchableOpacity onPress={() => setShowAccountPicker(null)}>
                   <Text style={[styles.pickerHeaderText, { color: COLORS.primary }]}>
                     Retour
                   </Text>
                 </TouchableOpacity>
                 <Text style={[styles.pickerHeaderTitle, { color: COLORS.text }]}>
-                  Sélectionner un compte
+                  {showAccountPicker === 'source' ? 'Compte source' : 'Compte destination'}
                 </Text>
                 <View style={{ width: 50 }} />
               </View>
@@ -552,7 +640,10 @@ export default function AddProjectModal({
                 <FlatList
                   data={accounts}
                   keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
+                  renderItem={({ item }) => {
+                    const currentId = showAccountPicker === 'source' ? form.source_account_id : form.linked_account_id;
+                    const isSelected = item.id === currentId;
+                    return (
                     <TouchableOpacity
                       style={[
                         styles.accountOption,
@@ -560,13 +651,17 @@ export default function AddProjectModal({
                           backgroundColor: COLORS.background,
                           borderBottomColor: COLORS.border,
                         },
-                        item.id === form.linked_account_id && {
+                        isSelected && {
                           backgroundColor: COLORS.primary + '20',
                         },
                       ]}
                       onPress={() => {
-                        setForm({ ...form, linked_account_id: item.id });
-                        setShowAccountPicker(false);
+                        if (showAccountPicker === 'source') {
+                          setForm({ ...form, source_account_id: item.id });
+                        } else {
+                          setForm({ ...form, linked_account_id: item.id });
+                        }
+                        setShowAccountPicker(null);
                       }}
                     >
                       <View style={styles.accountContent}>
@@ -575,7 +670,7 @@ export default function AddProjectModal({
                             styles.accountName,
                             {
                               color: COLORS.text,
-                              fontWeight: item.id === form.linked_account_id ? '600' : '400',
+                              fontWeight: isSelected ? '600' : '400',
                             },
                           ]}
                         >
@@ -585,13 +680,14 @@ export default function AddProjectModal({
                           {item.type}
                         </Text>
                       </View>
-                      {item.id === form.linked_account_id && (
+                      {isSelected && (
                         <Text style={[styles.checkmark, { color: COLORS.primary }]}>
                           ✓
                         </Text>
                       )}
                     </TouchableOpacity>
-                  )}
+                    );
+                  }}
                   scrollEnabled={true}
                 />
               )}
@@ -634,7 +730,7 @@ export default function AddProjectModal({
     </Modal>
 
     <Modal
-      visible={showCalendar && visible}
+      visible={!!showCalendar && visible}
       transparent
       animationType="slide"
       onRequestClose={() => setShowCalendar(false)}
@@ -662,14 +758,21 @@ export default function AddProjectModal({
           {/* Calendar */}
           <View style={styles.calendarWrapper}>
             <Calendar
-              current={form.target_date || getTodayDateString()}
-              minDate={getTodayDateString()}
+              current={showCalendar === 'payment' ? (form.first_payment_date || getTodayDateString()) : (form.target_date || getTodayDateString())}
               maxDate="2050-12-31"
               onDayPress={(day: any) => {
-                setForm({ ...form, target_date: day.dateString });
+                if (showCalendar === 'payment') {
+                  setForm({ ...form, first_payment_date: day.dateString });
+                } else {
+                  setForm({ ...form, target_date: day.dateString });
+                }
                 setShowCalendar(false);
               }}
-              markedDates={getMarkedDates()}
+              markedDates={(() => {
+                const dateStr = showCalendar === 'payment' ? form.first_payment_date : form.target_date;
+                if (!dateStr) return {};
+                return { [dateStr]: { selected: true, selectedColor: COLORS.primary, selectedTextColor: '#fff' } };
+              })()}
               theme={{
                 backgroundColor: COLORS.surface,
                 calendarBackground: COLORS.surface,

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import type { Project } from '../types/database';
 
 const COLORS = {
@@ -16,9 +16,6 @@ interface ProjectCarouselCardProps {
 }
 
 export default function ProjectCarouselCard({ project }: ProjectCarouselCardProps) {
-  const { width } = useWindowDimensions();
-  const cardWidth = width / 2.8; // Further reduced to ensure full visibility
-
   const progress = useMemo(() => {
     if (project.target_amount <= 0) return 0;
     const accumulated = project.current_accumulated || 0;
@@ -32,9 +29,7 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
       ? `Cible: ${project.target_date.split('-').reverse().join('-')}`
       : '-';
 
-  const progressBarWidth = useMemo(() => {
-    return Math.max((progress / 100) * (cardWidth - 50), 2);
-  }, [progress, cardWidth]);
+  const progressBarWidth = `${Math.max(progress, 1)}%`;
 
   return (
     <View
@@ -43,7 +38,6 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
         {
           backgroundColor: COLORS.surface,
           borderColor: COLORS.border,
-          width: cardWidth,
         },
       ]}
     >

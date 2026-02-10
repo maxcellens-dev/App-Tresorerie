@@ -11,6 +11,7 @@ export default function AdminLayout() {
       <Stack.Screen name="style-editor" options={{ title: 'Style Editor' }} />
       <Stack.Screen name="seo-center" options={{ title: 'SEO Center' }} />
       <Stack.Screen name="stats-hub" options={{ title: 'Stats Hub' }} />
+      <Stack.Screen name="suggestions" options={{ title: 'Suggestions' }} />
     </Stack>
   );
 }

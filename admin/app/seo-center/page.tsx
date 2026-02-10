@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const defaultSeo = {
-  landingTitle: 'MyTreasury',
+  landingTitle: 'Trésorerie',
   landingDescription: 'Gérez votre trésorerie en toute sérénité.',
   metaTags: {} as Record<string, string>,
 };

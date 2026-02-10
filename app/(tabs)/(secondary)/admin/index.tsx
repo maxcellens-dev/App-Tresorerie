@@ -55,6 +55,13 @@ export default function AdminHub() {
       desc: 'Métriques & activité',
       color: '#f97316',
     },
+    {
+      href: '/(tabs)/(secondary)/admin/suggestions',
+      icon: 'chatbubbles-outline',
+      title: 'Suggestions',
+      desc: 'Idées utilisateurs',
+      color: '#eab308',
+    },
   ];
 
   return (

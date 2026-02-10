@@ -268,13 +268,14 @@ export default function TreasuryPlanScreen() {
       balanceByMonth[m.key] = (incomeByMonth[m.key] ?? 0) - (expenseByMonth[m.key] ?? 0);
     });
     rows.push({ label: 'Solde mensuel', categoryId: null, type: 'balance', values: balanceByMonth, isBlockStart: true });
-    let c = 0;
-    const cumulByMonth: Record<string, number> = {};
-    months.forEach((m) => {
-      c += balanceByMonth[m.key] ?? 0;
-      cumulByMonth[m.key] = c;
+    // Solde anticipé = solde mensuel du mois M - dépenses du mois M+1
+    const anticipatedByMonth: Record<string, number> = {};
+    months.forEach((m, i) => {
+      const nextMonth = i < months.length - 1 ? months[i + 1] : null;
+      const nextExpenses = nextMonth ? (expenseByMonth[nextMonth.key] ?? 0) : 0;
+      anticipatedByMonth[m.key] = (balanceByMonth[m.key] ?? 0) - nextExpenses;
     });
-    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: cumulByMonth });
+    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipatedByMonth });
 
     // DÉPENSES : en-tête puis catégories (parent = somme des sous-catégories) puis TOTAL DÉPENSES
     rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: {}, isSectionHeader: true, isBlockStart: true });
@@ -473,6 +474,9 @@ export default function TreasuryPlanScreen() {
                     >
                       {row.label}
                     </Text>
+                    {row.label === 'Solde anticipé' && (
+                      <Text style={{ fontSize: 8, color: '#64748b', marginTop: 1 }}>avant encaissements m+1</Text>
+                    )}
                   </View>
                   {planData.months.map((m) => {
                     const val = row.values[m.key] ?? 0;
