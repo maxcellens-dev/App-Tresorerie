@@ -9,6 +9,16 @@
     "plugins": ["expo-router"],
     "experiments": {
       "typedRoutes": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./public/favicon.png",
+      "name": "Trésorerie",
+      "shortName": "Trésorerie",
+      "description": "Laissez-vous guider pour faire des économies.",
+      "themeColor": "#020617",
+      "backgroundColor": "#020617"
     }
   }
 }
