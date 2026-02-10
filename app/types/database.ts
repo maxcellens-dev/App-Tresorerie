@@ -77,7 +77,7 @@ export interface TransactionMonthOverride {
 }
 
 export interface TransactionWithDetails extends Transaction {
-  account?: { name: string };
+  account?: { name: string; type: string };
   category?: { name: string; type: string };
 }
 
@@ -113,5 +113,5 @@ export interface Objective {
 }
 
 export interface ObjectiveWithAccount extends Objective {
-  linked_account?: { name: string };
+  linked_account?: { name: string; type: string };
 }

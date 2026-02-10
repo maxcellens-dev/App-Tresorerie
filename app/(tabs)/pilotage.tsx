@@ -12,6 +12,7 @@ import VariableTrendCard from '../components/VariableTrendCard';
 import RecommendationCard from '../components/RecommendationCard';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
+import { ACCOUNT_COLORS } from '../theme/colors';
 
 const COLORS = {
   bg: '#020617',
@@ -74,7 +75,7 @@ export default function PilotageScreen() {
           </View>
         </View>
 
-        {/* Main Content - Bento Grid */}
+        {/* Main Content */}
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -88,15 +89,21 @@ export default function PilotageScreen() {
             />
           }
         >
-          {/* Row 0: Vue d'ensemble complète (comptes + épargne fusionnés) */}
-          <View style={styles.row}>
+
+          {/* ═══════════ SECTION 1 : Vue d'ensemble ═══════════ */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="analytics-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
+            </View>
+            <View style={styles.sectionDivider} />
+
             <View style={styles.accountSummary}>
-              <Text style={styles.summaryTitle}>Vue d'ensemble</Text>
               <View style={styles.summaryGrid}>
-                <View style={[styles.summaryItemEpargne, { borderLeftColor: pilotageData.total_savings < 5000 ? '#ef4444' : pilotageData.total_savings < 10000 ? '#f59e0b' : pilotageData.total_savings < 20000 ? '#60a5fa' : '#34d399' }]}>
+                <View style={[styles.summaryItemEpargne, { borderLeftColor: pilotageData.total_savings < 5000 ? '#ef4444' : pilotageData.total_savings < 10000 ? '#f59e0b' : pilotageData.total_savings < 20000 ? ACCOUNT_COLORS.savings : ACCOUNT_COLORS.savings }]}>
                   {(() => {
                     const s = pilotageData.total_savings;
-                    const col = s < 5000 ? '#ef4444' : s < 10000 ? '#f59e0b' : s < 20000 ? '#60a5fa' : '#34d399';
+                    const col = s < 5000 ? '#ef4444' : s < 10000 ? '#f59e0b' : ACCOUNT_COLORS.savings;
                     const kw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
                     return (
                       <>
@@ -117,49 +124,55 @@ export default function PilotageScreen() {
                         <View style={styles.thresholdRow}>
                           <View style={[styles.thresholdDot, { backgroundColor: '#ef4444' }]} />
                           <Text style={styles.thresholdText}>&lt;5k</Text>
-                          <View style={[styles.thresholdDot, { backgroundColor: '#60a5fa' }]} />
-                          <Text style={styles.thresholdText}>10-20k</Text>
-                          <View style={[styles.thresholdDot, { backgroundColor: '#34d399' }]} />
-                          <Text style={styles.thresholdText}>&gt;20k</Text>
+                          <View style={[styles.thresholdDot, { backgroundColor: '#f59e0b' }]} />
+                          <Text style={styles.thresholdText}>5-10k</Text>
+                          <View style={[styles.thresholdDot, { backgroundColor: ACCOUNT_COLORS.savings }]} />
+                          <Text style={styles.thresholdText}>&gt;10k</Text>
                         </View>
                       </>
                     );
                   })()}
                 </View>
-                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: '#60a5fa' }]}>
-                  <Ionicons name="wallet-outline" size={16} color="#60a5fa" style={{ marginBottom: 2 }} />
+                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.checking }]}>
+                  <Ionicons name="wallet-outline" size={16} color={ACCOUNT_COLORS.checking} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Courant</Text>
-                  <Text style={[styles.summaryAmount, { color: '#60a5fa' }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
+                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.checking }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
                 </View>
-                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: '#a78bfa' }]}>
-                  <Ionicons name="trending-up-outline" size={16} color="#a78bfa" style={{ marginBottom: 2 }} />
+                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.investment }]}>
+                  <Ionicons name="trending-up-outline" size={16} color={ACCOUNT_COLORS.investment} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Investissements</Text>
-                  <Text style={[styles.summaryAmount, { color: '#a78bfa' }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
+                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.investment }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
                 </View>
               </View>
             </View>
           </View>
 
-          {/* Row 1: Safe to Spend + Variable Trend (2 columns) */}
-          <View style={styles.row2Col}>
-            <View style={[styles.col, { flex: 1.2 }]}>
-              <SafeToSpendCard
-                amount={pilotageData.safe_to_spend}
-                isLow={pilotageData.safe_to_spend < pilotageData.committed_allocations}
-                isNegative={pilotageData.safe_to_spend < 0}
-              />
+          {/* ═══════════ SECTION 2 : Ce mois-ci ═══════════ */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="calendar-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Ce mois-ci</Text>
             </View>
-            <View style={[styles.col, { flex: 0.8 }]}>
-              <VariableTrendCard
-                current={pilotageData.current_month_variable}
-                average={pilotageData.avg_variable_expenses_3m}
-                percentage={pilotageData.variable_trend_percentage}
-              />
-            </View>
-          </View>
+            <View style={styles.sectionDivider} />
 
-          {/* Row 2: Recommendation Card (Full Width) - sous le Safe to Spend */}
-          <View style={styles.row}>
+            <View style={styles.row2Col}>
+              <View style={[styles.col, { flex: 1.2 }]}>
+                <SafeToSpendCard
+                  amount={pilotageData.safe_to_spend}
+                  isLow={pilotageData.safe_to_spend < pilotageData.committed_allocations}
+                  isNegative={pilotageData.safe_to_spend < 0}
+                  reserved={pilotageData.same_account_reserved}
+                />
+              </View>
+              <View style={[styles.col, { flex: 0.8 }]}>
+                <VariableTrendCard
+                  current={pilotageData.current_month_variable}
+                  average={pilotageData.avg_variable_expenses_3m}
+                  percentage={pilotageData.variable_trend_percentage}
+                />
+              </View>
+            </View>
+
             <RecommendationCard
               projection={pilotageData.projected_surplus}
               recommendation={pilotageData.recommendation}
@@ -173,33 +186,42 @@ export default function PilotageScreen() {
             />
           </View>
 
-          {/* Row 3: Projects + Objectives (2 columns) */}
-          <View style={styles.row2Col}>
-            <View style={styles.col}>
-              <ProjectsListCard
-                projects={pilotageData.projects_with_progress as any}
-                isLoading={projectsLoading}
-                onCreate={() => {
-                  router.push('/(tabs)/projects');
-                }}
-                onViewAll={() => {
-                  router.push('/(tabs)/projects');
-                }}
-              />
+          {/* ═══════════ SECTION 3 : Objectifs et Projets ═══════════ */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="flag-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Objectifs et Projets</Text>
             </View>
-            <View style={styles.col}>
-              <ObjectivesListCard
-                objectives={pilotageData.objectives_with_progress as any}
-                isLoading={objectivesLoading}
-                onCreate={() => {
-                  router.push('/(tabs)/objectives');
-                }}
-                onViewAll={() => {
-                  router.push('/(tabs)/objectives');
-                }}
-              />
+            <View style={styles.sectionDivider} />
+
+            <View style={styles.row2Col}>
+              <View style={styles.col}>
+                <ProjectsListCard
+                  projects={pilotageData.projects_with_progress as any}
+                  isLoading={projectsLoading}
+                  onCreate={() => {
+                    router.push('/(tabs)/projects');
+                  }}
+                  onViewAll={() => {
+                    router.push('/(tabs)/projects');
+                  }}
+                />
+              </View>
+              <View style={styles.col}>
+                <ObjectivesListCard
+                  objectives={pilotageData.objectives_with_progress as any}
+                  isLoading={objectivesLoading}
+                  onCreate={() => {
+                    router.push('/(tabs)/objectives');
+                  }}
+                  onViewAll={() => {
+                    router.push('/(tabs)/objectives');
+                  }}
+                />
+              </View>
             </View>
           </View>
+
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -213,22 +235,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   title: { fontSize: 28, fontWeight: '700', color: COLORS.text },
   subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
   settingsBtn: { padding: 8 },
   scroll: { flex: 1 },
   scrollContent: {
-    gap: 16,
+    gap: 24,
     paddingBottom: 80,
   },
   loader: { marginVertical: 40 },
 
-  // Bento Grid Layout
-  row: {
-    gap: 16,
+  // Section Layout
+  section: {
+    gap: 14,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: COLORS.cardBorder,
+    marginHorizontal: 4,
+    opacity: 0.6,
+  },
+
+  // Grid
   row2Col: { flexDirection: 'row', gap: 10 },
   col: {
     flex: 1,
@@ -243,13 +285,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.cardBorder,
     gap: 10,
-  },
-  summaryTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   summaryGrid: {
     flexDirection: 'row',
@@ -269,7 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 3,
     borderLeftWidth: 3,
-    borderLeftColor: '#60a5fa',
+    borderLeftColor: ACCOUNT_COLORS.savings,
   },
   summaryLabel: {
     fontSize: 11,
@@ -279,7 +314,7 @@ const styles = StyleSheet.create({
   summaryAmount: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#60a5fa',
+    color: ACCOUNT_COLORS.checking,
   },
   gaugeBarOuter: {
     height: 5,

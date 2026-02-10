@@ -136,11 +136,6 @@ export default function AddProjectModal({
       return;
     }
 
-    if (form.source_account_id === form.linked_account_id) {
-      alert('Le compte source et le compte de destination doivent être différents');
-      return;
-    }
-
     let monthlyAlloc: number;
     if (form.allocation_type === 'monthly') {
       if (!form.monthly_allocation.trim()) {
@@ -186,6 +181,7 @@ export default function AddProjectModal({
           source_account_id: form.source_account_id,
           linked_account_id: form.linked_account_id,
           transaction_day: form.first_payment_date ? new Date(form.first_payment_date).getDate() : 1,
+          first_payment_date: form.first_payment_date || undefined,
         },
         { onSuccess: resetForm }
       );

@@ -16,9 +16,10 @@ interface SafeToSpendProps {
   amount: number;
   isLow?: boolean;
   isNegative?: boolean;
+  reserved?: number;
 }
 
-export default function SafeToSpend({ amount, isLow = false, isNegative = false }: SafeToSpendProps) {
+export default function SafeToSpend({ amount, isLow = false, isNegative = false, reserved = 0 }: SafeToSpendProps) {
   const color = isNegative ? COLORS.red : isLow ? COLORS.orange : COLORS.emerald;
   
   return (
@@ -27,11 +28,16 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false 
         <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
           <Text style={{ fontSize: 20 }}>💰</Text>
         </View>
-        <Text style={styles.label}>À dépenser et placer en sécurité</Text>
+        <Text style={styles.label}>À dépenser ou placer en sécurité</Text>
       </View>
       <Text style={[styles.amount, { color }]}>
         {amount.toFixed(0)} €
       </Text>
+      {reserved > 0 && (
+        <Text style={styles.reservedHint}>
+          dont {reserved.toFixed(0)} € réservés projets
+        </Text>
+      )}
       <Text style={styles.description}>
         {isNegative
           ? 'Attention: solde insuffisant'
@@ -80,5 +86,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 8,
+  },
+  reservedHint: {
+    fontSize: 12,
+    color: '#22d3ee',
+    fontWeight: '500',
+    marginTop: -2,
   },
 });

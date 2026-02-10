@@ -74,6 +74,7 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -110,6 +111,7 @@ export function useAddCategory(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -156,6 +158,7 @@ export function useUpdateCategory(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -174,6 +177,7 @@ export function useBulkUpdateVariable(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -188,6 +192,7 @@ export function useDeleteCategory(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }

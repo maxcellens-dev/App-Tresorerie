@@ -10,6 +10,7 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { usePilotageData } from '../hooks/usePilotageData';
+import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../theme/colors';
 
 /* ── Constants ── */
 const C = {
@@ -423,11 +424,11 @@ export default function ReportingScreen() {
           {/* ═══ KPI CARDS ═══ */}
           <FadeIn delay={80}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
-              <KpiCard icon="wallet-outline" label="Patrimoine total" value={fmtFull(patrimoine)} color={C.emerald} />
-              <KpiCard icon="trending-up-outline" label="Revenus du mois" value={fmtFull(totalIncome)} color={C.sky} />
+              <KpiCard icon="wallet-outline" label="Patrimoine total" value={fmtFull(patrimoine)} color={ACCOUNT_COLORS.checking} />
+              <KpiCard icon="trending-up-outline" label="Revenus du mois" value={fmtFull(totalIncome)} color={ACCOUNT_COLORS.savings} />
               <KpiCard icon="trending-down-outline" label="Dépenses du mois" value={fmtFull(totalExpense)} color={C.rose} />
               {pilotage ? (
-                <KpiCard icon="shield-checkmark-outline" label="À dépenser" value={fmtFull(pilotage.safe_to_spend)} color={C.violet} sub="en sécurité" />
+                <KpiCard icon="shield-checkmark-outline" label="À dépenser" value={fmtFull(pilotage.safe_to_spend)} color={SEMANTIC.variableExpense} sub="en sécurité" />
               ) : null}
             </ScrollView>
           </FadeIn>
@@ -472,12 +473,12 @@ export default function ReportingScreen() {
           <FadeIn delay={320}>
             <View style={s.section}>
               <View style={s.sectionHeader}>
-                <Ionicons name="analytics-outline" size={20} color={C.sky} />
+                <Ionicons name="analytics-outline" size={20} color={ACCOUNT_COLORS.checking} />
                 <Text style={s.sectionTitle}>Évolution du patrimoine</Text>
               </View>
               <Text style={s.sectionSub}>Solde total estimé, 6 mois</Text>
               <View style={s.chartCard}>
-                <AreaLineChart points={patrimoinePoints} width={chartWidth} color={C.sky} />
+                <AreaLineChart points={patrimoinePoints} width={chartWidth} color={ACCOUNT_COLORS.checking} />
               </View>
             </View>
           </FadeIn>
@@ -486,12 +487,12 @@ export default function ReportingScreen() {
           <FadeIn delay={400}>
             <View style={s.section}>
               <View style={s.sectionHeader}>
-                <Ionicons name="leaf-outline" size={20} color={C.emerald} />
+                <Ionicons name="leaf-outline" size={20} color={ACCOUNT_COLORS.savings} />
                 <Text style={s.sectionTitle}>Évolution de l'épargne</Text>
               </View>
               <Text style={s.sectionSub}>Comptes épargne & investissement</Text>
               <View style={s.chartCard}>
-                <AreaLineChart points={savingsPoints} width={chartWidth} color={C.emerald} />
+                <AreaLineChart points={savingsPoints} width={chartWidth} color={ACCOUNT_COLORS.savings} />
               </View>
             </View>
           </FadeIn>
@@ -509,11 +510,11 @@ export default function ReportingScreen() {
                   <View style={s.chartCard}>
                     <Text style={s.subSectionTitle}>Projets</Text>
                     {pilotage.projects_with_progress.map((p) => (
-                      <ProgressRow key={p.id} label={p.name} current={(p.progress_percentage / 100) * p.target_amount} target={p.target_amount} color={C.violet} />
+                      <ProgressRow key={p.id} label={p.name} current={(p.progress_percentage / 100) * p.target_amount} target={p.target_amount} color={SEMANTIC.project} />
                     ))}
                     <View style={s.globalRow}>
                       <Text style={s.globalLabel}>Avancement global</Text>
-                      <Text style={[s.globalValue, { color: C.violet }]}>{pilotage.global_projects_percentage.toFixed(0)}%</Text>
+                      <Text style={[s.globalValue, { color: SEMANTIC.project }]}>{pilotage.global_projects_percentage.toFixed(0)}%</Text>
                     </View>
                   </View>
                 ) : null}
@@ -522,11 +523,11 @@ export default function ReportingScreen() {
                   <View style={[s.chartCard, { marginTop: 12 }]}>
                     <Text style={s.subSectionTitle}>Objectifs annuels</Text>
                     {pilotage.objectives_with_progress.map((o) => (
-                      <ProgressRow key={o.id} label={o.name} current={o.current_year_invested} target={o.target_yearly_amount} color={C.emerald} />
+                      <ProgressRow key={o.id} label={o.name} current={o.current_year_invested} target={o.target_yearly_amount} color={accountColor(o.account_type ?? 'savings')} />
                     ))}
                     <View style={s.globalRow}>
                       <Text style={s.globalLabel}>Avancement global</Text>
-                      <Text style={[s.globalValue, { color: C.emerald }]}>{pilotage.global_objectives_percentage.toFixed(0)}%</Text>
+                      <Text style={[s.globalValue, { color: ACCOUNT_COLORS.savings }]}>{pilotage.global_objectives_percentage.toFixed(0)}%</Text>
                     </View>
                   </View>
                 ) : null}

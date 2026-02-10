@@ -21,6 +21,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../../hooks/useAccountTransactionsByYear';
 import AddObjectiveModal from '../../components/AddObjectiveModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
+import { accountColor } from '../../theme/colors';
 
 const COLORS = {
   surface: '#0f172a',
@@ -157,8 +158,12 @@ export default function ObjectivesScreen() {
     
     const progress = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
 
+    const accountName = getAccountName(objective.linked_account_id);
+    const acctType = accounts.find(a => a.id === objective.linked_account_id)?.type ?? 'savings';
+    const accentColor = accountColor(acctType);
+
     const statusColors: Record<string, string> = {
-      active: COLORS.primary,
+      active: accentColor,
       paused: COLORS.textSecondary,
       completed: '#10b981',
     };
@@ -168,8 +173,6 @@ export default function ObjectivesScreen() {
       paused: 'En pause',
       completed: 'Complété',
     } as const;
-
-    const accountName = getAccountName(objective.linked_account_id);
 
     return (
       <View
@@ -234,7 +237,7 @@ export default function ObjectivesScreen() {
                 Compte lié
               </Text>
               <Text
-                style={[styles.detailValue, { color: COLORS.primary }]}
+                style={[styles.detailValue, { color: accentColor }]}
                 numberOfLines={1}
               >
                 {accountName}
@@ -248,7 +251,7 @@ export default function ObjectivesScreen() {
               <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
                 Avancement
               </Text>
-              <Text style={[styles.progressPercentage, { color: COLORS.primary }]}>
+              <Text style={[styles.progressPercentage, { color: accentColor }]}>
                 {progress}%
               </Text>
             </View>
@@ -261,7 +264,7 @@ export default function ObjectivesScreen() {
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${progress}%`, backgroundColor: COLORS.primary },
+                  { width: `${progress}%`, backgroundColor: accentColor },
                 ]}
               />
             </View>
@@ -273,14 +276,14 @@ export default function ObjectivesScreen() {
 
         <View style={styles.objectiveActions}>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: COLORS.primary + '20' }]}
+            style={[styles.actionButton, { backgroundColor: accentColor + '20' }]}
             onPress={() => {
               setEditingId(objective.id);
               setModalVisible(true);
             }}
           >
-            <Ionicons name="pencil" size={16} color={COLORS.primary} />
-            <Text style={[styles.actionButtonText, { color: COLORS.primary }]}>
+            <Ionicons name="pencil" size={16} color={accentColor} />
+            <Text style={[styles.actionButtonText, { color: accentColor }]}>
               Modifier
             </Text>
           </TouchableOpacity>
@@ -322,9 +325,20 @@ export default function ObjectivesScreen() {
                 setEditingId(null);
                 setModalVisible(true);
               }}
-              style={{ marginRight: 16 }}
+              style={{
+                marginRight: 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: COLORS.primary + '18',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: COLORS.primary + '40',
+              }}
             >
-              <Ionicons name="add-circle" size={24} color={COLORS.primary} />
+              <Ionicons name="add" size={18} color={COLORS.primary} />
+              <Text style={{ color: COLORS.primary, fontWeight: '600', fontSize: 13, marginLeft: 4 }}>Ajouter</Text>
             </TouchableOpacity>
           ),
         }}

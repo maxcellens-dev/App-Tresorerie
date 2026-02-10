@@ -12,7 +12,7 @@ const COLORS = {
   cardBorder: '#1e293b',
   text: '#ffffff',
   textSecondary: '#94a3b8',
-  emerald: '#34d399',
+  emerald: '#22d3ee',
 };
 
 interface ProjectsListProps {

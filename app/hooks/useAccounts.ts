@@ -81,6 +81,7 @@ export function useAddAccount(profileId: string | undefined) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: [KEY, profileId, 'archived'] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -118,6 +119,7 @@ export function useCloseAccount(profileId: string | undefined) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: [KEY, profileId, 'archived'] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -157,6 +159,7 @@ export function useUpdateAccount(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }

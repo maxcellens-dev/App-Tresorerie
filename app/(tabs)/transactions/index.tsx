@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
+import { accountColor, SEMANTIC } from '../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../types/database';
 
 const COLORS = {
@@ -73,6 +74,15 @@ function addRecurrenceToMonth(year: number, month: number, amount: number, start
   return 0;
 }
 
+function getEffectiveDate(item: { date: string; displayDate?: string }): string {
+  if (!item.displayDate) return item.date;
+  const [y, m] = item.displayDate.split('-').map(Number);
+  const origDay = new Date(item.date).getDate();
+  const maxDay = new Date(y, m, 0).getDate();
+  const day = Math.min(origDay, maxDay);
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 export default function TransactionsListScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string }>();
@@ -101,6 +111,7 @@ export default function TransactionsListScreen() {
   
   const [periodOffset, setPeriodOffset] = useState(-2);
   const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   
@@ -139,7 +150,12 @@ export default function TransactionsListScreen() {
       const [tYear, tMonth] = t.date.split('-').map(Number);
       const transactionKey = getMonthKey(tYear, tMonth);
       
-      if (t.is_recurring && t.recurrence_rule) {
+      if (t.project_id) {
+        // Transactions de projet : toujours traiter comme ponctuelles (une par mois)
+        if (displayMonthKeys.includes(transactionKey)) {
+          result.push(t);
+        }
+      } else if (t.is_recurring && t.recurrence_rule) {
         // Pour chaque mois affiché, calculer si cette récurrence s'applique
         for (const m of displayMonths) {
           const appliedAmount = addRecurrenceToMonth(m.year, m.month, Number(t.amount), t.date, t.recurrence_rule, t.recurrence_end_date ?? null, now);
@@ -201,9 +217,8 @@ export default function TransactionsListScreen() {
       map[key].push(t);
     }
     for (const arr of Object.values(map)) arr.sort((a, b) => {
-      // Trier par date réelle si différente, sinon par date d'affichage
-      const dateA = a.date || a.displayDate || '';
-      const dateB = b.date || b.displayDate || '';
+      const dateA = getEffectiveDate(a);
+      const dateB = getEffectiveDate(b);
       return dateB.localeCompare(dateA);
     });
     const keys = Object.keys(map).sort((a, b) => {
@@ -347,25 +362,62 @@ export default function TransactionsListScreen() {
                       <Text style={styles.monthHeaderText}>{formatMonthHeader(year, month)}</Text>
                     </View>
                     <View style={styles.card}>
-                      {items.map((item, index) => (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[styles.row, index === items.length - 1 && styles.rowLast]}
-                          onPress={() => router.push(`/(tabs)/transactions/edit/${item.id}`)}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                        >
-                          <View style={styles.rowLeft}>
-                            <Text style={styles.rowLabel}>{item.note || item.category?.name || 'Sans libellé'}</Text>
-                            <Text style={styles.rowMeta}>
-                              {item.account?.name ?? ''} · {formatDate(item.date)}
-                            </Text>
-                          </View>
-                          <Text style={[styles.rowAmount, item.amount < 0 && styles.rowAmountNeg]}>
-                            {item.amount > 0 ? '+' : ''}{item.amount.toFixed(2)} €
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                      {items.map((item, index) => {
+                        const effectiveDate = getEffectiveDate(item);
+                        const isFuture = effectiveDate > todayStr;
+                        const isProject = !!item.project_id;
+                        const isRecurring = item.is_recurring && !isProject;
+                        const isReservation = isProject && Number(item.amount) === 0;
+                        const amt = Number(item.amount);
+                        const acctType = item.account?.type ?? 'checking';
+                        const acctCol = accountColor(acctType);
+
+                        return (
+                          <TouchableOpacity
+                            key={`${item.id}-${item.displayDate || ''}`}
+                            style={[
+                              styles.row,
+                              index === items.length - 1 && styles.rowLast,
+                              isFuture && styles.rowFuture,
+                            ]}
+                            onPress={() => router.push(`/(tabs)/transactions/edit/${item.id}`)}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                          >
+                            <View style={[
+                              styles.rowAccent,
+                              isProject
+                                ? { backgroundColor: SEMANTIC.project + '50' }
+                                : amt > 0
+                                  ? { backgroundColor: acctCol + '50' }
+                                  : { backgroundColor: acctCol + '25' },
+                            ]} />
+                            <View style={styles.rowLeft}>
+                              <View style={styles.rowLabelRow}>
+                                {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
+                                <Text style={styles.rowLabel} numberOfLines={1}>
+                                  {item.note || item.category?.name || 'Sans libellé'}
+                                </Text>
+                                {isRecurring && (
+                                  <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
+                                )}
+                              </View>
+                              <Text style={styles.rowMeta}>
+                                {item.account?.name ?? ''} · {formatDate(effectiveDate)}
+                              </Text>
+                            </View>
+                            {isReservation ? (
+                              <View style={styles.reservationBadge}>
+                                <Text style={styles.reservationText}>Réservé</Text>
+                              </View>
+                            ) : (
+                              <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg]}>
+                                {amt > 0 ? '+' : ''}{amt.toFixed(2)} €
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   </View>
                 ))
@@ -425,11 +477,43 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   rowLast: { borderBottomWidth: 0 },
-  rowLeft: {},
-  rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  rowFuture: { opacity: 0.4 },
+  rowAccent: {
+    position: 'absolute' as const,
+    left: 0,
+    top: 6,
+    bottom: 6,
+    width: 3,
+    borderRadius: 1.5,
+  },
+  rowAccentIncome: { backgroundColor: '#34d39950' },
+  rowAccentProject: { backgroundColor: '#22d3ee50' },
+  rowLeft: { flex: 1, marginRight: 8 },
+  rowLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
+  projectDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#a78bfa',
+    marginRight: 6,
+  },
+  rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text, flexShrink: 1 },
   rowMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   rowAmount: { fontSize: 15, fontWeight: '700', color: COLORS.emerald },
   rowAmountNeg: { color: COLORS.textSecondary },
+  reservationBadge: {
+    backgroundColor: '#22d3ee18',
+    borderWidth: 1,
+    borderColor: '#22d3ee40',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  reservationText: {
+    color: '#22d3ee',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   empty: { padding: 24, color: COLORS.textSecondary, textAlign: 'center' },
   hint: { marginTop: 16, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
   periodNav: { 

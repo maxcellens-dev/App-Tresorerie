@@ -13,7 +13,7 @@ export function useTransactions(profileId: string | undefined) {
         .from('transactions')
         .select(`
           *,
-          account:accounts(name),
+          account:accounts(name, type),
           category:categories(name, type)
         `)
         .eq('profile_id', profileId)
@@ -23,7 +23,7 @@ export function useTransactions(profileId: string | undefined) {
       return (data ?? []).map((r: Record<string, unknown>) => ({
         ...r,
         amount: Number((r as Transaction).amount),
-        account: (r as { account?: { name: string } }).account,
+        account: (r as { account?: { name: string; type: string } }).account,
         category: (r as { category?: { name: string; type: string } }).category,
       }));
     },
@@ -76,6 +76,7 @@ export function useAddTransaction(profileId: string | undefined) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -126,6 +127,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -149,6 +151,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }

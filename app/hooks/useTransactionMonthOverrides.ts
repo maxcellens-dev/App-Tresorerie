@@ -50,6 +50,7 @@ export function useSetTransactionMonthOverride(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -69,6 +70,7 @@ export function useDeleteTransactionMonthOverride(profileId: string | undefined)
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }

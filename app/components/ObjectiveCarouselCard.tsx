@@ -1,22 +1,24 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import type { Objective } from '../types/database';
+import type { ObjectiveWithAccount } from '../types/database';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../hooks/useAccountTransactionsByYear';
+import { accountColor } from '../theme/colors';
 
 const COLORS = {
   surface: '#0f172a',
   text: '#ffffff',
   textSecondary: '#94a3b8',
-  primary: '#6366f1',  // Different color for objectives (indigo)
   border: '#1e293b',
   background: '#020617',
 };
 
 interface ObjectiveCarouselCardProps {
-  objective: Objective;
+  objective: ObjectiveWithAccount & { account_type?: string };
 }
 
 export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCardProps) {
+  const acctType = objective.linked_account?.type ?? objective.account_type ?? 'savings';
+  const accentColor = accountColor(acctType);
   // For annual objectives, fetch transactions from linked account
   const currentYear = new Date().getFullYear();
   const { data: transactions = [] } = useAccountTransactionsByYear(
@@ -65,7 +67,7 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
             </Text>
           )}
         </View>
-        <Text style={[styles.progress, { color: COLORS.primary }]}>
+        <Text style={[styles.progress, { color: accentColor }]}>
           {progress.percentage}%
         </Text>
       </View>
@@ -73,7 +75,7 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
       {/* Amount + Progress Bar (compact) */}
       <View style={styles.progressSection}>
         <View style={styles.amountCompact}>
-          <Text style={[styles.amountSmall, { color: COLORS.primary }]}>
+          <Text style={[styles.amountSmall, { color: accentColor }]}>
             €{progress.currentAmount.toFixed(0)}
           </Text>
           <Text style={[styles.targetSmall, { color: COLORS.textSecondary }]}>
@@ -91,7 +93,7 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
               styles.progressBar,
               { 
                 width: progressBarWidth,
-                backgroundColor: COLORS.primary,
+                backgroundColor: accentColor,
               },
             ]}
           />

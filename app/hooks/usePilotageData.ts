@@ -12,6 +12,7 @@ export interface PilotageData {
   current_checking_balance: number;
   remaining_fixed_expenses: number;
   committed_allocations: number;
+  same_account_reserved: number;
 
   // Step 2: Variable Expense Trend
   avg_variable_expenses_3m: number;
@@ -42,6 +43,7 @@ export interface PilotageData {
     current_year_invested: number;
     progress_percentage: number;
     account_name?: string;
+    account_type?: string;
     status: string;
   }>;
   global_objectives_percentage: number;
@@ -197,8 +199,21 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const committed_allocations = committed_project_allocations + committed_objective_monthly;
 
-  // Base to spend = checking balance + future net – project/objective commitments
-  const base_to_spend = current_checking_balance + remaining_month_net - committed_allocations;
+  // Same-account project reservations: money is "reserved" but still sits
+  // on the checking account. Only count PAST reservations (date ≤ today)
+  // so the user isn't told they can spend money already earmarked.
+  const same_account_reserved = projects
+    .filter(p => p.status === 'active'
+      && p.source_account_id && p.linked_account_id
+      && p.source_account_id === p.linked_account_id)
+    .reduce((sum, p) => {
+      const monthlyAlloc = Number(p.monthly_allocation) || 0;
+      const pastTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr);
+      return sum + pastTxns.length * monthlyAlloc;
+    }, 0);
+
+  // Base to spend = checking balance + future net – project/objective commitments – reserved
+  const base_to_spend = current_checking_balance + remaining_month_net - committed_allocations - same_account_reserved;
 
   // Apply safety margin on the base (not on gross balance)
   const safe_to_spend = Math.max(0, base_to_spend * (1 - safety_margin_percent / 100));
@@ -255,31 +270,26 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const projects_with_progress = projects
     .filter(p => p.status === 'active')
     .map(p => {
-      // Calculer la progression bas\u00e9e sur les transactions r\u00e9elles li\u00e9es au projet
-      const projectTransactionsTotal = transactions
-        .filter(t => t.project_id === p.id)
-        .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
-      
-      // Ajouter aussi les montants r\u00e9currents futurs d\u00e9j\u00e0 pass\u00e9s (instanci\u00e9s)
-      let recurringPastTotal = 0;
-      for (const t of transactions) {
-        if (t.project_id === p.id && t.is_recurring && t.recurrence_rule) {
-          const startDate = new Date(t.date);
-          const endDate = t.recurrence_end_date ? new Date(t.recurrence_end_date) : now;
-          let d = new Date(startDate);
-          d.setMonth(d.getMonth() + 1); // Skip first month (already counted as one-time)
-          while (d <= now && d <= endDate) {
-            recurringPastTotal += Math.abs(Number(t.amount));
-            if (t.recurrence_rule === 'monthly') d.setMonth(d.getMonth() + 1);
-            else if (t.recurrence_rule === 'quarterly') d.setMonth(d.getMonth() + 3);
-            else if (t.recurrence_rule === 'yearly') d.setFullYear(d.getFullYear() + 1);
-            else if (t.recurrence_rule === 'weekly') d.setDate(d.getDate() + 7);
-            else break;
-          }
-        }
+      const monthlyAlloc = Number(p.monthly_allocation) || 0;
+      const sameAccount = p.source_account_id && p.linked_account_id
+        && p.source_account_id === p.linked_account_id;
+
+      // Calculer la progression basée sur les transactions PASSÉES liées au projet
+      const projectTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr);
+
+      let projectTransactionsTotal: number;
+      if (sameAccount) {
+        // Même compte → réservations (amount=0), on compte occurrences passées × allocation
+        projectTransactionsTotal = projectTxns.length * monthlyAlloc;
+      } else {
+        // Comptes différents → on somme les montants absolus des débits passés
+        const debits = projectTxns.filter(t => Number(t.amount) < 0);
+        projectTransactionsTotal = debits.length > 0
+          ? debits.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0)
+          : projectTxns.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
       }
       
-      const totalAccumulated = projectTransactionsTotal + recurringPastTotal;
+      const totalAccumulated = projectTransactionsTotal;
       const progress = Number(p.target_amount) > 0 ? (totalAccumulated / Number(p.target_amount)) * 100 : 0;
 
       return {
@@ -317,6 +327,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
         current_year_invested,
         progress_percentage: Number(o.target_yearly_amount) > 0 ? (current_year_invested / Number(o.target_yearly_amount)) * 100 : 0,
         account_name: data.accounts.find(a => a.id === o.linked_account_id)?.name,
+        account_type: data.accounts.find(a => a.id === o.linked_account_id)?.type,
         status: o.status,
       };
     });
@@ -330,6 +341,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     current_checking_balance,
     remaining_fixed_expenses,
     committed_allocations,
+    same_account_reserved,
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,

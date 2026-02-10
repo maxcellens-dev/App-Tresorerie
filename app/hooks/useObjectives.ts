@@ -11,7 +11,7 @@ export function useObjectives(profileId: string | undefined) {
       if (!supabase || !profileId) return [];
       const { data, error } = await supabase
         .from('objectives')
-        .select('*, linked_account:accounts(name)')
+        .select('*, linked_account:accounts(name, type)')
         .eq('profile_id', profileId)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -47,6 +47,7 @@ export function useAddObjective(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [OBJECTIVES_KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -74,6 +75,7 @@ export function useUpdateObjective(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [OBJECTIVES_KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }
@@ -93,6 +95,7 @@ export function useDeleteObjective(profileId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [OBJECTIVES_KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });
 }

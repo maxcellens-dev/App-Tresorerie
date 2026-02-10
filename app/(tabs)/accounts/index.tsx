@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
+import { accountColor, ACCOUNT_ICONS } from '../../theme/colors';
 
 const COLORS = {
   bg: '#020617',
@@ -98,23 +99,30 @@ export default function AccountsListScreen() {
               {accounts.length === 0 ? (
                 <Text style={styles.empty}>Aucun compte. Ajoutez un compte pour suivre vos soldes.</Text>
               ) : (
-                accounts.map((acc) => (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={styles.accountCard}
-                    onPress={() => router.push(`/(tabs)/accounts/${acc.id}`)}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                  >
-                    <View style={styles.accountRow}>
-                      <Text style={styles.accountName}>{acc.name}</Text>
-                      <Text style={styles.accountBalance}>
-                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
-                      </Text>
-                    </View>
-                    <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
-                  </TouchableOpacity>
-                ))
+                accounts.map((acc) => {
+                  const color = accountColor(acc.type);
+                  const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountCard, { borderLeftWidth: 3, borderLeftColor: color }]}
+                      onPress={() => router.push(`/(tabs)/accounts/${acc.id}`)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.accountRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Ionicons name={iconName as any} size={16} color={color} />
+                          <Text style={styles.accountName}>{acc.name}</Text>
+                        </View>
+                        <Text style={[styles.accountBalance, { color }]}>
+                          {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
+                        </Text>
+                      </View>
+                      <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
+                    </TouchableOpacity>
+                  );
+                })
               )}
             </>
           )}

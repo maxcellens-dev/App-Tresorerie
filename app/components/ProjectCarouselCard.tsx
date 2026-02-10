@@ -6,21 +6,29 @@ const COLORS = {
   surface: '#0f172a',
   text: '#ffffff',
   textSecondary: '#94a3b8',
-  primary: '#34d399',
+  primary: '#22d3ee',
   border: '#1e293b',
   background: '#020617',
 };
 
 interface ProjectCarouselCardProps {
-  project: Project;
+  project: Project & { progress_percentage?: number };
 }
 
 export default function ProjectCarouselCard({ project }: ProjectCarouselCardProps) {
   const progress = useMemo(() => {
+    // Use computed progress_percentage from pilotage if available
+    if (typeof project.progress_percentage === 'number') {
+      return Math.min(100, Math.round(project.progress_percentage));
+    }
     if (project.target_amount <= 0) return 0;
     const accumulated = project.current_accumulated || 0;
     return Math.min(100, Math.round((accumulated / project.target_amount) * 100));
-  }, [project.target_amount, project.current_accumulated]);
+  }, [project.target_amount, project.current_accumulated, project.progress_percentage]);
+
+  const accumulated = typeof project.progress_percentage === 'number'
+    ? (project.progress_percentage / 100) * project.target_amount
+    : (project.current_accumulated || 0);
 
   // Monthly allocation text
   const monthlyText = project.monthly_allocation 
@@ -55,7 +63,7 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
       <View style={styles.progressSection}>
         <View style={styles.amountCompact}>
           <Text style={[styles.amountSmall, { color: COLORS.primary }]}>
-            €{(project.current_accumulated || 0).toFixed(0)}
+            €{accumulated.toFixed(0)}
           </Text>
           <Text style={[styles.targetSmall, { color: COLORS.textSecondary }]}>
             / €{project.target_amount.toFixed(0)}
