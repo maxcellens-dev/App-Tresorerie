@@ -227,6 +227,35 @@ export default function AddProjectModal({
     }
   };
 
+  // Parse date from jj-mm-aaaa or jjmmaaaa to YYYY-MM-DD
+  const parseDateFromFrench = (dateStr: string): string => {
+    if (!dateStr) return '';
+    try {
+      // Remove any non-digit characters for flexibility
+      const cleaned = dateStr.replace(/\D/g, '');
+      
+      if (cleaned.length === 8) {
+        const day = cleaned.substring(0, 2);
+        const month = cleaned.substring(2, 4);
+        const year = cleaned.substring(4, 8);
+        
+        // Validate date
+        const date = new Date(`${year}-${month}-${day}`);
+        if (isNaN(date.getTime())) return '';
+        
+        // Check if date is today or in the future
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (date < today) return '';
+        
+        return `${year}-${month}-${day}`;
+      }
+    } catch {
+      return '';
+    }
+    return '';
+  };
+
   // Get marked dates for calendar (highlight selected date)
   const getMarkedDates = () => {
     if (!form.target_date) return {};
@@ -416,29 +445,44 @@ export default function AddProjectModal({
                     <Text style={[styles.label, { color: COLORS.text }]}>
                       Date cible (jj-mm-aaaa) *
                     </Text>
-                    <TouchableOpacity
-                      style={[
-                        styles.input,
-                        {
-                          backgroundColor: COLORS.background,
-                          borderColor: COLORS.border,
-                          justifyContent: 'center',
-                        },
-                      ]}
-                      onPress={() => setShowCalendar(true)}
-                      disabled={addProjectMutation.isPending || showCalendar}
-                    >
-                      <Text
+                    <View style={styles.dateInputContainer}>
+                      <TextInput
                         style={[
-                          styles.pickerText,
+                          styles.input,
+                          styles.dateTextInput,
                           {
-                            color: form.target_date ? COLORS.text : COLORS.textSecondary,
+                            backgroundColor: COLORS.background,
+                            borderColor: COLORS.border,
+                            color: COLORS.text,
                           },
                         ]}
+                        placeholder="jj-mm-aaaa"
+                        placeholderTextColor={COLORS.textSecondary}
+                        value={form.target_date ? formatDateFrench(form.target_date) : ''}
+                        onChangeText={(text) => {
+                          const parsed = parseDateFromFrench(text);
+                          if (parsed) {
+                            setForm({ ...form, target_date: parsed });
+                          } else if (text === '') {
+                            setForm({ ...form, target_date: '' });
+                          }
+                        }}
+                        editable={!(addProjectMutation.isPending || updateProjectMutation.isPending)}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.calendarButton,
+                          {
+                            backgroundColor: COLORS.primary + '20',
+                            borderColor: COLORS.primary,
+                          },
+                        ]}
+                        onPress={() => setShowCalendar(true)}
+                        disabled={addProjectMutation.isPending || updateProjectMutation.isPending}
                       >
-                        {form.target_date ? formatDateFrench(form.target_date) : '27-01-2027'}
-                      </Text>
-                    </TouchableOpacity>
+                        <Text style={{ fontSize: 20, color: COLORS.primary }}>📅</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   {calculatedAllocation !== null && (
@@ -734,6 +778,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginTop: 8,
+  },
+  dateInputContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  dateTextInput: {
+    flex: 1,
+  },
+  calendarButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pickerText: {
     fontSize: 14,

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,13 +26,31 @@ const COLORS = {
 export default function PilotageScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
 
   // Données principales
-  const { data: pilotageData, isLoading: pilotageLoading } = usePilotageData(user?.id);
-  const { data: projects = [], isLoading: projectsLoading } = useProjects(user?.id);
-  const { data: objectives = [], isLoading: objectivesLoading } = useObjectives(user?.id);
+  const pilotageQuery = usePilotageData(user?.id);
+  const projectsQuery = useProjects(user?.id);
+  const objectivesQuery = useObjectives(user?.id);
+
+  const { data: pilotageData, isLoading: pilotageLoading } = pilotageQuery;
+  const { data: projects = [], isLoading: projectsLoading } = projectsQuery;
+  const { data: objectives = [], isLoading: objectivesLoading } = objectivesQuery;
 
   const isLoading = pilotageLoading || projectsLoading || objectivesLoading;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        pilotageQuery.refetch?.(),
+        projectsQuery.refetch?.(),
+        objectivesQuery.refetch?.(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (!pilotageData) {
     return (
@@ -58,7 +76,19 @@ export default function PilotageScreen() {
         </View>
 
         {/* Main Content - Bento Grid */}
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.emerald}
+              progressBackgroundColor={COLORS.card}
+            />
+          }
+        >
           {/* Row 0: Account Summary (Full Width) */}
           <View style={styles.row}>
             <View style={styles.accountSummary}>

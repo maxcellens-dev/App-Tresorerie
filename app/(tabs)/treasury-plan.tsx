@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -106,9 +106,15 @@ type PeriodFilter = 'n-1' | 'current' | 'n+1';
 export default function TreasuryPlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: transactions = [], isLoading } = useTransactions(user?.id);
-  const { data: categories = [] } = useCategories(user?.id);
-  const { data: overrides = [] } = useTransactionMonthOverrides(user?.id);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const transactionsQuery = useTransactions(user?.id);
+  const categoriesQuery = useCategories(user?.id);
+  const overridesQuery = useTransactionMonthOverrides(user?.id);
+  
+  const { data: transactions = [], isLoading } = transactionsQuery;
+  const { data: categories = [] } = categoriesQuery;
+  const { data: overrides = [] } = overridesQuery;
   const { width } = useWindowDimensions();
   const MONTH_COL_WIDTH = 80;
   const paddingH = 24 * 2;
@@ -132,6 +138,19 @@ export default function TreasuryPlanScreen() {
     categoryId?: string;
     value?: number;
   }>({ visible: false });
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        transactionsQuery.refetch?.(),
+        categoriesQuery.refetch?.(),
+        overridesQuery.refetch?.(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
@@ -363,6 +382,14 @@ export default function TreasuryPlanScreen() {
             ]}
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.emerald}
+                progressBackgroundColor={COLORS.card}
+              />
+            }
           >
             <ScrollView
               horizontal

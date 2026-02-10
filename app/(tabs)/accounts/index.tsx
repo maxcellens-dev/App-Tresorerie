@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -25,10 +26,26 @@ const TYPE_LABELS: Record<string, string> = {
 export default function AccountsListScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: accounts = [], isLoading } = useAccounts(user?.id);
-  const { data: archivedAccounts = [] } = useArchivedAccounts(user?.id);
+  const [refreshing, setRefreshing] = useState(false);
+  const accountsQuery = useAccounts(user?.id);
+  const archivedQuery = useArchivedAccounts(user?.id);
+  
+  const { data: accounts = [], isLoading } = accountsQuery;
+  const { data: archivedAccounts = [] } = archivedQuery;
 
   const total = accounts.reduce((s, a) => s + a.balance, 0);
+  
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        accountsQuery.refetch?.(),
+        archivedQuery.refetch?.(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -60,6 +77,14 @@ export default function AccountsListScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.emerald}
+              progressBackgroundColor={COLORS.card}
+            />
+          }
         >
           {isLoading ? (
             <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />

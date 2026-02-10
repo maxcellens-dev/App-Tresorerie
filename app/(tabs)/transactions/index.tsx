@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -76,7 +76,10 @@ export default function TransactionsListScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string }>();
   const { user } = useAuth();
-  const { data: transactions = [], isLoading } = useTransactions(user?.id);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const transactionsQuery = useTransactions(user?.id);
+  const { data: transactions = [], isLoading } = transactionsQuery;
   
   const [periodOffset, setPeriodOffset] = useState(-2);
   const now = new Date();
@@ -96,6 +99,15 @@ export default function TransactionsListScreen() {
       setPeriodOffset(diff);
     }
   }, [params.focusMonth]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await transactionsQuery.refetch?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Obtenir les mois consécutifs basé sur periodOffset (1 ou 3 selon singleMonth)
   const displayMonths = useMemo(() => getMonthsFromOffset(periodOffset, displayMonthCount), [periodOffset, displayMonthCount]);
@@ -237,7 +249,19 @@ export default function TransactionsListScreen() {
             <Text style={styles.clearFilterText}>Filtre actif · Réinitialiser</Text>
           </TouchableOpacity>
         )}
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.emerald}
+              progressBackgroundColor={COLORS.card}
+            />
+          }
+        >
           {isLoading ? (
             <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
           ) : (
