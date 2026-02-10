@@ -7,6 +7,7 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,9 @@ const COLORS = {
 
 export default function ObjectivesScreen() {
   const { user } = useAuth();
-  const { data: objectives = [], isLoading, refetch } = useObjectives(user?.id || '');
+  const [refreshing, setRefreshing] = useState(false);
+  const objectivesQuery = useObjectives(user?.id || '');
+  const { data: objectives = [], isLoading, refetch } = objectivesQuery;
   const { data: accounts = [] } = useAccounts(user?.id || '');
   const deleteObjectiveMutation = useDeleteObjective(user?.id || '');
   const updateObjectiveMutation = useUpdateObjective(user?.id || '');
@@ -39,6 +42,15 @@ export default function ObjectivesScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await objectivesQuery.refetch?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleDelete = (id: string) => {
     setDeleteConfirmId(id);
@@ -286,6 +298,14 @@ export default function ObjectivesScreen() {
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.primary}
+                progressBackgroundColor={COLORS.surface}
+              />
+            }
           />
         )}
       </View>

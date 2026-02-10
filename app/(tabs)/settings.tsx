@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { useState } from 'react';import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -18,10 +18,21 @@ const COLORS = {
 const ADMIN_URL = process.env.EXPO_PUBLIC_ADMIN_URL || '';
 
 export default function SettingsScreen() {
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { data: profile } = useProfile(user?.id);
+  const profileQuery = useProfile(user?.id);
+  const { data: profile } = profileQuery;
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await profileQuery.refetch?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   async function handleSignOut() {
     await signOut();
@@ -36,6 +47,14 @@ export default function SettingsScreen() {
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#34d399"
+              progressBackgroundColor="#0f172a"
+            />
+          }
         >
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Catégories</Text>

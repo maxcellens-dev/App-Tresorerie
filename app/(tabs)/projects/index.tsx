@@ -7,6 +7,7 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,13 +26,24 @@ const COLORS = {
 
 export default function ProjectsScreen() {
   const { user } = useAuth();
-  const { data: projects = [], isLoading, refetch } = useProjects(user?.id || '');
+  const [refreshing, setRefreshing] = useState(false);
+  const projectsQuery = useProjects(user?.id || '');
+  const { data: projects = [], isLoading, refetch } = projectsQuery;
   const deleteProjectMutation = useDeleteProject(user?.id || '');
   const updateProjectMutation = useUpdateProject(user?.id || '');
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await projectsQuery.refetch?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleDelete = (id: string) => {
     setDeleteConfirmId(id);
@@ -260,6 +272,14 @@ export default function ProjectsScreen() {
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.primary}
+                progressBackgroundColor={COLORS.surface}
+              />
+            }
           />
         )}
       </View>

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -50,7 +51,10 @@ function groupCategories(categories: Category[]) {
 export default function CategoriesScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: categories = [], isLoading } = useCategories(user?.id);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const categoriesQuery = useCategories(user?.id);
+  const { data: categories = [], isLoading } = categoriesQuery;
   const seedDefaults = useSeedDefaultCategories(user?.id);
   const addCategory = useAddCategory(user?.id);
   const updateCategory = useUpdateCategory(user?.id);
@@ -68,6 +72,15 @@ export default function CategoriesScreen() {
     hasSeeded.current = true;
     seedDefaults.mutate();
   }, [user?.id, categories.length, isLoading]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await categoriesQuery.refetch?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   async function handleAdd() {
     const trimmed = newName.trim();
@@ -134,7 +147,19 @@ export default function CategoriesScreen() {
         {!user ? (
           <Text style={styles.hint}>Connectez-vous pour gérer vos catégories.</Text>
         ) : (
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#34d399"
+                progressBackgroundColor="#0f172a"
+              />
+            }
+          >
             {categories.length === 0 && !isLoading && (
               <TouchableOpacity
                 style={styles.seedBtn}

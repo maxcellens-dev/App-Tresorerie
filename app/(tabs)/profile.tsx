@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -24,9 +24,21 @@ const COLORS = {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { data: profile, refetch } = useProfile(user?.id);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const profileQuery = useProfile(user?.id);
+  const { data: profile, refetch } = profileQuery;
   const updateProfile = useUpdateProfile(user?.id);
   const fileInputRef = useRef<any>(null);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await profileQuery.refetch?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
