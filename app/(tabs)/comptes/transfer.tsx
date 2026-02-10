@@ -124,6 +124,9 @@ export default function TransferScreen() {
                 accessibilityRole="button"
               >
                 <Text style={[styles.chipText, fromAccountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
+                <Text style={[styles.chipSubtext, fromAccountId === acc.id && styles.chipSubtextActive]}>
+                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -141,6 +144,9 @@ export default function TransferScreen() {
                 accessibilityRole="button"
               >
                 <Text style={[styles.chipText, toAccountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
+                <Text style={[styles.chipSubtext, toAccountId === acc.id && styles.chipSubtextActive]}>
+                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -274,6 +280,8 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
   chipText: { fontSize: 14, color: COLORS.text },
   chipTextActive: { color: COLORS.bg, fontWeight: '600' },
+  chipSubtext: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  chipSubtextActive: { color: COLORS.bg },
   hint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 16 },
   text: { color: COLORS.text, marginBottom: 16 },
   btn: {

@@ -21,6 +21,8 @@ function TabsHeader({ route }: { route: any }) {
     '(tabs)/tresorerie': 'Plan de trésorerie',
     '(tabs)/comptes': 'Comptes',
     '(tabs)/reporting': 'Reporting',
+    '(tabs)/objectives': 'Objectifs',
+    '(tabs)/projects': 'Projets',
     '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
     '(tabs)/(secondary)/about': 'À propos',

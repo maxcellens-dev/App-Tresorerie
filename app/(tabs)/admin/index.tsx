@@ -35,6 +35,20 @@ export default function AdminHub() {
 
   const items = [
     {
+      href: '/(tabs)/admin/recommendations',
+      icon: 'bulb-outline',
+      title: 'Recommandations',
+      desc: 'Moteur & paliers',
+      color: '#34d399',
+    },
+    {
+      href: '/(tabs)/admin/safe-to-spend',
+      icon: 'calculator-outline',
+      title: 'Formule À dépenser',
+      desc: 'Calcul détaillé',
+      color: '#60a5fa',
+    },
+    {
       href: '/(tabs)/(secondary)/admin/style-editor',
       icon: 'color-palette-outline',
       title: 'Style Editor',

@@ -130,17 +130,24 @@ export default function AccountsListScreen() {
             <View style={styles.archivedSection}>
               <Text style={styles.archivedTitle}>Comptes archivés</Text>
               <Text style={styles.archivedHint}>Comptes fermés, non utilisables pour virements ou nouvelles transactions.</Text>
-              {archivedAccounts.map((acc) => (
-                <View key={acc.id} style={styles.archivedCard}>
-                  <View style={styles.accountRow}>
-                    <Text style={styles.archivedName}>{acc.name}</Text>
-                    <Text style={styles.archivedBalance}>
-                      {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
-                    </Text>
+              {archivedAccounts.map((acc) => {
+                const color = accountColor(acc.type);
+                const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
+                return (
+                  <View key={acc.id} style={[styles.archivedCard, { borderLeftWidth: 3, borderLeftColor: color }]}>
+                    <View style={styles.accountRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name={iconName as any} size={16} color={color} />
+                        <Text style={styles.archivedName}>{acc.name}</Text>
+                      </View>
+                      <Text style={[styles.archivedBalance, { color }]}>
+                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
+                      </Text>
+                    </View>
+                    <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
                   </View>
-                  <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
           <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
@@ -205,9 +212,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.cardBorder,
     padding: 16,
     marginBottom: 12,
-    opacity: 0.85,
   },
-  archivedName: { fontSize: 16, fontWeight: '600', color: COLORS.textSecondary },
-  archivedBalance: { fontSize: 14, color: COLORS.textSecondary },
+  archivedName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  archivedBalance: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   hint: { marginTop: 16, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
 });

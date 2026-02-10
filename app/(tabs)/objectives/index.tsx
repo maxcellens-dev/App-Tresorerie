@@ -8,8 +8,11 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Platform,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -33,6 +36,7 @@ const COLORS = {
 };
 
 export default function ObjectivesScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const objectivesQuery = useObjectives(user?.id || '');
@@ -315,36 +319,35 @@ export default function ObjectivesScreen() {
   );
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: 'Objectifs',
-          headerRight: () => (
+    <View style={[styles.root, { backgroundColor: COLORS.background }]}>
+      <StatusBar style="light" />
+      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <View style={styles.header}>
+          <View style={styles.headerActions}>
             <TouchableOpacity
+              style={styles.addBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(tabs)/comptes/transfer')}
+              accessibilityRole="button"
+            >
+              <Ionicons name="swap-horizontal" size={22} color={COLORS.text} />
+              <Text style={styles.addBtnLabel}>Virement</Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity
+              style={styles.addBtn}
+              activeOpacity={0.8}
               onPress={() => {
                 setEditingId(null);
                 setModalVisible(true);
               }}
-              style={{
-                marginRight: 16,
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: COLORS.primary + '18',
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: COLORS.primary + '40',
-              }}
+              accessibilityRole="button"
             >
-              <Ionicons name="add" size={18} color={COLORS.primary} />
-              <Text style={{ color: COLORS.primary, fontWeight: '600', fontSize: 13, marginLeft: 4 }}>Ajouter</Text>
+              <Ionicons name="add" size={22} color={COLORS.text} />
+              <Text style={styles.addBtnLabel}>Objectif</Text>
             </TouchableOpacity>
-          ),
-        }}
-      />
-
-      <View style={[styles.container, { backgroundColor: COLORS.background }]}>
+          </View>
+        </View>
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={COLORS.primary} size="large" />
@@ -378,7 +381,7 @@ export default function ObjectivesScreen() {
             }
           />
         )}
-      </View>
+      </SafeAreaView>
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
@@ -420,11 +423,28 @@ export default function ObjectivesScreen() {
         onSuccess={() => refetch()}
         editingObjective={editingId ? objectives.find(o => o.id === editingId) || null : null}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.background },
+  safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, width: '100%' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  addBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
   container: {
     flex: 1,
   },

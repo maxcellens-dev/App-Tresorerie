@@ -1,7 +1,8 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { SmartRecommendation } from '../lib/recommendationEngine';
 
 const COLORS = {
   bg: '#020617',
@@ -9,141 +10,88 @@ const COLORS = {
   cardBorder: '#1e293b',
   text: '#ffffff',
   textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  orange: '#f59e0b',
-  red: '#ef4444',
-  cyan: '#22d3ee',
 };
 
-interface Recommendation {
-  id: string;
-  type: 'save' | 'invest' | 'reduce' | 'transfer';
-  title: string;
-  description: string;
-  amount?: number;
-  icon: string;
-  color: string;
+interface SmartRecommendationCardProps {
+  recommendations: SmartRecommendation[];
+  tierLabel: string;
+  tierColor: string;
+  onAction?: (reco: SmartRecommendation) => void;
 }
 
-interface RecommendationProps {
-  projection: number;
-  recommendation: 'À ÉPARGNER' | 'À INVESTIR';
-  onAction?: () => void;
-}
-
-function generateRecommendations(projection: number, recommendation: 'À ÉPARGNER' | 'À INVESTIR'): Recommendation[] {
-  const recos: Recommendation[] = [];
-  
-  if (recommendation === 'À ÉPARGNER') {
-    recos.push({
-      id: 'save-surplus',
-      type: 'save',
-      title: 'Épargner le surplus',
-      description: `Transférez ${projection.toFixed(0)} € vers votre épargne de sécurité`,
-      amount: projection,
-      icon: 'wallet',
-      color: COLORS.emerald,
-    });
-    if (projection > 200) {
-      recos.push({
-        id: 'split-savings',
-        type: 'save',
-        title: 'Répartir l\'épargne',
-        description: `Divisez : ${(projection * 0.7).toFixed(0)} € sécurité + ${(projection * 0.3).toFixed(0)} € projets`,
-        amount: projection,
-        icon: 'git-branch',
-        color: COLORS.cyan,
-      });
-    }
-  } else {
-    recos.push({
-      id: 'invest-surplus',
-      type: 'invest',
-      title: 'Investir le surplus',
-      description: `Placez ${projection.toFixed(0)} € sur vos investissements`,
-      amount: projection,
-      icon: 'trending-up',
-      color: COLORS.cyan,
-    });
-    if (projection > 500) {
-      recos.push({
-        id: 'invest-partial',
-        type: 'invest',
-        title: 'Investissement partiel',
-        description: `Investissez ${(projection * 0.6).toFixed(0)} € et gardez ${(projection * 0.4).toFixed(0)} € en réserve`,
-        amount: projection * 0.6,
-        icon: 'pie-chart',
-        color: COLORS.emerald,
-      });
-    }
-  }
-
-  recos.push({
-    id: 'reduce-variable',
-    type: 'reduce',
-    title: 'Réduire les dépenses variables',
-    description: 'Limitez vos achats non essentiels ce mois-ci',
-    icon: 'trending-down',
-    color: COLORS.orange,
-  });
-
-  return recos;
-}
-
-export default function RecommendationCard({ projection, recommendation, onAction }: RecommendationProps) {
-  const allRecos = generateRecommendations(projection, recommendation);
+export default function RecommendationCard({
+  recommendations,
+  tierLabel,
+  tierColor,
+  onAction,
+}: SmartRecommendationCardProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
-  // Filtrer les recommandations non rejetées
-  const visibleRecos = allRecos.filter(r => !dismissedIds.includes(r.id));
-  const safeIndex = Math.min(currentIndex, Math.max(0, visibleRecos.length - 1));
-  const currentReco = visibleRecos[safeIndex];
-
-  const handleDismiss = useCallback((id: string) => {
-    setDismissedIds(prev => [...prev, id]);
-    // Stocker le refus pour le mois en cours
-    const monthKey = `reco_dismissed_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    AsyncStorage.getItem(monthKey).then(existing => {
-      const list = existing ? JSON.parse(existing) : [];
-      list.push(id);
-      AsyncStorage.setItem(monthKey, JSON.stringify(list));
-    });
-    if (safeIndex >= visibleRecos.length - 1) {
-      setCurrentIndex(Math.max(0, safeIndex - 1));
-    }
-  }, [safeIndex, visibleRecos.length]);
-
-  const handlePrev = () => setCurrentIndex(Math.max(0, safeIndex - 1));
-  const handleNext = () => setCurrentIndex(Math.min(visibleRecos.length - 1, safeIndex + 1));
-
-  // Charger les dismissals au montage
+  // Charger les dismissals au montage (par mois)
   React.useEffect(() => {
-    const monthKey = `reco_dismissed_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    AsyncStorage.getItem(monthKey).then(existing => {
+    const key = `reco_dismissed_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    AsyncStorage.getItem(key).then(existing => {
       if (existing) setDismissedIds(JSON.parse(existing));
     });
   }, []);
 
-  if (visibleRecos.length === 0) {
+  const handleDismiss = useCallback((type: string) => {
+    setDismissedIds(prev => {
+      const next = [...prev, type];
+      const key = `reco_dismissed_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+      AsyncStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const visible = recommendations.filter(r => !dismissedIds.includes(r.type));
+
+  // Clamp index after dismiss
+  const safeIndex = Math.min(currentIndex, Math.max(0, visible.length - 1));
+  const currentReco = visible[safeIndex];
+
+  const handlePrev = () => setCurrentIndex(prev => Math.max(0, prev - 1));
+  const handleNext = () => setCurrentIndex(prev => Math.min(visible.length - 1, prev + 1));
+
+  // Swipe gesture (uses functional setCurrentIndex to avoid stale closures)
+  const visibleLenRef = useRef(visible.length);
+  visibleLenRef.current = visible.length;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (_, g) => {
+        if (g.dx < -40) {
+          setCurrentIndex(prev => Math.min(visibleLenRef.current - 1, prev + 1));
+        } else if (g.dx > 40) {
+          setCurrentIndex(prev => Math.max(0, prev - 1));
+        }
+      },
+    })
+  ).current;
+
+  if (visible.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.headerRow}>
-          <Ionicons name="checkmark-circle" size={24} color={COLORS.emerald} />
-          <Text style={styles.label}>Actions recommandées</Text>
+          <Ionicons name="checkmark-circle" size={20} color="#34d399" />
+          <Text style={styles.headerLabel}>Recommandations</Text>
         </View>
-        <Text style={styles.emptyText}>Toutes les recommandations ont été traitées ce mois-ci ✨</Text>
+        <Text style={styles.emptyText}>
+          Toutes les recommandations ont été traitées ce mois-ci ✨
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { borderColor: currentReco.color + '40' }]}>
-      {/* Header with navigation */}
+    <View style={[styles.container, { borderColor: currentReco.color + '40' }]} {...panResponder.panHandlers}>
+      {/* ── Header with navigation ── */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Ionicons name={currentReco.icon as any} size={24} color={currentReco.color} />
-          <Text style={styles.label}>Actions recommandées</Text>
+          <Ionicons name="bulb-outline" size={20} color={tierColor} />
+          <Text style={styles.headerLabel}>Recommandations</Text>
         </View>
         <View style={styles.navRow}>
           <TouchableOpacity
@@ -154,44 +102,96 @@ export default function RecommendationCard({ projection, recommendation, onActio
           >
             <Ionicons name="chevron-back" size={18} color={safeIndex === 0 ? COLORS.cardBorder : COLORS.text} />
           </TouchableOpacity>
-          <Text style={styles.navIndicator}>{safeIndex + 1}/{visibleRecos.length}</Text>
+          <Text style={styles.navIndicator}>{safeIndex + 1}/{visible.length}</Text>
           <TouchableOpacity
-            style={[styles.navBtn, safeIndex === visibleRecos.length - 1 && styles.navBtnDisabled]}
+            style={[styles.navBtn, safeIndex === visible.length - 1 && styles.navBtnDisabled]}
             onPress={handleNext}
-            disabled={safeIndex === visibleRecos.length - 1}
+            disabled={safeIndex === visible.length - 1}
             activeOpacity={0.7}
           >
-            <Ionicons name="chevron-forward" size={18} color={safeIndex === visibleRecos.length - 1 ? COLORS.cardBorder : COLORS.text} />
+            <Ionicons name="chevron-forward" size={18} color={safeIndex === visible.length - 1 ? COLORS.cardBorder : COLORS.text} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Recommendation content */}
-      <Text style={styles.recoTitle}>{currentReco.title}</Text>
-      {currentReco.amount !== undefined && (
-        <Text style={[styles.recoAmount, { color: currentReco.color }]}>
-          {currentReco.amount.toFixed(0)} €
-        </Text>
-      )}
+      {/* ── Barre d'allocation (toutes les recos) ── */}
+      <View style={styles.barContainer}>
+        {visible.map((r, i) => (
+          <TouchableOpacity
+            key={r.type}
+            style={[
+              styles.barSegment,
+              {
+                flex: r.percentage,
+                backgroundColor: r.type === currentReco.type ? r.color : r.color + '50',
+                borderTopLeftRadius: i === 0 ? 6 : 0,
+                borderBottomLeftRadius: i === 0 ? 6 : 0,
+                borderTopRightRadius: i === visible.length - 1 ? 6 : 0,
+                borderBottomRightRadius: i === visible.length - 1 ? 6 : 0,
+              },
+            ]}
+            onPress={() => setCurrentIndex(i)}
+            activeOpacity={0.8}
+          />
+        ))}
+      </View>
+
+      {/* ── Légende de la barre ── */}
+      <View style={styles.legendRow}>
+        {visible.map(r => (
+          <TouchableOpacity
+            key={r.type}
+            style={styles.legendItem}
+            activeOpacity={0.7}
+            onPress={() => setCurrentIndex(visible.indexOf(r))}
+          >
+            <View style={[styles.legendDot, { backgroundColor: r.color }]} />
+            <Text style={[
+              styles.legendText,
+              r.type === currentReco.type && { color: r.color, fontWeight: '700' },
+            ]}>
+              {r.title} {r.percentage}%
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* ── Slide courante ── */}
+      <View style={styles.slideRow}>
+        <View style={[styles.recoIconCircle, { backgroundColor: currentReco.color + '18' }]}>
+          <Ionicons name={currentReco.icon as any} size={18} color={currentReco.color} />
+        </View>
+        <View style={styles.slideContent}>
+          <Text style={styles.recoTitle}>{currentReco.title}</Text>
+          <Text style={[styles.recoAmount, { color: currentReco.color }]}>
+            {currentReco.amount.toLocaleString('fr-FR')} €
+          </Text>
+        </View>
+      </View>
       <Text style={styles.recoDescription}>{currentReco.description}</Text>
 
-      {/* Accept / Reject buttons */}
+      {/* ── Boutons Ignorer / Appliquer ── */}
       <View style={styles.actionRow}>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.rejectBtn]}
-          onPress={() => handleDismiss(currentReco.id)}
+          style={styles.dismissBtn}
+          onPress={() => {
+            handleDismiss(currentReco.type);
+            if (safeIndex >= visible.length - 1) {
+              setCurrentIndex(Math.max(0, safeIndex - 1));
+            }
+          }}
           activeOpacity={0.7}
         >
-          <Ionicons name="close" size={16} color={COLORS.red} />
-          <Text style={[styles.actionBtnText, { color: COLORS.red }]}>Ignorer</Text>
+          <Ionicons name="close" size={16} color="#ef4444" />
+          <Text style={styles.dismissText}>Ignorer</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.acceptBtn, { borderColor: currentReco.color }]}
-          onPress={onAction}
+          style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+          onPress={() => onAction?.(currentReco)}
           activeOpacity={0.7}
         >
-          <Ionicons name="checkmark" size={16} color={currentReco.color} />
-          <Text style={[styles.actionBtnText, { color: currentReco.color }]}>Appliquer</Text>
+          <Ionicons name={currentReco.actionRoute ? 'arrow-forward' as any : 'checkmark' as any} size={16} color={currentReco.color} />
+          <Text style={[styles.actionText, { color: currentReco.color }]}>{currentReco.actionLabel}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -207,6 +207,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.cardBorder,
     gap: 12,
   },
+
+  /* Header */
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -215,9 +217,9 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  label: {
+  headerLabel: {
     fontSize: 13,
     color: COLORS.textSecondary,
     fontWeight: '600',
@@ -247,25 +249,106 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginHorizontal: 4,
   },
-  recoTitle: {
-    fontSize: 14,
+  tierBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  tierBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  /* Allocation bar */
+  barContainer: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: 6,
+    overflow: 'hidden',
+    gap: 2,
+  },
+  barSegment: {
+    height: '100%',
+  },
+
+  /* Legend */
+  legendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
     fontWeight: '600',
+  },
+
+  /* Slide content */
+  slideRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  recoIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slideContent: {
+    flex: 1,
+    gap: 2,
+  },
+  recoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.text,
   },
   recoAmount: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
-    marginVertical: 2,
   },
   recoDescription: {
     fontSize: 12,
     color: COLORS.textSecondary,
     lineHeight: 17,
   },
+
+  /* Actions */
   actionRow: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 4,
+  },
+  dismissBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ef444430',
+    backgroundColor: '#ef444408',
+  },
+  dismissText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '500',
   },
   actionBtn: {
     flex: 1,
@@ -277,17 +360,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  rejectBtn: {
-    borderColor: COLORS.red + '30',
-    backgroundColor: COLORS.red + '08',
-  },
-  acceptBtn: {
-    backgroundColor: '#1e293b',
-  },
-  actionBtnText: {
+  actionText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
   },
+
   emptyText: {
     fontSize: 13,
     color: COLORS.textSecondary,

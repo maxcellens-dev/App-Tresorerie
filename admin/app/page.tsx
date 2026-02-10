@@ -8,6 +8,8 @@ const COLORS = {
 
 export default function AdminHome() {
   const items = [
+    { href: '/recommendations', title: 'Recommandations', desc: 'Moteur intelligent et paliers' },
+    { href: '/safe-to-spend', title: 'Formule À dépenser', desc: 'Explication du calcul détaillé' },
     { href: '/style-editor', title: 'Style Editor', desc: 'Thème et textes SEO' },
     { href: '/design-studio', title: 'Design Studio', desc: 'Couleurs et boutons' },
     { href: '/seo-center', title: 'SEO Center', desc: 'Landing et meta' },

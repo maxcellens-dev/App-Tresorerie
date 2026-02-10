@@ -33,11 +33,6 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false,
       <Text style={[styles.amount, { color }]}>
         {amount.toFixed(0)} €
       </Text>
-      {reserved > 0 && (
-        <Text style={styles.reservedHint}>
-          dont {reserved.toFixed(0)} € réservés projets
-        </Text>
-      )}
       <Text style={styles.description}>
         {isNegative
           ? 'Attention: solde insuffisant'

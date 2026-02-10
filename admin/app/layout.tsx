@@ -36,6 +36,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/" style={{ color: '#94a3b8', textDecoration: 'none' }}>
                 Accueil
               </Link>
+              <Link href="/recommendations" style={{ color: '#94a3b8', textDecoration: 'none' }}>
+                Recos
+              </Link>
+              <Link href="/safe-to-spend" style={{ color: '#94a3b8', textDecoration: 'none' }}>
+                Formule
+              </Link>
               <Link href="/style-editor" style={{ color: '#94a3b8', textDecoration: 'none' }}>
                 Style
               </Link>

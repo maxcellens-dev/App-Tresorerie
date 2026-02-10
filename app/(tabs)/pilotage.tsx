@@ -13,6 +13,8 @@ import RecommendationCard from '../components/RecommendationCard';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
 import { ACCOUNT_COLORS } from '../theme/colors';
+import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
+import type { SmartRecommendation } from '../lib/recommendationEngine';
 
 const COLORS = {
   bg: '#020617',
@@ -174,13 +176,12 @@ export default function PilotageScreen() {
             </View>
 
             <RecommendationCard
-              projection={pilotageData.projected_surplus}
-              recommendation={pilotageData.recommendation}
-              onAction={() => {
-                if (pilotageData.recommendation === 'À ÉPARGNER') {
-                  router.push('/(tabs)/comptes');
-                } else {
-                  router.push('/(tabs)/comptes');
+              recommendations={pilotageData ? computeRecommendations(pilotageData) : []}
+              tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
+              tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
+              onAction={(reco: SmartRecommendation) => {
+                if (reco.actionRoute) {
+                  router.push(reco.actionRoute as any);
                 }
               }}
             />
