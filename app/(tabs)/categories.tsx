@@ -24,6 +24,7 @@ import {
   useSeedDefaultCategories,
   useUpdateCategory,
   useDeleteCategory,
+  useBulkUpdateVariable,
 } from '../hooks/useCategories';
 import type { Category } from '../types/database';
 
@@ -64,12 +65,15 @@ export default function CategoriesScreen() {
   const addCategory = useAddCategory(user?.id);
   const updateCategory = useUpdateCategory(user?.id);
   const deleteCategory = useDeleteCategory(user?.id);
+  const bulkUpdateVariable = useBulkUpdateVariable(user?.id);
 
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<'income' | 'expense'>('expense');
   const [newParentId, setNewParentId] = useState<string | null>(null);
-  const [editModal, setEditModal] = useState<{ id: string; name: string } | null>(null);
+  const [editModal, setEditModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean } | null>(null);
   const [editName, setEditName] = useState('');
+  const [editVariable, setEditVariable] = useState(false);
+  const [editShowVariableToggle, setEditShowVariableToggle] = useState(false);
   const hasSeeded = useRef(false);
 
   useEffect(() => {
@@ -103,13 +107,29 @@ export default function CategoriesScreen() {
   }
 
   function openEdit(c: Category) {
-    setEditModal({ id: c.id, name: c.name });
+    const isExpenseParent = c.type === 'expense' && !c.parent_id;
+    console.log('[openEdit]', { name: c.name, type: c.type, parent_id: c.parent_id, is_variable: c.is_variable, isExpenseParent });
+    setEditModal({ id: c.id, name: c.name, type: c.type, parent_id: c.parent_id, is_variable: c.is_variable });
     setEditName(c.name);
+    setEditVariable(c.is_variable ?? false);
+    setEditShowVariableToggle(isExpenseParent);
   }
 
   async function handleSaveEdit() {
     if (!editModal || !editName.trim()) return;
     try {
+      const isExpenseParent = editModal.type === 'expense' && !editModal.parent_id;
+      const variableChanged = isExpenseParent && editVariable !== (editModal.is_variable ?? false);
+
+      if (variableChanged) {
+        // Cascade: update parent + all children
+        const childIds = categories
+          .filter((ch) => ch.parent_id === editModal.id)
+          .map((ch) => ch.id);
+        const allIds = [editModal.id, ...childIds];
+        await bulkUpdateVariable.mutateAsync({ ids: allIds, is_variable: editVariable });
+      }
+
       await updateCategory.mutateAsync({ id: editModal.id, name: editName.trim() });
       setEditModal(null);
     } catch (e: unknown) {
@@ -138,18 +158,6 @@ export default function CategoriesScreen() {
     ]);
   }
 
-  async function handleToggleVariable(c: Category) {
-    try {
-      await updateCategory.mutateAsync({
-        id: c.id,
-        name: c.name,
-        is_variable: !c.is_variable,
-      });
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de modifier.');
-    }
-  }
-
   function canEditCategory(c: Category): boolean {
     if (c.is_default && !isAdmin) return false;
     return true;
@@ -167,7 +175,9 @@ export default function CategoriesScreen() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <Text style={styles.subtitle}>
-          Recettes et dépenses par défaut. Modifiez, ajoutez ou supprimez des postes.
+          {isAdmin
+            ? 'Recettes et dépenses par défaut. Modifiez, ajoutez ou supprimez des postes.'
+            : 'Gérez vos catégories personnelles. Les catégories par défaut (🔒) ne sont modifiables que par un administrateur.'}
         </Text>
 
         {!user ? (
@@ -311,17 +321,7 @@ export default function CategoriesScreen() {
                     expenseGrouped.parents.map((p) => (
                       <View key={p.id}>
                         <View style={styles.row}>
-                          <View style={styles.rowLabelGroup}>
-                            <Text style={styles.rowLabel}>{p.name}</Text>
-                            <TouchableOpacity
-                              style={[styles.variableBadge, p.is_variable ? styles.variableBadgeOn : styles.variableBadgeOff]}
-                              onPress={() => handleToggleVariable(p)}
-                            >
-                              <Text style={[styles.variableBadgeText, p.is_variable ? styles.variableBadgeTextOn : styles.variableBadgeTextOff]}>
-                                {p.is_variable ? 'Variable' : 'Fixe'}
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
+                          <Text style={styles.rowLabel}>{p.name}</Text>
                           {canEditCategory(p) && (
                           <View style={styles.rowActions}>
                             <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8}>
@@ -372,6 +372,28 @@ export default function CategoriesScreen() {
               returnKeyType="done"
               onSubmitEditing={handleSaveEdit}
             />
+            {editModal !== null && editModal.type === 'expense' && (editModal.parent_id === null || editModal.parent_id === undefined) ? (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={styles.label}>Type de dépense</Text>
+                <View style={styles.toggle}>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, !editVariable && styles.toggleBtnActive]}
+                    onPress={() => setEditVariable(false)}
+                  >
+                    <Text style={[styles.toggleLabel, !editVariable && styles.toggleLabelActive]}>Fixe</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, editVariable && styles.toggleBtnActive]}
+                    onPress={() => setEditVariable(true)}
+                  >
+                    <Text style={[styles.toggleLabel, editVariable && styles.toggleLabelActive]}>Variable</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>
+                  Les sous-catégories suivront automatiquement.
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtn} onPress={() => setEditModal(null)}>
                 <Text style={styles.modalBtnLabel}>Annuler</Text>
@@ -474,15 +496,8 @@ const styles = StyleSheet.create({
   },
   rowChild: { paddingLeft: 28, backgroundColor: 'rgba(30,41,59,0.3)' },
   rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text, flex: 1 },
-  rowLabelGroup: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowLabelChild: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
-  variableBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
-  variableBadgeOn: { backgroundColor: COLORS.teal + '20', borderColor: COLORS.teal },
-  variableBadgeOff: { backgroundColor: COLORS.cardBorder + '40', borderColor: COLORS.cardBorder },
-  variableBadgeText: { fontSize: 10, fontWeight: '700' },
-  variableBadgeTextOn: { color: COLORS.teal },
-  variableBadgeTextOff: { color: COLORS.textSecondary },
   empty: { padding: 20, color: COLORS.textSecondary, textAlign: 'center' },
   modalOverlay: {
     flex: 1,

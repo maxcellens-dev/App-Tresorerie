@@ -50,6 +50,8 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
             name: item.name,
             type: item.type,
             parent_id: null,
+            is_default: true,
+            is_variable: item.is_variable ?? false,
           })
           .select('id, name')
           .single();
@@ -64,6 +66,8 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
           name: item.name,
           type: item.type,
           parent_id: parentIds[item.parentName],
+          is_default: true,
+          is_variable: item.is_variable ?? false,
         });
         if (error) throw error;
       }
@@ -149,6 +153,24 @@ export function useUpdateCategory(profileId: string | undefined) {
         .single();
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+    },
+  });
+}
+
+export function useBulkUpdateVariable(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { ids: string[]; is_variable: boolean }) => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+      const { error } = await supabase
+        .from('categories')
+        .update({ is_variable: input.is_variable })
+        .in('id', input.ids)
+        .eq('profile_id', profileId);
+      if (error) throw error;
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });

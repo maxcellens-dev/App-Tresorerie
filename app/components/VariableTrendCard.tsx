@@ -9,7 +9,6 @@ const COLORS = {
   textSecondary: '#94a3b8',
   amber: '#f59e0b',
   teal: '#2dd4bf',
-  orange: '#f59e0b',
   red: '#ef4444',
 };
 
@@ -20,9 +19,18 @@ interface VariableTrendProps {
 }
 
 export default function VariableTrendCard({ current, average, percentage }: VariableTrendProps) {
-  const isOver = percentage > 100;
-  const color = percentage > 100 ? COLORS.orange : COLORS.teal;
+  const color =
+    percentage > 100 ? COLORS.red :
+    percentage > 70 ? COLORS.amber :
+    COLORS.teal;
   const progressWidth = Math.min(percentage, 100);
+
+  const message =
+    percentage > 100
+      ? `⚠️ Dépassement de ${(percentage - 100).toFixed(0)}% par rapport à la moyenne`
+      : percentage > 70
+        ? 'Vous approchez la moyenne'
+        : 'Bien maîtrisé';
 
   return (
     <View style={styles.container}>
@@ -41,11 +49,9 @@ export default function VariableTrendCard({ current, average, percentage }: Vari
         {current.toFixed(0)} € dépensés sur {average.toFixed(0)} € habituels
       </Text>
       
-      {isOver && (
-        <Text style={styles.warning}>
-          ⚠️ Vous avez dépassé votre moyenne de {(percentage - 100).toFixed(0)}%
-        </Text>
-      )}
+      <Text style={[styles.statusMessage, { color }]}>
+        {message}
+      </Text>
     </View>
   );
 }
@@ -90,9 +96,9 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 4,
   },
-  warning: {
+  statusMessage: {
     fontSize: 12,
-    color: COLORS.orange,
+    fontWeight: '600',
     marginTop: 4,
   },
 });

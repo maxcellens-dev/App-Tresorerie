@@ -16,12 +16,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
 import {
   useCategories,
   useAddCategory,
   useSeedDefaultCategories,
   useUpdateCategory,
   useDeleteCategory,
+  useBulkUpdateVariable,
 } from '../../hooks/useCategories';
 import type { Category } from '../../types/database';
 
@@ -50,17 +52,21 @@ function groupCategories(categories: Category[]) {
 export default function CategoriesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
   const { data: categories = [], isLoading } = useCategories(user?.id);
   const seedDefaults = useSeedDefaultCategories(user?.id);
   const addCategory = useAddCategory(user?.id);
   const updateCategory = useUpdateCategory(user?.id);
   const deleteCategory = useDeleteCategory(user?.id);
+  const bulkUpdateVariable = useBulkUpdateVariable(user?.id);
 
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<'income' | 'expense'>('expense');
   const [newParentId, setNewParentId] = useState<string | null>(null);
-  const [editModal, setEditModal] = useState<{ id: string; name: string } | null>(null);
+  const [editModal, setEditModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean } | null>(null);
   const [editName, setEditName] = useState('');
+  const [editVariable, setEditVariable] = useState(false);
   const hasSeeded = useRef(false);
 
   useEffect(() => {
@@ -85,13 +91,25 @@ export default function CategoriesScreen() {
   }
 
   function openEdit(c: Category) {
-    setEditModal({ id: c.id, name: c.name });
+    setEditModal({ id: c.id, name: c.name, type: c.type, parent_id: c.parent_id, is_variable: c.is_variable });
     setEditName(c.name);
+    setEditVariable(c.is_variable ?? false);
   }
 
   async function handleSaveEdit() {
     if (!editModal || !editName.trim()) return;
     try {
+      const isExpenseParent = editModal.type === 'expense' && !editModal.parent_id;
+      const variableChanged = isExpenseParent && editVariable !== (editModal.is_variable ?? false);
+
+      if (variableChanged) {
+        const childIds = categories
+          .filter((ch) => ch.parent_id === editModal.id)
+          .map((ch) => ch.id);
+        const allIds = [editModal.id, ...childIds];
+        await bulkUpdateVariable.mutateAsync({ ids: allIds, is_variable: editVariable });
+      }
+
       await updateCategory.mutateAsync({ id: editModal.id, name: editName.trim() });
       setEditModal(null);
     } catch (e: unknown) {
@@ -303,6 +321,28 @@ export default function CategoriesScreen() {
               returnKeyType="done"
               onSubmitEditing={handleSaveEdit}
             />
+            {editModal !== null && editModal.type === 'expense' && !editModal.parent_id ? (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={styles.label}>Type de dépense</Text>
+                <View style={styles.toggle}>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, !editVariable && styles.toggleBtnActive]}
+                    onPress={() => setEditVariable(false)}
+                  >
+                    <Text style={[styles.toggleLabel, !editVariable && styles.toggleLabelActive]}>Fixe</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, editVariable && styles.toggleBtnActive]}
+                    onPress={() => setEditVariable(true)}
+                  >
+                    <Text style={[styles.toggleLabel, editVariable && styles.toggleLabelActive]}>Variable</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>
+                  Les sous-catégories suivront automatiquement.
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtn} onPress={() => setEditModal(null)}>
                 <Text style={styles.modalBtnLabel}>Annuler</Text>
