@@ -58,7 +58,8 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
       <View style={styles.left}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} accessibilityRole="button">
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Ionicons name="arrow-back" size={20} color={COLORS.text} />
+            <Text style={styles.backText}>Retour</Text>
           </TouchableOpacity>
         )}
         {leftContentToRender}
@@ -108,7 +109,8 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(30, 41, 59, 0.9)',
   },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn: { padding: 4 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', padding: 6, marginRight: 6 },
+  backText: { color: COLORS.text, marginLeft: 6, fontSize: 14, fontWeight: '600' },
   title: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   greetingWrap: { justifyContent: 'center' },
   greeting: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
