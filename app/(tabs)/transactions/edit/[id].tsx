@@ -119,6 +119,7 @@ export default function EditTransactionScreen() {
         <SafeAreaView style={styles.safe}>
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.text}>{tx ? 'Transaction introuvable.' : 'Chargement…'}</Text>
         </SafeAreaView>
@@ -141,6 +142,7 @@ export default function EditTransactionScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Modifier la transaction</Text>
         {isPast && (
@@ -312,7 +314,7 @@ export default function EditTransactionScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  back: { marginBottom: 16 },
+  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
   warningBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(248,113,113,0.15)', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: COLORS.danger },
   warningText: { flex: 1, fontSize: 13, color: COLORS.danger },

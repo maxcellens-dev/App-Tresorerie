@@ -172,6 +172,7 @@ export default function ProfileScreen() {
         <SafeAreaView style={styles.safe} edges={[]}>
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.text}>Connectez-vous pour modifier votre profil.</Text>
           <View style={styles.loginActions}>
@@ -330,7 +331,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  back: { marginBottom: 16 },
+  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },

@@ -135,6 +135,7 @@ export default function AccountDetailScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
 
         <View style={styles.headerRow}>
@@ -273,7 +274,7 @@ export default function AccountDetailScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  back: { marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
+  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, flex: 1 },
   editBtn: {

@@ -64,6 +64,7 @@ export default function LoginScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Connexion</Text>
           <Text style={styles.subtitle}>Accédez à votre trésorerie sur tous vos appareils.</Text>
@@ -115,7 +116,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1 },
-  back: { marginBottom: 24 },
+  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 32 },
   form: {},

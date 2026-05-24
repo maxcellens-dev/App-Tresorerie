@@ -22,6 +22,7 @@ export default function NotificationsScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Notifications</Text>
         <View style={styles.card}>
@@ -37,7 +38,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  back: { marginBottom: 16 },
+  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
   card: {
     backgroundColor: COLORS.card,

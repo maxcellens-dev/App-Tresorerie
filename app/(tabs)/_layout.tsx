@@ -38,7 +38,7 @@ function TabsHeader({ route }: { route: any }) {
   const displayTitle = titleMap[fullPath] || 'Trésorerie';
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
-  const showBack = customHeaderPages.includes(routeName) || fullPath.includes('admin') || segments.length > 2;
+  const showBack = false;
 
   return (
     <HeaderWithProfile
