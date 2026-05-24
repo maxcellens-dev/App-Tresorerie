@@ -12,6 +12,7 @@
  */
 
 import type { PilotageData } from '../hooks/usePilotageData';
+import type { FinancialProfile } from '../types/database';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -42,10 +43,10 @@ export type SavingsTier = 'critical' | 'below_optimal' | 'healthy' | 'comfortabl
 /* ── Couleurs par type ───────────────────────────────────── */
 
 const RECO_COLORS: Record<RecoType, string> = {
-  save:   '#34d399',  // vert (épargne)
-  invest: '#a78bfa',  // violet (investissement)
-  enjoy:  '#f59e0b',  // orange (variables/plaisir)
-  keep:   '#60a5fa',  // bleu (courant/réserve)
+  save:   '#34d399',
+  invest: '#a78bfa',
+  enjoy:  '#f59e0b',
+  keep:   '#60a5fa',
 };
 
 const RECO_ICONS: Record<RecoType, string> = {
@@ -53,6 +54,20 @@ const RECO_ICONS: Record<RecoType, string> = {
   invest: 'trending-up-outline',
   enjoy:  'sparkles-outline',
   keep:   'hourglass-outline',
+};
+
+const PROFILE_BASE_ALLOCATIONS: Record<FinancialProfile, Record<RecoType, number>> = {
+  economiser: { save: 55, invest: 5, enjoy: 15, keep: 25 },
+  suivi:      { save: 30, invest: 15, enjoy: 25, keep: 30 },
+  optimiser:  { save: 25, invest: 30, enjoy: 25, keep: 20 },
+  investir:   { save: 15, invest: 45, enjoy: 20, keep: 20 },
+};
+
+export const PROFILE_LABELS: Record<FinancialProfile, string> = {
+  economiser: 'Économiser',
+  suivi: 'Suivi',
+  optimiser: 'Optimiser',
+  investir: 'Investir',
 };
 
 /* ── Répartitions par palier (en %) ──────────────────────── */
@@ -72,16 +87,16 @@ const TIER_ALLOCATIONS: Record<SavingsTier, Record<RecoType, number>> = {
     keep:   25,
   },
   healthy: {
-    save:   15,
-    invest: 35,
-    enjoy:  30,
-    keep:   20,
+    save:   20,
+    invest: 30,
+    enjoy:  25,
+    keep:   25,
   },
   comfortable: {
-    save:   10,
-    invest: 45,
-    enjoy:  30,
-    keep:   15,
+    save:   15,
+    invest: 40,
+    enjoy:  25,
+    keep:   20,
   },
 };
 
@@ -100,6 +115,21 @@ function determineTier(
   if (savings < thresholdOptimal) return 'below_optimal';
   if (savings < thresholdComfort) return 'healthy';
   return 'comfortable';
+}
+
+function getProfileBaseAllocations(profile: FinancialProfile | undefined) {
+  return PROFILE_BASE_ALLOCATIONS[profile ?? 'suivi'];
+}
+
+function applyUserAllocationPreferences(alloc: Record<RecoType, number>, data: any) {
+  const custom = [data.allocation_save_percent, data.allocation_invest_percent, data.allocation_enjoy_percent, data.allocation_keep_percent];
+  if (!custom.every((value) => typeof value === 'number' && !Number.isNaN(value))) return;
+  const total = custom.reduce((sum, value) => sum + value, 0);
+  if (total !== 100) return;
+  alloc.save = data.allocation_save_percent;
+  alloc.invest = data.allocation_invest_percent;
+  alloc.enjoy = data.allocation_enjoy_percent;
+  alloc.keep = data.allocation_keep_percent;
 }
 
 /** Clamp et arrondi */
@@ -123,8 +153,9 @@ export function computeRecommendations(data: PilotageData): SmartRecommendation[
     data.safety_threshold_comfort,
   );
 
-  // 2. Partir des allocations de base du palier
-  const alloc: Record<RecoType, number> = { ...TIER_ALLOCATIONS[tier] };
+  // 2. Partir des allocations de base du profil financier ou du palier par défaut
+  const alloc: Record<RecoType, number> = { ...getProfileBaseAllocations(data.financial_profile) };
+  applyUserAllocationPreferences(alloc, data);
 
   // 3. Modificateurs contextuels
   applyVariableTrendModifier(alloc, data.variable_trend_percentage);

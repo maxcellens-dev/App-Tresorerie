@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { Account, Transaction, Project, Objective, Profile, Category, RecurrenceRule, TransactionWithDetails } from '../types/database';
+import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
   category?: { name: string; type: string; is_variable?: boolean };
@@ -13,6 +13,7 @@ export interface PilotageData {
   remaining_fixed_expenses: number;
   committed_allocations: number;
   same_account_reserved: number;
+  monthly_commitments: number;
 
   // Step 2: Variable Expense Trend
   avg_variable_expenses_3m: number;
@@ -22,6 +23,14 @@ export interface PilotageData {
   // Step 3: Surplus & Recommendation
   projected_surplus: number;
   recommendation: 'À ÉPARGNER' | 'À INVESTIR';
+
+  // Profile and allocation preferences
+  financial_profile?: FinancialProfile;
+  allocation_save_percent?: number;
+  allocation_invest_percent?: number;
+  allocation_enjoy_percent?: number;
+  allocation_keep_percent?: number;
+  initial_onboarding_completed: boolean;
 
   // Step 4: Projects
   available_savings: number;
@@ -54,6 +63,7 @@ export interface PilotageData {
   total_invested: number;
 
   // Safety Thresholds
+  safety_margin_percent: number;
   safety_threshold_min: number;
   safety_threshold_optimal: number;
   safety_threshold_comfort: number;
@@ -198,6 +208,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     .reduce((sum, o) => sum + (Number(o.target_yearly_amount) / 12), 0);
 
   const committed_allocations = committed_project_allocations + committed_objective_monthly;
+  const monthly_commitments = committed_allocations;
 
   // Same-account project reservations: money is "reserved" but still sits
   // on the checking account. Only count PAST reservations (date ≤ today)
@@ -341,12 +352,20 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     current_checking_balance,
     remaining_fixed_expenses,
     committed_allocations,
+    monthly_commitments,
     same_account_reserved,
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,
     projected_surplus,
     recommendation,
+    safety_margin_percent,
+    financial_profile: profile?.financial_profile ?? undefined,
+    allocation_save_percent: profile?.allocation_save_percent ?? undefined,
+    allocation_invest_percent: profile?.allocation_invest_percent ?? undefined,
+    allocation_enjoy_percent: profile?.allocation_enjoy_percent ?? undefined,
+    allocation_keep_percent: profile?.allocation_keep_percent ?? undefined,
+    initial_onboarding_completed: profile?.initial_onboarding_completed ?? false,
     available_savings,
     projects_with_progress,
     global_projects_percentage,

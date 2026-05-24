@@ -6,6 +6,8 @@ export type AccountType = 'checking' | 'savings' | 'investment' | 'other';
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'archived';
 export type ObjectiveStatus = 'active' | 'completed' | 'paused';
 
+export type FinancialProfile = 'economiser' | 'suivi' | 'optimiser' | 'investir';
+
 export interface Profile {
   id: string;
   email?: string;
@@ -16,6 +18,12 @@ export interface Profile {
   safety_threshold_optimal: number;
   safety_threshold_comfort: number;
   safety_margin_percent?: number;
+  financial_profile?: FinancialProfile;
+  allocation_save_percent?: number;
+  allocation_invest_percent?: number;
+  allocation_enjoy_percent?: number;
+  allocation_keep_percent?: number;
+  initial_onboarding_completed?: boolean;
   created_at: string;
   updated_at: string;
 }

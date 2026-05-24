@@ -13,7 +13,7 @@ import RecommendationCard from '../components/RecommendationCard';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
 import { ACCOUNT_COLORS } from '../theme/colors';
-import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
+import { computeRecommendations, getCurrentTier, PROFILE_LABELS, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 
 const COLORS = {
@@ -145,6 +145,44 @@ export default function PilotageScreen() {
                   <Text style={styles.summaryLabel}>Investissements</Text>
                   <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.investment }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
                 </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="person-circle-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Votre profil financier</Text>
+            </View>
+            <View style={styles.sectionDivider} />
+            <View style={styles.profileCard}>
+              <Text style={styles.profileTitle}>{PROFILE_LABELS[pilotageData.financial_profile ?? 'suivi']}</Text>
+              <Text style={styles.profileSubtitle}>Stratégie active pour le moteur de recommandations.</Text>
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Marge de sécurité</Text>
+                <Text style={styles.profileValue}>{pilotageData.safety_margin_percent ?? 10}%</Text>
+              </View>
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>Engagements mensuels</Text>
+                <Text style={styles.profileValue}>{pilotageData.monthly_commitments.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
+              </View>
+              <View style={styles.allocationBar}>
+                {['save', 'invest', 'enjoy', 'keep'].map((type) => {
+                  const value = pilotageData[(`allocation_${type}_percent` as keyof typeof pilotageData)] as number | undefined;
+                  if (value === undefined) return null;
+                  const color = type === 'save' ? '#34d399' : type === 'invest' ? '#a78bfa' : type === 'enjoy' ? '#f59e0b' : '#60a5fa';
+                  return (
+                    <View key={type} style={[styles.allocationSegment, { flex: value, backgroundColor: color + '90' }]}>
+                      <Text style={styles.allocationSegmentLabel}>{value}%</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={styles.allocationLegendRow}>
+                <Text style={styles.allocationLegend}><Text style={{ color: '#34d399' }}>●</Text> Épargner</Text>
+                <Text style={styles.allocationLegend}><Text style={{ color: '#a78bfa' }}>●</Text> Investir</Text>
+                <Text style={styles.allocationLegend}><Text style={{ color: '#f59e0b' }}>●</Text> Plaisir</Text>
+                <Text style={styles.allocationLegend}><Text style={{ color: '#60a5fa' }}>●</Text> Conserver</Text>
               </View>
             </View>
           </View>
@@ -349,5 +387,66 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     marginTop: 2,
+  },
+  profileCard: {
+    padding: 16,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    gap: 10,
+  },
+  profileTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  profileSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  profileLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  profileValue: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '700',
+  },
+  allocationBar: {
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderRadius: 10,
+    height: 28,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+  },
+  allocationSegment: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  allocationSegmentLabel: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  allocationLegendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
+  },
+  allocationLegend: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
   },
 });

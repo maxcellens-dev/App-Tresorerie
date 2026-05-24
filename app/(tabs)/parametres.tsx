@@ -1,10 +1,26 @@
-import { useState } from 'react';import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, RefreshControl, TextInput, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, RefreshControl, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../hooks/useProfile';
+import type { FinancialProfile } from '../types/database';
+
+const PROFILE_LABELS: Record<FinancialProfile, string> = {
+  economiser: 'Économiser',
+  suivi: 'Suivi',
+  optimiser: 'Optimiser',
+  investir: 'Investir',
+};
+
+const DEFAULT_ALLOCATIONS: Record<FinancialProfile, { save: number; invest: number; enjoy: number; keep: number }> = {
+  economiser: { save: 55, invest: 5, enjoy: 15, keep: 25 },
+  suivi: { save: 30, invest: 15, enjoy: 25, keep: 30 },
+  optimiser: { save: 25, invest: 30, enjoy: 25, keep: 20 },
+  investir: { save: 15, invest: 45, enjoy: 20, keep: 20 },
+};
 
 const COLORS = {
   bg: '#020617',
@@ -13,6 +29,7 @@ const COLORS = {
   text: '#ffffff',
   textSecondary: '#94a3b8',
   emerald: '#34d399',
+  danger: '#f87171',
 };
 
 const ADMIN_URL = process.env.EXPO_PUBLIC_ADMIN_URL || '';
@@ -26,8 +43,23 @@ export default function SettingsScreen() {
   const updateProfile = useUpdateProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
   const [marginInput, setMarginInput] = useState<string | null>(null);
+  const [selectedProfile, setSelectedProfile] = useState<FinancialProfile>('suivi');
+  const [savePct, setSavePct] = useState('30');
+  const [investPct, setInvestPct] = useState('15');
+  const [enjoyPct, setEnjoyPct] = useState('25');
+  const [keepPct, setKeepPct] = useState('30');
+  const [saveLoading, setSaveLoading] = useState(false);
 
   const currentMargin = marginInput ?? String(profile?.safety_margin_percent ?? 10);
+
+  useEffect(() => {
+    if (!profile) return;
+    setSelectedProfile(profile.financial_profile ?? 'suivi');
+    setSavePct(String(profile.allocation_save_percent ?? DEFAULT_ALLOCATIONS[profile.financial_profile ?? 'suivi'].save));
+    setInvestPct(String(profile.allocation_invest_percent ?? DEFAULT_ALLOCATIONS[profile.financial_profile ?? 'suivi'].invest));
+    setEnjoyPct(String(profile.allocation_enjoy_percent ?? DEFAULT_ALLOCATIONS[profile.financial_profile ?? 'suivi'].enjoy));
+    setKeepPct(String(profile.allocation_keep_percent ?? DEFAULT_ALLOCATIONS[profile.financial_profile ?? 'suivi'].keep));
+  }, [profile]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -37,6 +69,31 @@ export default function SettingsScreen() {
       setRefreshing(false);
     }
   };
+
+  async function handleSaveSettings() {
+    const total = Number(savePct) + Number(investPct) + Number(enjoyPct) + Number(keepPct);
+    if (total !== 100) {
+      Alert.alert('Allocation', 'Le total des pourcentages doit être égal à 100 %.');
+      return;
+    }
+    setSaveLoading(true);
+    try {
+      const margin = Math.max(0, Math.min(50, Number(currentMargin) || 10));
+      await updateProfile.mutateAsync({
+        financial_profile: selectedProfile,
+        allocation_save_percent: Number(savePct) || 0,
+        allocation_invest_percent: Number(investPct) || 0,
+        allocation_enjoy_percent: Number(enjoyPct) || 0,
+        allocation_keep_percent: Number(keepPct) || 0,
+        safety_margin_percent: margin,
+      });
+      Alert.alert('Paramètres', 'Vos préférences financières ont été mises à jour.');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de sauvegarder vos paramètres.');
+    } finally {
+      setSaveLoading(false);
+    }
+  }
 
   async function handleSignOut() {
     await signOut();
@@ -96,7 +153,59 @@ export default function SettingsScreen() {
                 </View>
               </View>
             </View>
-            <Text style={styles.rowHint}>Pourcentage retenu sur votre solde courant dans le calcul du « À dépenser en sécurité ».</Text>
+            <View style={[styles.row, styles.rowLast, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginTop: 12 }]}> 
+              <View style={styles.allocationRowHeader}>
+                <Text style={styles.rowLabel}>Profil financier</Text>
+                <Text style={styles.rowHint}>Stratégie utilisée pour vos recommandations.</Text>
+              </View>
+              <View style={styles.profileOptionsRow}>
+                {(['economiser', 'suivi', 'optimiser', 'investir'] as FinancialProfile[]).map((profileKey) => {
+                  const active = selectedProfile === profileKey;
+                  return (
+                    <TouchableOpacity
+                      key={profileKey}
+                      style={[styles.strategyCard, active && styles.strategyCardActive]}
+                      onPress={() => setSelectedProfile(profileKey)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.strategyLabel, active && styles.strategyLabelActive]}>{PROFILE_LABELS[profileKey]}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.allocationInputsBlock}>
+                {[
+                  { label: 'Épargner', value: savePct, setter: setSavePct },
+                  { label: 'Investir', value: investPct, setter: setInvestPct },
+                  { label: 'Plaisir', value: enjoyPct, setter: setEnjoyPct },
+                  { label: 'Conserver', value: keepPct, setter: setKeepPct },
+                ].map((item) => (
+                  <View key={item.label} style={styles.allocationRow}>
+                    <Text style={styles.rowLabel}>{item.label}</Text>
+                    <TextInput
+                      style={styles.allocationInput}
+                      value={item.value}
+                      onChangeText={(text) => item.setter(text.replace(/[^0-9]/g, ''))}
+                      keyboardType="number-pad"
+                      maxLength={3}
+                    />
+                    <Text style={styles.allocationSuffix}>%</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={[styles.rowHint, Number(savePct) + Number(investPct) + Number(enjoyPct) + Number(keepPct) !== 100 && styles.allocationWarning]}>
+                Total : {Number(savePct) + Number(investPct) + Number(enjoyPct) + Number(keepPct)} %
+              </Text>
+              <TouchableOpacity
+                style={[styles.saveButton, (saveLoading || Number(savePct) + Number(investPct) + Number(enjoyPct) + Number(keepPct) !== 100) && styles.saveButtonDisabled]}
+                onPress={handleSaveSettings}
+                disabled={saveLoading || Number(savePct) + Number(investPct) + Number(enjoyPct) + Number(keepPct) !== 100}
+                accessibilityRole="button"
+              >
+                <Text style={styles.saveButtonText}>{saveLoading ? 'Enregistrement...' : 'Enregistrer le profil'}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.rowHint}>Pour que les recommandations restent alignées avec votre stratégie.</Text>
           </View>
 
           {isAdmin && (
@@ -167,5 +276,80 @@ const styles = StyleSheet.create({
     width: 52,
     height: 36,
     paddingHorizontal: 8,
+  },
+  allocationRowHeader: {
+    width: '100%',
+    marginTop: 12,
+  },
+  profileOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  strategyCard: {
+    flex: 1,
+    minWidth: 120,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 14,
+    backgroundColor: COLORS.card,
+  },
+  strategyCardActive: {
+    borderColor: COLORS.emerald,
+    backgroundColor: '#153a20',
+  },
+  strategyLabel: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  strategyLabelActive: {
+    color: COLORS.emerald,
+  },
+  allocationInputsBlock: {
+    marginTop: 14,
+    gap: 10,
+  },
+  allocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  allocationInput: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 8,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '600' as const,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  allocationSuffix: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  saveButton: {
+    marginTop: 16,
+    backgroundColor: COLORS.emerald,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    opacity: 0.55,
+  },
+  saveButtonText: {
+    color: '#020617',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  allocationWarning: {
+    color: COLORS.danger,
   },
 });
