@@ -112,7 +112,7 @@ export default function TransactionsListScreen() {
     }
   }, [accounts, filterInitialized]);
   
-  const [periodOffset, setPeriodOffset] = useState(-2);
+  const [periodOffset, setPeriodOffset] = useState(-1);
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentYear = now.getFullYear();

@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactions } from '../hooks/useTransactions';
 import { useCategories } from '../hooks/useCategories';
+import { useAccounts } from '../hooks/useAccounts';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
 import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
 import type { RecurrenceRule, TransactionWithDetails } from '../types/database';
@@ -110,10 +111,18 @@ export default function TreasuryPlanScreen() {
   const transactionsQuery = useTransactions(user?.id);
   const categoriesQuery = useCategories(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
-  
+  const accountsQuery = useAccounts(user?.id);
+
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: categories = [] } = categoriesQuery;
   const { data: overrides = [] } = overridesQuery;
+  const { data: accounts = [] } = accountsQuery;
+
+  // Solde réel des comptes courants = point de départ du solde cumulatif
+  const checkingBalance = useMemo(
+    () => accounts.filter((a) => a.type === 'checking').reduce((s, a) => s + Number(a.balance), 0),
+    [accounts]
+  );
   const { width } = useWindowDimensions();
   const MONTH_COL_WIDTH = 80;
   const paddingH = 24 * 2;
@@ -337,17 +346,67 @@ export default function TreasuryPlanScreen() {
         });
       });
 
-    // SOLDES — basés sur les totaux catégories
+    // Solde réel du compte courant par mois affiché (toutes transactions courant, incl. mouvements)
+    const checkingNetByMonth: Record<string, number> = {};
+    months.forEach((m) => { checkingNetByMonth[m.key] = 0; });
+    for (const t of transactions as TransactionWithDetails[]) {
+      if (t.account?.type !== 'checking') continue;
+      const amt = Number(t.amount);
+      if (t.is_recurring && t.recurrence_rule) {
+        for (const m of months) {
+          const calc = addRecurrenceToMonth(m.year, m.month, amt, t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
+          const overrideKey = getOverrideKey(t.id, m.year, m.month);
+          const final = overridesMap[overrideKey] !== undefined ? overridesMap[overrideKey] : calc;
+          checkingNetByMonth[m.key] = (checkingNetByMonth[m.key] ?? 0) + final;
+        }
+      } else {
+        const [y, mo] = t.date.split('-').map(Number);
+        const key = getMonthKey(y, mo);
+        if (months.some((m) => m.key === key)) {
+          checkingNetByMonth[key] = (checkingNetByMonth[key] ?? 0) + amt;
+        }
+      }
+    }
+
+    // SOLDE :
+    // - Mois passés  : solde réel à fin de mois (rétro depuis checkingBalance)
+    // - Mois courant : checkingBalance (solde actuel)
+    // - Mois futurs  : projection cumulative (recettes - dépenses + mouvNets)
+    const currentMonthKey = getMonthKey(currentYear, currentMonth);
+    const currentIdx = months.findIndex((m) => m.key === currentMonthKey);
     const soldeByMonth: Record<string, number> = {};
-    months.forEach((m) => { soldeByMonth[m.key] = incomeCatTotals[m.key] - expenseCatTotals[m.key]; });
-    rows.push({ label: 'Solde mensuel', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });
-    const anticipatedByMonth: Record<string, number> = {};
-    months.forEach((m, i) => {
-      const nextMonth = i < months.length - 1 ? months[i + 1] : null;
-      const nextExpenses = nextMonth ? (expenseCatTotals[nextMonth.key] ?? 0) : 0;
-      anticipatedByMonth[m.key] = (soldeByMonth[m.key] ?? 0) - nextExpenses;
-    });
-    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipatedByMonth });
+
+    if (currentIdx >= 0) {
+      soldeByMonth[currentMonthKey] = checkingBalance;
+      // Passés : on remonte en soustrayant le net réel du mois suivant
+      for (let i = currentIdx - 1; i >= 0; i--) {
+        const nextKey = months[i + 1].key;
+        soldeByMonth[months[i].key] = soldeByMonth[nextKey] - checkingNetByMonth[nextKey];
+      }
+      // Futurs : projection catégories
+      for (let i = currentIdx + 1; i < months.length; i++) {
+        const m = months[i];
+        const mouvNet = (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
+        soldeByMonth[m.key] = soldeByMonth[months[i - 1].key] + (incomeCatTotals[m.key] ?? 0) - (expenseCatTotals[m.key] ?? 0) + mouvNet;
+      }
+    } else if (months.length > 0 && months[0].key > currentMonthKey) {
+      // Fenêtre 100% future : projection depuis checkingBalance
+      let prev = checkingBalance;
+      months.forEach((m) => {
+        const mouvNet = (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
+        prev += (incomeCatTotals[m.key] ?? 0) - (expenseCatTotals[m.key] ?? 0) + mouvNet;
+        soldeByMonth[m.key] = prev;
+      });
+    } else {
+      // Fenêtre 100% passée : ancrage sur le dernier mois, remonter
+      soldeByMonth[months[months.length - 1].key] = checkingBalance;
+      for (let i = months.length - 2; i >= 0; i--) {
+        const nextKey = months[i + 1].key;
+        soldeByMonth[months[i].key] = soldeByMonth[nextKey] - checkingNetByMonth[nextKey];
+      }
+    }
+
+    rows.push({ label: 'Solde', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });
 
     // MOUVEMENTS — toujours visible (virements épargne/invest uniquement)
     rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true, isBlockStart: true });
@@ -363,7 +422,7 @@ export default function TreasuryPlanScreen() {
     });
 
     return { rows, months, txByMonthCategory };
-  }, [transactions, months, incomeGrouped, expenseGrouped, overrides]);
+  }, [transactions, months, incomeGrouped, expenseGrouped, overrides, checkingBalance]);
 
   const goToTransactions = (monthKey: string, categoryId: string | null) => {
     const url = categoryId
@@ -543,9 +602,6 @@ export default function TreasuryPlanScreen() {
                     >
                       {row.label}
                     </Text>
-                    {row.label === 'Solde anticipé' && (
-                      <Text style={{ fontSize: 8, color: '#64748b', marginTop: 1 }}>avant encaissements m+1</Text>
-                    )}
                   </View>
                   {planData.months.map((m) => {
                     const val = row.values[m.key] ?? 0;
