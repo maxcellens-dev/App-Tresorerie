@@ -19,9 +19,11 @@ interface HeaderWithProfileProps {
   height?: number;
   /** Afficher le bouton retour (si pas sur une page racine) */
   showBack?: boolean;
+  /** Masquer l'avatar/profil à droite */
+  hideProfile?: boolean;
 }
 
-export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false }: HeaderWithProfileProps) {
+export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, hideProfile = false }: HeaderWithProfileProps) {
   const router = useRouter();
   const segments = useSegments();
   const { user } = useAuth();
@@ -64,7 +66,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
         )}
         {leftContentToRender}
       </View>
-      <View style={styles.right}>
+      {!hideProfile && <View style={styles.right}>
         {isAdmin && (
           <TouchableOpacity
             style={styles.iconBtn}
@@ -91,7 +93,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
             </View>
           )}
         </TouchableOpacity>
-      </View>
+      </View>}
     </View>
   );
 }

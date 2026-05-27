@@ -77,7 +77,7 @@ export default function AddTransactionScreen() {
     setAccountId(lastUsed ? lastUsed.account_id : checkingAccounts[0].id);
   }, [accounts, transactions]);
 
-  async function handleSubmit() {
+  async function handleSubmit(isDraft = false) {
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
       Alert.alert('Montant invalide', 'Saisissez un montant.');
@@ -87,7 +87,7 @@ export default function AddTransactionScreen() {
       Alert.alert('Compte requis', 'Choisissez un compte source.');
       return;
     }
-    
+
     if (isTransfer) {
       if (!targetAccountId) {
         Alert.alert('Compte cible requis', 'Choisissez un compte de destination.');
@@ -111,19 +111,20 @@ export default function AddTransactionScreen() {
         amount: finalAmount,
         date,
         note: note || (isTransfer ? `Virement vers ${accounts.find(a => a.id === targetAccountId)?.name}` : undefined),
+        is_draft: isDraft,
         is_recurring: isRecurring,
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
       });
 
-      // Si c'est un virement, créer aussi la transaction opposée sur le compte cible
       if (isTransfer) {
         await addTransaction.mutateAsync({
           account_id: targetAccountId,
           category_id: null,
-          amount: num, // Montant positif pour le compte récepteur
+          amount: num,
           date,
           note: note || `Virement depuis ${accounts.find(a => a.id === accountId)?.name}`,
+          is_draft: isDraft,
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,
           recurrence_end_date: endDateISO,
@@ -153,7 +154,7 @@ export default function AddTransactionScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <HeaderWithProfile title="Nouvelle transaction" showBack={true} />
+        <HeaderWithProfile title="Nouvelle transaction" showBack={true} hideProfile={true} />
         
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.typeSelector}>
@@ -332,18 +333,28 @@ export default function AddTransactionScreen() {
             )}
           </View>
 
-          <TouchableOpacity
-            style={[styles.submitBtn, addTransaction.isPending && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={addTransaction.isPending}
-            accessibilityRole="button"
-          >
-            {addTransaction.isPending ? (
-              <ActivityIndicator color={COLORS.bg} />
-            ) : (
-              <Text style={styles.submitLabel}>Enregistrer</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.submitRow}>
+            <TouchableOpacity
+              style={[styles.submitBtn, styles.submitBtnPrimary, addTransaction.isPending && styles.submitBtnDisabled]}
+              onPress={() => handleSubmit(false)}
+              disabled={addTransaction.isPending}
+              accessibilityRole="button"
+            >
+              {addTransaction.isPending ? (
+                <ActivityIndicator color={COLORS.bg} />
+              ) : (
+                <Text style={styles.submitLabel}>Enregistrer</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitBtn, styles.submitBtnDraft, addTransaction.isPending && styles.submitBtnDisabled]}
+              onPress={() => handleSubmit(true)}
+              disabled={addTransaction.isPending}
+              accessibilityRole="button"
+            >
+              <Text style={styles.submitLabelDraft}>Brouillon</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
         {/* Calendar Modal */}
@@ -452,9 +463,13 @@ const styles = StyleSheet.create({
   recurringLabel: { fontSize: 15, color: COLORS.textSecondary },
   recurringLabelActive: { color: COLORS.bg, fontWeight: '600' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
+  submitBtn: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  submitBtnPrimary: { backgroundColor: COLORS.emerald },
+  submitBtnDraft: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
   submitBtnDisabled: { opacity: 0.6 },
   submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  submitLabelDraft: { fontSize: 16, fontWeight: '600', color: '#94a3b8' },
   calendarBtn: {
     backgroundColor: COLORS.card,
     borderWidth: 1,

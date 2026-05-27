@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
-import { useTransactions } from '../hooks/useTransactions';
+import { useTransactions, useAddTransaction } from '../hooks/useTransactions';
 import { useCategories } from '../hooks/useCategories';
 import { useAccounts } from '../hooks/useAccounts';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
@@ -117,6 +117,7 @@ export default function TreasuryPlanScreen() {
   const { data: categories = [] } = categoriesQuery;
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = accountsQuery;
+  const addTransaction = useAddTransaction(user?.id);
 
   // Solde réel des comptes courants = point de départ du solde cumulatif
   const checkingBalance = useMemo(
@@ -146,6 +147,25 @@ export default function TreasuryPlanScreen() {
     categoryId?: string;
     value?: number;
   }>({ visible: false });
+
+  const [draftModal, setDraftModal] = useState<{
+    visible: boolean;
+    monthKey: string;
+    categoryId: string;
+    categoryName: string;
+    rowType: 'income' | 'expense';
+  } | null>(null);
+  const [draftAmount, setDraftAmount] = useState('');
+  const [draftNote, setDraftNote] = useState('');
+  const [draftAccountId, setDraftAccountId] = useState('');
+
+  const [draftChoiceModal, setDraftChoiceModal] = useState<{
+    visible: boolean;
+    monthKey: string;
+    categoryId: string;
+    rowType: 'income' | 'expense';
+    existingDrafts: TransactionWithDetails[];
+  } | null>(null);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -267,11 +287,30 @@ export default function TreasuryPlanScreen() {
       }
     }
 
+    // Tracker quels mois ont des brouillons par catégorie
+    const hasDraftByCategory: Record<string, Record<string, boolean>> = {};
+    for (const t of transactions as TransactionWithDetails[]) {
+      if (!(t as any).is_draft) continue;
+      const catId = t.category_id ?? 'none';
+      if (!hasDraftByCategory[catId]) hasDraftByCategory[catId] = {};
+      if (t.is_recurring && t.recurrence_rule) {
+        for (const m of months) {
+          const calc = addRecurrenceToMonth(m.year, m.month, Number(t.amount), t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
+          if (Math.abs(calc) > 0) hasDraftByCategory[catId][m.key] = true;
+        }
+      } else {
+        const [y, mo] = t.date.split('-').map(Number);
+        const key = getMonthKey(y, mo);
+        if (months.some((m) => m.key === key)) hasDraftByCategory[catId][key] = true;
+      }
+    }
+
     type Row = {
       label: string;
       categoryId: string | null;
       type: 'income' | 'expense' | 'balance' | 'mouvement';
       values: Record<string, number>;
+      hasDraft?: Record<string, boolean>;
       isChild?: boolean;
       isParentCategory?: boolean;
       isTotalLine?: boolean;
@@ -294,9 +333,9 @@ export default function TreasuryPlanScreen() {
           children.reduce((sum, c) => sum + (byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
         incomeCatTotals[m.key] += parentValues[m.key];
       });
-      incomeParentRows.push({ label: p.name, categoryId: p.id, type: 'income', values: parentValues, isParentCategory: true });
+      incomeParentRows.push({ label: p.name, categoryId: p.id, type: 'income', values: parentValues, isParentCategory: true, hasDraft: hasDraftByCategory[p.id] });
       children.forEach((c) => {
-        incomeParentRows.push({ label: c.name, categoryId: c.id, type: 'income', values: byCategoryMonth[c.id] ?? {}, isChild: true });
+        incomeParentRows.push({ label: c.name, categoryId: c.id, type: 'income', values: byCategoryMonth[c.id] ?? {}, isChild: true, hasDraft: hasDraftByCategory[c.id] });
       });
     });
 
@@ -328,7 +367,7 @@ export default function TreasuryPlanScreen() {
 
         const childRows: Row[] = children.map((c) => ({
           label: c.name, categoryId: c.id, type: 'expense' as const,
-          values: byCategoryMonth[c.id] ?? {}, isChild: true,
+          values: byCategoryMonth[c.id] ?? {}, isChild: true, hasDraft: hasDraftByCategory[c.id],
         }));
 
         let regulRow: Row | undefined;
@@ -340,7 +379,7 @@ export default function TreasuryPlanScreen() {
         }
 
         expenseBlocks.push({
-          parentRow: { label: p.name, categoryId: p.id, type: 'expense', values: parentValues, isParentCategory: true },
+          parentRow: { label: p.name, categoryId: p.id, type: 'expense', values: parentValues, isParentCategory: true, hasDraft: hasDraftByCategory[p.id] },
           childRows,
           regulRow,
         });
@@ -485,6 +524,47 @@ export default function TreasuryPlanScreen() {
     setMenuModalState({ visible: true, monthKey, categoryId, value });
   };
 
+  const openDraftModal = (monthKey: string, categoryId: string, rowType: 'income' | 'expense') => {
+    const cat = categories.find((c) => c.id === categoryId);
+    const defaultAccount = accounts.find((a) => a.type === 'checking');
+    setDraftAmount('');
+    setDraftNote('');
+    setDraftAccountId(defaultAccount?.id ?? '');
+    setDraftModal({ visible: true, monthKey, categoryId, categoryName: cat?.name ?? '', rowType });
+  };
+
+  const handleCreateDraft = async () => {
+    if (!draftModal || !user) return;
+    const num = parseFloat(draftAmount.replace(',', '.'));
+    if (Number.isNaN(num) || num === 0) {
+      Alert.alert('Montant invalide', 'Saisissez un montant.');
+      return;
+    }
+    if (!draftAccountId) {
+      Alert.alert('Compte requis', 'Aucun compte courant trouvé.');
+      return;
+    }
+    const finalAmount = draftModal.rowType === 'expense' ? -Math.abs(num) : Math.abs(num);
+    const [y, mo] = draftModal.monthKey.split('-').map(Number);
+    const dateISO = `${y}-${String(mo).padStart(2, '0')}-01`;
+    try {
+      await addTransaction.mutateAsync({
+        account_id: draftAccountId,
+        category_id: draftModal.categoryId,
+        amount: finalAmount,
+        date: dateISO,
+        note: draftNote || undefined,
+        is_draft: true,
+        is_recurring: false,
+        recurrence_rule: null,
+        recurrence_end_date: null,
+      });
+      setDraftModal(null);
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de créer le brouillon.');
+    }
+  };
+
   if (!user) {
     return (
       <View style={styles.root}>
@@ -506,9 +586,9 @@ export default function TreasuryPlanScreen() {
             <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o - 1)} accessibilityRole="button">
               <Ionicons name="chevron-back" size={22} color="#94a3b8" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navLabel} onPress={() => setMonthOffset(0)} accessibilityRole="button">
+            <TouchableOpacity style={styles.navLabel} onPress={() => setMonthOffset(-1)} accessibilityRole="button">
               <Text style={styles.navLabelText}>{rangeLabel}</Text>
-              {monthOffset !== 0 && <Text style={styles.navLabelHint}>Appuyer pour revenir</Text>}
+              {monthOffset !== -1 && <Text style={styles.navLabelHint}>Appuyer pour revenir</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o + 1)} accessibilityRole="button">
               <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
@@ -643,8 +723,19 @@ export default function TreasuryPlanScreen() {
                           { width: colWidth },
                         ]}
                         onPress={() => {
+                          const isFuture = m.key > getMonthKey(currentYear, currentMonth);
                           if (row.categoryId && !row.isTotalLine && !row.isSectionHeader) {
-                            showCellMenu(m.key, row.categoryId, val);
+                            if (isFuture && row.isChild && (row.type === 'expense' || row.type === 'income')) {
+                              const allTx = planData.txByMonthCategory?.[row.categoryId]?.[m.key] ?? [];
+                              const existingDrafts = allTx.filter((t) => !!(t as any).is_draft);
+                              if (existingDrafts.length > 0) {
+                                setDraftChoiceModal({ visible: true, monthKey: m.key, categoryId: row.categoryId, rowType: row.type as 'income' | 'expense', existingDrafts });
+                              } else {
+                                openDraftModal(m.key, row.categoryId, row.type as 'income' | 'expense');
+                              }
+                            } else {
+                              showCellMenu(m.key, row.categoryId, val);
+                            }
                           } else {
                             goToTransactions(m.key, row.categoryId);
                           }
@@ -661,6 +752,7 @@ export default function TreasuryPlanScreen() {
                             row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
                             row.isSectionHeader && styles.cellNumTextSectionTotal,
+                            row.hasDraft?.[m.key] && styles.cellNumDraft,
                           ]}
                           numberOfLines={1}
                         >
@@ -739,6 +831,126 @@ export default function TreasuryPlanScreen() {
         currentOverrideAmount={editModalState.currentOverrideAmount}
         profileId={user?.id}
       />
+
+      {/* Draft Choice Modal */}
+      <Modal
+        visible={!!draftChoiceModal?.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDraftChoiceModal(null)}
+      >
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => setDraftChoiceModal(null)} activeOpacity={1}>
+          <TouchableOpacity style={styles.menuContainer} onPress={() => {}} activeOpacity={1}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Transaction prévisionnelle</Text>
+              <TouchableOpacity onPress={() => setDraftChoiceModal(null)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.menuOption}
+              onPress={() => {
+                const c = draftChoiceModal;
+                setDraftChoiceModal(null);
+                if (c) openDraftModal(c.monthKey, c.categoryId, c.rowType);
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#34d399" />
+              <Text style={styles.menuOptionText}>Créer une nouvelle</Text>
+            </TouchableOpacity>
+            {draftChoiceModal?.existingDrafts.map((draft) => (
+              <TouchableOpacity
+                key={draft.id}
+                style={styles.menuOption}
+                onPress={() => {
+                  setDraftChoiceModal(null);
+                  router.push(`/(tabs)/transactions/edit/${draft.id}` as any);
+                }}
+              >
+                <Ionicons name="create-outline" size={20} color="#f59e0b" />
+                <Text style={styles.menuOptionText} numberOfLines={1}>
+                  Modifier · {draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Draft Creation Modal */}
+      <Modal
+        visible={!!draftModal?.visible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDraftModal(null)}
+      >
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => setDraftModal(null)} activeOpacity={1}>
+          <TouchableOpacity style={styles.draftModalContainer} onPress={() => {}} activeOpacity={1}>
+            <View style={styles.menuHeader}>
+              <View>
+                <Text style={styles.menuTitle}>Transaction prévisionnelle</Text>
+                {draftModal && (
+                  <Text style={styles.draftModalSub}>
+                    {draftModal.categoryName} · {new Date(draftModal.monthKey + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setDraftModal(null)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.draftModalLabel}>Sous-catégorie</Text>
+            <View style={styles.draftCategoryBadge}>
+              <Ionicons name="pricetag-outline" size={14} color="#f59e0b" style={{ marginRight: 6 }} />
+              <Text style={styles.draftCategoryBadgeText}>{draftModal?.categoryName || '–'}</Text>
+            </View>
+
+            <Text style={styles.draftModalLabel}>Montant (€)</Text>
+            <TextInput
+              style={styles.draftModalInput}
+              value={draftAmount}
+              onChangeText={setDraftAmount}
+              placeholder="0,00"
+              placeholderTextColor="#64748b"
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.draftModalLabel}>Libellé (optionnel)</Text>
+            <TextInput
+              style={styles.draftModalInput}
+              value={draftNote}
+              onChangeText={setDraftNote}
+              placeholder="Ex. Vacances, Prime..."
+              placeholderTextColor="#64748b"
+            />
+
+            <Text style={styles.draftModalLabel}>Compte</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              {accounts.filter(a => a.type === 'checking').map((acc) => (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[styles.draftAccountChip, draftAccountId === acc.id && styles.draftAccountChipActive]}
+                  onPress={() => setDraftAccountId(acc.id)}
+                >
+                  <Text style={[styles.draftAccountChipText, draftAccountId === acc.id && styles.draftAccountChipTextActive]}>
+                    {acc.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.draftSubmitBtn, addTransaction.isPending && { opacity: 0.6 }]}
+              onPress={handleCreateDraft}
+              disabled={addTransaction.isPending}
+            >
+              <Ionicons name="time-outline" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
+              <Text style={styles.draftSubmitLabel}>Enregistrer en brouillon</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -864,6 +1076,7 @@ const styles = StyleSheet.create({
   cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
   cellNumPositive: { color: COLORS.emerald, fontWeight: '600' },
   cellNumNegative: { color: COLORS.danger, fontWeight: '600' },
+  cellNumDraft: { color: '#f59e0b', fontStyle: 'italic' },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -907,4 +1120,50 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.text,
   },
+  draftModalContainer: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f59e0b44',
+    width: '90%',
+    maxWidth: 400,
+    padding: 20,
+  },
+  draftModalSub: { fontSize: 12, color: '#f59e0b', marginTop: 2 },
+  draftCategoryBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f59e0b18', borderWidth: 1, borderColor: '#f59e0b44', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16 },
+  draftCategoryBadgeText: { fontSize: 14, fontWeight: '600', color: '#f59e0b' },
+  draftModalLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  draftModalInput: {
+    backgroundColor: '#020617',
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  draftAccountChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    marginRight: 8,
+  },
+  draftAccountChipActive: { backgroundColor: '#f59e0b22', borderColor: '#f59e0b' },
+  draftAccountChipText: { fontSize: 13, color: COLORS.text },
+  draftAccountChipTextActive: { color: '#f59e0b', fontWeight: '600' },
+  draftSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    backgroundColor: '#f59e0b11',
+  },
+  draftSubmitLabel: { fontSize: 15, fontWeight: '700', color: '#f59e0b' },
 });

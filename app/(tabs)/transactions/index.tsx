@@ -385,6 +385,7 @@ export default function TransactionsListScreen() {
                         const acctType = item.account?.type ?? 'checking';
                         const acctCol = accountColor(acctType);
 
+                        const isDraft = !!(item as any).is_draft;
                         return (
                           <TouchableOpacity
                             key={`${item.id}-${item.displayDate || ''}`}
@@ -392,6 +393,7 @@ export default function TransactionsListScreen() {
                               styles.row,
                               index === items.length - 1 && styles.rowLast,
                               isFuture && styles.rowFuture,
+                              isDraft && styles.rowDraft,
                             ]}
                             onPress={() => {
                               const route = item.displayDate
@@ -413,9 +415,14 @@ export default function TransactionsListScreen() {
                             <View style={styles.rowLeft}>
                               <View style={styles.rowLabelRow}>
                                 {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
-                                <Text style={styles.rowLabel} numberOfLines={1}>
+                                <Text style={[styles.rowLabel, isDraft && styles.rowLabelDraft]} numberOfLines={1}>
                                   {item.note || item.category?.name || 'Sans libellé'}
                                 </Text>
+                                {isDraft && (
+                                  <View style={styles.draftBadge}>
+                                    <Text style={styles.draftBadgeText}>Brouillon</Text>
+                                  </View>
+                                )}
                                 {isRecurring && (
                                   <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
                                 )}
@@ -496,6 +503,10 @@ const styles = StyleSheet.create({
   },
   rowLast: { borderBottomWidth: 0 },
   rowFuture: { opacity: 0.4 },
+  rowDraft: { borderLeftWidth: 3, borderLeftColor: '#f59e0b', borderStyle: 'dashed' as any },
+  rowLabelDraft: { fontStyle: 'italic', color: '#f59e0b' },
+  draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#f59e0b22', borderWidth: 1, borderColor: '#f59e0b' },
+  draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#f59e0b' },
   rowAccent: {
     position: 'absolute' as const,
     left: 0,

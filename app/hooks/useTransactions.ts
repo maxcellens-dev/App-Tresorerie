@@ -45,6 +45,7 @@ export function useAddTransaction(profileId: string | undefined) {
       date: string;
       note?: string;
       is_forecast?: boolean;
+      is_draft?: boolean;
       is_recurring?: boolean;
       recurrence_rule?: RecurrenceRule | null;
       recurrence_end_date?: string | null;
@@ -62,6 +63,7 @@ export function useAddTransaction(profileId: string | undefined) {
           date: input.date,
           note: input.note || null,
           is_forecast: input.is_forecast ?? false,
+          is_draft: input.is_draft ?? false,
           is_recurring: input.is_recurring ?? false,
           recurrence_rule: input.recurrence_rule ?? null,
           recurrence_end_date: input.recurrence_end_date ?? null,
@@ -71,9 +73,12 @@ export function useAddTransaction(profileId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
-      const { data: acc } = await supabase.from('accounts').select('balance').eq('id', input.account_id).single();
-      if (acc) {
-        await supabase.from('accounts').update({ balance: Number(acc.balance) + input.amount }).eq('id', input.account_id);
+      // Les brouillons n'affectent pas le solde du compte
+      if (!input.is_draft) {
+        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', input.account_id).single();
+        if (acc) {
+          await supabase.from('accounts').update({ balance: Number(acc.balance) + input.amount }).eq('id', input.account_id);
+        }
       }
       return data;
     },
@@ -95,32 +100,46 @@ export function useUpdateTransaction(profileId: string | undefined) {
       amount?: number;
       date?: string;
       note?: string | null;
+      is_draft?: boolean;
       is_recurring?: boolean;
       recurrence_rule?: RecurrenceRule | null;
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft').eq('id', input.id).eq('profile_id', profileId).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       const oldAccId = (existing as { account_id: string }).account_id;
       const oldAmount = Number((existing as { amount: number }).amount);
-      const balanceChanged = input.amount !== undefined || input.account_id !== undefined;
-      if (balanceChanged) {
+      const wasInDraft = Boolean((existing as { is_draft?: boolean }).is_draft);
+      const isNowDraft = input.is_draft !== undefined ? input.is_draft : wasInDraft;
+
+      // Soustraire l'ancienne valeur du solde seulement si la transaction n'était pas un brouillon
+      const amountOrAccountChanged = input.amount !== undefined || input.account_id !== undefined;
+      const shouldSubtractOld = !wasInDraft && amountOrAccountChanged && !isNowDraft;
+      if (shouldSubtractOld) {
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', oldAccId).single();
         if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) - oldAmount }).eq('id', oldAccId);
       }
+
       const updates: Record<string, unknown> = {};
       if (input.account_id !== undefined) updates.account_id = input.account_id;
       if (input.category_id !== undefined) updates.category_id = input.category_id;
       if (input.amount !== undefined) updates.amount = input.amount;
       if (input.date !== undefined) updates.date = input.date;
       if (input.note !== undefined) updates.note = input.note;
+      if (input.is_draft !== undefined) updates.is_draft = input.is_draft;
       if (input.is_recurring !== undefined) updates.is_recurring = input.is_recurring;
       if (input.recurrence_rule !== undefined) updates.recurrence_rule = input.recurrence_rule;
       if (input.recurrence_end_date !== undefined) updates.recurrence_end_date = input.recurrence_end_date;
       const { data, error } = await supabase.from('transactions').update(updates).eq('id', input.id).eq('profile_id', profileId).select().single();
       if (error) throw error;
-      if (balanceChanged) {
+
+      // Ajouter le nouveau montant au solde si :
+      // - Mise à jour normale (non-brouillon → non-brouillon, montant/compte changé)
+      // - OU validation d'un brouillon (brouillon → réel)
+      const draftValidated = wasInDraft && !isNowDraft;
+      const shouldAddNew = (!wasInDraft && !isNowDraft && amountOrAccountChanged) || draftValidated;
+      if (shouldAddNew) {
         const newAccId = (input.account_id !== undefined ? input.account_id : oldAccId) as string;
         const newAmount = input.amount !== undefined ? input.amount : oldAmount;
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', newAccId).single();
@@ -141,11 +160,12 @@ export function useDeleteTransaction(profileId: string | undefined) {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: row, error: fetchErr } = await supabase.from('transactions').select('account_id, amount').eq('id', id).eq('profile_id', profileId).single();
+      const { data: row, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft').eq('id', id).eq('profile_id', profileId).single();
       if (fetchErr) throw fetchErr;
       const { error: delErr } = await supabase.from('transactions').delete().eq('id', id).eq('profile_id', profileId);
       if (delErr) throw delErr;
-      if (row) {
+      // Les brouillons n'ont jamais affecté le solde → ne pas l'ajuster à la suppression
+      if (row && !(row as { is_draft?: boolean }).is_draft) {
         const accId = (row as { account_id: string }).account_id;
         const amount = Number((row as { amount: number }).amount);
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();

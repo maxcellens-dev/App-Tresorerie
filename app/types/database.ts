@@ -68,6 +68,7 @@ export interface Transaction {
   note: string | null;
   is_forecast: boolean;
   is_reconciled: boolean;
+  is_draft?: boolean;
   is_recurring?: boolean;
   recurrence_rule?: RecurrenceRule | null;
   recurrence_end_date?: string | null;

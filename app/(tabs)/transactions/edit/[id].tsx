@@ -120,7 +120,7 @@ export default function EditTransactionScreen() {
   const isInstanceEdit = Boolean(instanceDate && tx?.is_recurring);
   const isInstanceOccurrenceEdit = isInstanceEdit && editMode === 'single';
 
-  async function handleSubmit() {
+  async function handleSubmitWithDraft(isDraft = false) {
     if (!id || !tx) return;
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
@@ -237,6 +237,7 @@ export default function EditTransactionScreen() {
         amount: finalAmount,
         date,
         note: note || undefined,
+        is_draft: isDraft,
         is_recurring: isRecurring,
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
@@ -347,7 +348,7 @@ export default function EditTransactionScreen() {
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
             returnKeyType="done"
-            onSubmitEditing={handleSubmit}
+            onSubmitEditing={() => handleSubmitWithDraft(false)}
           />
 
           {/* Date */}
@@ -427,7 +428,7 @@ export default function EditTransactionScreen() {
                         placeholder="jj-mm-aaaa ou vide"
                         placeholderTextColor={COLORS.textSecondary}
                         returnKeyType="done"
-                        onSubmitEditing={handleSubmit}
+                        onSubmitEditing={() => handleSubmitWithDraft(false)}
                       />
                       <TouchableOpacity
                         style={styles.calendarBtn}
@@ -467,7 +468,7 @@ export default function EditTransactionScreen() {
                         placeholderTextColor={COLORS.textSecondary}
                         keyboardType="decimal-pad"
                         returnKeyType="done"
-                        onSubmitEditing={handleSubmit}
+                        onSubmitEditing={() => handleSubmitWithDraft(false)}
                       />
                       <Text style={styles.hint}>Les échéances antérieures à la date choisie restent avec l'ancien montant. Le nouveau montant s'appliquera seulement pour les échéances suivantes.</Text>
                     </View>
@@ -486,9 +487,28 @@ export default function EditTransactionScreen() {
             label="Sous-catégorie (optionnel)"
           />
 
-          <TouchableOpacity style={[styles.submitBtn, updateTx.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateTx.isPending} accessibilityRole="button">
-            {updateTx.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
-          </TouchableOpacity>
+          <View style={styles.submitRow}>
+            <TouchableOpacity
+              style={[styles.submitBtn, styles.submitBtnPrimary, updateTx.isPending && styles.submitBtnDisabled]}
+              onPress={() => handleSubmitWithDraft(false)}
+              disabled={updateTx.isPending}
+              accessibilityRole="button"
+            >
+              {updateTx.isPending ? <ActivityIndicator color={COLORS.bg} /> : (
+                <Text style={styles.submitLabel}>
+                  {tx?.is_draft ? (isExpense ? 'Valider la dépense' : 'Valider la recette') : 'Enregistrer'}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.submitBtn, styles.submitBtnDraft, updateTx.isPending && styles.submitBtnDisabled]}
+              onPress={() => handleSubmitWithDraft(true)}
+              disabled={updateTx.isPending}
+              accessibilityRole="button"
+            >
+              <Text style={styles.submitLabelDraft}>{tx?.is_draft ? 'Enregistrer' : 'Brouillon'}</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={deleteTx.isPending} accessibilityRole="button">
             <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
             <Text style={styles.deleteLabel}>Supprimer la transaction</Text>
@@ -592,9 +612,13 @@ const styles = StyleSheet.create({
   instanceModeLabelActive: { color: COLORS.bg, fontWeight: '600' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
   futureBlock: { backgroundColor: '#08101f', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 16 },
-  submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
+  submitBtn: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  submitBtnPrimary: { backgroundColor: COLORS.emerald },
+  submitBtnDraft: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
   submitBtnDisabled: { opacity: 0.6 },
   submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  submitLabelDraft: { fontSize: 16, fontWeight: '600', color: '#94a3b8' },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingVertical: 14 },
   deleteLabel: { fontSize: 15, color: COLORS.danger, fontWeight: '600' },
   text: { color: COLORS.text },
