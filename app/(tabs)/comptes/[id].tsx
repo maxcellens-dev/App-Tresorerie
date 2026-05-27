@@ -67,6 +67,7 @@ export default function AccountDetailScreen() {
 
   const [showGainLoss, setShowGainLoss] = useState(false);
   const [gainLossMode, setGainLossMode] = useState<'amount' | 'balance'>('balance');
+  const [showMethodPicker, setShowMethodPicker] = useState(false);
   const [gainLossAmount, setGainLossAmount] = useState('');
   const [gainLossBalance, setGainLossBalance] = useState('');
   const [gainLossNote, setGainLossNote] = useState(INVESTMENT_GAIN_NOTE);
@@ -342,52 +343,75 @@ export default function AccountDetailScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showGainLoss} transparent animationType="fade" onRequestClose={() => setShowGainLoss(false)}>
+      <Modal visible={showGainLoss} transparent animationType="fade" onRequestClose={() => {
+        setShowGainLoss(false);
+        setShowMethodPicker(false);
+      }}>
         <View style={modalStyles.overlay}>
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Plus / moins-value</Text>
 
             <Text style={modalStyles.sectionLabel}>Méthode de saisie</Text>
-            <View style={modalStyles.toggleRow}>
-              <TouchableOpacity
-                style={[modalStyles.toggleBtn, gainLossMode === 'amount' && modalStyles.toggleBtnActive]}
-                onPress={() => setGainLossMode('amount')}
-                activeOpacity={0.8}
-              >
-                <Text style={[modalStyles.toggleLabel, gainLossMode === 'amount' && modalStyles.toggleLabelActive]}>Montant</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.toggleBtn, gainLossMode === 'balance' && modalStyles.toggleBtnActive]}
-                onPress={() => setGainLossMode('balance')}
-                activeOpacity={0.8}
-              >
-                <Text style={[modalStyles.toggleLabel, gainLossMode === 'balance' && modalStyles.toggleLabelActive]}>Solde</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={modalStyles.dropdownField}
+              onPress={() => setShowMethodPicker((value) => !value)}
+              activeOpacity={0.8}
+            >
+              <Text style={modalStyles.dropdownText}>{gainLossMode === 'amount' ? 'Montant' : 'Solde'}</Text>
+              <Ionicons name={showMethodPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            {showMethodPicker ? (
+              <View style={modalStyles.dropdownOptions}>
+                <TouchableOpacity
+                  style={modalStyles.dropdownOption}
+                  onPress={() => {
+                    setGainLossMode('amount');
+                    setShowMethodPicker(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={modalStyles.dropdownOptionLabel}>Montant</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={modalStyles.dropdownOption}
+                  onPress={() => {
+                    setGainLossMode('balance');
+                    setShowMethodPicker(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={modalStyles.dropdownOptionLabel}>Solde</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
-            <Text style={modalStyles.sectionLabel}>Type</Text>
-            <View style={modalStyles.toggleRow}>
-              <TouchableOpacity
-                style={[modalStyles.toggleBtn, !isLoss && modalStyles.toggleBtnActive]}
-                onPress={() => {
-                  setIsLoss(false);
-                  setGainLossNote(INVESTMENT_GAIN_NOTE);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[modalStyles.toggleLabel, !isLoss && modalStyles.toggleLabelActive]}>Plus-value</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[modalStyles.toggleBtn, isLoss && modalStyles.toggleBtnActive]}
-                onPress={() => {
-                  setIsLoss(true);
-                  setGainLossNote(INVESTMENT_LOSS_NOTE);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[modalStyles.toggleLabel, isLoss && modalStyles.toggleLabelActive]}>Moins-value</Text>
-              </TouchableOpacity>
-            </View>
+            {gainLossMode === 'amount' ? (
+              <>
+                <Text style={modalStyles.sectionLabel}>Type</Text>
+                <View style={modalStyles.toggleRow}>
+                  <TouchableOpacity
+                    style={[modalStyles.toggleBtn, !isLoss && modalStyles.toggleBtnActive]}
+                    onPress={() => {
+                      setIsLoss(false);
+                      setGainLossNote(INVESTMENT_GAIN_NOTE);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[modalStyles.toggleLabel, !isLoss && modalStyles.toggleLabelActive]}>Plus-value</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[modalStyles.toggleBtn, isLoss && modalStyles.toggleBtnActive]}
+                    onPress={() => {
+                      setIsLoss(true);
+                      setGainLossNote(INVESTMENT_LOSS_NOTE);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[modalStyles.toggleLabel, isLoss && modalStyles.toggleLabelActive]}>Moins-value</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
 
             {gainLossMode === 'amount' ? (
               <>
@@ -427,7 +451,10 @@ export default function AccountDetailScreen() {
             />
 
             <View style={modalStyles.actions}>
-              <TouchableOpacity style={modalStyles.cancel} onPress={() => setShowGainLoss(false)} activeOpacity={0.7}>
+              <TouchableOpacity style={modalStyles.cancel} onPress={() => {
+                setShowGainLoss(false);
+                setShowMethodPicker(false);
+              }} activeOpacity={0.7}>
                 <Text style={modalStyles.cancelLabel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -569,6 +596,33 @@ const modalStyles = StyleSheet.create({
   },
   toggleLabel: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
   toggleLabelActive: { color: COLORS.emerald },
+  sectionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 10 },
+  dropdownField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+  dropdownText: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  dropdownOptions: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    marginBottom: 18,
+    overflow: 'hidden',
+  },
+  dropdownOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  dropdownOptionLabel: { color: COLORS.text, fontSize: 15 },
   helperText: { color: COLORS.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
   cancel: {
     flex: 1,

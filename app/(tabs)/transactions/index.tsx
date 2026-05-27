@@ -380,7 +380,12 @@ export default function TransactionsListScreen() {
                               index === items.length - 1 && styles.rowLast,
                               isFuture && styles.rowFuture,
                             ]}
-                            onPress={() => router.push(`/(tabs)/transactions/edit/${item.id}`)}
+                            onPress={() => {
+                              const route = item.displayDate
+                                ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
+                                : `/(tabs)/transactions/edit/${item.id}`;
+                              router.push(route);
+                            }}
                             activeOpacity={0.7}
                             accessibilityRole="button"
                           >

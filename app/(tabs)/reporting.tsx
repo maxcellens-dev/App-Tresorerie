@@ -44,29 +44,272 @@ const fmt = (n: number) => {
 const fmtFull = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 
+const formatTooltipValue = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}`;
+
 const isInvestmentGainLossNote = (note?: string | null) => !!note && /plus|moins|gain|perte/i.test(note);
 
-function GainLossChart({ data, width }: { data: { label: string; value: number }[]; width: number }) {
-  const maxValue = Math.max(...data.map((item) => Math.abs(item.value)), 1);
+function BarChart({ data, width }: { data: { label: string; income: number; expense: number }[]; width: number }) {
+  const [active, setActive] = useState<{ idx: number; type: 'income' | 'expense' } | null>(null);
+  const chartW = width - 52;
+  const chartH = 170;
+  const barGroupW = chartW / data.length;
+  const barW = barGroupW * 0.3;
+  const gap = 4;
+  const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
+
   return (
     <View>
-      {data.map((item, index) => {
-        const barWidth = Math.max(8, (Math.abs(item.value) / maxValue) * (width - 120));
-        const isPositive = item.value >= 0;
+      <Svg width={width} height={chartH + 56}>
+        <Defs>
+          <LinearGradient id="gi" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={C.emerald} stopOpacity="0.9" />
+            <Stop offset="1" stopColor={C.emeraldDark} stopOpacity="0.6" />
+          </LinearGradient>
+          <LinearGradient id="ge" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={C.rose} stopOpacity="0.9" />
+            <Stop offset="1" stopColor={C.roseDark} stopOpacity="0.6" />
+          </LinearGradient>
+        </Defs>
+        {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+          const y = chartH - pct * chartH;
+          return (
+            <G key={i}>
+              <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
+              <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={10} textAnchor="end">
+                {fmt(maxVal * pct)}
+              </SvgText>
+            </G>
+          );
+        })}
+        {data.map((d, i) => {
+          const x = 48 + i * barGroupW + (barGroupW - barW * 2 - gap) / 2;
+          const incomeH = (d.income / maxVal) * chartH;
+          const expenseH = (d.expense / maxVal) * chartH;
+          return (
+            <G key={i}>
+              <Rect
+                x={x}
+                y={chartH - incomeH}
+                width={barW}
+                height={incomeH}
+                rx={3}
+                fill="url(#gi)"
+                onPress={() => setActive({ idx: i, type: 'income' })}
+              />
+              <Rect
+                x={x + barW + gap}
+                y={chartH - expenseH}
+                width={barW}
+                height={expenseH}
+                rx={3}
+                fill="url(#ge)"
+                onPress={() => setActive({ idx: i, type: 'expense' })}
+              />
+            </G>
+          );
+        })}
+        {active ? (() => {
+          const point = data[active.idx];
+          const value = active.type === 'income' ? point.income : point.expense;
+          const x = 48 + active.idx * barGroupW + (barGroupW - barW * 2 - gap) / 2 + (active.type === 'income' ? barW / 2 : barW + gap + barW / 2);
+          const y = chartH - (value / maxVal) * chartH - 14;
+          return (
+            <G>
+              <Rect x={x - 34} y={Math.max(6, y - 26)} width={68} height={22} rx={10} fill={C.bg} stroke={C.textSecondary} strokeWidth={0.7} />
+              <SvgText x={x} y={Math.max(6, y - 10)} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">
+                {formatTooltipValue(value)}
+              </SvgText>
+            </G>
+          );
+        })() : null}
+        {data.map((d, i) => {
+          const x = 48 + i * barGroupW + (barGroupW - barW * 2 - gap) / 2;
+          return (
+            <SvgText key={`label-${i}`} x={x + barW + gap / 2} y={chartH + 14} fill={C.textSecondary} fontSize={10} textAnchor="middle">
+              {d.label}
+            </SvgText>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+}
+
+function AreaLineChart({ points, width, color }: { points: { label: string; value: number }[]; width: number; color: string }) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const chartH = 120;
+  const padL = 48;
+  const padR = 12;
+  const usable = width - padL - padR;
+  if (points.length < 2) return <Text style={{ color: C.textSecondary, padding: 20 }}>Données insuffisantes</Text>;
+
+  const maxVal = Math.max(...points.map(p => p.value), 1);
+  const minVal = Math.min(...points.map(p => p.value), 0);
+  const range = maxVal - minVal || 1;
+
+  const coords = points.map((p, i) => ({
+    x: padL + (i / (points.length - 1)) * usable,
+    y: 8 + (1 - (p.value - minVal) / range) * (chartH - 16),
+  }));
+
+  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
+  const areaPath = linePath + ` L ${coords[coords.length - 1].x} ${chartH} L ${coords[0].x} ${chartH} Z`;
+
+  return (
+    <Svg width={width} height={chartH + 42}>
+      <Defs>
+        <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.3" />
+          <Stop offset="1" stopColor={color} stopOpacity="0.02" />
+        </LinearGradient>
+      </Defs>
+      {[0, 0.5, 1].map((pct, i) => {
+        const y = 8 + (1 - pct) * (chartH - 16);
+        const val = minVal + pct * range;
         return (
-          <View key={`${item.label}-${index}`} style={{ marginBottom: 14 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ color: C.text, fontSize: 13, fontWeight: '600', flex: 1 }}>{item.label}</Text>
-              <Text style={{ color: isPositive ? C.emerald : C.rose, fontSize: 12, fontWeight: '700' }}>
-                {isPositive ? '+' : '−'}{fmtFull(Math.abs(item.value))}
-              </Text>
-            </View>
-            <View style={{ height: 12, backgroundColor: C.cardBorder, borderRadius: 6, overflow: 'hidden' }}>
-              <View style={{ width: barWidth, height: '100%', backgroundColor: isPositive ? C.emerald : C.rose }} />
-            </View>
-          </View>
+          <G key={i}>
+            <Line x1={padL} y1={y} x2={width - padR} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
+            <SvgText x={padL - 6} y={y + 4} fill={C.textSecondary} fontSize={10} textAnchor="end">{fmt(val)}</SvgText>
+          </G>
         );
       })}
+      <Path d={areaPath} fill="url(#areaGrad)" />
+      <Path d={linePath} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
+      {coords.map((c, i) => (
+        <Circle
+          key={`dot-${i}`}
+          cx={c.x}
+          cy={c.y}
+          r={4}
+          fill={C.bg}
+          stroke={color}
+          strokeWidth={2}
+          onPress={() => setActiveIndex(i === activeIndex ? null : i)}
+        />
+      ))}
+      {activeIndex !== null ? (
+        <G>
+          <Rect
+            x={Math.max(padL, coords[activeIndex].x - 36)}
+            y={coords[activeIndex].y - 32}
+            width={72}
+            height={24}
+            rx={10}
+            fill={C.bg}
+            stroke={C.textSecondary}
+            strokeWidth={0.7}
+          />
+          <SvgText x={coords[activeIndex].x} y={coords[activeIndex].y - 16} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">
+            {formatTooltipValue(points[activeIndex].value)}
+          </SvgText>
+        </G>
+      ) : null}
+      {points.map((p, i) => (
+        <SvgText key={`label-${i}`} x={coords[i].x} y={chartH + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">
+          {p.label}
+        </SvgText>
+      ))}
+    </Svg>
+  );
+}
+
+function InvestmentGainLossChart({ series, years, width }: { series: { name: string; color: string; points: { year: string; value: number }[] }[]; years: string[]; width: number }) {
+  const [active, setActive] = useState<{ seriesName: string; pointIndex: number } | null>(null);
+  if (!series.length || !years.length) {
+    return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 24 }}>Aucune donnée d'évolution disponible.</Text>;
+  }
+
+  const chartH = 168;
+  const padL = 44;
+  const padR = 24;
+  const usable = width - padL - padR;
+  const xStep = years.length > 1 ? usable / (years.length - 1) : 0;
+  const allValues = series.flatMap((s) => s.points.map((p) => p.value));
+  const maxVal = Math.max(...allValues, 0);
+  const minVal = Math.min(...allValues, 0);
+  const range = maxVal - minVal || 1;
+  const zeroY = 12 + (1 - (0 - minVal) / range) * (chartH - 24);
+
+  return (
+    <View>
+      <Svg width={width} height={chartH + 42}>
+        {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
+          const y = 12 + (1 - pct) * (chartH - 24);
+          const val = minVal + pct * range;
+          return (
+            <G key={`grid-${idx}`}>
+              <Line x1={padL} y1={y} x2={width - padR} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
+              <SvgText x={padL - 8} y={y + 4} fill={C.textSecondary} fontSize={10} textAnchor="end">
+                {fmt(val)}
+              </SvgText>
+            </G>
+          );
+        })}
+        {minVal < 0 && maxVal > 0 ? (
+          <Line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke={C.text} strokeWidth={1} opacity={0.35} />
+        ) : null}
+        {series.map((serie) => (
+          <G key={serie.name}>
+            <Path
+              d={serie.points
+                .map((point, idx) => {
+                  const x = padL + idx * xStep;
+                  const y = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
+                  return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+                })
+                .join(' ')}
+              fill="none"
+              stroke={serie.color}
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+            />
+            {serie.points.map((point, idx) => {
+              const x = padL + idx * xStep;
+              const y = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
+              return (
+                <Circle
+                  key={`${serie.name}-${idx}`}
+                  cx={x}
+                  cy={y}
+                  r={4}
+                  fill={C.bg}
+                  stroke={serie.color}
+                  strokeWidth={2.5}
+                  onPress={() => setActive(active?.seriesName === serie.name && active.pointIndex === idx ? null : { seriesName: serie.name, pointIndex: idx })}
+                />
+              );
+            })}
+          </G>
+        ))}
+        {years.map((year, idx) => (
+          <SvgText key={year} x={padL + idx * xStep} y={chartH + 30} fill={C.textSecondary} fontSize={10} textAnchor="middle">
+            {year}
+          </SvgText>
+        ))}
+        {active ? (() => {
+          const serie = series.find((s) => s.name === active.seriesName);
+          if (!serie) return null;
+          const point = serie.points[active.pointIndex];
+          const x = padL + active.pointIndex * xStep;
+          const y = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
+          return (
+            <G>
+              <Rect x={Math.max(padL, x - 42)} y={y - 32} width={84} height={24} rx={10} fill={C.bg} stroke={C.textSecondary} strokeWidth={0.7} />
+              <SvgText x={x} y={y - 16} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">
+                {formatTooltipValue(point.value)}
+              </SvgText>
+            </G>
+          );
+        })() : null}
+      </Svg>
+      <View style={[s.legendWrap, { justifyContent: 'flex-start' }]}> 
+        {series.map((serie) => (
+          <View key={serie.name} style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: serie.color }]} />
+            <Text style={s.legendLabel} numberOfLines={1}>{serie.name}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -94,182 +337,6 @@ function KpiCard({ icon, label, value, color, sub }: { icon: string; label: stri
       </View>
       <Text style={[s.kpiValue, { color }]}>{value}</Text>
       {sub ? <Text style={s.kpiSub}>{sub}</Text> : null}
-    </View>
-  );
-}
-
-/* ── Bar Chart (Income vs Expenses, last 6 months) ── */
-function BarChart({ data, width }: { data: { label: string; income: number; expense: number }[]; width: number }) {
-  const chartW = width - 52;
-  const chartH = 170;
-  const barGroupW = chartW / data.length;
-  const barW = barGroupW * 0.3;
-  const gap = 4;
-  const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
-
-  return (
-    <Svg width={width} height={chartH + 36}>
-      {/* Grid lines */}
-      {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
-        const y = chartH - pct * chartH;
-        return (
-          <G key={i}>
-            <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
-            <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={10} textAnchor="end">
-              {fmt(maxVal * pct)}
-            </SvgText>
-          </G>
-        );
-      })}
-      {/* Bars */}
-      {data.map((d, i) => {
-        const x = 48 + i * barGroupW + (barGroupW - barW * 2 - gap) / 2;
-        const incomeH = (d.income / maxVal) * chartH;
-        const expenseH = (d.expense / maxVal) * chartH;
-        return (
-          <G key={i}>
-            <Defs>
-              <LinearGradient id={`gi${i}`} x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.emerald} stopOpacity="0.9" />
-                <Stop offset="1" stopColor={C.emeraldDark} stopOpacity="0.6" />
-              </LinearGradient>
-              <LinearGradient id={`ge${i}`} x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.rose} stopOpacity="0.9" />
-                <Stop offset="1" stopColor={C.roseDark} stopOpacity="0.6" />
-              </LinearGradient>
-            </Defs>
-            <Rect x={x} y={chartH - incomeH} width={barW} height={incomeH} rx={3} fill={`url(#gi${i})`} />
-            <Rect x={x + barW + gap} y={chartH - expenseH} width={barW} height={expenseH} rx={3} fill={`url(#ge${i})`} />
-            <SvgText x={x + barW + gap / 2} y={chartH + 14} fill={C.textSecondary} fontSize={10} textAnchor="middle">
-              {d.label}
-            </SvgText>
-          </G>
-        );
-      })}
-    </Svg>
-  );
-}
-
-/* ── Donut Chart ── */
-function DonutChart({ slices, size }: { slices: { label: string; value: number; color: string }[]; size: number }) {
-  const total = slices.reduce((a, b) => a + b.value, 0);
-  if (total === 0) return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 20 }}>Aucune donnée</Text>;
-
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 20;
-  const innerR = r * 0.55;
-  let cumAngle = -90;
-
-  const arcs = slices.filter(s => s.value > 0).map((sl) => {
-    const angle = (sl.value / total) * 360;
-    const startAngle = cumAngle;
-    cumAngle += angle;
-    const endAngle = cumAngle;
-    const largeArc = angle > 180 ? 1 : 0;
-    const rad = (a: number) => (a * Math.PI) / 180;
-    const x1 = cx + r * Math.cos(rad(startAngle));
-    const y1 = cy + r * Math.sin(rad(startAngle));
-    const x2 = cx + r * Math.cos(rad(endAngle));
-    const y2 = cy + r * Math.sin(rad(endAngle));
-    const ix1 = cx + innerR * Math.cos(rad(startAngle));
-    const iy1 = cy + innerR * Math.sin(rad(startAngle));
-    const ix2 = cx + innerR * Math.cos(rad(endAngle));
-    const iy2 = cy + innerR * Math.sin(rad(endAngle));
-    const d = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
-    return { ...sl, d, pct: ((sl.value / total) * 100).toFixed(1) };
-  });
-
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Svg width={size} height={size}>
-        {arcs.map((arc, i) => (
-          <Path key={i} d={arc.d} fill={arc.color} />
-        ))}
-        <SvgText x={cx} y={cy - 4} fill={C.text} fontSize={16} fontWeight="bold" textAnchor="middle">
-          {fmtFull(total)}
-        </SvgText>
-        <SvgText x={cx} y={cy + 14} fill={C.textSecondary} fontSize={10} textAnchor="middle">
-          Total dépenses
-        </SvgText>
-      </Svg>
-      <View style={s.legendWrap}>
-        {arcs.map((arc, i) => (
-          <View key={i} style={s.legendItem}>
-            <View style={[s.legendDot, { backgroundColor: arc.color }]} />
-            <Text style={s.legendLabel} numberOfLines={1}>{arc.label}</Text>
-            <Text style={s.legendPct}>{arc.pct}%</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-/* ── Sparkline / area line chart ── */
-function AreaLineChart({ points, width, color }: { points: { label: string; value: number }[]; width: number; color: string }) {
-  const chartH = 120;
-  const padL = 48;
-  const padR = 12;
-  const usable = width - padL - padR;
-  if (points.length < 2) return <Text style={{ color: C.textSecondary, padding: 20 }}>Données insuffisantes</Text>;
-
-  const maxVal = Math.max(...points.map(p => p.value), 1);
-  const minVal = Math.min(...points.map(p => p.value), 0);
-  const range = maxVal - minVal || 1;
-
-  const coords = points.map((p, i) => ({
-    x: padL + (i / (points.length - 1)) * usable,
-    y: 8 + (1 - (p.value - minVal) / range) * (chartH - 16),
-  }));
-
-  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
-  const areaPath = linePath + ` L ${coords[coords.length - 1].x} ${chartH} L ${coords[0].x} ${chartH} Z`;
-
-  return (
-    <Svg width={width} height={chartH + 28}>
-      <Defs>
-        <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity="0.3" />
-          <Stop offset="1" stopColor={color} stopOpacity="0.02" />
-        </LinearGradient>
-      </Defs>
-      {/* Grid */}
-      {[0, 0.5, 1].map((pct, i) => {
-        const y = 8 + (1 - pct) * (chartH - 16);
-        const val = minVal + pct * range;
-        return (
-          <G key={i}>
-            <Line x1={padL} y1={y} x2={width - padR} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
-            <SvgText x={padL - 6} y={y + 4} fill={C.textSecondary} fontSize={10} textAnchor="end">{fmt(val)}</SvgText>
-          </G>
-        );
-      })}
-      <Path d={areaPath} fill="url(#areaGrad)" />
-      <Path d={linePath} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
-      {coords.map((c, i) => (
-        <Circle key={i} cx={c.x} cy={c.y} r={3.5} fill={C.card} stroke={color} strokeWidth={2} />
-      ))}
-      {points.map((p, i) => (
-        <SvgText key={i} x={coords[i].x} y={chartH + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">{p.label}</SvgText>
-      ))}
-    </Svg>
-  );
-}
-
-/* ── Horizontal progress bar ── */
-function ProgressRow({ label, current, target, color }: { label: string; current: number; target: number; color: string }) {
-  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-        <Text style={{ color: C.text, fontSize: 13, fontWeight: '500' }} numberOfLines={1}>{label}</Text>
-        <Text style={{ color: C.textSecondary, fontSize: 12 }}>{fmtFull(current)} / {fmtFull(target)}</Text>
-      </View>
-      <View style={{ height: 7, backgroundColor: C.cardBorder, borderRadius: 4, overflow: 'hidden' }}>
-        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4 }} />
-      </View>
-      <Text style={{ color, fontSize: 11, marginTop: 2, textAlign: 'right' }}>{pct.toFixed(0)}%</Text>
     </View>
   );
 }
@@ -398,25 +465,38 @@ export default function ReportingScreen() {
     return points;
   }, [accounts, transactions]);
 
-  const investmentGainLoss = useMemo(() => {
-    if (!accounts || !transactions) return [];
-    const currentYear = new Date().getFullYear();
+  const investmentGainLossSeries = useMemo(() => {
+    if (!accounts || !transactions) return { years: [], series: [] };
     const investmentAccounts = accounts.filter((a) => a.type === 'investment');
-    const gainMap: Record<string, { name: string; value: number }> = {};
-    for (const account of investmentAccounts) {
-      gainMap[account.id] = { name: account.name, value: 0 };
-    }
-    for (const t of transactions) {
-      if (!gainMap[t.account_id]) continue;
-      const [year] = t.date.split('-').map(Number);
-      if (year !== currentYear) continue;
-      if (t.category_id !== null) continue;
-      if (!isInvestmentGainLossNote(t.note ?? null)) continue;
-      gainMap[t.account_id].value += Number(t.amount);
-    }
-    return Object.values(gainMap)
-      .filter((item) => item.value !== 0)
-      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+    const yearSet = new Set<number>();
+
+    const series = investmentAccounts.map((account, index) => {
+      const yearlyTotals: Record<number, number> = {};
+      for (const t of transactions) {
+        if (t.account_id !== account.id) continue;
+        if (t.category_id !== null) continue;
+        if (!isInvestmentGainLossNote(t.note ?? null)) continue;
+        const [year] = t.date.split('-').map(Number);
+        yearlyTotals[year] = (yearlyTotals[year] ?? 0) + Number(t.amount);
+        yearSet.add(year);
+      }
+      return {
+        name: account.name,
+        color: CHART_PALETTE[index % CHART_PALETTE.length],
+        yearlyTotals,
+      };
+    });
+
+    const years = Array.from(yearSet).sort((a, b) => a - b).map((year) => year.toString());
+    const activeSeries = series
+      .map((item) => ({
+        name: item.name,
+        color: item.color,
+        points: years.map((year) => ({ year, value: item.yearlyTotals[Number(year)] ?? 0 })),
+      }))
+      .filter((item) => item.points.some((point) => point.value !== 0));
+
+    return { years, series: activeSeries };
   }, [accounts, transactions]);
 
   /* ── Month totals ── */
@@ -552,10 +632,10 @@ export default function ReportingScreen() {
                 <Ionicons name="trending-up-outline" size={20} color={C.violet} />
                 <Text style={s.sectionTitle}>Plus / moins-values</Text>
               </View>
-              <Text style={s.sectionSub}>Comptes d'investissement — année en cours</Text>
+              <Text style={s.sectionSub}>Comptes d'investissement — évolution annuelle</Text>
               <View style={s.chartCard}>
-                {investmentGainLoss.length > 0 ? (
-                  <GainLossChart data={investmentGainLoss} width={chartWidth} />
+                {investmentGainLossSeries.series.length > 0 ? (
+                  <InvestmentGainLossChart series={investmentGainLossSeries.series} years={investmentGainLossSeries.years} width={chartWidth} />
                 ) : (
                   <Text style={s.emptyChart}>Aucune plus/moins-value enregistrée.</Text>
                 )}

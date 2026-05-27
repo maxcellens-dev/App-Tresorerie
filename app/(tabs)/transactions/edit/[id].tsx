@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,8 @@ import { Calendar } from 'react-native-calendars';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useCategories } from '../../../hooks/useCategories';
-import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
+import { useTransactions, useAddTransaction, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
+import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../hooks/useTransactionMonthOverrides';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
 import { formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
@@ -25,17 +26,26 @@ const COLORS = {
 
 export default function EditTransactionScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; instanceDate?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const instanceDate = Array.isArray(params.instanceDate) ? params.instanceDate[0] : params.instanceDate;
   const { user } = useAuth();
   const { data: transactions = [] } = useTransactions(user?.id);
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
+  const addTx = useAddTransaction(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
+  const setOverride = useSetTransactionMonthOverride(user?.id);
+  const deleteOverride = useDeleteTransactionMonthOverride(user?.id);
 
   const tx = transactions.find((t) => t.id === id);
   const isPast = tx ? new Date(tx.date) < new Date(new Date().toISOString().slice(0, 10)) : false;
+  const instanceYear = instanceDate ? Number(instanceDate.split('-')[0]) : undefined;
+  const instanceMonth = instanceDate ? Number(instanceDate.split('-')[1]) : undefined;
+  const { data: instanceOverrides = [] } = useTransactionMonthOverrides(user?.id, instanceYear, instanceMonth);
+  const currentInstanceOverride = instanceOverrides[0];
+  const [editMode, setEditMode] = useState<'single' | 'future'>(instanceDate ? 'single' : 'future');
 
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
@@ -47,13 +57,20 @@ export default function EditTransactionScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
-  const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
+  const [futureAmount, setFutureAmount] = useState('');
+  const [futureAmountDate, setFutureAmountDate] = useState('');
+  const [futureAmountDateDisplay, setFutureAmountDateDisplay] = useState('');
+  const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end' | 'future'>(false);
+
+  const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
+  const prevIsExpense = useRef(isExpense);
 
   useEffect(() => {
     if (tx) {
-      setAmount(Math.abs(tx.amount).toString());
-      setDate(tx.date);
-      setDateDisplay(formatDateFrench(tx.date));
+      const initialAmount = currentInstanceOverride ? currentInstanceOverride.override_amount : Number(tx.amount);
+      setAmount(Math.abs(initialAmount).toString());
+      setDate(instanceDate ?? tx.date);
+      setDateDisplay(formatDateFrench(instanceDate ?? tx.date));
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
@@ -61,8 +78,43 @@ export default function EditTransactionScreen() {
       setIsRecurring(tx.is_recurring ?? false);
       setRecurrenceRule((tx.recurrence_rule as RecurrenceRule) ?? 'monthly');
       setRecurrenceEndDateInput(tx.recurrence_end_date ? formatDateFrench(tx.recurrence_end_date) : '');
+      setFutureAmount('');
+      setFutureAmountDate('');
+      setFutureAmountDateDisplay('');
     }
-  }, [tx]);
+  }, [tx, instanceDate, currentInstanceOverride]);
+
+  useEffect(() => {
+    if (prevIsExpense.current !== isExpense) {
+      prevIsExpense.current = isExpense;
+      setCategoryId('');
+    }
+  }, [isExpense]);
+
+  useEffect(() => {
+    if (instanceDate && editMode === 'future' && !futureAmountDate) {
+      setFutureAmountDate(instanceDate);
+      setFutureAmountDateDisplay(formatDateFrench(instanceDate));
+    }
+  }, [instanceDate, editMode, futureAmountDate]);
+
+  function toIsoDate(date: Date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  const closeEditor = () => {
+    if (typeof router.canGoBack === 'function' && router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/transactions');
+  };
+
+  const isInstanceEdit = Boolean(instanceDate && tx?.is_recurring);
+  const isInstanceOccurrenceEdit = isInstanceEdit && editMode === 'single';
 
   async function handleSubmit() {
     if (!id || !tx) return;
@@ -71,10 +123,105 @@ export default function EditTransactionScreen() {
       Alert.alert('Montant invalide', 'Saisissez un montant.');
       return;
     }
+
     const finalAmount = isExpense ? -Math.abs(num) : Math.abs(num);
     const endDateISO = isRecurring && recurrenceEndDateInput.trim()
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
+
+    const futureAmountNum = futureAmount.trim() ? parseFloat(futureAmount.replace(',', '.')) : null;
+    const effectiveDateISO = futureAmountDate.trim()
+      ? (parseDateFromFrench(futureAmountDate.trim()) || futureAmountDate.trim())
+      : '';
+
+    if (futureAmount.trim() && !effectiveDateISO) {
+      Alert.alert('Date d’effet manquante', 'Indiquez la date à partir de laquelle appliquer le nouveau montant.');
+      return;
+    }
+
+    if (effectiveDateISO && (!futureAmountNum || Number.isNaN(futureAmountNum))) {
+      Alert.alert('Montant futur invalide', 'Saisissez un montant futur valide.');
+      return;
+    }
+
+    if (isInstanceOccurrenceEdit) {
+      const [year, month] = instanceDate!.split('-').map(Number);
+      const originalAmount = Number(tx.amount);
+      const currentOverrideAmount = currentInstanceOverride?.override_amount;
+      if (currentOverrideAmount !== undefined && Math.abs(finalAmount - currentOverrideAmount) < 0.01) {
+        closeEditor();
+        return;
+      }
+      if (currentOverrideAmount === undefined && Math.abs(finalAmount - originalAmount) < 0.01) {
+        closeEditor();
+        return;
+      }
+
+      try {
+        if (currentOverrideAmount !== undefined && Math.abs(finalAmount - originalAmount) < 0.01) {
+          await deleteOverride.mutateAsync({ transaction_id: id, year, month });
+        } else {
+          await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: finalAmount });
+        }
+        closeEditor();
+      } catch (e: unknown) {
+        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+      }
+      return;
+    }
+
+    const shouldSplitNextAmount = isRecurring && editMode === 'future' && effectiveDateISO && futureAmountNum !== null;
+    if (shouldSplitNextAmount) {
+      const effectiveDate = new Date(`${effectiveDateISO}T00:00:00`);
+      const originalStart = new Date(`${tx.date}T00:00:00`);
+      if (effectiveDate <= originalStart) {
+        Alert.alert('Date invalide', 'La date d’effet doit être postérieure au début de la récurrence.');
+        return;
+      }
+
+      const currentEndDate = endDateISO ? new Date(`${endDateISO}T00:00:00`) : null;
+      if (currentEndDate && effectiveDate > currentEndDate) {
+        Alert.alert('Date invalide', 'La date d’effet doit être avant la fin de la récurrence.');
+        return;
+      }
+
+      const previousDay = new Date(effectiveDate);
+      previousDay.setDate(previousDay.getDate() - 1);
+      const splitEndDate = toIsoDate(previousDay);
+      const updatedEndDate = currentEndDate && currentEndDate < previousDay ? endDateISO : splitEndDate;
+      const newRecurringAmount = isExpense ? -Math.abs(futureAmountNum) : Math.abs(futureAmountNum);
+
+      try {
+        await updateTx.mutateAsync({
+          id,
+          account_id: accountId,
+          category_id: categoryId ? categoryId : null,
+          amount: finalAmount,
+          date,
+          note: note || undefined,
+          is_recurring: isRecurring,
+          recurrence_rule: isRecurring ? recurrenceRule : null,
+          recurrence_end_date: updatedEndDate,
+        });
+
+        await addTx.mutateAsync({
+          account_id: accountId,
+          category_id: categoryId ? categoryId : null,
+          amount: newRecurringAmount,
+          date: effectiveDateISO,
+          note: note || undefined,
+          is_recurring: true,
+          recurrence_rule: recurrenceRule,
+          recurrence_end_date: endDateISO,
+        });
+
+        closeEditor();
+      } catch (e: unknown) {
+        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+      }
+      return;
+    }
+
     try {
       await updateTx.mutateAsync({
         id,
@@ -87,7 +234,7 @@ export default function EditTransactionScreen() {
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
       });
-      router.back();
+      closeEditor();
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
     }
@@ -127,15 +274,6 @@ export default function EditTransactionScreen() {
     );
   }
 
-  const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
-  const prevIsExpense = useRef(isExpense);
-  useEffect(() => {
-    if (prevIsExpense.current !== isExpense) {
-      prevIsExpense.current = isExpense;
-      setCategoryId('');
-    }
-  }, [isExpense]);
-
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
@@ -162,8 +300,21 @@ export default function EditTransactionScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Montant (€)</Text>
-          <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" />
+          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (€)'}</Text>
+          <TextInput
+            style={styles.input}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0,00"
+            placeholderTextColor={COLORS.textSecondary}
+            keyboardType="decimal-pad"
+          />
+          {isRecurring && !isInstanceOccurrenceEdit && (
+            <Text style={styles.hint}>Ce montant reste appliqué aux échéances avant la date de changement.</Text>
+          )}
+          {isInstanceOccurrenceEdit && (
+            <Text style={styles.hint}>Cette modification s’appliquera uniquement à cette échéance.</Text>
+          )}
 
           <Text style={styles.label}>Date</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
@@ -216,44 +367,105 @@ export default function EditTransactionScreen() {
           />
 
           <View style={styles.recurringSection}>
-            <TouchableOpacity style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]} onPress={() => setIsRecurring(!isRecurring)}>
+            <TouchableOpacity
+              style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]}
+              onPress={() => setIsRecurring(!isRecurring)}
+              disabled={isInstanceEdit}
+            >
               <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
               <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>Récurrent</Text>
             </TouchableOpacity>
             {isRecurring && (
               <>
-                <View style={styles.chipRow}>
-                  {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
-                    <TouchableOpacity key={rule} style={[styles.chip, recurrenceRule === rule && styles.chipActive]} onPress={() => setRecurrenceRule(rule)}>
-                      <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>{rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}</Text>
+                {isInstanceEdit && (
+                  <View style={styles.instanceModeRow}>
+                    <TouchableOpacity
+                      style={[styles.instanceModeBtn, editMode === 'single' && styles.instanceModeBtnActive]}
+                      onPress={() => setEditMode('single')}
+                    >
+                      <Text style={[styles.instanceModeLabel, editMode === 'single' && styles.instanceModeLabelActive]}>Cette échéance uniquement</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    value={recurrenceEndDateInput}
-                    onChangeText={setRecurrenceEndDateInput}
-                    placeholder="jj-mm-aaaa ou vide"
-                    placeholderTextColor={COLORS.textSecondary}
-                    returnKeyType="done"
-                    onSubmitEditing={handleSubmit}
-                  />
-                  <TouchableOpacity
-                    style={styles.calendarBtn}
-                    onPress={() => setShowCalendar('end')}
-                  >
-                    <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
-                  </TouchableOpacity>
-                </View>
+                    <TouchableOpacity
+                      style={[styles.instanceModeBtn, editMode === 'future' && styles.instanceModeBtnActive]}
+                      onPress={() => setEditMode('future')}
+                    >
+                      <Text style={[styles.instanceModeLabel, editMode === 'future' && styles.instanceModeLabelActive]}>Modifier la récurrence</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {isInstanceEdit && editMode === 'single' && (
+                  <Text style={styles.hint}>Cette modification s’appliquera uniquement à cette échéance.</Text>
+                )}
+                {isRecurring && (!isInstanceEdit || editMode === 'future') && (
+                  <>
+                    <View style={styles.chipRow}>
+                      {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
+                        <TouchableOpacity key={rule} style={[styles.chip, recurrenceRule === rule && styles.chipActive]} onPress={() => setRecurrenceRule(rule)}>
+                          <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>{rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <Text style={[styles.label, { marginBottom: 8 }]}>Date de fin de la récurrence (optionnel)</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                        value={recurrenceEndDateInput}
+                        onChangeText={setRecurrenceEndDateInput}
+                        placeholder="jj-mm-aaaa ou vide"
+                        placeholderTextColor={COLORS.textSecondary}
+                        returnKeyType="done"
+                        onSubmitEditing={handleSubmit}
+                      />
+                      <TouchableOpacity
+                        style={styles.calendarBtn}
+                        onPress={() => setShowCalendar('end')}
+                      >
+                        <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.futureBlock}>
+                      <Text style={styles.sectionTitle}>Modifier le montant futur</Text>
+                      <Text style={styles.label}>Date d’effet</Text>
+                      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                        <TextInput
+                          style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                          value={futureAmountDateDisplay}
+                          onChangeText={(text) => {
+                            setFutureAmountDateDisplay(text);
+                            const parsed = parseDateFromFrench(text);
+                            if (parsed) setFutureAmountDate(parsed);
+                          }}
+                          placeholder="jj-mm-aaaa"
+                          placeholderTextColor={COLORS.textSecondary}
+                        />
+                        <TouchableOpacity
+                          style={styles.calendarBtn}
+                          onPress={() => setShowCalendar('future')}
+                        >
+                          <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.label}>Nouveau montant récurrent</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={futureAmount}
+                        onChangeText={setFutureAmount}
+                        placeholder="0,00"
+                        placeholderTextColor={COLORS.textSecondary}
+                        keyboardType="decimal-pad"
+                        returnKeyType="done"
+                        onSubmitEditing={handleSubmit}
+                      />
+                      <Text style={styles.hint}>Les échéances antérieures à la date choisie restent avec l’ancien montant. Le nouveau montant s’appliquera seulement pour les échéances suivantes.</Text>
+                    </View>
+                  </>
+                )}
               </>
             )}
           </View>
-
-          <TouchableOpacity style={[styles.submitBtn, updateTx.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateTx.isPending} accessibilityRole="button">
-            {updateTx.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
+          <TouchableOpacity style={[styles.submitBtn, (updateTx.isPending || addTx.isPending) && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateTx.isPending || addTx.isPending} accessibilityRole="button">
+            {(updateTx.isPending || addTx.isPending) ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
           </TouchableOpacity>
-
           <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={deleteTx.isPending} accessibilityRole="button">
             <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
             <Text style={styles.deleteLabel}>Supprimer la transaction</Text>
@@ -274,11 +486,18 @@ export default function EditTransactionScreen() {
                 <View style={{ width: 50 }} />
               </View>
               <Calendar
-                current={showCalendar === 'end' ? (parseDateFromFrench(recurrenceEndDateInput) || date) : date}
+                current={showCalendar === 'end'
+                  ? (parseDateFromFrench(recurrenceEndDateInput) || date)
+                  : showCalendar === 'future'
+                    ? futureAmountDate || date
+                    : date}
                 maxDate="2050-12-31"
                 onDayPress={(day: any) => {
-                  if (showCalendar === 'end') {
+                      if (showCalendar === 'end') {
                     setRecurrenceEndDateInput(formatDateFrench(day.dateString));
+                  } else if (showCalendar === 'future') {
+                    setFutureAmountDate(day.dateString);
+                    setFutureAmountDateDisplay(formatDateFrench(day.dateString));
                   } else {
                     setDate(day.dateString);
                     setDateDisplay(formatDateFrench(day.dateString));
@@ -286,7 +505,11 @@ export default function EditTransactionScreen() {
                   setShowCalendar(false);
                 }}
                 markedDates={(() => {
-                  const d = showCalendar === 'end' ? (parseDateFromFrench(recurrenceEndDateInput) || '') : date;
+                  const d = showCalendar === 'end'
+                    ? (parseDateFromFrench(recurrenceEndDateInput) || '')
+                    : showCalendar === 'future'
+                      ? futureAmountDate
+                      : date;
                   if (!d) return {};
                   return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#fff' } };
                 })()}
@@ -327,6 +550,7 @@ const styles = StyleSheet.create({
   toggleLabelActive: { color: COLORS.bg },
   label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
   input: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: COLORS.text, marginBottom: 20 },
+  hint: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 16 },
   chipScroll: { marginBottom: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: COLORS.cardBorder, marginRight: 8 },
@@ -338,6 +562,13 @@ const styles = StyleSheet.create({
   recurringToggleActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
   recurringLabel: { fontSize: 15, color: COLORS.textSecondary },
   recurringLabelActive: { color: COLORS.bg, fontWeight: '600' },
+  instanceModeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  instanceModeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder, backgroundColor: COLORS.card, alignItems: 'center' },
+  instanceModeBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
+  instanceModeLabel: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
+  instanceModeLabelActive: { color: COLORS.bg, fontWeight: '600' },
+  sectionTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  futureBlock: { backgroundColor: '#08101f', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 16 },
   submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
   submitBtnDisabled: { opacity: 0.6 },
   submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
