@@ -1,11 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTransactions } from '../../hooks/useTransactions';
+import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../hooks/useTransactions';
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -96,6 +96,8 @@ export default function TransactionsListScreen() {
   
   const transactionsQuery = useTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
+  const updateTx = useUpdateTransaction(user?.id);
+  const deleteTx = useDeleteTransaction(user?.id);
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAccounts(user?.id);
@@ -261,6 +263,74 @@ export default function TransactionsListScreen() {
     return `${formatMonthHeader(firstMonth.year, firstMonth.month)} - ${formatMonthHeader(lastMonth.year, lastMonth.month)}`;
   }, [firstMonth, lastMonth, displayMonths]);
 
+  const currentMonthKey = getMonthKey(currentYear, currentMonth);
+
+  function confirmValidateDraft(item: TransactionWithDetails) {
+    const label = item.note || item.category?.name || 'ce brouillon';
+    Alert.alert(
+      'Valider la transaction',
+      `Valider "${label}" ? Cette action mettra à jour le solde du compte.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Continuer',
+          onPress: () =>
+            Alert.alert(
+              'Confirmer la validation',
+              'Cette action est irréversible. Le solde du compte sera mis à jour.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Valider',
+                  onPress: async () => {
+                    try {
+                      await updateTx.mutateAsync({ id: item.id, is_draft: false });
+                    } catch (e: unknown) {
+                      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de valider.');
+                    }
+                  },
+                },
+              ]
+            ),
+        },
+      ]
+    );
+  }
+
+  function confirmDeleteDraft(item: TransactionWithDetails) {
+    const label = item.note || item.category?.name || 'ce brouillon';
+    Alert.alert(
+      'Supprimer le brouillon',
+      `Supprimer "${label}" ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Continuer',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(
+              'Confirmer la suppression',
+              'Cette action est définitive.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Supprimer',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await deleteTx.mutateAsync(item.id);
+                    } catch (e: unknown) {
+                      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
+                    }
+                  },
+                },
+              ]
+            ),
+        },
+      ]
+    );
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
@@ -386,11 +456,13 @@ export default function TransactionsListScreen() {
                         const acctCol = accountColor(acctType);
 
                         const isDraft = !!(item as any).is_draft;
+                        const isDraftQuickAction = isDraft && key <= currentMonthKey;
                         return (
                           <TouchableOpacity
                             key={`${item.id}-${item.displayDate || ''}`}
                             style={[
                               styles.row,
+                              isDraftQuickAction && styles.rowAlignStart,
                               index === items.length - 1 && styles.rowLast,
                               isFuture && styles.rowFuture,
                               isDraft && styles.rowDraft,
@@ -431,7 +503,30 @@ export default function TransactionsListScreen() {
                                 {item.account?.name ?? ''} · {formatDate(effectiveDate)}
                               </Text>
                             </View>
-                            {isReservation ? (
+                            {isDraftQuickAction ? (
+                              <View style={styles.rowRightDraft}>
+                                <View style={styles.draftActionRow}>
+                                  <TouchableOpacity
+                                    style={styles.draftActionValidate}
+                                    onPress={() => confirmValidateDraft(item)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="checkmark" size={13} color="#34d399" />
+                                    <Text style={styles.draftActionValidateText}>Valider</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    style={styles.draftActionDelete}
+                                    onPress={() => confirmDeleteDraft(item)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Ionicons name="trash-outline" size={13} color="#f87171" />
+                                  </TouchableOpacity>
+                                </View>
+                                <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg, { textAlign: 'right', marginTop: 4 }]}>
+                                  {amt > 0 ? '+' : ''}{amt.toFixed(2)} €
+                                </Text>
+                              </View>
+                            ) : isReservation ? (
                               <View style={styles.reservationBadge}>
                                 <Text style={styles.reservationText}>Réservé</Text>
                               </View>
@@ -503,10 +598,16 @@ const styles = StyleSheet.create({
   },
   rowLast: { borderBottomWidth: 0 },
   rowFuture: { opacity: 0.4 },
+  rowAlignStart: { alignItems: 'flex-start' },
   rowDraft: { borderLeftWidth: 3, borderLeftColor: '#f59e0b', borderStyle: 'dashed' as any },
   rowLabelDraft: { fontStyle: 'italic', color: '#f59e0b' },
   draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#f59e0b22', borderWidth: 1, borderColor: '#f59e0b' },
   draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#f59e0b' },
+  rowRightDraft: { alignItems: 'flex-end' },
+  draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#34d39918', borderWidth: 1, borderColor: '#34d39944' },
+  draftActionValidateText: { fontSize: 11, fontWeight: '700', color: '#34d399' },
+  draftActionDelete: { padding: 4, borderRadius: 8, backgroundColor: '#f8717118', borderWidth: 1, borderColor: '#f8717144' },
   rowAccent: {
     position: 'absolute' as const,
     left: 0,

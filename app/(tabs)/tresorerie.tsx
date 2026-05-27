@@ -900,12 +900,6 @@ export default function TreasuryPlanScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.draftModalLabel}>Sous-catégorie</Text>
-            <View style={styles.draftCategoryBadge}>
-              <Ionicons name="pricetag-outline" size={14} color="#f59e0b" style={{ marginRight: 6 }} />
-              <Text style={styles.draftCategoryBadgeText}>{draftModal?.categoryName || '–'}</Text>
-            </View>
-
             <Text style={styles.draftModalLabel}>Montant (€)</Text>
             <TextInput
               style={styles.draftModalInput}
