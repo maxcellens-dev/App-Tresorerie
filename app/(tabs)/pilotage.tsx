@@ -35,7 +35,7 @@ export default function PilotageScreen() {
   const projectsQuery = useProjects(user?.id);
   const objectivesQuery = useObjectives(user?.id);
 
-  const { data: pilotageData, isLoading: pilotageLoading } = pilotageQuery;
+  const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const { data: projects = [], isLoading: projectsLoading } = projectsQuery;
   const { data: objectives = [], isLoading: objectivesLoading } = objectivesQuery;
 
@@ -54,12 +54,30 @@ export default function PilotageScreen() {
     }
   };
 
-  if (!pilotageData) {
+  if (isLoading && !pilotageData) {
     return (
       <View style={styles.root}>
         <StatusBar barStyle="light-content" />
         <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
           <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (pilotageError || !pilotageData) {
+    return (
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" />
+        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+          <View style={styles.loader}>
+            <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 }}>
+              {pilotageError ? `Erreur : ${(pilotageError as Error).message}` : 'Données indisponibles'}
+            </Text>
+            <TouchableOpacity onPress={() => pilotageQuery.refetch()}>
+              <Text style={{ color: COLORS.emerald, textAlign: 'center' }}>Réessayer</Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </View>
     );

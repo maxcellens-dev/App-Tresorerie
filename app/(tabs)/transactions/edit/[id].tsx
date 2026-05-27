@@ -5,15 +5,17 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useCategories } from '../../../hooks/useCategories';
-import { useTransactions, useAddTransaction, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
+import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
 import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../hooks/useTransactionMonthOverrides';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
 import { formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
+import { supabase } from '../../../lib/supabase';
 
 const COLORS = {
   bg: '#020617',
@@ -31,10 +33,10 @@ export default function EditTransactionScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const instanceDate = Array.isArray(params.instanceDate) ? params.instanceDate[0] : params.instanceDate;
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: transactions = [] } = useTransactions(user?.id);
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
-  const addTx = useAddTransaction(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
   const setOverride = useSetTransactionMonthOverride(user?.id);
@@ -181,21 +183,45 @@ export default function EditTransactionScreen() {
 
     const shouldUpdateFutureAmount = isRecurring && editMode === 'future' && futureAmountNum !== null && !Number.isNaN(futureAmountNum);
     if (shouldUpdateFutureAmount) {
-      // Met à jour le montant de la récurrence existante (pas de création d'une nouvelle transaction)
       const newRecurringAmount = isExpense ? -Math.abs(futureAmountNum) : Math.abs(futureAmountNum);
-      const dateToSave = isInstanceEdit ? tx.date : date;
       try {
-        await updateTx.mutateAsync({
-          id,
-          account_id: accountId,
-          category_id: categoryId ? categoryId : null,
-          amount: newRecurringAmount,
-          date: dateToSave,
-          note: note || undefined,
-          is_recurring: isRecurring,
-          recurrence_rule: isRecurring ? recurrenceRule : null,
-          recurrence_end_date: endDateISO,
-        });
+        if (effectiveDateISO && effectiveDateISO > tx.date) {
+          // Tronquer la série originale à la veille de la date d'effet (pas de changement de montant = pas de mise à jour du solde)
+          const d = new Date(effectiveDateISO + 'T00:00:00');
+          d.setDate(d.getDate() - 1);
+          const dayBefore = toIsoDate(d);
+          await updateTx.mutateAsync({ id, recurrence_end_date: dayBefore });
+          // Créer la nouvelle série à partir de la date d'effet sans modifier le solde du compte
+          const { error } = await supabase!.from('transactions').insert({
+            profile_id: user!.id,
+            account_id: accountId,
+            category_id: categoryId || null,
+            amount: newRecurringAmount,
+            date: effectiveDateISO,
+            note: note || null,
+            is_forecast: false,
+            is_recurring: true,
+            recurrence_rule: recurrenceRule,
+            recurrence_end_date: endDateISO,
+            project_id: null,
+            linked_account_id: null,
+          });
+          if (error) throw error;
+          queryClient.invalidateQueries({ queryKey: ['transactions', user!.id] });
+          queryClient.invalidateQueries({ queryKey: ['pilotage_data', user!.id] });
+        } else {
+          // La date d'effet est la même que le début de la récurrence : juste mettre à jour le montant
+          await updateTx.mutateAsync({
+            id,
+            account_id: accountId,
+            category_id: categoryId ? categoryId : null,
+            amount: newRecurringAmount,
+            note: note || undefined,
+            is_recurring: true,
+            recurrence_rule: recurrenceRule,
+            recurrence_end_date: endDateISO,
+          });
+        }
         closeEditor();
       } catch (e: unknown) {
         Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
@@ -460,8 +486,8 @@ export default function EditTransactionScreen() {
             label="Sous-catégorie (optionnel)"
           />
 
-          <TouchableOpacity style={[styles.submitBtn, (updateTx.isPending || addTx.isPending) && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateTx.isPending || addTx.isPending} accessibilityRole="button">
-            {(updateTx.isPending || addTx.isPending) ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
+          <TouchableOpacity style={[styles.submitBtn, updateTx.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateTx.isPending} accessibilityRole="button">
+            {updateTx.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
           </TouchableOpacity>
           <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} disabled={deleteTx.isPending} accessibilityRole="button">
             <Ionicons name="trash-outline" size={20} color={COLORS.danger} />

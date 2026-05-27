@@ -83,7 +83,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
-    supabase.from('transactions').select('*, account:accounts(name), category:categories(*)').eq('profile_id', profileId),
+    supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
     supabase.from('projects').select('*').eq('profile_id', profileId),
     supabase.from('objectives').select('*').eq('profile_id', profileId),
   ]);
