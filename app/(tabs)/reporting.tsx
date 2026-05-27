@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -309,6 +309,90 @@ function InvestmentGainLossChart({ series, years, width }: { series: { name: str
             <Text style={s.legendLabel} numberOfLines={1}>{serie.name}</Text>
           </View>
         ))}
+      </View>
+    </View>
+  );
+}
+
+function DonutChart({ slices, size }: { slices: { label: string; value: number; color: string }[]; size: number }) {
+  const [active, setActive] = useState<number | null>(null);
+  if (!slices.length) return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 30 }}>Aucune dépense ce mois.</Text>;
+  const total = slices.reduce((s, sl) => s + sl.value, 0);
+  const cx = size / 2;
+  const cy = size / 2;
+  const R = size * 0.38;
+  const r = size * 0.22;
+  let startAngle = -Math.PI / 2;
+  const paths = slices.map((sl, i) => {
+    const angle = (sl.value / total) * 2 * Math.PI;
+    const endAngle = startAngle + angle;
+    const x1 = cx + R * Math.cos(startAngle);
+    const y1 = cy + R * Math.sin(startAngle);
+    const x2 = cx + R * Math.cos(endAngle);
+    const y2 = cy + R * Math.sin(endAngle);
+    const ix1 = cx + r * Math.cos(startAngle);
+    const iy1 = cy + r * Math.sin(startAngle);
+    const ix2 = cx + r * Math.cos(endAngle);
+    const iy2 = cy + r * Math.sin(endAngle);
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const d = `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${r} ${r} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
+    const res = { d, color: sl.color, idx: i };
+    startAngle = endAngle;
+    return res;
+  });
+  const activeSlice = active !== null ? slices[active] : null;
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Svg width={size} height={size}>
+        {paths.map((p) => (
+          <Path
+            key={p.idx}
+            d={p.d}
+            fill={p.color}
+            opacity={active === null || active === p.idx ? 1 : 0.4}
+            onPress={() => setActive(active === p.idx ? null : p.idx)}
+          />
+        ))}
+        {activeSlice ? (
+          <>
+            <SvgText x={cx} y={cy - 6} fill={C.text} fontSize={13} fontWeight="700" textAnchor="middle">
+              {fmtFull(activeSlice.value)}
+            </SvgText>
+            <SvgText x={cx} y={cy + 12} fill={C.textSecondary} fontSize={10} textAnchor="middle">
+              {((activeSlice.value / total) * 100).toFixed(0)}%
+            </SvgText>
+          </>
+        ) : (
+          <SvgText x={cx} y={cy + 4} fill={C.textSecondary} fontSize={11} textAnchor="middle">Total</SvgText>
+        )}
+      </Svg>
+      <View style={s.legendWrap}>
+        {slices.map((sl, i) => (
+          <TouchableOpacity key={i} style={s.legendItem} onPress={() => setActive(active === i ? null : i)} activeOpacity={0.7}>
+            <View style={[s.legendDot, { backgroundColor: sl.color }]} />
+            <Text style={s.legendLabel} numberOfLines={1}>{sl.label}</Text>
+            <Text style={s.legendPct}>{((sl.value / total) * 100).toFixed(0)}%</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ProgressRow({ label, current, target, color }: { label: string; current: number; target: number; color: string }) {
+  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+        <Text style={{ color: C.text, fontSize: 13, fontWeight: '500', flex: 1 }} numberOfLines={1}>{label}</Text>
+        <Text style={{ color, fontSize: 12, fontWeight: '700', marginLeft: 8 }}>{pct.toFixed(0)}%</Text>
+      </View>
+      <View style={{ height: 8, backgroundColor: C.cardBorder, borderRadius: 4, overflow: 'hidden' }}>
+        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4 }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <Text style={{ color: C.textSecondary, fontSize: 11 }}>{fmtFull(current)}</Text>
+        <Text style={{ color: C.textSecondary, fontSize: 11 }}>{fmtFull(target)}</Text>
       </View>
     </View>
   );

@@ -65,6 +65,11 @@ export default function AccountDetailScreen() {
   const [apportNote, setApportNote] = useState('Apport');
   const [apportLoading, setApportLoading] = useState(false);
 
+  const [showBalance, setShowBalance] = useState(false);
+  const [balanceInput, setBalanceInput] = useState('');
+  const [balanceNote, setBalanceNote] = useState('Régularisation solde');
+  const [balanceLoading, setBalanceLoading] = useState(false);
+
   const [showGainLoss, setShowGainLoss] = useState(false);
   const [gainLossMode, setGainLossMode] = useState<'amount' | 'balance'>('balance');
   const [showMethodPicker, setShowMethodPicker] = useState(false);
@@ -73,6 +78,38 @@ export default function AccountDetailScreen() {
   const [gainLossNote, setGainLossNote] = useState(INVESTMENT_GAIN_NOTE);
   const [gainLossLoading, setGainLossLoading] = useState(false);
   const [isLoss, setIsLoss] = useState(false);
+
+  async function handleBalance() {
+    const newBalance = parseFloat(balanceInput.replace(',', '.'));
+    if (Number.isNaN(newBalance)) {
+      Alert.alert('Solde invalide', 'Saisissez un solde valide.');
+      return;
+    }
+    if (!account || !id || !user?.id) return;
+    const diff = newBalance - Number(account.balance);
+    if (diff === 0) {
+      Alert.alert('Aucune variation', 'Le solde saisi est identique au solde actuel.');
+      return;
+    }
+    setBalanceLoading(true);
+    try {
+      await addTransaction.mutateAsync({
+        account_id: id,
+        category_id: null,
+        amount: diff,
+        date: new Date().toISOString().slice(0, 10),
+        note: balanceNote.trim() || 'Ajustement de solde',
+        is_recurring: false,
+      });
+      setShowBalance(false);
+      setBalanceInput('');
+      setBalanceNote('');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
+    } finally {
+      setBalanceLoading(false);
+    }
+  }
 
   async function handleApport() {
     const num = parseFloat(apportAmount.replace(',', '.'));
@@ -141,7 +178,7 @@ export default function AccountDetailScreen() {
       setShowGainLoss(false);
       setGainLossAmount('');
       setGainLossBalance('');
-      setGainLossMode('amount');
+      setGainLossMode('balance');
       setIsLoss(false);
       setGainLossNote(INVESTMENT_GAIN_NOTE);
     } catch (e: unknown) {
@@ -196,16 +233,28 @@ export default function AccountDetailScreen() {
             </TouchableOpacity>
           </View>
           <View style={styles.buttonRow}>
+            {account.type === 'checking' ? (
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Ajuster le solde"
+              >
+                <Ionicons name="wallet-outline" size={20} color="#60a5fa" />
+                <Text style={[styles.editBtnLabel, { color: '#60a5fa' }]}>Solde</Text>
+              </TouchableOpacity>
+            ) : null}
             {account.type === 'investment' ? (
               <TouchableOpacity
                 style={styles.editBtn}
-                onPress={() => setShowGainLoss(true)}
+                onPress={() => { setShowGainLoss(true); setShowMethodPicker(false); }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Plus / moins value"
               >
                 <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
-                <Text style={[styles.editBtnLabel, { color: '#a78bfa' }]}>Plus/moins value</Text>
+                <Text style={[styles.editBtnLabel, { color: '#a78bfa' }]}>+/- value</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -295,6 +344,71 @@ export default function AccountDetailScreen() {
 
         <Text style={styles.hint}>Les écritures de ce compte apparaissent ici.</Text>
       </SafeAreaView>
+
+      {/* ── Solde modal ── */}
+      <Modal visible={showBalance} transparent animationType="fade" onRequestClose={() => setShowBalance(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.container}>
+            <Text style={modalStyles.title}>Ajuster le solde</Text>
+
+            <Text style={modalStyles.label}>Solde actuel</Text>
+            <View style={modalStyles.readOnlyInput}>
+              <Text style={modalStyles.readOnlyText}>
+                {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {account.currency}
+              </Text>
+            </View>
+
+            <Text style={modalStyles.label}>Nouveau solde</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={balanceInput}
+              onChangeText={setBalanceInput}
+              keyboardType="decimal-pad"
+              placeholder="0,00"
+              placeholderTextColor={COLORS.textSecondary}
+              autoFocus
+            />
+            <Text style={modalStyles.helperText}>
+              {(() => {
+                const v = parseFloat(balanceInput.replace(',', '.'));
+                if (Number.isNaN(v)) return 'Saisissez le nouveau solde du compte.';
+                const diff = v - Number(account.balance);
+                if (diff === 0) return 'Aucune variation.';
+                return diff > 0
+                  ? `+ ${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € seront ajoutés`
+                  : `${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € seront retirés`;
+              })()}
+            </Text>
+
+            <Text style={modalStyles.label}>Libellé</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={balanceNote}
+              onChangeText={setBalanceNote}
+              placeholder="Ex. Relevé bancaire..."
+              placeholderTextColor={COLORS.textSecondary}
+            />
+
+            <View style={modalStyles.actions}>
+              <TouchableOpacity style={modalStyles.cancel} onPress={() => setShowBalance(false)} activeOpacity={0.7}>
+                <Text style={modalStyles.cancelLabel}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modalStyles.confirm, { backgroundColor: '#60a5fa' }, balanceLoading && { opacity: 0.5 }]}
+                onPress={handleBalance}
+                disabled={balanceLoading}
+                activeOpacity={0.8}
+              >
+                {balanceLoading ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={modalStyles.confirmLabel}>Valider</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Apport modal ── */}
       <Modal visible={showApport} transparent animationType="fade" onRequestClose={() => setShowApport(false)}>
@@ -428,16 +542,23 @@ export default function AccountDetailScreen() {
               </>
             ) : (
               <>
+                <Text style={modalStyles.label}>Solde actuel</Text>
+                <View style={modalStyles.readOnlyInput}>
+                  <Text style={modalStyles.readOnlyText}>
+                    {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {account.currency}
+                  </Text>
+                </View>
                 <Text style={modalStyles.label}>Nouveau solde</Text>
                 <TextInput
                   style={modalStyles.input}
                   value={gainLossBalance}
                   onChangeText={setGainLossBalance}
                   keyboardType="decimal-pad"
-                  placeholder={account ? account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : '0,00'}
+                  placeholder="0,00"
                   placeholderTextColor={COLORS.textSecondary}
+                  autoFocus
                 />
-                <Text style={modalStyles.helperText}>Le système calcule automatiquement la plus/moins-value à partir du nouveau solde.</Text>
+                <Text style={modalStyles.helperText}>La plus/moins-value est calculée automatiquement à partir du nouveau solde.</Text>
               </>
             )}
 
@@ -579,6 +700,17 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 16,
   },
+  readOnlyInput: {
+    backgroundColor: COLORS.cardBorder,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    opacity: 0.7,
+  },
+  readOnlyText: { fontSize: 16, color: COLORS.textSecondary },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   toggleBtn: {

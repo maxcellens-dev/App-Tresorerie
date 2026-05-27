@@ -13,6 +13,7 @@ import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDelete
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
 import { formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
+import { accountColor } from '../../../theme/colors';
 
 const COLORS = {
   bg: '#020617',
@@ -135,7 +136,7 @@ export default function EditTransactionScreen() {
       : '';
 
     if (futureAmount.trim() && !effectiveDateISO) {
-      Alert.alert('Date d’effet manquante', 'Indiquez la date à partir de laquelle appliquer le nouveau montant.');
+      Alert.alert("Date d'effet manquante", "Indiquez la date à partir de laquelle appliquer le nouveau montant.");
       return;
     }
 
@@ -165,7 +166,7 @@ export default function EditTransactionScreen() {
         }
         closeEditor();
       } catch (e: unknown) {
-        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+        Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
       }
       return;
     }
@@ -175,13 +176,13 @@ export default function EditTransactionScreen() {
       const effectiveDate = new Date(`${effectiveDateISO}T00:00:00`);
       const originalStart = new Date(`${tx.date}T00:00:00`);
       if (effectiveDate <= originalStart) {
-        Alert.alert('Date invalide', 'La date d’effet doit être postérieure au début de la récurrence.');
+        Alert.alert('Date invalide', "La date d'effet doit être postérieure au début de la récurrence.");
         return;
       }
 
       const currentEndDate = endDateISO ? new Date(`${endDateISO}T00:00:00`) : null;
       if (currentEndDate && effectiveDate > currentEndDate) {
-        Alert.alert('Date invalide', 'La date d’effet doit être avant la fin de la récurrence.');
+        Alert.alert('Date invalide', "La date d'effet doit être avant la fin de la récurrence.");
         return;
       }
 
@@ -192,12 +193,13 @@ export default function EditTransactionScreen() {
       const newRecurringAmount = isExpense ? -Math.abs(futureAmountNum) : Math.abs(futureAmountNum);
 
       try {
+        const dateToSave = isInstanceEdit ? tx.date : date;
         await updateTx.mutateAsync({
           id,
           account_id: accountId,
           category_id: categoryId ? categoryId : null,
           amount: finalAmount,
-          date,
+          date: dateToSave,
           note: note || undefined,
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,
@@ -217,7 +219,7 @@ export default function EditTransactionScreen() {
 
         closeEditor();
       } catch (e: unknown) {
-        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+        Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
       }
       return;
     }
@@ -236,7 +238,7 @@ export default function EditTransactionScreen() {
       });
       closeEditor();
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
     }
   }
 
@@ -291,6 +293,7 @@ export default function EditTransactionScreen() {
         )}
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Dépense / Recette */}
           <View style={styles.toggle}>
             <TouchableOpacity style={[styles.toggleBtn, isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(true)}>
               <Text style={[styles.toggleLabel, isExpense && styles.toggleLabelActive]}>Dépense</Text>
@@ -300,6 +303,36 @@ export default function EditTransactionScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Compte */}
+          <Text style={styles.label}>Compte</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            {accounts.map((acc) => {
+              const color = accountColor(acc.type);
+              const isActive = accountId === acc.id;
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]}
+                  onPress={() => setAccountId(acc.id)}
+                >
+                  <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Libellé */}
+          <Text style={styles.label}>Libellé (optionnel)</Text>
+          <TextInput
+            style={styles.input}
+            value={note}
+            onChangeText={setNote}
+            placeholder="Ex. Courses, Salaire..."
+            placeholderTextColor={COLORS.textSecondary}
+            returnKeyType="next"
+          />
+
+          {/* Montant */}
           <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (€)'}</Text>
           <TextInput
             style={styles.input}
@@ -308,14 +341,11 @@ export default function EditTransactionScreen() {
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
           />
-          {isRecurring && !isInstanceOccurrenceEdit && (
-            <Text style={styles.hint}>Ce montant reste appliqué aux échéances avant la date de changement.</Text>
-          )}
-          {isInstanceOccurrenceEdit && (
-            <Text style={styles.hint}>Cette modification s’appliquera uniquement à cette échéance.</Text>
-          )}
 
+          {/* Date */}
           <Text style={styles.label}>Date</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
             <TextInput
@@ -337,34 +367,12 @@ export default function EditTransactionScreen() {
               <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
             </TouchableOpacity>
           </View>
-
-          <Text style={styles.label}>Compte</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {accounts.map((acc) => (
-              <TouchableOpacity key={acc.id} style={[styles.chip, accountId === acc.id && styles.chipActive]} onPress={() => setAccountId(acc.id)}>
-                <Text style={[styles.chipText, accountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <CategoryPicker
-            key={isExpense ? 'expense' : 'income'}
-            groups={categoryGroups}
-            selectedCategoryId={categoryId}
-            onSelect={setCategoryId}
-            label="Sous-catégorie (optionnel)"
-          />
-
-          <Text style={styles.label}>Libellé (optionnel)</Text>
-          <TextInput
-            style={styles.input}
-            value={note}
-            onChangeText={setNote}
-            placeholder="Ex. Courses, Salaire..."
-            placeholderTextColor={COLORS.textSecondary}
-            returnKeyType="done"
-            onSubmitEditing={handleSubmit}
-          />
+          {isRecurring && !isInstanceOccurrenceEdit && (
+            <Text style={styles.hint}>Ce montant reste appliqué aux échéances avant la date de changement.</Text>
+          )}
+          {isInstanceOccurrenceEdit && (
+            <Text style={styles.hint}>Cette modification s'appliquera uniquement à cette échéance.</Text>
+          )}
 
           <View style={styles.recurringSection}>
             <TouchableOpacity
@@ -394,7 +402,7 @@ export default function EditTransactionScreen() {
                   </View>
                 )}
                 {isInstanceEdit && editMode === 'single' && (
-                  <Text style={styles.hint}>Cette modification s’appliquera uniquement à cette échéance.</Text>
+                  <Text style={styles.hint}>Cette modification s'appliquera uniquement à cette échéance.</Text>
                 )}
                 {isRecurring && (!isInstanceEdit || editMode === 'future') && (
                   <>
@@ -425,7 +433,7 @@ export default function EditTransactionScreen() {
                     </View>
                     <View style={styles.futureBlock}>
                       <Text style={styles.sectionTitle}>Modifier le montant futur</Text>
-                      <Text style={styles.label}>Date d’effet</Text>
+                      <Text style={styles.label}>Date d'effet</Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                         <TextInput
                           style={[styles.input, { flex: 1, marginBottom: 0 }]}
@@ -456,13 +464,23 @@ export default function EditTransactionScreen() {
                         returnKeyType="done"
                         onSubmitEditing={handleSubmit}
                       />
-                      <Text style={styles.hint}>Les échéances antérieures à la date choisie restent avec l’ancien montant. Le nouveau montant s’appliquera seulement pour les échéances suivantes.</Text>
+                      <Text style={styles.hint}>Les échéances antérieures à la date choisie restent avec l'ancien montant. Le nouveau montant s'appliquera seulement pour les échéances suivantes.</Text>
                     </View>
                   </>
                 )}
               </>
             )}
           </View>
+
+          {/* Sous-catégorie */}
+          <CategoryPicker
+            key={isExpense ? 'expense' : 'income'}
+            groups={categoryGroups}
+            selectedCategoryId={categoryId}
+            onSelect={setCategoryId}
+            label="Sous-catégorie (optionnel)"
+          />
+
           <TouchableOpacity style={[styles.submitBtn, (updateTx.isPending || addTx.isPending) && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateTx.isPending || addTx.isPending} accessibilityRole="button">
             {(updateTx.isPending || addTx.isPending) ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
           </TouchableOpacity>

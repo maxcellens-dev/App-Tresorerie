@@ -8,11 +8,12 @@ import { Calendar } from 'react-native-calendars';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
-import { useAddTransaction } from '../../hooks/useTransactions';
+import { useAddTransaction, useTransactions } from '../../hooks/useTransactions';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../types/database';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
+import { accountColor } from '../../theme/colors';
 
 const COLORS = {
   bg: '#020617',
@@ -31,6 +32,7 @@ export default function AddTransactionScreen() {
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
+  const { data: transactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
@@ -59,6 +61,21 @@ export default function AddTransactionScreen() {
 
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
   useEffect(() => setCategoryId(''), [isExpense, isIncome]);
+
+  // Sélection automatique du dernier compte courant utilisé
+  useEffect(() => {
+    if (accountId || !accounts.length) return;
+    const checkingAccounts = accounts.filter(a => a.type === 'checking');
+    if (!checkingAccounts.length) {
+      setAccountId(accounts[0].id);
+      return;
+    }
+    const checkingIds = new Set(checkingAccounts.map(a => a.id));
+    const lastUsed = [...transactions]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .find(t => checkingIds.has(t.account_id));
+    setAccountId(lastUsed ? lastUsed.account_id : checkingAccounts[0].id);
+  }, [accounts, transactions]);
 
   async function handleSubmit() {
     const num = parseFloat(amount.replace(',', '.'));
@@ -166,6 +183,62 @@ export default function AddTransactionScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Compte */}
+          <Text style={styles.label}>Compte {isTransfer ? 'source' : ''}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+            {accounts.map((acc) => {
+              const color = accountColor(acc.type);
+              const isActive = accountId === acc.id;
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]}
+                  onPress={() => setAccountId(acc.id)}
+                >
+                  <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {accounts.length === 0 && (
+            <Text style={styles.hint}>Aucun compte. Ajoutez-en un dans l'onglet Comptes.</Text>
+          )}
+
+          {isTransfer && (
+            <>
+              <Text style={styles.label}>Compte cible</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                {accounts.map((acc) => {
+                  const color = accountColor(acc.type);
+                  const isActive = targetAccountId === acc.id;
+                  const isDisabled = acc.id === accountId;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent', opacity: isDisabled ? 0.35 : 1 }]}
+                      onPress={() => setTargetAccountId(acc.id)}
+                      disabled={isDisabled}
+                    >
+                      <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Libellé */}
+          <Text style={styles.label}>Libellé {isTransfer ? '' : '(optionnel)'}</Text>
+          <TextInput
+            style={styles.input}
+            value={note}
+            onChangeText={setNote}
+            placeholder={isTransfer ? "Ex. Virement épargne..." : "Ex. Courses, Salaire..."}
+            placeholderTextColor={COLORS.textSecondary}
+            returnKeyType="next"
+          />
+
+          {/* Montant */}
           <Text style={styles.label}>Montant (€)</Text>
           <TextInput
             style={styles.input}
@@ -174,8 +247,11 @@ export default function AddTransactionScreen() {
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
           />
 
+          {/* Date */}
           <Text style={styles.label}>Date</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
             <TextInput
@@ -200,40 +276,6 @@ export default function AddTransactionScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Compte {isTransfer ? 'source' : ''}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {accounts.map((acc) => (
-              <TouchableOpacity
-                key={acc.id}
-                style={[styles.chip, accountId === acc.id && styles.chipActive]}
-                onPress={() => setAccountId(acc.id)}
-              >
-                <Text style={[styles.chipText, accountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          {accounts.length === 0 && (
-            <Text style={styles.hint}>Aucun compte. Ajoutez-en un dans l'onglet Comptes.</Text>
-          )}
-
-          {isTransfer && (
-            <>
-              <Text style={styles.label}>Compte cible</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                {accounts.map((acc) => (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[styles.chip, targetAccountId === acc.id && styles.chipActive]}
-                    onPress={() => setTargetAccountId(acc.id)}
-                    disabled={acc.id === accountId}
-                  >
-                    <Text style={[styles.chipText, targetAccountId === acc.id && styles.chipTextActive, acc.id === accountId && styles.chipTextDisabled]}>{acc.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </>
-          )}
-
           {!isTransfer && (
             <CategoryPicker
               key={isExpense ? 'expense' : 'income'}
@@ -243,17 +285,6 @@ export default function AddTransactionScreen() {
               label="Sous-catégorie (optionnel)"
             />
           )}
-
-          <Text style={styles.label}>Libellé {isTransfer ? '' : '(optionnel)'}</Text>
-          <TextInput
-            style={styles.input}
-            value={note}
-            onChangeText={setNote}
-            placeholder={isTransfer ? "Ex. Virement épargne..." : "Ex. Courses, Salaire..."}
-            placeholderTextColor={COLORS.textSecondary}
-            returnKeyType="done"
-            onSubmitEditing={handleSubmit}
-          />
 
           <View style={styles.recurringSection}>
             <TouchableOpacity

@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTransactions } from '../../hooks/useTransactions';
+import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
 import { accountColor, SEMANTIC } from '../../theme/colors';
@@ -94,7 +95,9 @@ export default function TransactionsListScreen() {
   const [showAccountFilter, setShowAccountFilter] = useState(false);
   
   const transactionsQuery = useTransactions(user?.id);
+  const overridesQuery = useTransactionMonthOverrides(user?.id);
   const { data: transactions = [], isLoading } = transactionsQuery;
+  const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAccounts(user?.id);
 
   // Par défaut, filtrer sur les comptes courants (premier compte checking trouvé)
@@ -141,6 +144,14 @@ export default function TransactionsListScreen() {
   // Obtenir les mois consécutifs basé sur periodOffset (1 ou 3 selon singleMonth)
   const displayMonths = useMemo(() => getMonthsFromOffset(periodOffset, displayMonthCount), [periodOffset, displayMonthCount]);
 
+  const overrideMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    overrides.forEach((o) => {
+      map[`${o.transaction_id}:${o.year}:${o.month}`] = o.override_amount;
+    });
+    return map;
+  }, [overrides]);
+
   // Créer une liste de transactions affichées, incluant les transactions récurrentes instanciées
   const displayedTransactions = useMemo(() => {
     const result: (TransactionWithDetails & { displayDate?: string })[] = [];
@@ -159,12 +170,14 @@ export default function TransactionsListScreen() {
         // Pour chaque mois affiché, calculer si cette récurrence s'applique
         for (const m of displayMonths) {
           const appliedAmount = addRecurrenceToMonth(m.year, m.month, Number(t.amount), t.date, t.recurrence_rule, t.recurrence_end_date ?? null, now);
-          if (Math.abs(appliedAmount) > 0) {
+          const overrideKey = `${t.id}:${m.year}:${m.month}`;
+          const finalAmount = overrideMap[overrideKey] !== undefined ? overrideMap[overrideKey] : appliedAmount;
+          if (Math.abs(finalAmount) > 0) {
             // Créer une instance de la transaction pour ce mois
             result.push({
               ...t,
               displayDate: getMonthKey(m.year, m.month),
-              amount: appliedAmount,
+              amount: finalAmount,
             });
           }
         }
