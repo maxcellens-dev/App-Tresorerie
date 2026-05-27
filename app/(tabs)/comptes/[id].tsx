@@ -347,7 +347,7 @@ export default function AccountDetailScreen() {
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Plus / moins-value</Text>
 
-            <Text style={modalStyles.sectionLabel}>Méthode</Text>
+            <Text style={modalStyles.sectionLabel}>Méthode de saisie</Text>
             <View style={modalStyles.toggleRow}>
               <TouchableOpacity
                 style={[modalStyles.toggleBtn, gainLossMode === 'amount' && modalStyles.toggleBtnActive]}
