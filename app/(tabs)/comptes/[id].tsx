@@ -38,9 +38,15 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const VIREMENT_NOTE = 'Virement interne';
+const INVESTMENT_GAIN_NOTE = 'Plus-value';
+const INVESTMENT_LOSS_NOTE = 'Moins-value';
 
 function isTransferNote(note: string | null): boolean {
   return note === VIREMENT_NOTE || (note != null && note.trim().toLowerCase().startsWith('virement'));
+}
+
+function isInvestmentGainLossNote(note: string | null | undefined): boolean {
+  return !!note && /plus|moins|gain|perte/i.test(note);
 }
 
 export default function AccountDetailScreen() {
@@ -58,6 +64,14 @@ export default function AccountDetailScreen() {
   const [apportAmount, setApportAmount] = useState('');
   const [apportNote, setApportNote] = useState('Apport');
   const [apportLoading, setApportLoading] = useState(false);
+
+  const [showGainLoss, setShowGainLoss] = useState(false);
+  const [gainLossMode, setGainLossMode] = useState<'amount' | 'balance'>('balance');
+  const [gainLossAmount, setGainLossAmount] = useState('');
+  const [gainLossBalance, setGainLossBalance] = useState('');
+  const [gainLossNote, setGainLossNote] = useState(INVESTMENT_GAIN_NOTE);
+  const [gainLossLoading, setGainLossLoading] = useState(false);
+  const [isLoss, setIsLoss] = useState(false);
 
   async function handleApport() {
     const num = parseFloat(apportAmount.replace(',', '.'));
@@ -86,35 +100,63 @@ export default function AccountDetailScreen() {
     }
   }
 
-  const transferHistory = useMemo(() => {
-    if (!id || !account) return [];
-    const allTx = transactions as TransactionWithDetails[];
-    const virementTx = allTx.filter(
-      (t) => t.account_id === id && t.category_id == null && isTransferNote(t.note ?? null)
-    );
-    const result: { date: string; note: string; amount: number; otherAccountName: string; direction: 'in' | 'out' }[] = [];
-    for (const t of virementTx) {
-      const amount = Number(t.amount);
-      const pair = allTx.find(
-        (p) =>
-          p.account_id !== id &&
-          p.category_id == null &&
-          isTransferNote(p.note ?? null) &&
-          p.date === t.date &&
-          Number(p.amount) === -amount
-      );
-      const otherAccount = pair ? accounts.find((a) => a.id === pair.account_id) : null;
-      result.push({
-        date: t.date,
-        note: t.note ?? VIREMENT_NOTE,
-        amount: Math.abs(amount),
-        otherAccountName: otherAccount?.name ?? 'Compte',
-        direction: amount > 0 ? 'in' : 'out',
-      });
+  async function handleGainLoss() {
+    let num: number;
+    if (gainLossMode === 'amount') {
+      num = parseFloat(gainLossAmount.replace(',', '.'));
+      if (Number.isNaN(num) || num <= 0) {
+        Alert.alert('Montant invalide', 'Saisissez un montant positif.');
+        return;
+      }
+      num = isLoss ? -Math.abs(num) : Math.abs(num);
+    } else {
+      const balance = parseFloat(gainLossBalance.replace(',', '.'));
+      if (Number.isNaN(balance)) {
+        Alert.alert('Solde invalide', 'Saisissez un solde final valide.');
+        return;
+      }
+      if (!account) {
+        Alert.alert('Compte introuvable', 'Impossible de calculer le solde.');
+        return;
+      }
+      num = balance - Number(account.balance);
+      if (num === 0) {
+        Alert.alert('Aucune variation', 'Le solde est identique au solde actuel.');
+        return;
+      }
     }
-    result.sort((a, b) => (b.date.localeCompare(a.date)));
-    return result;
-  }, [id, account, transactions, accounts]);
+
+    if (!id || !user?.id) return;
+    setGainLossLoading(true);
+    try {
+      await addTransaction.mutateAsync({
+        account_id: id,
+        category_id: null,
+        amount: num,
+        date: new Date().toISOString().slice(0, 10),
+        note: gainLossNote.trim() || (num < 0 ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE),
+        is_recurring: false,
+      });
+      setShowGainLoss(false);
+      setGainLossAmount('');
+      setGainLossBalance('');
+      setGainLossMode('amount');
+      setIsLoss(false);
+      setGainLossNote(INVESTMENT_GAIN_NOTE);
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
+    } finally {
+      setGainLossLoading(false);
+    }
+  }
+
+  const accountTransactions = useMemo(() => {
+    if (!id) return [];
+    const allTx = transactions as TransactionWithDetails[];
+    return allTx
+      .filter((t) => t.account_id === id)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [id, transactions]);
 
   if (!user || !account) {
     return (
@@ -140,7 +182,31 @@ export default function AccountDetailScreen() {
 
         <View style={styles.headerRow}>
           <Text style={styles.title}>{account.name}</Text>
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <View style={styles.modifyRow}>
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => router.push(`/(tabs)/comptes/edit/${id}`)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Modifier le compte"
+            >
+              <Ionicons name="pencil" size={20} color={COLORS.text} />
+              <Text style={styles.editBtnLabel}>Modifier</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.buttonRow}>
+            {account.type === 'investment' ? (
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => setShowGainLoss(true)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Plus / moins value"
+              >
+                <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
+                <Text style={[styles.editBtnLabel, { color: '#a78bfa' }]}>Plus/moins value</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               style={styles.editBtn}
               onPress={() => setShowApport(true)}
@@ -161,16 +227,6 @@ export default function AccountDetailScreen() {
               <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
               <Text style={[styles.editBtnLabel, { color: COLORS.emerald }]}>Virement</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => router.push(`/(tabs)/comptes/edit/${id}`)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Modifier le compte"
-            >
-              <Ionicons name="pencil" size={20} color={COLORS.text} />
-              <Text style={styles.editBtnLabel}>Modifier</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -182,43 +238,61 @@ export default function AccountDetailScreen() {
           <Text style={styles.accountType}>{TYPE_LABELS[account.type] ?? account.type}</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Historique des virements</Text>
+        <Text style={styles.sectionTitle}>Historique des transactions</Text>
         {txLoading ? (
           <ActivityIndicator size="small" color={COLORS.emerald} style={styles.loader} />
-        ) : transferHistory.length === 0 ? (
+        ) : accountTransactions.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="swap-horizontal-outline" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>Aucun virement vers ou depuis ce compte.</Text>
+            <Ionicons name="document-text-outline" size={32} color={COLORS.textSecondary} />
+            <Text style={styles.emptyText}>Aucune transaction sur ce compte.</Text>
           </View>
         ) : (
           <View style={styles.listCard}>
-            {transferHistory.map((item, idx) => (
-              <View
-                key={`${item.date}-${item.amount}-${idx}`}
-                style={[styles.transferRow, idx === transferHistory.length - 1 && styles.transferRowLast]}
-              >
-                <View style={styles.transferLeft}>
-                  <Text style={styles.transferDate}>
-                    {new Date(item.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </Text>
-                  <Text style={styles.transferLabel}>
-                    {item.direction === 'in' ? 'Depuis' : 'Vers'} {item.otherAccountName}
+            {accountTransactions.map((t, idx) => {
+              const amount = Number(t.amount);
+              const isTransfer = t.category_id == null && isTransferNote(t.note ?? null);
+              const pair = isTransfer
+                ? (transactions as TransactionWithDetails[]).find(
+                    (p) =>
+                      p.account_id !== id &&
+                      p.category_id == null &&
+                      isTransferNote(p.note ?? null) &&
+                      p.date === t.date &&
+                      Number(p.amount) === -amount
+                  )
+                : null;
+              const otherAccountName = pair ? accounts.find((a) => a.id === pair.account_id)?.name ?? 'Compte' : 'Compte';
+              const label = isTransfer
+                ? amount > 0
+                  ? `Depuis ${otherAccountName}`
+                  : `Vers ${otherAccountName}`
+                : t.note?.trim() || t.category?.name || 'Transaction';
+              return (
+                <View
+                  key={`${t.id}-${idx}`}
+                  style={[styles.transferRow, idx === accountTransactions.length - 1 && styles.transferRowLast]}
+                >
+                  <View style={styles.transferLeft}>
+                    <Text style={styles.transferDate}>
+                      {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                    <Text style={styles.transferLabel}>{label}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.transferAmount,
+                      amount >= 0 ? styles.transferAmountIn : styles.transferAmountOut,
+                    ]}
+                  >
+                    {amount >= 0 ? '+' : '−'} {Math.abs(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                   </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.transferAmount,
-                    item.direction === 'in' ? styles.transferAmountIn : styles.transferAmountOut,
-                  ]}
-                >
-                  {item.direction === 'in' ? '+' : '−'} {item.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                </Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
-        <Text style={styles.hint}>Les virements entre vos comptes apparaissent ici.</Text>
+        <Text style={styles.hint}>Les écritures de ce compte apparaissent ici.</Text>
       </SafeAreaView>
 
       {/* ── Apport modal ── */}
@@ -267,6 +341,111 @@ export default function AccountDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showGainLoss} transparent animationType="fade" onRequestClose={() => setShowGainLoss(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.container}>
+            <Text style={modalStyles.title}>Plus / moins-value</Text>
+
+            <Text style={modalStyles.sectionLabel}>Méthode</Text>
+            <View style={modalStyles.toggleRow}>
+              <TouchableOpacity
+                style={[modalStyles.toggleBtn, gainLossMode === 'amount' && modalStyles.toggleBtnActive]}
+                onPress={() => setGainLossMode('amount')}
+                activeOpacity={0.8}
+              >
+                <Text style={[modalStyles.toggleLabel, gainLossMode === 'amount' && modalStyles.toggleLabelActive]}>Montant</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modalStyles.toggleBtn, gainLossMode === 'balance' && modalStyles.toggleBtnActive]}
+                onPress={() => setGainLossMode('balance')}
+                activeOpacity={0.8}
+              >
+                <Text style={[modalStyles.toggleLabel, gainLossMode === 'balance' && modalStyles.toggleLabelActive]}>Solde</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={modalStyles.sectionLabel}>Type</Text>
+            <View style={modalStyles.toggleRow}>
+              <TouchableOpacity
+                style={[modalStyles.toggleBtn, !isLoss && modalStyles.toggleBtnActive]}
+                onPress={() => {
+                  setIsLoss(false);
+                  setGainLossNote(INVESTMENT_GAIN_NOTE);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[modalStyles.toggleLabel, !isLoss && modalStyles.toggleLabelActive]}>Plus-value</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modalStyles.toggleBtn, isLoss && modalStyles.toggleBtnActive]}
+                onPress={() => {
+                  setIsLoss(true);
+                  setGainLossNote(INVESTMENT_LOSS_NOTE);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[modalStyles.toggleLabel, isLoss && modalStyles.toggleLabelActive]}>Moins-value</Text>
+              </TouchableOpacity>
+            </View>
+
+            {gainLossMode === 'amount' ? (
+              <>
+                <Text style={modalStyles.label}>Montant</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  value={gainLossAmount}
+                  onChangeText={setGainLossAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+                <Text style={modalStyles.helperText}>Entrez la plus/moins-value à ajouter au compte.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={modalStyles.label}>Nouveau solde</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  value={gainLossBalance}
+                  onChangeText={setGainLossBalance}
+                  keyboardType="decimal-pad"
+                  placeholder={account ? account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) : '0,00'}
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+                <Text style={modalStyles.helperText}>Le système calcule automatiquement la plus/moins-value à partir du nouveau solde.</Text>
+              </>
+            )}
+
+            <Text style={modalStyles.label}>Note (optionnel)</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={gainLossNote}
+              onChangeText={setGainLossNote}
+              placeholder={isLoss ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE}
+              placeholderTextColor={COLORS.textSecondary}
+            />
+
+            <View style={modalStyles.actions}>
+              <TouchableOpacity style={modalStyles.cancel} onPress={() => setShowGainLoss(false)} activeOpacity={0.7}>
+                <Text style={modalStyles.cancelLabel}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modalStyles.confirm, gainLossLoading && { opacity: 0.5 }]}
+                onPress={handleGainLoss}
+                disabled={gainLossLoading}
+                activeOpacity={0.8}
+              >
+                {gainLossLoading ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={modalStyles.confirmLabel}>Valider</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -275,8 +454,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, flex: 1 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
+  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, flex: 1, minWidth: 0 },
+  buttonRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', width: '100%' },
+  modifyRow: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -372,6 +553,23 @@ const modalStyles = StyleSheet.create({
     marginBottom: 16,
   },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  toggleBtn: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  toggleBtnActive: {
+    backgroundColor: '#1f2937',
+    borderColor: COLORS.emerald,
+  },
+  toggleLabel: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
+  toggleLabelActive: { color: COLORS.emerald },
+  helperText: { color: COLORS.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
   cancel: {
     flex: 1,
     paddingVertical: 14,

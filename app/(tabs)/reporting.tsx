@@ -44,6 +44,33 @@ const fmt = (n: number) => {
 const fmtFull = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 
+const isInvestmentGainLossNote = (note?: string | null) => !!note && /plus|moins|gain|perte/i.test(note);
+
+function GainLossChart({ data, width }: { data: { label: string; value: number }[]; width: number }) {
+  const maxValue = Math.max(...data.map((item) => Math.abs(item.value)), 1);
+  return (
+    <View>
+      {data.map((item, index) => {
+        const barWidth = Math.max(8, (Math.abs(item.value) / maxValue) * (width - 120));
+        const isPositive = item.value >= 0;
+        return (
+          <View key={`${item.label}-${index}`} style={{ marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ color: C.text, fontSize: 13, fontWeight: '600', flex: 1 }}>{item.label}</Text>
+              <Text style={{ color: isPositive ? C.emerald : C.rose, fontSize: 12, fontWeight: '700' }}>
+                {isPositive ? '+' : '−'}{fmtFull(Math.abs(item.value))}
+              </Text>
+            </View>
+            <View style={{ height: 12, backgroundColor: C.cardBorder, borderRadius: 6, overflow: 'hidden' }}>
+              <View style={{ width: barWidth, height: '100%', backgroundColor: isPositive ? C.emerald : C.rose }} />
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 /* ── Animated fade-in wrapper ── */
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -371,6 +398,27 @@ export default function ReportingScreen() {
     return points;
   }, [accounts, transactions]);
 
+  const investmentGainLoss = useMemo(() => {
+    if (!accounts || !transactions) return [];
+    const currentYear = new Date().getFullYear();
+    const investmentAccounts = accounts.filter((a) => a.type === 'investment');
+    const gainMap: Record<string, { name: string; value: number }> = {};
+    for (const account of investmentAccounts) {
+      gainMap[account.id] = { name: account.name, value: 0 };
+    }
+    for (const t of transactions) {
+      if (!gainMap[t.account_id]) continue;
+      const [year] = t.date.split('-').map(Number);
+      if (year !== currentYear) continue;
+      if (t.category_id !== null) continue;
+      if (!isInvestmentGainLossNote(t.note ?? null)) continue;
+      gainMap[t.account_id].value += Number(t.amount);
+    }
+    return Object.values(gainMap)
+      .filter((item) => item.value !== 0)
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  }, [accounts, transactions]);
+
   /* ── Month totals ── */
   const { totalIncome, totalExpense } = useMemo(() => {
     if (!transactions) return { totalIncome: 0, totalExpense: 0 };
@@ -493,6 +541,24 @@ export default function ReportingScreen() {
               <Text style={s.sectionSub}>Comptes épargne & investissement</Text>
               <View style={s.chartCard}>
                 <AreaLineChart points={savingsPoints} width={chartWidth} color={ACCOUNT_COLORS.savings} />
+              </View>
+            </View>
+          </FadeIn>
+
+          {/* ═══ PLUS / MOINS-VALUES INVESTISSEMENT ═══ */}
+          <FadeIn delay={440}>
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="trending-up-outline" size={20} color={C.violet} />
+                <Text style={s.sectionTitle}>Plus / moins-values</Text>
+              </View>
+              <Text style={s.sectionSub}>Comptes d'investissement — année en cours</Text>
+              <View style={s.chartCard}>
+                {investmentGainLoss.length > 0 ? (
+                  <GainLossChart data={investmentGainLoss} width={chartWidth} />
+                ) : (
+                  <Text style={s.emptyChart}>Aucune plus/moins-value enregistrée.</Text>
+                )}
               </View>
             </View>
           </FadeIn>
