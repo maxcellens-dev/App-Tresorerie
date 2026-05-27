@@ -19,7 +19,7 @@ export interface DefaultCategoryItem {
 export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   // RECETTES — ordre : Revenu, Autres recettes, Aides & Subventions, Prêts & Finance
   { name: 'Revenu', type: 'income', sort_order: 0, children: ['Gérant Société', 'Salaire'] },
-  { name: 'Autres recettes', type: 'income', sort_order: 10, children: ['Autres produits', 'Remboursements'] },
+  { name: 'Autres recettes', type: 'income', sort_order: 10, children: ['Autres produits', 'Remboursements', 'Régularisation Solde'] },
   { name: 'Aides & Subventions', type: 'income', sort_order: 20, children: ['CAF', 'CPF'] },
   { name: 'Prêts & Finance', type: 'income', sort_order: 30, children: ['Apport personnels', 'Intérêts bancaires'] },
 

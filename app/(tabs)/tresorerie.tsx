@@ -180,17 +180,14 @@ export default function TreasuryPlanScreen() {
     const overridesMap = createOverridesMap(overrides);
     const byCategoryMonth: Record<string, Record<string, number>> = {};
     const txByMonthCategory: Record<string, Record<string, TransactionWithDetails[]>> = {};
-    const incomeByMonth: Record<string, number> = {};
-    const expenseByMonth: Record<string, number> = {};
     const mouvEpargne: Record<string, number> = {};
     const mouvInvest: Record<string, number> = {};
-    const mouvRegul: Record<string, number> = {};
+    // Track regul by note (raw signed amounts) for the gray row under Frais variables
+    const regulByMonth: Record<string, number> = {};
     months.forEach((m) => {
-      incomeByMonth[m.key] = 0;
-      expenseByMonth[m.key] = 0;
       mouvEpargne[m.key] = 0;
       mouvInvest[m.key] = 0;
-      mouvRegul[m.key] = 0;
+      regulByMonth[m.key] = 0;
     });
 
     // Helper: accumulate a signed amount into a Mouvements bucket (handles recurring)
@@ -227,7 +224,13 @@ export default function TreasuryPlanScreen() {
       if (isExcluded) continue;
       if (isSavingsMove) { addToMouv(mouvEpargne, t, amount); continue; }
       if (isInvestMove) { addToMouv(mouvInvest, t, amount); continue; }
-      if (isRegulMove) { addToMouv(mouvRegul, t, amount); continue; }
+
+      // Régularisation dépense (montant négatif): row grise sous Frais variables
+      // Régularisation recette (montant positif): tombe dans byCategoryMonth → section RECETTES
+      if (isRegulMove && amount < 0) {
+        addToMouv(regulByMonth, t, amount);
+        // Pas de continue → tombe aussi dans le traitement classique ci-dessous
+      }
 
       // Traitement classique recettes/dépenses
       const catId = t.category_id ?? 'none';
@@ -242,8 +245,6 @@ export default function TreasuryPlanScreen() {
           const calculatedAmt = addRecurrenceToMonth(m.year, m.month, amount, t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
           const overrideKey = getOverrideKey(t.id, m.year, m.month);
           const finalAmt = overridesMap[overrideKey] !== undefined ? overridesMap[overrideKey] : calculatedAmt;
-          if (finalAmt > 0) { incomeByMonth[m.key] = (incomeByMonth[m.key] ?? 0) + finalAmt; }
-          else if (finalAmt < 0) { expenseByMonth[m.key] = (expenseByMonth[m.key] ?? 0) + Math.abs(finalAmt); }
           byCategoryMonth[catId][m.key] = (byCategoryMonth[catId][m.key] ?? 0) + finalAmt;
           txByMonthCategory[catId][m.key].push(t);
         }
@@ -251,8 +252,6 @@ export default function TreasuryPlanScreen() {
         const [y, mo] = t.date.split('-').map(Number);
         const key = getMonthKey(y, mo);
         if (months.some((m) => m.key === key)) {
-          if (amount > 0) { incomeByMonth[key] = (incomeByMonth[key] ?? 0) + amount; }
-          else { expenseByMonth[key] = (expenseByMonth[key] ?? 0) + Math.abs(amount); }
           byCategoryMonth[catId][key] = (byCategoryMonth[catId][key] ?? 0) + amount;
           txByMonthCategory[catId][key].push(t);
         }
@@ -269,61 +268,99 @@ export default function TreasuryPlanScreen() {
       isTotalLine?: boolean;
       isSectionHeader?: boolean;
       isBlockStart?: boolean;
+      isRegulRow?: boolean;
     };
     const rows: Row[] = [];
 
-    // RECETTES
-    rows.push({ label: 'RECETTES', categoryId: null, type: 'income', values: {}, isSectionHeader: true });
+    // RECETTES — pré-calcul des totaux (header affiche le total directement)
+    const incomeCatTotals: Record<string, number> = {};
+    months.forEach((m) => { incomeCatTotals[m.key] = 0; });
+    const incomeParentRows: Row[] = [];
+
     incomeGrouped.parents.forEach((p) => {
       const children = incomeGrouped.byParent[p.id] ?? [];
       const parentValues: Record<string, number> = {};
       months.forEach((m) => {
-        // Inclure les transactions directement sur le parent + celles sur les enfants
         parentValues[m.key] = (byCategoryMonth[p.id]?.[m.key] ?? 0) +
           children.reduce((sum, c) => sum + (byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
+        incomeCatTotals[m.key] += parentValues[m.key];
       });
-      rows.push({ label: p.name, categoryId: p.id, type: 'income', values: parentValues, isParentCategory: true });
+      incomeParentRows.push({ label: p.name, categoryId: p.id, type: 'income', values: parentValues, isParentCategory: true });
       children.forEach((c) => {
-        rows.push({ label: c.name, categoryId: c.id, type: 'income', values: byCategoryMonth[c.id] ?? {}, isChild: true });
+        incomeParentRows.push({ label: c.name, categoryId: c.id, type: 'income', values: byCategoryMonth[c.id] ?? {}, isChild: true });
       });
     });
-    rows.push({ label: 'TOTAL RECETTES', categoryId: null, type: 'income', values: incomeByMonth, isTotalLine: true });
 
-    // SOLDES
-    const balanceByMonth: Record<string, number> = {};
-    months.forEach((m) => { balanceByMonth[m.key] = (incomeByMonth[m.key] ?? 0) - (expenseByMonth[m.key] ?? 0); });
-    rows.push({ label: 'Solde mensuel', categoryId: null, type: 'balance', values: balanceByMonth, isBlockStart: true });
-    const anticipatedByMonth: Record<string, number> = {};
-    months.forEach((m, i) => {
-      const nextMonth = i < months.length - 1 ? months[i + 1] : null;
-      const nextExpenses = nextMonth ? (expenseByMonth[nextMonth.key] ?? 0) : 0;
-      anticipatedByMonth[m.key] = (balanceByMonth[m.key] ?? 0) - nextExpenses;
-    });
-    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipatedByMonth });
+    // Header RECETTES avec le total intégré
+    rows.push({ label: 'RECETTES', categoryId: null, type: 'income', values: incomeCatTotals, isSectionHeader: true });
+    incomeParentRows.forEach((r) => rows.push(r));
 
-    // MOUVEMENTS — toujours visible (virements épargne/invest + régularisations)
-    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true, isBlockStart: true });
-    rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true });
-    rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true });
-    rows.push({ label: 'Régularisation solde', categoryId: null, type: 'mouvement', values: mouvRegul, isChild: true });
+    // DÉPENSES — pré-calcul (avant SOLDES car Solde mensuel dépend des deux totaux)
+    const expenseCatTotals: Record<string, number> = {};
+    months.forEach((m) => { expenseCatTotals[m.key] = 0; });
 
-    // DÉPENSES (exclure la catégorie "Mouvements" DB car gérée via la section Mouvements ci-dessus)
-    rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: {}, isSectionHeader: true, isBlockStart: true });
+    type ExpenseBlock = { parentRow: Row; childRows: Row[]; regulRow?: Row };
+    const expenseBlocks: ExpenseBlock[] = [];
+
     expenseGrouped.parents
       .filter((p) => p.name !== 'Mouvements')
       .forEach((p) => {
         const children = expenseGrouped.byParent[p.id] ?? [];
+        const isFraisVariables = p.name === 'Frais variables';
         const parentValues: Record<string, number> = {};
         months.forEach((m) => {
+          // Frais variables: inclure les régularisations détectées par libellé
+          const regulAbs = isFraisVariables ? Math.abs(regulByMonth[m.key] ?? 0) : 0;
           parentValues[m.key] = Math.abs(byCategoryMonth[p.id]?.[m.key] ?? 0) +
-            children.reduce((sum, c) => sum + Math.abs(byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
+            children.reduce((sum, c) => sum + Math.abs(byCategoryMonth[c.id]?.[m.key] ?? 0), 0) +
+            regulAbs;
+          expenseCatTotals[m.key] += parentValues[m.key];
         });
-        rows.push({ label: p.name, categoryId: p.id, type: 'expense', values: parentValues, isParentCategory: true });
-        children.forEach((c) => {
-          rows.push({ label: c.name, categoryId: c.id, type: 'expense', values: byCategoryMonth[c.id] ?? {}, isChild: true });
+
+        const childRows: Row[] = children.map((c) => ({
+          label: c.name, categoryId: c.id, type: 'expense' as const,
+          values: byCategoryMonth[c.id] ?? {}, isChild: true,
+        }));
+
+        let regulRow: Row | undefined;
+        if (isFraisVariables) {
+          // Valeurs absolues pour affichage cohérent (rouge car type expense)
+          const regulAbs: Record<string, number> = {};
+          months.forEach((m) => { regulAbs[m.key] = Math.abs(regulByMonth[m.key] ?? 0); });
+          regulRow = { label: 'Régularisation solde', categoryId: null, type: 'expense', values: regulAbs, isChild: true, isRegulRow: true };
+        }
+
+        expenseBlocks.push({
+          parentRow: { label: p.name, categoryId: p.id, type: 'expense', values: parentValues, isParentCategory: true },
+          childRows,
+          regulRow,
         });
       });
-    rows.push({ label: 'TOTAL DÉPENSES', categoryId: null, type: 'expense', values: expenseByMonth, isTotalLine: true });
+
+    // SOLDES — basés sur les totaux catégories
+    const soldeByMonth: Record<string, number> = {};
+    months.forEach((m) => { soldeByMonth[m.key] = incomeCatTotals[m.key] - expenseCatTotals[m.key]; });
+    rows.push({ label: 'Solde mensuel', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });
+    const anticipatedByMonth: Record<string, number> = {};
+    months.forEach((m, i) => {
+      const nextMonth = i < months.length - 1 ? months[i + 1] : null;
+      const nextExpenses = nextMonth ? (expenseCatTotals[nextMonth.key] ?? 0) : 0;
+      anticipatedByMonth[m.key] = (soldeByMonth[m.key] ?? 0) - nextExpenses;
+    });
+    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipatedByMonth });
+
+    // MOUVEMENTS — toujours visible (virements épargne/invest uniquement)
+    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true, isBlockStart: true });
+    rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true });
+    rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true });
+
+    // DÉPENSES — header avec le total intégré
+    rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: expenseCatTotals, isSectionHeader: true, isBlockStart: true });
+    expenseBlocks.forEach(({ parentRow, childRows, regulRow }) => {
+      rows.push(parentRow);
+      childRows.forEach((r) => rows.push(r));
+      if (regulRow) rows.push(regulRow);
+    });
 
     return { rows, months, txByMonthCategory };
   }, [transactions, months, incomeGrouped, expenseGrouped, overrides]);
@@ -500,6 +537,7 @@ export default function TreasuryPlanScreen() {
                         row.isSectionHeader && row.type === 'mouvement' && styles.cellLabelSectionMouvements,
                         row.type === 'balance' && styles.cellLabelBalance,
                         row.type === 'mouvement' && !row.isSectionHeader && styles.cellLabelMouvement,
+                        row.isRegulRow && styles.cellLabelRegul,
                       ]}
                       numberOfLines={2}
                     >
@@ -513,7 +551,9 @@ export default function TreasuryPlanScreen() {
                     const val = row.values[m.key] ?? 0;
                     const isPos = val >= 0;
                     const isBalance = row.type === 'balance';
-                    
+                    // Dépenses toujours affichées en positif (sauf soldes et mouvements qui gardent le signe)
+                    const displayVal = row.type === 'expense' ? Math.abs(val) : val;
+
                     return (
                       <TouchableOpacity
                         key={m.key}
@@ -523,11 +563,9 @@ export default function TreasuryPlanScreen() {
                           { width: colWidth },
                         ]}
                         onPress={() => {
-                          // Pour les catégories (pas totaux/sections), afficher le menu
                           if (row.categoryId && !row.isTotalLine && !row.isSectionHeader) {
                             showCellMenu(m.key, row.categoryId, val);
                           } else {
-                            // Pour tout le reste, voir les transactions
                             goToTransactions(m.key, row.categoryId);
                           }
                         }}
@@ -538,14 +576,15 @@ export default function TreasuryPlanScreen() {
                           style={[
                             styles.cellNumText,
                             row.type === 'income' && styles.cellNumPositive,
-                            row.type === 'expense' && row.label !== 'Solde mensuel' && row.label !== 'Solde anticipé' && styles.cellNumNegative,
+                            row.type === 'expense' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
+                            row.isSectionHeader && styles.cellNumTextSectionTotal,
                           ]}
                           numberOfLines={1}
                         >
-                          {val !== 0 ? val.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) : '–'}
+                          {displayVal !== 0 ? displayVal.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) : '–'}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -674,7 +713,6 @@ const styles = StyleSheet.create({
   tableRowBlockStart: { marginTop: 20 },
   tableRowSectionHeader: {
     paddingVertical: 12,
-    paddingHorizontal: 12,
   },
   tableRowSectionRecettes: {
     backgroundColor: 'rgba(52, 211, 153, 0.12)',
@@ -691,7 +729,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#64748b',
     paddingVertical: 12,
-    paddingHorizontal: 12,
   },
   tableRowMouvement: { backgroundColor: 'rgba(100, 116, 139, 0.06)' },
   tableRowParentCategory: {
@@ -738,17 +775,15 @@ const styles = StyleSheet.create({
   cellLabelSectionDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 1 },
   cellLabelSectionMouvements: { fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 1 },
   cellLabelMouvement: { fontSize: 13, color: '#94a3b8' },
+  cellLabelRegul: { fontSize: 13, color: '#64748b', fontStyle: 'italic' },
   cellLabelBalance: { fontWeight: '700', color: COLORS.balance },
   cellLabelTotalRecettes: { fontSize: 12, fontWeight: '800', color: COLORS.emerald, letterSpacing: 0.8 },
   cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 0.8 },
   cellNumText: { fontSize: 13, color: COLORS.text },
   cellNumTextParentCategory: { fontWeight: '700' },
+  cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
   cellNumPositive: { color: COLORS.emerald, fontWeight: '600' },
   cellNumNegative: { color: COLORS.danger, fontWeight: '600' },
-  cellClickable: {
-    backgroundColor: 'rgba(52, 211, 153, 0.08)',
-    borderRadius: 4,
-  },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

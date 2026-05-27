@@ -45,7 +45,8 @@ export default function EditTransactionScreen() {
   const instanceYear = instanceDate ? Number(instanceDate.split('-')[0]) : undefined;
   const instanceMonth = instanceDate ? Number(instanceDate.split('-')[1]) : undefined;
   const { data: instanceOverrides = [] } = useTransactionMonthOverrides(user?.id, instanceYear, instanceMonth);
-  const currentInstanceOverride = instanceOverrides[0];
+  // Only use an override when we're editing a specific instance (instanceDate is set) and it matches this transaction
+  const currentInstanceOverride = instanceDate ? instanceOverrides.find(o => o.transaction_id === id) : undefined;
   const [editMode, setEditMode] = useState<'single' | 'future'>(instanceDate ? 'single' : 'future');
 
   const [amount, setAmount] = useState('');
