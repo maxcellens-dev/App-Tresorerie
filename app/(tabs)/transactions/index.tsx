@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -265,70 +265,50 @@ export default function TransactionsListScreen() {
 
   const currentMonthKey = getMonthKey(currentYear, currentMonth);
 
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    confirmColor: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
+    setConfirmModal(opts);
+  }
+
   function confirmValidateDraft(item: TransactionWithDetails) {
     const label = item.note || item.category?.name || 'ce brouillon';
-    Alert.alert(
-      'Valider la transaction',
-      `Valider "${label}" ? Cette action mettra à jour le solde du compte.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Continuer',
-          onPress: () =>
-            Alert.alert(
-              'Confirmer la validation',
-              'Cette action est irréversible. Le solde du compte sera mis à jour.',
-              [
-                { text: 'Annuler', style: 'cancel' },
-                {
-                  text: 'Valider',
-                  onPress: async () => {
-                    try {
-                      await updateTx.mutateAsync({ id: item.id, is_draft: false });
-                    } catch (e: unknown) {
-                      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de valider.');
-                    }
-                  },
-                },
-              ]
-            ),
-        },
-      ]
-    );
+    showConfirm({
+      title: 'Valider la transaction',
+      message: `Valider "${label}" ?`,
+      confirmLabel: 'Valider',
+      confirmColor: '#34d399',
+      onConfirm: async () => {
+        try {
+          await updateTx.mutateAsync({ id: item.id, is_draft: false });
+        } catch (e: unknown) {
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de valider.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+        }
+      },
+    });
   }
 
   function confirmDeleteDraft(item: TransactionWithDetails) {
     const label = item.note || item.category?.name || 'ce brouillon';
-    Alert.alert(
-      'Supprimer le brouillon',
-      `Supprimer "${label}" ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Continuer',
-          style: 'destructive',
-          onPress: () =>
-            Alert.alert(
-              'Confirmer la suppression',
-              'Cette action est définitive.',
-              [
-                { text: 'Annuler', style: 'cancel' },
-                {
-                  text: 'Supprimer',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await deleteTx.mutateAsync(item.id);
-                    } catch (e: unknown) {
-                      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
-                    }
-                  },
-                },
-              ]
-            ),
-        },
-      ]
-    );
+    showConfirm({
+      title: 'Supprimer le brouillon',
+      message: `Supprimer "${label}" ?`,
+      confirmLabel: 'Supprimer',
+      confirmColor: '#f87171',
+      onConfirm: async () => {
+        try {
+          await deleteTx.mutateAsync(item.id);
+        } catch (e: unknown) {
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+        }
+      },
+    });
   }
 
   return (
@@ -457,53 +437,46 @@ export default function TransactionsListScreen() {
 
                         const isDraft = !!(item as any).is_draft;
                         const isDraftQuickAction = isDraft && key <= currentMonthKey;
-                        return (
-                          <TouchableOpacity
-                            key={`${item.id}-${item.displayDate || ''}`}
-                            style={[
-                              styles.row,
-                              isDraftQuickAction && styles.rowAlignStart,
-                              index === items.length - 1 && styles.rowLast,
-                              isFuture && styles.rowFuture,
-                              isDraft && styles.rowDraft,
-                            ]}
-                            onPress={() => {
-                              const route = item.displayDate
-                                ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
-                                : `/(tabs)/transactions/edit/${item.id}`;
-                              router.push(route);
-                            }}
-                            activeOpacity={0.7}
-                            accessibilityRole="button"
-                          >
-                            <View style={[
-                              styles.rowAccent,
-                              isProject
-                                ? { backgroundColor: SEMANTIC.project + '50' }
-                                : amt > 0
-                                  ? { backgroundColor: acctCol + '50' }
-                                  : { backgroundColor: acctCol + '25' },
-                            ]} />
-                            <View style={styles.rowLeft}>
-                              <View style={styles.rowLabelRow}>
-                                {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
-                                <Text style={[styles.rowLabel, isDraft && styles.rowLabelDraft]} numberOfLines={1}>
-                                  {item.note || item.category?.name || 'Sans libellé'}
-                                </Text>
-                                {isDraft && (
+                        const navigateToEdit = () => {
+                          const route = item.displayDate
+                            ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
+                            : `/(tabs)/transactions/edit/${item.id}`;
+                          router.push(route as any);
+                        };
+                        const accentStyle = isProject
+                          ? { backgroundColor: SEMANTIC.project + '50' }
+                          : amt > 0
+                            ? { backgroundColor: acctCol + '50' }
+                            : { backgroundColor: acctCol + '25' };
+                        const rowBaseStyle = [
+                          styles.row,
+                          isDraftQuickAction && styles.rowAlignStart,
+                          index === items.length - 1 && styles.rowLast,
+                          isFuture && styles.rowFuture,
+                          isDraft && styles.rowDraft,
+                        ];
+
+                        if (isDraftQuickAction) {
+                          return (
+                            <View key={`${item.id}-${item.displayDate || ''}`} style={rowBaseStyle}>
+                              <View style={[styles.rowAccent, accentStyle]} />
+                              <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
+                                <View style={styles.rowLabelRow}>
+                                  {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
+                                  <Text style={[styles.rowLabel, styles.rowLabelDraft]} numberOfLines={1}>
+                                    {item.note || item.category?.name || 'Sans libellé'}
+                                  </Text>
                                   <View style={styles.draftBadge}>
                                     <Text style={styles.draftBadgeText}>Brouillon</Text>
                                   </View>
-                                )}
-                                {isRecurring && (
-                                  <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
-                                )}
-                              </View>
-                              <Text style={styles.rowMeta}>
-                                {item.account?.name ?? ''} · {formatDate(effectiveDate)}
-                              </Text>
-                            </View>
-                            {isDraftQuickAction ? (
+                                  {isRecurring && (
+                                    <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
+                                  )}
+                                </View>
+                                <Text style={styles.rowMeta}>
+                                  {item.account?.name ?? ''} · {formatDate(effectiveDate)}
+                                </Text>
+                              </TouchableOpacity>
                               <View style={styles.rowRightDraft}>
                                 <View style={styles.draftActionRow}>
                                   <TouchableOpacity
@@ -526,7 +499,39 @@ export default function TransactionsListScreen() {
                                   {amt > 0 ? '+' : ''}{amt.toFixed(2)} €
                                 </Text>
                               </View>
-                            ) : isReservation ? (
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <TouchableOpacity
+                            key={`${item.id}-${item.displayDate || ''}`}
+                            style={rowBaseStyle}
+                            onPress={navigateToEdit}
+                            activeOpacity={0.7}
+                            accessibilityRole="button"
+                          >
+                            <View style={[styles.rowAccent, accentStyle]} />
+                            <View style={styles.rowLeft}>
+                              <View style={styles.rowLabelRow}>
+                                {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
+                                <Text style={[styles.rowLabel, isDraft && styles.rowLabelDraft]} numberOfLines={1}>
+                                  {item.note || item.category?.name || 'Sans libellé'}
+                                </Text>
+                                {isDraft && (
+                                  <View style={styles.draftBadge}>
+                                    <Text style={styles.draftBadgeText}>Brouillon</Text>
+                                  </View>
+                                )}
+                                {isRecurring && (
+                                  <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
+                                )}
+                              </View>
+                              <Text style={styles.rowMeta}>
+                                {item.account?.name ?? ''} · {formatDate(effectiveDate)}
+                              </Text>
+                            </View>
+                            {isReservation ? (
                               <View style={styles.reservationBadge}>
                                 <Text style={styles.reservationText}>Réservé</Text>
                               </View>
@@ -546,6 +551,29 @@ export default function TransactionsListScreen() {
             </>
           )}
         </ScrollView>
+        <Modal visible={!!confirmModal} transparent animationType="fade" onRequestClose={() => setConfirmModal(null)}>
+          <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setConfirmModal(null)}>
+            <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
+              <Text style={styles.confirmTitle}>{confirmModal?.title}</Text>
+              <Text style={styles.confirmMessage}>{confirmModal?.message}</Text>
+              <View style={styles.confirmBtns}>
+                <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmModal(null)}>
+                  <Text style={styles.confirmCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? '#34d399', backgroundColor: (confirmModal?.confirmColor ?? '#34d399') + '18' }]}
+                  onPress={() => {
+                    const cb = confirmModal?.onConfirm;
+                    setConfirmModal(null);
+                    cb?.();
+                  }}
+                >
+                  <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? '#34d399' }]}>{confirmModal?.confirmLabel}</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -700,12 +728,21 @@ const styles = StyleSheet.create({
     color: COLORS.bg,
     fontWeight: '600',
   },
-  periodText: { 
-    fontSize: 14, 
-    fontWeight: '600', 
+  periodText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: COLORS.text,
     textAlign: 'center',
     flex: 1,
     textTransform: 'capitalize',
   },
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  confirmBox: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
+  confirmTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  confirmMessage: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 20 },
+  confirmBtns: { flexDirection: 'row', gap: 10 },
+  confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
+  confirmCancelText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  confirmOkText: { fontSize: 14, fontWeight: '700' },
 });
