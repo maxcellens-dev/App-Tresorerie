@@ -20,6 +20,7 @@ export function useCategories(profileId: string | undefined) {
         .eq('profile_id', profileId)
         .order('type')
         .order('parent_id', { nullsFirst: true })
+        .order('sort_order', { nullsLast: true })
         .order('name');
       if (error) throw error;
       return (data ?? []).map((r) => ({
@@ -52,6 +53,7 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
             parent_id: null,
             is_default: true,
             is_variable: item.is_variable ?? false,
+            sort_order: item.sort_order,
           })
           .select('id, name')
           .single();
@@ -68,6 +70,7 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
           parent_id: parentIds[item.parentName],
           is_default: true,
           is_variable: item.is_variable ?? false,
+          sort_order: item.sort_order,
         });
         if (error) throw error;
       }
@@ -189,6 +192,27 @@ export function useDeleteCategory(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { error } = await supabase.from('categories').delete().eq('id', id).eq('profile_id', profileId);
       if (error) throw error;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
+}
+
+export function useReorderCategories(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: { id: string; sort_order: number }[]) => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+      for (const u of updates) {
+        const { error } = await supabase
+          .from('categories')
+          .update({ sort_order: u.sort_order })
+          .eq('id', u.id)
+          .eq('profile_id', profileId);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });

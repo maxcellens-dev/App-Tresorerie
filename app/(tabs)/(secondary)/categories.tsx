@@ -24,6 +24,7 @@ import {
   useUpdateCategory,
   useDeleteCategory,
   useBulkUpdateVariable,
+  useReorderCategories,
 } from '../../hooks/useCategories';
 import type { Category } from '../../types/database';
 
@@ -60,6 +61,7 @@ export default function CategoriesScreen() {
   const updateCategory = useUpdateCategory(user?.id);
   const deleteCategory = useDeleteCategory(user?.id);
   const bulkUpdateVariable = useBulkUpdateVariable(user?.id);
+  const reorderCategories = useReorderCategories(user?.id);
 
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<'income' | 'expense'>('expense');
@@ -117,7 +119,28 @@ export default function CategoriesScreen() {
     }
   }
 
+  async function handleMove(parents: Category[], index: number, direction: 'up' | 'down') {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= parents.length) return;
+    const a = parents[index];
+    const b = parents[targetIndex];
+    const aOrder = a.sort_order ?? index * 10;
+    const bOrder = b.sort_order ?? targetIndex * 10;
+    try {
+      await reorderCategories.mutateAsync([
+        { id: a.id, sort_order: bOrder },
+        { id: b.id, sort_order: aOrder },
+      ]);
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de réordonner.');
+    }
+  }
+
   function handleDelete(c: Category) {
+    if (c.is_default && !isAdmin) {
+      Alert.alert('Action impossible', 'Les catégories par défaut ne peuvent pas être supprimées. Vous pouvez les renommer.');
+      return;
+    }
     const message = `Supprimer « ${c.name} » ? Les transactions liées ne seront plus catégorisées.`;
     const doDelete = () => {
       deleteCategory.mutateAsync(c.id).catch((e: unknown) => {
@@ -236,16 +259,22 @@ export default function CategoriesScreen() {
                   {income.length === 0 ? (
                     <Text style={styles.empty}>Aucune catégorie recette.</Text>
                   ) : (
-                    incomeGrouped.parents.map((p) => (
+                    incomeGrouped.parents.map((p, idx) => (
                       <View key={p.id}>
                         <View style={styles.row}>
                           <Text style={styles.rowLabel}>{p.name}</Text>
                           <View style={styles.rowActions}>
-                            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8}>
+                            <TouchableOpacity onPress={() => handleMove(incomeGrouped.parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={{ opacity: idx === 0 ? 0.3 : 1 }}>
+                              <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleMove(incomeGrouped.parents, idx, 'down')} hitSlop={8} disabled={idx === incomeGrouped.parents.length - 1} style={{ marginLeft: 4, opacity: idx === incomeGrouped.parents.length - 1 ? 0.3 : 1 }}>
+                              <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={{ marginLeft: 12 }}>
                               <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleDelete(p)} hitSlop={8} style={{ marginLeft: 12 }}>
-                              <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                              <Ionicons name="trash-outline" size={18} color={p.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -257,7 +286,7 @@ export default function CategoriesScreen() {
                                 <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
                               </TouchableOpacity>
                               <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={{ marginLeft: 12 }}>
-                                <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                                <Ionicons name="trash-outline" size={18} color={c.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -271,16 +300,22 @@ export default function CategoriesScreen() {
                   {expense.length === 0 ? (
                     <Text style={styles.empty}>Aucune catégorie dépense.</Text>
                   ) : (
-                    expenseGrouped.parents.map((p) => (
+                    expenseGrouped.parents.map((p, idx) => (
                       <View key={p.id}>
                         <View style={styles.row}>
                           <Text style={styles.rowLabel}>{p.name}</Text>
                           <View style={styles.rowActions}>
-                            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8}>
+                            <TouchableOpacity onPress={() => handleMove(expenseGrouped.parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={{ opacity: idx === 0 ? 0.3 : 1 }}>
+                              <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleMove(expenseGrouped.parents, idx, 'down')} hitSlop={8} disabled={idx === expenseGrouped.parents.length - 1} style={{ marginLeft: 4, opacity: idx === expenseGrouped.parents.length - 1 ? 0.3 : 1 }}>
+                              <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={{ marginLeft: 12 }}>
                               <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleDelete(p)} hitSlop={8} style={{ marginLeft: 12 }}>
-                              <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                              <Ionicons name="trash-outline" size={18} color={p.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -292,7 +327,7 @@ export default function CategoriesScreen() {
                                 <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
                               </TouchableOpacity>
                               <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={{ marginLeft: 12 }}>
-                                <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                                <Ionicons name="trash-outline" size={18} color={c.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
                               </TouchableOpacity>
                             </View>
                           </View>

@@ -50,6 +50,7 @@ export interface Category {
   color?: string | null;
   is_variable?: boolean;
   is_default?: boolean;
+  sort_order?: number | null;
   created_at: string;
 }
 
