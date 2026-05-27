@@ -149,20 +149,27 @@ export default function EditTransactionScreen() {
       const [year, month] = instanceDate!.split('-').map(Number);
       const originalAmount = Number(tx.amount);
       const currentOverrideAmount = currentInstanceOverride?.override_amount;
-      if (currentOverrideAmount !== undefined && Math.abs(finalAmount - currentOverrideAmount) < 0.01) {
-        closeEditor();
-        return;
-      }
-      if (currentOverrideAmount === undefined && Math.abs(finalAmount - originalAmount) < 0.01) {
+
+      const amountUnchanged =
+        (currentOverrideAmount !== undefined && Math.abs(finalAmount - currentOverrideAmount) < 0.01) ||
+        (currentOverrideAmount === undefined && Math.abs(finalAmount - originalAmount) < 0.01);
+      const categoryChanged = categoryId !== (tx.category_id ?? '');
+
+      if (amountUnchanged && !categoryChanged) {
         closeEditor();
         return;
       }
 
       try {
-        if (currentOverrideAmount !== undefined && Math.abs(finalAmount - originalAmount) < 0.01) {
-          await deleteOverride.mutateAsync({ transaction_id: id, year, month });
-        } else {
-          await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: finalAmount });
+        if (!amountUnchanged) {
+          if (currentOverrideAmount !== undefined && Math.abs(finalAmount - originalAmount) < 0.01) {
+            await deleteOverride.mutateAsync({ transaction_id: id, year, month });
+          } else {
+            await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: finalAmount });
+          }
+        }
+        if (categoryChanged) {
+          await updateTx.mutateAsync({ id, category_id: categoryId ? categoryId : null });
         }
         closeEditor();
       } catch (e: unknown) {

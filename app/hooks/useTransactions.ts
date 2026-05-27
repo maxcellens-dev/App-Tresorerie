@@ -13,18 +13,20 @@ export function useTransactions(profileId: string | undefined) {
         .from('transactions')
         .select(`
           *,
-          account:accounts(name, type),
-          category:categories(name, type)
+          account:accounts!account_id(name, type),
+          category:categories!category_id(name, type),
+          linked_account:accounts!linked_account_id(name, type)
         `)
         .eq('profile_id', profileId)
         .order('date', { ascending: false })
-        .limit(200);
+        .limit(500);
       if (error) throw error;
       return (data ?? []).map((r: Record<string, unknown>) => ({
         ...r,
         amount: Number((r as Transaction).amount),
-        account: (r as { account?: { name: string; type: string } }).account,
-        category: (r as { category?: { name: string; type: string } }).category,
+        account: (r as { account?: { name: string; type: string } | null }).account ?? null,
+        category: (r as { category?: { name: string; type: string } | null }).category ?? null,
+        linked_account: (r as { linked_account?: { name: string; type: string } | null }).linked_account ?? null,
       }));
     },
     enabled: !!profileId,
@@ -47,6 +49,7 @@ export function useAddTransaction(profileId: string | undefined) {
       recurrence_rule?: RecurrenceRule | null;
       recurrence_end_date?: string | null;
       project_id?: string | null;
+      linked_account_id?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data, error } = await supabase
@@ -63,6 +66,7 @@ export function useAddTransaction(profileId: string | undefined) {
           recurrence_rule: input.recurrence_rule ?? null,
           recurrence_end_date: input.recurrence_end_date ?? null,
           project_id: input.project_id ?? null,
+          linked_account_id: input.linked_account_id ?? null,
         })
         .select()
         .single();

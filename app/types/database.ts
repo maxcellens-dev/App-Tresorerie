@@ -62,6 +62,7 @@ export interface Transaction {
   account_id: string;
   category_id: string | null;
   project_id?: string | null;
+  linked_account_id?: string | null;
   amount: number;
   date: string;
   note: string | null;
@@ -72,6 +73,12 @@ export interface Transaction {
   recurrence_end_date?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TransactionWithDetails extends Transaction {
+  account?: { name: string; type: string } | null;
+  category?: { name: string; type: string } | null;
+  linked_account?: { name: string; type: string } | null;
 }
 
 export interface TransactionMonthOverride {
@@ -85,10 +92,7 @@ export interface TransactionMonthOverride {
   updated_at: string;
 }
 
-export interface TransactionWithDetails extends Transaction {
-  account?: { name: string; type: string };
-  category?: { name: string; type: string };
-}
+
 
 export interface Project {
   id: string;

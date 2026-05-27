@@ -68,6 +68,7 @@ export default function TransferScreen() {
         amount: -Math.abs(num),
         date,
         note: note || 'Virement interne',
+        linked_account_id: toAccountId,
       });
       await addTransaction.mutateAsync({
         account_id: toAccountId,
@@ -75,6 +76,7 @@ export default function TransferScreen() {
         amount: Math.abs(num),
         date,
         note: note || 'Virement interne',
+        linked_account_id: fromAccountId,
       });
       router.back();
     } catch (e: unknown) {

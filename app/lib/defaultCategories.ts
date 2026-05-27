@@ -24,6 +24,8 @@ export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   { name: 'Prêts & Finance', type: 'income', sort_order: 30, children: ['Apport personnels', 'Intérêts bancaires'] },
 
   // DÉPENSES — ordre imposé par l'utilisateur
+  // Mouvements : virements internes + régularisations (sort_order -10 = en premier)
+  { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements', 'Régularisation solde'] },
   { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Loisirs', 'Frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Autre, divers'] },
   { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle, santé', 'Assurance'] },
   { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer', "Taxe d'habitation/Foncière"] },

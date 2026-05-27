@@ -101,7 +101,6 @@ const getOverrideKey = (transactionId: string, year: number, month: number): str
   return `${transactionId}:${year}:${month}`;
 };
 
-type PeriodFilter = 'n-1' | 'current' | 'n+1';
 
 export default function TreasuryPlanScreen() {
   const router = useRouter();
@@ -120,7 +119,7 @@ export default function TreasuryPlanScreen() {
   const paddingH = 24 * 2;
   const labelWidth = Math.min(200, Math.max(140, width - paddingH - 3 * MONTH_COL_WIDTH));
 
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('current');
+  const [monthOffset, setMonthOffset] = useState(0);
   const [editModalState, setEditModalState] = useState<{
     visible: boolean;
     transactionId?: string;
@@ -156,24 +155,23 @@ export default function TreasuryPlanScreen() {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  // 12 mois de l'année : N-1 = année précédente, Mois en cours = année actuelle, N+1 = année suivante
-  const months = useMemo(() => {
-    if (periodFilter === 'n-1') return getMonthsFromOffset(-12, 12);   // 12 mois précédents
-    if (periodFilter === 'n+1') return getMonthsFromOffset(12, 12);    // 12 mois à partir de +1 an
-    return getMonthsFromOffset(0, 12);                                 // 12 mois année en cours
-  }, [periodFilter]);
+  // Fenêtre glissante de 12 mois à partir de (mois courant + offset)
+  const months = useMemo(() => getMonthsFromOffset(monthOffset, 12), [monthOffset]);
 
-  // Mois à surligner : même mois que le mois en cours, dans l'année affichée (ex. N-1 → fév. 2025 si on est en fév. 2026)
-  const highlightMonthKey = useMemo(() => {
-    if (periodFilter === 'n-1') return getMonthKey(currentYear - 1, currentMonth);
-    if (periodFilter === 'n+1') return getMonthKey(currentYear + 1, currentMonth);
-    return getMonthKey(currentYear, currentMonth);
-  }, [periodFilter, currentYear, currentMonth]);
+  // Toujours surligner le vrai mois courant
+  const highlightMonthKey = getMonthKey(currentYear, currentMonth);
 
   const colWidth = MONTH_COL_WIDTH;
 
-  // Année affichée dans le tableau (N-1, année en cours, ou N+1)
-  const displayYear = periodFilter === 'n-1' ? currentYear - 1 : periodFilter === 'n+1' ? currentYear + 1 : currentYear;
+  // Label de la plage affichée, ex. "Mai 2026 – Avr. 2027"
+  const rangeLabel = useMemo(() => {
+    if (months.length === 0) return '';
+    const fmt = (y: number, m: number) =>
+      new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+    const first = months[0];
+    const last = months[months.length - 1];
+    return `${fmt(first.year, first.month)} – ${fmt(last.year, last.month)}`;
+  }, [months]);
 
   const incomeGrouped = useMemo(() => groupCategories(categories.filter((c) => c.type === 'income')), [categories]);
   const expenseGrouped = useMemo(() => groupCategories(categories.filter((c) => c.type === 'expense')), [categories]);
@@ -184,51 +182,78 @@ export default function TreasuryPlanScreen() {
     const txByMonthCategory: Record<string, Record<string, TransactionWithDetails[]>> = {};
     const incomeByMonth: Record<string, number> = {};
     const expenseByMonth: Record<string, number> = {};
+    const mouvEpargne: Record<string, number> = {};
+    const mouvInvest: Record<string, number> = {};
+    const mouvRegul: Record<string, number> = {};
     months.forEach((m) => {
       incomeByMonth[m.key] = 0;
       expenseByMonth[m.key] = 0;
+      mouvEpargne[m.key] = 0;
+      mouvInvest[m.key] = 0;
+      mouvRegul[m.key] = 0;
     });
+
+    // Helper: accumulate a signed amount into a Mouvements bucket (handles recurring)
+    const addToMouv = (bucket: Record<string, number>, t: TransactionWithDetails, rawAmt: number) => {
+      if (t.is_recurring && t.recurrence_rule) {
+        for (const m of months) {
+          const calc = addRecurrenceToMonth(m.year, m.month, rawAmt, t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
+          const key = getOverrideKey(t.id, m.year, m.month);
+          const final = overridesMap[key] !== undefined ? overridesMap[key] : calc;
+          bucket[m.key] = (bucket[m.key] ?? 0) + final;
+        }
+      } else {
+        const [y, mo] = t.date.split('-').map(Number);
+        const mKey = getMonthKey(y, mo);
+        if (months.some((m) => m.key === mKey)) {
+          bucket[mKey] = (bucket[mKey] ?? 0) + rawAmt;
+        }
+      }
+    };
 
     for (const t of transactions as TransactionWithDetails[]) {
       const amount = Number(t.amount);
-      const date = t.date;
+      const isChecking = t.account?.type === 'checking';
+      const linkedType = t.linked_account?.type;
+
+      // Identifier les Mouvements
+      const isSavingsMove = isChecking && linkedType === 'savings';
+      const isInvestMove = isChecking && linkedType === 'investment';
+      const isRegulMove = isChecking && !t.linked_account_id &&
+        (t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde');
+      // Exclure l'autre côté d'un virement (compte non-courant avec linked_account_id)
+      const isExcluded = !!t.linked_account_id && !isChecking;
+
+      if (isExcluded) continue;
+      if (isSavingsMove) { addToMouv(mouvEpargne, t, amount); continue; }
+      if (isInvestMove) { addToMouv(mouvInvest, t, amount); continue; }
+      if (isRegulMove) { addToMouv(mouvRegul, t, amount); continue; }
+
+      // Traitement classique recettes/dépenses
       const catId = t.category_id ?? 'none';
       if (!byCategoryMonth[catId]) byCategoryMonth[catId] = {};
       if (!txByMonthCategory[catId]) txByMonthCategory[catId] = {};
-      
       months.forEach((m) => {
-        if (!byCategoryMonth[catId][m.key]) {
-          byCategoryMonth[catId][m.key] = 0;
-          txByMonthCategory[catId][m.key] = [];
-        }
+        if (!byCategoryMonth[catId][m.key]) { byCategoryMonth[catId][m.key] = 0; txByMonthCategory[catId][m.key] = []; }
       });
 
       if (t.is_recurring && t.recurrence_rule) {
         for (const m of months) {
-          const calculatedAmt = addRecurrenceToMonth(m.year, m.month, amount, date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
+          const calculatedAmt = addRecurrenceToMonth(m.year, m.month, amount, t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
           const overrideKey = getOverrideKey(t.id, m.year, m.month);
           const finalAmt = overridesMap[overrideKey] !== undefined ? overridesMap[overrideKey] : calculatedAmt;
-          
-          if (finalAmt > 0) {
-            incomeByMonth[m.key] = (incomeByMonth[m.key] ?? 0) + finalAmt;
-            byCategoryMonth[catId][m.key] = (byCategoryMonth[catId][m.key] ?? 0) + finalAmt;
-          } else if (finalAmt < 0) {
-            expenseByMonth[m.key] = (expenseByMonth[m.key] ?? 0) + Math.abs(finalAmt);
-            byCategoryMonth[catId][m.key] = (byCategoryMonth[catId][m.key] ?? 0) + finalAmt;
-          }
+          if (finalAmt > 0) { incomeByMonth[m.key] = (incomeByMonth[m.key] ?? 0) + finalAmt; }
+          else if (finalAmt < 0) { expenseByMonth[m.key] = (expenseByMonth[m.key] ?? 0) + Math.abs(finalAmt); }
+          byCategoryMonth[catId][m.key] = (byCategoryMonth[catId][m.key] ?? 0) + finalAmt;
           txByMonthCategory[catId][m.key].push(t);
         }
       } else {
-        const [y, mo] = date.split('-').map(Number);
+        const [y, mo] = t.date.split('-').map(Number);
         const key = getMonthKey(y, mo);
         if (months.some((m) => m.key === key)) {
-          if (amount > 0) {
-            incomeByMonth[key] = (incomeByMonth[key] ?? 0) + amount;
-            byCategoryMonth[catId][key] = (byCategoryMonth[catId][key] ?? 0) + amount;
-          } else {
-            expenseByMonth[key] = (expenseByMonth[key] ?? 0) + Math.abs(amount);
-            byCategoryMonth[catId][key] = (byCategoryMonth[catId][key] ?? 0) + amount;
-          }
+          if (amount > 0) { incomeByMonth[key] = (incomeByMonth[key] ?? 0) + amount; }
+          else { expenseByMonth[key] = (expenseByMonth[key] ?? 0) + Math.abs(amount); }
+          byCategoryMonth[catId][key] = (byCategoryMonth[catId][key] ?? 0) + amount;
           txByMonthCategory[catId][key].push(t);
         }
       }
@@ -237,7 +262,7 @@ export default function TreasuryPlanScreen() {
     type Row = {
       label: string;
       categoryId: string | null;
-      type: 'income' | 'expense' | 'balance';
+      type: 'income' | 'expense' | 'balance' | 'mouvement';
       values: Record<string, number>;
       isChild?: boolean;
       isParentCategory?: boolean;
@@ -247,13 +272,15 @@ export default function TreasuryPlanScreen() {
     };
     const rows: Row[] = [];
 
-    // RECETTES : en-tête puis catégories (parent = somme des sous-catégories) puis TOTAL RECETTES
+    // RECETTES
     rows.push({ label: 'RECETTES', categoryId: null, type: 'income', values: {}, isSectionHeader: true });
     incomeGrouped.parents.forEach((p) => {
       const children = incomeGrouped.byParent[p.id] ?? [];
       const parentValues: Record<string, number> = {};
       months.forEach((m) => {
-        parentValues[m.key] = children.reduce((sum, c) => sum + (byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
+        // Inclure les transactions directement sur le parent + celles sur les enfants
+        parentValues[m.key] = (byCategoryMonth[p.id]?.[m.key] ?? 0) +
+          children.reduce((sum, c) => sum + (byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
       });
       rows.push({ label: p.name, categoryId: p.id, type: 'income', values: parentValues, isParentCategory: true });
       children.forEach((c) => {
@@ -262,13 +289,10 @@ export default function TreasuryPlanScreen() {
     });
     rows.push({ label: 'TOTAL RECETTES', categoryId: null, type: 'income', values: incomeByMonth, isTotalLine: true });
 
-    // Soldes : entre Recettes et Dépenses
+    // SOLDES
     const balanceByMonth: Record<string, number> = {};
-    months.forEach((m) => {
-      balanceByMonth[m.key] = (incomeByMonth[m.key] ?? 0) - (expenseByMonth[m.key] ?? 0);
-    });
+    months.forEach((m) => { balanceByMonth[m.key] = (incomeByMonth[m.key] ?? 0) - (expenseByMonth[m.key] ?? 0); });
     rows.push({ label: 'Solde mensuel', categoryId: null, type: 'balance', values: balanceByMonth, isBlockStart: true });
-    // Solde anticipé = solde mensuel du mois M - dépenses du mois M+1
     const anticipatedByMonth: Record<string, number> = {};
     months.forEach((m, i) => {
       const nextMonth = i < months.length - 1 ? months[i + 1] : null;
@@ -277,19 +301,28 @@ export default function TreasuryPlanScreen() {
     });
     rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipatedByMonth });
 
-    // DÉPENSES : en-tête puis catégories (parent = somme des sous-catégories) puis TOTAL DÉPENSES
+    // MOUVEMENTS — toujours visible (virements épargne/invest + régularisations)
+    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true, isBlockStart: true });
+    rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true });
+    rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true });
+    rows.push({ label: 'Régularisation solde', categoryId: null, type: 'mouvement', values: mouvRegul, isChild: true });
+
+    // DÉPENSES (exclure la catégorie "Mouvements" DB car gérée via la section Mouvements ci-dessus)
     rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: {}, isSectionHeader: true, isBlockStart: true });
-    expenseGrouped.parents.forEach((p) => {
-      const children = expenseGrouped.byParent[p.id] ?? [];
-      const parentValues: Record<string, number> = {};
-      months.forEach((m) => {
-        parentValues[m.key] = children.reduce((sum, c) => sum + Math.abs(byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
+    expenseGrouped.parents
+      .filter((p) => p.name !== 'Mouvements')
+      .forEach((p) => {
+        const children = expenseGrouped.byParent[p.id] ?? [];
+        const parentValues: Record<string, number> = {};
+        months.forEach((m) => {
+          parentValues[m.key] = Math.abs(byCategoryMonth[p.id]?.[m.key] ?? 0) +
+            children.reduce((sum, c) => sum + Math.abs(byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
+        });
+        rows.push({ label: p.name, categoryId: p.id, type: 'expense', values: parentValues, isParentCategory: true });
+        children.forEach((c) => {
+          rows.push({ label: c.name, categoryId: c.id, type: 'expense', values: byCategoryMonth[c.id] ?? {}, isChild: true });
+        });
       });
-      rows.push({ label: p.name, categoryId: p.id, type: 'expense', values: parentValues, isParentCategory: true });
-      children.forEach((c) => {
-        rows.push({ label: c.name, categoryId: c.id, type: 'expense', values: byCategoryMonth[c.id] ?? {}, isChild: true });
-      });
-    });
     rows.push({ label: 'TOTAL DÉPENSES', categoryId: null, type: 'expense', values: expenseByMonth, isTotalLine: true });
 
     return { rows, months, txByMonthCategory };
@@ -349,25 +382,19 @@ export default function TreasuryPlanScreen() {
         <Text style={styles.subtitle}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
 
         <View style={styles.controls}>
-          <View style={styles.filterRow}>
-            {(['n-1', 'current', 'n+1'] as const).map((f) => (
-              <TouchableOpacity
-                key={f}
-                style={[styles.filterChip, periodFilter === f && styles.filterChipActive]}
-                onPress={() => setPeriodFilter(f)}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.filterChipText, periodFilter === f && styles.filterChipTextActive]}>
-                  {f === 'n-1' ? 'N-1' : f === 'current' ? 'Mois en cours' : 'N+1'}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.navRow}>
+            <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o - 1)} accessibilityRole="button">
+              <Ionicons name="chevron-back" size={22} color="#94a3b8" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navLabel} onPress={() => setMonthOffset(0)} accessibilityRole="button">
+              <Text style={styles.navLabelText}>{rangeLabel}</Text>
+              {monthOffset !== 0 && <Text style={styles.navLabelHint}>Appuyer pour revenir</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o + 1)} accessibilityRole="button">
+              <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
+            </TouchableOpacity>
           </View>
         </View>
-
-        {!isLoading && (
-          <Text style={styles.yearLabel}>Année {displayYear}</Text>
-        )}
 
         {isLoading ? (
           <Text style={styles.hint}>Chargement…</Text>
@@ -446,6 +473,7 @@ export default function TreasuryPlanScreen() {
                       row.type === 'income' && styles.tableRowIncome,
                       row.type === 'expense' && styles.tableRowExpense,
                       row.type === 'balance' && styles.tableRowBalance,
+                      row.type === 'mouvement' && !row.isSectionHeader && styles.tableRowMouvement,
                       idx === 0 && row.type !== 'balance' && styles.tableRowHighlight,
                       row.isParentCategory && styles.tableRowParentCategory,
                       row.isParentCategory && row.type === 'income' && styles.tableRowParentCategoryIncome,
@@ -455,6 +483,7 @@ export default function TreasuryPlanScreen() {
                       row.isSectionHeader && styles.tableRowSectionHeader,
                       row.isSectionHeader && row.type === 'income' && styles.tableRowSectionRecettes,
                       row.isSectionHeader && row.type === 'expense' && styles.tableRowSectionDepenses,
+                      row.isSectionHeader && row.type === 'mouvement' && styles.tableRowSectionMouvements,
                       row.isBlockStart && styles.tableRowBlockStart,
                     ]}
                   >
@@ -468,7 +497,9 @@ export default function TreasuryPlanScreen() {
                         row.isTotalLine && row.type === 'expense' && styles.cellLabelTotalDepenses,
                         row.isSectionHeader && row.type === 'income' && styles.cellLabelSectionRecettes,
                         row.isSectionHeader && row.type === 'expense' && styles.cellLabelSectionDepenses,
+                        row.isSectionHeader && row.type === 'mouvement' && styles.cellLabelSectionMouvements,
                         row.type === 'balance' && styles.cellLabelBalance,
+                        row.type === 'mouvement' && !row.isSectionHeader && styles.cellLabelMouvement,
                       ]}
                       numberOfLines={2}
                     >
@@ -509,6 +540,7 @@ export default function TreasuryPlanScreen() {
                             row.type === 'income' && styles.cellNumPositive,
                             row.type === 'expense' && row.label !== 'Solde mensuel' && row.label !== 'Solde anticipé' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
+                            row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
                           ]}
                           numberOfLines={1}
@@ -597,13 +629,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 12 },
-  controls: { marginBottom: 16 },
-  yearLabel: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 12, textAlign: 'center' },
-  filterRow: { flexDirection: 'row', gap: 8 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.cardBorder },
-  filterChipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  filterChipText: { fontSize: 13, color: COLORS.textSecondary },
-  filterChipTextActive: { color: COLORS.bg, fontWeight: '600' },
+  controls: { marginBottom: 12 },
+  navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  navArrow: { padding: 8 },
+  navLabel: { flex: 1, alignItems: 'center' },
+  navLabelText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  navLabelHint: { fontSize: 11, color: COLORS.emerald, marginTop: 2 },
   hint: { color: COLORS.textSecondary },
   scrollOuter: { flex: 1 },
   scrollOuterContent: {},
@@ -655,6 +686,14 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: COLORS.danger,
   },
+  tableRowSectionMouvements: {
+    backgroundColor: 'rgba(100, 116, 139, 0.15)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#64748b',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  tableRowMouvement: { backgroundColor: 'rgba(100, 116, 139, 0.06)' },
   tableRowParentCategory: {
     borderLeftWidth: 2,
     borderLeftColor: 'rgba(148, 163, 184, 0.18)',
@@ -697,6 +736,8 @@ const styles = StyleSheet.create({
   cellLabelParentCategory: { fontWeight: '600', color: COLORS.text },
   cellLabelSectionRecettes: { fontSize: 12, fontWeight: '800', color: COLORS.emerald, letterSpacing: 1 },
   cellLabelSectionDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 1 },
+  cellLabelSectionMouvements: { fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 1 },
+  cellLabelMouvement: { fontSize: 13, color: '#94a3b8' },
   cellLabelBalance: { fontWeight: '700', color: COLORS.balance },
   cellLabelTotalRecettes: { fontSize: 12, fontWeight: '800', color: COLORS.emerald, letterSpacing: 0.8 },
   cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 0.8 },
