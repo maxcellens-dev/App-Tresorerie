@@ -28,10 +28,10 @@ export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements', 'Régularisation solde'] },
   { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Loisirs', 'Frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Autre, divers'] },
   { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle, santé', 'Assurance'] },
-  { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer', "Taxe d'habitation/Foncière"] },
-  { name: 'Abonnements, Forfaits', type: 'expense', is_variable: false, sort_order: 30, children: ['Autres abonnements', 'Internet mobile', 'Streaming'] },
-  { name: 'Frais bancaires et financiers', type: 'expense', is_variable: false, sort_order: 40, children: ['Agios', 'Commissions', 'Frais de dossier'] },
-  { name: 'Impôts et taxes', type: 'expense', is_variable: false, sort_order: 50, children: ['TVA', 'Impôt sur les sociétés', 'Taxes', 'Cotisations'] },
+  { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer/Copropriété', "Taxe d'habitation/Foncière", 'Assurance habitation', 'Electricité/Eau'] },
+  { name: 'Abonnements, Forfaits', type: 'expense', is_variable: false, sort_order: 30, children: ['Autres abonnements', 'Internet mobile', 'Plateformes', 'Box internet', 'Sport'] },
+  { name: 'Frais bancaires et financiers', type: 'expense', is_variable: false, sort_order: 40, children: ['Assurance Crédit', 'Frais bancaires', 'Autres frais', 'Crédits'] },
+  { name: 'Impôts et taxes', type: 'expense', is_variable: false, sort_order: 50, children: ['Impôt sur le revenu', 'Autres Impôts'] },
   { name: 'Autres dépenses', type: 'expense', is_variable: true, sort_order: 60, children: ['Divers', 'Autres charges'] },
 ];
 

@@ -1,10 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
+
+// onPress n'est pas reconnu par les éléments SVG sur web — on utilise onClick à la place
+const svgPress = (handler: () => void): Record<string, unknown> =>
+  Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
 import Svg, { Rect, Text as SvgText, Line, Circle, Path, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
@@ -94,7 +98,7 @@ function BarChart({ data, width }: { data: { label: string; income: number; expe
                 height={incomeH}
                 rx={3}
                 fill="url(#gi)"
-                onPress={() => setActive({ idx: i, type: 'income' })}
+                {...svgPress(() => setActive({ idx: i, type: 'income' }))}
               />
               <Rect
                 x={x + barW + gap}
@@ -103,7 +107,7 @@ function BarChart({ data, width }: { data: { label: string; income: number; expe
                 height={expenseH}
                 rx={3}
                 fill="url(#ge)"
-                onPress={() => setActive({ idx: i, type: 'expense' })}
+                {...svgPress(() => setActive({ idx: i, type: 'expense' }))}
               />
             </G>
           );
@@ -184,7 +188,7 @@ function AreaLineChart({ points, width, color }: { points: { label: string; valu
           fill={C.bg}
           stroke={color}
           strokeWidth={2}
-          onPress={() => setActiveIndex(i === activeIndex ? null : i)}
+          {...svgPress(() => setActiveIndex(i === activeIndex ? null : i))}
         />
       ))}
       {activeIndex !== null ? (
@@ -275,7 +279,7 @@ function InvestmentGainLossChart({ series, years, width }: { series: { name: str
                   fill={C.bg}
                   stroke={serie.color}
                   strokeWidth={2.5}
-                  onPress={() => setActive(active?.seriesName === serie.name && active.pointIndex === idx ? null : { seriesName: serie.name, pointIndex: idx })}
+                  {...svgPress(() => setActive(active?.seriesName === serie.name && active.pointIndex === idx ? null : { seriesName: serie.name, pointIndex: idx }))}
                 />
               );
             })}
@@ -350,7 +354,7 @@ function DonutChart({ slices, size }: { slices: { label: string; value: number; 
             d={p.d}
             fill={p.color}
             opacity={active === null || active === p.idx ? 1 : 0.4}
-            onPress={() => setActive(active === p.idx ? null : p.idx)}
+            {...svgPress(() => setActive(active === p.idx ? null : p.idx))}
           />
         ))}
         {activeSlice ? (

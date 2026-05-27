@@ -52,7 +52,8 @@ class ConfigServiceClass {
         lastFetchedAt: null,
       };
     }
-    this.notify();
+    // Ne pas appeler notify() ici : hydrate() est invoqué depuis un initialiseur useState
+    // (pendant le rendu). ThemeProvider lit l'état directement via getState() juste après.
     return this.state.config;
   }
 
