@@ -179,52 +179,23 @@ export default function EditTransactionScreen() {
       return;
     }
 
-    const shouldSplitNextAmount = isRecurring && editMode === 'future' && effectiveDateISO && futureAmountNum !== null;
-    if (shouldSplitNextAmount) {
-      const effectiveDate = new Date(`${effectiveDateISO}T00:00:00`);
-      const originalStart = new Date(`${tx.date}T00:00:00`);
-      if (effectiveDate <= originalStart) {
-        Alert.alert('Date invalide', "La date d'effet doit être postérieure au début de la récurrence.");
-        return;
-      }
-
-      const currentEndDate = endDateISO ? new Date(`${endDateISO}T00:00:00`) : null;
-      if (currentEndDate && effectiveDate > currentEndDate) {
-        Alert.alert('Date invalide', "La date d'effet doit être avant la fin de la récurrence.");
-        return;
-      }
-
-      const previousDay = new Date(effectiveDate);
-      previousDay.setDate(previousDay.getDate() - 1);
-      const splitEndDate = toIsoDate(previousDay);
-      const updatedEndDate = currentEndDate && currentEndDate < previousDay ? endDateISO : splitEndDate;
+    const shouldUpdateFutureAmount = isRecurring && editMode === 'future' && futureAmountNum !== null && !Number.isNaN(futureAmountNum);
+    if (shouldUpdateFutureAmount) {
+      // Met à jour le montant de la récurrence existante (pas de création d'une nouvelle transaction)
       const newRecurringAmount = isExpense ? -Math.abs(futureAmountNum) : Math.abs(futureAmountNum);
-
+      const dateToSave = isInstanceEdit ? tx.date : date;
       try {
-        const dateToSave = isInstanceEdit ? tx.date : date;
         await updateTx.mutateAsync({
           id,
           account_id: accountId,
           category_id: categoryId ? categoryId : null,
-          amount: finalAmount,
+          amount: newRecurringAmount,
           date: dateToSave,
           note: note || undefined,
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,
-          recurrence_end_date: updatedEndDate,
-        });
-
-        await addTx.mutateAsync({
-          account_id: accountId,
-          category_id: categoryId ? categoryId : null,
-          amount: newRecurringAmount,
-          date: effectiveDateISO,
-          note: note || undefined,
-          is_recurring: true,
-          recurrence_rule: recurrenceRule,
           recurrence_end_date: endDateISO,
         });
-
         closeEditor();
       } catch (e: unknown) {
         Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");

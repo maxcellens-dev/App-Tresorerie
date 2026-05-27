@@ -128,7 +128,7 @@ export default function TreasuryPlanScreen() {
   const paddingH = 24 * 2;
   const labelWidth = Math.min(200, Math.max(140, width - paddingH - 3 * MONTH_COL_WIDTH));
 
-  const [monthOffset, setMonthOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(-1);
   const [editModalState, setEditModalState] = useState<{
     visible: boolean;
     transactionId?: string;
@@ -371,30 +371,54 @@ export default function TreasuryPlanScreen() {
     // SOLDE :
     // - Mois passés  : solde réel à fin de mois (rétro depuis checkingBalance)
     // - Mois courant : checkingBalance (solde actuel)
-    // - Mois futurs  : projection cumulative (recettes - dépenses + mouvNets)
+    // - Mois futurs  : projection cumulative via checkingNetByMonth (toutes transactions courant récurrentes)
+    //   → même formule que le cas "fenêtre 100% future" pour garantir la cohérence lors de la navigation
     const currentMonthKey = getMonthKey(currentYear, currentMonth);
     const currentIdx = months.findIndex((m) => m.key === currentMonthKey);
     const soldeByMonth: Record<string, number> = {};
 
+    // Helper : net d'un mois quelconque (hors fenêtre) pour les mois intermédiaires
+    const computeMonthNet = (y: number, mo: number): number => {
+      let net = 0;
+      for (const t of transactions as TransactionWithDetails[]) {
+        if (t.account?.type !== 'checking') continue;
+        const amt = Number(t.amount);
+        if (t.is_recurring && t.recurrence_rule) {
+          const calc = addRecurrenceToMonth(y, mo, amt, t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
+          const overrideKey = getOverrideKey(t.id, y, mo);
+          net += overridesMap[overrideKey] !== undefined ? overridesMap[overrideKey] : calc;
+        } else {
+          const [ty, tm] = t.date.split('-').map(Number);
+          if (ty === y && tm === mo) net += amt;
+        }
+      }
+      return net;
+    };
+
     if (currentIdx >= 0) {
+      // Mois courant dans la fenêtre
       soldeByMonth[currentMonthKey] = checkingBalance;
-      // Passés : on remonte en soustrayant le net réel du mois suivant
+      // Passés : remonter en soustrayant le net réel du mois suivant
       for (let i = currentIdx - 1; i >= 0; i--) {
         const nextKey = months[i + 1].key;
         soldeByMonth[months[i].key] = soldeByMonth[nextKey] - checkingNetByMonth[nextKey];
       }
-      // Futurs : projection catégories
+      // Futurs : avancer avec checkingNetByMonth (cohérent avec le cas all-future)
       for (let i = currentIdx + 1; i < months.length; i++) {
-        const m = months[i];
-        const mouvNet = (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
-        soldeByMonth[m.key] = soldeByMonth[months[i - 1].key] + (incomeCatTotals[m.key] ?? 0) - (expenseCatTotals[m.key] ?? 0) + mouvNet;
+        soldeByMonth[months[i].key] = soldeByMonth[months[i - 1].key] + checkingNetByMonth[months[i].key];
       }
     } else if (months.length > 0 && months[0].key > currentMonthKey) {
-      // Fenêtre 100% future : projection depuis checkingBalance
+      // Fenêtre 100% future : projeter depuis mois courant+1 jusqu'au début de la fenêtre
+      // puis continuer sur les mois affichés — le solde est ainsi indépendant du monthOffset
       let prev = checkingBalance;
+      let d = new Date(currentYear, currentMonth, 1); // premier mois APRÈS le mois courant
+      const firstDate = new Date(months[0].year, months[0].month - 1, 1);
+      while (d < firstDate) {
+        prev += computeMonthNet(d.getFullYear(), d.getMonth() + 1);
+        d.setMonth(d.getMonth() + 1);
+      }
       months.forEach((m) => {
-        const mouvNet = (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
-        prev += (incomeCatTotals[m.key] ?? 0) - (expenseCatTotals[m.key] ?? 0) + mouvNet;
+        prev += checkingNetByMonth[m.key];
         soldeByMonth[m.key] = prev;
       });
     } else {
