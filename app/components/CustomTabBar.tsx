@@ -14,9 +14,9 @@ interface TabItem {
 
 const ITEMS: TabItem[] = [
   { name: 'comptes', label: 'Comptes', icon: 'wallet' },
-  { name: 'tresorerie', label: 'Tréso', icon: 'calendar' },
-  { name: 'pilotage', label: 'Pilotage', icon: 'home' },
   { name: 'transactions', label: 'Transactions', icon: 'list' },
+  { name: 'pilotage', label: 'Pilotage', icon: 'home' },
+  { name: 'tresorerie', label: 'Tréso', icon: 'calendar' },
   { name: 'reporting', label: 'Reporting', icon: 'bar-chart' },
 ];
 

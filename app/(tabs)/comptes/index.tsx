@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -33,6 +33,17 @@ export default function AccountsListScreen() {
   
   const { data: accounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
+
+  const TYPE_ORDER: Record<string, number> = { checking: 0, savings: 1, investment: 2, other: 3 };
+  const sortedAccounts = useMemo(() =>
+    [...accounts].sort((a, b) => {
+      const typeA = TYPE_ORDER[a.type] ?? 4;
+      const typeB = TYPE_ORDER[b.type] ?? 4;
+      if (typeA !== typeB) return typeA - typeB;
+      return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+    }),
+    [accounts]
+  );
 
   const total = accounts.reduce((s, a) => s + a.balance, 0);
   
@@ -99,7 +110,7 @@ export default function AccountsListScreen() {
               {accounts.length === 0 ? (
                 <Text style={styles.empty}>Aucun compte. Ajoutez un compte pour suivre vos soldes.</Text>
               ) : (
-                accounts.map((acc) => {
+                sortedAccounts.map((acc) => {
                   const color = accountColor(acc.type);
                   const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
                   return (

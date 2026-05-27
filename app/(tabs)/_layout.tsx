@@ -79,12 +79,12 @@ export default function TabsLayout() {
       })}
     >
       <Tabs.Screen
-        name="pilotage"
+        name="comptes"
         options={{
-          title: 'Pilotage',
-          tabBarLabel: 'Pilotage',
+          title: 'Comptes',
+          tabBarLabel: 'Comptes',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} style={styles.icon} />
+            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={24} color={color} style={styles.icon} />
           ),
         }}
       />
@@ -99,22 +99,22 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="pilotage"
+        options={{
+          title: 'Pilotage',
+          tabBarLabel: 'Pilotage',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} style={styles.icon} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="tresorerie"
         options={{
           title: 'Plan de trésorerie',
           tabBarLabel: 'Tréso',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} style={styles.icon} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="comptes"
-        options={{
-          title: 'Comptes',
-          tabBarLabel: 'Comptes',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={24} color={color} style={styles.icon} />
           ),
         }}
       />
