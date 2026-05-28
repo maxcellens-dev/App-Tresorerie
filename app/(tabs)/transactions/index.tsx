@@ -86,7 +86,7 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
 
 export default function TransactionsListScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string }>();
+  const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [accountFilterId, setAccountFilterId] = useState<string | null>(null);
@@ -116,6 +116,23 @@ export default function TransactionsListScreen() {
   }, [accounts, filterInitialized]);
   
   const [periodOffset, setPeriodOffset] = useState(-1);
+  const [categoryFilterId, setCategoryFilterId] = useState<string | null>(params.categoryId ?? null);
+  const [regulFilter, setRegulFilter] = useState(params.filterType === 'regul');
+  const [mouvementsFilter, setMouvementsFilter] = useState(params.filterType === 'mouvements');
+  const [recettesFilter, setRecettesFilter] = useState(params.filterType === 'recettes');
+  const [depensesFilter, setDepensesFilter] = useState(params.filterType === 'depenses');
+
+  useEffect(() => {
+    setCategoryFilterId(params.categoryId ?? null);
+  }, [params.categoryId]);
+
+  useEffect(() => {
+    setRegulFilter(params.filterType === 'regul');
+    setMouvementsFilter(params.filterType === 'mouvements');
+    setRecettesFilter(params.filterType === 'recettes');
+    setDepensesFilter(params.filterType === 'depenses');
+  }, [params.filterType]);
+
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentYear = now.getFullYear();
@@ -201,26 +218,52 @@ export default function TransactionsListScreen() {
   // Filtrer par catégorie si nécessaire (inclure enfants si parent est sélectionné)
   const filtered = useMemo(() => {
     let list = displayedTransactions;
-    if (params.categoryId) {
-      const selectedCategory = categories.find(c => c.id === params.categoryId);
+    if (categoryFilterId) {
+      const selectedCategory = categories.find(c => c.id === categoryFilterId);
       if (selectedCategory) {
-        // Si c'est une catégorie parent (pas de parent_id), inclure aussi les enfants
         if (!selectedCategory.parent_id) {
           const childIds = categories.filter(c => c.parent_id === selectedCategory.id).map(c => c.id);
           const allIdsToFilter = [selectedCategory.id, ...childIds];
-          list = list.filter((t) => t.category_id && allIdsToFilter.includes(t.category_id));
+          const isFraisVariables = selectedCategory.name === 'Frais variables';
+          list = list.filter((t) =>
+            !(t as any).project_id &&
+            (
+              (t.category_id && allIdsToFilter.includes(t.category_id)) ||
+              (isFraisVariables && (t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde'))
+            )
+          );
         } else {
-          // Sinon filtrer juste cette catégorie
-          list = list.filter((t) => t.category_id === params.categoryId);
+          list = list.filter((t) => !(t as any).project_id && t.category_id === categoryFilterId);
         }
       }
+    }
+    // Filtre Régularisation solde
+    if (regulFilter) {
+      list = list.filter((t) => t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde');
+    }
+    // Filtre Mouvements (virements épargne/invest + transactions projet)
+    if (mouvementsFilter) {
+      list = list.filter((t) => {
+        const isChecking = t.account?.type === 'checking';
+        const linkedType = t.linked_account?.type;
+        const isProjectTx = !!(t as any).project_id;
+        return isChecking && (linkedType === 'savings' || linkedType === 'investment' || isProjectTx);
+      });
+    }
+    // Filtre Recettes
+    if (recettesFilter) {
+      list = list.filter((t) => t.category?.type === 'income');
+    }
+    // Filtre Dépenses (hors projets qui sont dans Mouvements)
+    if (depensesFilter) {
+      list = list.filter((t) => t.category?.type === 'expense' && !(t as any).project_id);
     }
     // Filtre par compte
     if (accountFilterId) {
       list = list.filter((t) => t.account_id === accountFilterId);
     }
     return list;
-  }, [displayedTransactions, params.categoryId, categories, accountFilterId]);
+  }, [displayedTransactions, categoryFilterId, categories, accountFilterId, regulFilter, mouvementsFilter, recettesFilter, depensesFilter]);
 
   const byMonth = useMemo(() => {
     const map: Record<string, TransactionWithDetails[]> = {};
@@ -250,8 +293,9 @@ export default function TransactionsListScreen() {
   }, [filtered]);
 
   const isManualFilter = !!accountFilterId && accountFilterId !== defaultAccountId;
-  const hasFilter = !!params.categoryId || isManualFilter;
+  const hasFilter = !!categoryFilterId || isManualFilter || regulFilter || mouvementsFilter || recettesFilter || depensesFilter;
   const selectedAccountName = accounts.find(a => a.id === accountFilterId)?.name;
+  const selectedCategoryName = categoryFilterId ? categories.find(c => c.id === categoryFilterId)?.name : null;
   
   // Afficher/cacher boutons nav si singleMonth
   const showPeriodNav = params.singleMonth !== '1';
@@ -407,12 +451,50 @@ export default function TransactionsListScreen() {
           </TouchableOpacity>
         </View>
         {hasFilter && (
-          <TouchableOpacity style={styles.clearFilter} onPress={() => { router.replace('/(tabs)/transactions'); setAccountFilterId(defaultAccountId); }}>
-            <Ionicons name="filter" size={18} color={COLORS.emerald} />
-            <Text style={styles.clearFilterText}>
-              {accountFilterId && selectedAccountName ? `Compte: ${selectedAccountName}` : 'Filtre actif'} · Réinitialiser
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.activeFilters}>
+            {selectedCategoryName && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setCategoryFilterId(null)} activeOpacity={0.7}>
+                <Ionicons name="pricetag-outline" size={13} color={COLORS.emerald} />
+                <Text style={styles.filterChipText}>{selectedCategoryName}</Text>
+                <Ionicons name="close" size={13} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {regulFilter && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setRegulFilter(false)} activeOpacity={0.7}>
+                <Ionicons name="swap-vertical-outline" size={13} color={COLORS.emerald} />
+                <Text style={styles.filterChipText}>Régularisation solde</Text>
+                <Ionicons name="close" size={13} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {mouvementsFilter && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setMouvementsFilter(false)} activeOpacity={0.7}>
+                <Ionicons name="swap-horizontal-outline" size={13} color={COLORS.emerald} />
+                <Text style={styles.filterChipText}>Mouvements</Text>
+                <Ionicons name="close" size={13} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {recettesFilter && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setRecettesFilter(false)} activeOpacity={0.7}>
+                <Ionicons name="arrow-up-outline" size={13} color={COLORS.emerald} />
+                <Text style={styles.filterChipText}>Recettes</Text>
+                <Ionicons name="close" size={13} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {depensesFilter && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setDepensesFilter(false)} activeOpacity={0.7}>
+                <Ionicons name="arrow-down-outline" size={13} color={COLORS.emerald} />
+                <Text style={styles.filterChipText}>Dépenses</Text>
+                <Ionicons name="close" size={13} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {isManualFilter && selectedAccountName && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setAccountFilterId(defaultAccountId)} activeOpacity={0.7}>
+                <Ionicons name="wallet-outline" size={13} color={COLORS.emerald} />
+                <Text style={styles.filterChipText}>{selectedAccountName}</Text>
+                <Ionicons name="close" size={13} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
         )}
         <ScrollView
           style={styles.scroll}
@@ -619,6 +701,9 @@ const styles = StyleSheet.create({
   addBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
   clearFilter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingVertical: 8 },
   clearFilterText: { fontSize: 14, color: COLORS.emerald, fontWeight: '600' },
+  activeFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  filterChipText: { fontSize: 13, color: COLORS.emerald, fontWeight: '600' },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },

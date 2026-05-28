@@ -521,7 +521,11 @@ export default function TreasuryPlanScreen() {
     rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: expenseCatTotals, isSectionHeader: true, isBlockStart: true });
 
     // MOUVEMENTS — entre le total et le détail des dépenses
-    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true });
+    const mouvTotal: Record<string, number> = {};
+    months.forEach((m) => {
+      mouvTotal[m.key] = (mouvProjets[m.key] ?? 0) + (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
+    });
+    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: mouvTotal, isSectionHeader: true });
     rows.push({ label: 'Projets', categoryId: null, type: 'mouvement', values: mouvProjets, isChild: true, isProjectRow: true, hasForecast: hasDraftProjets });
     rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true, mouvementType: 'epargne', hasDraft: hasDraftEpargne });
     rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true, mouvementType: 'invest', hasDraft: hasDraftInvest });
@@ -818,14 +822,24 @@ export default function TreasuryPlanScreen() {
                             if (isFuture && row.isChild && (row.type === 'expense' || row.type === 'income')) {
                               const allTx = planData.txByMonthCategory?.[row.categoryId]?.[m.key] ?? [];
                               const existingDrafts = allTx.filter((t) => !!(t as any).is_draft);
-                              if (existingDrafts.length > 0) {
+                              if (allTx.length > 0) {
                                 setDraftChoiceModal({ visible: true, monthKey: m.key, categoryId: row.categoryId, rowType: row.type as 'income' | 'expense', existingDrafts });
                               } else {
                                 openDraftModal(m.key, row.categoryId, row.type as 'income' | 'expense');
                               }
+                            } else if (val === 0) {
+                              goToTransactions(m.key, row.categoryId);
                             } else {
                               showCellMenu(m.key, row.categoryId, val);
                             }
+                          } else if (row.isRegulRow) {
+                            router.push(`/(tabs)/transactions?focusMonth=${m.key}&filterType=regul&singleMonth=1` as any);
+                          } else if (row.isSectionHeader && row.type === 'mouvement') {
+                            router.push(`/(tabs)/transactions?focusMonth=${m.key}&filterType=mouvements&singleMonth=1` as any);
+                          } else if (row.isSectionHeader && row.type === 'income') {
+                            router.push(`/(tabs)/transactions?focusMonth=${m.key}&filterType=recettes&singleMonth=1` as any);
+                          } else if (row.isSectionHeader && row.type === 'expense') {
+                            router.push(`/(tabs)/transactions?focusMonth=${m.key}&filterType=depenses&singleMonth=1` as any);
                           } else {
                             goToTransactions(m.key, row.categoryId);
                           }
@@ -842,6 +856,7 @@ export default function TreasuryPlanScreen() {
                             row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
                             row.isSectionHeader && styles.cellNumTextSectionTotal,
+                            row.isSectionHeader && row.type === 'mouvement' && styles.cellNumSectionMouvements,
                             row.hasForecast?.[m.key] && styles.cellNumForecast,
                             row.hasDraft?.[m.key] && styles.cellNumDraft,
                           ]}
@@ -962,6 +977,17 @@ export default function TreasuryPlanScreen() {
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={styles.menuOption}
+              onPress={() => {
+                const c = draftChoiceModal;
+                setDraftChoiceModal(null);
+                if (c) goToTransactions(c.monthKey, c.categoryId);
+              }}
+            >
+              <Ionicons name="eye-outline" size={20} color="#60a5fa" />
+              <Text style={styles.menuOptionText}>Voir les transactions</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.menuOption}
               onPress={() => {
@@ -1257,6 +1283,7 @@ const styles = StyleSheet.create({
   cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
   cellNumPositive: { color: COLORS.emerald, fontWeight: '600' },
   cellNumNegative: { color: COLORS.danger, fontWeight: '600' },
+  cellNumSectionMouvements: { color: '#94a3b8' },
   cellNumDraft: { color: '#f97316', fontStyle: 'italic' },
   cellNumForecast: { color: '#64748b', fontStyle: 'italic' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: COLORS.cardBorder },

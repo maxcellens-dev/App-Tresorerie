@@ -625,11 +625,16 @@ export default function AccountDetailScreen() {
               const linkedAccount = linkedAccountId ? accounts.find((a) => a.id === linkedAccountId) : null;
               const isVirement = isTransfer || !!linkedAccount;
 
+              const isGainLoss = isInvestmentGainLossNote(selectedTx.note);
+              const isApport = selectedTx.note === 'Apport' || selectedTx.category?.name === 'Apport' ||
+                (selectedTx.note?.toLowerCase().includes('apport') ?? false);
               const txType = isVirement
                 ? 'Virement'
-                : amt > 0
-                  ? (selectedTx.note === 'Apport' || selectedTx.category?.name === 'Apport' ? 'Apport' : 'Recette')
-                  : (selectedTx.note?.toLowerCase().includes('régularisation') ? 'Régularisation' : 'Dépense');
+                : isGainLoss
+                  ? '+/- value'
+                  : amt > 0
+                    ? (isApport ? 'Apport' : 'Recette')
+                    : (selectedTx.note?.toLowerCase().includes('régularisation') ? 'Régularisation' : 'Dépense');
 
               const rows: { key: string; value: string }[] = [
                 { key: 'Type', value: txType },

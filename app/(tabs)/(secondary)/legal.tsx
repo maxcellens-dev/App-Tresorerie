@@ -1,6 +1,8 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   bg: '#020617',
@@ -12,18 +14,24 @@ const COLORS = {
 };
 
 export default function LegalScreen() {
+  const router = useRouter();
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Mentions légales</Text>
+          <View style={styles.pageHeader}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Mentions légales</Text>
+          </View>
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
 
           <Section title="Éditeur de l'application">
             Trésorerie{'\n'}
             Application de gestion de trésorerie personnelle{'\n\n'}
-            Contact : contact@tresorerie.app
+            Contact : maxence.vi@gmail.com
           </Section>
 
           <Section title="Hébergement">
@@ -80,6 +88,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
+  backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   updated: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 24 },

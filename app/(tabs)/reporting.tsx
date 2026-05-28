@@ -52,6 +52,31 @@ const formatTooltipValue = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math
 
 const isInvestmentGainLossNote = (note?: string | null) => !!note && /plus|moins|gain|perte/i.test(note);
 
+// Tooltip SVG positionné à côté du point (droite ou gauche selon l'espace)
+function ChartTooltip({ cx, cy, value, color, chartWidth, padL = 0, padR = 0 }: {
+  cx: number; cy: number; value: number; color: string;
+  chartWidth: number; padL?: number; padR?: number;
+}) {
+  const text = formatTooltipValue(value);
+  const boxW = 88;
+  const boxH = 28;
+  const gap = 10;
+  const rightEdge = chartWidth - padR;
+  const fromRight = cx + gap + boxW > rightEdge;
+  const tx = fromRight ? cx - gap - boxW : cx + gap;
+  const ty = Math.max(2, cy - boxH / 2);
+  const lineEndX = fromRight ? cx - gap : cx + gap;
+  return (
+    <G>
+      <Line x1={cx} y1={cy} x2={lineEndX} y2={cy} stroke={color} strokeWidth={1} strokeOpacity="0.6" />
+      <Rect x={tx} y={ty} width={boxW} height={boxH} rx={8} fill={C.bg} stroke={color} strokeWidth={1.5} />
+      <SvgText x={tx + boxW / 2} y={ty + boxH / 2 + 4} fill={C.text} fontSize={11} fontWeight="700" textAnchor="middle">
+        {text}
+      </SvgText>
+    </G>
+  );
+}
+
 function BarChart({ data, width }: { data: { label: string; income: number; expense: number }[]; width: number }) {
   const [active, setActive] = useState<{ idx: number; type: 'income' | 'expense' } | null>(null);
   const chartW = width - 52;
@@ -64,6 +89,7 @@ function BarChart({ data, width }: { data: { label: string; income: number; expe
   return (
     <View>
       <Svg width={width} height={chartH + 56}>
+        <Rect x={0} y={0} width={width} height={chartH + 56} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
         <Defs>
           <LinearGradient id="gi" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={C.emerald} stopOpacity="0.9" />
@@ -115,16 +141,10 @@ function BarChart({ data, width }: { data: { label: string; income: number; expe
         {active ? (() => {
           const point = data[active.idx];
           const value = active.type === 'income' ? point.income : point.expense;
-          const x = 48 + active.idx * barGroupW + (barGroupW - barW * 2 - gap) / 2 + (active.type === 'income' ? barW / 2 : barW + gap + barW / 2);
-          const y = chartH - (value / maxVal) * chartH - 14;
-          return (
-            <G>
-              <Rect x={x - 34} y={Math.max(6, y - 26)} width={68} height={22} rx={10} fill={C.bg} stroke={C.textSecondary} strokeWidth={0.7} />
-              <SvgText x={x} y={Math.max(6, y - 10)} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">
-                {formatTooltipValue(value)}
-              </SvgText>
-            </G>
-          );
+          const cx = 48 + active.idx * barGroupW + (barGroupW - barW * 2 - gap) / 2 + (active.type === 'income' ? barW / 2 : barW + gap + barW / 2);
+          const cy = chartH - (value / maxVal) * chartH;
+          const tipColor = active.type === 'income' ? C.emerald : C.rose;
+          return <ChartTooltip cx={cx} cy={cy} value={value} color={tipColor} chartWidth={width} padL={48} padR={0} />;
         })() : null}
         {data.map((d, i) => {
           const x = 48 + i * barGroupW + (barGroupW - barW * 2 - gap) / 2;
@@ -161,6 +181,7 @@ function AreaLineChart({ points, width, color }: { points: { label: string; valu
 
   return (
     <Svg width={width} height={chartH + 42}>
+      <Rect x={0} y={0} width={width} height={chartH + 42} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActiveIndex(null))} />
       <Defs>
         <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={color} stopOpacity="0.3" />
@@ -177,8 +198,8 @@ function AreaLineChart({ points, width, color }: { points: { label: string; valu
           </G>
         );
       })}
-      <Path d={areaPath} fill="url(#areaGrad)" />
-      <Path d={linePath} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
+      <Path d={areaPath} fill="url(#areaGrad)" {...svgPress(() => setActiveIndex(null))} />
+      <Path d={linePath} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" {...svgPress(() => setActiveIndex(null))} />
       {coords.map((c, i) => (
         <Circle
           key={`dot-${i}`}
@@ -192,21 +213,15 @@ function AreaLineChart({ points, width, color }: { points: { label: string; valu
         />
       ))}
       {activeIndex !== null ? (
-        <G>
-          <Rect
-            x={Math.max(padL, coords[activeIndex].x - 36)}
-            y={coords[activeIndex].y - 32}
-            width={72}
-            height={24}
-            rx={10}
-            fill={C.bg}
-            stroke={C.textSecondary}
-            strokeWidth={0.7}
-          />
-          <SvgText x={coords[activeIndex].x} y={coords[activeIndex].y - 16} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">
-            {formatTooltipValue(points[activeIndex].value)}
-          </SvgText>
-        </G>
+        <ChartTooltip
+          cx={coords[activeIndex].x}
+          cy={coords[activeIndex].y}
+          value={points[activeIndex].value}
+          color={color}
+          chartWidth={width}
+          padL={padL}
+          padR={padR}
+        />
       ) : null}
       {points.map((p, i) => (
         <SvgText key={`label-${i}`} x={coords[i].x} y={chartH + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">
@@ -237,6 +252,7 @@ function InvestmentGainLossChart({ series, years, width }: { series: { name: str
   return (
     <View>
       <Svg width={width} height={chartH + 42}>
+        <Rect x={0} y={0} width={width} height={chartH + 42} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
         {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
           const y = 12 + (1 - pct) * (chartH - 24);
           const val = minVal + pct * range;
@@ -266,6 +282,7 @@ function InvestmentGainLossChart({ series, years, width }: { series: { name: str
               stroke={serie.color}
               strokeWidth={2.5}
               strokeLinejoin="round"
+              {...svgPress(() => setActive(null))}
             />
             {serie.points.map((point, idx) => {
               const x = padL + idx * xStep;
@@ -294,16 +311,9 @@ function InvestmentGainLossChart({ series, years, width }: { series: { name: str
           const serie = series.find((s) => s.name === active.seriesName);
           if (!serie) return null;
           const point = serie.points[active.pointIndex];
-          const x = padL + active.pointIndex * xStep;
-          const y = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
-          return (
-            <G>
-              <Rect x={Math.max(padL, x - 42)} y={y - 32} width={84} height={24} rx={10} fill={C.bg} stroke={C.textSecondary} strokeWidth={0.7} />
-              <SvgText x={x} y={y - 16} fill={C.text} fontSize={10} fontWeight="700" textAnchor="middle">
-                {formatTooltipValue(point.value)}
-              </SvgText>
-            </G>
-          );
+          const cx = padL + active.pointIndex * xStep;
+          const cy = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
+          return <ChartTooltip cx={cx} cy={cy} value={point.value} color={serie.color} chartWidth={width} padL={padL} padR={padR} />;
         })() : null}
       </Svg>
       <View style={[s.legendWrap, { justifyContent: 'flex-start' }]}> 

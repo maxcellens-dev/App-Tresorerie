@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
@@ -13,12 +14,18 @@ const COLORS = {
 };
 
 export default function AssistanceScreen() {
+  const router = useRouter();
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Assistance</Text>
+          <View style={styles.pageHeader}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Assistance</Text>
+          </View>
           <Text style={styles.subtitle}>
             Notre équipe est disponible pour vous aider avec toute question concernant Trésorerie.
           </Text>
@@ -31,9 +38,9 @@ export default function AssistanceScreen() {
             </Text>
             <TouchableOpacity
               style={styles.btn}
-              onPress={() => Linking.openURL('mailto:support@tresorerie.app?subject=Demande%20d%27assistance')}
+              onPress={() => Linking.openURL('mailto:maxence.vi@gmail.com?subject=Demande%20d%27assistance')}
             >
-              <Text style={styles.btnText}>support@tresorerie.app</Text>
+              <Text style={styles.btnText}>maxence.vi@gmail.com</Text>
             </TouchableOpacity>
           </View>
 
@@ -70,6 +77,8 @@ export default function AssistanceScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
+  backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },

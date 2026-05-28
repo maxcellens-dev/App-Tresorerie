@@ -198,6 +198,12 @@ export default function ProfileScreen() {
           />
         )}
 
+        <View style={styles.pageHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>Mon profil</Text>
+        </View>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection}>
             {avatarUrl ? (
@@ -320,6 +326,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
+  backBtn: { padding: 4, marginRight: 12 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff' },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },

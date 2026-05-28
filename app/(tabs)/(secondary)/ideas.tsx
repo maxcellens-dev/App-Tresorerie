@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -46,6 +47,7 @@ function useAddSuggestion(profileId: string | undefined) {
 }
 
 export default function IdeasScreen() {
+  const router = useRouter();
   const { user } = useAuth();
   const [idea, setIdea] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -71,7 +73,12 @@ export default function IdeasScreen() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Boîte à idées</Text>
+          <View style={styles.pageHeader}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.title}>Boîte à idées</Text>
+          </View>
           <Text style={styles.subtitle}>
             Aidez-nous à améliorer Trésorerie ! Partagez vos suggestions, idées de fonctionnalités ou améliorations.
           </Text>
@@ -145,6 +152,8 @@ export default function IdeasScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
+  backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },

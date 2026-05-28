@@ -168,6 +168,12 @@ export default function CategoriesScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+        <View style={styles.pageHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>Catégories</Text>
+        </View>
         <Text style={styles.subtitle}>
           Recettes et dépenses par défaut. Modifiez, ajoutez ou supprimez des postes.
         </Text>
@@ -399,6 +405,9 @@ export default function CategoriesScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
+  backBtn: { padding: 4, marginRight: 12 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff' },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24 },
   scroll: { flex: 1 },
