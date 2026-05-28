@@ -87,7 +87,7 @@ export default function RecommendationsAdmin() {
       <h1 style={{ marginBottom: 4 }}>Recommandations intelligentes</h1>
       <p style={{ color: COLORS.textSecondary, marginBottom: 32, lineHeight: 1.6 }}>
         Le moteur analyse la santé financière de l&apos;utilisateur et propose 2 à 4 actions
-        dont la somme fait 100 % du « À dépenser ou placer en sécurité ».
+        dont la somme fait 100 % du « Ce qu'il te reste ce mois-ci ».
       </p>
 
       {/* ══════════ Types de recommandation ══════════ */}

@@ -64,9 +64,9 @@ const STEPS: FormulaStep[] = [
 export default function SafeToSpendAdmin() {
   return (
     <div>
-      <h1 style={{ marginBottom: 4 }}>À dépenser ou placer en sécurité</h1>
+      <h1 style={{ marginBottom: 4 }}>Ce qu'il te reste ce mois-ci</h1>
       <p style={{ color: COLORS.textSecondary, marginBottom: 32, lineHeight: 1.6 }}>
-        Explication complète du calcul du montant « À dépenser ou placer en sécurité »
+        Explication complète du calcul du montant « Ce qu'il te reste ce mois-ci »
         affiché sur la page Pilotage de l&apos;app.
       </p>
 
@@ -103,7 +103,7 @@ export default function SafeToSpendAdmin() {
 = Base à dépenser
 × (1 − marge de sécurité %)
 ─────────────────────────────────────────
-= À dépenser ou placer en sécurité`}
+= Ce qu'il te reste ce mois-ci`}
         </pre>
       </div>
 
@@ -212,7 +212,7 @@ export default function SafeToSpendAdmin() {
           >
 {`  4 500 + 1 600 − 300 − 200 − 150 = 5 450 €  (base)
   5 450 × (1 − 10/100) = 5 450 × 0.90
-  = 4 905 €  → À dépenser ou placer en sécurité`}
+  = 4 905 €  → Ce qu'il te reste ce mois-ci`}
           </pre>
         </div>
       </div>

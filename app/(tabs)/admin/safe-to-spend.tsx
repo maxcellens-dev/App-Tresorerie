@@ -81,7 +81,7 @@ export default function SafeToSpendAdmin() {
             <Text style={styles.formulaLine}>= Base à dépenser</Text>
             <Text style={styles.formulaLine}>× (1 − marge de sécurité %)</Text>
             <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
-            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= À dépenser ou placer en sécurité</Text>
+            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Ce qu'il te reste ce mois-ci</Text>
           </View>
 
           {/* ── Étapes ── */}

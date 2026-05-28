@@ -2,7 +2,7 @@
  * Moteur de recommandations intelligentes
  * ─────────────────────────────────────────
  * Analyse la santé financière et propose 2 à 4 recommandations
- * dont la somme = 100 % du « À dépenser ou placer en sécurité ».
+ * dont la somme = 100 % du « Ce qu'il te reste ce mois-ci ».
  *
  * Types de recommandations :
  *   1. Épargner    → renforcer l'épargne de sécurité
