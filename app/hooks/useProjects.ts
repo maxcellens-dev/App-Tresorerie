@@ -18,17 +18,17 @@ function buildProjectTransactions(opts: {
   linkedAccountId: string | null;
   date: string;
   endDate: string | null;
+  projetsCategoryId: string | null;
 }): any[] {
-  const { profileId, projectId, projectName, monthlyAllocation, sourceAccountId, linkedAccountId, date, endDate } = opts;
+  const { profileId, projectId, projectName, monthlyAllocation, sourceAccountId, linkedAccountId, date, projetsCategoryId } = opts;
   const sameAccount = sourceAccountId && linkedAccountId && sourceAccountId === linkedAccountId;
   const txns: any[] = [];
 
   if (sameAccount) {
-    // Même compte → 1 seule écriture "réservation" (amount=0, note descriptive)
     txns.push({
       profile_id: profileId,
       account_id: sourceAccountId,
-      category_id: null,
+      category_id: projetsCategoryId,
       amount: 0,
       date,
       note: `🔒 ${projectName} · ${monthlyAllocation.toFixed(0)} €/mois`,
@@ -37,14 +37,15 @@ function buildProjectTransactions(opts: {
       recurrence_rule: null,
       recurrence_end_date: null,
       project_id: projectId,
+      is_draft: true,
     });
   } else {
-    // Comptes différents → débit + crédit
+    // Seul le débit est créé ; le crédit est généré à la validation dans l'écran Transactions
     if (sourceAccountId) {
       txns.push({
         profile_id: profileId,
         account_id: sourceAccountId,
-        category_id: null,
+        category_id: projetsCategoryId,
         amount: -monthlyAllocation,
         date,
         note: projectName,
@@ -53,21 +54,7 @@ function buildProjectTransactions(opts: {
         recurrence_rule: null,
         recurrence_end_date: null,
         project_id: projectId,
-      });
-    }
-    if (linkedAccountId) {
-      txns.push({
-        profile_id: profileId,
-        account_id: linkedAccountId,
-        category_id: null,
-        amount: monthlyAllocation,
-        date,
-        note: projectName,
-        is_forecast: false,
-        is_recurring: false,
-        recurrence_rule: null,
-        recurrence_end_date: null,
-        project_id: projectId,
+        is_draft: true,
       });
     }
   }
@@ -98,17 +85,19 @@ export function useProjects(profileId: string | undefined) {
 export function useAddProject(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { 
-      name: string; 
-      description?: string; 
-      target_amount: number; 
+    mutationFn: async (input: {
+      name: string;
+      description?: string;
+      target_amount: number;
       monthly_allocation: number;
+      allocation_type?: 'monthly' | 'date' | 'ponctuel';
       target_date?: string;
       current_accumulated?: number;
       source_account_id?: string;
       linked_account_id?: string;
       transaction_day?: number;
       first_payment_date?: string;
+      ponctuel_entries?: { date: string; amount: number }[];
     }) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
       const payload = {
@@ -117,6 +106,7 @@ export function useAddProject(profileId: string | undefined) {
         description: input.description || null,
         target_amount: input.target_amount,
         monthly_allocation: input.monthly_allocation,
+        allocation_type: input.allocation_type || 'monthly',
         target_date: input.target_date || null,
         current_accumulated: input.current_accumulated || 0,
         source_account_id: input.source_account_id || null,
@@ -124,19 +114,45 @@ export function useAddProject(profileId: string | undefined) {
         transaction_day: input.transaction_day || null,
         status: 'active',
       };
-      console.log('Inserting project:', payload);
       const { data, error } = await supabase
         .from('projects')
         .insert(payload)
         .select()
         .single();
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      // Créer les transactions mensuelles du projet
-      if (data && input.monthly_allocation > 0) {
+      // Récupérer la catégorie "Projets" du profil
+      const { data: projetsCat } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('profile_id', profileId)
+        .eq('name', 'Projets')
+        .eq('type', 'expense')
+        .maybeSingle();
+      const projetsCategoryId = projetsCat?.id ?? null;
+
+      if (input.allocation_type === 'ponctuel' && input.ponctuel_entries && input.ponctuel_entries.length > 0) {
+        // Apport ponctuel : une transaction par entrée saisie
+        const txnsToInsert: any[] = [];
+        for (const entry of input.ponctuel_entries) {
+          const monthTxns = buildProjectTransactions({
+            profileId,
+            projectId: data.id,
+            projectName: input.name,
+            monthlyAllocation: entry.amount,
+            sourceAccountId: input.source_account_id || null,
+            linkedAccountId: input.linked_account_id || null,
+            date: entry.date,
+            endDate: null,
+            projetsCategoryId,
+          });
+          txnsToInsert.push(...monthTxns);
+        }
+        if (txnsToInsert.length > 0) {
+          const { error: txErr } = await supabase.from('transactions').insert(txnsToInsert);
+          if (txErr) console.warn('Transaction(s) non créée(s):', txErr);
+        }
+      } else if (data && input.monthly_allocation > 0) {
         const startDate = input.first_payment_date || (() => {
           const now = new Date();
           const day = input.transaction_day || now.getDate();
@@ -160,6 +176,7 @@ export function useAddProject(profileId: string | undefined) {
             linkedAccountId: input.linked_account_id || null,
             date: d,
             endDate: input.target_date || null,
+            projetsCategoryId,
           });
           txnsToInsert.push(...monthTxns);
           cursor.setMonth(cursor.getMonth() + 1);
@@ -191,6 +208,7 @@ export function useUpdateProject(profileId: string | undefined) {
       description?: string;
       target_amount?: number;
       monthly_allocation?: number;
+      allocation_type?: 'monthly' | 'date' | 'ponctuel';
       target_date?: string | null;
       current_accumulated?: number;
       source_account_id?: string | null;
@@ -198,6 +216,7 @@ export function useUpdateProject(profileId: string | undefined) {
       transaction_day?: number | null;
       first_payment_date?: string;
       status?: string;
+      ponctuel_entries?: { date: string; amount: number }[];
     }) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
 
@@ -209,6 +228,7 @@ export function useUpdateProject(profileId: string | undefined) {
           ...(input.description !== undefined && { description: input.description }),
           ...(input.target_amount !== undefined && { target_amount: input.target_amount }),
           ...(input.monthly_allocation !== undefined && { monthly_allocation: input.monthly_allocation }),
+          ...(input.allocation_type && { allocation_type: input.allocation_type }),
           ...(input.target_date !== undefined && { target_date: input.target_date }),
           ...(input.current_accumulated !== undefined && { current_accumulated: input.current_accumulated }),
           ...(input.source_account_id !== undefined && { source_account_id: input.source_account_id }),
@@ -226,22 +246,22 @@ export function useUpdateProject(profileId: string | undefined) {
       if (input.status && !input.name && input.monthly_allocation === undefined) return data;
 
       const projectName = input.name ?? data.name;
-      const monthlyAlloc = input.monthly_allocation !== undefined ? input.monthly_allocation : Number(data.monthly_allocation);
       const sourceId = input.source_account_id !== undefined ? input.source_account_id : data.source_account_id;
       const linkedId = input.linked_account_id !== undefined ? input.linked_account_id : data.linked_account_id;
       const endDate = input.target_date !== undefined ? input.target_date : data.target_date;
+      const allocType = input.allocation_type ?? data.allocation_type ?? 'monthly';
 
-      // 2. Récupérer la date de la première transaction existante (= date de début réelle)
-      const { data: firstTxn } = await supabase
-        .from('transactions')
-        .select('date')
-        .eq('project_id', input.id)
+      // Récupérer la catégorie "Projets" du profil
+      const { data: projetsCat } = await supabase
+        .from('categories')
+        .select('id')
         .eq('profile_id', profileId)
-        .order('date', { ascending: true })
-        .limit(1);
-      const existingStartDate = firstTxn?.[0]?.date ?? null;
+        .eq('name', 'Projets')
+        .eq('type', 'expense')
+        .maybeSingle();
+      const projetsCategoryId = projetsCat?.id ?? null;
 
-      // 3. Supprimer TOUTES les transactions du projet (passées + futures)
+      // 2. Supprimer TOUTES les transactions du projet
       const { error: delErr } = await supabase
         .from('transactions')
         .delete()
@@ -249,20 +269,52 @@ export function useUpdateProject(profileId: string | undefined) {
         .eq('profile_id', profileId);
       if (delErr) console.warn('Erreur suppression txns projet:', delErr);
 
-      // 4. Régénérer toutes les transactions depuis la date de début
+      // 3a. Ponctuel : régénérer depuis les entrées fournies
+      if (allocType === 'ponctuel') {
+        const entries = input.ponctuel_entries ?? [];
+        if (entries.length === 0) return data;
+        const txnsToInsert: any[] = [];
+        for (const entry of entries) {
+          const monthTxns = buildProjectTransactions({
+            profileId,
+            projectId: input.id,
+            projectName,
+            monthlyAllocation: entry.amount,
+            sourceAccountId: sourceId,
+            linkedAccountId: linkedId,
+            date: entry.date,
+            endDate: null,
+            projetsCategoryId,
+          });
+          txnsToInsert.push(...monthTxns);
+        }
+        if (txnsToInsert.length > 0) {
+          const { error: insErr } = await supabase.from('transactions').insert(txnsToInsert);
+          if (insErr) console.warn('Erreur régénération txns ponctuel:', insErr);
+        }
+        return data;
+      }
+
+      // 3b. Mensuel / date cible : régénérer depuis la date de début
+      const monthlyAlloc = input.monthly_allocation !== undefined ? input.monthly_allocation : Number(data.monthly_allocation);
       if (!monthlyAlloc || monthlyAlloc <= 0) return data;
 
       const paymentDay = input.transaction_day ?? data.transaction_day ?? new Date().getDate();
-
-      // Déterminer la date de début
       let startDate: string;
       if (input.first_payment_date) {
         startDate = input.first_payment_date;
-      } else if (existingStartDate) {
-        startDate = existingStartDate;
       } else {
-        const now = new Date();
-        startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(paymentDay).padStart(2, '0')}`;
+        const { data: firstTxn } = await supabase
+          .from('transactions')
+          .select('date')
+          .eq('project_id', input.id)
+          .eq('profile_id', profileId)
+          .order('date', { ascending: true })
+          .limit(1);
+        startDate = firstTxn?.[0]?.date ?? (() => {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(paymentDay).padStart(2, '0')}`;
+        })();
       }
 
       const cursor = new Date(startDate + 'T00:00:00');
@@ -284,6 +336,7 @@ export function useUpdateProject(profileId: string | undefined) {
           linkedAccountId: linkedId,
           date: txDate,
           endDate: endDate || null,
+          projetsCategoryId,
         });
         txnsToInsert.push(...monthTxns);
 

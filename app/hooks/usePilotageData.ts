@@ -219,7 +219,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       && p.source_account_id === p.linked_account_id)
     .reduce((sum, p) => {
       const monthlyAlloc = Number(p.monthly_allocation) || 0;
-      const pastTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr);
+      const pastTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr && !(t as any).is_draft);
       return sum + pastTxns.length * monthlyAlloc;
     }, 0);
 
@@ -285,8 +285,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       const sameAccount = p.source_account_id && p.linked_account_id
         && p.source_account_id === p.linked_account_id;
 
-      // Calculer la progression basée sur les transactions PASSÉES liées au projet
-      const projectTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr);
+      // Calculer la progression basée sur les transactions PASSÉES et VALIDÉES liées au projet
+      const projectTxns = transactions.filter(t =>
+        t.project_id === p.id && t.date <= todayStr && !(t as any).is_draft
+      );
 
       let projectTransactionsTotal: number;
       if (sameAccount) {

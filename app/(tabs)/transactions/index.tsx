@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../hooks/useTransactions';
+import { useTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../hooks/useTransactions';
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -98,6 +98,7 @@ export default function TransactionsListScreen() {
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
+  const validateProjectDraft = useValidateProjectDraft(user?.id);
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAccounts(user?.id);
@@ -279,14 +280,27 @@ export default function TransactionsListScreen() {
 
   function confirmValidateDraft(item: TransactionWithDetails) {
     const label = item.note || item.category?.name || 'ce brouillon';
+    const isProjectDebit = !!(item as any).project_id && Number(item.amount) < 0;
     showConfirm({
       title: 'Valider la transaction',
-      message: `Valider "${label}" ?`,
+      message: isProjectDebit
+        ? `Valider le virement "${label}" vers le compte de destination ?`
+        : `Valider "${label}" ?`,
       confirmLabel: 'Valider',
       confirmColor: '#34d399',
       onConfirm: async () => {
         try {
-          await updateTx.mutateAsync({ id: item.id, is_draft: false });
+          if (isProjectDebit) {
+            await validateProjectDraft.mutateAsync({
+              id: item.id,
+              project_id: (item as any).project_id,
+              amount: Number(item.amount),
+              date: item.date,
+              account_id: item.account_id,
+            });
+          } else {
+            await updateTx.mutateAsync({ id: item.id, is_draft: false });
+          }
         } catch (e: unknown) {
           showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de valider.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
         }
@@ -436,6 +450,7 @@ export default function TransactionsListScreen() {
                         const acctCol = accountColor(acctType);
 
                         const isDraft = !!(item as any).is_draft;
+                        const isProjectDraft = isDraft && isProject;
                         const isDraftQuickAction = isDraft && key <= currentMonthKey;
                         const navigateToEdit = () => {
                           const route = item.displayDate
@@ -453,7 +468,7 @@ export default function TransactionsListScreen() {
                           isDraftQuickAction && styles.rowAlignStart,
                           index === items.length - 1 && styles.rowLast,
                           isFuture && styles.rowFuture,
-                          isDraft && styles.rowDraft,
+                          isDraft && (isProjectDraft ? styles.rowDraftProject : styles.rowDraft),
                         ];
 
                         if (isDraftQuickAction) {
@@ -463,11 +478,11 @@ export default function TransactionsListScreen() {
                               <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
                                 <View style={styles.rowLabelRow}>
                                   {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
-                                  <Text style={[styles.rowLabel, styles.rowLabelDraft]} numberOfLines={1}>
+                                  <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
                                     {item.note || item.category?.name || 'Sans libellé'}
                                   </Text>
-                                  <View style={styles.draftBadge}>
-                                    <Text style={styles.draftBadgeText}>Brouillon</Text>
+                                  <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
+                                    <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
                                   </View>
                                   {isRecurring && (
                                     <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
@@ -515,12 +530,12 @@ export default function TransactionsListScreen() {
                             <View style={styles.rowLeft}>
                               <View style={styles.rowLabelRow}>
                                 {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
-                                <Text style={[styles.rowLabel, isDraft && styles.rowLabelDraft]} numberOfLines={1}>
+                                <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
                                   {item.note || item.category?.name || 'Sans libellé'}
                                 </Text>
                                 {isDraft && (
-                                  <View style={styles.draftBadge}>
-                                    <Text style={styles.draftBadgeText}>Brouillon</Text>
+                                  <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
+                                    <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
                                   </View>
                                 )}
                                 {isRecurring && (
@@ -628,9 +643,13 @@ const styles = StyleSheet.create({
   rowFuture: { opacity: 0.4 },
   rowAlignStart: { alignItems: 'flex-start' },
   rowDraft: { borderLeftWidth: 3, borderLeftColor: '#f59e0b', borderStyle: 'dashed' as any },
+  rowDraftProject: { borderLeftWidth: 3, borderLeftColor: '#60a5fa', borderStyle: 'dashed' as any },
   rowLabelDraft: { fontStyle: 'italic', color: '#f59e0b' },
+  rowLabelDraftProject: { fontStyle: 'italic', color: '#60a5fa' },
   draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#f59e0b22', borderWidth: 1, borderColor: '#f59e0b' },
+  draftBadgeProject: { backgroundColor: '#60a5fa22', borderColor: '#60a5fa' },
   draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#f59e0b' },
+  draftBadgeTextProject: { color: '#60a5fa' },
   rowRightDraft: { alignItems: 'flex-end' },
   draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#34d39918', borderWidth: 1, borderColor: '#34d39944' },

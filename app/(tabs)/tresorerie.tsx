@@ -317,6 +317,7 @@ export default function TreasuryPlanScreen() {
       isSectionHeader?: boolean;
       isBlockStart?: boolean;
       isRegulRow?: boolean;
+      isProjectRow?: boolean;
     };
     const rows: Row[] = [];
 
@@ -368,6 +369,7 @@ export default function TreasuryPlanScreen() {
         const childRows: Row[] = children.map((c) => ({
           label: c.name, categoryId: c.id, type: 'expense' as const,
           values: byCategoryMonth[c.id] ?? {}, isChild: true, hasDraft: hasDraftByCategory[c.id],
+          isProjectRow: c.name === 'Projets',
         }));
 
         let regulRow: Row | undefined;
@@ -701,6 +703,7 @@ export default function TreasuryPlanScreen() {
                         row.type === 'balance' && styles.cellLabelBalance,
                         row.type === 'mouvement' && !row.isSectionHeader && styles.cellLabelMouvement,
                         row.isRegulRow && styles.cellLabelRegul,
+                        row.isProjectRow && styles.cellLabelProject,
                       ]}
                       numberOfLines={2}
                     >
@@ -1062,6 +1065,7 @@ const styles = StyleSheet.create({
   cellLabelSectionMouvements: { fontSize: 12, fontWeight: '800', color: '#94a3b8', letterSpacing: 1 },
   cellLabelMouvement: { fontSize: 13, color: '#94a3b8' },
   cellLabelRegul: { fontSize: 13, color: '#64748b', fontStyle: 'italic' },
+  cellLabelProject: { fontSize: 13, color: '#60a5fa', fontStyle: 'italic' },
   cellLabelBalance: { fontWeight: '700', color: COLORS.balance },
   cellLabelTotalRecettes: { fontSize: 12, fontWeight: '800', color: COLORS.emerald, letterSpacing: 0.8 },
   cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 0.8 },

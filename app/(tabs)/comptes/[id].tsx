@@ -217,6 +217,7 @@ export default function AccountDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
 
         <View style={styles.headerRow}>
           <Text style={styles.title}>{account.name}</Text>
@@ -343,6 +344,7 @@ export default function AccountDetailScreen() {
         )}
 
         <Text style={styles.hint}>Les écritures de ce compte apparaissent ici.</Text>
+        </ScrollView>
       </SafeAreaView>
 
       {/* ── Solde modal ── */}
@@ -600,7 +602,8 @@ export default function AccountDetailScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  safe: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
   title: { fontSize: 22, fontWeight: '700', color: COLORS.text, flex: 1, minWidth: 0 },

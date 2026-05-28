@@ -160,22 +160,176 @@ export function useDeleteTransaction(profileId: string | undefined) {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: row, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft').eq('id', id).eq('profile_id', profileId).single();
+      const { data: row, error: fetchErr } = await supabase
+        .from('transactions')
+        .select('account_id, amount, is_draft, project_id, date')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
       if (fetchErr) throw fetchErr;
       const { error: delErr } = await supabase.from('transactions').delete().eq('id', id).eq('profile_id', profileId);
       if (delErr) throw delErr;
+
+      const isDraft = !!(row as any).is_draft;
+      const projectId = (row as any).project_id as string | null;
+      const txDate = (row as any).date as string;
+      const txAmount = Number((row as any).amount);
+
       // Les brouillons n'ont jamais affecté le solde → ne pas l'ajuster à la suppression
-      if (row && !(row as { is_draft?: boolean }).is_draft) {
+      if (!isDraft) {
         const accId = (row as { account_id: string }).account_id;
-        const amount = Number((row as { amount: number }).amount);
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();
-        if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) - amount }).eq('id', accId);
+        if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) - txAmount }).eq('id', accId);
+      }
+
+      // Recalcul de l'allocation mensuelle en mode "Date cible" si suppression d'un débit projet
+      if (projectId && txAmount < 0) {
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: project } = await supabase
+          .from('projects')
+          .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day')
+          .eq('id', projectId)
+          .eq('profile_id', profileId)
+          .single();
+
+        const isDateMode = project && project.target_date &&
+          (project.allocation_type === 'date' || !project.allocation_type);
+        if (isDateMode) {
+          // Somme des débits passés et validés restants
+          const { data: remainingTxns } = await supabase
+            .from('transactions')
+            .select('amount')
+            .eq('project_id', projectId)
+            .eq('profile_id', profileId)
+            .eq('is_draft', false)
+            .lt('amount', 0)
+            .lte('date', today);
+
+          const accumulated = (remainingTxns ?? []).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+          const remaining = Math.max(0, Number(project!.target_amount) - accumulated);
+          const nowDate = new Date();
+          const targetDate = new Date(project!.target_date! + 'T00:00:00');
+          const monthsLeft = Math.max(1, Math.ceil(
+            (targetDate.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+          ));
+          const newMonthly = remaining / monthsLeft;
+
+          await supabase.from('projects').update({ monthly_allocation: newMonthly }).eq('id', projectId);
+
+          // Supprimer les transactions futures brouillon du projet
+          await supabase.from('transactions').delete()
+            .eq('project_id', projectId).eq('profile_id', profileId)
+            .eq('is_draft', true).gt('date', today);
+
+          const { data: projetsCat } = await supabase.from('categories').select('id')
+            .eq('profile_id', profileId).eq('name', 'Projets').eq('type', 'expense').maybeSingle();
+          const projetsCategoryId = projetsCat?.id ?? null;
+
+          // Régénérer uniquement les débits futurs (le crédit sera créé à la validation)
+          const paymentDay = project!.transaction_day ?? nowDate.getDate();
+          const cursor = new Date(nowDate.getFullYear(), nowDate.getMonth(), paymentDay);
+          if (cursor <= nowDate) cursor.setMonth(cursor.getMonth() + 1);
+          const endLimit = new Date(project!.target_date! + 'T23:59:59');
+          const sameAccount = project!.source_account_id && project!.linked_account_id &&
+            project!.source_account_id === project!.linked_account_id;
+          const txnsToInsert: any[] = [];
+
+          while (cursor <= endLimit) {
+            const d = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+            if (sameAccount) {
+              txnsToInsert.push({
+                profile_id: profileId, account_id: project!.source_account_id,
+                category_id: projetsCategoryId, amount: 0, date: d,
+                note: null, is_forecast: false, is_recurring: false,
+                recurrence_rule: null, recurrence_end_date: null,
+                project_id: projectId, is_draft: true,
+              });
+            } else if (project!.source_account_id) {
+              txnsToInsert.push({
+                profile_id: profileId, account_id: project!.source_account_id,
+                category_id: projetsCategoryId, amount: -newMonthly, date: d,
+                note: null, is_forecast: false, is_recurring: false,
+                recurrence_rule: null, recurrence_end_date: null,
+                project_id: projectId, is_draft: true,
+              });
+            }
+            cursor.setMonth(cursor.getMonth() + 1);
+          }
+          if (txnsToInsert.length > 0) {
+            await supabase.from('transactions').insert(txnsToInsert);
+          }
+        }
       }
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      client.invalidateQueries({ queryKey: ['projects', profileId] });
+    },
+  });
+}
+
+/**
+ * Valider un brouillon lié à un projet → le transforme en virement réel entre les
+ * deux comptes du projet (source → destination), en validant aussi le crédit associé.
+ */
+export function useValidateProjectDraft(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (debitTx: { id: string; project_id: string; amount: number; date: string; account_id: string }) => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+
+      // Récupérer le projet pour avoir source et destination
+      const { data: project, error: projErr } = await supabase
+        .from('projects')
+        .select('source_account_id, linked_account_id, name')
+        .eq('id', debitTx.project_id)
+        .eq('profile_id', profileId)
+        .single();
+      if (projErr || !project) throw new Error('Projet introuvable');
+
+      const sourceId = project.source_account_id as string;
+      const linkedId = project.linked_account_id as string;
+      const debitAmt = Number(debitTx.amount); // négatif
+
+      // 1. Valider le débit et le transformer en virement (linked_account_id = destination)
+      await supabase
+        .from('transactions')
+        .update({ is_draft: false, linked_account_id: linkedId })
+        .eq('id', debitTx.id)
+        .eq('profile_id', profileId);
+
+      // Mettre à jour le solde du compte source
+      const { data: srcAcc } = await supabase.from('accounts').select('balance').eq('id', sourceId).single();
+      if (srcAcc) await supabase.from('accounts').update({ balance: Number(srcAcc.balance) + debitAmt }).eq('id', sourceId);
+
+      // 2. Créer le crédit sur le compte de destination
+      const creditAmt = Math.abs(debitAmt);
+      await supabase.from('transactions').insert({
+        profile_id: profileId,
+        account_id: linkedId,
+        category_id: null,
+        amount: creditAmt,
+        date: debitTx.date,
+        note: project.name,
+        is_draft: false,
+        is_recurring: false,
+        recurrence_rule: null,
+        recurrence_end_date: null,
+        project_id: debitTx.project_id,
+        linked_account_id: sourceId,
+      });
+
+      // Mettre à jour le solde du compte destination
+      const { data: dstAcc } = await supabase.from('accounts').select('balance').eq('id', linkedId).single();
+      if (dstAcc) await supabase.from('accounts').update({ balance: Number(dstAcc.balance) + creditAmt }).eq('id', linkedId);
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      client.invalidateQueries({ queryKey: ['projects', profileId] });
     },
   });
 }
