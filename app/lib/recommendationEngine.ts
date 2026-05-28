@@ -56,12 +56,6 @@ const RECO_ICONS: Record<RecoType, string> = {
   keep:   'hourglass-outline',
 };
 
-const PROFILE_BASE_ALLOCATIONS: Record<FinancialProfile, Record<RecoType, number>> = {
-  economiser: { save: 55, invest: 5, enjoy: 15, keep: 25 },
-  suivi:      { save: 30, invest: 15, enjoy: 25, keep: 30 },
-  optimiser:  { save: 25, invest: 30, enjoy: 25, keep: 20 },
-  investir:   { save: 15, invest: 45, enjoy: 20, keep: 20 },
-};
 
 export const PROFILE_LABELS: Record<FinancialProfile, string> = {
   economiser: 'Économiser',
@@ -117,9 +111,6 @@ function determineTier(
   return 'comfortable';
 }
 
-function getProfileBaseAllocations(profile: FinancialProfile | undefined) {
-  return PROFILE_BASE_ALLOCATIONS[profile ?? 'suivi'];
-}
 
 function applyUserAllocationPreferences(alloc: Record<RecoType, number>, data: any) {
   const custom = [data.allocation_save_percent, data.allocation_invest_percent, data.allocation_enjoy_percent, data.allocation_keep_percent];
@@ -139,7 +130,10 @@ function clamp(value: number, min: number, max: number): number {
 
 /* ── Moteur principal ────────────────────────────────────── */
 
-export function computeRecommendations(data: PilotageData): SmartRecommendation[] {
+export function computeRecommendations(
+  data: PilotageData,
+  customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>,
+): SmartRecommendation[] {
   const budget = data.safe_to_spend;
 
   // Pas de budget → pas de recommandation
@@ -153,8 +147,10 @@ export function computeRecommendations(data: PilotageData): SmartRecommendation[
     data.safety_threshold_comfort,
   );
 
-  // 2. Partir des allocations de base du profil financier ou du palier par défaut
-  const alloc: Record<RecoType, number> = { ...getProfileBaseAllocations(data.financial_profile) };
+  // 2. Partir des allocations du palier (DB custom si dispo, sinon défaut codé en dur)
+  //    L'utilisateur peut encore surcharger via ses préférences personnelles.
+  const tierTable = customTierAllocations ?? TIER_ALLOCATIONS;
+  const alloc: Record<RecoType, number> = { ...tierTable[tier] };
   applyUserAllocationPreferences(alloc, data);
 
   // 3. Modificateurs contextuels

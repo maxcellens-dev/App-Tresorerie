@@ -15,6 +15,7 @@ import ObjectivesListCard from '../components/ObjectivesListCard';
 import { ACCOUNT_COLORS } from '../theme/colors';
 import { computeRecommendations, getCurrentTier, PROFILE_LABELS, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
+import { useRecommendationTiers } from '../hooks/useRecommendationTiers';
 
 const COLORS = {
   bg: '#020617',
@@ -34,6 +35,7 @@ export default function PilotageScreen() {
   const pilotageQuery = usePilotageData(user?.id);
   const projectsQuery = useProjects(user?.id);
   const objectivesQuery = useObjectives(user?.id);
+  const { data: customTiers } = useRecommendationTiers();
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const { data: projects = [], isLoading: projectsLoading } = projectsQuery;
@@ -232,7 +234,7 @@ export default function PilotageScreen() {
             </View>
 
             <RecommendationCard
-              recommendations={pilotageData ? computeRecommendations(pilotageData) : []}
+              recommendations={pilotageData ? computeRecommendations(pilotageData, customTiers) : []}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
               onAction={(reco: SmartRecommendation) => {
