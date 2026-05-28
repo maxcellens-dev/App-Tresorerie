@@ -187,7 +187,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
         const today = new Date().toISOString().slice(0, 10);
         const { data: project } = await supabase
           .from('projects')
-          .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day')
+          .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day, name')
           .eq('id', projectId)
           .eq('profile_id', profileId)
           .single();
@@ -208,13 +208,25 @@ export function useDeleteTransaction(profileId: string | undefined) {
           const accumulated = (remainingTxns ?? []).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
           const remaining = Math.max(0, Number(project!.target_amount) - accumulated);
           const nowDate = new Date();
-          const targetDate = new Date(project!.target_date! + 'T00:00:00');
-          const monthsLeft = Math.max(1, Math.ceil(
-            (targetDate.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-          ));
+
+          // Cursor for generation: first payment day after today
+          const paymentDay = project!.transaction_day ?? nowDate.getDate();
+          const cursor = new Date(nowDate.getFullYear(), nowDate.getMonth(), paymentDay);
+          if (cursor <= nowDate) cursor.setMonth(cursor.getMonth() + 1);
+          const endLimit = new Date(project!.target_date! + 'T23:59:59');
+
+          // Count months exactly as the generation loop would produce
+          let monthsLeft = 0;
+          const countCursor = new Date(cursor);
+          while (countCursor <= endLimit) {
+            monthsLeft++;
+            countCursor.setMonth(countCursor.getMonth() + 1);
+          }
+          monthsLeft = Math.max(1, monthsLeft);
           const newMonthly = remaining / monthsLeft;
 
-          await supabase.from('projects').update({ monthly_allocation: newMonthly }).eq('id', projectId);
+          const newFirstPaymentDate = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+          await supabase.from('projects').update({ monthly_allocation: newMonthly, first_payment_date: newFirstPaymentDate }).eq('id', projectId);
 
           // Supprimer les transactions futures brouillon du projet
           await supabase.from('transactions').delete()
@@ -224,12 +236,6 @@ export function useDeleteTransaction(profileId: string | undefined) {
           const { data: projetsCat } = await supabase.from('categories').select('id')
             .eq('profile_id', profileId).eq('name', 'Projets').eq('type', 'expense').maybeSingle();
           const projetsCategoryId = projetsCat?.id ?? null;
-
-          // Régénérer uniquement les débits futurs (le crédit sera créé à la validation)
-          const paymentDay = project!.transaction_day ?? nowDate.getDate();
-          const cursor = new Date(nowDate.getFullYear(), nowDate.getMonth(), paymentDay);
-          if (cursor <= nowDate) cursor.setMonth(cursor.getMonth() + 1);
-          const endLimit = new Date(project!.target_date! + 'T23:59:59');
           const sameAccount = project!.source_account_id && project!.linked_account_id &&
             project!.source_account_id === project!.linked_account_id;
           const txnsToInsert: any[] = [];
@@ -240,7 +246,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
               txnsToInsert.push({
                 profile_id: profileId, account_id: project!.source_account_id,
                 category_id: projetsCategoryId, amount: 0, date: d,
-                note: null, is_forecast: false, is_recurring: false,
+                note: project!.name ?? null, is_forecast: false, is_recurring: false,
                 recurrence_rule: null, recurrence_end_date: null,
                 project_id: projectId, is_draft: true,
               });
@@ -248,7 +254,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
               txnsToInsert.push({
                 profile_id: profileId, account_id: project!.source_account_id,
                 category_id: projetsCategoryId, amount: -newMonthly, date: d,
-                note: null, is_forecast: false, is_recurring: false,
+                note: project!.name ?? null, is_forecast: false, is_recurring: false,
                 recurrence_rule: null, recurrence_end_date: null,
                 project_id: projectId, is_draft: true,
               });

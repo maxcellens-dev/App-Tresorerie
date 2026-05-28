@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
+// Alert/Platform kept for validation alerts (invalid amount, missing date, etc.)
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Calendar } from 'react-native-calendars';
+import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
@@ -42,8 +43,17 @@ export default function EditTransactionScreen() {
   const setOverride = useSetTransactionMonthOverride(user?.id);
   const deleteOverride = useDeleteTransactionMonthOverride(user?.id);
 
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void;
+  } | null>(null);
+
+  function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
+    setConfirmModal(opts);
+  }
+
   const tx = transactions.find((t) => t.id === id);
   const isPast = tx ? new Date(tx.date) < new Date(new Date().toISOString().slice(0, 10)) : false;
+  const isVirement = !!(tx as any)?.linked_account_id;
   const instanceYear = instanceDate ? Number(instanceDate.split('-')[0]) : undefined;
   const instanceMonth = instanceDate ? Number(instanceDate.split('-')[1]) : undefined;
   const { data: instanceOverrides = [] } = useTransactionMonthOverrides(user?.id, instanceYear, instanceMonth);
@@ -251,21 +261,22 @@ export default function EditTransactionScreen() {
   function handleDelete() {
     if (!id) return;
     const message = isPast
-      ? 'Cette transaction est passée. La supprimer mettra à jour le solde du compte. Confirmer ?'
-      : 'Supprimer cette transaction ? Le solde du compte sera mis à jour.';
-    const doDelete = () => {
-      deleteTx.mutateAsync(id).then(() => router.back()).catch((e: unknown) => {
-        Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
-      });
-    };
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm(`Supprimer la transaction\n\n${message}`)) doDelete();
-      return;
-    }
-    Alert.alert('Supprimer la transaction', message, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: doDelete },
-    ]);
+      ? 'Cette transaction est passée. La supprimer mettra à jour le solde du compte.'
+      : 'Supprimer cette transaction ?';
+    showConfirm({
+      title: 'Supprimer la transaction',
+      message,
+      confirmLabel: 'Supprimer',
+      confirmColor: '#f87171',
+      onConfirm: async () => {
+        try {
+          await deleteTx.mutateAsync(id);
+          router.back();
+        } catch (e: unknown) {
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+        }
+      },
+    });
   }
 
   if (!user || !tx) {
@@ -299,33 +310,55 @@ export default function EditTransactionScreen() {
         )}
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Dépense / Recette */}
-          <View style={styles.toggle}>
-            <TouchableOpacity style={[styles.toggleBtn, isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(true)}>
-              <Text style={[styles.toggleLabel, isExpense && styles.toggleLabelActive]}>Dépense</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.toggleBtn, !isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(false)}>
-              <Text style={[styles.toggleLabel, !isExpense && styles.toggleLabelActive]}>Recette</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Compte */}
-          <Text style={styles.label}>Compte</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {accounts.map((acc) => {
-              const color = accountColor(acc.type);
-              const isActive = accountId === acc.id;
-              return (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]}
-                  onPress={() => setAccountId(acc.id)}
-                >
-                  <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+          {isVirement ? (
+            /* ── Virement : affichage read-only type + comptes ── */
+            <>
+              <View style={styles.virementBadge}>
+                <Ionicons name="swap-horizontal" size={16} color="#60a5fa" />
+                <Text style={styles.virementBadgeText}>Virement</Text>
+              </View>
+              <Text style={styles.label}>Compte source → destination</Text>
+              <View style={styles.virementAccounts}>
+                <Text style={styles.virementAccountText}>
+                  {accounts.find((a) => a.id === (tx as any).account_id)?.name ?? '—'}
+                </Text>
+                <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} style={{ marginHorizontal: 8 }} />
+                <Text style={styles.virementAccountText}>
+                  {accounts.find((a) => a.id === (tx as any).linked_account_id)?.name ?? '—'}
+                </Text>
+              </View>
+            </>
+          ) : (
+            /* ── Dépense / Recette ── */
+            <>
+              <View style={styles.toggle}>
+                <TouchableOpacity style={[styles.toggleBtn, isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(true)}>
+                  <Text style={[styles.toggleLabel, isExpense && styles.toggleLabelActive]}>Dépense</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                <TouchableOpacity style={[styles.toggleBtn, !isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(false)}>
+                  <Text style={[styles.toggleLabel, !isExpense && styles.toggleLabelActive]}>Recette</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Compte */}
+              <Text style={styles.label}>Compte</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                {accounts.map((acc) => {
+                  const color = accountColor(acc.type);
+                  const isActive = accountId === acc.id;
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]}
+                      onPress={() => setAccountId(acc.id)}
+                    >
+                      <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
 
           {/* Libellé */}
           <Text style={styles.label}>Libellé (optionnel)</Text>
@@ -528,7 +561,7 @@ export default function EditTransactionScreen() {
                 </Text>
                 <View style={{ width: 50 }} />
               </View>
-              <Calendar
+              <CalendarWithPicker
                 current={showCalendar === 'end'
                   ? (parseDateFromFrench(recurrenceEndDateInput) || date)
                   : showCalendar === 'future'
@@ -536,7 +569,7 @@ export default function EditTransactionScreen() {
                     : date}
                 maxDate="2050-12-31"
                 onDayPress={(day: any) => {
-                      if (showCalendar === 'end') {
+                  if (showCalendar === 'end') {
                     setRecurrenceEndDateInput(formatDateFrench(day.dateString));
                   } else if (showCalendar === 'future') {
                     setFutureAmountDate(day.dateString);
@@ -554,23 +587,36 @@ export default function EditTransactionScreen() {
                       ? futureAmountDate
                       : date;
                   if (!d) return {};
-                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#fff' } };
+                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } };
                 })()}
-                theme={{
-                  backgroundColor: COLORS.card,
-                  calendarBackground: COLORS.card,
-                  textSectionTitleColor: COLORS.text,
-                  selectedDayBackgroundColor: COLORS.emerald,
-                  selectedDayTextColor: '#ffffff',
-                  todayTextColor: COLORS.emerald,
-                  dayTextColor: COLORS.text,
-                  textDisabledColor: '#334155',
-                  monthTextColor: COLORS.text,
-                  arrowColor: COLORS.emerald,
-                }}
+                accentColor={COLORS.emerald}
+                bgColor={COLORS.card}
+                textColor={COLORS.text}
+                textSecondaryColor="#334155"
               />
             </View>
           </View>
+        </Modal>
+
+        {/* Confirm Modal */}
+        <Modal visible={!!confirmModal} transparent animationType="fade" onRequestClose={() => setConfirmModal(null)}>
+          <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setConfirmModal(null)}>
+            <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
+              <Text style={styles.confirmTitle}>{confirmModal?.title}</Text>
+              <Text style={styles.confirmMessage}>{confirmModal?.message}</Text>
+              <View style={styles.confirmBtns}>
+                <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmModal(null)}>
+                  <Text style={styles.confirmCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? '#34d399', backgroundColor: (confirmModal?.confirmColor ?? '#34d399') + '18' }]}
+                  onPress={() => { const cb = confirmModal?.onConfirm; setConfirmModal(null); cb?.(); }}
+                >
+                  <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? '#34d399' }]}>{confirmModal?.confirmLabel}</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </Modal>
       </SafeAreaView>
     </View>
@@ -586,6 +632,10 @@ const styles = StyleSheet.create({
   warningText: { flex: 1, fontSize: 13, color: COLORS.danger },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
+  virementBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#1e3a5f', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 20, alignSelf: 'flex-start' as const },
+  virementBadgeText: { fontSize: 14, fontWeight: '700', color: '#60a5fa' },
+  virementAccounts: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardBorder, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 20 },
+  virementAccountText: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.text, textAlign: 'center' as const },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
@@ -655,4 +705,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
   },
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  confirmBox: { backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: COLORS.cardBorder },
+  confirmTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  confirmMessage: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
+  confirmBtns: { flexDirection: 'row', gap: 12 },
+  confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
+  confirmCancelText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: 15 },
+  confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  confirmOkText: { fontWeight: '700', fontSize: 15 },
 });

@@ -154,8 +154,20 @@ export default function ProjectsScreen() {
     const progress = pm ? Math.min(100, Math.round(pm.percentage)) : (targetAmount > 0 ? Math.min(100, Math.round((currentAccumulated / targetAmount) * 100)) : 0);
     const isComplete = progress >= 100;
 
-    const monthsToComplete =
-      monthlyAllocation > 0 ? Math.ceil((targetAmount - currentAccumulated) / monthlyAllocation) : 0;
+    const monthsToComplete = (() => {
+      if (project.target_date && (project.allocation_type === 'date' || !project.allocation_type)) {
+        const now = new Date();
+        const paymentDay = project.transaction_day ?? now.getDate();
+        const cursor = new Date(now.getFullYear(), now.getMonth(), paymentDay);
+        if (cursor <= now) cursor.setMonth(cursor.getMonth() + 1);
+        const endLimit = new Date(project.target_date + 'T23:59:59');
+        let count = 0;
+        const c = new Date(cursor);
+        while (c <= endLimit) { count++; c.setMonth(c.getMonth() + 1); }
+        return count;
+      }
+      return monthlyAllocation > 0 ? Math.ceil((targetAmount - currentAccumulated) / monthlyAllocation) : 0;
+    })();
 
     const statusColors: Record<string, string> = {
       active: COLORS.primary,

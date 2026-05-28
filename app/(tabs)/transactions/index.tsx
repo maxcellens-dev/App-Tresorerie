@@ -338,7 +338,10 @@ export default function TransactionsListScreen() {
             >
               <Ionicons name="chevron-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
-            <Text style={styles.periodText}>{monthRangeText}</Text>
+            <TouchableOpacity style={styles.periodLabel} onPress={() => setPeriodOffset(-1)} activeOpacity={0.7}>
+              <Text style={styles.periodText}>{monthRangeText}</Text>
+              {periodOffset !== -1 && <Text style={styles.periodLabelHint}>Appuyer pour revenir</Text>}
+            </TouchableOpacity>
             <TouchableOpacity 
               style={styles.periodBtn} 
               onPress={() => setPeriodOffset(periodOffset + 1)}
@@ -747,13 +750,21 @@ const styles = StyleSheet.create({
     color: COLORS.bg,
     fontWeight: '600',
   },
+  periodLabel: {
+    flex: 1,
+    alignItems: 'center',
+  },
   periodText: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
     textAlign: 'center',
-    flex: 1,
     textTransform: 'capitalize',
+  },
+  periodLabelHint: {
+    fontSize: 11,
+    color: COLORS.emerald,
+    marginTop: 2,
   },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   confirmBox: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder, width: '100%', maxWidth: 340, padding: 20 },

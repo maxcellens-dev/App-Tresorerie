@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Calendar } from 'react-native-calendars';
+import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
@@ -370,7 +370,7 @@ export default function AddTransactionScreen() {
                 </Text>
                 <View style={{ width: 50 }} />
               </View>
-              <Calendar
+              <CalendarWithPicker
                 current={showCalendar === 'end' ? (recurrenceEndDateInput || date) : date}
                 maxDate="2050-12-31"
                 onDayPress={(day: any) => {
@@ -385,20 +385,12 @@ export default function AddTransactionScreen() {
                 markedDates={(() => {
                   const d = showCalendar === 'end' ? recurrenceEndDateInput : date;
                   if (!d) return {};
-                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#fff' } };
+                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } };
                 })()}
-                theme={{
-                  backgroundColor: COLORS.card,
-                  calendarBackground: COLORS.card,
-                  textSectionTitleColor: COLORS.text,
-                  selectedDayBackgroundColor: COLORS.emerald,
-                  selectedDayTextColor: '#ffffff',
-                  todayTextColor: COLORS.emerald,
-                  dayTextColor: COLORS.text,
-                  textDisabledColor: '#334155',
-                  monthTextColor: COLORS.text,
-                  arrowColor: COLORS.emerald,
-                }}
+                accentColor={COLORS.emerald}
+                bgColor={COLORS.card}
+                textColor={COLORS.text}
+                textSecondaryColor="#334155"
               />
             </View>
           </View>

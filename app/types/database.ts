@@ -106,6 +106,7 @@ export interface Project {
   source_account_id?: string | null;
   linked_account_id?: string | null;
   transaction_day?: number | null;
+  first_payment_date?: string | null;
   current_accumulated?: number;
   allocation_type?: 'monthly' | 'date' | 'ponctuel';
   status: ProjectStatus;

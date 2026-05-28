@@ -112,6 +112,7 @@ export function useAddProject(profileId: string | undefined) {
         source_account_id: input.source_account_id || null,
         linked_account_id: input.linked_account_id || null,
         transaction_day: input.transaction_day || null,
+        first_payment_date: input.first_payment_date || null,
         status: 'active',
       };
       const { data, error } = await supabase
@@ -234,6 +235,7 @@ export function useUpdateProject(profileId: string | undefined) {
           ...(input.source_account_id !== undefined && { source_account_id: input.source_account_id }),
           ...(input.linked_account_id !== undefined && { linked_account_id: input.linked_account_id }),
           ...(input.transaction_day !== undefined && { transaction_day: input.transaction_day }),
+          ...(input.first_payment_date !== undefined && { first_payment_date: input.first_payment_date || null }),
           ...(input.status && { status: input.status }),
         })
         .eq('id', input.id)

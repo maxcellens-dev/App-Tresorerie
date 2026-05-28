@@ -27,7 +27,7 @@ const COLORS = {
 
 const TABLE_HEADER_HEIGHT = 52;
 const TABLE_ROW_HEIGHT = 56;
-const TABLE_EXTRA_HEIGHT = 60;
+const TABLE_EXTRA_HEIGHT = 44;
 const SCROLL_BOTTOM_PADDING = 24;
 
 function getMonthKey(year: number, month: number): string {
@@ -167,6 +167,15 @@ export default function TreasuryPlanScreen() {
     existingDrafts: TransactionWithDetails[];
   } | null>(null);
 
+  const [virementDraftModal, setVirementDraftModal] = useState<{
+    visible: boolean;
+    monthKey: string;
+    mouvementType: 'epargne' | 'invest';
+  } | null>(null);
+  const [virementAmount, setVirementAmount] = useState('');
+  const [virementNote, setVirementNote] = useState('');
+  const [virementDestAccountId, setVirementDestAccountId] = useState('');
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -211,11 +220,13 @@ export default function TreasuryPlanScreen() {
     const txByMonthCategory: Record<string, Record<string, TransactionWithDetails[]>> = {};
     const mouvEpargne: Record<string, number> = {};
     const mouvInvest: Record<string, number> = {};
+    const mouvProjets: Record<string, number> = {};
     // Track regul by note (raw signed amounts) for the gray row under Frais variables
     const regulByMonth: Record<string, number> = {};
     months.forEach((m) => {
       mouvEpargne[m.key] = 0;
       mouvInvest[m.key] = 0;
+      mouvProjets[m.key] = 0;
       regulByMonth[m.key] = 0;
     });
 
@@ -250,9 +261,15 @@ export default function TreasuryPlanScreen() {
       // Exclure l'autre côté d'un virement (compte non-courant avec linked_account_id)
       const isExcluded = !!t.linked_account_id && !isChecking;
 
+      const isProjectTx = !!(t as any).project_id;
+
       if (isExcluded) continue;
+      // Validated project transfers go to Projets, not Épargne
+      if (isSavingsMove && isProjectTx) { addToMouv(mouvProjets, t, amount); continue; }
       if (isSavingsMove) { addToMouv(mouvEpargne, t, amount); continue; }
       if (isInvestMove) { addToMouv(mouvInvest, t, amount); continue; }
+      // Draft project transactions: route to Projets, not expense categories
+      if (isProjectTx && isChecking) { addToMouv(mouvProjets, t, amount); continue; }
 
       // Régularisation dépense (montant négatif): row grise sous Frais variables
       // Régularisation recette (montant positif): tombe dans byCategoryMonth → section RECETTES
@@ -289,8 +306,32 @@ export default function TreasuryPlanScreen() {
 
     // Tracker quels mois ont des brouillons par catégorie
     const hasDraftByCategory: Record<string, Record<string, boolean>> = {};
+    const hasDraftProjets: Record<string, boolean> = {};
+    const hasDraftEpargne: Record<string, boolean> = {};
+    const hasDraftInvest: Record<string, boolean> = {};
     for (const t of transactions as TransactionWithDetails[]) {
       if (!(t as any).is_draft) continue;
+      const isProjectTxDraft = !!(t as any).project_id;
+      if (isProjectTxDraft) {
+        const [y, mo] = t.date.split('-').map(Number);
+        const key = getMonthKey(y, mo);
+        if (months.some((m) => m.key === key)) hasDraftProjets[key] = true;
+        continue;
+      }
+      const tIsChecking = t.account?.type === 'checking';
+      const tLinkedType = t.linked_account?.type;
+      if (tIsChecking && tLinkedType === 'savings') {
+        const [y, mo] = t.date.split('-').map(Number);
+        const key = getMonthKey(y, mo);
+        if (months.some((m) => m.key === key)) hasDraftEpargne[key] = true;
+        continue;
+      }
+      if (tIsChecking && tLinkedType === 'investment') {
+        const [y, mo] = t.date.split('-').map(Number);
+        const key = getMonthKey(y, mo);
+        if (months.some((m) => m.key === key)) hasDraftInvest[key] = true;
+        continue;
+      }
       const catId = t.category_id ?? 'none';
       if (!hasDraftByCategory[catId]) hasDraftByCategory[catId] = {};
       if (t.is_recurring && t.recurrence_rule) {
@@ -311,6 +352,7 @@ export default function TreasuryPlanScreen() {
       type: 'income' | 'expense' | 'balance' | 'mouvement';
       values: Record<string, number>;
       hasDraft?: Record<string, boolean>;
+      hasForecast?: Record<string, boolean>;
       isChild?: boolean;
       isParentCategory?: boolean;
       isTotalLine?: boolean;
@@ -318,6 +360,7 @@ export default function TreasuryPlanScreen() {
       isBlockStart?: boolean;
       isRegulRow?: boolean;
       isProjectRow?: boolean;
+      mouvementType?: 'epargne' | 'invest';
     };
     const rows: Row[] = [];
 
@@ -366,11 +409,12 @@ export default function TreasuryPlanScreen() {
           expenseCatTotals[m.key] += parentValues[m.key];
         });
 
-        const childRows: Row[] = children.map((c) => ({
-          label: c.name, categoryId: c.id, type: 'expense' as const,
-          values: byCategoryMonth[c.id] ?? {}, isChild: true, hasDraft: hasDraftByCategory[c.id],
-          isProjectRow: c.name === 'Projets',
-        }));
+        const childRows: Row[] = children
+          .filter((c) => c.name !== 'Projets')
+          .map((c) => ({
+            label: c.name, categoryId: c.id, type: 'expense' as const,
+            values: byCategoryMonth[c.id] ?? {}, isChild: true, hasDraft: hasDraftByCategory[c.id],
+          }));
 
         let regulRow: Row | undefined;
         if (isFraisVariables) {
@@ -473,13 +517,16 @@ export default function TreasuryPlanScreen() {
 
     rows.push({ label: 'Solde', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });
 
-    // MOUVEMENTS — toujours visible (virements épargne/invest uniquement)
-    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true, isBlockStart: true });
-    rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true });
-    rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true });
-
-    // DÉPENSES — header avec le total intégré
+    // DÉPENSES total header
     rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: expenseCatTotals, isSectionHeader: true, isBlockStart: true });
+
+    // MOUVEMENTS — entre le total et le détail des dépenses
+    rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: {}, isSectionHeader: true });
+    rows.push({ label: 'Projets', categoryId: null, type: 'mouvement', values: mouvProjets, isChild: true, isProjectRow: true, hasForecast: hasDraftProjets });
+    rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true, mouvementType: 'epargne', hasDraft: hasDraftEpargne });
+    rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true, mouvementType: 'invest', hasDraft: hasDraftInvest });
+
+    // Détail des dépenses par catégorie
     expenseBlocks.forEach(({ parentRow, childRows, regulRow }) => {
       rows.push(parentRow);
       childRows.forEach((r) => rows.push(r));
@@ -567,6 +614,46 @@ export default function TreasuryPlanScreen() {
     }
   };
 
+  const handleCreateVirementDraft = async () => {
+    if (!virementDraftModal || !user) return;
+    const num = parseFloat(virementAmount.replace(',', '.'));
+    if (Number.isNaN(num) || num === 0) {
+      Alert.alert('Montant invalide', 'Saisissez un montant.');
+      return;
+    }
+    if (!virementDestAccountId) {
+      Alert.alert('Compte requis', 'Sélectionnez un compte de destination.');
+      return;
+    }
+    const checkingAccount = accounts.find((a) => a.type === 'checking');
+    if (!checkingAccount) {
+      Alert.alert('Compte courant introuvable', 'Aucun compte courant trouvé.');
+      return;
+    }
+    const [y, mo] = virementDraftModal.monthKey.split('-').map(Number);
+    const dateISO = `${y}-${String(mo).padStart(2, '0')}-01`;
+    try {
+      await addTransaction.mutateAsync({
+        account_id: checkingAccount.id,
+        linked_account_id: virementDestAccountId,
+        category_id: null,
+        amount: -Math.abs(num),
+        date: dateISO,
+        note: virementNote || undefined,
+        is_draft: true,
+        is_recurring: false,
+        recurrence_rule: null,
+        recurrence_end_date: null,
+      });
+      setVirementDraftModal(null);
+      setVirementAmount('');
+      setVirementNote('');
+      setVirementDestAccountId('');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de créer le virement.');
+    }
+  };
+
   if (!user) {
     return (
       <View style={styles.root}>
@@ -603,13 +690,7 @@ export default function TreasuryPlanScreen() {
         ) : (
           <ScrollView
             style={styles.scrollOuter}
-            contentContainerStyle={[
-              styles.scrollOuterContent,
-              {
-                minHeight: TABLE_HEADER_HEIGHT + planData.rows.length * TABLE_ROW_HEIGHT + TABLE_EXTRA_HEIGHT,
-                paddingBottom: SCROLL_BOTTOM_PADDING,
-              },
-            ]}
+            contentContainerStyle={styles.scrollOuterContent}
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
             refreshControl={
@@ -624,8 +705,8 @@ export default function TreasuryPlanScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={true}
-              style={[styles.scrollInner, { height: TABLE_HEADER_HEIGHT + planData.rows.length * TABLE_ROW_HEIGHT + TABLE_EXTRA_HEIGHT }]}
-              contentContainerStyle={[styles.scrollInnerContent, { paddingBottom: SCROLL_BOTTOM_PADDING }]}
+              style={styles.scrollInner}
+              contentContainerStyle={styles.scrollInnerContent}
               nestedScrollEnabled={true}
             >
             <View style={styles.tableWrap}>
@@ -727,7 +808,13 @@ export default function TreasuryPlanScreen() {
                         ]}
                         onPress={() => {
                           const isFuture = m.key > getMonthKey(currentYear, currentMonth);
-                          if (row.categoryId && !row.isTotalLine && !row.isSectionHeader) {
+                          if (isFuture && row.mouvementType) {
+                            const destAccounts = accounts.filter((a) => a.type === (row.mouvementType === 'epargne' ? 'savings' : 'investment'));
+                            setVirementDestAccountId(destAccounts[0]?.id ?? '');
+                            setVirementAmount('');
+                            setVirementNote('');
+                            setVirementDraftModal({ visible: true, monthKey: m.key, mouvementType: row.mouvementType });
+                          } else if (row.categoryId && !row.isTotalLine && !row.isSectionHeader) {
                             if (isFuture && row.isChild && (row.type === 'expense' || row.type === 'income')) {
                               const allTx = planData.txByMonthCategory?.[row.categoryId]?.[m.key] ?? [];
                               const existingDrafts = allTx.filter((t) => !!(t as any).is_draft);
@@ -755,6 +842,7 @@ export default function TreasuryPlanScreen() {
                             row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
                             row.isSectionHeader && styles.cellNumTextSectionTotal,
+                            row.hasForecast?.[m.key] && styles.cellNumForecast,
                             row.hasDraft?.[m.key] && styles.cellNumDraft,
                           ]}
                           numberOfLines={1}
@@ -772,6 +860,30 @@ export default function TreasuryPlanScreen() {
             </ScrollView>
           </ScrollView>
         )}
+
+        {/* Légende */}
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.emerald }]} />
+            <Text style={styles.legendText}>Recette / solde positif</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.danger }]} />
+            <Text style={styles.legendText}>Dépense / solde négatif</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <Text style={styles.legendSampleOrange}>123</Text>
+            <Text style={styles.legendText}>Brouillon (manuel)</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <Text style={styles.legendSampleGrey}>123</Text>
+            <Text style={styles.legendText}>Prévisionnel (projet)</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: COLORS.balance }]} />
+            <Text style={styles.legendText}>Solde courant</Text>
+          </View>
+        </View>
       </SafeAreaView>
 
       {/* Menu Modal */}
@@ -948,6 +1060,77 @@ export default function TreasuryPlanScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Virement Draft Modal (Épargne / Investissements) */}
+      <Modal
+        visible={!!virementDraftModal?.visible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVirementDraftModal(null)}
+      >
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => setVirementDraftModal(null)} activeOpacity={1}>
+          <TouchableOpacity style={styles.draftModalContainer} onPress={() => {}} activeOpacity={1}>
+            <View style={styles.menuHeader}>
+              <View>
+                <Text style={styles.menuTitle}>Virement prévisionnel</Text>
+                {virementDraftModal && (
+                  <Text style={styles.draftModalSub}>
+                    {virementDraftModal.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'} · {new Date(virementDraftModal.monthKey + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setVirementDraftModal(null)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.draftModalLabel}>Montant (€)</Text>
+            <TextInput
+              style={styles.draftModalInput}
+              value={virementAmount}
+              onChangeText={setVirementAmount}
+              placeholder="0,00"
+              placeholderTextColor="#64748b"
+              keyboardType="decimal-pad"
+            />
+
+            <Text style={styles.draftModalLabel}>Libellé (optionnel)</Text>
+            <TextInput
+              style={styles.draftModalInput}
+              value={virementNote}
+              onChangeText={setVirementNote}
+              placeholder="Ex. Loyer, Épargne mensuelle..."
+              placeholderTextColor="#64748b"
+            />
+
+            <Text style={styles.draftModalLabel}>Compte de destination</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              {accounts
+                .filter((a) => a.type === (virementDraftModal?.mouvementType === 'epargne' ? 'savings' : 'investment'))
+                .map((acc) => (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[styles.draftAccountChip, virementDestAccountId === acc.id && styles.draftAccountChipActive]}
+                    onPress={() => setVirementDestAccountId(acc.id)}
+                  >
+                    <Text style={[styles.draftAccountChipText, virementDestAccountId === acc.id && styles.draftAccountChipTextActive]}>
+                      {acc.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.draftSubmitBtn, addTransaction.isPending && { opacity: 0.6 }]}
+              onPress={handleCreateVirementDraft}
+              disabled={addTransaction.isPending}
+            >
+              <Ionicons name="swap-horizontal-outline" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
+              <Text style={styles.draftSubmitLabel}>Enregistrer le virement</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -965,9 +1148,9 @@ const styles = StyleSheet.create({
   navLabelHint: { fontSize: 11, color: COLORS.emerald, marginTop: 2 },
   hint: { color: COLORS.textSecondary },
   scrollOuter: { flex: 1 },
-  scrollOuterContent: {},
+  scrollOuterContent: { paddingBottom: 8 },
   scrollInner: {},
-  scrollInnerContent: { paddingBottom: 24 },
+  scrollInnerContent: {},
   scroll: { flex: 1 },
   tableWrap: {
     borderRadius: 16,
@@ -1074,7 +1257,14 @@ const styles = StyleSheet.create({
   cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
   cellNumPositive: { color: COLORS.emerald, fontWeight: '600' },
   cellNumNegative: { color: COLORS.danger, fontWeight: '600' },
-  cellNumDraft: { color: '#f59e0b', fontStyle: 'italic' },
+  cellNumDraft: { color: '#f97316', fontStyle: 'italic' },
+  cellNumForecast: { color: '#64748b', fontStyle: 'italic' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: COLORS.cardBorder },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 11, color: COLORS.textSecondary },
+  legendSampleOrange: { fontSize: 11, fontStyle: 'italic', color: '#f97316', fontWeight: '600' },
+  legendSampleGrey: { fontSize: 11, fontStyle: 'italic', color: '#64748b', fontWeight: '500' },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

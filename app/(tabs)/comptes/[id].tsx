@@ -70,6 +70,8 @@ export default function AccountDetailScreen() {
   const [balanceNote, setBalanceNote] = useState('Régularisation solde');
   const [balanceLoading, setBalanceLoading] = useState(false);
 
+  const [selectedTx, setSelectedTx] = useState<TransactionWithDetails | null>(null);
+
   const [showGainLoss, setShowGainLoss] = useState(false);
   const [gainLossMode, setGainLossMode] = useState<'amount' | 'balance'>('balance');
   const [showMethodPicker, setShowMethodPicker] = useState(false);
@@ -190,9 +192,10 @@ export default function AccountDetailScreen() {
 
   const accountTransactions = useMemo(() => {
     if (!id) return [];
+    const today = new Date().toISOString().slice(0, 10);
     const allTx = transactions as TransactionWithDetails[];
     return allTx
-      .filter((t) => t.account_id === id)
+      .filter((t) => t.account_id === id && !(t as any).is_draft && t.date <= today)
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [id, transactions]);
 
@@ -319,9 +322,11 @@ export default function AccountDetailScreen() {
                   : `Vers ${otherAccountName}`
                 : t.note?.trim() || t.category?.name || 'Transaction';
               return (
-                <View
+                <TouchableOpacity
                   key={`${t.id}-${idx}`}
                   style={[styles.transferRow, idx === accountTransactions.length - 1 && styles.transferRowLast]}
+                  onPress={() => setSelectedTx(t)}
+                  activeOpacity={0.7}
                 >
                   <View style={styles.transferLeft}>
                     <Text style={styles.transferDate}>
@@ -337,7 +342,7 @@ export default function AccountDetailScreen() {
                   >
                     {amount >= 0 ? '+' : '−'} {Math.abs(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                   </Text>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -596,6 +601,74 @@ export default function AccountDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Transaction detail (read-only) */}
+      <Modal visible={!!selectedTx} transparent animationType="slide" onRequestClose={() => setSelectedTx(null)}>
+        <TouchableOpacity style={txDetailStyles.overlay} activeOpacity={1} onPress={() => setSelectedTx(null)}>
+          <TouchableOpacity style={txDetailStyles.sheet} activeOpacity={1} onPress={() => {}}>
+            {selectedTx && (() => {
+              const amt = Number(selectedTx.amount);
+              const isIncoming = amt >= 0;
+              const isTransfer = selectedTx.category_id == null && isTransferNote(selectedTx.note ?? null);
+              const pairTx = isTransfer
+                ? (transactions as TransactionWithDetails[]).find(
+                    (p) => p.account_id !== id && p.category_id == null && isTransferNote(p.note ?? null) &&
+                      p.date === selectedTx.date && Number(p.amount) === -amt
+                  )
+                : null;
+              const otherName = pairTx ? accounts.find((a) => a.id === pairTx.account_id)?.name ?? 'Compte' : null;
+              const label = isTransfer
+                ? isIncoming ? `Depuis ${otherName ?? 'Compte'}` : `Vers ${otherName ?? 'Compte'}`
+                : selectedTx.note?.trim() || selectedTx.category?.name || 'Transaction';
+
+              const linkedAccountId = (selectedTx as any).linked_account_id as string | null;
+              const linkedAccount = linkedAccountId ? accounts.find((a) => a.id === linkedAccountId) : null;
+              const isVirement = isTransfer || !!linkedAccount;
+
+              const txType = isVirement
+                ? 'Virement'
+                : amt > 0
+                  ? (selectedTx.note === 'Apport' || selectedTx.category?.name === 'Apport' ? 'Apport' : 'Recette')
+                  : (selectedTx.note?.toLowerCase().includes('régularisation') ? 'Régularisation' : 'Dépense');
+
+              const rows: { key: string; value: string }[] = [
+                { key: 'Type', value: txType },
+                { key: 'Date', value: new Date(selectedTx.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) },
+                { key: 'Montant', value: `${isIncoming ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` },
+              ];
+              if (isVirement) {
+                const srcName = isIncoming ? (linkedAccount?.name ?? otherName ?? '—') : (account?.name ?? '—');
+                const dstName = isIncoming ? (account?.name ?? '—') : (linkedAccount?.name ?? otherName ?? '—');
+                rows.push({ key: 'Compte source', value: srcName });
+                rows.push({ key: 'Compte destination', value: dstName });
+              } else {
+                rows.push({ key: 'Compte', value: account?.name ?? '' });
+              }
+              if (selectedTx.category?.name) rows.push({ key: 'Catégorie', value: selectedTx.category.name });
+
+              return (
+                <>
+                  <View style={txDetailStyles.handle} />
+                  <Text style={txDetailStyles.amount(isIncoming)}>
+                    {isIncoming ? '+' : '−'} {Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  </Text>
+                  <Text style={txDetailStyles.labelText}>{label}</Text>
+                  <View style={txDetailStyles.divider} />
+                  {rows.map((r) => (
+                    <View key={r.key} style={txDetailStyles.row}>
+                      <Text style={txDetailStyles.rowKey}>{r.key}</Text>
+                      <Text style={txDetailStyles.rowValue}>{r.value}</Text>
+                    </View>
+                  ))}
+                  <TouchableOpacity style={txDetailStyles.closeBtn} onPress={() => setSelectedTx(null)}>
+                    <Text style={txDetailStyles.closeBtnText}>Fermer</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -779,3 +852,17 @@ const modalStyles = StyleSheet.create({
   },
   confirmLabel: { fontSize: 15, fontWeight: '700', color: '#000' },
 });
+
+const txDetailStyles = {
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
+  sheet: { backgroundColor: '#0f172a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: '#1e293b' },
+  handle: { width: 40, height: 4, backgroundColor: '#334155', borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
+  amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? '#34d399' : '#f87171', textAlign: 'center' as const, marginBottom: 4 }),
+  labelText: { fontSize: 16, color: '#94a3b8', textAlign: 'center' as const, marginBottom: 20 },
+  divider: { height: 1, backgroundColor: '#1e293b', marginBottom: 16 },
+  row: { flexDirection: 'row' as const, justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
+  rowKey: { fontSize: 14, color: '#94a3b8' },
+  rowValue: { fontSize: 14, color: '#fff', fontWeight: '500' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
+  closeBtn: { marginTop: 24, backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
+  closeBtnText: { fontSize: 15, fontWeight: '600' as const, color: '#fff' },
+};

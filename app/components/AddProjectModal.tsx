@@ -10,7 +10,7 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
-import { Calendar } from 'react-native-calendars';
+import CalendarWithPicker from './CalendarWithPicker';
 import { useAuth } from '../contexts/AuthContext';
 import { useAddProject, useUpdateProject } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
@@ -112,7 +112,7 @@ export default function AddProjectModal({
         target_date: editingProject.target_date || '',
         source_account_id: editingProject.source_account_id || null,
         linked_account_id: editingProject.linked_account_id || null,
-        first_payment_date: editingProject.transaction_day ? (() => { const d = new Date(); d.setDate(editingProject.transaction_day!); return d.toISOString().slice(0, 10); })() : '',
+        first_payment_date: editingProject.first_payment_date || (editingProject.transaction_day ? (() => { const d = new Date(); d.setDate(editingProject.transaction_day!); return d.toISOString().slice(0, 10); })() : ''),
         current_accumulated: editingProject.current_accumulated || 0,
       });
 
@@ -156,15 +156,18 @@ export default function AddProjectModal({
   const calculatedAllocation = useMemo(() => {
     if (form.allocation_type !== 'date' || !form.target_date || !form.target_amount) return null;
     const targetAmount = parseFloat(form.target_amount);
-    const targetDate = new Date(form.target_date);
-    const today = new Date();
-    if (targetDate <= today) return null;
-    const monthsRemaining = Math.max(1, Math.ceil(
-      (targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30.44)
-    ));
     const amountToAccumulate = Math.max(0, targetAmount - form.current_accumulated);
-    return amountToAccumulate / monthsRemaining;
-  }, [form.allocation_type, form.target_date, form.target_amount, form.current_accumulated]);
+    const startDate = form.first_payment_date || new Date().toISOString().slice(0, 10);
+    const endLimit = new Date(form.target_date + 'T23:59:59');
+    // Count payment months using same cursor logic as the delete recalculation
+    const cursor = new Date(startDate + 'T00:00:00');
+    if (cursor > endLimit) return null;
+    let monthsLeft = 0;
+    const c = new Date(cursor);
+    while (c <= endLimit) { monthsLeft++; c.setMonth(c.getMonth() + 1); }
+    monthsLeft = Math.max(1, monthsLeft);
+    return amountToAccumulate / monthsLeft;
+  }, [form.allocation_type, form.target_date, form.target_amount, form.current_accumulated, form.first_payment_date]);
 
   const ponctuelTotal = useMemo(() => {
     return months12.reduce((sum, m) => {
@@ -640,7 +643,7 @@ export default function AddProjectModal({
               <View style={{ width: 50 }} />
             </View>
             <View style={styles.calendarWrapper}>
-              <Calendar
+              <CalendarWithPicker
                 current={showCalendar === 'payment' ? (form.first_payment_date || getTodayDateString()) : (form.target_date || getTodayDateString())}
                 maxDate="2050-12-31"
                 onDayPress={(day: any) => {
@@ -651,31 +654,12 @@ export default function AddProjectModal({
                 markedDates={(() => {
                   const dateStr = showCalendar === 'payment' ? form.first_payment_date : form.target_date;
                   if (!dateStr) return {};
-                  return { [dateStr]: { selected: true, selectedColor: COLORS.primary, selectedTextColor: '#fff' } };
+                  return { [dateStr]: { selected: true, selectedColor: COLORS.primary, selectedTextColor: '#000' } };
                 })()}
-                theme={{
-                  backgroundColor: COLORS.surface,
-                  calendarBackground: COLORS.surface,
-                  textSectionTitleColor: COLORS.text,
-                  textSectionTitleDisabledColor: COLORS.textSecondary,
-                  selectedDayBackgroundColor: COLORS.primary,
-                  selectedDayTextColor: '#fff',
-                  todayTextColor: COLORS.primary,
-                  todayBackgroundColor: 'transparent',
-                  todayDotColor: COLORS.primary,
-                  dayTextColor: COLORS.text,
-                  textDisabledColor: COLORS.textSecondary,
-                  dotColor: COLORS.primary,
-                  selectedDotColor: '#fff',
-                  arrowColor: COLORS.primary,
-                  disabledArrowColor: COLORS.textSecondary,
-                  monthTextColor: COLORS.text,
-                  indicatorColor: COLORS.primary,
-                  textMonthFontWeight: '600',
-                  textDayFontSize: 14,
-                  textMonthFontSize: 16,
-                  textDayHeaderFontSize: 12,
-                }}
+                accentColor={COLORS.primary}
+                bgColor={COLORS.surface}
+                textColor={COLORS.text}
+                textSecondaryColor={COLORS.textSecondary}
                 style={styles.calendar}
               />
             </View>
