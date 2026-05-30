@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   useFinancialProfile,
@@ -80,6 +81,7 @@ export default function ProfilFinancierScreen() {
   const { data: savedAnswers, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
 
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({
     q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
@@ -101,18 +103,44 @@ export default function ProfilFinancierScreen() {
   }
 
   async function handleSave() {
-    const allAnswered = answers.q1 && answers.q2 && answers.q3 && answers.q4 && answers.q5 && answers.q6 && answers.q7;
-    if (!allAnswered) {
-      Alert.alert('Réponses incomplètes', 'Veuillez répondre à toutes les questions.');
+    const qLabels: Record<keyof QuestionnaireAnswers, string> = {
+      q1: 'Q1 — Type de revenu',
+      q2: 'Q2 — Fréquence de versement',
+      q3: 'Q3 — Revenus nets',
+      q4: 'Q4 — Reste à vivre',
+      q5: 'Q5 — Réserve de sécurité',
+      q6: 'Q6 — Taux d\'épargne',
+      q7: 'Q7 — Objectif prioritaire',
+    };
+    const missing = (Object.keys(qLabels) as (keyof QuestionnaireAnswers)[])
+      .filter(k => !answers[k])
+      .map(k => qLabels[k]);
+
+    if (missing.length > 0) {
+      Alert.alert(
+        'Réponses manquantes',
+        `Veuillez répondre à :\n• ${missing.join('\n• ')}`,
+      );
       return;
     }
+
     try {
       await saveQuestionnaire.mutateAsync({ answers, isUpdate: true });
-      setEditing(false);
-      Alert.alert('Profil mis à jour', 'Vos réponses ont été enregistrées. Votre profil a été recalculé.');
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
+      const msg =
+        (e as any)?.message ??
+        (e as any)?.details ??
+        (e as any)?.hint ??
+        'Erreur inconnue. Vérifiez votre connexion.';
+      Alert.alert('Erreur lors de l\'enregistrement', String(msg));
+      return;
     }
+
+    // Forcer le rafraîchissement du cache puis quitter le mode édition
+    await queryClient.invalidateQueries({ queryKey: ['financial_profile', user?.id] });
+    await queryClient.invalidateQueries({ queryKey: ['questionnaire_answers', user?.id] });
+    await queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    setEditing(false);
   }
 
   if (fpLoading || answersLoading) {

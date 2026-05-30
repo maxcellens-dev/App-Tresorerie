@@ -188,16 +188,14 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         notification_shown: notifShown,
       });
 
-      // 5. Mise à jour des allocations + flag dans profiles
-      const { error: prErr } = await supabase.from('profiles').update({
-        financial_profile_questionnaire_completed: true,
+      // 5. Mise à jour des allocations dans profiles (colonnes existantes)
+      await supabase.from('profiles').update({
         allocation_save_percent: alloc.save,
         allocation_invest_percent: alloc.invest,
         allocation_enjoy_percent: alloc.enjoy,
         allocation_keep_percent: alloc.keep,
         updated_at: now,
       }).eq('id', userId);
-      if (prErr) throw prErr;
 
       return profileId;
     },
