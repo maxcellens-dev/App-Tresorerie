@@ -45,6 +45,8 @@ export function useProfile(profileId: string | undefined) {
         allocation_keep_percent: keep !== undefined && keep !== null ? Number(keep) : defaultAlloc.keep,
         initial_onboarding_completed: Boolean((data as { initial_onboarding_completed?: boolean }).initial_onboarding_completed),
         financial_profile_questionnaire_completed: Boolean((data as { financial_profile_questionnaire_completed?: boolean }).financial_profile_questionnaire_completed),
+        theme_mode: ((data as { theme_mode?: string }).theme_mode ?? 'dark') as 'dark' | 'light',
+        theme_preset: ((data as { theme_preset?: string }).theme_preset ?? 'emerald') as any,
       };
     },
     enabled: !!profileId,
@@ -64,6 +66,8 @@ export function useUpdateProfile(profileId: string | undefined) {
       allocation_enjoy_percent?: number;
       allocation_keep_percent?: number;
       initial_onboarding_completed?: boolean;
+      theme_mode?: 'dark' | 'light';
+      theme_preset?: string;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
 
@@ -78,6 +82,8 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.allocation_enjoy_percent !== undefined) updates.allocation_enjoy_percent = payload.allocation_enjoy_percent;
       if (payload.allocation_keep_percent !== undefined) updates.allocation_keep_percent = payload.allocation_keep_percent;
       if (payload.initial_onboarding_completed !== undefined) updates.initial_onboarding_completed = payload.initial_onboarding_completed;
+      if (payload.theme_mode !== undefined) updates.theme_mode = payload.theme_mode;
+      if (payload.theme_preset !== undefined) updates.theme_preset = payload.theme_preset;
 
       const { error } = await supabase
         .from('profiles')

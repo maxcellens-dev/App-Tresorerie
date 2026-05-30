@@ -7,15 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { supabase } from '../../../lib/supabase';
+import { useAppColors } from '../../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 interface StatsData {
   totalUsers?: number;
@@ -25,6 +18,8 @@ interface StatsData {
 }
 
 export default function StatsHub() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -153,34 +148,36 @@ export default function StatsHub() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  backLabel: { fontSize: 16, color: COLORS.text, marginLeft: 4 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
   statCard: {
     flex: 1,
     minWidth: 100,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statValue: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  statLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
-  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 20 },
-  infoLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
-  infoValue: { fontSize: 14, color: COLORS.text },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.emerald, paddingVertical: 12, borderRadius: 8 },
-  refreshLabel: { color: COLORS.bg, fontWeight: '700', fontSize: 16 },
+  statValue: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 4 },
+  statLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '500' },
+  card: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 20 },
+  infoLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  infoValue: { fontSize: 14, color: c.text },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 8 },
+  refreshLabel: { color: c.bg, fontWeight: '700', fontSize: 16 },
   error: { marginTop: 14, fontSize: 13, color: '#ef4444', textAlign: 'center' },
-  text: { color: COLORS.text },
+  text: { color: c.text },
 });
+}

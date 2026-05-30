@@ -3,17 +3,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function AssistanceScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   return (
     <View style={styles.root}>
@@ -75,24 +70,26 @@ export default function AssistanceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   card: {
-    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 20, marginBottom: 16, gap: 4,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 8, textAlign: 'center' },
-  cardText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 8, textAlign: 'center' },
+  cardText: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
   btn: {
-    backgroundColor: COLORS.emerald, paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 12,
+    backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 12,
   },
-  btnText: { fontSize: 14, fontWeight: '700', color: COLORS.bg },
+  btnText: { fontSize: 14, fontWeight: '700', color: c.bg },
   faqItem: { marginTop: 12, gap: 4 },
-  faqQ: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  faqA: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 18 },
+  faqQ: { fontSize: 14, fontWeight: '600', color: c.text },
+  faqA: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
 });
+}

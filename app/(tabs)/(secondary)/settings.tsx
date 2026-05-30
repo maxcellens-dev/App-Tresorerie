@@ -9,20 +9,14 @@ import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { supabase } from '../../lib/supabase';
 import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-};
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { data: profile, refetch } = useProfile(user?.id);
@@ -341,63 +335,65 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  text: { color: COLORS.text },
+  text: { color: c.text },
 
   // Avatar
   avatarSection: { alignItems: 'center', marginBottom: 20 },
   avatar: { width: 88, height: 88, borderRadius: 44 },
   avatarPlaceholder: {
-    width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.card,
-    borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center', justifyContent: 'center',
+    width: 88, height: 88, borderRadius: 44, backgroundColor: c.card,
+    borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
   },
   avatarActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
   avatarBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.emerald, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: c.emerald, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
   },
   avatarBtnDanger: {
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: COLORS.danger, width: 36, height: 36, borderRadius: 10,
+    borderWidth: 1, borderColor: c.danger, width: 36, height: 36, borderRadius: 10,
   },
-  avatarBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.bg },
+  avatarBtnLabel: { fontSize: 13, fontWeight: '600', color: c.bg },
 
   // Fields
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
   input: {
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 12,
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 12,
   },
-  saveBtn: { backgroundColor: COLORS.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
-  saveBtnLabel: { fontSize: 15, fontWeight: '700', color: COLORS.bg },
+  saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
+  saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
 
   // Sections
-  sectionTitle: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   card: {
-    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
     overflow: 'hidden', marginBottom: 20,
   },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 14, paddingHorizontal: 16,
-    borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder,
+    borderBottomWidth: 1, borderBottomColor: c.cardBorder,
   },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: COLORS.text },
+  rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
 
   // Password
-  passwordBtn: { backgroundColor: COLORS.cardBorder, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  passwordBtn: { backgroundColor: c.cardBorder, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
 
   // Version
   versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
-  appName: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  versionBadge: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
+  appName: { fontSize: 18, fontWeight: '800', color: c.text },
+  versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
 
   // Sign out
-  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 8 },
-  signOutLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  footer: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', marginTop: 12, marginBottom: 40 },
+  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 8 },
+  signOutLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+  footer: { fontSize: 11, color: c.textSecondary, textAlign: 'center', marginTop: 12, marginBottom: 40 },
 });
+}

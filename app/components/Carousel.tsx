@@ -9,15 +9,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  primary: '#34d399',
-  border: '#1e293b',
-  background: '#020617',
-};
-
 interface CarouselItem {
   id: string;
   [key: string]: any;

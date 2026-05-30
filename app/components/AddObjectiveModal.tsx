@@ -14,15 +14,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAddObjective, useUpdateObjective } from '../hooks/useObjectives';
 import { useAccounts } from '../hooks/useAccounts';
 import type { Objective } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  primary: '#34d399',
-  border: '#1e293b',
-  background: '#020617',
-};
 
 interface AddObjectiveModalProps {
   visible: boolean;
@@ -37,6 +30,8 @@ export default function AddObjectiveModal({
   onSuccess,
   editingObjective,
 }: AddObjectiveModalProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const { user } = useAuth();
   const addObjectiveMutation = useAddObjective(user?.id || '');
   const updateObjectiveMutation = useUpdateObjective(user?.id || '');
@@ -425,7 +420,8 @@ export default function AddObjectiveModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -553,3 +549,4 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
+}

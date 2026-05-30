@@ -13,6 +13,7 @@ import {
   findNodeHandle, Platform, ScrollView, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '../hooks/useAppColors';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -37,13 +38,6 @@ interface Props {
 
 interface Rect { x: number; y: number; w: number; h: number; }
 
-const COLORS = {
-  card: '#0f172a',
-  border: '#1e293b',
-  text: '#ffffff',
-  sub: '#94a3b8',
-  emerald: '#34d399',
-};
 
 const PAD = 8;             // marge autour du spotlight
 const BUBBLE_H = 230;      // hauteur estimée de la bulle (pour décider au-dessus/en-dessous)
@@ -52,6 +46,8 @@ const TOP_SAFE = 70;       // zone haute réservée (header)
 export default function GuideOverlay({
   visible, steps, currentStep, onNext, onSkip, scrollRef, screenTitle,
 }: Props) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const [rect, setRect] = useState<Rect | null>(null);
   const [measuring, setMeasuring] = useState(true);
   const attemptRef = useRef(0);
@@ -233,12 +229,13 @@ export default function GuideOverlay({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   fill: { ...StyleSheet.absoluteFillObject, zIndex: 1000 },
   mask: { position: 'absolute', backgroundColor: 'rgba(2, 6, 23, 0.82)' },
   highlight: {
     position: 'absolute', borderRadius: 14,
-    borderWidth: 2, borderColor: COLORS.emerald,
+    borderWidth: 2, borderColor: c.emerald,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 0 0 9999px rgba(2,6,23,0.0), 0 0 24px rgba(52,211,153,0.5)' } as any
       : {}),
@@ -252,35 +249,36 @@ const styles = StyleSheet.create({
   arrowDown: { borderTopWidth: 8 },
   bubble: {
     position: 'absolute', left: 16, right: 16,
-    backgroundColor: COLORS.card, borderRadius: 18,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: c.card, borderRadius: 18,
+    borderWidth: 1, borderColor: c.border,
     padding: 18, gap: 14,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 12px 40px rgba(0,0,0,0.5)' } as any
       : { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 12 }),
   },
   bubbleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  screenTitle: { fontSize: 12, color: COLORS.sub, fontWeight: '600' },
-  skip: { fontSize: 13, color: COLORS.sub },
+  screenTitle: { fontSize: 12, color: c.sub, fontWeight: '600' },
+  skip: { fontSize: 13, color: c.sub },
   bubbleBody: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   iconBox: {
     width: 52, height: 52, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
-  title: { fontSize: 17, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  title: { fontSize: 17, fontWeight: '800', color: c.text, marginBottom: 4 },
   desc: { fontSize: 14, color: '#cbd5e1', lineHeight: 20 },
   bubbleFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dots: { flexDirection: 'row', gap: 6 },
   dot: {
     width: 7, height: 7, borderRadius: 4,
-    backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+    backgroundColor: c.cardBorder, borderWidth: 1, borderColor: c.cardBorder,
   },
-  dotActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald, width: 18 },
-  dotDone: { backgroundColor: '#1a3a2a', borderColor: COLORS.emerald },
+  dotActive: { backgroundColor: c.emerald, borderColor: c.emerald, width: 18 },
+  dotDone: { backgroundColor: '#1a3a2a', borderColor: c.emerald },
   nextBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.emerald, borderRadius: 12,
+    backgroundColor: c.emerald, borderRadius: 12,
     paddingVertical: 11, paddingHorizontal: 18,
   },
-  nextLabel: { fontSize: 14, fontWeight: '700', color: '#020617' },
+  nextLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
 });
+}

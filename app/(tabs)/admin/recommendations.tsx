@@ -13,17 +13,8 @@ import {
 import type { RecoType, SavingsTier } from '../../lib/recommendationEngine';
 import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../hooks/useRecommendationTiers';
 import type { TierAllocations } from '../../hooks/useRecommendationTiers';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-  warning: '#f59e0b',
-};
 
 const RECO_ICONS: Record<RecoType, string> = {
   save: 'shield-outline',
@@ -57,6 +48,8 @@ const MODIFIERS = [
 ];
 
 export default function RecommendationsAdmin() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { data: dbTiers, isLoading } = useRecommendationTiers();
   const updateTiers = useUpdateRecommendationTiers();
@@ -266,88 +259,90 @@ export default function RecommendationsAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
-  backLabel: { fontSize: 16, color: COLORS.text, marginLeft: 4 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  editBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.emerald },
+  editBtnLabel: { fontSize: 14, fontWeight: '600', color: c.emerald },
   headerActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  cancelBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.cardBorder },
-  cancelLabel: { fontSize: 14, color: COLORS.textSecondary },
-  saveBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: COLORS.emerald },
-  saveBtnLabel: { fontSize: 14, fontWeight: '700', color: COLORS.bg },
+  cancelBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder },
+  cancelLabel: { fontSize: 14, color: c.textSecondary },
+  saveBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: c.emerald },
+  saveBtnLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 },
 
   typeCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderLeftWidth: 4,
     padding: 14,
     marginBottom: 10,
   },
   typeHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   typeTitle: { fontSize: 14, fontWeight: '700' },
-  typeDesc: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  typeDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   tierCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 14,
     marginBottom: 10,
     gap: 8,
   },
-  tierCardInvalid: { borderColor: COLORS.danger },
+  tierCardInvalid: { borderColor: c.danger },
   tierHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tierDot: { width: 10, height: 10, borderRadius: 5 },
   tierName: { fontSize: 14, fontWeight: '700', flex: 1 },
   tierSum: { fontSize: 13, fontWeight: '700' },
-  tierCondition: { fontSize: 12, color: COLORS.textSecondary },
+  tierCondition: { fontSize: 12, color: c.textSecondary },
   allocRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   allocItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   allocDot: { width: 8, height: 8, borderRadius: 4 },
-  allocText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' },
+  allocText: { fontSize: 11, color: c.textSecondary, fontWeight: '600' },
 
   inputGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   inputItem: { width: '46%' },
   inputLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  inputLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0d1a2d', borderRadius: 8, borderWidth: 1, borderColor: COLORS.cardBorder, paddingHorizontal: 10 },
-  input: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '700', paddingVertical: 8 },
-  inputSuffix: { color: COLORS.textSecondary, fontSize: 14 },
+  inputLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 10 },
+  input: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', paddingVertical: 8 },
+  inputSuffix: { color: c.textSecondary, fontSize: 14 },
 
-  modNote: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 10, fontStyle: 'italic' },
+  modNote: { fontSize: 12, color: c.textSecondary, marginBottom: 10, fontStyle: 'italic' },
   modCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 14,
     marginBottom: 10,
     flexDirection: 'row',
     gap: 10,
     alignItems: 'flex-start',
   },
-  modName: { fontSize: 13, fontWeight: '600', color: COLORS.text, marginBottom: 4 },
-  modDesc: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  modName: { fontSize: 13, fontWeight: '600', color: c.text, marginBottom: 4 },
+  modDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   rulesCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 14,
     gap: 6,
   },
-  ruleItem: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  ruleItem: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 });
+}

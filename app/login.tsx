@@ -13,17 +13,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
+import { useAppColors } from './hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function LoginScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
@@ -112,35 +107,37 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 15, color: COLORS.textSecondary, marginBottom: 32 },
+  title: { fontSize: 28, fontWeight: '800', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 15, color: c.textSecondary, marginBottom: 32 },
   form: {},
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 20,
   },
   btn: {
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
   },
   btnDisabled: { opacity: 0.6 },
-  btnLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  btnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   link: { alignItems: 'center', marginTop: 20 },
-  linkText: { fontSize: 14, color: COLORS.emerald, fontWeight: '500' },
+  linkText: { fontSize: 14, color: c.emerald, fontWeight: '500' },
 });
+}

@@ -100,6 +100,8 @@ export interface Profile {
   initial_onboarding_completed?: boolean;
   financial_profile_questionnaire_completed?: boolean;
   is_admin?: boolean;
+  theme_mode?: 'dark' | 'light';
+  theme_preset?: 'emerald' | 'ocean' | 'violet' | 'coral' | 'amber';
   created_at: string;
   updated_at: string;
 }

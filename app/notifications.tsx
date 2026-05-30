@@ -3,17 +3,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from './hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function NotificationsScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
 
   return (
@@ -35,20 +30,22 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 24,
     alignItems: 'center',
   },
   icon: { marginBottom: 16 },
-  message: { fontSize: 16, color: COLORS.text, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
-  hint: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' },
+  message: { fontSize: 16, color: c.text, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
+  hint: { fontSize: 14, color: c.textSecondary, textAlign: 'center' },
 });
+}

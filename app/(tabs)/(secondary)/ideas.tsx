@@ -8,15 +8,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoadmapIdeas } from '../../hooks/useRoadmapIdeas';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 function useSuggestions(profileId: string | undefined) {
   return useQuery({
@@ -48,6 +41,8 @@ function useAddSuggestion(profileId: string | undefined) {
 }
 
 export default function IdeasScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const [idea, setIdea] = useState('');
@@ -149,33 +144,35 @@ export default function IdeasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   card: {
-    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 20, marginBottom: 16,
   },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12, textAlign: 'center' },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12, textAlign: 'center' },
   input: {
-    backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, color: COLORS.text, minHeight: 120, marginBottom: 16,
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, color: c.text, minHeight: 120, marginBottom: 16,
   },
-  btn: { backgroundColor: COLORS.emerald, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  btnText: { fontSize: 14, fontWeight: '700', color: COLORS.bg },
+  btn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  btnText: { fontSize: 14, fontWeight: '700', color: c.bg },
   successCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.emerald + '40',
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.emerald + '40',
     padding: 24, marginBottom: 16, alignItems: 'center', gap: 12,
   },
-  successTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  successText: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
-  ideaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder },
-  ideaText: { flex: 1, fontSize: 13, color: COLORS.text },
-  ideaDate: { fontSize: 11, color: COLORS.textSecondary },
-  voteBadge: { backgroundColor: COLORS.emerald + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  voteText: { fontSize: 11, fontWeight: '700', color: COLORS.emerald },
+  successTitle: { fontSize: 18, fontWeight: '700', color: c.text },
+  successText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
+  ideaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+  ideaText: { flex: 1, fontSize: 13, color: c.text },
+  ideaDate: { fontSize: 11, color: c.textSecondary },
+  voteBadge: { backgroundColor: c.emerald + '20', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  voteText: { fontSize: 11, fontWeight: '700', color: c.emerald },
 });
+}

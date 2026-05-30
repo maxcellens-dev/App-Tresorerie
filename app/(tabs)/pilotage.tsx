@@ -13,7 +13,7 @@ import RecommendationCard from '../components/RecommendationCard';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
 import { ACCOUNT_COLORS } from '../theme/colors';
-import { computeRecommendations, getCurrentTier, PROFILE_LABELS, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
+import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 import { useRecommendationTiers } from '../hooks/useRecommendationTiers';
 import { useFinancialProfile } from '../hooks/useFinancialProfile';
@@ -22,19 +22,14 @@ import type { FinancialProfileId } from '../types/database';
 import GuideOverlay from '../components/GuideOverlay';
 import type { BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
-
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
+import { useAppColors } from '../hooks/useAppColors';
+import type { AppColors } from '../theme/palette';
 
 export default function PilotageScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const COLORS = useAppColors();
+  const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
   const [refreshing, setRefreshing] = useState(false);
 
   // Données principales
@@ -137,7 +132,6 @@ export default function PilotageScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Tableau de bord</Text>
-            <Text style={styles.subtitle}>Piloter votre trésorerie</Text>
           </View>
         </View>
 
@@ -167,44 +161,33 @@ export default function PilotageScreen() {
 
             <View style={styles.accountSummary}>
               <View style={styles.summaryGrid}>
-                <View style={[styles.summaryItemEpargne, { borderLeftColor: pilotageData.total_savings < 5000 ? '#ef4444' : pilotageData.total_savings < 10000 ? '#f59e0b' : pilotageData.total_savings < 20000 ? ACCOUNT_COLORS.savings : ACCOUNT_COLORS.savings }]}>
-                  {(() => {
-                    const s = pilotageData.total_savings;
-                    const col = s < 5000 ? '#ef4444' : s < 10000 ? '#f59e0b' : ACCOUNT_COLORS.savings;
-                    const kw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
-                    return (
-                      <>
-                        <Ionicons name="leaf-outline" size={16} color={col} style={{ marginBottom: 2 }} />
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <Text style={styles.summaryLabel}>Épargne</Text>
-                          <Text style={{ fontSize: 9, fontWeight: '700', color: col }}>{kw}</Text>
-                        </View>
-                        <Text style={[styles.summaryAmount, { color: col }]}>
-                          {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
-                        </Text>
-                        <View style={styles.gaugeBarOuter}>
-                          <View style={[styles.gaugeBarFill, {
-                            width: `${Math.min((s / 25000) * 100, 100)}%`,
-                            backgroundColor: col,
-                          }]} />
-                        </View>
-                        <View style={styles.thresholdRow}>
-                          <View style={[styles.thresholdDot, { backgroundColor: '#ef4444' }]} />
-                          <Text style={styles.thresholdText}>&lt;5k</Text>
-                          <View style={[styles.thresholdDot, { backgroundColor: '#f59e0b' }]} />
-                          <Text style={styles.thresholdText}>5-10k</Text>
-                          <View style={[styles.thresholdDot, { backgroundColor: ACCOUNT_COLORS.savings }]} />
-                          <Text style={styles.thresholdText}>&gt;10k</Text>
-                        </View>
-                      </>
-                    );
-                  })()}
-                </View>
+                {/* Courant — en premier */}
                 <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.checking }]}>
                   <Ionicons name="wallet-outline" size={16} color={ACCOUNT_COLORS.checking} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Courant</Text>
                   <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.checking }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
                 </View>
+
+                {/* Épargne — avec badge de santé, sans barre ni légende */}
+                {(() => {
+                  const s = pilotageData.total_savings;
+                  const col = s < 5000 ? '#ef4444' : s < 10000 ? '#f59e0b' : ACCOUNT_COLORS.savings;
+                  const kw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
+                  return (
+                    <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: col }]}>
+                      <Ionicons name="leaf-outline" size={16} color={col} style={{ marginBottom: 2 }} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <Text style={styles.summaryLabel}>Épargne</Text>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: col }}>{kw}</Text>
+                      </View>
+                      <Text style={[styles.summaryAmount, { color: col }]}>
+                        {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                {/* Investissements */}
                 <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.investment }]}>
                   <Ionicons name="trending-up-outline" size={16} color={ACCOUNT_COLORS.investment} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Investissements</Text>
@@ -216,40 +199,55 @@ export default function PilotageScreen() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="person-circle-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Votre profil financier</Text>
+              <Ionicons name="wallet-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Suivi du mois</Text>
             </View>
             <View style={styles.sectionDivider} />
-            <View style={styles.profileCard}>
-              <Text style={styles.profileTitle}>{PROFILE_LABELS[pilotageData.financial_profile ?? 'suivi']}</Text>
-              <Text style={styles.profileSubtitle}>Stratégie active pour le moteur de recommandations.</Text>
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Marge de sécurité</Text>
-                <Text style={styles.profileValue}>{pilotageData.safety_margin_percent ?? 10}%</Text>
-              </View>
-              <View style={styles.profileRow}>
-                <Text style={styles.profileLabel}>Engagements mensuels</Text>
-                <Text style={styles.profileValue}>{pilotageData.monthly_commitments.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
-              </View>
-              <View style={styles.allocationBar}>
-                {['save', 'invest', 'enjoy', 'keep'].map((type) => {
-                  const value = pilotageData[(`allocation_${type}_percent` as keyof typeof pilotageData)] as number | undefined;
-                  if (value === undefined) return null;
-                  const color = type === 'save' ? '#34d399' : type === 'invest' ? '#a78bfa' : type === 'enjoy' ? '#f59e0b' : '#60a5fa';
-                  return (
-                    <View key={type} style={[styles.allocationSegment, { flex: value, backgroundColor: color + '90' }]}>
-                      <Text style={styles.allocationSegmentLabel}>{value}%</Text>
+
+            {(() => {
+              const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' €';
+              const savings = pilotageData.monthly_savings_planned;
+              const invest = pilotageData.monthly_invest_planned;
+              const reserve = pilotageData.monthly_reserve_planned;
+              const expenses = pilotageData.month_expenses_total;
+
+              const items = [
+                { label: 'Épargne prévue',   value: savings,  icon: 'shield-outline',     color: '#34d399', hint: 'Virements vers épargne + projets' },
+                { label: 'Investissement',   value: invest,   icon: 'trending-up-outline', color: '#a78bfa', hint: 'Virements vers comptes d\'investissement' },
+                { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: '#60a5fa', hint: 'Argent tagué « Réservé »' },
+              ];
+
+              return (
+                <View style={styles.suiviCard}>
+                  {items.map((it) => (
+                    <View key={it.label} style={styles.suiviRow}>
+                      <View style={[styles.suiviIcon, { backgroundColor: it.color + '22' }]}>
+                        <Ionicons name={it.icon as any} size={16} color={it.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suiviLabel}>{it.label}</Text>
+                        <Text style={styles.suiviHint}>{it.hint}</Text>
+                      </View>
+                      <Text style={[styles.suiviValue, { color: it.color }]}>{fmt(it.value)}</Text>
                     </View>
-                  );
-                })}
-              </View>
-              <View style={styles.allocationLegendRow}>
-                <Text style={styles.allocationLegend}><Text style={{ color: '#34d399' }}>●</Text> Épargner</Text>
-                <Text style={styles.allocationLegend}><Text style={{ color: '#a78bfa' }}>●</Text> Investir</Text>
-                <Text style={styles.allocationLegend}><Text style={{ color: '#f59e0b' }}>●</Text> Plaisir</Text>
-                <Text style={styles.allocationLegend}><Text style={{ color: '#60a5fa' }}>●</Text> Conserver</Text>
-              </View>
-            </View>
+                  ))}
+
+                  <View style={styles.suiviDivider} />
+
+                  {/* Dépenses du mois */}
+                  <View style={styles.suiviRow}>
+                    <View style={[styles.suiviIcon, { backgroundColor: '#f8717122' }]}>
+                      <Ionicons name="card-outline" size={16} color="#f87171" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Dépenses du mois</Text>
+                      <Text style={styles.suiviHint}>Passées + à venir</Text>
+                    </View>
+                    <Text style={[styles.suiviValue, { color: '#f87171' }]}>{fmt(expenses)}</Text>
+                  </View>
+                </View>
+              );
+            })()}
           </View>
 
           {/* ═══════════ SECTION 2 : Ce mois-ci ═══════════ */}
@@ -346,8 +344,9 @@ export default function PilotageScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: AppColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 8, paddingTop: 8 },
   header: {
     flexDirection: 'row',
@@ -355,8 +354,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 12,
   },
-  title: { fontSize: 28, fontWeight: '700', color: COLORS.text },
-  subtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
+  title: { fontSize: 28, fontWeight: '700', color: c.text },
+  subtitle: { fontSize: 13, color: c.textSecondary, marginTop: 4 },
   settingsBtn: { padding: 8 },
   scroll: { flex: 1 },
   scrollContent: {
@@ -378,12 +377,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: COLORS.text,
+    color: c.text,
     letterSpacing: -0.3,
   },
   sectionDivider: {
     height: 1,
-    backgroundColor: COLORS.cardBorder,
+    backgroundColor: c.cardBorder,
     marginHorizontal: 4,
     opacity: 0.6,
   },
@@ -398,10 +397,10 @@ const styles = StyleSheet.create({
   accountSummary: {
     paddingVertical: 12,
     paddingHorizontal: 8,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     gap: 10,
   },
   summaryGrid: {
@@ -410,14 +409,14 @@ const styles = StyleSheet.create({
   },
   summaryItem: {
     flex: 1,
-    backgroundColor: '#1e293b',
+    backgroundColor: c.bg,
     padding: 10,
     borderRadius: 12,
     gap: 4,
   },
   summaryItemEpargne: {
     flex: 1.4,
-    backgroundColor: '#1e293b',
+    backgroundColor: c.bg,
     padding: 10,
     borderRadius: 12,
     gap: 3,
@@ -426,7 +425,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
   summaryAmount: {
@@ -436,7 +435,7 @@ const styles = StyleSheet.create({
   },
   gaugeBarOuter: {
     height: 5,
-    backgroundColor: '#334155',
+    backgroundColor: c.cardBorder,
     borderRadius: 3,
     overflow: 'hidden',
     marginTop: 6,
@@ -459,7 +458,7 @@ const styles = StyleSheet.create({
   },
   thresholdText: {
     fontSize: 8,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     marginRight: 4,
   },
   savingsStatusText: {
@@ -469,21 +468,70 @@ const styles = StyleSheet.create({
   },
   profileCard: {
     padding: 16,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     gap: 10,
   },
+  suiviCard: {
+    backgroundColor: c.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    padding: 14,
+    gap: 4,
+  },
+  suiviRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  suiviIcon: {
+    width: 32, height: 32, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  suiviLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
+  suiviHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  suiviValue: { fontSize: 15, fontWeight: '800' },
+  suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
   profileTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: c.text,
   },
   profileSubtitle: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     marginBottom: 8,
+  },
+  profileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileEmoji: { fontSize: 32 },
+  profileName: { fontSize: 17, fontWeight: '800', color: c.text },
+  profileTier: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  profileSourceBadge: {
+    backgroundColor: '#1e3a2f',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  profileSourceText: { fontSize: 11, fontWeight: '600', color: c.emerald },
+  profileDesc: {
+    fontSize: 13,
+    color: c.textSecondary,
+    lineHeight: 19,
+    marginTop: 2,
+  },
+  profileAllocTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: c.textSecondary,
+    marginTop: 6,
   },
   profileRow: {
     flexDirection: 'row',
@@ -492,12 +540,12 @@ const styles = StyleSheet.create({
   },
   profileLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     flex: 1,
   },
   profileValue: {
     fontSize: 13,
-    color: COLORS.text,
+    color: c.text,
     fontWeight: '700',
   },
   allocationBar: {
@@ -507,7 +555,7 @@ const styles = StyleSheet.create({
     height: 28,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
   },
   allocationSegment: {
     justifyContent: 'center',
@@ -526,6 +574,7 @@ const styles = StyleSheet.create({
   },
   allocationLegend: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
   },
-});
+  });
+}

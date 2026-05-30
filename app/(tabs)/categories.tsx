@@ -27,18 +27,8 @@ import {
   useBulkUpdateVariable,
 } from '../hooks/useCategories';
 import type { Category } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#ef4444',
-  teal: '#2dd4bf',
-  amber: '#f59e0b',
-};
 
 function groupCategories(categories: Category[]) {
   const parents = categories.filter((c) => !c.parent_id);
@@ -53,6 +43,8 @@ function groupCategories(categories: Category[]) {
 }
 
 export default function CategoriesScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -413,75 +405,76 @@ export default function CategoriesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-  hint: { color: COLORS.textSecondary },
+  hint: { color: c.textSecondary },
   seedBtn: {
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 24,
   },
-  seedBtnLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  seedBtnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   addCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 20,
     marginBottom: 24,
   },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   toggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   toggleBtn: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
   },
-  toggleBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  toggleLabel: { fontSize: 14, color: COLORS.textSecondary },
-  toggleLabelActive: { color: COLORS.bg, fontWeight: '600' },
+  toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  toggleLabel: { fontSize: 14, color: c.textSecondary },
+  toggleLabelActive: { color: c.bg, fontWeight: '600' },
   chipRow: { marginBottom: 12, flexGrow: 0 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginRight: 8,
   },
-  chipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  chipText: { fontSize: 14, color: COLORS.text },
-  chipTextActive: { color: COLORS.bg, fontWeight: '600' },
+  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  chipText: { fontSize: 14, color: c.text },
+  chipTextActive: { color: c.bg, fontWeight: '600' },
   input: {
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 16,
   },
-  addBtn: { backgroundColor: COLORS.emerald, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  addBtn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
   addBtnDisabled: { opacity: 0.6 },
-  addBtnLabel: { fontSize: 15, fontWeight: '700', color: COLORS.bg },
+  addBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
   loader: { marginVertical: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     overflow: 'hidden',
     marginBottom: 24,
   },
@@ -492,13 +485,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
+    borderBottomColor: c.cardBorder,
   },
   rowChild: { paddingLeft: 28, backgroundColor: 'rgba(30,41,59,0.3)' },
-  rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text, flex: 1 },
-  rowLabelChild: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
+  rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flex: 1 },
+  rowLabelChild: { fontSize: 14, color: c.textSecondary, flex: 1 },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
-  empty: { padding: 20, color: COLORS.textSecondary, textAlign: 'center' },
+  empty: { padding: 20, color: c.textSecondary, textAlign: 'center' },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -506,16 +499,17 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalBox: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 24,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 16 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
   modalBtn: { paddingVertical: 10, paddingHorizontal: 16 },
-  modalBtnPrimary: { backgroundColor: COLORS.emerald, borderRadius: 12 },
-  modalBtnLabel: { fontSize: 16, color: COLORS.textSecondary },
-  modalBtnLabelPrimary: { color: COLORS.bg, fontWeight: '600' },
+  modalBtnPrimary: { backgroundColor: c.emerald, borderRadius: 12 },
+  modalBtnLabel: { fontSize: 16, color: c.textSecondary },
+  modalBtnLabelPrimary: { color: c.bg, fontWeight: '600' },
 });
+}

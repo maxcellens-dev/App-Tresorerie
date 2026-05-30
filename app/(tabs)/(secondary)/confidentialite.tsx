@@ -3,17 +3,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function PrivacyScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   return (
     <View style={styles.root}>
@@ -73,10 +68,13 @@ export default function PrivacyScreen() {
 }
 
 function B({ children }: { children: React.ReactNode }) {
-  return <Text style={{ fontWeight: '700', color: '#ffffff' }}>{children}</Text>;
+  const COLORS = useAppColors();
+  return <Text style={{ fontWeight: '700', color: COLORS.text }}>{children}</Text>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -85,17 +83,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { padding: 4, marginRight: 12 },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
-  updated: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 24 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 6 },
+  updated: { fontSize: 12, color: c.textSecondary, marginBottom: 24 },
   card: {
-    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 20, marginBottom: 12,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.emerald, marginBottom: 10 },
-  sectionBody: { fontSize: 13, color: COLORS.textSecondary, lineHeight: 20 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: c.emerald, marginBottom: 10 },
+  sectionBody: { fontSize: 13, color: c.textSecondary, lineHeight: 20 },
 });
+}

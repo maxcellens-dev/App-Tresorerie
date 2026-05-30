@@ -16,15 +16,8 @@ import {
 } from '../../hooks/useFinancialProfile';
 import { PROFILE_INFO } from '../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 type Tab = 'messages' | 'matrix' | 'global';
 
@@ -56,6 +49,8 @@ const EXCEPTIONAL_TRANSITIONS = [
 // ── Messages de notification ────────────────────────────────────
 
 function MessagesSection({ userId }: { userId: string }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const { data: messages = [], isLoading } = useProfileNotificationMessages();
   const updateMsg = useUpdateNotificationMessage(userId);
 
@@ -158,6 +153,8 @@ function MessagesSection({ userId }: { userId: string }) {
 // ── Matrice de seuils ───────────────────────────────────────────
 
 function MatrixSection({ userId }: { userId: string }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const { data: configs = [], isLoading } = useProfileMatrixConfig();
   const updateConfig = useUpdateMatrixConfig(userId);
 
@@ -281,6 +278,8 @@ function MatrixSection({ userId }: { userId: string }) {
 // ── Paramètres globaux ──────────────────────────────────────────
 
 function GlobalSection({ userId }: { userId: string }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const { data: configs = [] } = useProfileMatrixConfig();
   const updateConfig = useUpdateMatrixConfig(userId);
   const [freeze, setFreeze] = useState('6');
@@ -356,6 +355,8 @@ function GlobalSection({ userId }: { userId: string }) {
 // ── Écran principal ─────────────────────────────────────────────
 
 export default function FinancialProfilesAdmin() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('messages');
@@ -401,23 +402,24 @@ export default function FinancialProfilesAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
-  backLabel: { fontSize: 16, color: COLORS.text },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 16 },
+  backLabel: { fontSize: 16, color: c.text },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 4 },
+  subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
 
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: {
     flex: 1, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
     alignItems: 'center',
   },
-  tabActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  tabTextActive: { color: COLORS.bg },
+  tabActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  tabText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  tabTextActive: { color: c.bg },
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
@@ -425,63 +427,64 @@ const styles = StyleSheet.create({
 
   // Messages
   msgCard: {
-    backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1,
-    borderColor: COLORS.cardBorder, padding: 14, gap: 10,
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1,
+    borderColor: c.cardBorder, padding: 14, gap: 10,
   },
   msgHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dirBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   dirBadgeText: { fontSize: 11, fontWeight: '700' },
-  msgTransition: { flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text },
+  msgTransition: { flex: 1, fontSize: 13, fontWeight: '600', color: c.text },
   msgPreview: { gap: 4 },
-  msgTitle: { fontSize: 13, fontWeight: '600', color: COLORS.text, lineHeight: 18 },
-  msgBody: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16 },
+  msgTitle: { fontSize: 13, fontWeight: '600', color: c.text, lineHeight: 18 },
+  msgBody: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
 
   // Matrice
-  matrixInfo: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 4 },
+  matrixInfo: { fontSize: 12, color: c.textSecondary, marginBottom: 4 },
   matrixCard: {
-    backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1,
-    borderColor: COLORS.cardBorder, padding: 14, gap: 10,
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1,
+    borderColor: c.cardBorder, padding: 14, gap: 10,
   },
   matrixHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  matrixLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text, flex: 1 },
+  matrixLabel: { fontSize: 13, fontWeight: '600', color: c.text, flex: 1 },
   matrixSummary: { gap: 4 },
-  matrixSummaryText: { fontSize: 12, color: COLORS.textSecondary },
+  matrixSummaryText: { fontSize: 12, color: c.textSecondary },
   matrixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  matrixRowLabel: { flex: 1, fontSize: 13, color: COLORS.text },
+  matrixRowLabel: { flex: 1, fontSize: 13, color: c.text },
   matrixInput: {
-    width: 72, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    width: 72, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-    color: COLORS.text, textAlign: 'center',
+    color: c.text, textAlign: 'center',
   },
   bufferRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bufferLabel: { fontSize: 12, color: COLORS.textSecondary },
-  bufferValue: { fontSize: 12, fontWeight: '700', color: COLORS.emerald },
+  bufferLabel: { fontSize: 12, color: c.textSecondary },
+  bufferValue: { fontSize: 12, fontWeight: '700', color: c.emerald },
 
   // Paramètres globaux
   globalRow: {
-    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1,
-    borderColor: COLORS.cardBorder, padding: 14,
+    backgroundColor: c.card, borderRadius: 12, borderWidth: 1,
+    borderColor: c.cardBorder, padding: 14,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
   },
-  globalLabel: { flex: 1, fontSize: 13, color: COLORS.text },
+  globalLabel: { flex: 1, fontSize: 13, color: c.text },
   globalInput: {
-    width: 72, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    width: 72, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-    color: COLORS.text, textAlign: 'center',
+    color: c.text, textAlign: 'center',
   },
 
   // Formulaire commun
   editForm: { gap: 10 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
   input: {
-    backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    color: COLORS.text, fontSize: 13,
+    color: c.text, fontSize: 13,
   },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
   saveBtn: {
-    backgroundColor: COLORS.emerald, borderRadius: 10,
+    backgroundColor: c.emerald, borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  saveBtnText: { color: COLORS.bg, fontWeight: '700', fontSize: 14 },
+  saveBtnText: { color: c.bg, fontWeight: '700', fontSize: 14 },
 });
+}

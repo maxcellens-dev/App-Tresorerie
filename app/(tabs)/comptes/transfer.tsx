@@ -21,17 +21,13 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useAddTransaction } from '../../hooks/useTransactions';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
+import type { RecurrenceRule } from '../../types/database';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function TransferScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const params = useLocalSearchParams<{ from?: string }>();
   const { user } = useAuth();
@@ -44,7 +40,10 @@ export default function TransferScreen() {
   const [date, setDate] = useState(todayISO());
   const [dateDisplay, setDateDisplay] = useState(formatDateFrench(todayISO()));
   const [note, setNote] = useState('Virement interne');
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
+  const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
 
   async function handleSubmit() {
     const num = parseFloat(amount.replace(',', '.'));
@@ -61,6 +60,10 @@ export default function TransferScreen() {
       return;
     }
 
+    const endDateISO = isRecurring && recurrenceEndDateInput.trim()
+      ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
+      : null;
+
     try {
       await addTransaction.mutateAsync({
         account_id: fromAccountId,
@@ -69,6 +72,9 @@ export default function TransferScreen() {
         date,
         note: note || 'Virement interne',
         linked_account_id: toAccountId,
+        is_recurring: isRecurring,
+        recurrence_rule: isRecurring ? recurrenceRule : null,
+        recurrence_end_date: endDateISO,
       });
       await addTransaction.mutateAsync({
         account_id: toAccountId,
@@ -77,6 +83,9 @@ export default function TransferScreen() {
         date,
         note: note || 'Virement interne',
         linked_account_id: fromAccountId,
+        is_recurring: isRecurring,
+        recurrence_rule: isRecurring ? recurrenceRule : null,
+        recurrence_end_date: endDateISO,
       });
       router.back();
     } catch (e: unknown) {
@@ -195,6 +204,48 @@ export default function TransferScreen() {
             placeholderTextColor={COLORS.textSecondary}
           />
 
+          {/* Récurrence */}
+          <View style={styles.recurringSection}>
+            <TouchableOpacity
+              style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]}
+              onPress={() => setIsRecurring(!isRecurring)}
+            >
+              <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
+              <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>Virement récurrent</Text>
+            </TouchableOpacity>
+            {isRecurring && (
+              <>
+                <Text style={styles.label}>Période</Text>
+                <View style={styles.chipRow}>
+                  {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
+                    <TouchableOpacity
+                      key={rule}
+                      style={[styles.chip, recurrenceRule === rule && styles.chipActive]}
+                      onPress={() => setRecurrenceRule(rule)}
+                    >
+                      <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>
+                        {rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.label}>Fin (optionnel, vide = sans fin)</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    value={recurrenceEndDateInput}
+                    onChangeText={setRecurrenceEndDateInput}
+                    placeholder="jj-mm-aaaa ou vide"
+                    placeholderTextColor={COLORS.textSecondary}
+                  />
+                  <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
+                    <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+
           <TouchableOpacity
             style={[styles.submitBtn, (!canSubmit || addTransaction.isPending) && styles.submitBtnDisabled]}
             onPress={handleSubmit}
@@ -210,25 +261,35 @@ export default function TransferScreen() {
         </ScrollView>
 
         {/* Calendar Modal */}
-        <Modal visible={showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+        <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
           <View style={styles.calendarOverlay}>
             <View style={styles.calendarContainer}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => setShowCalendar(false)}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
                 </TouchableOpacity>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Sélectionner une date</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>
+                  {showCalendar === 'end' ? 'Date de fin' : 'Sélectionner une date'}
+                </Text>
                 <View style={{ width: 50 }} />
               </View>
               <CalendarWithPicker
-                current={date}
+                current={showCalendar === 'end' ? (recurrenceEndDateInput || date) : date}
                 maxDate="2050-12-31"
                 onDayPress={(day: any) => {
-                  setDate(day.dateString);
-                  setDateDisplay(formatDateFrench(day.dateString));
+                  if (showCalendar === 'end') {
+                    setRecurrenceEndDateInput(formatDateFrench(day.dateString));
+                  } else {
+                    setDate(day.dateString);
+                    setDateDisplay(formatDateFrench(day.dateString));
+                  }
                   setShowCalendar(false);
                 }}
-                markedDates={date ? { [date]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } } : {}}
+                markedDates={(() => {
+                  const d = showCalendar === 'end' ? recurrenceEndDateInput : date;
+                  if (!d) return {};
+                  return { [d]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } };
+                })()}
                 accentColor={COLORS.emerald}
                 bgColor={COLORS.card}
                 textColor={COLORS.text}
@@ -242,24 +303,25 @@ export default function TransferScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 20,
   },
   chipScroll: { marginBottom: 16 },
@@ -268,27 +330,38 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginRight: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  chipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  chipText: { fontSize: 14, color: COLORS.text },
-  chipTextActive: { color: COLORS.bg, fontWeight: '600' },
-  chipSubtext: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  chipSubtextActive: { color: COLORS.bg },
-  hint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 16 },
-  text: { color: COLORS.text, marginBottom: 16 },
+  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  chipText: { fontSize: 14, color: c.text },
+  chipTextActive: { color: c.bg, fontWeight: '600' },
+  chipSubtext: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
+  chipSubtextActive: { color: c.bg },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  recurringSection: { marginTop: 4, marginBottom: 8 },
+  recurringToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12, paddingHorizontal: 16,
+    borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 12,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  recurringLabel: { fontSize: 15, color: c.textSecondary },
+  recurringLabelActive: { color: c.bg, fontWeight: '600' },
+  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 16 },
+  text: { color: c.text, marginBottom: 16 },
   btn: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     padding: 14,
     borderRadius: 12,
     alignSelf: 'flex-start',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  btnLabel: { color: COLORS.text, fontWeight: '600' },
+  btnLabel: { color: c.text, fontWeight: '600' },
   submitBtn: {
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -296,11 +369,11 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   calendarBtn: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     width: 48,
     alignItems: 'center',
@@ -317,10 +390,10 @@ const styles = StyleSheet.create({
   calendarContainer: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     overflow: 'hidden',
     padding: 8,
   },
@@ -331,3 +404,4 @@ const styles = StyleSheet.create({
     padding: 12,
   },
 });
+}

@@ -7,15 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
 import { accountColor, ACCOUNT_ICONS } from '../../theme/colors';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 const TYPE_LABELS: Record<string, string> = {
   checking: 'Courant',
@@ -25,6 +18,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function AccountsListScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -157,63 +152,65 @@ export default function AccountsListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, width: '100%' },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
+  title: { fontSize: 24, fontWeight: '700', color: c.text },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  addBtnLabel: { fontSize: 14, fontWeight: '600', color: c.text },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
   totalCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 20,
     marginBottom: 16,
   },
-  totalLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
-  totalAmount: { fontSize: 28, fontWeight: '800', color: COLORS.emerald },
+  totalLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
+  totalAmount: { fontSize: 28, fontWeight: '800', color: c.emerald },
   accountCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 12,
   },
   accountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  accountName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  accountBalance: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  accountType: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4 },
-  empty: { padding: 24, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 },
+  accountName: { fontSize: 16, fontWeight: '600', color: c.text },
+  accountBalance: { fontSize: 16, fontWeight: '700', color: c.text },
+  accountType: { fontSize: 12, color: c.textSecondary, marginTop: 4 },
+  empty: { padding: 24, color: c.textSecondary, textAlign: 'center', marginBottom: 16 },
   archivedSection: { marginTop: 24, marginBottom: 16 },
-  archivedTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 },
-  archivedHint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 12 },
+  archivedTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
+  archivedHint: { fontSize: 12, color: c.textSecondary, marginBottom: 12 },
   archivedCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 12,
   },
-  archivedName: { fontSize: 16, fontWeight: '600', color: COLORS.text },
-  archivedBalance: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  hint: { marginTop: 16, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
+  archivedName: { fontSize: 16, fontWeight: '600', color: c.text },
+  archivedBalance: { fontSize: 16, fontWeight: '700', color: c.text },
+  hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
 });
+}

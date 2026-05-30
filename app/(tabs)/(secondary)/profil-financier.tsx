@@ -22,16 +22,8 @@ import {
 } from '../../lib/financialProfileEngine';
 import type { QuestionnaireAnswers } from '../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  selected: '#112f1c',
-};
 
 const QUESTIONS = [
   { key: 'q1' as const, label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
@@ -52,6 +44,8 @@ function OptionList({
   selected: string;
   onSelect: (v: string) => void;
 }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   return (
     <View style={styles.optionList}>
       {options.map((opt) => {
@@ -75,6 +69,8 @@ function OptionList({
 }
 
 export default function ProfilFinancierScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const { data: fp, isLoading: fpLoading } = useFinancialProfile(user?.id);
@@ -210,7 +206,7 @@ export default function ProfilFinancierScreen() {
                 {isLocked && (
                   <View style={styles.metaRow}>
                     <Text style={styles.metaLabel}>Évolution auto</Text>
-                    <View style={[styles.badge, { backgroundColor: '#1e293b' }]}>
+                    <View style={[styles.badge, { backgroundColor: COLORS.cardBorder }]}>
                       <Text style={styles.badgeText}>Dans {monthsUntilAuto} mois</Text>
                     </View>
                   </View>
@@ -336,112 +332,114 @@ export default function ProfilFinancierScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
-  backLabel: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  backLabel: { fontSize: 15, color: c.text, fontWeight: '500' },
   scroll: { flex: 1 },
   content: { paddingBottom: 100, gap: 16 },
 
   // Profil header
   profileHeader: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 16,
-    borderWidth: 2, borderRadius: 20, padding: 20, backgroundColor: '#0c1a2e',
+    borderWidth: 2, borderRadius: 20, padding: 20, backgroundColor: c.card,
   },
   profileEmoji: { fontSize: 40 },
   profileHeaderInfo: { flex: 1, gap: 4 },
   profileName: { fontSize: 18, fontWeight: '800' },
-  profileTier: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
-  profileDesc: { fontSize: 13, color: '#cbd5e1', lineHeight: 18, marginTop: 4 },
+  profileTier: { fontSize: 12, color: c.textSecondary, fontWeight: '500' },
+  profileDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginTop: 4 },
 
   // Meta card
   card: {
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 16, padding: 16, gap: 12,
   },
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metaLabel: { fontSize: 13, color: COLORS.textSecondary },
-  metaValue: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
-  badge: { backgroundColor: '#1e3a2f', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 12, color: COLORS.emerald, fontWeight: '600' },
+  metaLabel: { fontSize: 13, color: c.textSecondary },
+  metaValue: { fontSize: 13, color: c.text, fontWeight: '500' },
+  badge: { backgroundColor: c.emerald + "22", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 12, color: c.emerald, fontWeight: '600' },
   infoBox: {
     flexDirection: 'row', gap: 8, alignItems: 'flex-start',
-    backgroundColor: '#1e293b', borderRadius: 10, padding: 10,
+    backgroundColor: c.cardBorder, borderRadius: 10, padding: 10,
   },
   infoText: { flex: 1, color: '#93c5fd', fontSize: 12, lineHeight: 16 },
 
   // Récapitulatif des réponses
   answerRow: {
     gap: 3, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder,
+    borderBottomWidth: 1, borderBottomColor: c.cardBorder,
   },
-  answerQuestion: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16 },
-  answerValue: { fontSize: 14, color: COLORS.text, fontWeight: '600', lineHeight: 19 },
+  answerQuestion: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
+  answerValue: { fontSize: 14, color: c.text, fontWeight: '600', lineHeight: 19 },
 
   // Allocation
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  sectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
   allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  allocLabel: { width: 110, fontSize: 13, color: COLORS.text },
-  allocBarContainer: { flex: 1, height: 6, backgroundColor: '#1e293b', borderRadius: 3 },
+  allocLabel: { width: 110, fontSize: 13, color: c.text },
+  allocBarContainer: { flex: 1, height: 6, backgroundColor: c.cardBorder, borderRadius: 3 },
   allocBar: { height: 6, borderRadius: 3 },
   allocPct: { width: 40, fontSize: 13, fontWeight: '700', textAlign: 'right' },
 
   // Bouton edit
   editBtn: {
-    backgroundColor: COLORS.emerald, borderRadius: 14, paddingVertical: 14,
+    backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 14,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
-  editBtnText: { color: COLORS.bg, fontWeight: '700', fontSize: 15 },
+  editBtnText: { color: c.bg, fontWeight: '700', fontSize: 15 },
 
   // Mode édition
   editHeader: { gap: 6 },
-  editTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  editSub: { fontSize: 13, color: COLORS.textSecondary },
+  editTitle: { fontSize: 20, fontWeight: '700', color: c.text },
+  editSub: { fontSize: 13, color: c.textSecondary },
   previewCard: {
     borderWidth: 2, borderRadius: 14, padding: 14,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#0c1a2e',
+    backgroundColor: c.card,
   },
-  previewLabel: { fontSize: 12, color: COLORS.textSecondary },
-  previewProfile: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  previewLabel: { fontSize: 12, color: c.textSecondary },
+  previewProfile: { fontSize: 15, fontWeight: '700', color: c.text },
 
-  questionNum: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '600', textTransform: 'uppercase' },
-  questionLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  questionNum: { fontSize: 11, color: c.textSecondary, fontWeight: '600', textTransform: 'uppercase' },
+  questionLabel: { fontSize: 14, fontWeight: '600', color: c.text },
 
   optionList: { gap: 8 },
   optionBtn: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155',
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 12, padding: 12,
   },
-  optionBtnActive: { borderColor: COLORS.emerald, backgroundColor: COLORS.selected },
+  optionBtnActive: { borderColor: c.emerald, backgroundColor: c.selected },
   radio: {
     width: 16, height: 16, borderRadius: 8, borderWidth: 2,
-    borderColor: '#475569', alignItems: 'center', justifyContent: 'center',
+    borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
     marginTop: 1, flexShrink: 0,
   },
-  radioActive: { borderColor: COLORS.emerald },
-  radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.emerald },
-  optionText: { flex: 1, color: '#94a3b8', fontSize: 13, lineHeight: 18 },
-  optionTextActive: { color: COLORS.text },
+  radioActive: { borderColor: c.emerald },
+  radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.emerald },
+  optionText: { flex: 1, color: c.textSecondary, fontSize: 13, lineHeight: 18 },
+  optionTextActive: { color: c.text },
 
   editFooter: { flexDirection: 'row', gap: 10 },
   cancelBtn: {
-    flex: 1, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 14, paddingVertical: 14, alignItems: 'center',
   },
-  cancelBtnText: { color: COLORS.text, fontWeight: '600' },
+  cancelBtnText: { color: c.text, fontWeight: '600' },
   saveBtn: {
-    flex: 2, backgroundColor: COLORS.emerald,
+    flex: 2, backgroundColor: c.emerald,
     borderRadius: 14, paddingVertical: 14, alignItems: 'center',
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: COLORS.bg, fontWeight: '700', fontSize: 15 },
+  saveBtnText: { color: c.bg, fontWeight: '700', fontSize: 15 },
 
   emptyCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 24,
+    backgroundColor: c.card, borderRadius: 16, padding: 24,
     alignItems: 'center', gap: 16,
   },
-  emptyText: { color: COLORS.textSecondary, fontSize: 14 },
+  emptyText: { color: c.textSecondary, fontSize: 14 },
 });
+}

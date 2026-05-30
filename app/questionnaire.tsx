@@ -8,6 +8,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Dimensions, Alert, ActivityIndicator,
 } from 'react-native';
+import { useAppColors } from './hooks/useAppColors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -32,15 +33,6 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  border: '#1e293b',
-  text: '#ffffff',
-  sub: '#94a3b8',
-  emerald: '#34d399',
-  selected: '#0d2318',
-};
 
 // ── Données des questions ────────────────────────────────────
 
@@ -66,6 +58,8 @@ const TOTAL_STEPS = 9;
 function OptionCard({
   label, selected, onSelect,
 }: { label: string; selected: boolean; onSelect: () => void }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   return (
     <TouchableOpacity
       style={[styles.optionCard, selected && styles.optionCardActive]}
@@ -83,6 +77,8 @@ function OptionCard({
 // ── Écran principal ──────────────────────────────────────────
 
 export default function QuestionnaireScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const updateProfile = useUpdateProfile(user?.id);
@@ -379,8 +375,9 @@ export default function QuestionnaireScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1 },
   contentWrap: { flex: 1 },
 
@@ -391,9 +388,9 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   progressTrack: {
-    flex: 1, height: 4, backgroundColor: '#1e293b', borderRadius: 2,
+    flex: 1, height: 4, backgroundColor: c.cardBorder, borderRadius: 2,
   },
-  progressFill: { height: 4, backgroundColor: COLORS.emerald, borderRadius: 2 },
+  progressFill: { height: 4, backgroundColor: c.emerald, borderRadius: 2 },
   progressLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600', minWidth: 24 },
 
   // Welcome
@@ -402,15 +399,15 @@ const styles = StyleSheet.create({
     paddingTop: 40, paddingBottom: 60, gap: 12,
   },
   welcomeEmoji: { fontSize: 72, marginBottom: 8 },
-  welcomeTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
-  welcomeSub: { fontSize: 16, color: COLORS.emerald, fontWeight: '600', marginBottom: 4 },
-  welcomeDivider: { width: 40, height: 2, backgroundColor: '#1e293b', marginVertical: 8 },
+  welcomeTitle: { fontSize: 28, fontWeight: '800', color: c.text, textAlign: 'center' },
+  welcomeSub: { fontSize: 16, color: c.emerald, fontWeight: '600', marginBottom: 4 },
+  welcomeDivider: { width: 40, height: 2, backgroundColor: c.cardBorder, marginVertical: 8 },
   welcomeBody: {
     fontSize: 16, color: '#cbd5e1', textAlign: 'center', lineHeight: 24,
   },
   welcomeTime: {
     fontSize: 13, color: '#94a3b8',
-    backgroundColor: '#0f172a', borderRadius: 10,
+    backgroundColor: c.card, borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 6,
   },
   resumeBanner: {
@@ -422,17 +419,17 @@ const styles = StyleSheet.create({
 
   // Questions
   questionScreen: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
-  questionNum: { fontSize: 12, color: COLORS.emerald, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-  questionText: { fontSize: 20, fontWeight: '700', color: COLORS.text, lineHeight: 28, marginBottom: 20 },
+  questionNum: { fontSize: 12, color: c.emerald, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  questionText: { fontSize: 20, fontWeight: '700', color: c.text, lineHeight: 28, marginBottom: 20 },
   optionsScroll: { flex: 1 },
   optionsContent: { gap: 10 },
   optionCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 14,
-    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b',
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
     borderRadius: 14, padding: 16,
   },
   optionCardActive: {
-    borderColor: COLORS.emerald, backgroundColor: COLORS.selected,
+    borderColor: c.emerald, backgroundColor: c.selected,
   },
   radio: {
     width: 20, height: 20, borderRadius: 10,
@@ -440,14 +437,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, marginTop: 1,
   },
-  radioActive: { borderColor: COLORS.emerald },
-  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.emerald },
+  radioActive: { borderColor: c.emerald },
+  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.emerald },
   optionLabel: { flex: 1, fontSize: 15, color: '#94a3b8', lineHeight: 22 },
-  optionLabelActive: { color: COLORS.text },
+  optionLabelActive: { color: c.text },
   questionFooter: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 24, backgroundColor: COLORS.bg,
-    borderTopWidth: 1, borderTopColor: '#0f172a',
+    padding: 24, backgroundColor: c.bg,
+    borderTopWidth: 1, borderTopColor: c.card,
   },
 
   // Résultat
@@ -458,46 +455,47 @@ const styles = StyleSheet.create({
   resultBadge: {
     backgroundColor: '#1a3a2a', borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 6,
-    borderWidth: 1, borderColor: COLORS.emerald + '40',
+    borderWidth: 1, borderColor: c.emerald + '40',
   },
-  resultBadgeText: { fontSize: 12, color: COLORS.emerald, fontWeight: '700' },
+  resultBadgeText: { fontSize: 12, color: c.emerald, fontWeight: '700' },
   resultEmoji: { fontSize: 72 },
   resultName: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
   resultTier: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
   resultDesc: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 22, paddingHorizontal: 12 },
 
   allocCard: {
-    width: '100%', backgroundColor: '#0f172a', borderRadius: 16,
-    padding: 18, gap: 12, borderWidth: 1, borderColor: '#1e293b',
+    width: '100%', backgroundColor: c.card, borderRadius: 16,
+    padding: 18, gap: 12, borderWidth: 1, borderColor: c.cardBorder,
   },
   allocTitle: { fontSize: 13, fontWeight: '600', color: '#94a3b8', marginBottom: 4 },
   allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   allocDot: { width: 8, height: 8, borderRadius: 4 },
-  allocLabel: { width: 110, fontSize: 13, color: COLORS.text },
-  allocBarBg: { flex: 1, height: 5, backgroundColor: '#1e293b', borderRadius: 3 },
+  allocLabel: { width: 110, fontSize: 13, color: c.text },
+  allocBarBg: { flex: 1, height: 5, backgroundColor: c.cardBorder, borderRadius: 3 },
   allocBarFill: { height: 5, borderRadius: 3 },
   allocPct: { width: 36, fontSize: 13, fontWeight: '700', textAlign: 'right' },
 
   freezeNote: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#0f172a', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: '#1e293b',
+    backgroundColor: c.card, borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: c.cardBorder,
   },
   freezeText: { flex: 1, fontSize: 12, color: '#94a3b8', lineHeight: 18 },
 
   infoBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#1e293b', borderRadius: 10, padding: 10, width: '100%',
+    backgroundColor: c.cardBorder, borderRadius: 10, padding: 10, width: '100%',
   },
   infoText: { flex: 1, fontSize: 12, color: '#93c5fd', lineHeight: 18 },
 
   // Bouton principal
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, backgroundColor: COLORS.emerald,
+    gap: 10, backgroundColor: c.emerald,
     borderRadius: 16, paddingVertical: 16, paddingHorizontal: 28,
     width: '100%',
   },
-  primaryBtnLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  primaryBtnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   btnDisabled: { opacity: 0.5 },
 });
+}

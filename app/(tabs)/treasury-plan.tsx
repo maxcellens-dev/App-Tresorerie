@@ -11,18 +11,8 @@ import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverri
 import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
 import type { RecurrenceRule, TransactionWithDetails } from '../types/database';
 import type { Category } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-  balance: '#60a5fa',
-  currentMonth: 'rgba(52, 211, 153, 0.15)',
-};
 
 const TABLE_HEADER_HEIGHT = 52;
 const TABLE_ROW_HEIGHT = 56;
@@ -104,6 +94,8 @@ const getOverrideKey = (transactionId: string, year: number, month: number): str
 type PeriodFilter = 'n-1' | 'current' | 'n+1';
 
 export default function TreasuryPlanScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -588,19 +580,20 @@ export default function TreasuryPlanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 12 },
   controls: { marginBottom: 16 },
-  yearLabel: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 12, textAlign: 'center' },
+  yearLabel: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 12, textAlign: 'center' },
   filterRow: { flexDirection: 'row', gap: 8 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.cardBorder },
-  filterChipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  filterChipText: { fontSize: 13, color: COLORS.textSecondary },
-  filterChipTextActive: { color: COLORS.bg, fontWeight: '600' },
-  hint: { color: COLORS.textSecondary },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
+  filterChipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  filterChipText: { fontSize: 13, color: c.textSecondary },
+  filterChipTextActive: { color: c.bg, fontWeight: '600' },
+  hint: { color: c.textSecondary },
   scrollOuter: { flex: 1 },
   scrollOuterContent: {},
   scrollInner: {},
@@ -609,7 +602,7 @@ const styles = StyleSheet.create({
   tableWrap: {
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     marginBottom: 24,
   },
   table: { position: 'relative' },
@@ -632,7 +625,7 @@ const styles = StyleSheet.create({
   tableRowBalance: {
     backgroundColor: 'rgba(96, 165, 250, 0.12)',
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.balance,
+    borderLeftColor: c.balance,
     paddingVertical: 10,
   },
   tableRowHighlight: { backgroundColor: 'rgba(52, 211, 153, 0.05)' },
@@ -644,12 +637,12 @@ const styles = StyleSheet.create({
   tableRowSectionRecettes: {
     backgroundColor: 'rgba(52, 211, 153, 0.12)',
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.emerald,
+    borderLeftColor: c.emerald,
   },
   tableRowSectionDepenses: {
     backgroundColor: 'rgba(248, 113, 113, 0.12)',
     borderLeftWidth: 3,
-    borderLeftColor: COLORS.danger,
+    borderLeftColor: c.danger,
   },
   tableRowParentCategory: {
     borderLeftWidth: 2,
@@ -683,23 +676,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     bottom: 8,
-    backgroundColor: COLORS.currentMonth,
+    backgroundColor: c.currentMonth,
     borderRadius: 10,
   },
-  headerLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
-  headerLabelCurrent: { color: COLORS.emerald, fontWeight: '700' },
-  cellLabelText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
-  cellLabelChild: { fontSize: 13, color: COLORS.textSecondary },
-  cellLabelParentCategory: { fontWeight: '600', color: COLORS.text },
-  cellLabelSectionRecettes: { fontSize: 12, fontWeight: '800', color: COLORS.emerald, letterSpacing: 1 },
-  cellLabelSectionDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 1 },
-  cellLabelBalance: { fontWeight: '700', color: COLORS.balance },
-  cellLabelTotalRecettes: { fontSize: 12, fontWeight: '800', color: COLORS.emerald, letterSpacing: 0.8 },
-  cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: COLORS.danger, letterSpacing: 0.8 },
-  cellNumText: { fontSize: 13, color: COLORS.text },
+  headerLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+  headerLabelCurrent: { color: c.emerald, fontWeight: '700' },
+  cellLabelText: { fontSize: 14, color: c.text, fontWeight: '500' },
+  cellLabelChild: { fontSize: 13, color: c.textSecondary },
+  cellLabelParentCategory: { fontWeight: '600', color: c.text },
+  cellLabelSectionRecettes: { fontSize: 12, fontWeight: '800', color: c.emerald, letterSpacing: 1 },
+  cellLabelSectionDepenses: { fontSize: 12, fontWeight: '800', color: c.danger, letterSpacing: 1 },
+  cellLabelBalance: { fontWeight: '700', color: c.balance },
+  cellLabelTotalRecettes: { fontSize: 12, fontWeight: '800', color: c.emerald, letterSpacing: 0.8 },
+  cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: c.danger, letterSpacing: 0.8 },
+  cellNumText: { fontSize: 13, color: c.text },
   cellNumTextParentCategory: { fontWeight: '700' },
-  cellNumPositive: { color: COLORS.emerald, fontWeight: '600' },
-  cellNumNegative: { color: COLORS.danger, fontWeight: '600' },
+  cellNumPositive: { color: c.emerald, fontWeight: '600' },
+  cellNumNegative: { color: c.danger, fontWeight: '600' },
   cellClickable: {
     backgroundColor: 'rgba(52, 211, 153, 0.08)',
     borderRadius: 4,
@@ -711,10 +704,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menuContainer: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     width: '80%',
     maxWidth: 320,
     overflow: 'hidden',
@@ -726,12 +719,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
+    borderBottomColor: c.cardBorder,
   },
   menuTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
+    color: c.text,
   },
   menuOption: {
     flexDirection: 'row',
@@ -745,6 +738,7 @@ const styles = StyleSheet.create({
   menuOptionText: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.text,
+    color: c.text,
   },
 });
+}

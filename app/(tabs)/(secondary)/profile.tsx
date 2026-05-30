@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -10,18 +10,12 @@ import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { supabase } from '../../lib/supabase';
 import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-};
 
 export default function ProfileScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { data: profile, refetch } = useProfile(user?.id);
@@ -36,6 +30,9 @@ export default function ProfileScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     setFullName(profile?.full_name ?? user?.user_metadata?.full_name ?? '');
@@ -154,6 +151,26 @@ export default function ProfileScreen() {
     }
   }
 
+  async function handleDeleteAccount() {
+    if (deleteConfirmText.trim().toLowerCase() !== 'supprimer') {
+      Alert.alert('Confirmation requise', 'Saisissez le mot « supprimer » pour confirmer.');
+      return;
+    }
+    if (!supabase) return;
+    setDeleteLoading(true);
+    try {
+      const { error } = await supabase.rpc('delete_own_account');
+      if (error) throw error;
+      setShowDeleteModal(false);
+      await signOut();
+      router.replace('/welcome');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer le compte.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   if (!user) {
     return (
       <View style={styles.root}>
@@ -200,7 +217,7 @@ export default function ProfileScreen() {
 
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Mon profil</Text>
         </View>
@@ -316,20 +333,85 @@ export default function ProfileScreen() {
               <Text style={styles.signOutLabel}>Se déconnecter</Text>
             </TouchableOpacity>
           </View>
+
+          {/* ── Zone de danger ── */}
+          <View style={styles.dangerZone}>
+            <Text style={styles.dangerTitle}>Zone de danger</Text>
+            <Text style={styles.dangerText}>
+              La suppression de votre compte efface définitivement toutes vos données : comptes, transactions, projets, objectifs, catégories et profil. Cette action est irréversible.
+            </Text>
+            <TouchableOpacity
+              style={styles.deleteAccountBtn}
+              onPress={() => { setDeleteConfirmText(''); setShowDeleteModal(true); }}
+              accessibilityRole="button"
+            >
+              <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+              <Text style={styles.deleteAccountLabel}>Supprimer mon compte</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
+
+        {/* ── Modale de double confirmation ── */}
+        <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalIconCircle}>
+                <Ionicons name="warning" size={28} color={COLORS.danger} />
+              </View>
+              <Text style={styles.modalTitle}>Supprimer définitivement</Text>
+              <Text style={styles.modalText}>
+                Toutes vos données seront <Text style={{ fontWeight: '700', color: COLORS.danger }}>définitivement supprimées</Text> et ne pourront pas être récupérées.
+              </Text>
+              <Text style={styles.modalText}>
+                Pour confirmer, saisissez <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimer</Text> ci-dessous.
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder="supprimer"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowDeleteModal(false)}
+                  disabled={deleteLoading}
+                >
+                  <Text style={styles.modalCancelLabel}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalDeleteBtn,
+                    (deleteConfirmText.trim().toLowerCase() !== 'supprimer' || deleteLoading) && styles.modalDeleteBtnDisabled,
+                  ]}
+                  onPress={handleDeleteAccount}
+                  disabled={deleteConfirmText.trim().toLowerCase() !== 'supprimer' || deleteLoading}
+                >
+                  {deleteLoading
+                    ? <ActivityIndicator color="#ffffff" />
+                    : <Text style={styles.modalDeleteLabel}>Supprimer</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { padding: 4, marginRight: 12 },
-  pageTitle: { fontSize: 22, fontWeight: '700', color: '#ffffff' },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
@@ -338,9 +420,9 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -349,7 +431,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -360,37 +442,87 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.danger,
+    borderColor: c.danger,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
   },
   avatarBtnDisabled: { opacity: 0.6 },
-  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.bg },
-  avatarBtnLabelDanger: { fontSize: 14, fontWeight: '600', color: COLORS.danger },
-  avatarHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: c.bg },
+  avatarBtnLabelDanger: { fontSize: 14, fontWeight: '600', color: c.danger },
+  avatarHint: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 16,
   },
   inputReadOnly: { opacity: 0.8 },
-  hint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 20 },
-  submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
+  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 20 },
+  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   section: { marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
-  passwordBtn: { backgroundColor: COLORS.cardBorder, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  text: { color: COLORS.text },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 16 },
+  passwordBtn: { backgroundColor: c.cardBorder, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  text: { color: c.text },
   loginActions: { marginTop: 16, gap: 12 },
-  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder },
-  signOutLabel: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
+  signOutLabel: { fontSize: 16, fontWeight: '600', color: c.text },
+
+  // Zone de danger
+  dangerZone: {
+    marginTop: 32, padding: 16, borderRadius: 12,
+    borderWidth: 1, borderColor: c.danger + '40', backgroundColor: c.danger + '0d',
+  },
+  dangerTitle: { fontSize: 15, fontWeight: '700', color: c.danger, marginBottom: 8 },
+  dangerText: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 14 },
+  deleteAccountBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 13, borderRadius: 10,
+    borderWidth: 1, borderColor: c.danger,
+  },
+  deleteAccountLabel: { fontSize: 15, fontWeight: '700', color: c.danger },
+
+  // Modale de confirmation
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  modalCard: {
+    width: '100%', maxWidth: 400, backgroundColor: c.card,
+    borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder,
+    padding: 24, alignItems: 'center', gap: 12,
+  },
+  modalIconCircle: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: c.danger + '22', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: c.text, textAlign: 'center' },
+  modalText: { fontSize: 14, color: '#cbd5e1', textAlign: 'center', lineHeight: 20 },
+  modalInput: {
+    width: '100%', backgroundColor: c.bg, borderWidth: 1, borderColor: c.danger + '60',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 16, color: c.text, textAlign: 'center', marginTop: 4,
+  },
+  modalActions: { flexDirection: 'row', gap: 10, width: '100%', marginTop: 8 },
+  modalCancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center',
+    backgroundColor: c.cardBorder,
+  },
+  modalCancelLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+  modalDeleteBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center',
+    backgroundColor: c.danger,
+  },
+  modalDeleteBtnDisabled: { opacity: 0.45 },
+  modalDeleteLabel: { fontSize: 15, fontWeight: '700', color: '#ffffff' },
 });
+}

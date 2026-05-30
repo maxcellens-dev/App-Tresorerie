@@ -10,18 +10,12 @@ import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
 import { compressAvatarToWebP } from '../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../services/avatarService';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-};
 
 export default function ProfileScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user, signOut } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -328,11 +322,12 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
@@ -341,9 +336,9 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -352,7 +347,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -363,37 +358,38 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.danger,
+    borderColor: c.danger,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
   },
   avatarBtnDisabled: { opacity: 0.6 },
-  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.bg },
-  avatarBtnLabelDanger: { fontSize: 14, fontWeight: '600', color: COLORS.danger },
-  avatarHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  avatarBtnLabel: { fontSize: 14, fontWeight: '600', color: c.bg },
+  avatarBtnLabelDanger: { fontSize: 14, fontWeight: '600', color: c.danger },
+  avatarHint: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 16,
   },
   inputReadOnly: { opacity: 0.8 },
-  hint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 20 },
-  submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
+  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 20 },
+  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   section: { marginTop: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
-  passwordBtn: { backgroundColor: COLORS.cardBorder, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  text: { color: COLORS.text },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 16 },
+  passwordBtn: { backgroundColor: c.cardBorder, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  text: { color: c.text },
   loginActions: { marginTop: 16, gap: 12 },
-  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder },
-  signOutLabel: { fontSize: 16, fontWeight: '600', color: COLORS.text },
+  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
+  signOutLabel: { fontSize: 16, fontWeight: '600', color: c.text },
 });
+}

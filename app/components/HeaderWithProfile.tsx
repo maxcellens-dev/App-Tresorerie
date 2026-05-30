@@ -3,13 +3,8 @@ import { useRouter, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: 'transparent',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  cardBorder: '#1e293b',
-};
 
 interface HeaderWithProfileProps {
   title?: string;
@@ -24,6 +19,8 @@ interface HeaderWithProfileProps {
 }
 
 export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, hideProfile = false }: HeaderWithProfileProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const segments = useSegments();
   const { user } = useAuth();
@@ -98,7 +95,8 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -106,18 +104,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     ...(Platform.OS === 'web' ? {} : {}),
-    backgroundColor: 'rgba(2, 6, 23, 0.98)',
+    backgroundColor: c.bg,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(30, 41, 59, 0.9)',
+    borderBottomColor: c.cardBorder,
   },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 6, marginRight: 6 },
-  backText: { color: COLORS.text, marginLeft: 6, fontSize: 14, fontWeight: '600' },
-  title: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  backText: { color: c.text, marginLeft: 6, fontSize: 14, fontWeight: '600' },
+  title: { fontSize: 20, fontWeight: '700', color: c.text },
   greetingWrap: { justifyContent: 'center' },
-  greeting: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
-  greetingName: { fontSize: 18, color: COLORS.text, fontWeight: '800', marginTop: 1 },
-  date: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  greeting: { fontSize: 15, color: c.textSecondary, fontWeight: '500' },
+  greetingName: { fontSize: 18, color: c.text, fontWeight: '800', marginTop: 1 },
+  date: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn: { padding: 8 },
   avatarWrap: { padding: 4 },
@@ -126,8 +124,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.cardBorder,
+    backgroundColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
 });
+}

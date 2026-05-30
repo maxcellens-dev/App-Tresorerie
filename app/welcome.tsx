@@ -5,20 +5,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAppColors } from './hooks/useAppColors';
 
 const { width } = Dimensions.get('window');
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  accent: '#3b82f6',
-};
 
 export default function WelcomeScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -127,8 +121,9 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   background: {
     ...StyleSheet.absoluteFillObject,
     zIndex: -1,
@@ -176,20 +171,20 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 36,
     fontWeight: '800',
-    color: COLORS.text,
+    color: c.text,
     letterSpacing: -1,
     textAlign: 'center',
   },
   tagline: {
     fontSize: 18,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     marginTop: 12,
     textAlign: 'center',
     fontWeight: '500',
   },
   subtag: {
     fontSize: 13,
-    color: COLORS.emerald,
+    color: c.emerald,
     marginTop: 8,
     fontWeight: '600',
     letterSpacing: 1,
@@ -202,7 +197,7 @@ const styles = StyleSheet.create({
   ctaCard: {
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
@@ -211,12 +206,12 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 8,
   },
   ctaText: {
     fontSize: 15,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
@@ -226,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryBtn: {
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 16,
@@ -234,7 +229,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: COLORS.emerald,
+    shadowColor: c.emerald,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -243,7 +238,7 @@ const styles = StyleSheet.create({
   primaryLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.bg,
+    color: c.bg,
   },
   secondaryBtn: {
     backgroundColor: 'transparent',
@@ -251,12 +246,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
   },
   secondaryLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.text,
+    color: c.text,
   },
 
   features: {
@@ -276,11 +271,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
   },
   featureContent: {
     flex: 1,
@@ -289,12 +284,13 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 4,
   },
   featureText: {
     fontSize: 14,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     lineHeight: 20,
   },
 });
+}

@@ -19,16 +19,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
 import type { TransactionWithDetails } from '../../types/database';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-};
 
 const TYPE_LABELS: Record<string, string> = {
   checking: 'Courant',
@@ -50,6 +42,10 @@ function isInvestmentGainLossNote(note: string | null | undefined): boolean {
 }
 
 export default function AccountDetailScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
+  const modalStyles = makeModalStyles(COLORS);
+  const txDetailStyles = makeTxDetailStyles(COLORS);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -678,56 +674,57 @@ export default function AccountDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, flex: 1, minWidth: 0 },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, flex: 1, minWidth: 0 },
   buttonRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', width: '100%' },
   modifyRow: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  editBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  editBtnLabel: { fontSize: 14, fontWeight: '600', color: c.text },
   balanceCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 20,
     marginBottom: 24,
   },
-  balanceLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
-  balanceAmount: { fontSize: 26, fontWeight: '800', color: COLORS.emerald },
-  accountType: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 12 },
+  balanceLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
+  balanceAmount: { fontSize: 26, fontWeight: '800', color: c.emerald },
+  accountType: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
   loader: { marginVertical: 20 },
   emptyCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 24,
     alignItems: 'center',
     marginBottom: 16,
   },
-  emptyText: { fontSize: 14, color: COLORS.textSecondary, marginTop: 12 },
+  emptyText: { fontSize: 14, color: c.textSecondary, marginTop: 12 },
   listCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginBottom: 16,
     overflow: 'hidden',
   },
@@ -738,20 +735,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
+    borderBottomColor: c.cardBorder,
   },
   transferRowLast: { borderBottomWidth: 0 },
   transferLeft: {},
-  transferDate: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 2 },
-  transferLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  transferDate: { fontSize: 13, color: c.textSecondary, marginBottom: 2 },
+  transferLabel: { fontSize: 15, fontWeight: '600', color: c.text },
   transferAmount: { fontSize: 15, fontWeight: '700' },
-  transferAmountIn: { color: COLORS.emerald },
-  transferAmountOut: { color: COLORS.danger },
-  hint: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
-  text: { color: COLORS.text },
+  transferAmountIn: { color: c.emerald },
+  transferAmountOut: { color: c.danger },
+  hint: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
+  text: { color: c.text },
 });
+}
 
-const modalStyles = StyleSheet.create({
+function makeModalStyles(c: any) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -762,72 +761,72 @@ const modalStyles = StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 24,
   },
-  title: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
+  title: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 20, textAlign: 'center' },
+  label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
   input: {
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    color: COLORS.text,
+    borderColor: c.cardBorder,
+    color: c.text,
     fontSize: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 16,
   },
   readOnlyInput: {
-    backgroundColor: COLORS.cardBorder,
+    backgroundColor: c.cardBorder,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 16,
     opacity: 0.7,
   },
-  readOnlyText: { fontSize: 16, color: COLORS.textSecondary },
+  readOnlyText: { fontSize: 16, color: c.textSecondary },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   toggleBtn: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     paddingVertical: 12,
     alignItems: 'center',
   },
   toggleBtnActive: {
     backgroundColor: '#1f2937',
-    borderColor: COLORS.emerald,
+    borderColor: c.emerald,
   },
-  toggleLabel: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
-  toggleLabelActive: { color: COLORS.emerald },
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 10 },
+  toggleLabel: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
+  toggleLabelActive: { color: c.emerald },
+  sectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 10 },
   dropdownField: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     paddingHorizontal: 14,
     paddingVertical: 14,
     marginBottom: 14,
   },
-  dropdownText: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  dropdownText: { color: c.text, fontSize: 15, fontWeight: '600' },
   dropdownOptions: {
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginBottom: 18,
     overflow: 'hidden',
   },
@@ -835,18 +834,18 @@ const modalStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
-  dropdownOptionLabel: { color: COLORS.text, fontSize: 15 },
-  helperText: { color: COLORS.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
+  dropdownOptionLabel: { color: c.text, fontSize: 15 },
+  helperText: { color: c.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
   cancel: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  cancelLabel: { fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
+  cancelLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
   confirm: {
     flex: 1,
     paddingVertical: 14,
@@ -857,17 +856,20 @@ const modalStyles = StyleSheet.create({
   },
   confirmLabel: { fontSize: 15, fontWeight: '700', color: '#000' },
 });
+}
 
-const txDetailStyles = {
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
-  sheet: { backgroundColor: '#0f172a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: '#1e293b' },
-  handle: { width: 40, height: 4, backgroundColor: '#334155', borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
-  amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? '#34d399' : '#f87171', textAlign: 'center' as const, marginBottom: 4 }),
-  labelText: { fontSize: 16, color: '#94a3b8', textAlign: 'center' as const, marginBottom: 20 },
-  divider: { height: 1, backgroundColor: '#1e293b', marginBottom: 16 },
-  row: { flexDirection: 'row' as const, justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e293b' },
-  rowKey: { fontSize: 14, color: '#94a3b8' },
-  rowValue: { fontSize: 14, color: '#fff', fontWeight: '500' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
-  closeBtn: { marginTop: 24, backgroundColor: '#1e293b', borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
-  closeBtnText: { fontSize: 15, fontWeight: '600' as const, color: '#fff' },
-};
+function makeTxDetailStyles(c: any) {
+  return {
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
+    sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
+    handle: { width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
+    amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? '#34d399' : '#f87171', textAlign: 'center' as const, marginBottom: 4 }),
+    labelText: { fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },
+    divider: { height: 1, backgroundColor: c.cardBorder, marginBottom: 16 },
+    row: { flexDirection: 'row' as const, justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+    rowKey: { fontSize: 14, color: c.textSecondary },
+    rowValue: { fontSize: 14, color: c.text, fontWeight: '500' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
+    closeBtn: { marginTop: 24, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
+    closeBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.text },
+  };
+}

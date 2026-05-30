@@ -6,16 +6,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts, useUpdateAccount, useCloseAccount } from '../../../hooks/useAccounts';
+import { useAppColors } from '../../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-};
 
 const TYPES = [
   { value: 'checking', label: 'Courant' },
@@ -25,6 +17,8 @@ const TYPES = [
 ];
 
 export default function EditAccountScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -159,46 +153,48 @@ export default function EditAccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 20,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: COLORS.cardBorder },
-  chipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  chipText: { fontSize: 14, color: COLORS.text },
-  chipTextActive: { color: COLORS.bg, fontWeight: '600' },
-  text: { color: COLORS.text },
-  submitBtn: { backgroundColor: COLORS.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
+  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  chipText: { fontSize: 14, color: c.text },
+  chipTextActive: { color: c.bg, fontWeight: '600' },
+  text: { color: c.text },
+  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
-  closeBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 20, borderWidth: 1, borderColor: COLORS.danger },
-  closeBtnLabel: { fontSize: 16, fontWeight: '600', color: COLORS.danger },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+  closeBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 20, borderWidth: 1, borderColor: c.danger },
+  closeBtnLabel: { fontSize: 16, fontWeight: '600', color: c.danger },
   balanceInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     padding: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginBottom: 20,
   },
-  balanceInfoText: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
+  balanceInfoText: { fontSize: 13, color: c.textSecondary, flex: 1 },
 });
+}

@@ -16,16 +16,8 @@ import { useAddProject, useUpdateProject } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  primary: '#34d399',
-  border: '#1e293b',
-  background: '#020617',
-  blue: '#60a5fa',
-};
 
 interface AddProjectModalProps {
   visible: boolean;
@@ -73,6 +65,8 @@ export default function AddProjectModal({
   onSuccess,
   editingProject,
 }: AddProjectModalProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const { user } = useAuth();
   const addProjectMutation = useAddProject(user?.id || '');
   const updateProjectMutation = useUpdateProject(user?.id || '');
@@ -670,7 +664,8 @@ export default function AddProjectModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
   container: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, maxHeight: '90%', borderTopWidth: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
@@ -682,7 +677,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
   textarea: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, textAlignVertical: 'top' },
   toggleGroup: { flexDirection: 'row', gap: 6 },
-  toggleButton: { flex: 1, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 8, borderWidth: 1, borderColor: '#1e293b', alignItems: 'center' },
+  toggleButton: { flex: 1, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleText: { fontSize: 12, fontWeight: '500' },
   calculatedAmount: { fontSize: 18, fontWeight: '700', marginTop: 8 },
   dateInputContainer: { flexDirection: 'row', gap: 8, alignItems: 'center' },
@@ -713,12 +708,13 @@ const styles = StyleSheet.create({
   ponctuelContainer: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   ponctuelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
   ponctuelToggle: { padding: 2 },
-  ponctuelDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#334155', justifyContent: 'center', alignItems: 'center' },
+  ponctuelDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: c.cardBorder, justifyContent: 'center', alignItems: 'center' },
   ponctuelDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
   ponctuelLabel: { flex: 1, fontSize: 13 },
   ponctuelInput: { width: 90, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, fontSize: 13, textAlign: 'right' },
-  ponctuelDash: { width: 90, textAlign: 'right', fontSize: 13, color: '#334155' },
+  ponctuelDash: { width: 90, textAlign: 'right', fontSize: 13, color: c.cardBorder },
   ponctuelTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1 },
   ponctuelTotalLabel: { fontSize: 13, fontWeight: '600' },
   ponctuelTotalAmount: { fontSize: 14, fontWeight: '700' },
 });
+}

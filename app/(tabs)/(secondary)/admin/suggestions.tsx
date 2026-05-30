@@ -8,16 +8,8 @@ import { supabase } from '../../../lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useRoadmapIdeas, useAddRoadmapIdea, useDeleteRoadmapIdea } from '../../../hooks/useRoadmapIdeas';
+import { useAppColors } from '../../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  red: '#ef4444',
-};
 
 interface Suggestion {
   id: string;
@@ -43,6 +35,8 @@ function useAllSuggestions() {
 }
 
 export default function AdminSuggestions() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -205,51 +199,53 @@ export default function AdminSuggestions() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  backLabel: { fontSize: 16, color: COLORS.text, marginLeft: 4 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
 
   // Roadmap (idées en cours de dev)
-  sectionLabel: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  sectionHint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 12, lineHeight: 16 },
+  sectionLabel: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 4 },
+  sectionHint: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
   roadmapCard: {
-    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
     padding: 14, marginBottom: 28, gap: 10,
   },
   addRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   addInput: {
-    flex: 1, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: 14,
+    flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 14,
   },
   addBtn: {
-    width: 44, height: 44, borderRadius: 10, backgroundColor: COLORS.emerald,
+    width: 44, height: 44, borderRadius: 10, backgroundColor: c.emerald,
     alignItems: 'center', justifyContent: 'center',
   },
-  roadmapEmpty: { fontSize: 13, color: COLORS.textSecondary, fontStyle: 'italic', paddingVertical: 6 },
+  roadmapEmpty: { fontSize: 13, color: c.textSecondary, fontStyle: 'italic', paddingVertical: 6 },
   roadmapRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder,
   },
-  roadmapText: { flex: 1, fontSize: 14, color: COLORS.text },
+  roadmapText: { flex: 1, fontSize: 14, color: c.text },
 
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
-  subtitle: { fontSize: 13, color: COLORS.textSecondary },
-  deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  deleteAllText: { fontSize: 12, fontWeight: '600', color: COLORS.red },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 4 },
+  subtitle: { fontSize: 13, color: c.textSecondary },
+  deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  deleteAllText: { fontSize: 12, fontWeight: '600', color: c.red },
   emptyCard: { alignItems: 'center', marginTop: 60, gap: 12 },
-  emptyText: { fontSize: 14, color: COLORS.textSecondary },
+  emptyText: { fontSize: 14, color: c.textSecondary },
   card: {
-    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
     padding: 16, marginBottom: 12,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   userBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  userName: { fontSize: 13, fontWeight: '600', color: COLORS.emerald },
-  dateText: { fontSize: 11, color: COLORS.textSecondary },
-  contentText: { fontSize: 14, color: COLORS.text, lineHeight: 20, marginBottom: 12 },
+  userName: { fontSize: 13, fontWeight: '600', color: c.emerald },
+  dateText: { fontSize: 11, color: c.textSecondary },
+  contentText: { fontSize: 14, color: c.text, lineHeight: 20, marginBottom: 12 },
   deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
-  deleteBtnText: { fontSize: 12, color: COLORS.red },
+  deleteBtnText: { fontSize: 12, color: c.red },
 });
+}

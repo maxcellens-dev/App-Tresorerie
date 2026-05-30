@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { TransactionWithDetails } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
 interface TransactionAmountCellProps {
   amount: number;
@@ -36,6 +37,8 @@ export default function TransactionAmountCell({
   isRecurring,
   styleOverrides,
 }: TransactionAmountCellProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const [menuVisible, setMenuVisible] = useState(false);
 
   const isPos = amount >= 0;
@@ -111,10 +114,11 @@ export default function TransactionAmountCell({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   text: {
     fontSize: 13,
-    color: '#ffffff',
+    color: c.text,
   },
   positive: {
     color: '#34d399',
@@ -134,10 +138,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   menu: {
-    backgroundColor: '#0f172a',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: c.cardBorder,
     overflow: 'hidden',
     minWidth: 220,
   },
@@ -152,7 +156,8 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 14,
-    color: '#ffffff',
+    color: c.text,
     fontWeight: '500',
   },
 });
+}

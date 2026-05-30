@@ -5,15 +5,8 @@ import { useRouter } from 'expo-router';
 import Carousel from './Carousel';
 import ObjectiveCarouselCard from './ObjectiveCarouselCard';
 import type { Objective } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  blue: '#60a5fa',
-};
 
 interface ObjectivesListProps {
   objectives: Objective[];
@@ -23,6 +16,8 @@ interface ObjectivesListProps {
 }
 
 export default function ObjectivesListCard({ objectives, isLoading = false, onViewAll, onCreate }: ObjectivesListProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const totalObjectives = objectives.length;
 
@@ -66,7 +61,8 @@ export default function ObjectivesListCard({ objectives, isLoading = false, onVi
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   container: {
     gap: 12,
   },
@@ -83,12 +79,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: c.text,
   },
   count: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-    backgroundColor: '#1e293b',
+    color: c.textSecondary,
+    backgroundColor: c.cardBorder,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -103,12 +99,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
   emptyHint: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
   },
 
 });
+}

@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import type { FinancialProfile } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
 const PROFILE_LABELS: Record<FinancialProfile, string> = {
   economiser: 'Économiser',
@@ -22,19 +23,12 @@ const DEFAULT_ALLOCATIONS: Record<FinancialProfile, { save: number; invest: numb
   investir: { save: 15, invest: 45, enjoy: 20, keep: 20 },
 };
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-  danger: '#f87171',
-};
 
 const ADMIN_URL = process.env.EXPO_PUBLIC_ADMIN_URL || '';
 
 export default function SettingsScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -241,35 +235,36 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 20 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   section: { marginBottom: 28 },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderBottomWidth: 0,
     gap: 12,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   rowLast: { borderBottomWidth: 1 },
-  rowLabel: { flex: 1, fontSize: 16, color: COLORS.text, fontWeight: '500' },
-  rowHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: 8, paddingHorizontal: 4 },
+  rowLabel: { flex: 1, fontSize: 16, color: c.text, fontWeight: '500' },
+  rowHint: { fontSize: 12, color: c.textSecondary, marginTop: 8, paddingHorizontal: 4 },
   marginInput: {
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 8,
-    color: COLORS.text,
+    color: c.text,
     fontSize: 16,
     fontWeight: '600' as const,
     textAlign: 'center' as const,
@@ -292,21 +287,21 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 14,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
   },
   strategyCardActive: {
-    borderColor: COLORS.emerald,
+    borderColor: c.emerald,
     backgroundColor: '#153a20',
   },
   strategyLabel: {
-    color: COLORS.text,
+    color: c.text,
     fontSize: 14,
     fontWeight: '600',
   },
   strategyLabelActive: {
-    color: COLORS.emerald,
+    color: c.emerald,
   },
   allocationInputsBlock: {
     marginTop: 14,
@@ -319,24 +314,24 @@ const styles = StyleSheet.create({
   },
   allocationInput: {
     flex: 1,
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 8,
-    color: COLORS.text,
+    color: c.text,
     fontSize: 16,
     fontWeight: '600' as const,
     paddingHorizontal: 12,
     height: 44,
   },
   allocationSuffix: {
-    color: COLORS.text,
+    color: c.text,
     fontSize: 16,
     fontWeight: '700',
   },
   saveButton: {
     marginTop: 16,
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -345,11 +340,12 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   saveButtonText: {
-    color: '#020617',
+    color: c.bg,
     fontSize: 16,
     fontWeight: '700',
   },
   allocationWarning: {
-    color: COLORS.danger,
+    color: c.danger,
   },
 });
+}

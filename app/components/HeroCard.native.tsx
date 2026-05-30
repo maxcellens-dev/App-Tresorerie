@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = { card: '#0f172a', cardBorder: '#1e293b' };
 
 export default function HeroCard({
   children,
@@ -11,6 +11,8 @@ export default function HeroCard({
   children: React.ReactNode;
   style?: object;
 }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   return (
     <LinearGradient
       colors={[COLORS.card, COLORS.cardBorder]}
@@ -23,6 +25,8 @@ export default function HeroCard({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   card: {},
 });
+}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = { card: '#0f172a' };
 
 export default function HeroCard({
   children,
@@ -10,9 +10,13 @@ export default function HeroCard({
   children: React.ReactNode;
   style?: object;
 }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
-  card: { backgroundColor: COLORS.card },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  card: { backgroundColor: c.card },
 });
+}

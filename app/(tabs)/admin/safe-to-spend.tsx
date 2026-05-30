@@ -4,14 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-};
 
 const STEP_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#22d3ee', '#34d399'];
 
@@ -53,6 +47,8 @@ const VARIABLES = [
 ];
 
 export default function SafeToSpendAdmin() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
 
   return (
@@ -124,45 +120,46 @@ export default function SafeToSpendAdmin() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  backLabel: { fontSize: 16, color: COLORS.text, marginLeft: 4 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 },
 
   /* Formula card */
   formulaCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 24,
     gap: 2,
   },
   formulaLine: {
     fontSize: 12,
-    color: COLORS.text,
+    color: c.text,
     fontFamily: 'monospace',
     lineHeight: 20,
   },
   formulaDivider: {
     fontSize: 10,
-    color: COLORS.cardBorder,
+    color: c.cardBorder,
     fontFamily: 'monospace',
   },
 
   /* Steps */
   stepCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderLeftWidth: 4,
     padding: 14,
     marginBottom: 10,
@@ -171,14 +168,14 @@ const styles = StyleSheet.create({
   stepLabel: { fontSize: 13, fontWeight: '700' },
   stepFormula: {
     fontSize: 11,
-    color: COLORS.text,
+    color: c.text,
     fontFamily: 'monospace',
-    backgroundColor: COLORS.bg,
+    backgroundColor: c.bg,
     borderRadius: 6,
     padding: 8,
     overflow: 'hidden',
   },
-  stepExplanation: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  stepExplanation: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   /* Variables */
   varRow: {
@@ -187,21 +184,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
+    borderBottomColor: c.cardBorder,
   },
   varName: { fontSize: 12, fontWeight: '600', color: '#60a5fa' },
-  varSource: { fontSize: 11, color: COLORS.textSecondary, flex: 1, textAlign: 'right' },
+  varSource: { fontSize: 11, color: c.textSecondary, flex: 1, textAlign: 'right' },
 
   /* Link */
   linkCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     padding: 16,
     gap: 12,
   },
-  linkText: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 18 },
+  linkText: { fontSize: 12, color: c.textSecondary, lineHeight: 18 },
   linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   linkBtnText: { fontSize: 13, color: '#60a5fa', fontWeight: '600' },
 });
+}

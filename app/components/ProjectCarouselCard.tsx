@@ -1,21 +1,16 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Project } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  primary: '#22d3ee',
-  border: '#1e293b',
-  background: '#020617',
-};
 
 interface ProjectCarouselCardProps {
   project: Project & { progress_percentage?: number };
 }
 
 export default function ProjectCarouselCard({ project }: ProjectCarouselCardProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const progress = useMemo(() => {
     // Use computed progress_percentage from pilotage if available
     if (typeof project.progress_percentage === 'number') {
@@ -95,7 +90,8 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   card: {
     borderWidth: 1,
     borderRadius: 12,
@@ -149,3 +145,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+}

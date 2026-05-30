@@ -3,19 +3,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 const APP_VERSION = '1.0.0';
 
 export default function AboutScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
 
   return (
@@ -76,23 +71,25 @@ export default function AboutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   versionCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 24, alignItems: 'center', gap: 8, marginBottom: 32,
   },
-  appName: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  tagline: { fontSize: 14, color: COLORS.emerald, fontWeight: '500' },
-  versionBadge: { backgroundColor: '#1e293b', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
-  versionText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-  card: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder, overflow: 'hidden', marginBottom: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder },
+  appName: { fontSize: 24, fontWeight: '800', color: c.text },
+  tagline: { fontSize: 14, color: c.emerald, fontWeight: '500' },
+  versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
+  versionText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden', marginBottom: 24 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
   rowLast: { borderBottomWidth: 0 },
   rowContent: { flex: 1 },
-  rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  rowHint: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  footer: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginTop: 16, marginBottom: 40 },
+  rowLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+  rowHint: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  footer: { fontSize: 12, color: c.textSecondary, textAlign: 'center', marginTop: 16, marginBottom: 40 },
 });
+}

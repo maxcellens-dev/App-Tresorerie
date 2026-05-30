@@ -5,15 +5,8 @@ import { useRouter } from 'expo-router';
 import Carousel from './Carousel';
 import ProjectCarouselCard from './ProjectCarouselCard';
 import type { Project } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#22d3ee',
-};
 
 interface ProjectsListProps {
   projects: Project[];
@@ -23,6 +16,8 @@ interface ProjectsListProps {
 }
 
 export default function ProjectsListCard({ projects, isLoading = false, onViewAll, onCreate }: ProjectsListProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const totalProjects = projects.length;
 
@@ -66,7 +61,8 @@ export default function ProjectsListCard({ projects, isLoading = false, onViewAl
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   container: {
     gap: 12,
   },
@@ -83,12 +79,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.text,
+    color: c.text,
   },
   count: {
     fontSize: 12,
-    color: COLORS.textSecondary,
-    backgroundColor: '#1e293b',
+    color: c.textSecondary,
+    backgroundColor: c.cardBorder,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -103,12 +99,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
   emptyHint: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
   },
 
 });
+}

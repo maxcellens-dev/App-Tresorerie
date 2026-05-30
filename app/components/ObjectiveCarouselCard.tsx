@@ -3,20 +3,16 @@ import { View, Text, StyleSheet } from 'react-native';
 import type { ObjectiveWithAccount } from '../types/database';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../hooks/useAccountTransactionsByYear';
 import { accountColor } from '../theme/colors';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  border: '#1e293b',
-  background: '#020617',
-};
 
 interface ObjectiveCarouselCardProps {
   objective: ObjectiveWithAccount & { account_type?: string };
 }
 
 export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCardProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const acctType = objective.linked_account?.type ?? objective.account_type ?? 'savings';
   const accentColor = accountColor(acctType);
   // For annual objectives, fetch transactions from linked account
@@ -103,7 +99,8 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   card: {
     borderWidth: 1,
     borderRadius: 12,
@@ -157,3 +154,4 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 });
+}

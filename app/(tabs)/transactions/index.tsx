@@ -14,15 +14,8 @@ import type { TransactionWithDetails, RecurrenceRule } from '../../types/databas
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -88,6 +81,8 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
 }
 
 export default function TransactionsListScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();
   const { user } = useAuth();
@@ -732,42 +727,43 @@ export default function TransactionsListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   header: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text },
+  title: { fontSize: 24, fontWeight: '700', color: c.text },
   addBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     paddingHorizontal: 10,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  addBtnLabel: { fontSize: 13, fontWeight: '600', color: c.text },
   clearFilter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingVertical: 8 },
-  clearFilterText: { fontSize: 14, color: COLORS.emerald, fontWeight: '600' },
+  clearFilterText: { fontSize: 14, color: c.emerald, fontWeight: '600' },
   activeFilters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(52,211,153,0.1)', borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  filterChipText: { fontSize: 13, color: COLORS.emerald, fontWeight: '600' },
+  filterChipText: { fontSize: 13, color: c.emerald, fontWeight: '600' },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
   monthBlock: { marginBottom: 24 },
   monthHeader: { paddingVertical: 10, paddingHorizontal: 4, marginBottom: 8 },
-  monthHeaderText: { fontSize: 15, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'capitalize' },
+  monthHeaderText: { fontSize: 15, fontWeight: '700', color: c.textSecondary, textTransform: 'capitalize' },
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     overflow: 'hidden',
   },
   row: {
@@ -777,7 +773,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
+    borderBottomColor: c.cardBorder,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   rowLast: { borderBottomWidth: 0 },
@@ -815,10 +811,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#a78bfa',
     marginRight: 6,
   },
-  rowLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text, flexShrink: 1 },
-  rowMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  rowAmount: { fontSize: 15, fontWeight: '700', color: COLORS.emerald },
-  rowAmountNeg: { color: COLORS.textSecondary },
+  rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flexShrink: 1 },
+  rowMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rowAmount: { fontSize: 15, fontWeight: '700', color: c.emerald },
+  rowAmountNeg: { color: c.textSecondary },
   reservationBadge: {
     backgroundColor: '#22d3ee18',
     borderWidth: 1,
@@ -832,8 +828,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  empty: { padding: 24, color: COLORS.textSecondary, textAlign: 'center' },
-  hint: { marginTop: 16, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
+  empty: { padding: 24, color: c.textSecondary, textAlign: 'center' },
+  hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   periodNav: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -841,10 +837,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 8,
     paddingVertical: 12,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
   },
   periodBtn: { 
     padding: 8,
@@ -854,13 +850,13 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginLeft: 4,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   filterBtnActive: {
-    backgroundColor: COLORS.emerald,
-    borderColor: COLORS.emerald,
+    backgroundColor: c.emerald,
+    borderColor: c.emerald,
   },
   accountFilterScroll: {
     marginBottom: 12,
@@ -871,21 +867,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginRight: 8,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
   },
   accountFilterChipActive: {
-    backgroundColor: COLORS.emerald,
-    borderColor: COLORS.emerald,
+    backgroundColor: c.emerald,
+    borderColor: c.emerald,
   },
   accountFilterChipText: {
     fontSize: 13,
-    color: COLORS.text,
+    color: c.text,
     fontWeight: '500',
   },
   accountFilterChipTextActive: {
-    color: COLORS.bg,
+    color: c.bg,
     fontWeight: '600',
   },
   periodLabel: {
@@ -895,22 +891,23 @@ const styles = StyleSheet.create({
   periodText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.text,
+    color: c.text,
     textAlign: 'center',
     textTransform: 'capitalize',
   },
   periodLabelHint: {
     fontSize: 11,
-    color: COLORS.emerald,
+    color: c.emerald,
     marginTop: 2,
   },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  confirmBox: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
-  confirmTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
-  confirmMessage: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 20 },
+  confirmBox: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
+  confirmTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
+  confirmMessage: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
   confirmBtns: { flexDirection: 'row', gap: 10 },
-  confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
-  confirmCancelText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+  confirmCancelText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
   confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   confirmOkText: { fontSize: 14, fontWeight: '700' },
 });
+}

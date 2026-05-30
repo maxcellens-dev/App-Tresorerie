@@ -9,6 +9,7 @@ import { useConfigSync } from './hooks/useConfigSync';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
 import ProfileChangeModal from './components/ProfileChangeModal';
+import { useAppColors } from './hooks/useAppColors';
 import './global.css';
 
 const queryClient = new QueryClient({
@@ -27,6 +28,8 @@ function ConfigSync() {
 }
 
 function AppChrome() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const segments = useSegments();
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -84,15 +87,17 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#020617' },
-  headerSafe: {
-    paddingHorizontal: 24,
-    paddingTop: 6,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(30, 41, 59, 0.9)',
-    backgroundColor: 'rgba(2, 6, 23, 0.98)',
-  },
-  content: { flex: 1 },
-});
+function makeStyles(c: any) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    headerSafe: {
+      paddingHorizontal: 24,
+      paddingTop: 6,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: c.cardBorder,
+      backgroundColor: c.bg,
+    },
+    content: { flex: 1 },
+  });
+}

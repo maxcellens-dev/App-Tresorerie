@@ -1,14 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import type { Category } from '../types/database';
-
-const COLORS = {
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
+import { useAppColors } from '../hooks/useAppColors';
 
 export type CategoryGroup = { parentId: string; parentName: string; children: Category[] };
 
@@ -43,6 +36,8 @@ interface CategoryPickerProps {
 }
 
 export default function CategoryPicker({ groups, selectedCategoryId, onSelect, label = 'Sous-catégorie (optionnel)' }: CategoryPickerProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const childIds = useMemo(() => new Set(groups.flatMap((g) => g.children.map((c) => c.id))), [groups]);
   const isNoneSelected = !selectedCategoryId || !childIds.has(selectedCategoryId);
   return (
@@ -83,18 +78,20 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   block: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
-  listContainer: { maxHeight: 200, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: 12, backgroundColor: COLORS.card },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  listContainer: { maxHeight: 200, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.card },
   list: { flex: 1 },
   listContent: { paddingVertical: 4, paddingBottom: 12 },
   section: { marginTop: 8 },
-  sectionHeader: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, paddingHorizontal: 12, paddingVertical: 6 },
+  sectionHeader: { fontSize: 12, fontWeight: '700', color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 6 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12 },
   rowChild: { paddingLeft: 24 },
-  rowActive: { backgroundColor: 'rgba(52, 211, 153, 0.15)' },
-  rowText: { fontSize: 15, color: COLORS.text },
-  rowTextActive: { color: COLORS.emerald, fontWeight: '600' },
-  hint: { fontSize: 13, color: COLORS.textSecondary, paddingHorizontal: 12, paddingVertical: 8 },
-});
+  rowActive: { backgroundColor: c.emerald + '26' },
+  rowText: { fontSize: 15, color: c.text },
+  rowTextActive: { color: c.emerald, fontWeight: '600' },
+  hint: { fontSize: 13, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 8 },
+  });
+}

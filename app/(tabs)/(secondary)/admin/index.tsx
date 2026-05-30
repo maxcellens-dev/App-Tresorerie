@@ -6,17 +6,12 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
+import { useAppColors } from '../../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function AdminHub() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -120,29 +115,31 @@ export default function AdminHub() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  backLabel: { fontSize: 16, color: COLORS.text, marginLeft: 4 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 24, lineHeight: 20 },
+  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   itemBtn: {
     flex: 1,
     minWidth: 140,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconBox: { width: 56, height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  itemTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 4 },
-  itemDesc: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' },
-  text: { color: COLORS.text },
+  itemTitle: { fontSize: 14, fontWeight: '700', color: c.text, textAlign: 'center', marginBottom: 4 },
+  itemDesc: { fontSize: 12, color: c.textSecondary, textAlign: 'center' },
+  text: { color: c.text },
 });
+}

@@ -1,18 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  violet: '#a78bfa',
-  emerald: '#34d399',
-  orange: '#f59e0b',
-  red: '#ef4444',
-  blue: '#60a5fa',
-};
 
 interface SavingsGaugeProps {
   current: number;
@@ -22,6 +11,8 @@ interface SavingsGaugeProps {
 }
 
 export default function SavingsGaugeCard({ current, thresholdMin, thresholdOptimal, thresholdComfort }: SavingsGaugeProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   // Déterminer la zone et la couleur
   let status = '';
   let color = '';
@@ -67,18 +58,19 @@ export default function SavingsGaugeCard({ current, thresholdMin, thresholdOptim
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     gap: 16,
   },
   label: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -89,7 +81,7 @@ const styles = StyleSheet.create({
   },
   gaugeBackground: {
     height: 8,
-    backgroundColor: '#1e293b',
+    backgroundColor: c.cardBorder,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -106,7 +98,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 2,
     height: '100%',
-    backgroundColor: COLORS.textSecondary,
+    backgroundColor: c.textSecondary,
     opacity: 0.3,
     top: 0,
   },
@@ -133,22 +125,23 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 2,
-    backgroundColor: COLORS.red,
+    backgroundColor: c.red,
   },
   legendColorOptimal: {
     width: 12,
     height: 12,
     borderRadius: 2,
-    backgroundColor: COLORS.orange,
+    backgroundColor: c.orange,
   },
   legendColorComfort: {
     width: 12,
     height: 12,
     borderRadius: 2,
-    backgroundColor: COLORS.emerald,
+    backgroundColor: c.emerald,
   },
   legendText: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
   },
 });
+}

@@ -1,23 +1,16 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
+import { useAppColors } from '../../hooks/useAppColors';
+import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
-
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 const APP_VERSION = '1.0.0';
 
@@ -27,7 +20,13 @@ export default function SettingsScreen() {
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
 
+  const COLORS = useAppColors();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+
   const [marginInput, setMarginInput] = useState('');
+
+  const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
+  const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
 
   // ── Guide "bulles" ──
   const guide = useScreenGuide('parametres', user?.id);
@@ -39,7 +38,7 @@ export default function SettingsScreen() {
     {
       getRef: () => categoriesRowRef,
       icon: 'pie-chart-outline',
-      iconColor: '#34d399',
+      iconColor: COLORS.emerald,
       title: 'Gérer les catégories',
       description: 'Ajoutez, renommez ou supprimez vos catégories et sous-catégories de dépenses et de recettes. Elles structurent votre plan de trésorerie et vos statistiques.',
     },
@@ -59,13 +58,16 @@ export default function SettingsScreen() {
     updateProfile.mutate({ safety_margin_percent: val });
   }, [marginInput, updateProfile]);
 
-  // Init margin from profile (only once)
   const currentMargin = (profile as any)?.safety_margin_percent;
   useEffect(() => {
     if (currentMargin !== undefined && currentMargin !== null) {
       setMarginInput(String(currentMargin));
     }
   }, [currentMargin]);
+
+  // ── Thème ──
+  const setMode = (mode: ThemeMode) => updateProfile.mutate({ theme_mode: mode });
+  const setPreset = (preset: ThemePreset) => updateProfile.mutate({ theme_preset: preset });
 
   // ── Sign out ──
   async function handleSignOut() {
@@ -90,7 +92,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -98,7 +100,7 @@ export default function SettingsScreen() {
           {/* ── Mon compte ── */}
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <View style={styles.card}>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
               <Ionicons name="person-circle-outline" size={20} color={COLORS.emerald} />
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Mon profil</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.emerald} />
@@ -148,6 +150,52 @@ export default function SettingsScreen() {
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
                 Pourcentage de marge sur les dépenses en sécurité.
               </Text>
+            </View>
+          </View>
+
+          {/* ── Apparence ── */}
+          <Text style={styles.sectionTitle}>Apparence</Text>
+          <View style={styles.card}>
+            {/* Mode clair / sombre */}
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+              <Text style={styles.rowLabel}>Mode d'affichage</Text>
+              <View style={styles.segmentRow}>
+                {THEME_MODES.map((m) => {
+                  const active = currentMode === m.id;
+                  return (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[styles.segment, active && styles.segmentActive]}
+                      onPress={() => setMode(m.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={m.icon as any} size={16} color={active ? COLORS.bg : COLORS.textSecondary} />
+                      <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{m.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Preset de couleur */}
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
+              <Text style={styles.rowLabel}>Couleur d'accent</Text>
+              <View style={styles.presetRow}>
+                {THEME_PRESETS.map((p) => {
+                  const active = currentPreset === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.presetDot, { backgroundColor: p.swatch }, active && styles.presetDotActive]}
+                      onPress={() => setPreset(p.id)}
+                      activeOpacity={0.8}
+                      accessibilityLabel={p.label}
+                    >
+                      {active && <Ionicons name="checkmark" size={18} color="#ffffff" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           </View>
 
@@ -207,42 +255,58 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
-  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 100 },
-  text: { color: COLORS.text },
+function makeStyles(c: AppColors) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.bg },
+    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingBottom: 100 },
+    text: { color: c.text },
 
-  // Fields
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 },
-  input: {
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 12,
-  },
-  saveBtn: { backgroundColor: COLORS.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
-  saveBtnLabel: { fontSize: 15, fontWeight: '700', color: COLORS.bg },
+    fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6 },
+    input: {
+      backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 12,
+    },
+    saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
+    saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
 
-  // Sections
-  sectionTitle: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  card: {
-    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder,
-    overflow: 'hidden', marginBottom: 20,
-  },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingVertical: 14, paddingHorizontal: 16,
-    borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder,
-  },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: COLORS.text },
+    sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    card: {
+      backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
+      overflow: 'hidden', marginBottom: 20,
+    },
+    row: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingVertical: 14, paddingHorizontal: 16,
+      borderBottomWidth: 1, borderBottomColor: c.cardBorder,
+    },
+    rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
 
-  // Version
-  versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
-  appName: { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  versionBadge: { backgroundColor: '#1e293b', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
+    // Apparence
+    segmentRow: { flexDirection: 'row', gap: 8 },
+    segment: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingVertical: 11, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
+    },
+    segmentActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+    segmentLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+    segmentLabelActive: { color: c.bg },
+    presetRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    presetDot: {
+      width: 32, height: 32, borderRadius: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    presetDotActive: {
+      borderWidth: 2, borderColor: c.text,
+    },
 
-  // Sign out
-  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.cardBorder, marginBottom: 8 },
-  signOutLabel: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  footer: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', marginTop: 12, marginBottom: 40 },
-});
+    versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
+    appName: { fontSize: 18, fontWeight: '800', color: c.text },
+    versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
+
+    signOutBtn: { backgroundColor: c.card, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 8 },
+    signOutLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+    footer: { fontSize: 11, color: c.textSecondary, textAlign: 'center', marginTop: 12, marginBottom: 40 },
+  });
+}

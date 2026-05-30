@@ -1,16 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  amber: '#f59e0b',
-  teal: '#2dd4bf',
-  red: '#ef4444',
-};
 
 interface VariableTrendProps {
   current: number;
@@ -19,6 +10,8 @@ interface VariableTrendProps {
 }
 
 export default function VariableTrendCard({ current, average, percentage }: VariableTrendProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const color =
     percentage > 100 ? COLORS.red :
     percentage > 70 ? COLORS.amber :
@@ -56,13 +49,14 @@ export default function VariableTrendCard({ current, average, percentage }: Vari
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     gap: 12,
   },
   header: {
@@ -72,7 +66,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -83,7 +77,7 @@ const styles = StyleSheet.create({
   },
   barContainer: {
     height: 6,
-    backgroundColor: '#1e293b',
+    backgroundColor: c.cardBorder,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -93,7 +87,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     marginTop: 4,
   },
   statusMessage: {
@@ -102,3 +96,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+}

@@ -25,17 +25,12 @@ import { useAccountTransactionsByYear, calculateYearlyTotal } from '../../hooks/
 import AddObjectiveModal from '../../components/AddObjectiveModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { accountColor } from '../../theme/colors';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  primary: '#34d399',
-  border: '#1e293b',
-  background: '#020617',
-};
 
 export default function ObjectivesScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -427,8 +422,9 @@ export default function ObjectivesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.background },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, width: '100%' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
@@ -436,15 +432,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.surface,
+    backgroundColor: c.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  addBtnLabel: { fontSize: 13, fontWeight: '600', color: c.text },
   container: {
     flex: 1,
   },
@@ -458,10 +454,10 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   adviceCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: c.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     borderLeftWidth: 4,
     padding: 16,
     marginBottom: 16,
@@ -478,7 +474,7 @@ const styles = StyleSheet.create({
   },
   adviceMessage: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     lineHeight: 18,
   },
   objectiveCard: {
@@ -608,10 +604,10 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   confirmDialog: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: c.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     padding: 24,
     width: '80%',
     maxWidth: 320,
@@ -647,3 +643,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+}

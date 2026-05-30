@@ -7,17 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { supabase } from '../../../lib/supabase';
+import { useAppColors } from '../../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function StyleEditor() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -99,7 +94,7 @@ export default function StyleEditor() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={["left", "right", "bottom"]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#ffffff" />
+          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Admin</Text>
         </TouchableOpacity>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -134,20 +129,22 @@ export default function StyleEditor() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  backLabel: { fontSize: 16, color: '#ffffff', marginLeft: 4 },
-  title: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 14 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
+  title: { fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 14 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
-  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: COLORS.cardBorder },
-  label: { color: COLORS.textSecondary, marginBottom: 8, fontWeight: '600' },
-  smallLabel: { color: COLORS.text, marginBottom: 6 },
-  input: { backgroundColor: '#ffffff10', color: COLORS.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#111', marginBottom: 8 },
+  card: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.cardBorder },
+  label: { color: c.textSecondary, marginBottom: 8, fontWeight: '600' },
+  smallLabel: { color: c.text, marginBottom: 6 },
+  input: { backgroundColor: '#ffffff10', color: c.text, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#111', marginBottom: 8 },
   saveBtn: { marginTop: 12, backgroundColor: '#0ea5a8', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  saveLabel: { color: COLORS.bg, fontWeight: '700' },
+  saveLabel: { color: c.bg, fontWeight: '700' },
   message: { marginTop: 10 },
-  text: { color: COLORS.text },
+  text: { color: c.text },
 });
+}

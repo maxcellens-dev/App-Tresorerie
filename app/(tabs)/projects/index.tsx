@@ -25,17 +25,12 @@ import {
 } from '../../hooks/useProjects';
 import AddProjectModal from '../../components/AddProjectModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  surface: '#0f172a',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  primary: '#22d3ee',
-  border: '#1e293b',
-  background: '#020617',
-};
 
 export default function ProjectsScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -592,8 +587,9 @@ export default function ProjectsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.background },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.background },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, width: '100%' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
@@ -601,15 +597,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.surface,
+    backgroundColor: c.surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  addBtnLabel: { fontSize: 13, fontWeight: '600', color: c.text },
   container: {
     flex: 1,
   },
@@ -769,10 +765,10 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   confirmDialog: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: c.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     padding: 20,
     width: '88%',
     maxWidth: 380,
@@ -795,12 +791,12 @@ const styles = StyleSheet.create({
   deleteOption: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     padding: 12,
   },
   deleteOptionActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '08',
+    borderColor: c.primary,
+    backgroundColor: c.primary + '08',
   },
   deleteOptionRadio: {
     flexDirection: 'row',
@@ -812,7 +808,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
@@ -844,15 +840,15 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    borderColor: c.border,
+    backgroundColor: c.background,
   },
   dateChipActive: {
     borderColor: '#f59e0b',
     backgroundColor: '#f59e0b20',
   },
   dateChipText: {
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontSize: 12,
     fontWeight: '500',
   },
@@ -893,11 +889,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     marginBottom: 12,
   },
   archivedToggleActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
+    borderColor: c.primary,
+    backgroundColor: c.primary + '10',
   },
 });
+}

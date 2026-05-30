@@ -9,6 +9,7 @@ import {
   Animated, Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '../hooks/useAppColors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -29,18 +30,12 @@ interface Props {
   screenTitle?: string;
 }
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  border: '#1e293b',
-  text: '#ffffff',
-  sub: '#94a3b8',
-  emerald: '#34d399',
-};
 
 export default function OnboardingGuide({
   visible, steps, currentStep, onNext, onSkip, screenTitle,
 }: Props) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const cardAnim = useRef(new Animated.Value(0)).current;
@@ -136,7 +131,8 @@ export default function OnboardingGuide({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(2, 6, 23, 0.75)',
@@ -147,11 +143,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: c.border,
     paddingBottom: 40,
     paddingHorizontal: 24,
     paddingTop: 16,
@@ -159,23 +155,23 @@ const styles = StyleSheet.create({
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: '#334155', alignSelf: 'center', marginBottom: 12,
+    backgroundColor: c.cardBorder, alignSelf: 'center', marginBottom: 12,
   },
   header: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 16,
   },
-  screenTitle: { fontSize: 13, color: COLORS.sub, fontWeight: '600' },
+  screenTitle: { fontSize: 13, color: c.sub, fontWeight: '600' },
   skipBtn: { paddingHorizontal: 12, paddingVertical: 6 },
-  skipLabel: { fontSize: 13, color: COLORS.sub },
+  skipLabel: { fontSize: 13, color: c.sub },
 
   dots: { flexDirection: 'row', gap: 6, marginBottom: 24, justifyContent: 'center' },
   dot: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: '#1e293b',
-    borderWidth: 1, borderColor: '#334155',
+    width: 8, height: 8, borderRadius: 4, backgroundColor: c.cardBorder,
+    borderWidth: 1, borderColor: c.cardBorder,
   },
-  dotActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald, width: 20 },
-  dotDone: { backgroundColor: '#1a3a2a', borderColor: COLORS.emerald },
+  dotActive: { backgroundColor: c.emerald, borderColor: c.emerald, width: 20 },
+  dotDone: { backgroundColor: '#1a3a2a', borderColor: c.emerald },
 
   stepContent: { alignItems: 'center', gap: 12, marginBottom: 28 },
   iconBox: {
@@ -183,24 +179,25 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, marginBottom: 4,
   },
-  stepTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
+  stepTitle: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
   stepDesc: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 22, paddingHorizontal: 8 },
   hintRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#1e293b', borderRadius: 10,
+    backgroundColor: c.cardBorder, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 6,
   },
-  hintText: { fontSize: 12, color: COLORS.sub, fontWeight: '500' },
+  hintText: { fontSize: 12, color: c.sub, fontWeight: '500' },
 
   footer: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
   },
-  stepCounter: { fontSize: 13, color: COLORS.sub, fontWeight: '600' },
+  stepCounter: { fontSize: 13, color: c.sub, fontWeight: '600' },
   nextBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.emerald, borderRadius: 14,
+    backgroundColor: c.emerald, borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: 24,
   },
-  nextLabel: { fontSize: 15, fontWeight: '700', color: COLORS.bg },
+  nextLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
 });
+}

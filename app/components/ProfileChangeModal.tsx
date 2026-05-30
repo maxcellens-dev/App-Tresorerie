@@ -4,15 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages } from '../hooks/useFinancialProfile';
 import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 interface Props {
   userId: string | undefined;
@@ -50,6 +43,8 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
 };
 
 export default function ProfileChangeModal({ userId }: Props) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
@@ -160,18 +155,19 @@ export default function ProfileChangeModal({ userId }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     maxHeight: '85%',
   },
   sheetContent: {
@@ -187,31 +183,32 @@ const styles = StyleSheet.create({
   },
   directionText: { fontSize: 13, fontWeight: '700' },
 
-  title: { fontSize: 22, fontWeight: '800', color: COLORS.text, lineHeight: 28 },
+  title: { fontSize: 22, fontWeight: '800', color: c.text, lineHeight: 28 },
 
   profileCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     borderWidth: 2, borderRadius: 16, padding: 16,
-    backgroundColor: '#0c1a2e',
+    backgroundColor: c.card,
   },
   profileEmoji: { fontSize: 36 },
   profileInfo: { flex: 1, gap: 2 },
   profileName: { fontSize: 17, fontWeight: '800' },
-  profileTier: { fontSize: 12, color: COLORS.textSecondary },
+  profileTier: { fontSize: 12, color: c.textSecondary },
 
   body: { color: '#cbd5e1', fontSize: 15, lineHeight: 24 },
 
   transitionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#0f172a', borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: c.card, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: c.cardBorder,
   },
-  transitionFrom: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '500', flex: 1 },
+  transitionFrom: { color: c.textSecondary, fontSize: 13, fontWeight: '500', flex: 1 },
   transitionTo: { fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
 
   cta: {
     marginHorizontal: 28, marginBottom: 40, marginTop: 8,
     paddingVertical: 16, borderRadius: 16, alignItems: 'center',
   },
-  ctaText: { fontSize: 16, fontWeight: '800', color: COLORS.bg },
+  ctaText: { fontSize: 16, fontWeight: '800', color: c.bg },
 });
+}

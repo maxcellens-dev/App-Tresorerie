@@ -14,19 +14,14 @@ import type { RecurrenceRule } from '../../types/database';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { accountColor } from '../../theme/colors';
+import { useAppColors } from '../../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-  emerald: '#34d399',
-};
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
 export default function AddTransactionScreen() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   const { user } = useAuth();
@@ -59,8 +54,21 @@ export default function AddTransactionScreen() {
   const isIncome = transactionType === 'income';
   const isTransfer = transactionType === 'transfer';
 
+  // Dépense / Recette → comptes courants uniquement. Virement → tous les comptes.
+  const selectableAccounts = isTransfer ? accounts : accounts.filter(a => a.type === 'checking');
+
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
   useEffect(() => setCategoryId(''), [isExpense, isIncome]);
+
+  // Dépense / Recette → forcer un compte courant si le compte sélectionné ne l'est pas
+  useEffect(() => {
+    if (isTransfer || !accountId) return;
+    const acc = accounts.find(a => a.id === accountId);
+    if (acc && acc.type !== 'checking') {
+      const firstChecking = accounts.find(a => a.type === 'checking');
+      setAccountId(firstChecking ? firstChecking.id : '');
+    }
+  }, [transactionType, accounts, accountId, isTransfer]);
 
   // Sélection automatique du dernier compte courant utilisé
   useEffect(() => {
@@ -187,7 +195,7 @@ export default function AddTransactionScreen() {
           {/* Compte */}
           <Text style={styles.label}>Compte {isTransfer ? 'source' : ''}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {accounts.map((acc) => {
+            {selectableAccounts.map((acc) => {
               const color = accountColor(acc.type);
               const isActive = accountId === acc.id;
               return (
@@ -201,8 +209,13 @@ export default function AddTransactionScreen() {
               );
             })}
           </ScrollView>
-          {accounts.length === 0 && (
-            <Text style={styles.hint}>Aucun compte. Ajoutez-en un dans l'onglet Comptes.</Text>
+          {selectableAccounts.length === 0 && (
+            <Text style={styles.hint}>
+              {isTransfer ? 'Aucun compte.' : 'Aucun compte courant.'} Ajoutez-en un dans l'onglet Comptes.
+            </Text>
+          )}
+          {!isTransfer && (
+            <Text style={styles.hint}>Les dépenses et recettes se font depuis un compte courant.</Text>
           )}
 
           {isTransfer && (
@@ -400,45 +413,46 @@ export default function AddTransactionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(c: any) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   back: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   typeSelector: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder },
-  typeBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  typeBtnLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
-  typeBtnLabelActive: { color: COLORS.bg },
+  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
+  typeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  typeBtnLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+  typeBtnLabelActive: { color: c.bg },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
-  toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' },
-  toggleBtnActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  toggleLabel: { fontSize: 15, fontWeight: '600', color: COLORS.textSecondary },
-  toggleLabelActive: { color: COLORS.bg },
-  label: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8 },
+  toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+  toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  toggleLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
+  toggleLabelActive: { color: c.bg },
+  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.text,
+    color: c.text,
     marginBottom: 20,
   },
   chipScroll: { marginBottom: 16 },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: COLORS.cardBorder, marginRight: 8 },
-  chipActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  chipText: { fontSize: 14, color: COLORS.text },
-  chipTextActive: { color: COLORS.bg, fontWeight: '600' },
+  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
+  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  chipText: { fontSize: 14, color: c.text },
+  chipTextActive: { color: c.bg, fontWeight: '600' },
   chipTextDisabled: { opacity: 0.5 },
-  hint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 16 },
-  text: { color: COLORS.text, marginBottom: 16 },
-  btn: { backgroundColor: COLORS.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
-  btnLabel: { color: COLORS.text, fontWeight: '600' },
+  hint: { fontSize: 12, color: c.textSecondary, marginBottom: 16 },
+  text: { color: c.text, marginBottom: 16 },
+  btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
+  btnLabel: { color: c.text, fontWeight: '600' },
   recurringSection: { marginTop: 8, marginBottom: 16 },
   recurringToggle: {
     flexDirection: 'row',
@@ -448,24 +462,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     marginBottom: 12,
   },
-  recurringToggleActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
-  recurringLabel: { fontSize: 15, color: COLORS.textSecondary },
-  recurringLabelActive: { color: COLORS.bg, fontWeight: '600' },
+  recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  recurringLabel: { fontSize: 15, color: c.textSecondary },
+  recurringLabelActive: { color: c.bg, fontWeight: '600' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
   submitBtn: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
-  submitBtnPrimary: { backgroundColor: COLORS.emerald },
+  submitBtnPrimary: { backgroundColor: c.emerald },
   submitBtnDraft: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#475569' },
   submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   submitLabelDraft: { fontSize: 16, fontWeight: '600', color: '#94a3b8' },
   calendarBtn: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     borderRadius: 12,
     width: 48,
     alignItems: 'center',
@@ -478,10 +492,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   calendarContainer: {
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     width: '90%',
     maxWidth: 380,
     overflow: 'hidden',
@@ -492,6 +506,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
+    borderBottomColor: c.cardBorder,
   },
 });
+}

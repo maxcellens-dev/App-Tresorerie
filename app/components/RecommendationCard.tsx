@@ -3,14 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, PanResponder } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
+import { useAppColors } from '../hooks/useAppColors';
 
-const COLORS = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
-};
 
 interface SmartRecommendationCardProps {
   recommendations: SmartRecommendation[];
@@ -25,6 +19,8 @@ export default function RecommendationCard({
   tierColor,
   onAction,
 }: SmartRecommendationCardProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
@@ -198,13 +194,14 @@ export default function RecommendationCard({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: COLORS.card,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     gap: 12,
   },
 
@@ -221,7 +218,7 @@ const styles = StyleSheet.create({
   },
   headerLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -236,7 +233,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.cardBorder,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -245,7 +242,7 @@ const styles = StyleSheet.create({
   },
   navIndicator: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
     marginHorizontal: 4,
   },
@@ -291,7 +288,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 10,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     fontWeight: '600',
   },
 
@@ -315,7 +312,7 @@ const styles = StyleSheet.create({
   recoTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.text,
+    color: c.text,
   },
   recoAmount: {
     fontSize: 24,
@@ -323,7 +320,7 @@ const styles = StyleSheet.create({
   },
   recoDescription: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     lineHeight: 17,
   },
 
@@ -367,8 +364,9 @@ const styles = StyleSheet.create({
 
   emptyText: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: c.textSecondary,
     textAlign: 'center',
     paddingVertical: 8,
   },
 });
+}

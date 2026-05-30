@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../hooks/useTransactionMonthOverrides';
+import { useAppColors } from '../hooks/useAppColors';
 
 interface EditTransactionMonthModalProps {
   visible: boolean;
@@ -39,6 +40,8 @@ export default function EditTransactionMonthModal({
   currentOverrideAmount,
   profileId,
 }: EditTransactionMonthModalProps) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   const [inputValue, setInputValue] = useState(String(currentOverrideAmount ?? originalAmount));
   const setOverride = useSetTransactionMonthOverride(profileId);
   const deleteOverride = useDeleteTransactionMonthOverride(profileId);
@@ -186,7 +189,8 @@ export default function EditTransactionMonthModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(c: any) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -195,10 +199,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modal: {
-    backgroundColor: '#0f172a',
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: c.cardBorder,
     width: '100%',
     maxWidth: 400,
   },
@@ -210,17 +214,17 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: c.cardBorder,
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: c.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: c.textSecondary,
   },
   infoSection: {
     paddingHorizontal: 20,
@@ -235,12 +239,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 12,
-    color: '#94a3b8',
+    color: c.textSecondary,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 13,
-    color: '#ffffff',
+    color: c.text,
     fontWeight: '600',
   },
   inputSection: {
@@ -250,16 +254,16 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: c.textSecondary,
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e293b',
+    backgroundColor: c.cardBorder,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: c.cardBorder,
     paddingRight: 12,
   },
   input: {
@@ -267,13 +271,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     fontSize: 16,
-    color: '#ffffff',
+    color: c.text,
     fontWeight: '600',
   },
   currency: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: c.textSecondary,
   },
   actions: {
     flexDirection: 'row',
@@ -300,7 +304,7 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: c.textSecondary,
   },
   cancelButton: {
     flex: 1,
@@ -311,7 +315,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94a3b8',
+    color: c.textSecondary,
   },
   saveButton: {
     flex: 1.5,
@@ -320,9 +324,10 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#020617',
+    color: c.bg,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
 });
+}

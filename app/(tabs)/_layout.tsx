@@ -4,14 +4,10 @@ import { Ionicons } from '@expo/vector-icons';
 import TabBarBackground from '../components/TabBarBackground';
 import HeaderWithProfile from '../components/HeaderWithProfile';
 import CustomTabBar from '../components/CustomTabBar';
-
-const COLORS = {
-  tabActive: '#34d399',
-  tabInactive: '#94a3b8',
-  screenBg: '#020617',
-};
+import { useAppColors } from '../hooks/useAppColors';
 
 function TabsHeader({ route }: { route: any }) {
+  const COLORS = useAppColors();
   const segments = useSegments();
   const fullPath = segments.join('/');
   
@@ -45,7 +41,7 @@ function TabsHeader({ route }: { route: any }) {
       title={isHome || showCustomHeader ? undefined : displayTitle}
       leftContent={
         (showCustomHeader || fullPath.includes('admin')) ? (
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#ffffff' }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.text }}>
             {displayTitle}
           </Text>
         ) : undefined
@@ -56,13 +52,15 @@ function TabsHeader({ route }: { route: any }) {
 }
 
 export default function TabsLayout() {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: true,
         header: () => <TabsHeader route={route} />,
-        headerStyle: { backgroundColor: 'rgba(2, 6, 23, 0.98)' },
+        headerStyle: { backgroundColor: COLORS.bg },
         headerShadowVisible: false,
         sceneContainerStyle: styles.sceneContainer,
         tabBarActiveTintColor: COLORS.tabActive,
@@ -132,31 +130,33 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  sceneContainer: {
-    backgroundColor: COLORS.screenBg,
-  },
-  tabBar: {
-    position: 'absolute',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(30, 41, 59, 0.8)',
-    backgroundColor: 'transparent',
-    elevation: 0,
-    shadowOpacity: 0,
-    height: 72,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-  },
-  icon: { marginBottom: 4 },
-  tabBarAndroid: {
-    borderTopWidth: 0,
-  },
-  tabBarLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 0,
-  },
-  tabBarItem: {
-    paddingVertical: 8,
-  },
-});
+function makeStyles(c: any) {
+  return StyleSheet.create({
+    sceneContainer: {
+      backgroundColor: c.bg,
+    },
+    tabBar: {
+      position: 'absolute',
+      borderTopWidth: 1,
+      borderTopColor: c.cardBorder,
+      backgroundColor: 'transparent',
+      elevation: 0,
+      shadowOpacity: 0,
+      height: 72,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+    },
+    icon: { marginBottom: 4 },
+    tabBarAndroid: {
+      borderTopWidth: 0,
+    },
+    tabBarLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: 0,
+    },
+    tabBarItem: {
+      paddingVertical: 8,
+    },
+  });
+}

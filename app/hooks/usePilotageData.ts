@@ -15,6 +15,12 @@ export interface PilotageData {
   same_account_reserved: number;
   monthly_commitments: number;
 
+  // Suivi des engagements du mois en cours
+  monthly_savings_planned: number;   // virements récurrents épargne + projets
+  monthly_invest_planned: number;    // virements récurrents invest + objectifs
+  monthly_reserve_planned: number;   // réservé sur le compte courant (projets même compte)
+  month_expenses_total: number;      // total dépenses du mois (passées + à venir, hors virements)
+
   // Step 2: Variable Expense Trend
   avg_variable_expenses_3m: number;
   current_month_variable: number;
@@ -349,6 +355,68 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const sum_invested_ytd = objectives_with_progress.reduce((sum, o) => sum + o.current_year_invested, 0);
   const global_objectives_percentage = sum_all_yearly_targets > 0 ? (sum_invested_ytd / sum_all_yearly_targets) * 100 : 0;
 
+  // =====================================================================
+  // SUIVI : engagements du mois en cours (épargne / invest / dépenses)
+  // =====================================================================
+  const accountTypeById: Record<string, string> = {};
+  accounts.forEach(a => { accountTypeById[a.id] = a.type; });
+
+  // Projets : distinguer ceux qui transfèrent vers un autre compte (épargne)
+  // de ceux qui réservent sur le même compte courant (tagué « Réservé »).
+  const activeProjects = projects.filter(p => p.status === 'active');
+  const isSameAccountProject = (p: Project) =>
+    !!(p.source_account_id && p.linked_account_id && p.source_account_id === p.linked_account_id);
+
+  const project_savings_monthly = activeProjects
+    .filter(p => !isSameAccountProject(p))
+    .reduce((s, p) => s + Number(p.monthly_allocation || 0), 0);
+
+  const project_reserved_monthly = activeProjects
+    .filter(p => isSameAccountProject(p))
+    .reduce((s, p) => s + Number(p.monthly_allocation || 0), 0);
+
+  let transfer_savings = 0;   // virements vers comptes épargne (depuis courant)
+  let transfer_invest = 0;    // virements vers comptes investissement (depuis courant/épargne)
+  let month_expenses_total = 0;
+
+  for (const t of transactions) {
+    const amt = Number(t.amount);
+    if (amt >= 0) continue; // sorties uniquement
+    const [tY, tM] = t.date.split('-').map(Number);
+    const isThisMonth = tY === currentYear && tM === currentMonth;
+    const isRecurring = Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule);
+
+    // Montant projeté sur le mois courant (récurrent → projection, sinon ponctuel du mois)
+    const monthlyAmt = isRecurring
+      ? addRecurrenceToMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
+      : (isThisMonth ? Math.abs(amt) : 0);
+    if (monthlyAmt <= 0) continue;
+
+    const srcType = accountTypeById[t.account_id];
+    const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
+    const hasProject = Boolean((t as any).project_id);
+
+    if (linkedType === 'investment' && (srcType === 'checking' || srcType === 'savings') && !hasProject) {
+      // Virement réel vers un compte d'investissement
+      transfer_invest += monthlyAmt;
+    } else if (linkedType === 'savings' && srcType === 'checking' && !hasProject) {
+      // Virement réel vers un compte d'épargne
+      transfer_savings += monthlyAmt;
+    } else if (!t.linked_account_id && !hasProject && srcType === 'checking') {
+      // Vraie dépense : depuis un compte courant, catégorie dépense, hors régularisation
+      const cat = (t as TransactionWithCategory).category;
+      const isExpenseCat = !cat || cat.type === 'expense';
+      const isRegul = !!(cat?.name && /r[ée]gularisation/i.test(cat.name));
+      if (isExpenseCat && !isRegul) {
+        month_expenses_total += monthlyAmt;
+      }
+    }
+  }
+
+  const monthly_savings_planned = transfer_savings + project_savings_monthly;
+  const monthly_invest_planned = transfer_invest; // virements réels uniquement (objectifs exclus)
+  const monthly_reserve_planned = project_reserved_monthly;
+
   return {
     safe_to_spend,
     current_checking_balance,
@@ -356,6 +424,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     committed_allocations,
     monthly_commitments,
     same_account_reserved,
+    monthly_savings_planned,
+    monthly_invest_planned,
+    monthly_reserve_planned,
+    month_expenses_total,
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,

@@ -15,14 +15,10 @@ import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { usePilotageData } from '../hooks/usePilotageData';
 import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../theme/colors';
+import { useAppColors } from '../hooks/useAppColors';
 
-/* ── Constants ── */
-const C = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
+/* ── Couleurs fixes des graphiques (sémantique indépendante du thème) ── */
+const CHART = {
   emerald: '#34d399',
   emeraldDark: '#059669',
   rose: '#fb7185',
@@ -38,7 +34,13 @@ const C = {
   cyan: '#22d3ee',
 };
 
-const CHART_PALETTE = [C.emerald, C.rose, C.violet, C.sky, C.amber, C.orange, C.pink, C.teal, C.lime, C.cyan, C.indigo];
+const CHART_PALETTE = [CHART.emerald, CHART.rose, CHART.violet, CHART.sky, CHART.amber, CHART.orange, CHART.pink, CHART.teal, CHART.lime, CHART.cyan, CHART.indigo];
+
+/** Couleurs du Reporting : thème (bg/card/text…) + palette de graphiques fixe. */
+function useReportingColors() {
+  const t = useAppColors();
+  return { ...t, ...CHART };
+}
 
 const fmt = (n: number) => {
   if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1).replace('.0', '')}k`;
@@ -57,6 +59,8 @@ function ChartTooltip({ cx, cy, value, color, chartWidth, padL = 0, padR = 0 }: 
   cx: number; cy: number; value: number; color: string;
   chartWidth: number; padL?: number; padR?: number;
 }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const text = formatTooltipValue(value);
   const boxW = 88;
   const boxH = 28;
@@ -78,6 +82,8 @@ function ChartTooltip({ cx, cy, value, color, chartWidth, padL = 0, padR = 0 }: 
 }
 
 function BarChart({ data, width }: { data: { label: string; income: number; expense: number }[]; width: number }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const [active, setActive] = useState<{ idx: number; type: 'income' | 'expense' } | null>(null);
   const chartW = width - 52;
   const chartH = 170;
@@ -160,6 +166,8 @@ function BarChart({ data, width }: { data: { label: string; income: number; expe
 }
 
 function AreaLineChart({ points, width, color }: { points: { label: string; value: number }[]; width: number; color: string }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const chartH = 120;
   const padL = 48;
@@ -233,6 +241,8 @@ function AreaLineChart({ points, width, color }: { points: { label: string; valu
 }
 
 function InvestmentGainLossChart({ series, years, width }: { series: { name: string; color: string; points: { year: string; value: number }[] }[]; years: string[]; width: number }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const [active, setActive] = useState<{ seriesName: string; pointIndex: number } | null>(null);
   if (!series.length || !years.length) {
     return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 24 }}>Aucune donnée d'évolution disponible.</Text>;
@@ -329,6 +339,8 @@ function InvestmentGainLossChart({ series, years, width }: { series: { name: str
 }
 
 function DonutChart({ slices, size }: { slices: { label: string; value: number; color: string }[]; size: number }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const [active, setActive] = useState<number | null>(null);
   if (!slices.length) return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 30 }}>Aucune dépense ce mois.</Text>;
   const total = slices.reduce((s, sl) => s + sl.value, 0);
@@ -394,6 +406,8 @@ function DonutChart({ slices, size }: { slices: { label: string; value: number; 
 }
 
 function ProgressRow({ label, current, target, color }: { label: string; current: number; target: number; color: string }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   return (
     <View style={{ marginBottom: 14 }}>
@@ -414,6 +428,8 @@ function ProgressRow({ label, current, target, color }: { label: string; current
 
 /* ── Animated fade-in wrapper ── */
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(anim, { toValue: 1, duration: 500, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
@@ -427,6 +443,8 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
 
 /* ── Summary KPI Card ── */
 function KpiCard({ icon, label, value, color, sub }: { icon: string; label: string; value: string; color: string; sub?: string }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   return (
     <View style={[s.kpiCard, { borderLeftColor: color, borderLeftWidth: 3 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -441,6 +459,8 @@ function KpiCard({ icon, label, value, color, sub }: { icon: string; label: stri
 
 /* ═══════════════════  MAIN SCREEN  ═══════════════════ */
 export default function ReportingScreen() {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const { width: screenW } = useWindowDimensions();
@@ -860,6 +880,8 @@ export default function ReportingScreen() {
 
 /* ── Health indicator bar ── */
 function HealthIndicator({ label, value, thresholds }: { label: string; value: number; thresholds: { level: number; label: string; color: string }[] }) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
   const maxLevel = Math.max(...thresholds.map(t => t.level), value) * 1.2;
   const pct = Math.min((value / maxLevel) * 100, 100);
   const valueColor = (() => {
@@ -894,7 +916,8 @@ function HealthIndicator({ label, value, thresholds }: { label: string; value: n
 }
 
 /* ═══════════════════  STYLES  ═══════════════════ */
-const s = StyleSheet.create({
+function makeStyles(C: any) {
+  return StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   scroll: { flex: 1 },
@@ -984,3 +1007,4 @@ const s = StyleSheet.create({
   tableRowAlt: { backgroundColor: 'rgba(255,255,255,0.02)' },
   tableCell: { fontSize: 13, color: C.text },
 });
+}
