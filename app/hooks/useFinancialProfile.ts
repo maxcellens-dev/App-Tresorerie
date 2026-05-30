@@ -188,14 +188,17 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         notification_shown: notifShown,
       });
 
-      // 5. Mise à jour des allocations dans profiles (colonnes existantes)
-      await supabase.from('profiles').update({
+      // 5. Mise à jour des allocations dans profiles (non-fatale — best effort)
+      const { error: allocErr } = await supabase.from('profiles').update({
         allocation_save_percent: alloc.save,
         allocation_invest_percent: alloc.invest,
         allocation_enjoy_percent: alloc.enjoy,
         allocation_keep_percent: alloc.keep,
         updated_at: now,
       }).eq('id', userId);
+      if (allocErr) {
+        console.warn('[saveQuestionnaire] update allocations profiles échoué (non bloquant):', allocErr);
+      }
 
       return profileId;
     },

@@ -19,6 +19,9 @@ import { useRecommendationTiers } from '../hooks/useRecommendationTiers';
 import { useFinancialProfile } from '../hooks/useFinancialProfile';
 import { useAutoProfileEvaluation } from '../hooks/useFinancialProfile';
 import type { FinancialProfileId } from '../types/database';
+import GuideOverlay from '../components/GuideOverlay';
+import type { BubbleStep } from '../components/GuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
 
 const COLORS = {
   bg: '#020617',
@@ -41,6 +44,37 @@ export default function PilotageScreen() {
   const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const autoEval = useAutoProfileEvaluation(user?.id);
+
+  // ── Guide "bulles" ──
+  const guide = useScreenGuide('pilotage', user?.id);
+  const scrollRef = React.useRef<ScrollView>(null);
+  const overviewRef = React.useRef<View>(null);
+  const monthRef = React.useRef<View>(null);
+  const projectsObjectivesRef = React.useRef<View>(null);
+
+  const PILOTAGE_GUIDE: BubbleStep[] = [
+    {
+      getRef: () => overviewRef,
+      icon: 'analytics-outline',
+      iconColor: '#34d399',
+      title: 'Vue d\'ensemble',
+      description: 'Vos soldes par catégorie : épargne, courant et investissements. Le repère de santé de votre épargne en un coup d\'œil.',
+    },
+    {
+      getRef: () => monthRef,
+      icon: 'calendar-outline',
+      iconColor: '#f59e0b',
+      title: 'Ce mois-ci',
+      description: 'Votre solde disponible après engagements et marge de sécurité, ainsi que la tendance de vos dépenses variables.',
+    },
+    {
+      getRef: () => projectsObjectivesRef,
+      icon: 'flag-outline',
+      iconColor: '#a78bfa',
+      title: 'Mes Projets & Objectifs',
+      description: 'Suivez vos projets d\'épargne (voiture, voyage…) et vos objectifs annuels d\'investissement, avec leur progression.',
+    },
+  ];
 
   // Évaluation automatique mensuelle (silencieuse, 1er du mois)
   React.useEffect(() => {
@@ -109,6 +143,7 @@ export default function PilotageScreen() {
 
         {/* Main Content */}
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -123,7 +158,7 @@ export default function PilotageScreen() {
         >
 
           {/* ═══════════ SECTION 1 : Vue d'ensemble ═══════════ */}
-          <View style={styles.section}>
+          <View style={styles.section} ref={overviewRef}>
             <View style={styles.sectionHeader}>
               <Ionicons name="analytics-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
@@ -218,7 +253,7 @@ export default function PilotageScreen() {
           </View>
 
           {/* ═══════════ SECTION 2 : Ce mois-ci ═══════════ */}
-          <View style={styles.section}>
+          <View style={styles.section} ref={monthRef}>
             <View style={styles.sectionHeader}>
               <Ionicons name="calendar-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.sectionTitle}>Ce mois-ci</Text>
@@ -260,7 +295,7 @@ export default function PilotageScreen() {
           </View>
 
           {/* ═══════════ SECTION 3 : Objectifs et Projets ═══════════ */}
-          <View style={styles.section}>
+          <View style={styles.section} ref={projectsObjectivesRef}>
             <View style={styles.sectionHeader}>
               <Ionicons name="flag-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.sectionTitle}>Objectifs et Projets</Text>
@@ -297,6 +332,16 @@ export default function PilotageScreen() {
 
         </ScrollView>
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={PILOTAGE_GUIDE}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(PILOTAGE_GUIDE.length)}
+        onSkip={guide.skip}
+        scrollRef={scrollRef}
+        screenTitle="Pilotage"
+      />
     </View>
   );
 }

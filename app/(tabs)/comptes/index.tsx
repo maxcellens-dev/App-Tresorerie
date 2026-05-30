@@ -1,12 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
 import { accountColor, ACCOUNT_ICONS } from '../../theme/colors';
+import GuideOverlay from '../../components/GuideOverlay';
+import type { BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
 
 const COLORS = {
   bg: '#020617',
@@ -27,9 +30,33 @@ const TYPE_LABELS: Record<string, string> = {
 export default function AccountsListScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { welcome } = useLocalSearchParams<{ welcome?: string }>();
   const [refreshing, setRefreshing] = useState(false);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const accountsQuery = useAccounts(user?.id);
   const archivedQuery = useArchivedAccounts(user?.id);
+
+  // ── Guide "bulles" ──
+  const guide = useScreenGuide('comptes', user?.id);
+  const addBtnRef = useRef<any>(null);
+  const transferBtnRef = useRef<any>(null);
+
+  const GUIDE_STEPS: BubbleStep[] = [
+    {
+      getRef: () => addBtnRef,
+      icon: 'add-circle',
+      iconColor: '#34d399',
+      title: '+ Compte',
+      description: 'Ajoutez tous vos comptes : courant, épargne (Livret A, LDDS…) et investissement. C\'est la base du pilotage.',
+    },
+    {
+      getRef: () => transferBtnRef,
+      icon: 'swap-horizontal',
+      iconColor: '#60a5fa',
+      title: 'Virement',
+      description: 'Transférez de l\'argent entre vos propres comptes. Le virement est tracé dans les deux comptes automatiquement.',
+    },
+  ];
   
   const { data: accounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
@@ -66,6 +93,7 @@ export default function AccountsListScreen() {
         <View style={styles.header}>
           <View style={styles.headerActions}>
             <TouchableOpacity
+              ref={addBtnRef}
               style={styles.addBtn}
               activeOpacity={0.8}
               onPress={() => router.push('/(tabs)/comptes/add')}
@@ -76,6 +104,7 @@ export default function AccountsListScreen() {
             </TouchableOpacity>
             <View style={{ flex: 1 }} />
             <TouchableOpacity
+              ref={transferBtnRef}
               style={styles.addBtn}
               activeOpacity={0.8}
               onPress={() => router.push('/(tabs)/comptes/transfer')}
@@ -99,6 +128,31 @@ export default function AccountsListScreen() {
             />
           }
         >
+          {/* Banner de bienvenue — premier lancement après questionnaire */}
+          {welcome === '1' && !welcomeDismissed && (
+            <View style={styles.welcomeBanner}>
+              <View style={styles.welcomeBannerRow}>
+                <Text style={styles.welcomeBannerEmoji}>🎉</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.welcomeBannerTitle}>Bienvenue ! Votre profil est créé.</Text>
+                  <Text style={styles.welcomeBannerText}>
+                    Commencez par ajouter vos comptes bancaires, d'épargne et d'investissement pour que l'application puisse calculer vos recommandations.
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setWelcomeDismissed(true)} style={{ padding: 4 }}>
+                  <Ionicons name="close" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={styles.welcomeBannerBtn}
+                onPress={() => { setWelcomeDismissed(true); router.push('/(tabs)/comptes/add'); }}
+              >
+                <Ionicons name="add" size={16} color="#020617" />
+                <Text style={styles.welcomeBannerBtnLabel}>Ajouter mon premier compte</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {isLoading ? (
             <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
           ) : (
@@ -157,6 +211,15 @@ export default function AccountsListScreen() {
           <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
         </ScrollView>
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={GUIDE_STEPS}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(GUIDE_STEPS.length)}
+        onSkip={guide.skip}
+        screenTitle="Comptes"
+      />
     </View>
   );
 }
@@ -221,4 +284,17 @@ const styles = StyleSheet.create({
   archivedName: { fontSize: 16, fontWeight: '600', color: COLORS.textSecondary },
   archivedBalance: { fontSize: 14, color: COLORS.textSecondary },
   hint: { marginTop: 16, fontSize: 13, color: COLORS.textSecondary, textAlign: 'center' },
+  welcomeBanner: {
+    backgroundColor: '#0d2318', borderRadius: 16, borderWidth: 1,
+    borderColor: '#34d39940', padding: 16, marginBottom: 16, gap: 12,
+  },
+  welcomeBannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  welcomeBannerEmoji: { fontSize: 28 },
+  welcomeBannerTitle: { fontSize: 15, fontWeight: '700', color: '#34d399', marginBottom: 4 },
+  welcomeBannerText: { fontSize: 13, color: '#cbd5e1', lineHeight: 18 },
+  welcomeBannerBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#34d399', borderRadius: 12, paddingVertical: 12,
+  },
+  welcomeBannerBtnLabel: { fontSize: 14, fontWeight: '700', color: '#020617' },
 });

@@ -5,8 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import GuideOverlay from '../components/GuideOverlay';
+import type { BubbleStep } from '../components/GuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../hooks/useTransactions';
-import { useCategories } from '../hooks/useCategories';
+import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
 import { useAccounts } from '../hooks/useAccounts';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
 import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
@@ -107,17 +110,50 @@ export default function TreasuryPlanScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
-  
+
+  // ── Guide "bulles" ──
+  const guide = useScreenGuide('tresorerie', user?.id);
+  const navRowRef = React.useRef<any>(null);
+  const tableRef = React.useRef<any>(null);
+  const scrollOuterRef = React.useRef<ScrollView>(null);
+
+  const TRESO_GUIDE: BubbleStep[] = [
+    {
+      getRef: () => navRowRef,
+      icon: 'calendar-outline',
+      iconColor: '#34d399',
+      title: 'Navigation par période',
+      description: 'Utilisez les flèches gauche/droite pour naviguer entre les mois et consulter vos flux passés ou futurs.',
+    },
+    {
+      getRef: () => tableRef,
+      icon: 'pencil',
+      iconColor: '#a78bfa',
+      title: 'Saisie prévisionnelle',
+      description: 'Sur les mois futurs, appuyez sur un montant pour le modifier et simuler vos flux avant qu\'ils arrivent.',
+    },
+  ];
+
   const transactionsQuery = useTransactions(user?.id);
   const categoriesQuery = useCategories(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const accountsQuery = useAccounts(user?.id);
 
   const { data: transactions = [], isLoading } = transactionsQuery;
-  const { data: categories = [] } = categoriesQuery;
+  const { data: categories = [], isLoading: categoriesLoading } = categoriesQuery;
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = accountsQuery;
   const addTransaction = useAddTransaction(user?.id);
+
+  // Filet de sécurité : créer les catégories par défaut si l'utilisateur n'en a aucune
+  // (sinon le plan de trésorerie s'affiche vide).
+  const seedDefaultCategories = useSeedDefaultCategories(user?.id);
+  const hasSeededRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!user?.id || categoriesLoading || categories.length > 0 || hasSeededRef.current) return;
+    hasSeededRef.current = true;
+    seedDefaultCategories.mutate();
+  }, [user?.id, categoriesLoading, categories.length]);
 
   // Solde réel des comptes courants = point de départ du solde cumulatif
   const checkingBalance = useMemo(
@@ -675,7 +711,7 @@ export default function TreasuryPlanScreen() {
         <Text style={styles.subtitle}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
 
         <View style={styles.controls}>
-          <View style={styles.navRow}>
+          <View style={styles.navRow} ref={navRowRef}>
             <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o - 1)} accessibilityRole="button">
               <Ionicons name="chevron-back" size={22} color="#94a3b8" />
             </TouchableOpacity>
@@ -693,6 +729,7 @@ export default function TreasuryPlanScreen() {
           <Text style={styles.hint}>Chargement…</Text>
         ) : (
           <ScrollView
+            ref={scrollOuterRef}
             style={styles.scrollOuter}
             contentContainerStyle={styles.scrollOuterContent}
             showsVerticalScrollIndicator={true}
@@ -713,7 +750,7 @@ export default function TreasuryPlanScreen() {
               contentContainerStyle={styles.scrollInnerContent}
               nestedScrollEnabled={true}
             >
-            <View style={styles.tableWrap}>
+            <View style={styles.tableWrap} ref={tableRef}>
             <View style={styles.table}>
               {(() => {
                 const idx = planData.months.findIndex((m) => m.key === highlightMonthKey);
@@ -1157,6 +1194,16 @@ export default function TreasuryPlanScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={TRESO_GUIDE}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(TRESO_GUIDE.length)}
+        onSkip={guide.skip}
+        scrollRef={scrollOuterRef}
+        screenTitle="Plan de trésorerie"
+      />
     </View>
   );
 }

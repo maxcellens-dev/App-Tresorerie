@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRoadmapIdeas } from '../../hooks/useRoadmapIdeas';
 
 const COLORS = {
   bg: '#020617',
@@ -52,6 +53,7 @@ export default function IdeasScreen() {
   const [idea, setIdea] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const { data: mySuggestions = [] } = useSuggestions(user?.id);
+  const { data: roadmapIdeas = [] } = useRoadmapIdeas();
   const addSuggestion = useAddSuggestion(user?.id);
 
   const handleSubmit = async () => {
@@ -127,23 +129,20 @@ export default function IdeasScreen() {
             </View>
           )}
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Idées populaires en cours</Text>
-            {[
-              { icon: 'card-outline', text: 'Import automatique des relevés bancaires', votes: 42 },
-              { icon: 'notifications-outline', text: 'Alertes quand un budget est dépassé', votes: 38 },
-              { icon: 'bar-chart-outline', text: 'Comparaison mois par mois', votes: 31 },
-              { icon: 'people-outline', text: 'Compte partagé en couple', votes: 27 },
-            ].map((item, i) => (
-              <View key={i} style={styles.ideaRow}>
-                <Ionicons name={item.icon as any} size={20} color={COLORS.textSecondary} />
-                <Text style={styles.ideaText}>{item.text}</Text>
-                <View style={styles.voteBadge}>
-                  <Text style={styles.voteText}>{item.votes}</Text>
+          {roadmapIdeas.length > 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Idées en cours de développement</Text>
+              {roadmapIdeas.map((item, i) => (
+                <View
+                  key={item.id}
+                  style={[styles.ideaRow, i === roadmapIdeas.length - 1 && { borderBottomWidth: 0 }]}
+                >
+                  <Ionicons name={(item.icon as any) ?? 'construct-outline'} size={20} color={COLORS.emerald} />
+                  <Text style={styles.ideaText}>{item.title}</Text>
                 </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>

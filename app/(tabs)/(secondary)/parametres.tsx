@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -6,6 +6,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
+import GuideOverlay from '../../components/GuideOverlay';
+import type { BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
 
 const COLORS = {
   bg: '#020617',
@@ -25,6 +28,29 @@ export default function SettingsScreen() {
   const updateProfile = useUpdateProfile(user?.id);
 
   const [marginInput, setMarginInput] = useState('');
+
+  // ── Guide "bulles" ──
+  const guide = useScreenGuide('parametres', user?.id);
+  const scrollRef = useRef<ScrollView>(null);
+  const categoriesRowRef = useRef<any>(null);
+  const marginRowRef = useRef<any>(null);
+
+  const GUIDE_STEPS: BubbleStep[] = [
+    {
+      getRef: () => categoriesRowRef,
+      icon: 'pie-chart-outline',
+      iconColor: '#34d399',
+      title: 'Gérer les catégories',
+      description: 'Ajoutez, renommez ou supprimez vos catégories et sous-catégories de dépenses et de recettes. Elles structurent votre plan de trésorerie et vos statistiques.',
+    },
+    {
+      getRef: () => marginRowRef,
+      icon: 'shield-outline',
+      iconColor: '#60a5fa',
+      title: 'Marge de sécurité',
+      description: 'Pourcentage de prudence appliqué à votre budget disponible. Plus la marge est élevée, plus l\'application garde une réserve face aux imprévus.',
+    },
+  ];
 
   // ── Safety margin ──
   const handleMarginSave = useCallback(() => {
@@ -67,7 +93,7 @@ export default function SettingsScreen() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           {/* ── Mon compte ── */}
           <Text style={styles.sectionTitle}>Mon compte</Text>
@@ -96,12 +122,12 @@ export default function SettingsScreen() {
           {/* ── Gestion ── */}
           <Text style={styles.sectionTitle}>Gestion</Text>
           <View style={styles.card}>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
+            <TouchableOpacity ref={categoriesRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
               <Ionicons name="pie-chart-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Gérer les catégories</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0 }]}>
+            <View ref={marginRowRef} style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' }}>
                 <Ionicons name="shield-outline" size={20} color={COLORS.textSecondary} />
                 <Text numberOfLines={1} style={[styles.rowLabel, { flex: 1 }]}>Marge de sécurité</Text>
@@ -167,6 +193,16 @@ export default function SettingsScreen() {
           <Text style={styles.footer}>© 2026 Trésorerie. Tous droits réservés.</Text>
         </ScrollView>
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={GUIDE_STEPS}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(GUIDE_STEPS.length)}
+        onSkip={guide.skip}
+        scrollRef={scrollRef}
+        screenTitle="Paramètres"
+      />
     </View>
   );
 }

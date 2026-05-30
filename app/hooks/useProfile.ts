@@ -66,22 +66,27 @@ export function useUpdateProfile(profileId: string | undefined) {
       initial_onboarding_completed?: boolean;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
+
+      // Construire un payload propre : uniquement les champs réellement fournis.
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (payload.full_name !== undefined) updates.full_name = payload.full_name;
+      if (payload.avatar_url !== undefined) updates.avatar_url = payload.avatar_url;
+      if (payload.safety_margin_percent !== undefined) updates.safety_margin_percent = payload.safety_margin_percent;
+      if (payload.financial_profile !== undefined) updates.financial_profile = payload.financial_profile;
+      if (payload.allocation_save_percent !== undefined) updates.allocation_save_percent = payload.allocation_save_percent;
+      if (payload.allocation_invest_percent !== undefined) updates.allocation_invest_percent = payload.allocation_invest_percent;
+      if (payload.allocation_enjoy_percent !== undefined) updates.allocation_enjoy_percent = payload.allocation_enjoy_percent;
+      if (payload.allocation_keep_percent !== undefined) updates.allocation_keep_percent = payload.allocation_keep_percent;
+      if (payload.initial_onboarding_completed !== undefined) updates.initial_onboarding_completed = payload.initial_onboarding_completed;
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          full_name: payload.full_name ?? undefined,
-          avatar_url: payload.avatar_url ?? undefined,
-          ...(payload.safety_margin_percent !== undefined && { safety_margin_percent: payload.safety_margin_percent }),
-          ...(payload.financial_profile !== undefined && { financial_profile: payload.financial_profile }),
-          ...(payload.allocation_save_percent !== undefined && { allocation_save_percent: payload.allocation_save_percent }),
-          ...(payload.allocation_invest_percent !== undefined && { allocation_invest_percent: payload.allocation_invest_percent }),
-          ...(payload.allocation_enjoy_percent !== undefined && { allocation_enjoy_percent: payload.allocation_enjoy_percent }),
-          ...(payload.allocation_keep_percent !== undefined && { allocation_keep_percent: payload.allocation_keep_percent }),
-          ...(payload.initial_onboarding_completed !== undefined && { initial_onboarding_completed: payload.initial_onboarding_completed }),
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', profileId);
-      if (error) throw error;
+      if (error) {
+        console.error('[useUpdateProfile] PATCH profiles échoué:', { error, updates });
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [KEY, profileId] });

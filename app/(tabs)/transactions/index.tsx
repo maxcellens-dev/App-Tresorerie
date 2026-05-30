@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +11,9 @@ import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
 import { accountColor, SEMANTIC } from '../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../types/database';
+import GuideOverlay from '../../components/GuideOverlay';
+import type { BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
 
 const COLORS = {
   bg: '#020617',
@@ -89,6 +92,44 @@ export default function TransactionsListScreen() {
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── Guide "bulles" ──
+  const guide = useScreenGuide('transactions', user?.id);
+  const expenseBtnRef = useRef<any>(null);
+  const incomeBtnRef = useRef<any>(null);
+  const transferBtnRef = useRef<any>(null);
+  const periodNavRef = useRef<any>(null);
+
+  const TX_GUIDE_STEPS: BubbleStep[] = [
+    {
+      getRef: () => expenseBtnRef,
+      icon: 'arrow-down',
+      iconColor: '#f87171',
+      title: 'Dépense',
+      description: 'Enregistrez une sortie d\'argent : courses, factures, loisirs… Catégorisez-la pour des statistiques précises.',
+    },
+    {
+      getRef: () => incomeBtnRef,
+      icon: 'arrow-up',
+      iconColor: '#34d399',
+      title: 'Recette',
+      description: 'Ajoutez un revenu : salaire, remboursement, vente… Il est ajouté au solde de votre compte.',
+    },
+    {
+      getRef: () => transferBtnRef,
+      icon: 'swap-horizontal',
+      iconColor: '#60a5fa',
+      title: 'Virement',
+      description: 'Transférez entre vos comptes. Le virement débite un compte et crédite l\'autre automatiquement.',
+    },
+    {
+      getRef: () => periodNavRef,
+      icon: 'calendar-outline',
+      iconColor: '#a78bfa',
+      title: 'Filtre & période',
+      description: 'Naviguez entre les mois avec les flèches, et filtrez par compte avec l\'icône à droite.',
+    },
+  ];
   const [accountFilterId, setAccountFilterId] = useState<string | null>(null);
   const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null);
   const [filterInitialized, setFilterInitialized] = useState(false);
@@ -374,9 +415,9 @@ export default function TransactionsListScreen() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {showPeriodNav && (
-          <View style={styles.periodNav}>
-            <TouchableOpacity 
-              style={styles.periodBtn} 
+          <View style={styles.periodNav} ref={periodNavRef}>
+            <TouchableOpacity
+              style={styles.periodBtn}
               onPress={() => setPeriodOffset(periodOffset - 1)}
               activeOpacity={0.7}
             >
@@ -423,6 +464,7 @@ export default function TransactionsListScreen() {
         )}
         <View style={styles.header}>
           <TouchableOpacity
+            ref={transferBtnRef}
             style={styles.addBtn}
             activeOpacity={0.8}
             onPress={() => router.push('/(tabs)/transactions/add?type=transfer')}
@@ -432,6 +474,7 @@ export default function TransactionsListScreen() {
             <Text style={styles.addBtnLabel}>Virement</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            ref={expenseBtnRef}
             style={styles.addBtn}
             activeOpacity={0.8}
             onPress={() => router.push('/(tabs)/transactions/add?type=expense')}
@@ -441,6 +484,7 @@ export default function TransactionsListScreen() {
             <Text style={styles.addBtnLabel}>Dépenses</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            ref={incomeBtnRef}
             style={styles.addBtn}
             activeOpacity={0.8}
             onPress={() => router.push('/(tabs)/transactions/add?type=income')}
@@ -675,6 +719,15 @@ export default function TransactionsListScreen() {
           </TouchableOpacity>
         </Modal>
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={TX_GUIDE_STEPS}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(TX_GUIDE_STEPS.length)}
+        onSkip={guide.skip}
+        screenTitle="Transactions"
+      />
     </View>
   );
 }

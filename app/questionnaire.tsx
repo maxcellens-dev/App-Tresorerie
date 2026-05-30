@@ -1,16 +1,21 @@
 /**
- * Questionnaire standalone — affiché aux utilisateurs existants
- * qui n'ont pas encore répondu au questionnaire de profil financier.
- * Reprend le même moteur que setup.tsx (étapes 2-6).
+ * Questionnaire d'onboarding — 1 question par écran, animé.
+ * Affiché aux nouveaux utilisateurs ET aux utilisateurs existants sans profil.
+ * Reprend là où l'utilisateur s'était arrêté si non terminé.
  */
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Animated, Dimensions, Alert, ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from './contexts/AuthContext';
+import { useUpdateProfile } from './hooks/useProfile';
 import { useSaveQuestionnaire } from './hooks/useFinancialProfile';
+import { useCategories, useSeedDefaultCategories } from './hooks/useCategories';
 import {
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
@@ -18,274 +23,357 @@ import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
 } from './lib/financialProfileEngine';
 import type { QuestionnaireAnswers } from './lib/financialProfileEngine';
+import type { FinancialProfileId } from './types/database';
+import {
+  saveQuestionnaireProgress,
+  loadQuestionnaireProgress,
+  clearQuestionnaireProgress,
+} from './hooks/useFirstVisitGuide';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const COLORS = {
   bg: '#020617',
   card: '#0f172a',
-  cardBorder: '#1e293b',
+  border: '#1e293b',
   text: '#ffffff',
-  textSecondary: '#94a3b8',
+  sub: '#94a3b8',
   emerald: '#34d399',
-  selected: '#112f1c',
+  selected: '#0d2318',
 };
 
-const STEPS = ['Revenus', 'Situation', 'Épargne', 'Objectif', 'Profil'];
-const TOTAL_STEPS = STEPS.length;
+// ── Données des questions ────────────────────────────────────
 
-function OptionList({
-  options,
-  selected,
-  onSelect,
-}: {
+const QUESTIONS: Array<{
+  key: keyof QuestionnaireAnswers;
+  label: string;
   options: readonly string[];
-  selected: string;
-  onSelect: (v: string) => void;
-}) {
+}> = [
+  { key: 'q1', label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
+  { key: 'q2', label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
+  { key: 'q3', label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
+  { key: 'q4', label: 'Une fois vos factures et dépenses obligatoires payées, que reste-t-il ?', options: Q4_OPTIONS },
+  { key: 'q5', label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
+  { key: 'q6', label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
+  { key: 'q7', label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
+];
+
+// 0 = welcome, 1-7 = questions, 8 = résultat
+const TOTAL_STEPS = 9;
+
+// ── Sous-composants ──────────────────────────────────────────
+
+function OptionCard({
+  label, selected, onSelect,
+}: { label: string; selected: boolean; onSelect: () => void }) {
   return (
-    <View style={styles.optionList}>
-      {options.map((opt) => {
-        const active = selected === opt;
-        return (
-          <TouchableOpacity
-            key={opt}
-            style={[styles.optionBtn, active && styles.optionBtnActive]}
-            onPress={() => onSelect(opt)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.radio, active && styles.radioActive]}>
-              {active && <View style={styles.radioDot} />}
-            </View>
-            <Text style={[styles.optionText, active && styles.optionTextActive]}>{opt}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+    <TouchableOpacity
+      style={[styles.optionCard, selected && styles.optionCardActive]}
+      onPress={onSelect}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.radio, selected && styles.radioActive]}>
+        {selected && <View style={styles.radioDot} />}
+      </View>
+      <Text style={[styles.optionLabel, selected && styles.optionLabelActive]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
+
+// ── Écran principal ──────────────────────────────────────────
 
 export default function QuestionnaireScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const updateProfile = useUpdateProfile(user?.id);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
+  const { data: existingCategories = [] } = useCategories(user?.id);
+  const seedDefaultCategories = useSeedDefaultCategories(user?.id);
 
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [answers, setAnswers] = useState<QuestionnaireAnswers>({
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
-  });
+  // Charger la progression sauvegardée
+  const savedProgress = useMemo(() => loadQuestionnaireProgress(user?.id), [user?.id]);
 
-  const assignedProfile = useMemo(() => {
+  const [step, setStep] = useState(savedProgress?.currentStep ?? 0);
+  const [answers, setAnswers] = useState<QuestionnaireAnswers>(
+    savedProgress?.answers as QuestionnaireAnswers ?? {
+      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
+    }
+  );
+  const [saving, setSaving] = useState(false);
+
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(step / (TOTAL_STEPS - 1))).current;
+
+  function animateToStep(next: number, direction: 1 | -1 = 1) {
+    Animated.timing(slideAnim, {
+      toValue: -direction * SCREEN_WIDTH * 0.3,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      setStep(next);
+      slideAnim.setValue(direction * SCREEN_WIDTH * 0.3);
+      Animated.spring(slideAnim, {
+        toValue: 0, tension: 80, friction: 12, useNativeDriver: true,
+      }).start();
+    });
+    Animated.timing(progressAnim, {
+      toValue: next / (TOTAL_STEPS - 1),
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }
+
+  function handleSelect(key: keyof QuestionnaireAnswers, value: string) {
+    const newAnswers = { ...answers, [key]: value };
+    setAnswers(newAnswers);
+    // Sauvegarder la progression
+    saveQuestionnaireProgress(user?.id, { currentStep: step, answers: newAnswers });
+  }
+
+  function handleNext() {
+    if (step === 0) {
+      animateToStep(1);
+      return;
+    }
+    const q = QUESTIONS[step - 1];
+    if (!answers[q.key]) {
+      Alert.alert('Sélection requise', 'Choisissez une réponse pour continuer.');
+      return;
+    }
+    if (step < 7) {
+      animateToStep(step + 1);
+    } else {
+      animateToStep(8);
+    }
+  }
+
+  function handleBack() {
+    if (step <= 0) return;
+    animateToStep(step - 1, -1);
+  }
+
+  async function handleFinish() {
+    if (!user?.id) return;
+    setSaving(true);
+    try {
+      // Étape critique : crée le profil financier (source de vérité de l'onboarding)
+      await saveQuestionnaire.mutateAsync({ answers });
+    } catch (e: unknown) {
+      console.error('[questionnaire] saveQuestionnaire échoué:', e);
+      Alert.alert('Erreur', (e as any)?.message ?? 'Impossible d\'enregistrer le questionnaire.');
+      setSaving(false);
+      return;
+    }
+
+    // Créer les catégories par défaut si l'utilisateur n'en a pas encore
+    // (pour que le plan de trésorerie ne soit pas vide à l'arrivée).
+    if (existingCategories.length === 0) {
+      try {
+        await seedDefaultCategories.mutateAsync();
+      } catch (e: unknown) {
+        console.warn('[questionnaire] seed catégories par défaut échoué (non bloquant):', e);
+      }
+    }
+
+    // Best-effort : marquer l'onboarding terminé dans profiles.
+    // Non bloquant : l'existence du profil financier suffit pour passer le guard.
+    try {
+      await updateProfile.mutateAsync({ initial_onboarding_completed: true });
+    } catch (e: unknown) {
+      console.warn('[questionnaire] flag initial_onboarding_completed non persisté (non bloquant):', e);
+    }
+
+    clearQuestionnaireProgress(user.id);
+    setSaving(false);
+    router.replace('/(tabs)/comptes?welcome=1' as any);
+  }
+
+  const assignedProfile = useMemo((): FinancialProfileId | null => {
     if (answers.q5 && answers.q4 && answers.q6) return computeInitialProfile(answers);
     return null;
   }, [answers]);
 
   const isIrregular = detectIrregularIncome(answers.q1, answers.q2);
-
-  function setAnswer(key: keyof QuestionnaireAnswers, value: string) {
-    setAnswers(prev => ({ ...prev, [key]: value }));
-  }
-
-  function canProceed(): boolean {
-    switch (step) {
-      case 1: return !!answers.q1 && !!answers.q2;
-      case 2: return !!answers.q3 && !!answers.q4;
-      case 3: return !!answers.q5 && !!answers.q6;
-      case 4: return !!answers.q7;
-      case 5: return !!assignedProfile;
-      default: return false;
-    }
-  }
-
-  async function handleFinish() {
-    if (!user?.id || !assignedProfile) return;
-    setLoading(true);
-    try {
-      await saveQuestionnaire.mutateAsync({ answers });
-      router.replace('/(tabs)/home');
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (!user) return null;
-
+  const currentQ = step >= 1 && step <= 7 ? QUESTIONS[step - 1] : null;
   const profile = assignedProfile ? PROFILE_INFO[assignedProfile] : null;
+  const alloc = assignedProfile ? PROFILE_ALLOCATIONS[assignedProfile] : null;
+
+  // ── Rendu ──────────────────────────────────────────────────
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Votre profil financier</Text>
-          <Text style={styles.headerSub}>
-            Quelques questions pour personnaliser vos recommandations.
-          </Text>
-        </View>
-
         {/* Barre de progression */}
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
-        </View>
-        <Text style={styles.progressLabel}>{step} / {TOTAL_STEPS} — {STEPS[step - 1]}</Text>
+        {step > 0 && step < 8 && (
+          <View style={styles.progressContainer}>
+            <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+              <Ionicons name="arrow-back" size={22} color="#94a3b8" />
+            </TouchableOpacity>
+            <View style={styles.progressTrack}>
+              <Animated.View
+                style={[
+                  styles.progressFill,
+                  { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressLabel}>{step}/7</Text>
+          </View>
+        )}
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        {/* Contenu animé */}
+        <Animated.View
+          style={[styles.contentWrap, { transform: [{ translateX: slideAnim }] }]}
         >
 
-          {/* Étape 1 — Revenus */}
-          {step === 1 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Vos revenus</Text>
-
-              <Text style={styles.questionLabel}>Quel type de revenu possédez-vous ?</Text>
-              <OptionList options={Q1_OPTIONS} selected={answers.q1} onSelect={v => setAnswer('q1', v)} />
-
-              <View style={styles.divider} />
-
-              <Text style={styles.questionLabel}>À quelle fréquence vos revenus principaux sont-ils versés ?</Text>
-              <OptionList options={Q2_OPTIONS} selected={answers.q2} onSelect={v => setAnswer('q2', v)} />
-
-              {isIrregular && (
-                <View style={styles.infoBox}>
-                  <Ionicons name="information-circle-outline" size={16} color="#60a5fa" />
-                  <Text style={styles.infoText}>
-                    Vos revenus irréguliers seront pris en compte via une moyenne glissante pour éviter les faux signaux.
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Étape 2 — Situation */}
-          {step === 2 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Votre situation</Text>
-
-              <Text style={styles.questionLabel}>Quel est le montant moyen de vos revenus nets par mois ?</Text>
-              <OptionList options={Q3_OPTIONS} selected={answers.q3} onSelect={v => setAnswer('q3', v)} />
-
-              <View style={styles.divider} />
-
-              <Text style={styles.questionLabel}>Une fois vos factures et dépenses obligatoires payées, que reste-t-il ?</Text>
-              <OptionList options={Q4_OPTIONS} selected={answers.q4} onSelect={v => setAnswer('q4', v)} />
-            </View>
-          )}
-
-          {/* Étape 3 — Épargne */}
-          {step === 3 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Votre épargne</Text>
-
-              <Text style={styles.questionLabel}>Si vos revenus s'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?</Text>
-              <OptionList options={Q5_OPTIONS} selected={answers.q5} onSelect={v => setAnswer('q5', v)} />
-
-              <View style={styles.divider} />
-
-              <Text style={styles.questionLabel}>Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?</Text>
-              <OptionList options={Q6_OPTIONS} selected={answers.q6} onSelect={v => setAnswer('q6', v)} />
-            </View>
-          )}
-
-          {/* Étape 4 — Objectif */}
-          {step === 4 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Votre objectif prioritaire</Text>
-              <Text style={styles.questionLabel}>Quel est votre objectif prioritaire avec cette application ?</Text>
-              <OptionList options={Q7_OPTIONS} selected={answers.q7} onSelect={v => setAnswer('q7', v)} />
-            </View>
-          )}
-
-          {/* Étape 5 — Profil assigné */}
-          {step === 5 && profile && assignedProfile && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Votre profil financier</Text>
-              <Text style={styles.cardText}>
-                Ce profil est basé sur vos réponses. Il évoluera automatiquement à partir du 7ème mois.
+          {/* ── Écran 0 : Welcome ────────────────────────── */}
+          {step === 0 && (
+            <ScrollView contentContainerStyle={styles.centeredScreen} showsVerticalScrollIndicator={false}>
+              <Text style={styles.welcomeEmoji}>📊</Text>
+              <Text style={styles.welcomeTitle}>Bienvenue sur Trésorerie</Text>
+              <Text style={styles.welcomeSub}>Votre coach financier personnel</Text>
+              <View style={styles.welcomeDivider} />
+              <Text style={styles.welcomeBody}>
+                Avant de commencer, répondez à{' '}
+                <Text style={{ color: COLORS.emerald, fontWeight: '700' }}>7 questions rapides</Text>
+                {' '}pour que l'application adapte ses recommandations à votre situation financière réelle.
               </Text>
+              <Text style={styles.welcomeTime}>⏱ Moins de 2 minutes</Text>
 
-              <View style={[styles.profileCard, { borderColor: profile.color }]}>
-                <Text style={styles.profileEmoji}>{profile.emoji}</Text>
-                <Text style={[styles.profileName, { color: profile.color }]}>{profile.name}</Text>
-                <Text style={styles.profileTier}>Palier : {profile.tier}</Text>
-                <Text style={styles.profileDesc}>{profile.description}</Text>
-              </View>
-
-              <View style={styles.allocCard}>
-                <Text style={styles.allocTitle}>Allocation du surplus mensuel</Text>
-                {([
-                  { label: 'Épargner',        key: 'save'   },
-                  { label: 'Investir',         key: 'invest' },
-                  { label: 'Se faire plaisir', key: 'enjoy'  },
-                  { label: 'Conserver',        key: 'keep'   },
-                ] as { label: string; key: keyof typeof PROFILE_ALLOCATIONS[typeof assignedProfile] }[]).map(({ label, key }) => (
-                  <View key={key} style={styles.allocRow}>
-                    <Text style={styles.allocLabel}>{label}</Text>
-                    <Text style={styles.allocValue}>{PROFILE_ALLOCATIONS[assignedProfile][key]} %</Text>
-                  </View>
-                ))}
-              </View>
-
-              {isIrregular && (
-                <View style={styles.infoBox}>
-                  <Ionicons name="information-circle-outline" size={16} color="#60a5fa" />
-                  <Text style={styles.infoText}>
-                    Vos revenus irréguliers sont pris en compte. Les indicateurs seront calculés sur une moyenne glissante.
+              {savedProgress && savedProgress.currentStep > 0 && (
+                <View style={styles.resumeBanner}>
+                  <Ionicons name="refresh-circle-outline" size={18} color="#f59e0b" />
+                  <Text style={styles.resumeText}>
+                    Questionnaire non terminé — reprise à la question {savedProgress.currentStep}/7
                   </Text>
                 </View>
               )}
-            </View>
-          )}
 
-          {/* Navigation */}
-          <View style={styles.footer}>
-            {step > 1 && (
-              <TouchableOpacity
-                style={styles.footerBtnSecondary}
-                onPress={() => setStep(prev => Math.max(1, prev - 1))}
-              >
-                <Ionicons name="arrow-back" size={18} color={COLORS.text} />
-                <Text style={styles.footerBtnSecondaryText}>Précédent</Text>
-              </TouchableOpacity>
-            )}
-
-            {step < TOTAL_STEPS ? (
-              <TouchableOpacity
-                style={[styles.footerBtn, !canProceed() && styles.footerBtnDisabled]}
-                onPress={() => {
-                  if (!canProceed()) {
-                    Alert.alert('Réponse requise', 'Veuillez répondre à toutes les questions avant de continuer.');
-                    return;
-                  }
-                  setStep(prev => prev + 1);
-                }}
-              >
-                <Text style={styles.footerBtnText}>Continuer</Text>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleNext}>
+                <Text style={styles.primaryBtnLabel}>Commencer</Text>
                 <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.footerBtn, (loading || !assignedProfile) && styles.footerBtnDisabled]}
-                onPress={handleFinish}
-                disabled={loading || !assignedProfile}
-              >
-                {loading
-                  ? <ActivityIndicator color={COLORS.bg} />
-                  : <>
-                      <Text style={styles.footerBtnText}>Démarrer</Text>
-                      <Ionicons name="checkmark-circle" size={18} color={COLORS.bg} />
-                    </>}
-              </TouchableOpacity>
-            )}
-          </View>
+            </ScrollView>
+          )}
 
-        </ScrollView>
+          {/* ── Écrans 1-7 : Questions ─────────────────── */}
+          {step >= 1 && step <= 7 && currentQ && (
+            <View style={styles.questionScreen}>
+              <Text style={styles.questionNum}>Question {step} sur 7</Text>
+              <Text style={styles.questionText}>{currentQ.label}</Text>
+
+              {step === 2 && isIrregular && (
+                <View style={styles.infoBox}>
+                  <Ionicons name="information-circle-outline" size={15} color="#60a5fa" />
+                  <Text style={styles.infoText}>
+                    Revenus irréguliers détectés — calculs sur moyenne glissante.
+                  </Text>
+                </View>
+              )}
+
+              <ScrollView
+                style={styles.optionsScroll}
+                contentContainerStyle={styles.optionsContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {currentQ.options.map((opt) => (
+                  <OptionCard
+                    key={opt}
+                    label={opt}
+                    selected={answers[currentQ.key] === opt}
+                    onSelect={() => handleSelect(currentQ.key, opt)}
+                  />
+                ))}
+                <View style={{ height: 100 }} />
+              </ScrollView>
+
+              <View style={styles.questionFooter}>
+                <TouchableOpacity
+                  style={[styles.primaryBtn, { flex: 1 }, !answers[currentQ.key] && styles.btnDisabled]}
+                  onPress={handleNext}
+                  disabled={!answers[currentQ.key]}
+                >
+                  <Text style={styles.primaryBtnLabel}>
+                    {step === 7 ? 'Voir mon profil' : 'Continuer'}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* ── Écran 8 : Résultat ───────────────────── */}
+          {step === 8 && profile && assignedProfile && alloc && (
+            <ScrollView contentContainerStyle={styles.resultScreen} showsVerticalScrollIndicator={false}>
+              <View style={styles.resultBadge}>
+                <Text style={styles.resultBadgeText}>Profil attribué !</Text>
+              </View>
+
+              <Text style={styles.resultEmoji}>{profile.emoji}</Text>
+              <Text style={[styles.resultName, { color: profile.color }]}>{profile.name}</Text>
+              <Text style={styles.resultTier}>{profile.tier}</Text>
+              <Text style={styles.resultDesc}>{profile.description}</Text>
+
+              {isIrregular && (
+                <View style={styles.infoBox}>
+                  <Ionicons name="information-circle-outline" size={15} color="#60a5fa" />
+                  <Text style={styles.infoText}>
+                    Revenus irréguliers pris en compte via une moyenne glissante.
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.allocCard}>
+                <Text style={styles.allocTitle}>Votre allocation recommandée</Text>
+                {([
+                  { label: 'Épargner',        key: 'save'   as const, color: '#34d399' },
+                  { label: 'Investir',         key: 'invest' as const, color: '#a78bfa' },
+                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: '#f59e0b' },
+                  { label: 'Conserver',        key: 'keep'   as const, color: '#60a5fa' },
+                ]).map(({ label, key, color }) => {
+                  const pct = alloc[key];
+                  return (
+                    <View key={key} style={styles.allocRow}>
+                      <View style={[styles.allocDot, { backgroundColor: color }]} />
+                      <Text style={styles.allocLabel}>{label}</Text>
+                      <View style={styles.allocBarBg}>
+                        <View style={[styles.allocBarFill, { width: `${pct}%`, backgroundColor: color }]} />
+                      </View>
+                      <Text style={[styles.allocPct, { color }]}>{pct}%</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={styles.freezeNote}>
+                <Ionicons name="lock-closed-outline" size={14} color="#94a3b8" />
+                <Text style={styles.freezeText}>
+                  Ce profil reste actif 6 mois, puis évolue automatiquement selon vos données réelles.
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, saving && styles.btnDisabled]}
+                onPress={handleFinish}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color={COLORS.bg} />
+                ) : (
+                  <>
+                    <Text style={styles.primaryBtnLabel}>Créer mes comptes</Text>
+                    <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          )}
+
+        </Animated.View>
       </SafeAreaView>
     </View>
   );
@@ -294,82 +382,122 @@ export default function QuestionnaireScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12, gap: 4 },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  headerSub: { fontSize: 14, color: COLORS.textSecondary },
+  contentWrap: { flex: 1 },
 
-  progressBar: {
-    height: 3, backgroundColor: '#1e293b',
-    marginHorizontal: 24, borderRadius: 2, marginBottom: 6,
+  // Barre de progression
+  progressContainer: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 20, paddingVertical: 12,
   },
-  progressFill: { height: 3, backgroundColor: COLORS.emerald, borderRadius: 2 },
-  progressLabel: { fontSize: 12, color: COLORS.textSecondary, paddingHorizontal: 24, marginBottom: 12 },
-
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingBottom: 100, gap: 16 },
-
-  card: {
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
-    borderRadius: 20, padding: 20, gap: 14,
+  backBtn: { padding: 4 },
+  progressTrack: {
+    flex: 1, height: 4, backgroundColor: '#1e293b', borderRadius: 2,
   },
-  cardTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  cardText: { color: '#cbd5e1', lineHeight: 20, fontSize: 14 },
+  progressFill: { height: 4, backgroundColor: COLORS.emerald, borderRadius: 2 },
+  progressLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600', minWidth: 24 },
 
-  questionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  optionList: { gap: 8 },
-  optionBtn: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: '#020617', borderWidth: 1, borderColor: '#334155',
-    borderRadius: 12, padding: 14,
+  // Welcome
+  centeredScreen: {
+    flexGrow: 1, alignItems: 'center', paddingHorizontal: 28,
+    paddingTop: 40, paddingBottom: 60, gap: 12,
   },
-  optionBtnActive: { borderColor: COLORS.emerald, backgroundColor: COLORS.selected },
+  welcomeEmoji: { fontSize: 72, marginBottom: 8 },
+  welcomeTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text, textAlign: 'center' },
+  welcomeSub: { fontSize: 16, color: COLORS.emerald, fontWeight: '600', marginBottom: 4 },
+  welcomeDivider: { width: 40, height: 2, backgroundColor: '#1e293b', marginVertical: 8 },
+  welcomeBody: {
+    fontSize: 16, color: '#cbd5e1', textAlign: 'center', lineHeight: 24,
+  },
+  welcomeTime: {
+    fontSize: 13, color: '#94a3b8',
+    backgroundColor: '#0f172a', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 6,
+  },
+  resumeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#2a1f0a', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: '#f59e0b40',
+  },
+  resumeText: { flex: 1, fontSize: 13, color: '#fbbf24', lineHeight: 18 },
+
+  // Questions
+  questionScreen: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
+  questionNum: { fontSize: 12, color: COLORS.emerald, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  questionText: { fontSize: 20, fontWeight: '700', color: COLORS.text, lineHeight: 28, marginBottom: 20 },
+  optionsScroll: { flex: 1 },
+  optionsContent: { gap: 10 },
+  optionCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
+    backgroundColor: '#0f172a', borderWidth: 1, borderColor: '#1e293b',
+    borderRadius: 14, padding: 16,
+  },
+  optionCardActive: {
+    borderColor: COLORS.emerald, backgroundColor: COLORS.selected,
+  },
   radio: {
-    width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-    borderColor: '#475569', alignItems: 'center', justifyContent: 'center',
-    marginTop: 1, flexShrink: 0,
+    width: 20, height: 20, borderRadius: 10,
+    borderWidth: 2, borderColor: '#475569',
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0, marginTop: 1,
   },
   radioActive: { borderColor: COLORS.emerald },
-  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.emerald },
-  optionText: { flex: 1, color: '#94a3b8', fontSize: 14, lineHeight: 20 },
-  optionTextActive: { color: COLORS.text },
-  divider: { height: 1, backgroundColor: COLORS.cardBorder },
-
-  infoBox: {
-    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
-    backgroundColor: '#1e293b', borderRadius: 10, padding: 12,
+  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.emerald },
+  optionLabel: { flex: 1, fontSize: 15, color: '#94a3b8', lineHeight: 22 },
+  optionLabelActive: { color: COLORS.text },
+  questionFooter: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: 24, backgroundColor: COLORS.bg,
+    borderTopWidth: 1, borderTopColor: '#0f172a',
   },
-  infoText: { flex: 1, color: '#93c5fd', fontSize: 12, lineHeight: 18 },
 
-  profileCard: {
-    borderWidth: 2, borderRadius: 16, padding: 20,
-    alignItems: 'center', gap: 8, backgroundColor: '#0c1a2e',
+  // Résultat
+  resultScreen: {
+    alignItems: 'center', paddingHorizontal: 24,
+    paddingTop: 32, gap: 16,
   },
-  profileEmoji: { fontSize: 40 },
-  profileName: { fontSize: 20, fontWeight: '800' },
-  profileTier: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
-  profileDesc: { color: '#cbd5e1', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  resultBadge: {
+    backgroundColor: '#1a3a2a', borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 6,
+    borderWidth: 1, borderColor: COLORS.emerald + '40',
+  },
+  resultBadgeText: { fontSize: 12, color: COLORS.emerald, fontWeight: '700' },
+  resultEmoji: { fontSize: 72 },
+  resultName: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
+  resultTier: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
+  resultDesc: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 22, paddingHorizontal: 12 },
 
   allocCard: {
-    backgroundColor: '#020617', borderRadius: 14, padding: 16, gap: 12,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    width: '100%', backgroundColor: '#0f172a', borderRadius: 16,
+    padding: 18, gap: 12, borderWidth: 1, borderColor: '#1e293b',
   },
-  allocTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
-  allocRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  allocLabel: { color: COLORS.text, fontSize: 14 },
-  allocValue: { color: COLORS.emerald, fontWeight: '700', fontSize: 15 },
+  allocTitle: { fontSize: 13, fontWeight: '600', color: '#94a3b8', marginBottom: 4 },
+  allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  allocDot: { width: 8, height: 8, borderRadius: 4 },
+  allocLabel: { width: 110, fontSize: 13, color: COLORS.text },
+  allocBarBg: { flex: 1, height: 5, backgroundColor: '#1e293b', borderRadius: 3 },
+  allocBarFill: { height: 5, borderRadius: 3 },
+  allocPct: { width: 36, fontSize: 13, fontWeight: '700', textAlign: 'right' },
 
-  footer: { flexDirection: 'row', gap: 10, marginTop: 4, alignItems: 'center' },
-  footerBtn: {
-    flex: 1, backgroundColor: COLORS.emerald, borderRadius: 14,
-    paddingVertical: 15, flexDirection: 'row', justifyContent: 'center',
-    alignItems: 'center', gap: 8,
+  freezeNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: '#0f172a', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: '#1e293b',
   },
-  footerBtnDisabled: { opacity: 0.5 },
-  footerBtnText: { color: COLORS.bg, fontWeight: '700', fontSize: 15 },
-  footerBtnSecondary: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
-    borderRadius: 14, paddingVertical: 15, paddingHorizontal: 16,
+  freezeText: { flex: 1, fontSize: 12, color: '#94a3b8', lineHeight: 18 },
+
+  infoBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: '#1e293b', borderRadius: 10, padding: 10, width: '100%',
   },
-  footerBtnSecondaryText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
+  infoText: { flex: 1, fontSize: 12, color: '#93c5fd', lineHeight: 18 },
+
+  // Bouton principal
+  primaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, backgroundColor: COLORS.emerald,
+    borderRadius: 16, paddingVertical: 16, paddingHorizontal: 28,
+    width: '100%',
+  },
+  primaryBtnLabel: { fontSize: 16, fontWeight: '700', color: COLORS.bg },
+  btnDisabled: { opacity: 0.5 },
 });

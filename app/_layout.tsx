@@ -40,10 +40,12 @@ function AppChrome() {
     if (loading) return;
     if (isTabs && !user) {
       router.replace('/welcome');
-    } else if (isAuthPage && user) {
-      router.replace('/(tabs)/home');
+    } else if (user && (root === 'welcome' || root === 'login' || root === 'register')) {
+      // Rediriger vers l'index : il décide setup / questionnaire / home
+      // selon l'avancement de l'onboarding (ne pas court-circuiter le questionnaire).
+      router.replace('/');
     }
-  }, [loading, user, isTabs, isAuthPage]);
+  }, [loading, user, isTabs, root]);
 
   return (
     <View style={styles.root}>

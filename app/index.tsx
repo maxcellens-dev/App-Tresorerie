@@ -13,14 +13,24 @@ export default function Index() {
 
   if (user) {
     const profile = profileQuery.data;
-    if (!profile || !profile.initial_onboarding_completed) {
+    // Le profil financier (user_financial_profile) est la source de vérité :
+    // s'il existe, le questionnaire ET l'onboarding sont considérés terminés,
+    // même si les flags dans `profiles` n'ont pas pu être écrits.
+    const hasFinancialProfile = !!fpQuery.data;
+
+    const onboardingDone =
+      hasFinancialProfile || Boolean(profile?.initial_onboarding_completed);
+    const questionnaireDone =
+      hasFinancialProfile || Boolean(profile?.financial_profile_questionnaire_completed);
+
+    if (!profile) {
       return <Redirect href="/setup" />;
     }
-    // Questionnaire fait si : flag en base OU une ligne user_financial_profile existe
-    const questionnaireDone =
-      profile.financial_profile_questionnaire_completed || !!fpQuery.data;
     if (!questionnaireDone) {
       return <Redirect href="/questionnaire" />;
+    }
+    if (!onboardingDone) {
+      return <Redirect href="/setup" />;
     }
     return <Redirect href="/(tabs)/home" />;
   }

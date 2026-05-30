@@ -250,6 +250,22 @@ export default function ProfilFinancierScreen() {
                 <Ionicons name="create-outline" size={18} color={COLORS.bg} />
                 <Text style={styles.editBtnText}>Mettre à jour mes réponses</Text>
               </TouchableOpacity>
+
+              {/* Récapitulatif des réponses au questionnaire */}
+              {savedAnswers && (
+                <View style={styles.card}>
+                  <Text style={styles.sectionLabel}>Vos réponses</Text>
+                  {QUESTIONS.map((q, i) => {
+                    const answer = (savedAnswers as any)[q.key] as string | undefined;
+                    return (
+                      <View key={q.key} style={styles.answerRow}>
+                        <Text style={styles.answerQuestion}>{i + 1}. {q.label}</Text>
+                        <Text style={styles.answerValue}>{answer || '—'}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </>
           )}
 
@@ -354,6 +370,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e293b', borderRadius: 10, padding: 10,
   },
   infoText: { flex: 1, color: '#93c5fd', fontSize: 12, lineHeight: 16 },
+
+  // Récapitulatif des réponses
+  answerRow: {
+    gap: 3, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder,
+  },
+  answerQuestion: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16 },
+  answerValue: { fontSize: 14, color: COLORS.text, fontWeight: '600', lineHeight: 19 },
 
   // Allocation
   sectionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },

@@ -1,11 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useRoadmapIdeas, useAddRoadmapIdea, useDeleteRoadmapIdea } from '../../../hooks/useRoadmapIdeas';
 
 const COLORS = {
   bg: '#020617',
@@ -43,7 +45,31 @@ function useAllSuggestions() {
 export default function AdminSuggestions() {
   const router = useRouter();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data: suggestions = [], isLoading } = useAllSuggestions();
+
+  // ── Idées en cours de développement (roadmap) ──
+  const { data: roadmapIdeas = [] } = useRoadmapIdeas();
+  const addRoadmapIdea = useAddRoadmapIdea(user?.id);
+  const deleteRoadmapIdea = useDeleteRoadmapIdea();
+  const [newIdea, setNewIdea] = useState('');
+
+  const handleAddRoadmap = async () => {
+    if (!newIdea.trim()) { Alert.alert('Champ requis', 'Saisissez une idée.'); return; }
+    try {
+      await addRoadmapIdea.mutateAsync({ title: newIdea.trim() });
+      setNewIdea('');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ajouter.');
+    }
+  };
+
+  const handleDeleteRoadmap = (id: string) => {
+    Alert.alert('Supprimer', 'Retirer cette idée de la roadmap ?', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Supprimer', style: 'destructive', onPress: () => deleteRoadmapIdea.mutate(id) },
+    ]);
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -87,9 +113,53 @@ export default function AdminSuggestions() {
         </TouchableOpacity>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+
+          {/* ── Idées en cours de développement (visibles côté utilisateur) ── */}
+          <Text style={styles.sectionLabel}>Idées en cours de développement</Text>
+          <Text style={styles.sectionHint}>Affichées dans la « Boîte à idées ». Si vide, la section est masquée côté utilisateur.</Text>
+          <View style={styles.roadmapCard}>
+            <View style={styles.addRow}>
+              <TextInput
+                style={styles.addInput}
+                value={newIdea}
+                onChangeText={setNewIdea}
+                placeholder="Ex. Import automatique des relevés…"
+                placeholderTextColor={COLORS.textSecondary}
+                onSubmitEditing={handleAddRoadmap}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[styles.addBtn, addRoadmapIdea.isPending && { opacity: 0.6 }]}
+                onPress={handleAddRoadmap}
+                disabled={addRoadmapIdea.isPending}
+              >
+                {addRoadmapIdea.isPending
+                  ? <ActivityIndicator color={COLORS.bg} size="small" />
+                  : <Ionicons name="add" size={22} color={COLORS.bg} />}
+              </TouchableOpacity>
+            </View>
+
+            {roadmapIdeas.length === 0 ? (
+              <Text style={styles.roadmapEmpty}>Aucune idée. Ajoutez-en une ci-dessus.</Text>
+            ) : (
+              roadmapIdeas.map((item, i) => (
+                <View
+                  key={item.id}
+                  style={[styles.roadmapRow, i === roadmapIdeas.length - 1 && { borderBottomWidth: 0 }]}
+                >
+                  <Ionicons name={(item.icon as any) ?? 'construct-outline'} size={18} color={COLORS.emerald} />
+                  <Text style={styles.roadmapText}>{item.title}</Text>
+                  <TouchableOpacity onPress={() => handleDeleteRoadmap(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={18} color={COLORS.red} />
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </View>
+
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Suggestions</Text>
+              <Text style={styles.title}>Suggestions reçues</Text>
               <Text style={styles.subtitle}>{suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''} reçue{suggestions.length !== 1 ? 's' : ''}</Text>
             </View>
             {suggestions.length > 0 && (
@@ -140,6 +210,30 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   backLabel: { fontSize: 16, color: COLORS.text, marginLeft: 4 },
+
+  // Roadmap (idées en cours de dev)
+  sectionLabel: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  sectionHint: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 12, lineHeight: 16 },
+  roadmapCard: {
+    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.cardBorder,
+    padding: 14, marginBottom: 28, gap: 10,
+  },
+  addRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  addInput: {
+    flex: 1, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, fontSize: 14,
+  },
+  addBtn: {
+    width: 44, height: 44, borderRadius: 10, backgroundColor: COLORS.emerald,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  roadmapEmpty: { fontSize: 13, color: COLORS.textSecondary, fontStyle: 'italic', paddingVertical: 6 },
+  roadmapRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder,
+  },
+  roadmapText: { flex: 1, fontSize: 14, color: COLORS.text },
+
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
   subtitle: { fontSize: 13, color: COLORS.textSecondary },
