@@ -144,12 +144,12 @@ export default function QuestionnaireScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Vos revenus</Text>
 
-              <Text style={styles.questionLabel}>Type de revenu</Text>
+              <Text style={styles.questionLabel}>Quel type de revenu possédez-vous ?</Text>
               <OptionList options={Q1_OPTIONS} selected={answers.q1} onSelect={v => setAnswer('q1', v)} />
 
               <View style={styles.divider} />
 
-              <Text style={styles.questionLabel}>Fréquence de versement</Text>
+              <Text style={styles.questionLabel}>À quelle fréquence vos revenus principaux sont-ils versés ?</Text>
               <OptionList options={Q2_OPTIONS} selected={answers.q2} onSelect={v => setAnswer('q2', v)} />
 
               {isIrregular && (
@@ -168,12 +168,12 @@ export default function QuestionnaireScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre situation</Text>
 
-              <Text style={styles.questionLabel}>Revenus nets moyens par mois</Text>
+              <Text style={styles.questionLabel}>Quel est le montant moyen de vos revenus nets par mois ?</Text>
               <OptionList options={Q3_OPTIONS} selected={answers.q3} onSelect={v => setAnswer('q3', v)} />
 
               <View style={styles.divider} />
 
-              <Text style={styles.questionLabel}>Reste à vivre après charges</Text>
+              <Text style={styles.questionLabel}>Une fois vos factures et dépenses obligatoires payées, que reste-t-il ?</Text>
               <OptionList options={Q4_OPTIONS} selected={answers.q4} onSelect={v => setAnswer('q4', v)} />
             </View>
           )}
@@ -183,12 +183,12 @@ export default function QuestionnaireScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre épargne</Text>
 
-              <Text style={styles.questionLabel}>Réserve de sécurité disponible</Text>
+              <Text style={styles.questionLabel}>Si vos revenus s'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?</Text>
               <OptionList options={Q5_OPTIONS} selected={answers.q5} onSelect={v => setAnswer('q5', v)} />
 
               <View style={styles.divider} />
 
-              <Text style={styles.questionLabel}>Taux d'épargne mensuel actuel</Text>
+              <Text style={styles.questionLabel}>Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?</Text>
               <OptionList options={Q6_OPTIONS} selected={answers.q6} onSelect={v => setAnswer('q6', v)} />
             </View>
           )}
@@ -197,9 +197,7 @@ export default function QuestionnaireScreen() {
           {step === 4 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre objectif prioritaire</Text>
-              <Text style={styles.cardText}>
-                Personnalise vos recommandations et l'ordre d'affichage des actions.
-              </Text>
+              <Text style={styles.questionLabel}>Quel est votre objectif prioritaire avec cette application ?</Text>
               <OptionList options={Q7_OPTIONS} selected={answers.q7} onSelect={v => setAnswer('q7', v)} />
             </View>
           )}

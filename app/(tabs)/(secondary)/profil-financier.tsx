@@ -33,13 +33,13 @@ const COLORS = {
 };
 
 const QUESTIONS = [
-  { key: 'q1' as const, label: 'Type de revenu', options: Q1_OPTIONS },
-  { key: 'q2' as const, label: 'Fréquence de versement', options: Q2_OPTIONS },
-  { key: 'q3' as const, label: 'Revenus nets moyens par mois', options: Q3_OPTIONS },
-  { key: 'q4' as const, label: 'Reste à vivre après charges', options: Q4_OPTIONS },
-  { key: 'q5' as const, label: 'Réserve de sécurité disponible', options: Q5_OPTIONS },
-  { key: 'q6' as const, label: "Taux d'épargne mensuel actuel", options: Q6_OPTIONS },
-  { key: 'q7' as const, label: 'Objectif prioritaire avec l\'application', options: Q7_OPTIONS },
+  { key: 'q1' as const, label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
+  { key: 'q2' as const, label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
+  { key: 'q3' as const, label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
+  { key: 'q4' as const, label: 'Une fois vos factures et dépenses obligatoires payées, que reste-t-il ?', options: Q4_OPTIONS },
+  { key: 'q5' as const, label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
+  { key: 'q6' as const, label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
+  { key: 'q7' as const, label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
 ];
 
 function OptionList({
