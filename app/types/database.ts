@@ -8,6 +8,80 @@ export type ObjectiveStatus = 'active' | 'completed' | 'paused';
 
 export type FinancialProfile = 'economiser' | 'suivi' | 'optimiser' | 'investir';
 
+// ── Nouveau système de profils financiers P1-P5 ───────────────
+
+export type FinancialProfileId = 'P1' | 'P2' | 'P3' | 'P4' | 'P5';
+export type ProfileSource = 'questionnaire' | 'automatic';
+export type ChangeReason =
+  | 'questionnaire_update'
+  | 'automatic_upgrade'
+  | 'automatic_downgrade'
+  | 'exceptional_revenue_drop';
+
+export interface UserFinancialProfile {
+  user_id: string;
+  profile_id: FinancialProfileId;
+  profile_source: ProfileSource;
+  assigned_at: string;
+  auto_unlock_at: string | null;
+  is_irregular_income: boolean;
+  consecutive_upgrade_months: number;
+  consecutive_downgrade_months: number;
+  last_auto_evaluation: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserQuestionnaireAnswers {
+  user_id: string;
+  q1: string;
+  q2: string;
+  q3: string;
+  q4: string;
+  q5: string;
+  q6: string;
+  q7: string;
+  answered_at: string;
+  updated_at: string;
+}
+
+export interface ProfileChangeLog {
+  id: string;
+  user_id: string;
+  previous_profile: string | null;
+  new_profile: string;
+  change_reason: ChangeReason;
+  triggered_at: string;
+  notification_shown: boolean;
+}
+
+export interface ProfileMatrixConfig {
+  transition: string;
+  upgrade_months_threshold: number;
+  upgrade_flux_threshold: number;
+  downgrade_months_threshold: number;
+  downgrade_flux_threshold: number;
+  anti_yoyo_months: number;
+  exceptional_drop_threshold_pct: number;
+  exceptional_drop_months: number;
+  irregular_drop_threshold_pct: number;
+  auto_eval_enabled: boolean;
+  freeze_months: number;
+  flux_window_months: number;
+  expenses_window_months: number;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface ProfileNotificationMessage {
+  transition: string;
+  direction: 'upgrade' | 'downgrade' | 'exceptional';
+  title: string;
+  body: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+
 export interface Profile {
   id: string;
   email?: string;
@@ -24,6 +98,8 @@ export interface Profile {
   allocation_enjoy_percent?: number;
   allocation_keep_percent?: number;
   initial_onboarding_completed?: boolean;
+  financial_profile_questionnaire_completed?: boolean;
+  is_admin?: boolean;
   created_at: string;
   updated_at: string;
 }

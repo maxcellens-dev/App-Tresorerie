@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { supabase } from '../../../lib/supabase';
@@ -16,6 +18,7 @@ const COLORS = {
 };
 
 export default function StyleEditor() {
+  const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
@@ -95,6 +98,10 @@ export default function StyleEditor() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={["left", "right", "bottom"]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={24} color="#ffffff" />
+          <Text style={styles.backLabel}>Admin</Text>
+        </TouchableOpacity>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Style Editor (intégré)</Text>
 
@@ -130,6 +137,8 @@ export default function StyleEditor() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  backLabel: { fontSize: 16, color: '#ffffff', marginLeft: 4 },
   title: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 14 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 120 },

@@ -35,6 +35,13 @@ export default function AdminHub() {
 
   const items = [
     {
+      href: '/(tabs)/admin/financial-profiles',
+      icon: 'person-outline',
+      title: 'Profils financiers',
+      desc: 'P1-P5 · messages · seuils',
+      color: '#a78bfa',
+    },
+    {
       href: '/(tabs)/admin/recommendations',
       icon: 'bulb-outline',
       title: 'Recommandations',

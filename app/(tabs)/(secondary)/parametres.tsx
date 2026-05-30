@@ -69,13 +69,27 @@ export default function SettingsScreen() {
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* ── Profil ── */}
+          {/* ── Mon compte ── */}
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <View style={styles.card}>
             <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
               <Ionicons name="person-circle-outline" size={20} color={COLORS.emerald} />
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Mon profil</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.emerald} />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Profil Financier ── */}
+          <Text style={styles.sectionTitle}>Profil Financier</Text>
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={[styles.row, { borderBottomWidth: 0 }]}
+              activeOpacity={0.7}
+              onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}
+            >
+              <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
+              <Text style={styles.rowLabel}>Mon profil financier</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 

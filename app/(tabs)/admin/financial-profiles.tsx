@@ -1,0 +1,487 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  useProfileMatrixConfig,
+  useProfileNotificationMessages,
+  useUpdateNotificationMessage,
+  useUpdateMatrixConfig,
+} from '../../hooks/useFinancialProfile';
+import { PROFILE_INFO } from '../../lib/financialProfileEngine';
+import type { FinancialProfileId } from '../../types/database';
+
+const COLORS = {
+  bg: '#020617',
+  card: '#0f172a',
+  cardBorder: '#1e293b',
+  text: '#ffffff',
+  textSecondary: '#94a3b8',
+  emerald: '#34d399',
+};
+
+type Tab = 'messages' | 'matrix' | 'global';
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'messages', label: 'Messages' },
+  { key: 'matrix',   label: 'Matrice' },
+  { key: 'global',   label: 'Paramètres' },
+];
+
+const TRANSITIONS = [
+  { key: 'P1_P2', label: 'P1 → P2', from: 'P1' as FinancialProfileId, to: 'P2' as FinancialProfileId },
+  { key: 'P2_P3', label: 'P2 → P3', from: 'P2' as FinancialProfileId, to: 'P3' as FinancialProfileId },
+  { key: 'P3_P4', label: 'P3 → P4', from: 'P3' as FinancialProfileId, to: 'P4' as FinancialProfileId },
+  { key: 'P4_P5', label: 'P4 → P5', from: 'P4' as FinancialProfileId, to: 'P5' as FinancialProfileId },
+];
+
+const DOWNGRADE_TRANSITIONS = [
+  { key: 'P2_P1', label: 'P2 → P1' },
+  { key: 'P3_P2', label: 'P3 → P2' },
+  { key: 'P4_P3', label: 'P4 → P3' },
+  { key: 'P5_P4', label: 'P5 → P4' },
+];
+
+const EXCEPTIONAL_TRANSITIONS = [
+  { key: 'exceptional_one', label: 'Baisse de revenus (−1 niveau)' },
+  { key: 'exceptional_two', label: 'Revenus nuls (−2 niveaux)' },
+];
+
+// ── Messages de notification ────────────────────────────────────
+
+function MessagesSection({ userId }: { userId: string }) {
+  const { data: messages = [], isLoading } = useProfileNotificationMessages();
+  const updateMsg = useUpdateNotificationMessage(userId);
+
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
+
+  const allTransitions = [
+    ...TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'upgrade' as const })),
+    ...DOWNGRADE_TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'downgrade' as const })),
+    ...EXCEPTIONAL_TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'exceptional' as const })),
+  ];
+
+  function startEdit(transition: string, direction: 'upgrade' | 'downgrade' | 'exceptional') {
+    const msg = messages.find(m => m.transition === transition && m.direction === direction);
+    setEditTitle(msg?.title ?? '');
+    setEditBody(msg?.body ?? '');
+    setEditing(`${transition}|${direction}`);
+  }
+
+  async function handleSave(transition: string, direction: 'upgrade' | 'downgrade' | 'exceptional') {
+    if (!editTitle.trim()) { Alert.alert('Titre requis'); return; }
+    try {
+      await updateMsg.mutateAsync({ transition, direction, title: editTitle.trim(), body: editBody.trim() });
+      setEditing(null);
+      Alert.alert('Sauvegardé');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
+    }
+  }
+
+  if (isLoading) return <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />;
+
+  return (
+    <View style={styles.sectionContent}>
+      {allTransitions.map(({ key: transition, label, direction }) => {
+        const msg = messages.find(m => m.transition === transition && m.direction === direction);
+        const editKey = `${transition}|${direction}`;
+        const isEditing = editing === editKey;
+        const dirColor = direction === 'upgrade' ? COLORS.emerald : direction === 'downgrade' ? '#f87171' : '#f59e0b';
+
+        return (
+          <View key={editKey} style={styles.msgCard}>
+            <View style={styles.msgHeader}>
+              <View style={[styles.dirBadge, { backgroundColor: dirColor + '20' }]}>
+                <Text style={[styles.dirBadgeText, { color: dirColor }]}>
+                  {direction === 'upgrade' ? '↑ Montée' : direction === 'downgrade' ? '↓ Descente' : '⚠ Exceptionnel'}
+                </Text>
+              </View>
+              <Text style={styles.msgTransition}>{label}</Text>
+              <TouchableOpacity onPress={() => isEditing ? setEditing(null) : startEdit(transition, direction)}>
+                <Ionicons name={isEditing ? 'close' : 'create-outline'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {isEditing ? (
+              <View style={styles.editForm}>
+                <Text style={styles.fieldLabel}>Titre</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  multiline
+                  placeholderTextColor={COLORS.textSecondary}
+                  placeholder="Titre du message"
+                />
+                <Text style={styles.fieldLabel}>Corps</Text>
+                <TextInput
+                  style={[styles.input, styles.inputMultiline]}
+                  value={editBody}
+                  onChangeText={setEditBody}
+                  multiline
+                  numberOfLines={4}
+                  placeholderTextColor={COLORS.textSecondary}
+                  placeholder="Contenu du message"
+                />
+                <TouchableOpacity
+                  style={[styles.saveBtn, updateMsg.isPending && { opacity: 0.6 }]}
+                  onPress={() => handleSave(transition, direction)}
+                  disabled={updateMsg.isPending}
+                >
+                  {updateMsg.isPending
+                    ? <ActivityIndicator color={COLORS.bg} size="small" />
+                    : <Text style={styles.saveBtnText}>Sauvegarder</Text>}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.msgPreview}>
+                <Text style={styles.msgTitle} numberOfLines={2}>{msg?.title ?? '—'}</Text>
+                <Text style={styles.msgBody} numberOfLines={3}>{msg?.body ?? '—'}</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ── Matrice de seuils ───────────────────────────────────────────
+
+function MatrixSection({ userId }: { userId: string }) {
+  const { data: configs = [], isLoading } = useProfileMatrixConfig();
+  const updateConfig = useUpdateMatrixConfig(userId);
+
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+
+  function startEdit(transition: string) {
+    const cfg = configs.find((c: any) => c.transition === transition);
+    if (cfg) {
+      setEditValues({
+        upgrade_months_threshold: String(cfg.upgrade_months_threshold),
+        upgrade_flux_threshold: String(cfg.upgrade_flux_threshold),
+        downgrade_months_threshold: String(cfg.downgrade_months_threshold),
+        downgrade_flux_threshold: String(cfg.downgrade_flux_threshold),
+        anti_yoyo_months: String(cfg.anti_yoyo_months),
+      });
+    }
+    setEditingKey(transition);
+  }
+
+  async function handleSave(transition: string) {
+    try {
+      await updateConfig.mutateAsync({
+        transition,
+        upgrade_months_threshold: parseFloat(editValues.upgrade_months_threshold) || 0,
+        upgrade_flux_threshold: parseFloat(editValues.upgrade_flux_threshold) || 0,
+        downgrade_months_threshold: parseFloat(editValues.downgrade_months_threshold) || 0,
+        downgrade_flux_threshold: parseFloat(editValues.downgrade_flux_threshold) || 0,
+        anti_yoyo_months: parseInt(editValues.anti_yoyo_months) || 2,
+      });
+      setEditingKey(null);
+      Alert.alert('Sauvegardé');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
+    }
+  }
+
+  if (isLoading) return <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />;
+
+  return (
+    <View style={styles.sectionContent}>
+      <Text style={styles.matrixInfo}>
+        Les montées requièrent {'{anti_yoyo_months}'} mois consécutifs. Les descentes sont immédiates.
+      </Text>
+
+      {TRANSITIONS.map(({ key: transition, label, from, to }) => {
+        const cfg = configs.find((c: any) => c.transition === transition);
+        const isEditing = editingKey === transition;
+        const fromInfo = PROFILE_INFO[from];
+        const toInfo = PROFILE_INFO[to];
+
+        return (
+          <View key={transition} style={styles.matrixCard}>
+            <View style={styles.matrixHeader}>
+              <Text style={styles.matrixLabel}>
+                {fromInfo.emoji} {fromInfo.name} → {toInfo.emoji} {toInfo.name}
+              </Text>
+              <TouchableOpacity onPress={() => isEditing ? setEditingKey(null) : startEdit(transition)}>
+                <Ionicons name={isEditing ? 'close' : 'create-outline'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {isEditing ? (
+              <View style={styles.editForm}>
+                {[
+                  { field: 'upgrade_months_threshold',   label: 'Montée — mois de sécurité ≥' },
+                  { field: 'upgrade_flux_threshold',     label: 'Montée — flux total ≥ (%)' },
+                  { field: 'downgrade_months_threshold', label: 'Descente — mois de sécurité <' },
+                  { field: 'downgrade_flux_threshold',   label: 'Descente — flux total < (%)' },
+                  { field: 'anti_yoyo_months',           label: 'Mois consécutifs requis (montée)' },
+                ].map(({ field, label: fl }) => (
+                  <View key={field} style={styles.matrixRow}>
+                    <Text style={styles.matrixRowLabel}>{fl}</Text>
+                    <TextInput
+                      style={styles.matrixInput}
+                      value={editValues[field]}
+                      onChangeText={v => setEditValues(prev => ({ ...prev, [field]: v }))}
+                      keyboardType="decimal-pad"
+                      placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                ))}
+                <View style={styles.bufferRow}>
+                  <Text style={styles.bufferLabel}>Écart tampon (calculé)</Text>
+                  <Text style={styles.bufferValue}>
+                    {(parseFloat(editValues.upgrade_months_threshold) - parseFloat(editValues.downgrade_months_threshold)).toFixed(1)} mois
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.saveBtn, updateConfig.isPending && { opacity: 0.6 }]}
+                  onPress={() => handleSave(transition)}
+                  disabled={updateConfig.isPending}
+                >
+                  {updateConfig.isPending
+                    ? <ActivityIndicator color={COLORS.bg} size="small" />
+                    : <Text style={styles.saveBtnText}>Sauvegarder</Text>}
+                </TouchableOpacity>
+              </View>
+            ) : cfg ? (
+              <View style={styles.matrixSummary}>
+                <Text style={styles.matrixSummaryText}>
+                  ↑ Montée : ≥ {cfg.upgrade_months_threshold} mois · ≥ {cfg.upgrade_flux_threshold} % flux
+                </Text>
+                <Text style={styles.matrixSummaryText}>
+                  ↓ Descente : &lt; {cfg.downgrade_months_threshold} mois · &lt; {cfg.downgrade_flux_threshold} % flux
+                </Text>
+                <Text style={styles.matrixSummaryText}>
+                  Anti-yoyo : {cfg.anti_yoyo_months} mois consécutifs
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ color: COLORS.textSecondary }}>Non configuré</Text>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ── Paramètres globaux ──────────────────────────────────────────
+
+function GlobalSection({ userId }: { userId: string }) {
+  const { data: configs = [] } = useProfileMatrixConfig();
+  const updateConfig = useUpdateMatrixConfig(userId);
+  const [freeze, setFreeze] = useState('6');
+  const [fluxWindow, setFluxWindow] = useState('3');
+  const [expWindow, setExpWindow] = useState('6');
+  const [dropThreshold, setDropThreshold] = useState('50');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const first = configs[0] as any;
+    if (first) {
+      setFreeze(String(first.freeze_months ?? 6));
+      setFluxWindow(String(first.flux_window_months ?? 3));
+      setExpWindow(String(first.expenses_window_months ?? 6));
+      setDropThreshold(String(first.exceptional_drop_threshold_pct ?? 50));
+    }
+  }, [configs.length]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const transitions = ['P1_P2', 'P2_P3', 'P3_P4', 'P4_P5'];
+      await Promise.all(transitions.map(t =>
+        updateConfig.mutateAsync({
+          transition: t,
+          freeze_months: parseInt(freeze) || 6,
+          flux_window_months: parseInt(fluxWindow) || 3,
+          expenses_window_months: parseInt(expWindow) || 6,
+          exceptional_drop_threshold_pct: parseFloat(dropThreshold) || 50,
+        } as any)
+      ));
+      Alert.alert('Sauvegardé');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <View style={styles.sectionContent}>
+      {[
+        { label: 'Durée de gel du profil initial (mois)', value: freeze, setter: setFreeze },
+        { label: 'Fenêtre de calcul des flux (mois)', value: fluxWindow, setter: setFluxWindow },
+        { label: 'Fenêtre de calcul des dépenses moy. (mois)', value: expWindow, setter: setExpWindow },
+        { label: 'Seuil de chute de revenus (%)', value: dropThreshold, setter: setDropThreshold },
+      ].map(({ label, value, setter }) => (
+        <View key={label} style={styles.globalRow}>
+          <Text style={styles.globalLabel}>{label}</Text>
+          <TextInput
+            style={styles.globalInput}
+            value={value}
+            onChangeText={setter}
+            keyboardType="decimal-pad"
+            placeholderTextColor={COLORS.textSecondary}
+          />
+        </View>
+      ))}
+
+      <TouchableOpacity
+        style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+        onPress={handleSave}
+        disabled={saving}
+      >
+        {saving
+          ? <ActivityIndicator color={COLORS.bg} size="small" />
+          : <Text style={styles.saveBtnText}>Appliquer à toutes les transitions</Text>}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ── Écran principal ─────────────────────────────────────────────
+
+export default function FinancialProfilesAdmin() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<Tab>('messages');
+
+  if (!user) return null;
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.navigate('/(tabs)/(secondary)/admin' as any)}>
+          <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+          <Text style={styles.backLabel}>Admin</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.title}>Profils financiers</Text>
+        <Text style={styles.subtitle}>Configuration des profils P1-P5, seuils et messages.</Text>
+
+        {/* Tabs */}
+        <View style={styles.tabs}>
+          {TABS.map(tab => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {activeTab === 'messages' && <MessagesSection userId={user.id} />}
+          {activeTab === 'matrix'   && <MatrixSection userId={user.id} />}
+          {activeTab === 'global'   && <GlobalSection userId={user.id} />}
+        </ScrollView>
+
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
+  backLabel: { fontSize: 16, color: COLORS.text },
+  title: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  subtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 16 },
+
+  tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  tab: {
+    flex: 1, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    alignItems: 'center',
+  },
+  tabActive: { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald },
+  tabText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  tabTextActive: { color: COLORS.bg },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
+  sectionContent: { gap: 12 },
+
+  // Messages
+  msgCard: {
+    backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1,
+    borderColor: COLORS.cardBorder, padding: 14, gap: 10,
+  },
+  msgHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dirBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  dirBadgeText: { fontSize: 11, fontWeight: '700' },
+  msgTransition: { flex: 1, fontSize: 13, fontWeight: '600', color: COLORS.text },
+  msgPreview: { gap: 4 },
+  msgTitle: { fontSize: 13, fontWeight: '600', color: COLORS.text, lineHeight: 18 },
+  msgBody: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16 },
+
+  // Matrice
+  matrixInfo: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 4 },
+  matrixCard: {
+    backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1,
+    borderColor: COLORS.cardBorder, padding: 14, gap: 10,
+  },
+  matrixHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  matrixLabel: { fontSize: 13, fontWeight: '600', color: COLORS.text, flex: 1 },
+  matrixSummary: { gap: 4 },
+  matrixSummaryText: { fontSize: 12, color: COLORS.textSecondary },
+  matrixRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  matrixRowLabel: { flex: 1, fontSize: 13, color: COLORS.text },
+  matrixInput: {
+    width: 72, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    color: COLORS.text, textAlign: 'center',
+  },
+  bufferRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bufferLabel: { fontSize: 12, color: COLORS.textSecondary },
+  bufferValue: { fontSize: 12, fontWeight: '700', color: COLORS.emerald },
+
+  // Paramètres globaux
+  globalRow: {
+    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1,
+    borderColor: COLORS.cardBorder, padding: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+  },
+  globalLabel: { flex: 1, fontSize: 13, color: COLORS.text },
+  globalInput: {
+    width: 72, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    color: COLORS.text, textAlign: 'center',
+  },
+
+  // Formulaire commun
+  editForm: { gap: 10 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
+  input: {
+    backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    color: COLORS.text, fontSize: 13,
+  },
+  inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
+  saveBtn: {
+    backgroundColor: COLORS.emerald, borderRadius: 10,
+    paddingVertical: 12, alignItems: 'center',
+  },
+  saveBtnText: { color: COLORS.bg, fontWeight: '700', fontSize: 14 },
+});

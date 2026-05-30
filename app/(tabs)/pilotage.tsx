@@ -16,6 +16,9 @@ import { ACCOUNT_COLORS } from '../theme/colors';
 import { computeRecommendations, getCurrentTier, PROFILE_LABELS, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 import { useRecommendationTiers } from '../hooks/useRecommendationTiers';
+import { useFinancialProfile } from '../hooks/useFinancialProfile';
+import { useAutoProfileEvaluation } from '../hooks/useFinancialProfile';
+import type { FinancialProfileId } from '../types/database';
 
 const COLORS = {
   bg: '#020617',
@@ -36,6 +39,13 @@ export default function PilotageScreen() {
   const projectsQuery = useProjects(user?.id);
   const objectivesQuery = useObjectives(user?.id);
   const { data: customTiers } = useRecommendationTiers();
+  const { data: financialProfile } = useFinancialProfile(user?.id);
+  const autoEval = useAutoProfileEvaluation(user?.id);
+
+  // Évaluation automatique mensuelle (silencieuse, 1er du mois)
+  React.useEffect(() => {
+    if (financialProfile) autoEval.mutate();
+  }, [financialProfile?.last_auto_evaluation]);
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const { data: projects = [], isLoading: projectsLoading } = projectsQuery;
@@ -234,7 +244,11 @@ export default function PilotageScreen() {
             </View>
 
             <RecommendationCard
-              recommendations={pilotageData ? computeRecommendations(pilotageData, customTiers) : []}
+              recommendations={pilotageData ? computeRecommendations(
+                pilotageData,
+                customTiers,
+                financialProfile?.profile_id as FinancialProfileId | undefined,
+              ) : []}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
               onAction={(reco: SmartRecommendation) => {

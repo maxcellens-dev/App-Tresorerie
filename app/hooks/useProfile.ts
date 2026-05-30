@@ -44,6 +44,7 @@ export function useProfile(profileId: string | undefined) {
         allocation_enjoy_percent: enjoy !== undefined && enjoy !== null ? Number(enjoy) : defaultAlloc.enjoy,
         allocation_keep_percent: keep !== undefined && keep !== null ? Number(keep) : defaultAlloc.keep,
         initial_onboarding_completed: Boolean((data as { initial_onboarding_completed?: boolean }).initial_onboarding_completed),
+        financial_profile_questionnaire_completed: Boolean((data as { financial_profile_questionnaire_completed?: boolean }).financial_profile_questionnaire_completed),
       };
     },
     enabled: !!profileId,

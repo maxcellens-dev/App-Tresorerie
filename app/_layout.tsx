@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useConfigSync } from './hooks/useConfigSync';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
+import ProfileChangeModal from './components/ProfileChangeModal';
 import './global.css';
 
 const queryClient = new QueryClient({
@@ -58,9 +59,12 @@ function AppChrome() {
           <Stack.Screen name="welcome" options={{ title: 'Trésorerie' }} />
           <Stack.Screen name="login" options={{ title: 'Connexion' }} />
           <Stack.Screen name="register" options={{ title: 'Inscription' }} />
+          <Stack.Screen name="questionnaire" options={{ title: 'Profil financier' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
         </Stack>
       </View>
+      {/* Modale de changement de profil — affichée au-dessus de tout */}
+      {isTabs && user && <ProfileChangeModal userId={user.id} />}
     </View>
   );
 }

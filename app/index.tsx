@@ -8,10 +8,14 @@ export default function Index() {
   const profileQuery = useProfile(user?.id);
 
   if (loading || (user && profileQuery.isLoading)) return null;
+
   if (user) {
     const profile = profileQuery.data;
     if (!profile || !profile.initial_onboarding_completed) {
       return <Redirect href="/setup" />;
+    }
+    if (!profile.financial_profile_questionnaire_completed) {
+      return <Redirect href="/questionnaire" />;
     }
     return <Redirect href="/(tabs)/home" />;
   }

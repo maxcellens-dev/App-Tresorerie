@@ -1,3 +1,8 @@
+/**
+ * Questionnaire standalone — affiché aux utilisateurs existants
+ * qui n'ont pas encore répondu au questionnaire de profil financier.
+ * Reprend le même moteur que setup.tsx (étapes 2-6).
+ */
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -5,13 +10,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from './contexts/AuthContext';
-import { useAccounts } from './hooks/useAccounts';
-import { useUpdateProfile } from './hooks/useProfile';
 import { useSaveQuestionnaire } from './hooks/useFinancialProfile';
 import {
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
-  computeInitialProfile, detectIrregularIncome, PROFILE_INFO, PROFILE_ALLOCATIONS,
+  computeInitialProfile, detectIrregularIncome,
+  PROFILE_INFO, PROFILE_ALLOCATIONS,
 } from './lib/financialProfileEngine';
 import type { QuestionnaireAnswers } from './lib/financialProfileEngine';
 
@@ -23,10 +27,9 @@ const COLORS = {
   textSecondary: '#94a3b8',
   emerald: '#34d399',
   selected: '#112f1c',
-  selectedBorder: '#34d399',
 };
 
-const STEPS = ['Comptes', 'Revenus', 'Situation', 'Épargne', 'Objectif', 'Profil'];
+const STEPS = ['Revenus', 'Situation', 'Épargne', 'Objectif', 'Profil'];
 const TOTAL_STEPS = STEPS.length;
 
 function OptionList({
@@ -60,23 +63,16 @@ function OptionList({
   );
 }
 
-export default function SetupScreen() {
+export default function QuestionnaireScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { data: accounts = [], isLoading: accountsLoading } = useAccounts(user?.id);
-  const updateProfile = useUpdateProfile(user?.id);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({
     q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
   });
-
-  const totalAccounts = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
-  const hasChecking = accounts.some((acc) => acc.type === 'checking');
-  const hasSaving = accounts.some((acc) => acc.type === 'savings');
 
   const assignedProfile = useMemo(() => {
     if (answers.q5 && answers.q4 && answers.q6) return computeInitialProfile(answers);
@@ -91,12 +87,11 @@ export default function SetupScreen() {
 
   function canProceed(): boolean {
     switch (step) {
-      case 1: return true;
-      case 2: return !!answers.q1 && !!answers.q2;
-      case 3: return !!answers.q3 && !!answers.q4;
-      case 4: return !!answers.q5 && !!answers.q6;
-      case 5: return !!answers.q7;
-      case 6: return !!assignedProfile;
+      case 1: return !!answers.q1 && !!answers.q2;
+      case 2: return !!answers.q3 && !!answers.q4;
+      case 3: return !!answers.q5 && !!answers.q6;
+      case 4: return !!answers.q7;
+      case 5: return !!assignedProfile;
       default: return false;
     }
   }
@@ -106,58 +101,36 @@ export default function SetupScreen() {
     setLoading(true);
     try {
       await saveQuestionnaire.mutateAsync({ answers });
-      await updateProfile.mutateAsync({ initial_onboarding_completed: true });
       router.replace('/(tabs)/home');
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de terminer la configuration.');
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
       setLoading(false);
     }
   }
 
-  if (!user) {
-    return (
-      <View style={styles.root}>
-        <Text style={styles.emptyText}>Connectez-vous pour configurer votre profil financier.</Text>
-      </View>
-    );
-  }
-
-  if (accountsLoading) {
-    return (
-      <View style={styles.root}>
-        <ActivityIndicator size="large" color={COLORS.emerald} />
-      </View>
-    );
-  }
+  if (!user) return null;
 
   const profile = assignedProfile ? PROFILE_INFO[assignedProfile] : null;
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom', 'top']}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
+
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Votre profil financier</Text>
+          <Text style={styles.headerSub}>
+            Quelques questions pour personnaliser vos recommandations.
+          </Text>
+        </View>
 
         {/* Barre de progression */}
-        <View style={styles.stepsBar}>
-          {STEPS.map((label, i) => {
-            const n = i + 1;
-            const active = n === step;
-            const done = n < step;
-            return (
-              <View key={label} style={[styles.stepItem, active && styles.stepItemActive]}>
-                <View style={[styles.stepDot, done && styles.stepDotDone, active && styles.stepDotActive]}>
-                  {done
-                    ? <Ionicons name="checkmark" size={10} color={COLORS.bg} />
-                    : <Text style={[styles.stepNum, active && styles.stepNumActive]}>{n}</Text>}
-                </View>
-                <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={1}>
-                  {label}
-                </Text>
-              </View>
-            );
-          })}
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${(step / TOTAL_STEPS) * 100}%` }]} />
         </View>
+        <Text style={styles.progressLabel}>{step} / {TOTAL_STEPS} — {STEPS[step - 1]}</Text>
 
         <ScrollView
           style={styles.scroll}
@@ -166,39 +139,8 @@ export default function SetupScreen() {
           keyboardShouldPersistTaps="handled"
         >
 
-          {/* ── Étape 1 — Comptes ──────────────────────────── */}
+          {/* Étape 1 — Revenus */}
           {step === 1 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Vos comptes</Text>
-              <Text style={styles.cardText}>
-                La base du pilotage, c'est votre solde courant, votre épargne et vos investissements.
-              </Text>
-              <View style={styles.accountRow}>
-                <View style={styles.accountItem}>
-                  <Text style={styles.accountLabel}>Comptes</Text>
-                  <Text style={styles.accountValue}>{accounts.length}</Text>
-                </View>
-                <View style={styles.accountItem}>
-                  <Text style={styles.accountLabel}>Total</Text>
-                  <Text style={styles.accountValue}>
-                    {totalAccounts.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.cardText}>
-                {hasChecking ? '✅ Compte courant' : '⚠️ Pas de compte courant'}
-                {'  ·  '}
-                {hasSaving ? '✅ Épargne' : '⚠️ Pas de compte épargne'}
-              </Text>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(tabs)/comptes')}>
-                <Ionicons name="wallet-outline" size={18} color={COLORS.bg} />
-                <Text style={styles.actionBtnText}>Vérifier mes comptes</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── Étape 2 — Revenus ─────────────────────────── */}
-          {step === 2 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Vos revenus</Text>
 
@@ -214,15 +156,15 @@ export default function SetupScreen() {
                 <View style={styles.infoBox}>
                   <Ionicons name="information-circle-outline" size={16} color="#60a5fa" />
                   <Text style={styles.infoText}>
-                    Vos revenus irréguliers seront pris en compte via une moyenne glissante.
+                    Vos revenus irréguliers seront pris en compte via une moyenne glissante pour éviter les faux signaux.
                   </Text>
                 </View>
               )}
             </View>
           )}
 
-          {/* ── Étape 3 — Situation ────────────────────────── */}
-          {step === 3 && (
+          {/* Étape 2 — Situation */}
+          {step === 2 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre situation</Text>
 
@@ -236,8 +178,8 @@ export default function SetupScreen() {
             </View>
           )}
 
-          {/* ── Étape 4 — Épargne ─────────────────────────── */}
-          {step === 4 && (
+          {/* Étape 3 — Épargne */}
+          {step === 3 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre épargne</Text>
 
@@ -251,23 +193,23 @@ export default function SetupScreen() {
             </View>
           )}
 
-          {/* ── Étape 5 — Objectif ────────────────────────── */}
-          {step === 5 && (
+          {/* Étape 4 — Objectif */}
+          {step === 4 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre objectif prioritaire</Text>
               <Text style={styles.cardText}>
-                Cette réponse personnalise vos recommandations et l'ordre d'affichage des actions prioritaires.
+                Personnalise vos recommandations et l'ordre d'affichage des actions.
               </Text>
               <OptionList options={Q7_OPTIONS} selected={answers.q7} onSelect={v => setAnswer('q7', v)} />
             </View>
           )}
 
-          {/* ── Étape 6 — Profil assigné ──────────────────── */}
-          {step === 6 && profile && assignedProfile && (
+          {/* Étape 5 — Profil assigné */}
+          {step === 5 && profile && assignedProfile && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Votre profil financier</Text>
               <Text style={styles.cardText}>
-                Basé sur vos réponses, voici votre profil de départ. Il évoluera automatiquement au fil du temps.
+                Ce profil est basé sur vos réponses. Il évoluera automatiquement à partir du 7ème mois.
               </Text>
 
               <View style={[styles.profileCard, { borderColor: profile.color }]}>
@@ -278,12 +220,12 @@ export default function SetupScreen() {
               </View>
 
               <View style={styles.allocCard}>
-                <Text style={styles.allocTitle}>Allocation recommandée</Text>
+                <Text style={styles.allocTitle}>Allocation du surplus mensuel</Text>
                 {([
-                  { label: 'Épargner',       key: 'save'   },
-                  { label: 'Investir',        key: 'invest' },
-                  { label: 'Se faire plaisir', key: 'enjoy' },
-                  { label: 'Conserver',       key: 'keep'  },
+                  { label: 'Épargner',        key: 'save'   },
+                  { label: 'Investir',         key: 'invest' },
+                  { label: 'Se faire plaisir', key: 'enjoy'  },
+                  { label: 'Conserver',        key: 'keep'   },
                 ] as { label: string; key: keyof typeof PROFILE_ALLOCATIONS[typeof assignedProfile] }[]).map(({ label, key }) => (
                   <View key={key} style={styles.allocRow}>
                     <Text style={styles.allocLabel}>{label}</Text>
@@ -292,23 +234,28 @@ export default function SetupScreen() {
                 ))}
               </View>
 
-              <Text style={styles.cardText}>
-                Ce profil sera actif pendant 6 mois. Passé ce délai, l'application l'ajustera automatiquement selon vos données réelles.
-              </Text>
+              {isIrregular && (
+                <View style={styles.infoBox}>
+                  <Ionicons name="information-circle-outline" size={16} color="#60a5fa" />
+                  <Text style={styles.infoText}>
+                    Vos revenus irréguliers sont pris en compte. Les indicateurs seront calculés sur une moyenne glissante.
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
-          {/* ── Navigation ────────────────────────────────── */}
+          {/* Navigation */}
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.footerBtn, styles.footerBtnSecondary]}
-              onPress={() => setStep(prev => Math.max(1, prev - 1))}
-              disabled={step === 1}
-            >
-              <Text style={[styles.footerBtnText, step === 1 && styles.footerBtnTextDisabled]}>
-                Précédent
-              </Text>
-            </TouchableOpacity>
+            {step > 1 && (
+              <TouchableOpacity
+                style={styles.footerBtnSecondary}
+                onPress={() => setStep(prev => Math.max(1, prev - 1))}
+              >
+                <Ionicons name="arrow-back" size={18} color={COLORS.text} />
+                <Text style={styles.footerBtnSecondaryText}>Précédent</Text>
+              </TouchableOpacity>
+            )}
 
             {step < TOTAL_STEPS ? (
               <TouchableOpacity
@@ -321,7 +268,8 @@ export default function SetupScreen() {
                   setStep(prev => prev + 1);
                 }}
               >
-                <Text style={styles.footerBtnText}>Suivant</Text>
+                <Text style={styles.footerBtnText}>Continuer</Text>
+                <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -331,7 +279,10 @@ export default function SetupScreen() {
               >
                 {loading
                   ? <ActivityIndicator color={COLORS.bg} />
-                  : <Text style={styles.footerBtnText}>Démarrer</Text>}
+                  : <>
+                      <Text style={styles.footerBtnText}>Démarrer</Text>
+                      <Ionicons name="checkmark-circle" size={18} color={COLORS.bg} />
+                    </>}
               </TouchableOpacity>
             )}
           </View>
@@ -342,38 +293,31 @@ export default function SetupScreen() {
   );
 }
 
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bg, justifyContent: 'center', alignItems: 'center' },
-  safe: { flex: 1, width: '100%', paddingHorizontal: 20 },
-  scroll: { flex: 1 },
-  content: { paddingBottom: 100, gap: 16 },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  safe: { flex: 1 },
+  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12, gap: 4 },
+  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  headerSub: { fontSize: 14, color: COLORS.textSecondary },
 
-  // Barre d'étapes
-  stepsBar: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 16, paddingBottom: 12, gap: 4 },
-  stepItem: { flex: 1, alignItems: 'center', gap: 4 },
-  stepItemActive: {},
-  stepDot: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: '#1e293b', alignItems: 'center', justifyContent: 'center',
+  progressBar: {
+    height: 3, backgroundColor: '#1e293b',
+    marginHorizontal: 24, borderRadius: 2, marginBottom: 6,
   },
-  stepDotActive: { backgroundColor: COLORS.emerald },
-  stepDotDone: { backgroundColor: COLORS.emerald },
-  stepNum: { fontSize: 10, fontWeight: '700', color: '#64748b' },
-  stepNumActive: { color: COLORS.bg },
-  stepLabel: { fontSize: 9, color: '#475569', fontWeight: '600', textAlign: 'center' },
-  stepLabelActive: { color: COLORS.emerald },
+  progressFill: { height: 3, backgroundColor: COLORS.emerald, borderRadius: 2 },
+  progressLabel: { fontSize: 12, color: COLORS.textSecondary, paddingHorizontal: 24, marginBottom: 12 },
 
-  // Carte
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingBottom: 100, gap: 16 },
+
   card: {
     backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
     borderRadius: 20, padding: 20, gap: 14,
   },
-  cardTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
   cardText: { color: '#cbd5e1', lineHeight: 20, fontSize: 14 },
 
-  // Question
-  questionLabel: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary, marginBottom: -6 },
+  questionLabel: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   optionList: { gap: 8 },
   optionBtn: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
@@ -390,17 +334,14 @@ const styles = StyleSheet.create({
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.emerald },
   optionText: { flex: 1, color: '#94a3b8', fontSize: 14, lineHeight: 20 },
   optionTextActive: { color: COLORS.text },
-
   divider: { height: 1, backgroundColor: COLORS.cardBorder },
 
-  // Info box revenus irréguliers
   infoBox: {
     flexDirection: 'row', gap: 8, alignItems: 'flex-start',
     backgroundColor: '#1e293b', borderRadius: 10, padding: 12,
   },
   infoText: { flex: 1, color: '#93c5fd', fontSize: 12, lineHeight: 18 },
 
-  // Profil assigné
   profileCard: {
     borderWidth: 2, borderRadius: 16, padding: 20,
     alignItems: 'center', gap: 8, backgroundColor: '#0c1a2e',
@@ -410,34 +351,27 @@ const styles = StyleSheet.create({
   profileTier: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
   profileDesc: { color: '#cbd5e1', fontSize: 14, lineHeight: 20, textAlign: 'center' },
 
-  // Allocation
   allocCard: {
     backgroundColor: '#020617', borderRadius: 14, padding: 16, gap: 12,
     borderWidth: 1, borderColor: COLORS.cardBorder,
   },
-  allocTitle: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  allocTitle: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
   allocRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   allocLabel: { color: COLORS.text, fontSize: 14 },
   allocValue: { color: COLORS.emerald, fontWeight: '700', fontSize: 15 },
 
-  // Comptes
-  accountRow: { flexDirection: 'row', gap: 12 },
-  accountItem: { flex: 1, backgroundColor: '#111827', borderRadius: 14, padding: 14 },
-  accountLabel: { color: '#94a3b8', fontSize: 12, marginBottom: 4 },
-  accountValue: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
-  actionBtn: {
-    paddingVertical: 14, borderRadius: 14, backgroundColor: COLORS.emerald,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+  footer: { flexDirection: 'row', gap: 10, marginTop: 4, alignItems: 'center' },
+  footerBtn: {
+    flex: 1, backgroundColor: COLORS.emerald, borderRadius: 14,
+    paddingVertical: 15, flexDirection: 'row', justifyContent: 'center',
+    alignItems: 'center', gap: 8,
   },
-  actionBtnText: { color: COLORS.bg, fontWeight: '700' },
-
-  // Footer
-  footer: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  footerBtn: { flex: 1, backgroundColor: COLORS.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
-  footerBtnSecondary: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder },
   footerBtnDisabled: { opacity: 0.5 },
   footerBtnText: { color: COLORS.bg, fontWeight: '700', fontSize: 15 },
-  footerBtnTextDisabled: { color: '#475569' },
-
-  emptyText: { color: COLORS.text, fontSize: 16, textAlign: 'center', marginHorizontal: 24 },
+  footerBtnSecondary: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderRadius: 14, paddingVertical: 15, paddingHorizontal: 16,
+  },
+  footerBtnSecondaryText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
 });

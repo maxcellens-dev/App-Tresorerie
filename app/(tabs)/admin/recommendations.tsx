@@ -39,12 +39,13 @@ const RECO_DESC: Record<RecoType, string> = {
   keep: 'Conserver sur le compte courant.',
 };
 
-const TIERS: SavingsTier[] = ['critical', 'below_optimal', 'healthy', 'comfortable'];
+const TIERS: SavingsTier[] = ['critical', 'below_optimal', 'healthy', 'p4_dynamic', 'comfortable'];
 const TIER_CONDITIONS: Record<SavingsTier, string> = {
-  critical: 'Épargne < seuil minimum',
-  below_optimal: 'Minimum ≤ épargne < optimal',
-  healthy: 'Optimal ≤ épargne < confort',
-  comfortable: 'Épargne ≥ seuil confort',
+  critical:      'Profil P1 — Premiers repères',
+  below_optimal: 'Profil P2 — Réserve à construire',
+  healthy:       'Profil P3 — Stabilité à améliorer',
+  p4_dynamic:    'Profil P4 — Bonne dynamique',
+  comfortable:   'Profil P5 — Patrimoine en développement',
 };
 
 const TYPES: RecoType[] = ['save', 'invest', 'enjoy', 'keep'];
@@ -131,9 +132,9 @@ export default function RecommendationsAdmin() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.navigate('/(tabs)/(secondary)/admin' as any)}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-            <Text style={styles.backLabel}>Retour</Text>
+            <Text style={styles.backLabel}>Admin</Text>
           </TouchableOpacity>
           {!editMode ? (
             <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>

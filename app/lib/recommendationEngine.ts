@@ -12,7 +12,8 @@
  */
 
 import type { PilotageData } from '../hooks/usePilotageData';
-import type { FinancialProfile } from '../types/database';
+import type { FinancialProfile, FinancialProfileId } from '../types/database';
+import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -38,7 +39,7 @@ export interface SmartRecommendation {
   actionLabel: string;
 }
 
-export type SavingsTier = 'critical' | 'below_optimal' | 'healthy' | 'comfortable';
+export type SavingsTier = 'critical' | 'below_optimal' | 'healthy' | 'p4_dynamic' | 'comfortable';
 
 /* ── Couleurs par type ───────────────────────────────────── */
 
@@ -76,21 +77,27 @@ const TIER_ALLOCATIONS: Record<SavingsTier, Record<RecoType, number>> = {
   },
   below_optimal: {
     save:   40,
-    invest: 15,
+    invest: 10,
     enjoy:  20,
-    keep:   25,
+    keep:   30,
   },
   healthy: {
-    save:   20,
-    invest: 30,
+    save:   25,
+    invest: 25,
+    enjoy:  20,
+    keep:   30,
+  },
+  p4_dynamic: {
+    save:   10,
+    invest: 40,
     enjoy:  25,
     keep:   25,
   },
   comfortable: {
-    save:   15,
-    invest: 40,
+    save:    0,
+    invest: 65,
     enjoy:  25,
-    keep:   20,
+    keep:   10,
   },
 };
 
@@ -133,25 +140,39 @@ function clamp(value: number, min: number, max: number): number {
 export function computeRecommendations(
   data: PilotageData,
   customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>,
+  financialProfileId?: FinancialProfileId,
 ): SmartRecommendation[] {
   const budget = data.safe_to_spend;
 
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
 
-  // 1. Déterminer le palier d'épargne
-  const tier = determineTier(
-    data.current_savings,
-    data.safety_threshold_min,
-    data.safety_threshold_optimal,
-    data.safety_threshold_comfort,
-  );
+  let tier: SavingsTier;
+  let alloc: Record<RecoType, number>;
 
-  // 2. Partir des allocations du palier (DB custom si dispo, sinon défaut codé en dur)
-  //    L'utilisateur peut encore surcharger via ses préférences personnelles.
-  const tierTable = customTierAllocations ?? TIER_ALLOCATIONS;
-  const alloc: Record<RecoType, number> = { ...tierTable[tier] };
-  applyUserAllocationPreferences(alloc, data);
+  if (financialProfileId) {
+    // Nouveau système : profil P1-P5 détermine directement les allocations
+    alloc = { ...PROFILE_ALLOCATIONS[financialProfileId] };
+    const tierMap: Record<FinancialProfileId, SavingsTier> = {
+      P1: 'critical',
+      P2: 'below_optimal',
+      P3: 'healthy',
+      P4: 'p4_dynamic',
+      P5: 'comfortable',
+    };
+    tier = tierMap[financialProfileId];
+  } else {
+    // Ancien système : palier déterminé par le montant d'épargne
+    tier = determineTier(
+      data.current_savings,
+      data.safety_threshold_min,
+      data.safety_threshold_optimal,
+      data.safety_threshold_comfort,
+    );
+    const tierTable = customTierAllocations ?? TIER_ALLOCATIONS;
+    alloc = { ...tierTable[tier] };
+    applyUserAllocationPreferences(alloc, data);
+  }
 
   // 3. Modificateurs contextuels
   applyVariableTrendModifier(alloc, data.variable_trend_percentage);
@@ -191,18 +212,20 @@ export function getCurrentTier(data: PilotageData): SavingsTier {
 
 /** Labels français pour les paliers */
 export const TIER_LABELS: Record<SavingsTier, string> = {
-  critical: 'Épargne critique',
+  critical:      'Épargne critique',
   below_optimal: 'Épargne à renforcer',
-  healthy: 'Bonne dynamique',
-  comfortable: 'Épargne confortable',
+  healthy:       'Stabilité à améliorer',
+  p4_dynamic:    'Bonne dynamique',
+  comfortable:   'Confortable',
 };
 
 /** Couleurs pour les paliers */
 export const TIER_COLORS: Record<SavingsTier, string> = {
-  critical: '#ef4444',
+  critical:      '#ef4444',
   below_optimal: '#f59e0b',
-  healthy: '#34d399',
-  comfortable: '#34d399',
+  healthy:       '#3b82f6',
+  p4_dynamic:    '#8b5cf6',
+  comfortable:   '#34d399',
 };
 
 /** Descriptions par type pour l'admin */
@@ -357,7 +380,7 @@ function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageDat
   return `Maintenez votre matelas de sécurité en épargnant ${amount} €.`;
 }
 
-function getInvestDescription(tier: SavingsTier, amount: number, data: PilotageData): string {
+function getInvestDescription(tier: SavingsTier, amount: number, _data: PilotageData): string {
   if (tier === 'comfortable') {
     return `Votre épargne est confortable. Placez ${amount} € sur vos investissements pour faire fructifier votre patrimoine.`;
   }
