@@ -6,7 +6,6 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAddAccount } from '../../hooks/useAccounts';
-import { supabase } from '../../lib/supabase';
 
 const COLORS = {
   bg: '#020617',
@@ -47,28 +46,12 @@ export default function AddAccountScreen() {
     }
 
     try {
-      // Créer le compte avec solde initial
-      const account = await addAccount.mutateAsync({
+      await addAccount.mutateAsync({
         name: trimmed,
         type,
         currency: currency || 'EUR',
         balance: num,
       });
-
-      // Créer une transaction "Initialisation" pour tracer le solde initial
-      if (account && num !== 0 && supabase && user?.id) {
-        const today = new Date().toISOString().slice(0, 10);
-        await supabase.from('transactions').insert({
-          profile_id: user.id,
-          account_id: account.id,
-          category_id: null,
-          amount: num,
-          date: today,
-          note: 'Initialisation',
-          is_forecast: false,
-          is_recurring: false,
-        });
-      }
 
       router.back();
     } catch (e: unknown) {
