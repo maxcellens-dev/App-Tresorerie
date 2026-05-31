@@ -216,14 +216,17 @@ export default function ProjectionScreen() {
   }, [transactions]);
   const questionnaireMonthlySavings = useMemo(() => Math.round(incomeFromQ3(answers?.q3) * savingsRateFromQ6(answers?.q6)), [answers]);
 
-  const [savingsSource, setSavingsSource] = useState<'reel' | 'questionnaire' | 'perso'>('reel');
+  // Source choisie manuellement (null = automatique : Réel si actif, sinon Questionnaire, sinon Perso)
+  const [pickedSource, setPickedSource] = useState<'reel' | 'questionnaire' | 'perso' | null>(null);
+  const savingsSource: 'reel' | 'questionnaire' | 'perso' =
+    pickedSource ?? (realMonthlySavings > 0 ? 'reel' : (questionnaireMonthlySavings > 0 ? 'questionnaire' : 'perso'));
+  const setSavingsSource = setPickedSource;
   const [savingsInitial, setSavingsInitial] = useState('0');
   const [savingsMonthlyPerso, setSavingsMonthlyPerso] = useState('150');
   const [savSynced, setSavSynced] = useState(false);
   useEffect(() => {
     if (!savSynced && pilotage) {
       setSavingsInitial(String(Math.round(realSavings)));
-      setSavingsSource(realMonthlySavings > 0 ? 'reel' : (questionnaireMonthlySavings > 0 ? 'questionnaire' : 'perso'));
       setSavSynced(true);
     }
   }, [pilotage, savSynced]);

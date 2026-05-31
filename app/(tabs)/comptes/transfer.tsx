@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,7 +35,7 @@ export default function TransferScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     from?: string; to?: string; amount?: string; label?: string; date?: string;
-    destType?: string; recoComplete?: string; resetPreSaving?: string;
+    destType?: string; recoComplete?: string; resetPreSaving?: string; origin?: string;
   }>();
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
@@ -57,6 +57,27 @@ export default function TransferScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
+
+  // Re-synchroniser depuis les params à chaque navigation (l'écran peut être réutilisé
+  // entre onglets, auquel cas les valeurs initiales de useState ne se réappliquent pas).
+  const lastSig = useRef<string | null>(null);
+  useEffect(() => {
+    const sig = [params.from, params.to, params.amount, params.label, params.date, params.destType, params.recoComplete, params.resetPreSaving].join('|');
+    if (sig === lastSig.current) return;
+    lastSig.current = sig;
+    if (params.from !== undefined) setFromAccountId(params.from);
+    if (params.to !== undefined) setToAccountId(params.to);
+    if (params.amount !== undefined) setAmount(params.amount);
+    if (params.label !== undefined) setNote(params.label);
+    if (params.date !== undefined) { setDate(params.date); setDateDisplay(formatDateFrench(params.date)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.from, params.to, params.amount, params.label, params.date, params.destType, params.recoComplete, params.resetPreSaving]);
+
+  // Retour robuste : si pas d'historique (navigation inter-onglets), revenir à l'origine.
+  function goBack() {
+    if (router.canGoBack()) { router.back(); return; }
+    router.replace((params.origin === 'pilotage' ? '/(tabs)/pilotage' : '/(tabs)/comptes') as any);
+  }
 
   async function handleSubmit() {
     const num = parseFloat(amount.replace(',', '.'));
@@ -108,7 +129,7 @@ export default function TransferScreen() {
       if (params.resetPreSaving) {
         await resetPreSaving.mutateAsync(params.resetPreSaving as PreSavingType);
       }
-      router.back();
+      goBack();
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’effectuer le virement.');
     }
@@ -143,7 +164,7 @@ export default function TransferScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <HeaderWithProfile title="Virement entre comptes" showBack={true} />
+        <HeaderWithProfile title="Virement entre comptes" showBack={true} onBack={goBack} />
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

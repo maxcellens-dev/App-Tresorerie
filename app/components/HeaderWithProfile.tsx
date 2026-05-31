@@ -14,11 +14,13 @@ interface HeaderWithProfileProps {
   height?: number;
   /** Afficher le bouton retour (si pas sur une page racine) */
   showBack?: boolean;
+  /** Handler personnalisé du bouton retour (sinon router.back()). */
+  onBack?: () => void;
   /** Masquer l'avatar/profil à droite */
   hideProfile?: boolean;
 }
 
-export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, hideProfile = false }: HeaderWithProfileProps) {
+export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
@@ -56,7 +58,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
     <View style={[styles.bar, { height }]}>
       <View style={styles.left}>
         {showBack && (
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} accessibilityRole="button">
+          <TouchableOpacity style={styles.backBtn} onPress={() => (onBack ? onBack() : router.back())} accessibilityRole="button">
             <Ionicons name="arrow-back" size={20} color={COLORS.text} />
             <Text style={styles.backText}>Retour</Text>
           </TouchableOpacity>

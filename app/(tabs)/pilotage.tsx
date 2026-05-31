@@ -141,20 +141,29 @@ export default function PilotageScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enDepassement, preSavings?.epargne.total_cumule, preSavings?.invest.total_cumule]);
 
+  // Construit l'URL de virement pré-rempli (query-string fiable + retour vers Pilotage)
+  const buildTransferUrl = (opts: {
+    dest: 'savings' | 'investment'; amount: number; label: string;
+    recoComplete?: string; resetPreSaving?: PreSavingType;
+  }) => {
+    const q = new URLSearchParams({
+      from: mainCheckingId ?? '',
+      destType: opts.dest,
+      amount: String(Math.round(opts.amount)),
+      label: opts.label,
+      origin: 'pilotage',
+      ...(opts.recoComplete ? { recoComplete: opts.recoComplete } : {}),
+      ...(opts.resetPreSaving ? { resetPreSaving: opts.resetPreSaving } : {}),
+    });
+    return `/(tabs)/comptes/transfer?${q.toString()}`;
+  };
+
+  const monthYearLabel = () => new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
   // Ouvrir le virement pré-rempli pour une reco épargne/invest
   const openRecoTransfer = (reco: SmartRecommendation, dest: 'savings' | 'investment') => {
     const label = dest === 'savings' ? 'Épargne' : 'Investissement';
-    const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    router.push({
-      pathname: '/(tabs)/comptes/transfer',
-      params: {
-        from: mainCheckingId ?? '',
-        destType: dest,
-        amount: String(Math.round(reco.amount)),
-        label: `${label} ${monthYear}`,
-        recoComplete: reco.type,
-      },
-    } as any);
+    router.push(buildTransferUrl({ dest, amount: reco.amount, label: `${label} ${monthYearLabel()}`, recoComplete: reco.type }) as any);
   };
 
   // Ouvrir le virement global d'un cumul (depuis la modale)
@@ -162,17 +171,7 @@ export default function PilotageScreen() {
     setPreModal(null);
     const dest = type === 'epargne' ? 'savings' : 'investment';
     const label = type === 'epargne' ? 'Épargne' : 'Investissement';
-    const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    router.push({
-      pathname: '/(tabs)/comptes/transfer',
-      params: {
-        from: mainCheckingId ?? '',
-        destType: dest,
-        amount: String(Math.round(montant)),
-        label: `${label} ${monthYear} (cumul)`,
-        resetPreSaving: type,
-      },
-    } as any);
+    router.push(buildTransferUrl({ dest, amount: montant, label: `${label} ${monthYearLabel()} (cumul)`, resetPreSaving: type }) as any);
   };
 
   const handleRefresh = async () => {
