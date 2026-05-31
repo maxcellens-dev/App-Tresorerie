@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAddAccount } from '../../hooks/useAccounts';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useFiscalEnvelopeRates } from '../../hooks/useFiscalEnvelopes';
 
 
 const TYPES = [
@@ -27,6 +28,8 @@ export default function AddAccountScreen() {
   const [type, setType] = useState('checking');
   const [currency, setCurrency] = useState('EUR');
   const [balance, setBalance] = useState('0');
+  const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('cto');
+  const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
 
   async function handleSubmit() {
     const trimmed = name.trim();
@@ -46,6 +49,7 @@ export default function AddAccountScreen() {
         type,
         currency: currency || 'EUR',
         balance: num,
+        fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
       });
 
       router.back();
@@ -100,14 +104,27 @@ export default function AddAccountScreen() {
             ))}
           </View>
 
-          <Text style={styles.label}>Devise</Text>
-          <TextInput
-            style={styles.input}
-            value={currency}
-            onChangeText={setCurrency}
-            placeholder="EUR"
-            placeholderTextColor={COLORS.textSecondary}
-          />
+          {type === 'investment' && (
+            <>
+              <Text style={styles.label}>Enveloppe fiscale</Text>
+              <View style={styles.chipRow}>
+                {fiscalRates.map((r) => (
+                  <TouchableOpacity
+                    key={r.envelope}
+                    style={[styles.chip, fiscalEnvelope === r.envelope && styles.chipActive]}
+                    onPress={() => setFiscalEnvelope(r.envelope)}
+                  >
+                    <Text style={[styles.chipText, fiscalEnvelope === r.envelope && styles.chipTextActive]}>
+                      {r.label} · {r.tax_rate}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.hintSmall}>
+                {fiscalRates.find((r) => r.envelope === fiscalEnvelope)?.note ?? 'Détermine la fiscalité utilisée dans la page Projection.'}
+              </Text>
+            </>
+          )}
 
           <Text style={styles.label}>Solde initial</Text>
           <TextInput
@@ -160,6 +177,7 @@ function makeStyles(c: any) {
     marginBottom: 20,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, color: c.text },

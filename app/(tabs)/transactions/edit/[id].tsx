@@ -18,6 +18,7 @@ import { formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
 import { supabase } from '../../../lib/supabase';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 
 export default function EditTransactionScreen() {
@@ -366,7 +367,7 @@ export default function EditTransactionScreen() {
           />
 
           {/* Montant */}
-          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (€)'}</Text>
+          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (' + CURRENCY_SYMBOL + ')'}</Text>
           <TextInput
             style={styles.input}
             value={amount}

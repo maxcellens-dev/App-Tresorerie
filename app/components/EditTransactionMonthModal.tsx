@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../hooks/useTransactionMonthOverrides';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 interface EditTransactionMonthModalProps {
   visible: boolean;
@@ -124,13 +125,13 @@ export default function EditTransactionMonthModal({
             )}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Montant original:</Text>
-              <Text style={styles.infoValue}>{originalAmount.toFixed(2)} €</Text>
+              <Text style={styles.infoValue}>{originalAmount.toFixed(2)} {CURRENCY_SYMBOL}</Text>
             </View>
             {currentOverrideAmount !== undefined && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Montant actuel:</Text>
                 <Text style={[styles.infoValue, { color: '#f59e0b' }]}>
-                  {currentOverrideAmount.toFixed(2)} €
+                  {currentOverrideAmount.toFixed(2)} {CURRENCY_SYMBOL}
                 </Text>
               </View>
             )}
@@ -149,7 +150,7 @@ export default function EditTransactionMonthModal({
                 keyboardType="decimal-pad"
                 editable={!isLoading}
               />
-              <Text style={styles.currency}>€</Text>
+              <Text style={styles.currency}>{CURRENCY_SYMBOL}</Text>
             </View>
           </View>
 

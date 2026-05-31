@@ -10,6 +10,7 @@ import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
 import ProfileChangeModal from './components/ProfileChangeModal';
 import { useAppColors } from './hooks/useAppColors';
+import { useCurrency } from './hooks/useCurrency';
 import './global.css';
 
 const queryClient = new QueryClient({
@@ -30,6 +31,7 @@ function ConfigSync() {
 function AppChrome() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  useCurrency(); // synchronise le symbole de devise global avec le profil
   const segments = useSegments();
   const router = useRouter();
   const { user, loading } = useAuth();

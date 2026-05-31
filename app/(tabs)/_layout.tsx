@@ -117,14 +117,19 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="reporting"
+        name="projection"
         options={{
-          title: 'Reporting',
-          tabBarLabel: 'Reporting',
+          title: 'Projection',
+          tabBarLabel: 'Projection',
           tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'bar-chart' : 'bar-chart-outline'} size={24} color={color} style={styles.icon} />
+            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={24} color={color} style={styles.icon} />
           ),
         }}
+      />
+      {/* Reporting reste accessible via Paramètres, masqué de la barre d'onglets */}
+      <Tabs.Screen
+        name="reporting"
+        options={{ href: null, title: 'Reporting' }}
       />
     </Tabs>
   );

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const PROJECTS_KEY = 'projects';
 const TRANSACTIONS_KEY = 'transactions';
@@ -31,7 +32,7 @@ function buildProjectTransactions(opts: {
       category_id: projetsCategoryId,
       amount: 0,
       date,
-      note: `🔒 ${projectName} · ${monthlyAllocation.toFixed(0)} €/mois`,
+      note: `🔒 ${projectName} · ${monthlyAllocation.toFixed(0)} ${CURRENCY_SYMBOL}/mois`,
       is_forecast: false,
       is_recurring: false,
       recurrence_rule: null,
@@ -519,7 +520,7 @@ export function useDeleteProjectFromDate(profileId: string | undefined) {
 
 /**
  * Vérifie les projets actifs et archive automatiquement ceux qui sont à 100 %
- * et dont la dernière transaction liée est dans le passé (>= 1 jour).
+ * et dont la dernière transaction liée est dans le passé (>= 72h / 3 jours).
  */
 export function useAutoArchiveProjects(profileId: string | undefined) {
   const client = useQueryClient();
@@ -528,9 +529,9 @@ export function useAutoArchiveProjects(profileId: string | undefined) {
       if (!supabase || !profileId) return;
 
       const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const cutoff = new Date(today);
+      cutoff.setDate(cutoff.getDate() - 3); // 72h
+      const cutoffStr = cutoff.toISOString().split('T')[0];
 
       const activeProjects = projects.filter(
         (p) => p.status === 'active' || p.status === 'completed'

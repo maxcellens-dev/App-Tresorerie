@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface VariableTrendProps {
@@ -39,7 +40,7 @@ export default function VariableTrendCard({ current, average, percentage }: Vari
       </View>
 
       <Text style={styles.description}>
-        {current.toFixed(0)} € dépensés sur {average.toFixed(0)} € habituels
+        {current.toFixed(0)} {CURRENCY_SYMBOL} dépensés sur {average.toFixed(0)} {CURRENCY_SYMBOL} habituels
       </Text>
       
       <Text style={[styles.statusMessage, { color }]}>

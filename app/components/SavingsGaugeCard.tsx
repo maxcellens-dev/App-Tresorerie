@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface SavingsGaugeProps {
@@ -51,7 +52,7 @@ export default function SavingsGaugeCard({ current, thresholdMin, thresholdOptim
       </View>
 
       <View style={styles.info}>
-        <Text style={[styles.amount, { color }]}>{current.toFixed(0)} €</Text>
+        <Text style={[styles.amount, { color }]}>{current.toFixed(0)} {CURRENCY_SYMBOL}</Text>
         <Text style={[styles.status, { color }]}>{status}</Text>
       </View>
     </View>

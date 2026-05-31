@@ -26,6 +26,7 @@ import {
 import AddProjectModal from '../../components/AddProjectModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 export default function ProjectsScreen() {
@@ -221,7 +222,7 @@ export default function ProjectsScreen() {
                 Cible
               </Text>
               <Text style={[styles.detailValue, { color: COLORS.text }]}>
-                €{targetAmount.toFixed(2)}
+                {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
               </Text>
             </View>
             <View>
@@ -229,7 +230,7 @@ export default function ProjectsScreen() {
                 Allocation mensuelle
               </Text>
               <Text style={[styles.detailValue, { color: COLORS.primary }]}>
-                €{monthlyAllocation.toFixed(2)}/mois
+                {CURRENCY_SYMBOL}{monthlyAllocation.toFixed(2)}/mois
               </Text>
             </View>
             {monthsToComplete > 0 && !isComplete && (
@@ -271,7 +272,7 @@ export default function ProjectsScreen() {
               />
             </View>
             <Text style={[styles.progressAmount, { color: COLORS.textSecondary }]}>
-              €{currentAccumulated.toFixed(2)} / €{targetAmount.toFixed(2)}
+              {CURRENCY_SYMBOL}{currentAccumulated.toFixed(2)} / {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
             </Text>
           </View>
         </View>

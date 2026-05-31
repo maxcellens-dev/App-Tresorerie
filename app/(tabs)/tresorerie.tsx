@@ -16,6 +16,7 @@ import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
 import type { RecurrenceRule, TransactionWithDetails } from '../types/database';
 import type { Category } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -1039,7 +1040,7 @@ export default function TreasuryPlanScreen() {
               >
                 <Ionicons name="create-outline" size={20} color="#f59e0b" />
                 <Text style={styles.menuOptionText} numberOfLines={1}>
-                  Modifier · {draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €'}
+                  Modifier · {draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -1070,7 +1071,7 @@ export default function TreasuryPlanScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.draftModalLabel}>Montant (€)</Text>
+            <Text style={styles.draftModalLabel}>Montant ({CURRENCY_SYMBOL})</Text>
             <TextInput
               style={styles.draftModalInput}
               value={draftAmount}
@@ -1139,7 +1140,7 @@ export default function TreasuryPlanScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.draftModalLabel}>Montant (€)</Text>
+            <Text style={styles.draftModalLabel}>Montant ({CURRENCY_SYMBOL})</Text>
             <TextInput
               style={styles.draftModalInput}
               value={virementAmount}

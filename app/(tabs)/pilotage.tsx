@@ -24,6 +24,7 @@ import type { BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 export default function PilotageScreen() {
   const router = useRouter();
@@ -165,7 +166,7 @@ export default function PilotageScreen() {
                 <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.checking }]}>
                   <Ionicons name="wallet-outline" size={16} color={ACCOUNT_COLORS.checking} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Courant</Text>
-                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.checking }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
+                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.checking }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
                 </View>
 
                 {/* Épargne — avec badge de santé, sans barre ni légende */}
@@ -181,7 +182,7 @@ export default function PilotageScreen() {
                         <Text style={{ fontSize: 9, fontWeight: '700', color: col }}>{kw}</Text>
                       </View>
                       <Text style={[styles.summaryAmount, { color: col }]}>
-                        {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                        {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}
                       </Text>
                     </View>
                   );
@@ -191,7 +192,7 @@ export default function PilotageScreen() {
                 <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.investment }]}>
                   <Ionicons name="trending-up-outline" size={16} color={ACCOUNT_COLORS.investment} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Investissements</Text>
-                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.investment }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</Text>
+                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.investment }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
                 </View>
               </View>
             </View>
@@ -205,7 +206,7 @@ export default function PilotageScreen() {
             <View style={styles.sectionDivider} />
 
             {(() => {
-              const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' €';
+              const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
               const savings = pilotageData.monthly_savings_planned;
               const invest = pilotageData.monthly_invest_planned;
               const reserve = pilotageData.monthly_reserve_planned;

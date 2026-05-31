@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface SmartRecommendationCardProps {
@@ -160,7 +161,7 @@ export default function RecommendationCard({
         <View style={styles.slideContent}>
           <Text style={styles.recoTitle}>{currentReco.title}</Text>
           <Text style={[styles.recoAmount, { color: currentReco.color }]}>
-            {currentReco.amount.toLocaleString('fr-FR')} €
+            {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
           </Text>
         </View>
       </View>

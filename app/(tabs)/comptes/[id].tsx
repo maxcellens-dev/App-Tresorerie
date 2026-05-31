@@ -20,6 +20,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
 import type { TransactionWithDetails } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -283,7 +284,7 @@ export default function AccountDetailScreen() {
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Solde</Text>
           <Text style={styles.balanceAmount}>
-            {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {account.currency}
+            {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
           </Text>
           <Text style={styles.accountType}>{TYPE_LABELS[account.type] ?? account.type}</Text>
         </View>
@@ -336,7 +337,7 @@ export default function AccountDetailScreen() {
                       amount >= 0 ? styles.transferAmountIn : styles.transferAmountOut,
                     ]}
                   >
-                    {amount >= 0 ? '+' : '−'} {Math.abs(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    {amount >= 0 ? '+' : '−'} {Math.abs(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                   </Text>
                 </TouchableOpacity>
               );
@@ -357,7 +358,7 @@ export default function AccountDetailScreen() {
             <Text style={modalStyles.label}>Solde actuel</Text>
             <View style={modalStyles.readOnlyInput}>
               <Text style={modalStyles.readOnlyText}>
-                {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {account.currency}
+                {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
               </Text>
             </View>
 
@@ -378,8 +379,8 @@ export default function AccountDetailScreen() {
                 const diff = v - Number(account.balance);
                 if (diff === 0) return 'Aucune variation.';
                 return diff > 0
-                  ? `+ ${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € seront ajoutés`
-                  : `${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € seront retirés`;
+                  ? `+ ${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} seront ajoutés`
+                  : `${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} seront retirés`;
               })()}
             </Text>
 
@@ -548,7 +549,7 @@ export default function AccountDetailScreen() {
                 <Text style={modalStyles.label}>Solde actuel</Text>
                 <View style={modalStyles.readOnlyInput}>
                   <Text style={modalStyles.readOnlyText}>
-                    {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {account.currency}
+                    {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                   </Text>
                 </View>
                 <Text style={modalStyles.label}>Nouveau solde</Text>
@@ -635,7 +636,7 @@ export default function AccountDetailScreen() {
               const rows: { key: string; value: string }[] = [
                 { key: 'Type', value: txType },
                 { key: 'Date', value: new Date(selectedTx.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) },
-                { key: 'Montant', value: `${isIncoming ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` },
+                { key: 'Montant', value: `${isIncoming ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL}` },
               ];
               if (isVirement) {
                 const srcName = isIncoming ? (linkedAccount?.name ?? otherName ?? '—') : (account?.name ?? '—');
@@ -651,7 +652,7 @@ export default function AccountDetailScreen() {
                 <>
                   <View style={txDetailStyles.handle} />
                   <Text style={txDetailStyles.amount(isIncoming)}>
-                    {isIncoming ? '+' : '−'} {Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    {isIncoming ? '+' : '−'} {Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                   </Text>
                   <Text style={txDetailStyles.labelText}>{label}</Text>
                   <View style={txDetailStyles.divider} />

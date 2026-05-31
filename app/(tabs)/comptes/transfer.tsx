@@ -23,6 +23,7 @@ import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import type { RecurrenceRule } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 export default function TransferScreen() {
@@ -137,7 +138,7 @@ export default function TransferScreen() {
               >
                 <Text style={[styles.chipText, fromAccountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
                 <Text style={[styles.chipSubtext, fromAccountId === acc.id && styles.chipSubtextActive]}>
-                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -157,13 +158,13 @@ export default function TransferScreen() {
               >
                 <Text style={[styles.chipText, toAccountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
                 <Text style={[styles.chipSubtext, toAccountId === acc.id && styles.chipSubtextActive]}>
-                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          <Text style={styles.label}>Montant (€)</Text>
+          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
           <TextInput
             style={styles.input}
             value={amount}

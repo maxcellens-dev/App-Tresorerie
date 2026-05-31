@@ -16,6 +16,7 @@ import { useCategories } from '../hooks/useCategories';
 import { usePilotageData } from '../hooks/usePilotageData';
 import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../theme/colors';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 /* ── Couleurs fixes des graphiques (sémantique indépendante du thème) ── */
 const CHART = {
@@ -48,7 +49,7 @@ const fmt = (n: number) => {
 };
 
 const fmtFull = (n: number) =>
-  n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL;
 
 const formatTooltipValue = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}`;
 

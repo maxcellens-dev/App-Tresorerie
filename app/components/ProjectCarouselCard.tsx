@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { Project } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface ProjectCarouselCardProps {
@@ -27,7 +28,7 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
 
   // Monthly allocation text
   const monthlyText = project.monthly_allocation 
-    ? `€${(project.monthly_allocation).toFixed(0)}/mois`
+    ? `${CURRENCY_SYMBOL}${(project.monthly_allocation).toFixed(0)}/mois`
     : project.target_date 
       ? `Cible: ${project.target_date.split('-').reverse().join('-')}`
       : '-';
@@ -58,10 +59,10 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
       <View style={styles.progressSection}>
         <View style={styles.amountCompact}>
           <Text style={[styles.amountSmall, { color: COLORS.primary }]}>
-            €{accumulated.toFixed(0)}
+            {CURRENCY_SYMBOL}{accumulated.toFixed(0)}
           </Text>
           <Text style={[styles.targetSmall, { color: COLORS.textSecondary }]}>
-            / €{project.target_amount.toFixed(0)}
+            / {CURRENCY_SYMBOL}{project.target_amount.toFixed(0)}
           </Text>
         </View>
         <View

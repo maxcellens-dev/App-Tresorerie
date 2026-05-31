@@ -47,6 +47,7 @@ export function useProfile(profileId: string | undefined) {
         financial_profile_questionnaire_completed: Boolean((data as { financial_profile_questionnaire_completed?: boolean }).financial_profile_questionnaire_completed),
         theme_mode: ((data as { theme_mode?: string }).theme_mode ?? 'dark') as 'dark' | 'light',
         theme_preset: ((data as { theme_preset?: string }).theme_preset ?? 'emerald') as any,
+        currency_code: (data as { currency_code?: string }).currency_code ?? 'EUR',
       };
     },
     enabled: !!profileId,
@@ -68,6 +69,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       initial_onboarding_completed?: boolean;
       theme_mode?: 'dark' | 'light';
       theme_preset?: string;
+      currency_code?: string;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
 
@@ -84,6 +86,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.initial_onboarding_completed !== undefined) updates.initial_onboarding_completed = payload.initial_onboarding_completed;
       if (payload.theme_mode !== undefined) updates.theme_mode = payload.theme_mode;
       if (payload.theme_preset !== undefined) updates.theme_preset = payload.theme_preset;
+      if (payload.currency_code !== undefined) updates.currency_code = payload.currency_code;
 
       const { error } = await supabase
         .from('profiles')

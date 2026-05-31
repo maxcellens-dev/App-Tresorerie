@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
 import { accountColor, ACCOUNT_ICONS } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -89,7 +90,7 @@ export default function AccountsListScreen() {
             <>
               <View style={styles.totalCard}>
                 <Text style={styles.totalLabel}>Total liquidités</Text>
-                <Text style={styles.totalAmount}>{total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</Text>
+                <Text style={styles.totalAmount}>{total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}</Text>
               </View>
               {accounts.length === 0 ? (
                 <Text style={styles.empty}>Aucun compte. Ajoutez un compte pour suivre vos soldes.</Text>
@@ -111,7 +112,7 @@ export default function AccountsListScreen() {
                           <Text style={styles.accountName}>{acc.name}</Text>
                         </View>
                         <Text style={[styles.accountBalance, { color }]}>
-                          {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
+                          {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                         </Text>
                       </View>
                       <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
@@ -136,7 +137,7 @@ export default function AccountsListScreen() {
                         <Text style={styles.archivedName}>{acc.name}</Text>
                       </View>
                       <Text style={[styles.archivedBalance, { color }]}>
-                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {acc.currency}
+                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                       </Text>
                     </View>
                     <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>

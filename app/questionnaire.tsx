@@ -14,7 +14,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from './contexts/AuthContext';
-import { useUpdateProfile } from './hooks/useProfile';
+import { useProfile, useUpdateProfile } from './hooks/useProfile';
+import CurrencyPicker from './components/CurrencyPicker';
 import { useSaveQuestionnaire } from './hooks/useFinancialProfile';
 import { useCategories, useSeedDefaultCategories } from './hooks/useCategories';
 import {
@@ -82,6 +83,7 @@ export default function QuestionnaireScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const updateProfile = useUpdateProfile(user?.id);
+  const { data: userProfile } = useProfile(user?.id);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
   const { data: existingCategories = [] } = useCategories(user?.id);
   const seedDefaultCategories = useSeedDefaultCategories(user?.id);
@@ -237,6 +239,15 @@ export default function QuestionnaireScreen() {
                 {' '}pour que l'application adapte ses recommandations à votre situation financière réelle.
               </Text>
               <Text style={styles.welcomeTime}>⏱ Moins de 2 minutes</Text>
+
+              <View style={styles.welcomeCurrency}>
+                <Text style={styles.welcomeCurrencyLabel}>Votre devise</Text>
+                <CurrencyPicker
+                  value={userProfile?.currency_code ?? 'EUR'}
+                  onChange={(code) => updateProfile.mutate({ currency_code: code })}
+                />
+                <Text style={styles.welcomeCurrencyHint}>Modifiable à tout moment dans les paramètres.</Text>
+              </View>
 
               {savedProgress && savedProgress.currentStep > 0 && (
                 <View style={styles.resumeBanner}>
@@ -398,6 +409,9 @@ function makeStyles(c: any) {
     flexGrow: 1, alignItems: 'center', paddingHorizontal: 28,
     paddingTop: 40, paddingBottom: 60, gap: 12,
   },
+  welcomeCurrency: { width: '100%', marginTop: 24, gap: 8 },
+  welcomeCurrencyLabel: { fontSize: 14, fontWeight: '700', color: c.text },
+  welcomeCurrencyHint: { fontSize: 12, color: c.textSecondary },
   welcomeEmoji: { fontSize: 72, marginBottom: 8 },
   welcomeTitle: { fontSize: 28, fontWeight: '800', color: c.text, textAlign: 'center' },
   welcomeSub: { fontSize: 16, color: c.emerald, fontWeight: '600', marginBottom: 4 },

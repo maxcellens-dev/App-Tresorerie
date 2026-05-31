@@ -26,6 +26,7 @@ import AddObjectiveModal from '../../components/AddObjectiveModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { accountColor } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 export default function ObjectivesScreen() {
@@ -49,7 +50,7 @@ export default function ObjectivesScreen() {
         icon: 'warning' as const,
         color: '#ef4444',
         title: 'Épargne critique',
-        message: `Votre épargne (${current_savings.toFixed(0)} €) est en dessous du seuil minimum (${safety_threshold_min.toFixed(0)} €). Concentrez-vous sur la reconstitution de votre épargne de précaution avant de poursuivre vos objectifs.`,
+        message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) est en dessous du seuil minimum (${safety_threshold_min.toFixed(0)} ${CURRENCY_SYMBOL}). Concentrez-vous sur la reconstitution de votre épargne de précaution avant de poursuivre vos objectifs.`,
       };
     }
     if (current_savings < safety_threshold_optimal) {
@@ -57,7 +58,7 @@ export default function ObjectivesScreen() {
         icon: 'alert-circle' as const,
         color: '#f59e0b',
         title: 'Épargne à renforcer',
-        message: `Votre épargne (${current_savings.toFixed(0)} €) n'a pas encore atteint le seuil optimal (${safety_threshold_optimal.toFixed(0)} €). Continuez à épargner et ajustez vos objectifs d'investissement en conséquence.`,
+        message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) n'a pas encore atteint le seuil optimal (${safety_threshold_optimal.toFixed(0)} ${CURRENCY_SYMBOL}). Continuez à épargner et ajustez vos objectifs d'investissement en conséquence.`,
       };
     }
     if (current_savings < safety_threshold_comfort) {
@@ -65,14 +66,14 @@ export default function ObjectivesScreen() {
         icon: 'checkmark-circle' as const,
         color: '#a78bfa',
         title: 'Bonne dynamique',
-        message: `Votre épargne (${current_savings.toFixed(0)} €) dépasse le seuil optimal. Vous pouvez avancer sereinement sur vos objectifs tout en visant le seuil de confort (${safety_threshold_comfort.toFixed(0)} €).`,
+        message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil optimal. Vous pouvez avancer sereinement sur vos objectifs tout en visant le seuil de confort (${safety_threshold_comfort.toFixed(0)} ${CURRENCY_SYMBOL}).`,
       };
     }
     return {
       icon: 'shield-checkmark' as const,
       color: '#34d399',
       title: 'Situation confortable',
-      message: `Votre épargne (${current_savings.toFixed(0)} €) dépasse le seuil de confort. Vous êtes en excellente position pour investir et atteindre vos objectifs financiers.`,
+      message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil de confort. Vous êtes en excellente position pour investir et atteindre vos objectifs financiers.`,
     };
   }, [pilotage]);
 
@@ -220,7 +221,7 @@ export default function ObjectivesScreen() {
                 Cible annuelle
               </Text>
               <Text style={[styles.detailValue, { color: COLORS.text }]}>
-                €{targetAmount.toFixed(2)}
+                {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
               </Text>
             </View>
             <View>
@@ -228,7 +229,7 @@ export default function ObjectivesScreen() {
                 Mensuel
               </Text>
               <Text style={[styles.detailValue, { color: COLORS.text }]}>
-                €{(targetAmount / 12).toFixed(2)}
+                {CURRENCY_SYMBOL}{(targetAmount / 12).toFixed(2)}
               </Text>
             </View>
             <View>
@@ -268,7 +269,7 @@ export default function ObjectivesScreen() {
               />
             </View>
             <Text style={[styles.progressAmount, { color: COLORS.textSecondary }]}>
-              €{currentAmount.toFixed(2)} / €{targetAmount.toFixed(2)}
+              {CURRENCY_SYMBOL}{currentAmount.toFixed(2)} / {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
             </Text>
           </View>
         </View>

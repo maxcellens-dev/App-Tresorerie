@@ -17,6 +17,7 @@ import { useAccounts } from '../hooks/useAccounts';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface AddProjectModalProps {
@@ -353,7 +354,7 @@ export default function AddProjectModal({
 
                 {/* Montant cible */}
                 <View style={styles.field}>
-                  <Text style={[styles.label, { color: COLORS.text }]}>Montant cible (€) *</Text>
+                  <Text style={[styles.label, { color: COLORS.text }]}>Montant cible ({CURRENCY_SYMBOL}) *</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
                     placeholder="10000"
@@ -390,7 +391,7 @@ export default function AddProjectModal({
                 {/* Mensuel */}
                 {form.allocation_type === 'monthly' && (
                   <View style={styles.field}>
-                    <Text style={[styles.label, { color: COLORS.text }]}>Allocation mensuelle (€) *</Text>
+                    <Text style={[styles.label, { color: COLORS.text }]}>Allocation mensuelle ({CURRENCY_SYMBOL}) *</Text>
                     <TextInput
                       style={[styles.input, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
                       placeholder="500"
@@ -434,7 +435,7 @@ export default function AddProjectModal({
                       <View style={[styles.field, { backgroundColor: COLORS.background, padding: 12, borderRadius: 8 }]}>
                         <Text style={[styles.label, { color: COLORS.primary }]}>Allocation calculée</Text>
                         <Text style={[styles.calculatedAmount, { color: COLORS.primary }]}>
-                          {calculatedAllocation.toFixed(2)} €/mois
+                          {calculatedAllocation.toFixed(2)} {CURRENCY_SYMBOL}/mois
                         </Text>
                       </View>
                     )}
@@ -489,7 +490,7 @@ export default function AddProjectModal({
                       <View style={[styles.ponctuelTotal, { borderTopColor: COLORS.border }]}>
                         <Text style={[styles.ponctuelTotalLabel, { color: COLORS.textSecondary }]}>Total apports</Text>
                         <Text style={[styles.ponctuelTotalAmount, { color: COLORS.blue }]}>
-                          {ponctuelTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                          {ponctuelTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                         </Text>
                       </View>
                     </View>

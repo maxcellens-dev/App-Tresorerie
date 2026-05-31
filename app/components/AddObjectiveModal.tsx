@@ -15,6 +15,7 @@ import { useAddObjective, useUpdateObjective } from '../hooks/useObjectives';
 import { useAccounts } from '../hooks/useAccounts';
 import type { Objective } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface AddObjectiveModalProps {
@@ -222,7 +223,7 @@ export default function AddObjectiveModal({
               {/* Target Yearly Amount */}
               <View style={styles.field}>
                 <Text style={[styles.label, { color: COLORS.text }]}>
-                  Montant cible annuel (€) *
+                  Montant cible annuel ({CURRENCY_SYMBOL}) *
                 </Text>
                 <TextInput
                   style={[
@@ -255,7 +256,7 @@ export default function AddObjectiveModal({
               {/* Monthly Amount (linked) */}
               <View style={styles.field}>
                 <Text style={[styles.label, { color: COLORS.text }]}>
-                  Mensuel (€)
+                  Mensuel ({CURRENCY_SYMBOL})
                 </Text>
                 <TextInput
                   style={[

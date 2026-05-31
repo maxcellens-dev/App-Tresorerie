@@ -51,6 +51,13 @@ export default function AdminHub() {
       color: '#60a5fa',
     },
     {
+      href: '/(tabs)/admin/fiscal-rates',
+      icon: 'cash-outline',
+      title: 'Fiscalité',
+      desc: 'Taux par enveloppe (PEA, AV…)',
+      color: '#fbbf24',
+    },
+    {
       href: '/(tabs)/(secondary)/admin/style-editor',
       icon: 'color-palette-outline',
       title: 'Style Editor',

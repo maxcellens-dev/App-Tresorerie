@@ -4,6 +4,7 @@ import type { ObjectiveWithAccount } from '../types/database';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../hooks/useAccountTransactionsByYear';
 import { accountColor } from '../theme/colors';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface ObjectiveCarouselCardProps {
@@ -72,10 +73,10 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
       <View style={styles.progressSection}>
         <View style={styles.amountCompact}>
           <Text style={[styles.amountSmall, { color: accentColor }]}>
-            €{progress.currentAmount.toFixed(0)}
+            {CURRENCY_SYMBOL}{progress.currentAmount.toFixed(0)}
           </Text>
           <Text style={[styles.targetSmall, { color: COLORS.textSecondary }]}>
-            / €{objective.target_yearly_amount.toFixed(0)}
+            / {CURRENCY_SYMBOL}{objective.target_yearly_amount.toFixed(0)}
           </Text>
         </View>
         <View

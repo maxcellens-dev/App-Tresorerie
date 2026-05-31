@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
 interface SafeToSpendProps {
@@ -24,7 +25,7 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false,
         <Text style={styles.label}>Ce qu'il te reste ce mois-ci</Text>
       </View>
       <Text style={[styles.amount, { color }]}>
-        {amount.toFixed(0)} €
+        {amount.toFixed(0)} {CURRENCY_SYMBOL}
       </Text>
       <Text style={styles.description}>
         {isNegative

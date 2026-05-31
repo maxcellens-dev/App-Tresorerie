@@ -102,6 +102,7 @@ export interface Profile {
   is_admin?: boolean;
   theme_mode?: 'dark' | 'light';
   theme_preset?: 'emerald' | 'ocean' | 'violet' | 'coral' | 'amber';
+  currency_code?: string;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +115,7 @@ export interface Account {
   currency: string;
   balance: number;
   is_active: boolean;
+  fiscal_envelope?: 'pea' | 'av' | 'cto' | 'autre' | null;
   created_at: string;
   updated_at: string;
 }

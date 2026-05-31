@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../theme/palette';
+import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
@@ -111,12 +112,21 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Profil Financier</Text>
           <View style={styles.card}>
             <TouchableOpacity
-              style={[styles.row, { borderBottomWidth: 0 }]}
+              style={styles.row}
               activeOpacity={0.7}
               onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}
             >
               <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
               <Text style={styles.rowLabel}>Mon profil financier</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { borderBottomWidth: 0 }]}
+              activeOpacity={0.7}
+              onPress={() => router.push('/(tabs)/reporting')}
+            >
+              <Ionicons name="bar-chart-outline" size={20} color="#f59e0b" />
+              <Text style={styles.rowLabel}>Reporting</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -178,7 +188,7 @@ export default function SettingsScreen() {
             </View>
 
             {/* Preset de couleur */}
-            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
               <Text style={styles.rowLabel}>Couleur d'accent</Text>
               <View style={styles.presetRow}>
                 {THEME_PRESETS.map((p) => {
@@ -196,6 +206,16 @@ export default function SettingsScreen() {
                   );
                 })}
               </View>
+            </View>
+
+            {/* Devise d'affichage */}
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
+              <Text style={styles.rowLabel}>Devise</Text>
+              <CurrencyPicker
+                value={profile?.currency_code ?? 'EUR'}
+                onChange={(code) => updateProfile.mutate({ currency_code: code })}
+              />
+              <Text style={styles.currencyHint}>Change le symbole des montants partout. Aucune conversion n'est appliquée.</Text>
             </View>
           </View>
 
@@ -292,6 +312,7 @@ function makeStyles(c: AppColors) {
     segmentActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     segmentLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
     segmentLabelActive: { color: c.bg },
+    currencyHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
     presetRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
     presetDot: {
       width: 32, height: 32, borderRadius: 16,

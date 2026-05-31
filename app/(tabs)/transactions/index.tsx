@@ -15,6 +15,7 @@ import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 function formatDate(dateStr: string) {
@@ -635,7 +636,7 @@ export default function TransactionsListScreen() {
                                   </TouchableOpacity>
                                 </View>
                                 <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg, { textAlign: 'right', marginTop: 4 }]}>
-                                  {amt > 0 ? '+' : ''}{amt.toFixed(2)} €
+                                  {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
                                 </Text>
                               </View>
                             </View>
@@ -676,7 +677,7 @@ export default function TransactionsListScreen() {
                               </View>
                             ) : (
                               <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg]}>
-                                {amt > 0 ? '+' : ''}{amt.toFixed(2)} €
+                                {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
                               </Text>
                             )}
                           </TouchableOpacity>

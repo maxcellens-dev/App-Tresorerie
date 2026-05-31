@@ -15,6 +15,7 @@ import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { accountColor } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -253,7 +254,7 @@ export default function AddTransactionScreen() {
           />
 
           {/* Montant */}
-          <Text style={styles.label}>Montant (€)</Text>
+          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
           <TextInput
             style={styles.input}
             value={amount}
