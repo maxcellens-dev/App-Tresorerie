@@ -32,6 +32,10 @@ export interface InvestProjectionParams {
  * La fiscalité ne s'applique qu'à la plus-value (valeur − capital versé).
  * `initialContributed` permet de distinguer la valeur actuelle (avec plus-value latente)
  * du capital réellement versé (base non taxable).
+ *
+ * La 1ʳᵉ ligne (année en cours) reflète le RÉEL : valeur actuelle, sans apport ni
+ * croissance de l'hypothèse. L'hypothèse (apports + rendement) ne s'applique qu'à
+ * partir de l'année suivante (N+1) ; `years` = nombre d'années projetées après N.
  */
 export function projectInvestment(p: InvestProjectionParams): InvestYearRow[] {
   const startYear = p.startYear ?? new Date().getFullYear();
@@ -41,9 +45,24 @@ export function projectInvestment(p: InvestProjectionParams): InvestYearRow[] {
 
   let value = p.initialValue;
   let cumulativeContribution = p.initialContributed ?? p.initialValue;
-  let prevNetGainTotal = Math.max(0, p.initialValue - cumulativeContribution) * (1 - tax);
 
-  for (let i = 0; i < p.years; i++) {
+  // Ligne « année en cours » (N) : état réel actuel, hors hypothèse.
+  const gainLatent0 = value - cumulativeContribution;
+  let prevNetGainTotal = Math.max(0, gainLatent0) * (1 - tax);
+  rows.push({
+    year: startYear,
+    contribution: 0,
+    cumulativeContribution,
+    value,
+    gainLatent: gainLatent0,
+    valueAfterTax: cumulativeContribution + prevNetGainTotal,
+    netGainTotal: prevNetGainTotal,
+    netGainAnnual: 0,
+    netGainMonthly: 0,
+  });
+
+  // Années projetées (N+1 … N+years) : l'hypothèse s'applique.
+  for (let i = 1; i <= p.years; i++) {
     const year = startYear + i;
     // L'apport est versé en début d'année puis fructifie
     const contribution = p.annualContribution;

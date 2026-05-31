@@ -234,7 +234,7 @@ export default function ProjectionScreen() {
     num(savingsMonthlyPerso);
   const savingsHorizons = useMemo(() => projectSavings(num(savingsInitial), savingsMonthly, [1, 3, 5, 10], 2), [savingsInitial, savingsMonthly]);
 
-  const [showTable, setShowTable] = useState(false);
+  const [showTable, setShowTable] = useState(true);
 
   return (
     <View style={styles.root}>

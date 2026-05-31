@@ -22,7 +22,7 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false,
         <View style={[styles.iconBadge, { backgroundColor: color + '20' }]}>
           <Text style={{ fontSize: 20 }}>💰</Text>
         </View>
-        <Text style={styles.label}>Ce qu'il te reste ce mois-ci</Text>
+        <Text style={styles.label}>Reste du mois</Text>
       </View>
       <Text style={[styles.amount, { color }]}>
         {amount.toFixed(0)} {CURRENCY_SYMBOL}

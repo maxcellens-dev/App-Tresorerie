@@ -12,6 +12,8 @@ interface SmartRecommendationCardProps {
   tierLabel: string;
   tierColor: string;
   onAction?: (reco: SmartRecommendation) => void;
+  /** Masque le titre interne « Recommandations » (quand la section porte déjà ce titre). */
+  hideTitle?: boolean;
 }
 
 export default function RecommendationCard({
@@ -19,6 +21,7 @@ export default function RecommendationCard({
   tierLabel,
   tierColor,
   onAction,
+  hideTitle = false,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
@@ -71,10 +74,12 @@ export default function RecommendationCard({
   if (visible.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerRow}>
-          <Ionicons name="checkmark-circle" size={20} color="#34d399" />
-          <Text style={styles.headerLabel}>Recommandations</Text>
-        </View>
+        {!hideTitle && (
+          <View style={styles.headerRow}>
+            <Ionicons name="checkmark-circle" size={20} color="#34d399" />
+            <Text style={styles.headerLabel}>Recommandations</Text>
+          </View>
+        )}
         <Text style={styles.emptyText}>
           Toutes les recommandations ont été traitées ce mois-ci ✨
         </Text>
@@ -82,56 +87,73 @@ export default function RecommendationCard({
     );
   }
 
+  const navControls = (
+    <View style={styles.navRow}>
+      <TouchableOpacity
+        style={[styles.navBtn, safeIndex === 0 && styles.navBtnDisabled]}
+        onPress={handlePrev}
+        disabled={safeIndex === 0}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="chevron-back" size={18} color={safeIndex === 0 ? COLORS.cardBorder : COLORS.text} />
+      </TouchableOpacity>
+      <Text style={styles.navIndicator}>{safeIndex + 1}/{visible.length}</Text>
+      <TouchableOpacity
+        style={[styles.navBtn, safeIndex === visible.length - 1 && styles.navBtnDisabled]}
+        onPress={handleNext}
+        disabled={safeIndex === visible.length - 1}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="chevron-forward" size={18} color={safeIndex === visible.length - 1 ? COLORS.cardBorder : COLORS.text} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const bar = (
+    <View style={[styles.barContainer, { flex: 1 }]}>
+      {visible.map((r, i) => (
+        <TouchableOpacity
+          key={r.type}
+          style={[
+            styles.barSegment,
+            {
+              flex: r.percentage,
+              backgroundColor: r.type === currentReco.type ? r.color : r.color + '50',
+              borderTopLeftRadius: i === 0 ? 6 : 0,
+              borderBottomLeftRadius: i === 0 ? 6 : 0,
+              borderTopRightRadius: i === visible.length - 1 ? 6 : 0,
+              borderBottomRightRadius: i === visible.length - 1 ? 6 : 0,
+            },
+          ]}
+          onPress={() => setCurrentIndex(i)}
+          activeOpacity={0.8}
+        />
+      ))}
+    </View>
+  );
+
   return (
     <View style={[styles.container, { borderColor: currentReco.color + '40' }]} {...panResponder.panHandlers}>
-      {/* ── Header with navigation ── */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="bulb-outline" size={20} color={tierColor} />
-          <Text style={styles.headerLabel}>Recommandations</Text>
+      {/* ── Header (titre + nav) — masqué si la section porte déjà le titre ── */}
+      {!hideTitle && (
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Ionicons name="bulb-outline" size={20} color={tierColor} />
+            <Text style={styles.headerLabel}>Recommandations</Text>
+          </View>
+          {navControls}
         </View>
-        <View style={styles.navRow}>
-          <TouchableOpacity
-            style={[styles.navBtn, safeIndex === 0 && styles.navBtnDisabled]}
-            onPress={handlePrev}
-            disabled={safeIndex === 0}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={18} color={safeIndex === 0 ? COLORS.cardBorder : COLORS.text} />
-          </TouchableOpacity>
-          <Text style={styles.navIndicator}>{safeIndex + 1}/{visible.length}</Text>
-          <TouchableOpacity
-            style={[styles.navBtn, safeIndex === visible.length - 1 && styles.navBtnDisabled]}
-            onPress={handleNext}
-            disabled={safeIndex === visible.length - 1}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-forward" size={18} color={safeIndex === visible.length - 1 ? COLORS.cardBorder : COLORS.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      )}
 
-      {/* ── Barre d'allocation (toutes les recos) ── */}
-      <View style={styles.barContainer}>
-        {visible.map((r, i) => (
-          <TouchableOpacity
-            key={r.type}
-            style={[
-              styles.barSegment,
-              {
-                flex: r.percentage,
-                backgroundColor: r.type === currentReco.type ? r.color : r.color + '50',
-                borderTopLeftRadius: i === 0 ? 6 : 0,
-                borderBottomLeftRadius: i === 0 ? 6 : 0,
-                borderTopRightRadius: i === visible.length - 1 ? 6 : 0,
-                borderBottomRightRadius: i === visible.length - 1 ? 6 : 0,
-              },
-            ]}
-            onPress={() => setCurrentIndex(i)}
-            activeOpacity={0.8}
-          />
-        ))}
-      </View>
+      {/* ── Barre d'allocation (+ nav à droite quand le titre est masqué) ── */}
+      {hideTitle ? (
+        <View style={styles.barRow}>
+          {bar}
+          {navControls}
+        </View>
+      ) : (
+        bar
+      )}
 
       {/* ── Légende de la barre ── */}
       <View style={styles.legendRow}>
@@ -259,6 +281,11 @@ function makeStyles(c: any) {
   },
 
   /* Allocation bar */
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   barContainer: {
     flexDirection: 'row',
     height: 10,

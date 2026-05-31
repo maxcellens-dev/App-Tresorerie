@@ -7,8 +7,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
 import { useProjects } from '../hooks/useProjects';
 import { useObjectives } from '../hooks/useObjectives';
-import SafeToSpendCard from '../components/SafeToSpendCard';
-import VariableTrendCard from '../components/VariableTrendCard';
 import RecommendationCard from '../components/RecommendationCard';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
@@ -45,6 +43,7 @@ export default function PilotageScreen() {
   const guide = useScreenGuide('pilotage', user?.id);
   const scrollRef = React.useRef<ScrollView>(null);
   const overviewRef = React.useRef<View>(null);
+  const suiviRef = React.useRef<View>(null);
   const monthRef = React.useRef<View>(null);
   const projectsObjectivesRef = React.useRef<View>(null);
 
@@ -57,11 +56,18 @@ export default function PilotageScreen() {
       description: 'Vos soldes par catégorie : épargne, courant et investissements. Le repère de santé de votre épargne en un coup d\'œil.',
     },
     {
+      getRef: () => suiviRef,
+      icon: 'wallet-outline',
+      iconColor: '#34d399',
+      title: 'Suivi du mois',
+      description: 'Vos engagements du mois (épargne, investissement, réservé) et vos dépenses. En bas, le « Reste du mois » : ce qu\'il vous reste à dépenser librement.',
+    },
+    {
       getRef: () => monthRef,
-      icon: 'calendar-outline',
+      icon: 'bulb-outline',
       iconColor: '#f59e0b',
-      title: 'Ce mois-ci',
-      description: 'Votre solde disponible après engagements et marge de sécurité, ainsi que la tendance de vos dépenses variables.',
+      title: 'Recommandations',
+      description: 'Des conseils personnalisés selon votre profil financier pour optimiser votre mois : épargne, investissement, réserve…',
     },
     {
       getRef: () => projectsObjectivesRef,
@@ -198,7 +204,7 @@ export default function PilotageScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
+          <View style={styles.section} ref={suiviRef}>
             <View style={styles.sectionHeader}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.sectionTitle}>Suivi du mois</Text>
@@ -217,6 +223,13 @@ export default function PilotageScreen() {
                 { label: 'Investissement',   value: invest,   icon: 'trending-up-outline', color: '#a78bfa', hint: 'Virements vers comptes d\'investissement' },
                 { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: '#60a5fa', hint: 'Argent tagué « Réservé »' },
               ];
+
+              // Reste du mois (safe-to-spend)
+              const rest = pilotageData.safe_to_spend;
+              const restNeg = rest < 0;
+              const restLow = rest < pilotageData.committed_allocations;
+              const restColor = restNeg ? '#f87171' : restLow ? '#fbbf24' : '#34d399';
+              const restHint = restNeg ? 'Attention : solde insuffisant' : restLow ? 'Prudence requise' : 'Vous êtes en bonne position';
 
               return (
                 <View style={styles.suiviCard}>
@@ -246,38 +259,35 @@ export default function PilotageScreen() {
                     </View>
                     <Text style={[styles.suiviValue, { color: '#f87171' }]}>{fmt(expenses)}</Text>
                   </View>
+
+                  <View style={styles.suiviDivider} />
+
+                  {/* Reste du mois */}
+                  <View style={styles.suiviRow}>
+                    <View style={[styles.suiviIcon, { backgroundColor: restColor + '22' }]}>
+                      <Ionicons name="wallet-outline" size={17} color={restColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suiviLabelBig}>Reste du mois</Text>
+                      <Text style={styles.suiviHint}>{restHint}</Text>
+                    </View>
+                    <Text style={[styles.suiviValueBig, { color: restColor }]}>{fmt(rest)}</Text>
+                  </View>
                 </View>
               );
             })()}
           </View>
 
-          {/* ═══════════ SECTION 2 : Ce mois-ci ═══════════ */}
+          {/* ═══════════ SECTION 2 : Recommandations ═══════════ */}
           <View style={styles.section} ref={monthRef}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="calendar-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Ce mois-ci</Text>
+              <Ionicons name="bulb-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Recommandations</Text>
             </View>
             <View style={styles.sectionDivider} />
 
-            <View style={styles.row2Col}>
-              <View style={[styles.col, { flex: 1.2 }]}>
-                <SafeToSpendCard
-                  amount={pilotageData.safe_to_spend}
-                  isLow={pilotageData.safe_to_spend < pilotageData.committed_allocations}
-                  isNegative={pilotageData.safe_to_spend < 0}
-                  reserved={pilotageData.same_account_reserved}
-                />
-              </View>
-              <View style={[styles.col, { flex: 0.8 }]}>
-                <VariableTrendCard
-                  current={pilotageData.current_month_variable}
-                  average={pilotageData.avg_variable_expenses_3m}
-                  percentage={pilotageData.variable_trend_percentage}
-                />
-              </View>
-            </View>
-
             <RecommendationCard
+              hideTitle
               recommendations={pilotageData ? computeRecommendations(
                 pilotageData,
                 customTiers,
@@ -496,6 +506,8 @@ function makeStyles(c: AppColors) {
   suiviLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   suiviHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
   suiviValue: { fontSize: 15, fontWeight: '800' },
+  suiviLabelBig: { fontSize: 16, color: c.text, fontWeight: '800' },
+  suiviValueBig: { fontSize: 20, fontWeight: '800' },
   suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
   profileTitle: {
     fontSize: 16,
