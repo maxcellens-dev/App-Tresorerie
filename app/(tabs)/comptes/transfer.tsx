@@ -19,9 +19,12 @@ import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useAddTransaction } from '../../hooks/useTransactions';
+import { useResetPreSaving } from '../../hooks/usePreSavings';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
-import type { RecurrenceRule } from '../../types/database';
+import type { RecurrenceRule, PreSavingType } from '../../types/database';
+import type { RecoType } from '../../lib/recommendationEngine';
+import { addCompleted } from '../../lib/recoDismissals';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
 
@@ -30,17 +33,26 @@ export default function TransferScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
-  const params = useLocalSearchParams<{ from?: string }>();
+  const params = useLocalSearchParams<{
+    from?: string; to?: string; amount?: string; label?: string; date?: string;
+    destType?: string; recoComplete?: string; resetPreSaving?: string;
+  }>();
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const resetPreSaving = useResetPreSaving(user?.id);
+
+  // Filtre du compte cible : si destType fourni (depuis une reco), n'autoriser que ce type
+  const destAccounts = params.destType
+    ? accounts.filter((a) => a.type === params.destType)
+    : accounts;
 
   const [fromAccountId, setFromAccountId] = useState(params.from || '');
-  const [toAccountId, setToAccountId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(todayISO());
-  const [dateDisplay, setDateDisplay] = useState(formatDateFrench(todayISO()));
-  const [note, setNote] = useState('Virement interne');
+  const [toAccountId, setToAccountId] = useState(params.to || '');
+  const [amount, setAmount] = useState(params.amount || '');
+  const [date, setDate] = useState(params.date || todayISO());
+  const [dateDisplay, setDateDisplay] = useState(formatDateFrench(params.date || todayISO()));
+  const [note, setNote] = useState(params.label || 'Virement interne');
   const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
@@ -88,6 +100,14 @@ export default function TransferScreen() {
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
       });
+      // Virement validé depuis une reco → la marquer « traitée » (ne réapparaît pas)
+      if (params.recoComplete) {
+        await addCompleted(params.recoComplete as RecoType);
+      }
+      // Virement global d'un cumul → remettre le cumul à 0
+      if (params.resetPreSaving) {
+        await resetPreSaving.mutateAsync(params.resetPreSaving as PreSavingType);
+      }
       router.back();
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’effectuer le virement.');
@@ -149,7 +169,7 @@ export default function TransferScreen() {
 
           <Text style={styles.label}>Compte cible (crédit)</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {accounts.map((acc) => (
+            {destAccounts.map((acc) => (
               <TouchableOpacity
                 key={acc.id}
                 style={[styles.chip, toAccountId === acc.id && styles.chipActive]}
@@ -163,6 +183,11 @@ export default function TransferScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+          {params.destType && destAccounts.length === 0 && (
+            <Text style={styles.hint}>
+              Aucun compte {params.destType === 'savings' ? 'épargne' : params.destType === 'investment' ? 'investissement' : ''}. Créez-en un depuis l’onglet Comptes.
+            </Text>
+          )}
 
           <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
           <TextInput

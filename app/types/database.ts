@@ -175,6 +175,44 @@ export interface TransactionMonthOverride {
   updated_at: string;
 }
 
+/** Pré-épargne / pré-investissement : cumul « mental » par utilisateur et par type. */
+export type PreSavingType = 'epargne' | 'invest';
+
+export interface PreSavingEntry {
+  date: string;
+  montant: number;
+  note?: string;
+}
+
+export interface PreSaving {
+  id: string;
+  profile_id: string;
+  type: PreSavingType;
+  total_cumule: number;
+  entrees: PreSavingEntry[];
+  statut: 'actif' | 'en_depassement';
+  updated_at: string;
+}
+
+/** Réservation « Conserver pour plus tard » : déduite du reste disponible tant que libere_at est null. */
+export interface Reservation {
+  id: string;
+  profile_id: string;
+  montant: number;
+  libelle?: string | null;
+  created_at: string;
+  libere_at?: string | null;
+}
+
+/** Seuils de recommandations (singleton, éditable admin). */
+export interface RecommendationSettings {
+  id: string;
+  seuil_reco_epargne: number;
+  seuil_reco_invest: number;
+  seuil_reco_plaisir: number;
+  updated_at?: string;
+}
+
 
 
 export interface Project {

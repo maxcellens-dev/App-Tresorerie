@@ -21,8 +21,10 @@ export type RecoType = 'save' | 'invest' | 'enjoy' | 'keep';
 
 export interface SmartRecommendation {
   type: RecoType;
-  /** Titre court affiché dans la carte */
+  /** Titre complet affiché dans la carte */
   title: string;
+  /** Libellé court pour la légende de la barre */
+  shortTitle: string;
   /** Description contextuelle */
   description: string;
   /** Montant en euros */
@@ -137,12 +139,28 @@ function clamp(value: number, min: number, max: number): number {
 
 /* ── Moteur principal ────────────────────────────────────── */
 
+/** Seuils minimums de reste disponible pour afficher chaque type de reco. */
+export interface RecoThresholds {
+  seuil_reco_epargne: number;
+  seuil_reco_invest: number;
+  seuil_reco_plaisir: number;
+}
+
+export interface ComputeRecoOptions {
+  customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>;
+  financialProfileId?: FinancialProfileId;
+  /** Budget de référence (= reste disponible). Défaut : data.safe_to_spend. */
+  budget?: number;
+  /** Seuils min de reste pour afficher chaque reco (§9). */
+  thresholds?: RecoThresholds;
+}
+
 export function computeRecommendations(
   data: PilotageData,
-  customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>,
-  financialProfileId?: FinancialProfileId,
+  opts: ComputeRecoOptions = {},
 ): SmartRecommendation[] {
-  const budget = data.safe_to_spend;
+  const { customTierAllocations, financialProfileId, thresholds } = opts;
+  const budget = opts.budget ?? data.safe_to_spend;
 
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
@@ -196,8 +214,21 @@ export function computeRecommendations(
     normalizeAllocations(alloc);
   }
 
-  // 6. Construire les recommandations
-  return filtered.map(type => buildRecommendation(type, alloc[type], budget, tier, data));
+  // 6. Seuils §9 : retirer une reco si le reste disponible est sous son seuil
+  //    (keep n'a pas de seuil)
+  const th = thresholds ?? { seuil_reco_epargne: 50, seuil_reco_invest: 100, seuil_reco_plaisir: 50 };
+  const thresholdByType: Partial<Record<RecoType, number>> = {
+    save: th.seuil_reco_epargne,
+    invest: th.seuil_reco_invest,
+    enjoy: th.seuil_reco_plaisir,
+  };
+  const allowed = filtered.filter((type) => {
+    const min = thresholdByType[type];
+    return min === undefined || budget >= min;
+  });
+
+  // 7. Construire les recommandations
+  return allowed.map(type => buildRecommendation(type, alloc[type], budget, tier, data));
 }
 
 /** Renvoie le palier d'épargne courant (utile pour l'affichage) */
@@ -320,6 +351,7 @@ function buildRecommendation(
       return {
         type,
         title: 'Épargner',
+        shortTitle: 'Épargner',
         description: getSaveDescription(tier, amount, data),
         amount,
         percentage,
@@ -332,6 +364,7 @@ function buildRecommendation(
       return {
         type,
         title: 'Investir',
+        shortTitle: 'Investir',
         description: getInvestDescription(tier, amount, data),
         amount,
         percentage,
@@ -343,7 +376,8 @@ function buildRecommendation(
     case 'enjoy':
       return {
         type,
-        title: 'Se faire plaisir',
+        title: 'Possibilité de se faire plaisir',
+        shortTitle: 'Plaisir',
         description: getEnjoyDescription(amount, data),
         amount,
         percentage,
@@ -355,7 +389,8 @@ function buildRecommendation(
     case 'keep':
       return {
         type,
-        title: 'Conserver',
+        title: 'Conserver pour plus tard',
+        shortTitle: 'Conserver',
         description: getKeepDescription(amount, data),
         amount,
         percentage,

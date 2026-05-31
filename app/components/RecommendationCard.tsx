@@ -1,55 +1,86 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { SmartRecommendation } from '../lib/recommendationEngine';
+import { useFocusEffect } from 'expo-router';
+import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
+import { getIgnored, addIgnored, getCompleted, addCompleted, isHidden, type IgnoredMap } from '../lib/recoDismissals';
 
 
 interface SmartRecommendationCardProps {
   recommendations: SmartRecommendation[];
   tierLabel: string;
   tierColor: string;
-  onAction?: (reco: SmartRecommendation) => void;
   /** Masque le titre interne « Recommandations » (quand la section porte déjà ce titre). */
   hideTitle?: boolean;
+  /** Reco Épargne → ouvrir le virement pré-rempli (épargne). */
+  onEpargner?: (reco: SmartRecommendation) => void;
+  /** Reco Invest → ouvrir le virement pré-rempli (investissement). */
+  onInvestir?: (reco: SmartRecommendation) => void;
+  /** Bouton « Cumuler » → ouvrir la modale pré-épargne/pré-invest. */
+  onCumuler?: (type: 'epargne' | 'invest', reco: SmartRecommendation) => void;
+  /** Reco Conserver → créer une réservation (après confirmation inline). */
+  onReserver?: (reco: SmartRecommendation) => void;
+  /** Présence d'un compte épargne / investissement (pour le message « pas de compte »). */
+  hasSavingsAccount?: boolean;
+  hasInvestmentAccount?: boolean;
+  /** Lien « Créer un compte ». */
+  onCreateAccount?: () => void;
 }
 
 export default function RecommendationCard({
   recommendations,
   tierLabel,
   tierColor,
-  onAction,
   hideTitle = false,
+  onEpargner,
+  onInvestir,
+  onCumuler,
+  onReserver,
+  hasSavingsAccount,
+  hasInvestmentAccount,
+  onCreateAccount,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [ignored, setIgnored] = useState<IgnoredMap>({});
+  const [completed, setCompleted] = useState<RecoType[]>([]);
+  const [confirmReserve, setConfirmReserve] = useState(false);
 
-  // Charger les dismissals au montage (par mois)
-  React.useEffect(() => {
-    const key = `reco_dismissed_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    AsyncStorage.getItem(key).then(existing => {
-      if (existing) setDismissedIds(JSON.parse(existing));
+  // Recharger les masquages à chaque focus (ex : retour de l'écran virement)
+  const reloadDismissals = React.useCallback(() => {
+    let active = true;
+    Promise.all([getIgnored(), getCompleted()]).then(([ig, co]) => {
+      if (active) { setIgnored(ig); setCompleted(co); }
     });
+    return () => { active = false; };
   }, []);
+  useFocusEffect(reloadDismissals);
 
-  const handleDismiss = useCallback((type: string) => {
-    setDismissedIds(prev => {
-      const next = [...prev, type];
-      const key = `reco_dismissed_${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-      AsyncStorage.setItem(key, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  const handleIgnore = (reco: SmartRecommendation) => {
+    addIgnored(reco.type, reco.amount);
+    setIgnored(prev => ({ ...prev, [reco.type]: Math.round(reco.amount) }));
+    if (safeIndex >= visible.length - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
+  };
 
-  const visible = recommendations.filter(r => !dismissedIds.includes(r.type));
+  const handleConfirmReserve = (reco: SmartRecommendation) => {
+    onReserver?.(reco);
+    addCompleted('keep');
+    setCompleted(prev => prev.includes('keep') ? prev : [...prev, 'keep']);
+    setConfirmReserve(false);
+    if (safeIndex >= visible.length - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
+  };
+
+  const visible = recommendations.filter(r => !isHidden(r.type, r.amount, ignored, completed));
 
   // Clamp index after dismiss
   const safeIndex = Math.min(currentIndex, Math.max(0, visible.length - 1));
   const currentReco = visible[safeIndex];
+
+  // Réinitialiser la confirmation « Réserver » quand on change de reco
+  React.useEffect(() => { setConfirmReserve(false); }, [safeIndex]);
 
   const handlePrev = () => setCurrentIndex(prev => Math.max(0, prev - 1));
   const handleNext = () => setCurrentIndex(prev => Math.min(visible.length - 1, prev + 1));
@@ -169,7 +200,7 @@ export default function RecommendationCard({
               styles.legendText,
               r.type === currentReco.type && { color: r.color, fontWeight: '700' },
             ]}>
-              {r.title} {r.percentage}%
+              {r.shortTitle} {r.percentage}%
             </Text>
           </TouchableOpacity>
         ))}
@@ -189,30 +220,93 @@ export default function RecommendationCard({
       </View>
       <Text style={styles.recoDescription}>{currentReco.description}</Text>
 
-      {/* ── Boutons Ignorer / Appliquer ── */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.dismissBtn}
-          onPress={() => {
-            handleDismiss(currentReco.type);
-            if (safeIndex >= visible.length - 1) {
-              setCurrentIndex(Math.max(0, safeIndex - 1));
-            }
-          }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="close" size={16} color="#ef4444" />
-          <Text style={styles.dismissText}>Ignorer</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
-          onPress={() => onAction?.(currentReco)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name={currentReco.actionRoute ? 'arrow-forward' as any : 'checkmark' as any} size={16} color={currentReco.color} />
-          <Text style={[styles.actionText, { color: currentReco.color }]}>{currentReco.actionLabel}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── Actions selon le type de reco ── */}
+      {confirmReserve && currentReco.type === 'keep' ? (
+        <View style={styles.confirmBox}>
+          <Text style={styles.confirmText}>
+            Réserver {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL} pour plus tard ? Cette somme sera déduite de votre reste disponible mais reste sur votre compte courant.
+          </Text>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.dismissBtn} onPress={() => setConfirmReserve(false)} activeOpacity={0.7}>
+              <Text style={styles.dismissText}>Annuler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+              onPress={() => handleConfirmReserve(currentReco)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="checkmark" size={16} color={currentReco.color} />
+              <Text style={[styles.actionText, { color: currentReco.color }]}>Confirmer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <>
+          <View style={styles.actionRow}>
+            {/* Ignorer — toujours présent */}
+            <TouchableOpacity style={styles.dismissBtn} onPress={() => handleIgnore(currentReco)} activeOpacity={0.7}>
+              <Ionicons name="close" size={16} color="#ef4444" />
+              <Text style={styles.dismissText}>Ignorer</Text>
+            </TouchableOpacity>
+
+            {/* Cumuler — épargne / invest uniquement */}
+            {(currentReco.type === 'save' || currentReco.type === 'invest') && (
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                onPress={() => onCumuler?.(currentReco.type === 'save' ? 'epargne' : 'invest', currentReco)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="layers-outline" size={16} color={COLORS.text} />
+                <Text style={styles.secondaryText}>Cumuler</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Action principale par type (masquée si le compte cible manque) */}
+            {currentReco.type === 'save' && hasSavingsAccount !== false && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+                onPress={() => onEpargner?.(currentReco)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-forward" size={16} color={currentReco.color} />
+                <Text style={[styles.actionText, { color: currentReco.color }]}>Épargner</Text>
+              </TouchableOpacity>
+            )}
+            {currentReco.type === 'invest' && hasInvestmentAccount !== false && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+                onPress={() => onInvestir?.(currentReco)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-forward" size={16} color={currentReco.color} />
+                <Text style={[styles.actionText, { color: currentReco.color }]}>Investir</Text>
+              </TouchableOpacity>
+            )}
+            {currentReco.type === 'keep' && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+                onPress={() => setConfirmReserve(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="bookmark-outline" size={16} color={currentReco.color} />
+                <Text style={[styles.actionText, { color: currentReco.color }]}>Réserver</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Message « pas de compte » (§2/§3) */}
+          {((currentReco.type === 'save' && hasSavingsAccount === false) ||
+            (currentReco.type === 'invest' && hasInvestmentAccount === false)) && (
+            <TouchableOpacity style={styles.noAccountBox} onPress={onCreateAccount} activeOpacity={0.7}>
+              <Ionicons name="information-circle-outline" size={15} color={currentReco.color} />
+              <Text style={styles.noAccountText}>
+                Vous n'avez pas encore de compte {currentReco.type === 'save' ? 'épargne' : 'investissement'}.{' '}
+                <Text style={{ color: currentReco.color, fontWeight: '700' }}>Créez-en un dans Mes Comptes.</Text>
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -389,6 +483,45 @@ function makeStyles(c: any) {
     fontSize: 12,
     fontWeight: '600',
   },
+  secondaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    backgroundColor: c.bg,
+  },
+  secondaryText: {
+    fontSize: 12,
+    color: c.text,
+    fontWeight: '600',
+  },
+
+  /* Confirmation inline (Réserver) */
+  confirmBox: {
+    gap: 10,
+    marginTop: 4,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    backgroundColor: c.bg,
+  },
+  confirmText: {
+    fontSize: 12,
+    color: c.text,
+    lineHeight: 17,
+  },
+  noAccountBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,
+    paddingHorizontal: 12, paddingVertical: 10, marginTop: 8,
+  },
+  noAccountText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
   emptyText: {
     fontSize: 13,

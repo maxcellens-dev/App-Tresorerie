@@ -7,12 +7,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
 import { useProjects } from '../hooks/useProjects';
 import { useObjectives } from '../hooks/useObjectives';
+import { useAccounts } from '../hooks/useAccounts';
+import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../hooks/usePreSavings';
+import { useReservations, useAddReservation } from '../hooks/useReservations';
+import { useRecoThresholds } from '../hooks/useRecoThresholds';
 import RecommendationCard from '../components/RecommendationCard';
+import PreSavingsModal from '../components/PreSavingsModal';
+import CumulsPanel from '../components/CumulsPanel';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
 import { ACCOUNT_COLORS } from '../theme/colors';
 import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
+import type { PreSavingType } from '../types/database';
 import { useRecommendationTiers } from '../hooks/useRecommendationTiers';
 import { useFinancialProfile } from '../hooks/useFinancialProfile';
 import { useAutoProfileEvaluation } from '../hooks/useFinancialProfile';
@@ -38,6 +45,32 @@ export default function PilotageScreen() {
   const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const autoEval = useAutoProfileEvaluation(user?.id);
+
+  // ── Données recos évoluées : cumuls, réservations, seuils, comptes ──
+  const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: preSavings } = usePreSavings(user?.id);
+  const { data: reservations = [] } = useReservations(user?.id);
+  const { data: recoThresholds } = useRecoThresholds();
+  const addPreSaving = useAddPreSavingEntry(user?.id);
+  const resetPreSaving = useResetPreSaving(user?.id);
+  const setPreSavingStatus = useSetPreSavingStatus(user?.id);
+  const addReservation = useAddReservation(user?.id);
+
+  // Modale pré-épargne/pré-invest + panneau cumuls
+  const [preModal, setPreModal] = useState<PreSavingType | null>(null);
+  const [preModalAmount, setPreModalAmount] = useState(0);
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
+  const preInvestTotal = preSavings?.invest.total_cumule ?? 0;
+  const reservationsTotal = reservations.reduce((s, r) => s + Number(r.montant), 0);
+
+  // Compte courant principal (solde le plus élevé) + présence des comptes cibles
+  const mainCheckingId = [...accounts]
+    .filter((a) => a.type === 'checking')
+    .sort((a, b) => Number(b.balance) - Number(a.balance))[0]?.id;
+  const hasSavingsAccount = accounts.some((a) => a.type === 'savings');
+  const hasInvestmentAccount = accounts.some((a) => a.type === 'investment');
 
   // ── Guide "bulles" ──
   const guide = useScreenGuide('pilotage', user?.id);
@@ -88,6 +121,59 @@ export default function PilotageScreen() {
   const { data: objectives = [], isLoading: objectivesLoading } = objectivesQuery;
 
   const isLoading = pilotageLoading || projectsLoading || objectivesLoading;
+
+  // ── Reste disponible (§8) = base à dépenser − cumuls − réservations ──
+  const baseADepenser = pilotageData?.safe_to_spend ?? 0;
+  const cumulsTotal = preEpargneTotal + preInvestTotal;
+  const resteDisponible = Math.max(0, baseADepenser - cumulsTotal - reservationsTotal);
+  const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
+
+  // Synchroniser le statut des cumuls (actif / en_depassement)
+  React.useEffect(() => {
+    if (!preSavings) return;
+    const wanted = enDepassement ? 'en_depassement' : 'actif';
+    (['epargne', 'invest'] as PreSavingType[]).forEach((t) => {
+      const row = preSavings[t];
+      if (row.total_cumule > 0 && row.statut !== wanted) {
+        setPreSavingStatus.mutate({ type: t, statut: wanted });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enDepassement, preSavings?.epargne.total_cumule, preSavings?.invest.total_cumule]);
+
+  // Ouvrir le virement pré-rempli pour une reco épargne/invest
+  const openRecoTransfer = (reco: SmartRecommendation, dest: 'savings' | 'investment') => {
+    const label = dest === 'savings' ? 'Épargne' : 'Investissement';
+    const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    router.push({
+      pathname: '/(tabs)/comptes/transfer',
+      params: {
+        from: mainCheckingId ?? '',
+        destType: dest,
+        amount: String(Math.round(reco.amount)),
+        label: `${label} ${monthYear}`,
+        recoComplete: reco.type,
+      },
+    } as any);
+  };
+
+  // Ouvrir le virement global d'un cumul (depuis la modale)
+  const openCumulTransfer = (type: PreSavingType, montant: number) => {
+    setPreModal(null);
+    const dest = type === 'epargne' ? 'savings' : 'investment';
+    const label = type === 'epargne' ? 'Épargne' : 'Investissement';
+    const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    router.push({
+      pathname: '/(tabs)/comptes/transfer',
+      params: {
+        from: mainCheckingId ?? '',
+        destType: dest,
+        amount: String(Math.round(montant)),
+        label: `${label} ${monthYear} (cumul)`,
+        resetPreSaving: type,
+      },
+    } as any);
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -224,8 +310,8 @@ export default function PilotageScreen() {
                 { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: '#60a5fa', hint: 'Argent tagué « Réservé »' },
               ];
 
-              // Reste du mois (safe-to-spend)
-              const rest = pilotageData.safe_to_spend;
+              // Reste du mois = reste disponible (base − cumuls − réservations)
+              const rest = resteDisponible;
               const restNeg = rest < 0;
               const restLow = rest < pilotageData.committed_allocations;
               const restColor = restNeg ? '#f87171' : restLow ? '#fbbf24' : '#34d399';
@@ -286,21 +372,55 @@ export default function PilotageScreen() {
             </View>
             <View style={styles.sectionDivider} />
 
+            {/* Alerte de dépassement (§8) */}
+            {enDepassement && (
+              <View style={styles.overspendBox}>
+                <Ionicons name="warning-outline" size={16} color="#f87171" />
+                <Text style={styles.overspendText}>
+                  Vos réservations mentales dépassent votre reste disponible. Réduisez ou annulez un cumul.
+                </Text>
+              </View>
+            )}
+
+            {/* Bandeau cumuls en attente (§12) */}
+            {(preEpargneTotal > 0 || preInvestTotal > 0) && (
+              <TouchableOpacity style={styles.cumulsBanner} onPress={() => setPanelOpen(true)} activeOpacity={0.8}>
+                {preEpargneTotal > 0 && (
+                  <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                )}
+                {preInvestTotal > 0 && (
+                  <Text style={styles.cumulsBannerItem}>📈 En attente d'invest : {Math.round(preInvestTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                )}
+                <Text style={styles.cumulsBannerLink}>Gérer</Text>
+              </TouchableOpacity>
+            )}
+
             <RecommendationCard
               hideTitle
-              recommendations={pilotageData ? computeRecommendations(
-                pilotageData,
-                customTiers,
-                financialProfile?.profile_id as FinancialProfileId | undefined,
-              ) : []}
+              recommendations={pilotageData ? computeRecommendations(pilotageData, {
+                customTierAllocations: customTiers,
+                financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
+                budget: resteDisponible,
+                thresholds: recoThresholds,
+              }) : []}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
-              onAction={(reco: SmartRecommendation) => {
-                if (reco.actionRoute) {
-                  router.push(reco.actionRoute as any);
-                }
+              hasSavingsAccount={hasSavingsAccount}
+              hasInvestmentAccount={hasInvestmentAccount}
+              onCreateAccount={() => router.push('/(tabs)/comptes/add')}
+              onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
+              onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
+              onCumuler={(type, reco) => { setPreModalAmount(reco.amount); setPreModal(type); }}
+              onReserver={(reco) => {
+                const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                addReservation.mutate({ montant: Math.round(reco.amount), libelle: `Réservé ${monthYear}` });
               }}
             />
+
+            {/* Accès permanent aux cumuls (§12) */}
+            <TouchableOpacity style={styles.cumulsBtn} onPress={() => setPanelOpen(true)} activeOpacity={0.7}>
+              <Text style={styles.cumulsBtnLabel}>💰 Mes cumuls</Text>
+            </TouchableOpacity>
           </View>
 
           {/* ═══════════ SECTION 3 : Objectifs et Projets ═══════════ */}
@@ -350,6 +470,35 @@ export default function PilotageScreen() {
         onSkip={guide.skip}
         scrollRef={scrollRef}
         screenTitle="Pilotage"
+      />
+
+      {/* Modale pré-épargne / pré-invest */}
+      <PreSavingsModal
+        visible={preModal !== null}
+        type={preModal ?? 'epargne'}
+        recoAmount={preModalAmount}
+        total={preModal === 'invest' ? preInvestTotal : preEpargneTotal}
+        base={baseADepenser}
+        onClose={() => setPreModal(null)}
+        onSave={(montant) => {
+          if (preModal) addPreSaving.mutate({ type: preModal, montant });
+          setPreModal(null);
+        }}
+        onCreateTransfer={(montant) => { if (preModal) openCumulTransfer(preModal, montant); }}
+        onReset={() => { if (preModal) resetPreSaving.mutate(preModal); setPreModal(null); }}
+      />
+
+      {/* Panneau d'accès aux cumuls */}
+      <CumulsPanel
+        visible={panelOpen}
+        epargneTotal={preEpargneTotal}
+        investTotal={preInvestTotal}
+        onClose={() => setPanelOpen(false)}
+        onOpen={(type) => {
+          setPanelOpen(false);
+          setPreModalAmount(0);
+          setPreModal(type);
+        }}
       />
     </View>
   );
@@ -508,6 +657,23 @@ function makeStyles(c: AppColors) {
   suiviValue: { fontSize: 15, fontWeight: '800' },
   suiviLabelBig: { fontSize: 16, color: c.text, fontWeight: '800' },
   suiviValueBig: { fontSize: 20, fontWeight: '800' },
+
+  // Recommandations — bandeau cumuls / alerte / bouton
+  overspendBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#f8717115', borderRadius: 10, borderWidth: 1, borderColor: '#f8717140',
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  overspendText: { flex: 1, fontSize: 12, color: '#f87171', fontWeight: '500', lineHeight: 16 },
+  cumulsBanner: {
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10,
+    backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,
+    paddingHorizontal: 12, paddingVertical: 9,
+  },
+  cumulsBannerItem: { fontSize: 12, color: c.text, fontWeight: '600' },
+  cumulsBannerLink: { marginLeft: 'auto', fontSize: 12, color: c.emerald, fontWeight: '700' },
+  cumulsBtn: { alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 },
+  cumulsBtnLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
   suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
   profileTitle: {
     fontSize: 16,

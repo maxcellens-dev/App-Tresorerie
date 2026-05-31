@@ -13,6 +13,8 @@ import {
 import type { RecoType, SavingsTier } from '../../lib/recommendationEngine';
 import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../hooks/useRecommendationTiers';
 import type { TierAllocations } from '../../hooks/useRecommendationTiers';
+import { useRecoThresholds, useUpdateRecoThresholds } from '../../hooks/useRecoThresholds';
+import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 
 
@@ -53,10 +55,41 @@ export default function RecommendationsAdmin() {
   const router = useRouter();
   const { data: dbTiers, isLoading } = useRecommendationTiers();
   const updateTiers = useUpdateRecommendationTiers();
+  const { user } = useAuth();
+  const { data: thresholds } = useRecoThresholds();
+  const updateThresholds = useUpdateRecoThresholds(user?.id);
 
   // Local editable state: string values for inputs
   const [draft, setDraft] = useState<Record<SavingsTier, Record<RecoType, string>> | null>(null);
   const [editMode, setEditMode] = useState(false);
+
+  // Seuils de reste min pour afficher chaque reco (§9)
+  const [seuils, setSeuils] = useState<{ epargne: string; invest: string; plaisir: string }>({ epargne: '', invest: '', plaisir: '' });
+  useEffect(() => {
+    if (thresholds) {
+      setSeuils({
+        epargne: String(thresholds.seuil_reco_epargne),
+        invest: String(thresholds.seuil_reco_invest),
+        plaisir: String(thresholds.seuil_reco_plaisir),
+      });
+    }
+  }, [thresholds]);
+
+  async function saveSeuils() {
+    const e = parseFloat(seuils.epargne.replace(',', '.'));
+    const i = parseFloat(seuils.invest.replace(',', '.'));
+    const p = parseFloat(seuils.plaisir.replace(',', '.'));
+    if ([e, i, p].some((v) => Number.isNaN(v) || v < 0)) {
+      Alert.alert('Valeur invalide', 'Saisissez des montants positifs.');
+      return;
+    }
+    try {
+      await updateThresholds.mutateAsync({ seuil_reco_epargne: e, seuil_reco_invest: i, seuil_reco_plaisir: p });
+      Alert.alert('Enregistré', 'Les seuils ont été mis à jour.');
+    } catch (err: unknown) {
+      Alert.alert('Erreur', err instanceof Error ? err.message : 'Impossible de sauvegarder.');
+    }
+  }
 
   useEffect(() => {
     if (dbTiers && !draft) {
@@ -232,6 +265,40 @@ export default function RecommendationsAdmin() {
             })
           )}
 
+          {/* ── Seuils d'affichage ── */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Seuils d'affichage</Text>
+          <Text style={styles.typeDesc}>
+            Une reco n'est affichée que si le « Reste du mois » atteint son seuil. Conserver n'a pas de seuil.
+          </Text>
+          {([
+            { key: 'epargne' as const, label: 'Épargne', color: RECO_COLORS.save },
+            { key: 'invest' as const, label: 'Investissement', color: RECO_COLORS.invest },
+            { key: 'plaisir' as const, label: 'Se faire plaisir', color: RECO_COLORS.enjoy },
+          ]).map((s) => (
+            <View key={s.key} style={[styles.typeCard, { borderLeftColor: s.color }]}>
+              <View style={styles.seuilRow}>
+                <Text style={[styles.typeTitle, { color: s.color, flex: 1 }]}>{s.label}</Text>
+                <View style={styles.seuilInputWrap}>
+                  <TextInput
+                    style={styles.seuilInput}
+                    value={seuils[s.key]}
+                    onChangeText={(t) => setSeuils((prev) => ({ ...prev, [s.key]: t.replace(/[^0-9.,]/g, '') }))}
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={COLORS.textSecondary}
+                  />
+                  <Text style={styles.seuilSuffix}>€</Text>
+                </View>
+              </View>
+            </View>
+          ))}
+          <TouchableOpacity
+            style={[styles.seuilSaveBtn, updateThresholds.isPending && { opacity: 0.6 }]}
+            onPress={saveSeuils}
+            disabled={updateThresholds.isPending}
+          >
+            <Text style={styles.seuilSaveLabel}>Enregistrer les seuils</Text>
+          </TouchableOpacity>
+
           {/* ── Modificateurs ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Modificateurs contextuels</Text>
           <Text style={styles.modNote}>Ces ajustements s'appliquent après les paliers et ne sont pas éditables ici.</Text>
@@ -263,6 +330,15 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  seuilRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  seuilInputWrap: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg,
+    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, minWidth: 90,
+  },
+  seuilInput: { flex: 1, color: c.text, fontSize: 15, fontWeight: '700', paddingVertical: 9 },
+  seuilSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
+  seuilSaveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
+  seuilSaveLabel: { color: c.bg, fontWeight: '700', fontSize: 14 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
