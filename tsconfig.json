@@ -3,7 +3,11 @@
   "compilerOptions": {
     "strict": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["./app/*"] }
+    "paths": { "@/*": ["./app/*"] },
+    "module": "esnext",
+    "target": "esnext",
+    "lib": ["esnext", "dom"]
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "admin", ".expo", "dist", "build"]
 }

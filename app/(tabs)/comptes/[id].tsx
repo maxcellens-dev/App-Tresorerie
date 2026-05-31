@@ -867,7 +867,7 @@ function makeTxDetailStyles(c: any) {
     amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? '#34d399' : '#f87171', textAlign: 'center' as const, marginBottom: 4 }),
     labelText: { fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },
     divider: { height: 1, backgroundColor: c.cardBorder, marginBottom: 16 },
-    row: { flexDirection: 'row' as const, justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+    row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     rowKey: { fontSize: 14, color: c.textSecondary },
     rowValue: { fontSize: 14, color: c.text, fontWeight: '500' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
     closeBtn: { marginTop: 24, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },

@@ -50,8 +50,8 @@ export default function SettingsScreen() {
       (fileInputRef.current as any)?.click();
       return;
     }
-    const { launchImageLibraryAsync } = await import('expo-image-picker');
-    const result = await launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1] });
+    const ImagePicker = await import('expo-image-picker');
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1] });
     if (result.canceled || !result.assets?.[0]?.uri) return;
     await doUpload({ uri: result.assets[0].uri });
   }

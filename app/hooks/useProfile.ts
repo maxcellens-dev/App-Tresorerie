@@ -32,6 +32,7 @@ export function useProfile(profileId: string | undefined) {
       const keep = (data as { allocation_keep_percent?: number }).allocation_keep_percent;
 
       return {
+        ...(data as Record<string, unknown>),
         id: data.id,
         email: data.email ?? null,
         full_name: data.full_name ?? null,
@@ -48,7 +49,7 @@ export function useProfile(profileId: string | undefined) {
         theme_mode: ((data as { theme_mode?: string }).theme_mode ?? 'dark') as 'dark' | 'light',
         theme_preset: ((data as { theme_preset?: string }).theme_preset ?? 'emerald') as any,
         currency_code: (data as { currency_code?: string }).currency_code ?? 'EUR',
-      };
+      } as Profile;
     },
     enabled: !!profileId,
   });

@@ -84,9 +84,9 @@ export interface ProfileNotificationMessage {
 
 export interface Profile {
   id: string;
-  email?: string;
-  full_name?: string;
-  avatar_url?: string;
+  email?: string | null;
+  full_name?: string | null;
+  avatar_url?: string | null;
   safety_threshold?: number;
   safety_threshold_min: number;
   safety_threshold_optimal: number;
@@ -160,6 +160,8 @@ export interface TransactionWithDetails extends Transaction {
   account?: { name: string; type: string } | null;
   category?: { name: string; type: string } | null;
   linked_account?: { name: string; type: string } | null;
+  /** Mois d'affichage (YYYY-MM) pour les écritures récurrentes projetées. */
+  displayDate?: string;
 }
 
 export interface TransactionMonthOverride {

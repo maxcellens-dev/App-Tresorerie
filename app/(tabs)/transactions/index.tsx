@@ -319,8 +319,8 @@ export default function TransactionsListScreen() {
     });
     const keys = Object.keys(map).sort((a, b) => {
       // Trier les mois en ordre inverse (plus récent d'abord)
-      const aDate = new Date(a.split('-')[0], parseInt(a.split('-')[1]) - 1);
-      const bDate = new Date(b.split('-')[0], parseInt(b.split('-')[1]) - 1);
+      const aDate = new Date(Number(a.split('-')[0]), parseInt(a.split('-')[1]) - 1);
+      const bDate = new Date(Number(b.split('-')[0]), parseInt(b.split('-')[1]) - 1);
       return bDate.getTime() - aDate.getTime();
     });
     return keys.map((key) => {
@@ -431,7 +431,7 @@ export default function TransactionsListScreen() {
               <Ionicons name="chevron-forward" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.filterBtn, accountFilterId && styles.filterBtnActive]}
+              style={[styles.filterBtn, !!accountFilterId && styles.filterBtnActive]}
               onPress={() => setShowAccountFilter(!showAccountFilter)}
               activeOpacity={0.7}
             >

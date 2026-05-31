@@ -21,13 +21,13 @@ export function useTransactions(profileId: string | undefined) {
         .order('date', { ascending: false })
         .limit(500);
       if (error) throw error;
-      return (data ?? []).map((r: Record<string, unknown>) => ({
+      return (data ?? []).map((r: any) => ({
         ...r,
-        amount: Number((r as Transaction).amount),
-        account: (r as { account?: { name: string; type: string } | null }).account ?? null,
-        category: (r as { category?: { name: string; type: string } | null }).category ?? null,
-        linked_account: (r as { linked_account?: { name: string; type: string } | null }).linked_account ?? null,
-      }));
+        amount: Number(r.amount),
+        account: r.account ?? null,
+        category: r.category ?? null,
+        linked_account: r.linked_account ?? null,
+      })) as TransactionWithDetails[];
     },
     enabled: !!profileId,
   });

@@ -20,7 +20,7 @@ export function useCategories(profileId: string | undefined) {
         .eq('profile_id', profileId)
         .order('type')
         .order('parent_id', { nullsFirst: true })
-        .order('sort_order', { nullsLast: true })
+        .order('sort_order', { nullsFirst: false })
         .order('name');
       if (error) throw error;
       return (data ?? []).map((r) => ({

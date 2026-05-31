@@ -543,7 +543,7 @@ export default function TreasuryPlanScreen() {
               style={styles.menuOption}
               onPress={() => {
                 setMenuModalState({ visible: false });
-                openEditModal(menuModalState.monthKey || '', menuModalState.categoryId, menuModalState.value || 0);
+                openEditModal(menuModalState.monthKey || '', menuModalState.categoryId ?? null, menuModalState.value || 0);
               }}
             >
               <Ionicons name="pencil" size={20} color="#34d399" />
@@ -553,7 +553,7 @@ export default function TreasuryPlanScreen() {
               style={styles.menuOption}
               onPress={() => {
                 setMenuModalState({ visible: false });
-                goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId);
+                goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId ?? null);
               }}
             >
               <Ionicons name="eye" size={20} color="#60a5fa" />
@@ -693,10 +693,6 @@ function makeStyles(c: any) {
   cellNumTextParentCategory: { fontWeight: '700' },
   cellNumPositive: { color: c.emerald, fontWeight: '600' },
   cellNumNegative: { color: c.danger, fontWeight: '600' },
-  cellClickable: {
-    backgroundColor: 'rgba(52, 211, 153, 0.08)',
-    borderRadius: 4,
-  },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

@@ -83,7 +83,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
           accessibilityLabel="Paramètres"
         >
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} pointerEvents="none" />
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} {...({ pointerEvents: 'none' } as any)} />
           ) : (
             <View style={styles.avatarPlaceholder} pointerEvents="none">
               <Ionicons name="person" size={22} color={COLORS.textSecondary} />

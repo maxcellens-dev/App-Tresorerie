@@ -263,7 +263,7 @@ export default function AddTransactionScreen() {
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
             returnKeyType="done"
-            onSubmitEditing={handleSubmit}
+            onSubmitEditing={() => handleSubmit()}
           />
 
           {/* Date */}
@@ -334,7 +334,7 @@ export default function AddTransactionScreen() {
                     placeholder="jj-mm-aaaa ou vide"
                     placeholderTextColor={COLORS.textSecondary}
                     returnKeyType="done"
-                    onSubmitEditing={handleSubmit}
+                    onSubmitEditing={() => handleSubmit()}
                   />
                   <TouchableOpacity
                     style={styles.calendarBtn}

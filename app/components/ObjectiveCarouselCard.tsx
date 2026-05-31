@@ -40,7 +40,7 @@ export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCa
     return { percentage, currentAmount };
   }, [objective, transactions]);
 
-  const progressBarWidth = `${Math.max(progress.percentage, 1)}%`;
+  const progressBarWidth = `${Math.max(progress.percentage, 1)}%` as `${number}%`;
 
   return (
     <View

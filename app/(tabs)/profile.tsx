@@ -55,13 +55,13 @@ export default function ProfileScreen() {
       (fileInputRef.current as any)?.click();
       return;
     }
-    const { launchImageLibraryAsync } = await import('expo-image-picker');
-    const { status } = await launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1] });
-    if (status !== 'granted') {
+    const ImagePicker = await import('expo-image-picker');
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
       Alert.alert('Accès refusé', "Autorisez l'accès à la galerie pour choisir une photo.");
       return;
     }
-    const result = await launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1] });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1] });
     if (result.canceled || !result.assets?.[0]?.uri) return;
     await doUpload({ uri: result.assets[0].uri });
   }

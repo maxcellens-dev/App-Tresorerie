@@ -201,7 +201,7 @@ function makeStyles(c: any) {
     borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    backdropFilter: 'blur(10px)',
+    ...({ backdropFilter: 'blur(10px)' } as any),
   },
   ctaTitle: {
     fontSize: 20,

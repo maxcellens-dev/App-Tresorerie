@@ -958,7 +958,7 @@ export default function TreasuryPlanScreen() {
               style={styles.menuOption}
               onPress={() => {
                 setMenuModalState({ visible: false });
-                openEditModal(menuModalState.monthKey || '', menuModalState.categoryId, menuModalState.value || 0);
+                openEditModal(menuModalState.monthKey || '', menuModalState.categoryId ?? null, menuModalState.value || 0);
               }}
             >
               <Ionicons name="pencil" size={20} color="#34d399" />
@@ -968,7 +968,7 @@ export default function TreasuryPlanScreen() {
               style={styles.menuOption}
               onPress={() => {
                 setMenuModalState({ visible: false });
-                goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId);
+                goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId ?? null);
               }}
             >
               <Ionicons name="eye" size={20} color="#60a5fa" />

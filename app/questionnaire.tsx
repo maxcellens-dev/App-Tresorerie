@@ -93,7 +93,7 @@ export default function QuestionnaireScreen() {
 
   const [step, setStep] = useState(savedProgress?.currentStep ?? 0);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(
-    savedProgress?.answers as QuestionnaireAnswers ?? {
+    (savedProgress?.answers as unknown as QuestionnaireAnswers) ?? {
       q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
     }
   );

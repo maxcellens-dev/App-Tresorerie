@@ -190,7 +190,7 @@ export default function TransferScreen() {
             />
             <TouchableOpacity
               style={styles.calendarBtn}
-              onPress={() => setShowCalendar(true)}
+              onPress={() => setShowCalendar('date')}
             >
               <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
             </TouchableOpacity>

@@ -33,7 +33,7 @@ export default function ProjectCarouselCard({ project }: ProjectCarouselCardProp
       ? `Cible: ${project.target_date.split('-').reverse().join('-')}`
       : '-';
 
-  const progressBarWidth = `${Math.max(progress, 1)}%`;
+  const progressBarWidth = `${Math.max(progress, 1)}%` as `${number}%`;
 
   return (
     <View

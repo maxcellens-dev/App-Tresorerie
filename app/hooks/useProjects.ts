@@ -552,7 +552,7 @@ export function useAutoArchiveProjects(profileId: string | undefined) {
           .limit(1);
 
         const lastDate = lastTxn?.[0]?.date;
-        if (!lastDate || lastDate <= yesterdayStr) {
+        if (!lastDate || lastDate <= cutoffStr) {
           // Archiver automatiquement
           await supabase
             .from('projects')

@@ -67,7 +67,7 @@ export default function ProjectsScreen() {
   const [selectedFromDate, setSelectedFromDate] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
 
-  // Auto-archive projects at 100% after 1 day
+  // Auto-archive projects at 100% after 3 days (72h)
   useEffect(() => {
     if (projects.length > 0 && !autoArchiveMutation.isPending) {
       autoArchiveMutation.mutate(projects);
@@ -282,7 +282,7 @@ export default function ProjectsScreen() {
           <View style={styles.completeBanner}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
             <Text style={styles.completeBannerText}>
-              Objectif atteint ! Archivage automatique sous 24h.
+              Objectif atteint ! Archivage automatique sous 72h.
             </Text>
           </View>
         )}
