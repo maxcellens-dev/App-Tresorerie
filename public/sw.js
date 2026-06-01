@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tresorerie-v1';
+const CACHE_NAME = 'tresorerie-v2';
 const PRECACHE_URLS = [
   '/',
 ];
@@ -20,19 +20,33 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-first strategy: try network, fallback to cache
   if (event.request.method !== 'GET') return;
+
+  const isNavigation =
+    event.request.mode === 'navigate' ||
+    (event.request.headers.get('accept') || '').includes('text/html');
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful responses
+        // Navigation vers une route inconnue (404/erreur) → servir l'app (SPA shell)
+        // au lieu d'une page d'erreur, pour ne pas rester bloqué.
+        if (isNavigation && !response.ok) {
+          return caches.match('/').then((cached) => cached || response);
+        }
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => {
+        // Réseau indisponible → cache de la requête, sinon l'app (index)
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          if (isNavigation) return caches.match('/');
+          return Response.error();
+        });
+      })
   );
 });
