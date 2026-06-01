@@ -605,6 +605,19 @@ export default function AddProjectModal({
                       {selectedAccount ? selectedAccount.name : 'Sélectionner le compte destination'}
                     </Text>
                   </TouchableOpacity>
+                  {/* Note : même compte source = destination → réservation */}
+                  {form.source_account_id && form.source_account_id === form.linked_account_id ? (
+                    <View style={[styles.accountNote, { backgroundColor: '#60a5fa14', borderColor: '#60a5fa40' }]}>
+                      <Text style={styles.accountNoteIcon}>🔒</Text>
+                      <Text style={[styles.accountNoteText, { color: COLORS.text }]}>
+                        Même compte en source et destination : aucun virement réel. Le montant est mis de côté en <Text style={{ fontWeight: '700', color: '#60a5fa' }}>Réservé</Text> sur ce compte.
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.accountHint, { color: COLORS.textSecondary }]}>
+                      Astuce : choisissez le même compte en source et destination pour simplement mettre un montant de côté en « Réservé » (sans virement réel).
+                    </Text>
+                  )}
                 </View>
 
                 {/* Date premier virement (pas pour ponctuel) */}
@@ -791,6 +804,11 @@ function makeStyles(c: any) {
   infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 12 },
   infoIcon: { fontSize: 14, marginTop: 1 },
   infoText: { flex: 1, fontSize: 12, lineHeight: 17 },
+  // Note compte source = destination
+  accountNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, borderWidth: 1, padding: 10, marginTop: 8 },
+  accountNoteIcon: { fontSize: 13, marginTop: 1 },
+  accountNoteText: { flex: 1, fontSize: 12, lineHeight: 17 },
+  accountHint: { fontSize: 11, lineHeight: 16, marginTop: 6 },
   // Ponctuel
   ponctuelContainer: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   ponctuelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
