@@ -577,15 +577,27 @@ export default function PilotageScreen() {
             <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
               {/* Conservé du mois (recommandations) */}
               {reservationsTotal > 0 && (
-                <View style={styles.reservedItem}>
-                  <View style={[styles.reservedItemIcon, { backgroundColor: '#fbbf2422' }]}>
-                    <Ionicons name="hourglass-outline" size={16} color="#fbbf24" />
+                <View style={styles.reservedProjectBlock}>
+                  <View style={styles.reservedItem}>
+                    <View style={[styles.reservedItemIcon, { backgroundColor: '#fbbf2422' }]}>
+                      <Ionicons name="hourglass-outline" size={16} color="#fbbf24" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reservedItemName}>Conservé ce mois (recommandations)</Text>
+                      <Text style={styles.reservedItemHint}>Se réinitialise chaque mois</Text>
+                    </View>
+                    <Text style={[styles.reservedItemAmount, { color: '#fbbf24' }]}>{fmtMain(reservationsTotal)}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.reservedItemName}>Conservé ce mois (recommandations)</Text>
-                    <Text style={styles.reservedItemHint}>Se réinitialise chaque mois</Text>
+                  <View style={styles.reservedActions}>
+                    <TouchableOpacity
+                      style={styles.reservedReleaseBtn}
+                      activeOpacity={0.7}
+                      onPress={() => { setMonthlyReservation.mutate({ montant: 0 }); }}
+                    >
+                      <Ionicons name="lock-open-outline" size={14} color="#f87171" />
+                      <Text style={styles.reservedReleaseText}>Libérer</Text>
+                    </TouchableOpacity>
                   </View>
-                  <Text style={[styles.reservedItemAmount, { color: '#fbbf24' }]}>{fmtMain(reservationsTotal)}</Text>
                 </View>
               )}
 
