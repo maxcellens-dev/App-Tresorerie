@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useConfigSync } from './hooks/useConfigSync';
+import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
 import ProfileChangeModal from './components/ProfileChangeModal';
@@ -25,6 +26,12 @@ const queryClient = new QueryClient({
 
 function ConfigSync() {
   useConfigSync(supabase);
+  return null;
+}
+
+function RecurringMaterializer() {
+  const { user } = useAuth();
+  useMaterializeRecurring(user?.id);
   return null;
 }
 
@@ -82,6 +89,7 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <ConfigSync />
+          <RecurringMaterializer />
           <AppChrome />
         </AuthProvider>
       </ThemeProvider>

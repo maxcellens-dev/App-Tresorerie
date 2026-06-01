@@ -355,8 +355,8 @@ export default function ProjectsScreen() {
               }}
               accessibilityRole="button"
             >
-              <Ionicons name="add" size={22} color={COLORS.text} />
-              <Text style={styles.addBtnLabel}>Projet</Text>
+              <Ionicons name="add" size={22} color="#f59e0b" />
+              <Text style={[styles.addBtnLabel, { color: '#f59e0b' }]}>Projet</Text>
             </TouchableOpacity>
           </View>
         </View>

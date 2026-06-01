@@ -16,10 +16,11 @@ export interface PilotageData {
   monthly_commitments: number;
 
   // Suivi des engagements du mois en cours
-  monthly_savings_planned: number;   // virements récurrents épargne + projets
-  monthly_invest_planned: number;    // virements récurrents invest + objectifs
-  monthly_reserve_planned: number;   // réservé sur le compte courant (projets même compte)
-  month_expenses_total: number;      // total dépenses du mois (passées + à venir, hors virements)
+  monthly_savings_planned: number;       // virements récurrents épargne + projets
+  monthly_invest_planned: number;        // virements récurrents invest + objectifs
+  monthly_reserve_planned: number;       // réservé sur le compte courant (projets même compte)
+  month_expenses_total: number;          // total dépenses du mois (passées + à venir, hors virements)
+  committed_objective_monthly: number;   // engagements objectifs actifs (cible annuelle ÷ 12)
 
   // Step 2: Variable Expense Trend
   avg_variable_expenses_3m: number;
@@ -69,7 +70,10 @@ export interface PilotageData {
   total_invested: number;
 
   // Safety Thresholds
+  /** @deprecated */
   safety_margin_percent: number;
+  /** Montant minimum conservé sur les comptes courants (€) — remplace safety_margin_percent */
+  safety_margin_amount: number;
   safety_threshold_min: number;
   safety_threshold_optimal: number;
   safety_threshold_comfort: number;
@@ -182,27 +186,22 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   //   safe_to_spend = base_to_spend × (1 - safety_margin_percent / 100)
   // ─────────────────────────────────────────────────────────────────────
   const current_checking_balance = total_checking;
-  const safety_margin_percent = profile?.safety_margin_percent ?? 10;
+  const safety_margin_percent = profile?.safety_margin_percent ?? 10; // conservé pour rétrocompatibilité
+  const safety_margin_amount = profile?.safety_margin_amount ?? 0;
   const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  // Net of all future transactions this month (after today):
-  // income (+) and expenses (–), regardless of type (fixed, variable, forecast…)
-  const remaining_month_net = transactions
+  // Sorties futures ce mois (après aujourd'hui, montants négatifs uniquement).
+  // On n'inclut PAS les recettes futures : le safe_to_spend est basé sur ce qu'on a
+  // maintenant, pas sur ce qu'on va recevoir.
+  const remaining_future_outflows = transactions
     .filter(t => {
       const [tYear, tMonth] = t.date.split('-').map(Number);
-      return tYear === currentYear && tMonth === currentMonth && t.date > todayStr;
+      return tYear === currentYear && tMonth === currentMonth && t.date > todayStr && Number(t.amount) < 0;
     })
-    .reduce((sum, t) => sum + Number(t.amount), 0);
+    .reduce((sum, t) => sum + Number(t.amount), 0); // négatif
 
-  // Remaining fixed expenses kept for status indicators (absolute value of outflows)
-  const remaining_fixed_expenses = Math.abs(
-    transactions
-      .filter(t => {
-        const [tYear, tMonth] = t.date.split('-').map(Number);
-        return tYear === currentYear && tMonth === currentMonth && t.date > todayStr && Number(t.amount) < 0;
-      })
-      .reduce((sum, t) => sum + Number(t.amount), 0)
-  );
+  // Dépenses futures (valeur absolue) — pour indicateurs
+  const remaining_fixed_expenses = Math.abs(remaining_future_outflows);
 
   // Committed allocations: active projects monthly + active objectives monthly
   const committed_project_allocations = projects
@@ -213,7 +212,8 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     .filter(o => o.status === 'active')
     .reduce((sum, o) => sum + (Number(o.target_yearly_amount) / 12), 0);
 
-  const committed_allocations = committed_project_allocations + committed_objective_monthly;
+  // Les objectifs ne sont pas déduits du safe_to_spend (ils sont informatifs, pas une vraie sortie planifiée)
+  const committed_allocations = committed_project_allocations;
   const monthly_commitments = committed_allocations;
 
   // Same-account project reservations: money is "reserved" but still sits
@@ -229,11 +229,11 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       return sum + pastTxns.length * monthlyAlloc;
     }, 0);
 
-  // Base to spend = checking balance + future net – project/objective commitments – reserved
-  const base_to_spend = current_checking_balance + remaining_month_net - committed_allocations - same_account_reserved;
+  // Base à dépenser = solde courant + sorties futures - engagements - réservations
+  const base_to_spend = current_checking_balance + remaining_future_outflows - committed_allocations - same_account_reserved;
 
-  // Apply safety margin on the base (not on gross balance)
-  const safe_to_spend = Math.max(0, base_to_spend * (1 - safety_margin_percent / 100));
+  // Safe to spend = base - marge de sécurité fixe (montant conservé quoi qu'il arrive)
+  const safe_to_spend = Math.max(0, base_to_spend - safety_margin_amount);
 
   // =====================================================================
   // STEP 2: Variable Expense Trend (using is_variable flag)
@@ -428,12 +428,14 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     monthly_invest_planned,
     monthly_reserve_planned,
     month_expenses_total,
+    committed_objective_monthly,
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,
     projected_surplus,
     recommendation,
     safety_margin_percent,
+    safety_margin_amount,
     financial_profile: profile?.financial_profile ?? undefined,
     allocation_save_percent: profile?.allocation_save_percent ?? undefined,
     allocation_invest_percent: profile?.allocation_invest_percent ?? undefined,

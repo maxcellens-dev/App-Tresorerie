@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Dimensions, Alert, ActivityIndicator,
+  Animated, Dimensions, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useAppColors } from './hooks/useAppColors';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +22,7 @@ import {
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
   computeInitialProfile, detectIrregularIncome,
-  PROFILE_INFO, PROFILE_ALLOCATIONS,
+  PROFILE_INFO, PROFILE_ALLOCATIONS, safetyMarginFromQ8,
 } from './lib/financialProfileEngine';
 import type { QuestionnaireAnswers } from './lib/financialProfileEngine';
 import type { FinancialProfileId } from './types/database';
@@ -49,16 +49,18 @@ const QUESTIONS: Array<{
   { key: 'q5', label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
   { key: 'q6', label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
   { key: 'q7', label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
+  // Q8 : rendu spécial (TextInput), pas d'options
+  { key: 'q8', label: 'Quel montant minimum souhaitez-vous toujours conserver sur vos comptes courants, quoi qu\'il arrive ?', options: [] },
 ];
 
-// 0 = welcome, 1-7 = questions, 8 = résultat
-const TOTAL_STEPS = 9;
+// 0 = welcome, 1-8 = questions, 9 = résultat
+const TOTAL_STEPS = 10;
 
 // ── Sous-composants ──────────────────────────────────────────
 
 function OptionCard({
-  label, selected, onSelect,
-}: { label: string; selected: boolean; onSelect: () => void }) {
+  label, selected, onSelect, multiSelect = false,
+}: { label: string; selected: boolean; onSelect: () => void; multiSelect?: boolean }) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   return (
@@ -67,9 +69,15 @@ function OptionCard({
       onPress={onSelect}
       activeOpacity={0.75}
     >
-      <View style={[styles.radio, selected && styles.radioActive]}>
-        {selected && <View style={styles.radioDot} />}
-      </View>
+      {multiSelect ? (
+        <View style={[styles.checkbox, selected && styles.checkboxActive]}>
+          {selected && <Ionicons name="checkmark" size={13} color="#000" />}
+        </View>
+      ) : (
+        <View style={[styles.radio, selected && styles.radioActive]}>
+          {selected && <View style={styles.radioDot} />}
+        </View>
+      )}
       <Text style={[styles.optionLabel, selected && styles.optionLabelActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -94,10 +102,20 @@ export default function QuestionnaireScreen() {
   const [step, setStep] = useState(savedProgress?.currentStep ?? 0);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(
     (savedProgress?.answers as unknown as QuestionnaireAnswers) ?? {
-      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
+      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '',
     }
   );
   const [saving, setSaving] = useState(false);
+
+  // Q6 calculateur
+  const [q6Income, setQ6Income] = useState('');
+  const [q6Savings, setQ6Savings] = useState('');
+  const q6Pct = useMemo(() => {
+    const inc = parseFloat(q6Income.replace(',', '.'));
+    const sav = parseFloat(q6Savings.replace(',', '.'));
+    if (!inc || inc <= 0 || isNaN(sav) || sav < 0) return null;
+    return Math.round((sav / inc) * 100);
+  }, [q6Income, q6Savings]);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(step / (TOTAL_STEPS - 1))).current;
@@ -122,10 +140,20 @@ export default function QuestionnaireScreen() {
   }
 
   function handleSelect(key: keyof QuestionnaireAnswers, value: string) {
-    const newAnswers = { ...answers, [key]: value };
-    setAnswers(newAnswers);
-    // Sauvegarder la progression
-    saveQuestionnaireProgress(user?.id, { currentStep: step, answers: newAnswers });
+    if (key === 'q1') {
+      // Multi-select : séparer par "|"
+      const current = answers.q1 ? answers.q1.split('|') : [];
+      const newValues = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      const newAnswers = { ...answers, q1: newValues.join('|') };
+      setAnswers(newAnswers);
+      saveQuestionnaireProgress(user?.id, { currentStep: step, answers: newAnswers });
+    } else {
+      const newAnswers = { ...answers, [key]: value };
+      setAnswers(newAnswers);
+      saveQuestionnaireProgress(user?.id, { currentStep: step, answers: newAnswers });
+    }
   }
 
   function handleNext() {
@@ -134,14 +162,15 @@ export default function QuestionnaireScreen() {
       return;
     }
     const q = QUESTIONS[step - 1];
-    if (!answers[q.key]) {
+    // Q8 : vide = "je ne sais pas" (valeur 0), toujours valide
+    if (q.key !== 'q8' && !answers[q.key]) {
       Alert.alert('Sélection requise', 'Choisissez une réponse pour continuer.');
       return;
     }
-    if (step < 7) {
+    if (step < 8) {
       animateToStep(step + 1);
     } else {
-      animateToStep(8);
+      animateToStep(9);
     }
   }
 
@@ -192,7 +221,7 @@ export default function QuestionnaireScreen() {
   }, [answers]);
 
   const isIrregular = detectIrregularIncome(answers.q1, answers.q2);
-  const currentQ = step >= 1 && step <= 7 ? QUESTIONS[step - 1] : null;
+  const currentQ = step >= 1 && step <= 8 ? QUESTIONS[step - 1] : null;
   const profile = assignedProfile ? PROFILE_INFO[assignedProfile] : null;
   const alloc = assignedProfile ? PROFILE_ALLOCATIONS[assignedProfile] : null;
 
@@ -204,7 +233,7 @@ export default function QuestionnaireScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
 
         {/* Barre de progression */}
-        {step > 0 && step < 8 && (
+        {step > 0 && step < 9 && (
           <View style={styles.progressContainer}>
             <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
               <Ionicons name="arrow-back" size={22} color="#94a3b8" />
@@ -217,7 +246,7 @@ export default function QuestionnaireScreen() {
                 ]}
               />
             </View>
-            <Text style={styles.progressLabel}>{step}/7</Text>
+            <Text style={styles.progressLabel}>{step}/8</Text>
           </View>
         )}
 
@@ -265,10 +294,10 @@ export default function QuestionnaireScreen() {
             </ScrollView>
           )}
 
-          {/* ── Écrans 1-7 : Questions ─────────────────── */}
-          {step >= 1 && step <= 7 && currentQ && (
+          {/* ── Écrans 1-8 : Questions ─────────────────── */}
+          {step >= 1 && step <= 8 && currentQ && (
             <View style={styles.questionScreen}>
-              <Text style={styles.questionNum}>Question {step} sur 7</Text>
+              <Text style={styles.questionNum}>Question {step} sur 8</Text>
               <Text style={styles.questionText}>{currentQ.label}</Text>
 
               {step === 2 && isIrregular && (
@@ -280,30 +309,116 @@ export default function QuestionnaireScreen() {
                 </View>
               )}
 
+              {/* ── Q8 : saisie du montant minimum ── */}
+              {step === 8 ? (
+                <ScrollView
+                  style={styles.optionsScroll}
+                  contentContainerStyle={styles.optionsContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.infoBox}>
+                    <Ionicons name="shield-checkmark-outline" size={15} color="#60a5fa" />
+                    <Text style={styles.infoText}>
+                      Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.q8Input}
+                    value={answers.q8}
+                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect('q8', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
+                    keyboardType="decimal-pad"
+                    placeholder="Ex. 500"
+                    placeholderTextColor={COLORS.textSecondary}
+                  />
+                  <Text style={styles.q8Currency}>€</Text>
+                  <TouchableOpacity
+                    style={styles.q8DontKnow}
+                    onPress={() => {
+                      handleSelect('q8', '');
+                      handleNext();
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.q8DontKnowText}>Je ne sais pas → 0 €</Text>
+                  </TouchableOpacity>
+                  <View style={{ height: 100 }} />
+                </ScrollView>
+              ) : (
               <ScrollView
                 style={styles.optionsScroll}
                 contentContainerStyle={styles.optionsContent}
                 showsVerticalScrollIndicator={false}
               >
+                {/* Q1 : indication multi-select */}
+                {step === 1 && (
+                  <View style={styles.infoBox}>
+                    <Ionicons name="checkbox-outline" size={15} color="#60a5fa" />
+                    <Text style={styles.infoText}>Vous pouvez sélectionner plusieurs types de revenus.</Text>
+                  </View>
+                )}
+
+                {/* Q6 : calculateur de % */}
+                {step === 6 && (
+                  <View style={styles.calculatorBox}>
+                    <Text style={styles.calcTitle}>Calculateur (optionnel)</Text>
+                    <View style={styles.calcRow}>
+                      <View style={styles.calcField}>
+                        <Text style={styles.calcLabel}>Revenus nets /mois</Text>
+                        <TextInput
+                          style={styles.calcInput}
+                          value={q6Income}
+                          onChangeText={setQ6Income}
+                          keyboardType="decimal-pad"
+                          placeholder="ex. 2500"
+                          placeholderTextColor="#64748b"
+                        />
+                      </View>
+                      <View style={styles.calcField}>
+                        <Text style={styles.calcLabel}>Épargne /mois</Text>
+                        <TextInput
+                          style={styles.calcInput}
+                          value={q6Savings}
+                          onChangeText={setQ6Savings}
+                          keyboardType="decimal-pad"
+                          placeholder="ex. 300"
+                          placeholderTextColor="#64748b"
+                        />
+                      </View>
+                    </View>
+                    {q6Pct !== null && (
+                      <View style={styles.calcResult}>
+                        <Text style={styles.calcResultLabel}>Votre taux d'épargne estimé</Text>
+                        <Text style={styles.calcResultValue}>{q6Pct} %</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
                 {currentQ.options.map((opt) => (
                   <OptionCard
                     key={opt}
                     label={opt}
-                    selected={answers[currentQ.key] === opt}
+                    selected={
+                      step === 1
+                        ? answers.q1.split('|').includes(opt)
+                        : answers[currentQ.key] === opt
+                    }
                     onSelect={() => handleSelect(currentQ.key, opt)}
+                    multiSelect={step === 1}
                   />
                 ))}
                 <View style={{ height: 100 }} />
               </ScrollView>
+              )}
 
               <View style={styles.questionFooter}>
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1 }, !answers[currentQ.key] && styles.btnDisabled]}
+                  style={[styles.primaryBtn, { flex: 1 }, (step !== 8 && !answers[currentQ.key]) && styles.btnDisabled]}
                   onPress={handleNext}
-                  disabled={!answers[currentQ.key]}
+                  disabled={step !== 8 && !answers[currentQ.key]}
                 >
                   <Text style={styles.primaryBtnLabel}>
-                    {step === 7 ? 'Voir mon profil' : 'Continuer'}
+                    {step === 8 ? 'Voir mon profil' : 'Continuer'}
                   </Text>
                   <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
                 </TouchableOpacity>
@@ -311,8 +426,8 @@ export default function QuestionnaireScreen() {
             </View>
           )}
 
-          {/* ── Écran 8 : Résultat ───────────────────── */}
-          {step === 8 && profile && assignedProfile && alloc && (
+          {/* ── Écran 9 : Résultat ───────────────────── */}
+          {step === 9 && profile && assignedProfile && alloc && (
             <ScrollView contentContainerStyle={styles.resultScreen} showsVerticalScrollIndicator={false}>
               <View style={styles.resultBadge}>
                 <Text style={styles.resultBadgeText}>Profil attribué !</Text>
@@ -453,6 +568,33 @@ function makeStyles(c: any) {
   },
   radioActive: { borderColor: c.emerald },
   radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.emerald },
+  checkbox: {
+    width: 20, height: 20, borderRadius: 5,
+    borderWidth: 2, borderColor: '#475569',
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0, marginTop: 1,
+  },
+  checkboxActive: { borderColor: c.emerald, backgroundColor: c.emerald },
+  calculatorBox: {
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: '#60a5fa40',
+    padding: 14, marginBottom: 14, gap: 10,
+  },
+  calcTitle: { fontSize: 12, fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: 0.5 },
+  calcRow: { flexDirection: 'row', gap: 10 },
+  calcField: { flex: 1, gap: 4 },
+  calcLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  calcInput: {
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 15, color: c.text,
+  },
+  calcResult: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#60a5fa18', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: '#60a5fa40',
+  },
+  calcResultLabel: { fontSize: 13, color: '#93c5fd', fontWeight: '600' },
+  calcResultValue: { fontSize: 22, fontWeight: '800', color: '#60a5fa' },
   optionLabel: { flex: 1, fontSize: 15, color: '#94a3b8', lineHeight: 22 },
   optionLabelActive: { color: c.text },
   questionFooter: {
@@ -501,6 +643,22 @@ function makeStyles(c: any) {
     backgroundColor: c.cardBorder, borderRadius: 10, padding: 10, width: '100%',
   },
   infoText: { flex: 1, fontSize: 12, color: '#93c5fd', lineHeight: 18 },
+  q8Input: {
+    backgroundColor: c.card, borderWidth: 2, borderColor: c.emerald,
+    borderRadius: 16, paddingHorizontal: 24, paddingVertical: 20,
+    fontSize: 32, fontWeight: '700', color: c.text, textAlign: 'center',
+    marginTop: 20,
+  },
+  q8Currency: {
+    fontSize: 18, color: c.textSecondary, fontWeight: '600',
+    textAlign: 'center', marginTop: 8,
+  },
+  q8DontKnow: {
+    marginTop: 20, paddingVertical: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: c.cardBorder,
+    alignItems: 'center',
+  },
+  q8DontKnowText: { fontSize: 14, color: c.textSecondary, fontWeight: '500' },
 
   // Bouton principal
   primaryBtn: {

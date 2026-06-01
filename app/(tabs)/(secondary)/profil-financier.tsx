@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -18,7 +18,7 @@ import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
-  computeInitialProfile, detectIrregularIncome,
+  computeInitialProfile, detectIrregularIncome, safetyMarginFromQ8,
 } from '../../lib/financialProfileEngine';
 import type { QuestionnaireAnswers } from '../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
@@ -33,33 +33,58 @@ const QUESTIONS = [
   { key: 'q5' as const, label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
   { key: 'q6' as const, label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
   { key: 'q7' as const, label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
+  { key: 'q8' as const, label: 'Montant minimum conservé sur vos comptes courants (€)', options: [] as readonly string[] },
 ];
 
 function OptionList({
   options,
   selected,
   onSelect,
+  multiSelect = false,
 }: {
   options: readonly string[];
   selected: string;
   onSelect: (v: string) => void;
+  multiSelect?: boolean;
 }) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const selectedValues = multiSelect ? selected.split('|').filter(Boolean) : [];
   return (
     <View style={styles.optionList}>
+      {multiSelect && (
+        <View style={styles.multiHint}>
+          <Ionicons name="checkbox-outline" size={13} color="#60a5fa" />
+          <Text style={styles.multiHintText}>Plusieurs choix possibles</Text>
+        </View>
+      )}
       {options.map((opt) => {
-        const active = selected === opt;
+        const active = multiSelect ? selectedValues.includes(opt) : selected === opt;
         return (
           <TouchableOpacity
             key={opt}
             style={[styles.optionBtn, active && styles.optionBtnActive]}
-            onPress={() => onSelect(opt)}
+            onPress={() => {
+              if (multiSelect) {
+                const next = selectedValues.includes(opt)
+                  ? selectedValues.filter((v) => v !== opt)
+                  : [...selectedValues, opt];
+                onSelect(next.join('|'));
+              } else {
+                onSelect(opt);
+              }
+            }}
             activeOpacity={0.7}
           >
-            <View style={[styles.radio, active && styles.radioActive]}>
-              {active && <View style={styles.radioDot} />}
-            </View>
+            {multiSelect ? (
+              <View style={[styles.checkbox, active && styles.checkboxActive]}>
+                {active && <Ionicons name="checkmark" size={11} color="#000" />}
+              </View>
+            ) : (
+              <View style={[styles.radio, active && styles.radioActive]}>
+                {active && <View style={styles.radioDot} />}
+              </View>
+            )}
             <Text style={[styles.optionText, active && styles.optionTextActive]}>{opt}</Text>
           </TouchableOpacity>
         );
@@ -80,13 +105,15 @@ export default function ProfilFinancierScreen() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '',
+    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '',
   });
 
   function startEditing() {
     if (savedAnswers) {
       setAnswers({
         q1: savedAnswers.q1 ?? '',
+        // q8 may not exist yet in older records
+        q8: (savedAnswers as any).q8 ?? '',
         q2: savedAnswers.q2 ?? '',
         q3: savedAnswers.q3 ?? '',
         q4: savedAnswers.q4 ?? '',
@@ -107,9 +134,11 @@ export default function ProfilFinancierScreen() {
       q5: 'Q5 — Réserve de sécurité',
       q6: 'Q6 — Taux d\'épargne',
       q7: 'Q7 — Objectif prioritaire',
+      q8: 'Q8 — Marge de sécurité',
     };
+    // Q8 est optionnel (vide = 0 €), on l'exclut de la vérification
     const missing = (Object.keys(qLabels) as (keyof QuestionnaireAnswers)[])
-      .filter(k => !answers[k])
+      .filter(k => k !== 'q8' && !answers[k])
       .map(k => qLabels[k]);
 
     if (missing.length > 0) {
@@ -253,10 +282,15 @@ export default function ProfilFinancierScreen() {
                   <Text style={styles.sectionLabel}>Vos réponses</Text>
                   {QUESTIONS.map((q, i) => {
                     const answer = (savedAnswers as any)[q.key] as string | undefined;
+                    const displayAnswer = q.key === 'q8' && answer
+                      ? (safetyMarginFromQ8(answer) > 0 ? safetyMarginFromQ8(answer).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €' : 'Non défini (0 €)')
+                      : q.key === 'q1' && answer && answer.includes('|')
+                      ? answer.split('|').filter(Boolean).join(', ')
+                      : (answer || '—');
                     return (
                       <View key={q.key} style={styles.answerRow}>
                         <Text style={styles.answerQuestion}>{i + 1}. {q.label}</Text>
-                        <Text style={styles.answerValue}>{answer || '—'}</Text>
+                        <Text style={styles.answerValue}>{displayAnswer}</Text>
                       </View>
                     );
                   })}
@@ -288,11 +322,38 @@ export default function ProfilFinancierScreen() {
                 <View key={q.key} style={styles.card}>
                   <Text style={styles.questionNum}>Question {i + 1}</Text>
                   <Text style={styles.questionLabel}>{q.label}</Text>
-                  <OptionList
-                    options={q.options}
-                    selected={answers[q.key]}
-                    onSelect={v => setAnswers(prev => ({ ...prev, [q.key]: v }))}
-                  />
+                  {q.key === 'q8' ? (
+                    <View style={styles.q8Block}>
+                      <View style={styles.q8Row}>
+                        <TextInput
+                          style={styles.q8Input}
+                          value={answers.q8}
+                          onChangeText={v => { const clean = v.replace(/[^0-9.,]/g, ''); setAnswers(prev => ({ ...prev, q8: clean ? String(parseFloat(clean.replace(',', '.')) || '') : '' })); }}
+                          keyboardType="decimal-pad"
+                          placeholder="0"
+                          placeholderTextColor={COLORS.textSecondary}
+                        />
+                        <Text style={styles.q8CurrencyLabel}>€</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.q8DontKnow}
+                        onPress={() => setAnswers(prev => ({ ...prev, q8: '' }))}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.q8DontKnowText}>Effacer / Je ne sais pas → 0 €</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.q8Hint}>
+                        Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € — déduit du "Reste du mois" dans le Pilotage.
+                      </Text>
+                    </View>
+                  ) : (
+                    <OptionList
+                      options={q.options}
+                      selected={answers[q.key]}
+                      onSelect={v => setAnswers(prev => ({ ...prev, [q.key]: v }))}
+                      multiSelect={q.key === 'q1'}
+                    />
+                  )}
                 </View>
               ))}
 
@@ -420,6 +481,28 @@ function makeStyles(c: any) {
   },
   radioActive: { borderColor: c.emerald },
   radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.emerald },
+  checkbox: {
+    width: 18, height: 18, borderRadius: 4,
+    borderWidth: 2, borderColor: '#475569',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  checkboxActive: { borderColor: c.emerald, backgroundColor: c.emerald },
+  q8Block: { gap: 8 },
+  q8Row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  q8Input: {
+    flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.emerald,
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 20, fontWeight: '700', color: c.text, textAlign: 'right',
+  },
+  q8CurrencyLabel: { fontSize: 18, fontWeight: '700', color: c.textSecondary },
+  q8DontKnow: {
+    paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+    borderColor: c.cardBorder, alignItems: 'center',
+  },
+  q8DontKnowText: { fontSize: 13, color: c.textSecondary },
+  q8Hint: { fontSize: 11, color: c.emerald, lineHeight: 16 },
+  multiHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  multiHintText: { fontSize: 11, color: '#60a5fa', fontWeight: '600' },
   optionText: { flex: 1, color: c.textSecondary, fontSize: 13, lineHeight: 18 },
   optionTextActive: { color: c.text },
 

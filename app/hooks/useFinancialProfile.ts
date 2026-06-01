@@ -6,6 +6,7 @@ import {
   evaluateAutoTransition,
   computeMonthlyMetrics,
   PROFILE_ALLOCATIONS,
+  safetyMarginFromQ8,
 } from '../lib/financialProfileEngine';
 import type {
   UserFinancialProfile,
@@ -146,7 +147,7 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         .upsert({
           user_id: userId,
           q1: answers.q1, q2: answers.q2, q3: answers.q3, q4: answers.q4,
-          q5: answers.q5, q6: answers.q6, q7: answers.q7,
+          q5: answers.q5, q6: answers.q6, q7: answers.q7, q8: answers.q8 ?? '',
           answered_at: now, updated_at: now,
         }, { onConflict: 'user_id' });
       if (qErr) throw qErr;
@@ -188,7 +189,7 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         notification_shown: notifShown,
       });
 
-      // 5. Mise à jour des allocations dans profiles (non-fatale — best effort)
+      // 5a. Mise à jour des allocations dans profiles (non-fatale)
       const { error: allocErr } = await supabase.from('profiles').update({
         allocation_save_percent: alloc.save,
         allocation_invest_percent: alloc.invest,
@@ -200,12 +201,22 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         console.warn('[saveQuestionnaire] update allocations profiles échoué (non bloquant):', allocErr);
       }
 
+      // 5b. Mise à jour de la marge de sécurité (non-fatale, migration 031 requise)
+      const marginAmount = safetyMarginFromQ8(answers.q8 ?? '');
+      const { error: marginErr } = await supabase.from('profiles').update({
+        safety_margin_amount: marginAmount,
+      }).eq('id', userId);
+      if (marginErr) {
+        console.warn('[saveQuestionnaire] update safety_margin_amount échoué (migration 031 requise ?):', marginErr);
+      }
+
       return profileId;
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [PROFILE_KEY, userId] });
       client.invalidateQueries({ queryKey: [QUESTIONNAIRE_KEY, userId] });
       client.invalidateQueries({ queryKey: ['profile', userId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', userId] });
     },
   });
 }

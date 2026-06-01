@@ -162,6 +162,16 @@ export function computeRecommendations(
   const { customTierAllocations, financialProfileId, thresholds } = opts;
   const budget = opts.budget ?? data.safe_to_spend;
 
+  // Garde-fou marge de sécurité : si le solde courant est sous la marge, on ne
+  // recommande que "Conserver" (tout le budget disponible, s'il en reste).
+  if (
+    (data.safety_margin_amount ?? 0) > 0 &&
+    data.total_checking < (data.safety_margin_amount ?? 0)
+  ) {
+    if (budget <= 0) return [];
+    return [buildRecommendation('keep', 100, budget, 'critical', data)];
+  }
+
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
 

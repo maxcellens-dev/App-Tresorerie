@@ -36,7 +36,8 @@ export default function SettingsScreen() {
   const { data: profile } = profileQuery;
   const updateProfile = useUpdateProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
-  const [marginInput, setMarginInput] = useState<string | null>(null);
+  const [marginInput] = useState<string | null>(null); // ancien % - non affiché
+  const [safetyAmountInput, setSafetyAmountInput] = useState<string | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<FinancialProfile>('suivi');
   const [savePct, setSavePct] = useState('30');
   const [investPct, setInvestPct] = useState('15');
@@ -44,7 +45,8 @@ export default function SettingsScreen() {
   const [keepPct, setKeepPct] = useState('30');
   const [saveLoading, setSaveLoading] = useState(false);
 
-  const currentMargin = marginInput ?? String(profile?.safety_margin_percent ?? 10);
+  const currentMargin = marginInput ?? '0'; // non utilisé en UI
+  const currentSafetyAmount = safetyAmountInput ?? String(profile?.safety_margin_amount ?? 0);
 
   useEffect(() => {
     if (!profile) return;
@@ -72,14 +74,12 @@ export default function SettingsScreen() {
     }
     setSaveLoading(true);
     try {
-      const margin = Math.max(0, Math.min(50, Number(currentMargin) || 10));
       await updateProfile.mutateAsync({
         financial_profile: selectedProfile,
         allocation_save_percent: Number(savePct) || 0,
         allocation_invest_percent: Number(investPct) || 0,
         allocation_enjoy_percent: Number(enjoyPct) || 0,
         allocation_keep_percent: Number(keepPct) || 0,
-        safety_margin_percent: margin,
       });
       Alert.alert('Paramètres', 'Vos préférences financières ont été mises à jour.');
     } catch (error: unknown) {
@@ -123,31 +123,52 @@ export default function SettingsScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Pilotage</Text>
-            <View style={[styles.row, styles.rowLast, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%' }}>
+
+            {/* Marge de sécurité en € */}
+            <View style={[styles.row, styles.rowLast, { justifyContent: 'space-between' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                 <Ionicons name="shield-outline" size={22} color={COLORS.textSecondary} />
-                <Text style={styles.rowLabel}>Marge de sécurité</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <TextInput
-                    style={styles.marginInput}
-                    value={currentMargin}
-                    onChangeText={(text) => setMarginInput(text.replace(/[^0-9]/g, ''))}
-                    onEndEditing={() => {
-                      const val = parseInt(currentMargin) || 10;
-                      const clamped = Math.max(0, Math.min(50, val));
-                      setMarginInput(null);
-                      if (clamped !== (profile?.safety_margin_percent ?? 10)) {
-                        updateProfile.mutate({ safety_margin_percent: clamped });
-                      }
-                    }}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                  />
-                  <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '600' }}>%</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>Marge de sécurité</Text>
+                  <Text style={styles.rowHint}>Montant minimum à conserver sur le courant</Text>
                 </View>
               </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TextInput
+                  style={styles.marginInput}
+                  value={currentSafetyAmount}
+                  onChangeText={(text) => setSafetyAmountInput(text.replace(/[^0-9.,]/g, ''))}
+                  onEndEditing={() => {
+                    const val = parseFloat(String(currentSafetyAmount).replace(',', '.')) || 0;
+                    setSafetyAmountInput(null);
+                    if (val !== (profile?.safety_margin_amount ?? 0)) {
+                      updateProfile.mutate({ safety_margin_amount: val });
+                    }
+                  }}
+                  keyboardType="decimal-pad"
+                  maxLength={8}
+                  returnKeyType="done"
+                />
+                <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '600' }}>€</Text>
+                {safetyAmountInput !== null && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const val = parseFloat(String(currentSafetyAmount).replace(',', '.')) || 0;
+                      setSafetyAmountInput(null);
+                      if (val !== (profile?.safety_margin_amount ?? 0)) {
+                        updateProfile.mutate({ safety_margin_amount: val });
+                      }
+                    }}
+                    style={{ backgroundColor: COLORS.emerald, borderRadius: 8, padding: 6 }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkmark" size={16} color={COLORS.bg} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-            <View style={[styles.row, styles.rowLast, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginTop: 12 }]}> 
+
+            <View style={[styles.row, styles.rowLast, { flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
               <View style={styles.allocationRowHeader}>
                 <Text style={styles.rowLabel}>Profil financier</Text>
                 <Text style={styles.rowHint}>Stratégie utilisée pour vos recommandations.</Text>

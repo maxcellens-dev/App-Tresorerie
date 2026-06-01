@@ -24,7 +24,8 @@ export default function SettingsScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
 
-  const [marginInput, setMarginInput] = useState('');
+  const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
+  const [safetyAmountInput, setSafetyAmountInput] = useState('');
 
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
@@ -48,23 +49,21 @@ export default function SettingsScreen() {
       icon: 'shield-outline',
       iconColor: '#60a5fa',
       title: 'Marge de sécurité',
-      description: 'Pourcentage de prudence appliqué à votre budget disponible. Plus la marge est élevée, plus l\'application garde une réserve face aux imprévus.',
+      description: 'Montant minimum conservé sur vos comptes courants quoi qu\'il arrive. Déduit du "Reste du mois" dans le Pilotage.',
     },
   ];
 
-  // ── Safety margin ──
-  const handleMarginSave = useCallback(() => {
-    const val = Math.max(0, Math.min(100, parseInt(marginInput) || 0));
-    setMarginInput(String(val));
-    updateProfile.mutate({ safety_margin_percent: val });
-  }, [marginInput, updateProfile]);
+  // ── Safety margin (montant en €) ──
+  const handleSafetyAmountSave = useCallback(() => {
+    const val = Math.max(0, parseFloat(safetyAmountInput.replace(',', '.')) || 0);
+    setSafetyAmountInput(String(val));
+    updateProfile.mutate({ safety_margin_amount: val });
+  }, [safetyAmountInput, updateProfile]);
 
-  const currentMargin = (profile as any)?.safety_margin_percent;
+  const currentSafetyAmount = profile?.safety_margin_amount ?? 0;
   useEffect(() => {
-    if (currentMargin !== undefined && currentMargin !== null) {
-      setMarginInput(String(currentMargin));
-    }
-  }, [currentMargin]);
+    setSafetyAmountInput(String(currentSafetyAmount));
+  }, [currentSafetyAmount]);
 
   // ── Thème ──
   const setMode = (mode: ThemeMode) => updateProfile.mutate({ theme_mode: mode });
@@ -144,21 +143,30 @@ export default function SettingsScreen() {
                 <Ionicons name="shield-outline" size={20} color={COLORS.textSecondary} />
                 <Text numberOfLines={1} style={[styles.rowLabel, { flex: 1 }]}>Marge de sécurité</Text>
                 <TextInput
-                  style={[styles.input, { width: 52, marginBottom: 0, textAlign: 'center' }]}
-                  value={marginInput}
-                  onChangeText={setMarginInput}
-                  onBlur={handleMarginSave}
-                  onSubmitEditing={handleMarginSave}
-                  keyboardType="numeric"
-                  placeholder="10"
+                  style={[styles.input, { width: 80, marginBottom: 0, textAlign: 'right' }]}
+                  value={safetyAmountInput}
+                  onChangeText={(t) => setSafetyAmountInput(t.replace(/[^0-9.,]/g, ''))}
+                  onBlur={handleSafetyAmountSave}
+                  onSubmitEditing={handleSafetyAmountSave}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
                   placeholderTextColor={COLORS.textSecondary}
-                  maxLength={3}
+                  maxLength={8}
                   returnKeyType="done"
                 />
-                <Text style={{ color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' }}>%</Text>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' }}>€</Text>
+                {String(parseFloat(safetyAmountInput.replace(',', '.')) || 0) !== String(currentSafetyAmount) && (
+                  <TouchableOpacity
+                    onPress={handleSafetyAmountSave}
+                    style={{ backgroundColor: COLORS.emerald, borderRadius: 8, padding: 6 }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkmark" size={16} color={COLORS.bg} />
+                  </TouchableOpacity>
+                )}
               </View>
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
-                Pourcentage de marge sur les dépenses en sécurité.
+                Montant minimum à conserver sur vos comptes courants quoi qu'il arrive.
               </Text>
             </View>
           </View>

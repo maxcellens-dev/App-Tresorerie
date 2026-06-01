@@ -139,11 +139,11 @@ export default function ProjectionScreen() {
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne'>('invest');
 
-  // ── Comptes d'investissement (ou simulation libre si aucun) ──
+  // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {
     const list = allAccounts.filter((a: any) => a.type === 'investment');
     if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre' }));
-    return [{ id: 'manual', name: 'Simulation', balance: 0, envelope: 'autre' }];
+    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre' }];
   }, [allAccounts]);
 
   // ── État : hypothèses par compte + durée globale ──
@@ -238,6 +238,40 @@ export default function ProjectionScreen() {
   const savingsHorizons = useMemo(() => projectSavings(num(savingsInitial), savingsMonthly, [1, 3, 5, 10], 2), [savingsInitial, savingsMonthly]);
 
   const [showTable, setShowTable] = useState(true);
+
+  // ── Années passées : reconstruction du solde réel par année ──
+  const currentYear = new Date().getFullYear();
+  const pastInvestRows = useMemo(() => {
+    const investAccountIds = new Set(investAccounts.map((a) => a.id).filter((id) => id !== 'manual'));
+    if (investAccountIds.size === 0) return [];
+
+    // Trouver l'année de départ = min(created_at des comptes d'invest)
+    const creationYears = allAccounts
+      .filter((a: any) => a.type === 'investment' && a.created_at)
+      .map((a: any) => new Date(a.created_at).getFullYear());
+    if (creationYears.length === 0) return [];
+    const startYear = Math.min(...creationYears);
+    if (startYear >= currentYear) return [];
+
+    // Solde actuel total des comptes d'invest
+    const totalBalance = investAccounts.reduce((s, a) => s + (a.id !== 'manual' ? a.balance : 0), 0);
+
+    // Pour chaque année passée, reconstruire le solde = totalBalance - sum(transactions > fin d'année)
+    const investTxs = (transactions as any[]).filter(
+      (t) => investAccountIds.has(t.account_id) && !t.is_draft
+    );
+
+    const rows: { year: number; value: number; isPast: true }[] = [];
+    for (let y = startYear; y < currentYear; y++) {
+      const endOfYear = `${y}-12-31`;
+      const sumAfter = investTxs
+        .filter((t) => t.date > endOfYear)
+        .reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const valueAtYear = totalBalance - sumAfter;
+      rows.push({ year: y, value: Math.max(0, valueAtYear), isPast: true });
+    }
+    return rows;
+  }, [allAccounts, investAccounts, transactions, currentYear]);
 
   return (
     <View style={styles.root}>
@@ -379,20 +413,35 @@ export default function ProjectionScreen() {
               <View>
                 <View style={[styles.tr, styles.trHead]}>
                   <Text style={[styles.th, { width: 52 }]}>Année</Text>
-                  <Text style={[styles.th, { width: 80 }]}>Capital</Text>
+                  <Text style={[styles.th, { width: 80 }]}>Apport</Text>
                   <Text style={[styles.th, { width: 88 }]}>Valeur</Text>
-                  <Text style={[styles.th, { width: 84 }]}>+Value</Text>
-                  <Text style={[styles.th, { width: 88 }]}>Gain net /an</Text>
                   <Text style={[styles.th, { width: 92 }]}>Net après taxe</Text>
+                  <Text style={[styles.th, { width: 92 }]}>+Value brute</Text>
+                  <Text style={[styles.th, { width: 88 }]}>Gain net /an</Text>
+                  <Text style={[styles.th, { width: 96 }]} numberOfLines={1}>Gain net/mois</Text>
                 </View>
+                {/* Années passées (données réelles) */}
+                {pastInvestRows.map((r, i) => (
+                  <View key={`past-${r.year}`} style={[styles.tr, { opacity: 0.6 }, i % 2 === 1 && styles.trAlt]}>
+                    <Text style={[styles.td, { width: 52, fontWeight: '700', color: COLORS.textSecondary }]}>{r.year}</Text>
+                    <Text style={[styles.td, { width: 80, color: COLORS.textSecondary }]}>—</Text>
+                    <Text style={[styles.td, { width: 88, color: COLORS.textSecondary, fontWeight: '600' }]}>{fmt(r.value)}</Text>
+                    <Text style={[styles.td, { width: 92, color: COLORS.textSecondary }]}>—</Text>
+                    <Text style={[styles.td, { width: 92, color: COLORS.textSecondary }]}>—</Text>
+                    <Text style={[styles.td, { width: 88, color: COLORS.textSecondary }]}>—</Text>
+                    <Text style={[styles.td, { width: 96, color: COLORS.textSecondary }]}>—</Text>
+                  </View>
+                ))}
+                {/* Années projetées */}
                 {investRowsGlobal.map((r, i) => (
-                  <View key={r.year} style={[styles.tr, i % 2 === 1 && styles.trAlt]}>
+                  <View key={r.year} style={[styles.tr, (pastInvestRows.length + i) % 2 === 1 && styles.trAlt]}>
                     <Text style={[styles.td, { width: 52, fontWeight: '700' }]}>{r.year}</Text>
                     <Text style={[styles.td, { width: 80 }]}>{fmt(r.cumulativeContribution)}</Text>
                     <Text style={[styles.td, { width: 88, color: INVEST_COLOR, fontWeight: '600' }]}>{fmt(r.value)}</Text>
-                    <Text style={[styles.td, { width: 84, color: SAVINGS_COLOR }]}>+{fmt(r.gainLatent)}</Text>
-                    <Text style={[styles.td, { width: 88, color: SAVINGS_COLOR }]}>+{fmt(r.netGainAnnual)}</Text>
                     <Text style={[styles.td, { width: 92 }]}>{fmt(r.valueAfterTax)}</Text>
+                    <Text style={[styles.td, { width: 92, color: SAVINGS_COLOR }]}>+{fmt(r.gainLatent)}</Text>
+                    <Text style={[styles.td, { width: 88, color: SAVINGS_COLOR }]}>+{fmt(r.netGainAnnual)}</Text>
+                    <Text style={[styles.td, { width: 96, color: SAVINGS_COLOR }]}>+{fmt(r.netGainMonthly)}</Text>
                   </View>
                 ))}
               </View>

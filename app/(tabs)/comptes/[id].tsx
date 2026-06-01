@@ -11,6 +11,8 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import CalendarWithPicker from '../../components/CalendarWithPicker';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -61,11 +63,17 @@ export default function AccountDetailScreen() {
   const [apportAmount, setApportAmount] = useState('');
   const [apportNote, setApportNote] = useState('Apport');
   const [apportLoading, setApportLoading] = useState(false);
+  const [apportDate, setApportDate] = useState(todayISO());
+  const [apportDateDisplay, setApportDateDisplay] = useState(formatDateFrench(todayISO()));
+  const [showApportCalendar, setShowApportCalendar] = useState(false);
 
   const [showBalance, setShowBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
   const [balanceNote, setBalanceNote] = useState('Régularisation solde');
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceDate, setBalanceDate] = useState(todayISO());
+  const [balanceDateDisplay, setBalanceDateDisplay] = useState(formatDateFrench(todayISO()));
+  const [showBalanceCalendar, setShowBalanceCalendar] = useState(false);
 
   const [selectedTx, setSelectedTx] = useState<TransactionWithDetails | null>(null);
 
@@ -76,6 +84,9 @@ export default function AccountDetailScreen() {
   const [gainLossBalance, setGainLossBalance] = useState('');
   const [gainLossNote, setGainLossNote] = useState(INVESTMENT_GAIN_NOTE);
   const [gainLossLoading, setGainLossLoading] = useState(false);
+  const [gainLossDate, setGainLossDate] = useState(todayISO());
+  const [gainLossDateDisplay, setGainLossDateDisplay] = useState(formatDateFrench(todayISO()));
+  const [showGainLossCalendar, setShowGainLossCalendar] = useState(false);
   const [isLoss, setIsLoss] = useState(false);
 
   async function handleBalance() {
@@ -85,9 +96,9 @@ export default function AccountDetailScreen() {
       return;
     }
     if (!account || !id || !user?.id) return;
-    const diff = newBalance - Number(account.balance);
+    const diff = newBalance - balanceAtDate;
     if (diff === 0) {
-      Alert.alert('Aucune variation', 'Le solde saisi est identique au solde actuel.');
+      Alert.alert('Aucune variation', 'Le solde saisi est identique au solde à cette date.');
       return;
     }
     setBalanceLoading(true);
@@ -96,7 +107,7 @@ export default function AccountDetailScreen() {
         account_id: id,
         category_id: null,
         amount: diff,
-        date: new Date().toISOString().slice(0, 10),
+        date: balanceDate,
         note: balanceNote.trim() || 'Ajustement de solde',
         is_recurring: false,
       });
@@ -123,13 +134,15 @@ export default function AccountDetailScreen() {
         account_id: id,
         category_id: null,
         amount: num,
-        date: new Date().toISOString().slice(0, 10),
+        date: apportDate,
         note: apportNote.trim() || 'Apport',
         is_recurring: false,
       });
       setShowApport(false);
       setApportAmount('');
       setApportNote('Apport');
+      setApportDate(todayISO());
+      setApportDateDisplay(formatDateFrench(todayISO()));
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
@@ -170,7 +183,7 @@ export default function AccountDetailScreen() {
         account_id: id,
         category_id: null,
         amount: num,
-        date: new Date().toISOString().slice(0, 10),
+        date: gainLossDate,
         note: gainLossNote.trim() || (num < 0 ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE),
         is_recurring: false,
       });
@@ -180,12 +193,23 @@ export default function AccountDetailScreen() {
       setGainLossMode('balance');
       setIsLoss(false);
       setGainLossNote(INVESTMENT_GAIN_NOTE);
+      setGainLossDate(todayISO());
+      setGainLossDateDisplay(formatDateFrench(todayISO()));
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
       setGainLossLoading(false);
     }
   }
+
+  const balanceAtDate = useMemo(() => {
+    if (!id) return account ? Number(account.balance) : 0;
+    const afterDate = (transactions as TransactionWithDetails[]).filter(
+      (t) => t.account_id === id && !(t as any).is_draft && !(t as any).is_recurring && t.date > balanceDate
+    );
+    const sumAfter = afterDate.reduce((s, t) => s + Number(t.amount), 0);
+    return (account ? Number(account.balance) : 0) - sumAfter;
+  }, [id, transactions, balanceDate, account]);
 
   const accountTransactions = useMemo(() => {
     if (!id) return [];
@@ -237,13 +261,13 @@ export default function AccountDetailScreen() {
             {account.type === 'checking' ? (
               <TouchableOpacity
                 style={styles.editBtn}
-                onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); }}
+                onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); const today = todayISO(); setBalanceDate(today); setBalanceDateDisplay(formatDateFrench(today)); }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Ajuster le solde"
+                accessibilityLabel="Nouveau Solde"
               >
                 <Ionicons name="wallet-outline" size={20} color="#60a5fa" />
-                <Text style={[styles.editBtnLabel, { color: '#60a5fa' }]}>Solde</Text>
+                <Text style={[styles.editBtnLabel, { color: '#60a5fa' }]}>Nouveau Solde</Text>
               </TouchableOpacity>
             ) : null}
             {account.type === 'investment' ? (
@@ -355,14 +379,27 @@ export default function AccountDetailScreen() {
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Ajuster le solde</Text>
 
-            <Text style={modalStyles.label}>Solde actuel</Text>
+            <Text style={modalStyles.label}>Date de référence</Text>
+            <TouchableOpacity
+              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }]}
+              onPress={() => setShowBalanceCalendar(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: COLORS.text, fontSize: 16 }}>{balanceDateDisplay}</Text>
+              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
+            </TouchableOpacity>
+            <Text style={[modalStyles.helperText, { marginBottom: 14 }]}>
+              Le solde calculé tient compte des transactions jusqu'à cette date.
+            </Text>
+
+            <Text style={modalStyles.label}>Solde calculé à cette date</Text>
             <View style={modalStyles.readOnlyInput}>
               <Text style={modalStyles.readOnlyText}>
-                {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                {balanceAtDate.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
               </Text>
             </View>
 
-            <Text style={modalStyles.label}>Nouveau solde</Text>
+            <Text style={modalStyles.label}>Solde réel à cette date</Text>
             <TextInput
               style={modalStyles.input}
               value={balanceInput}
@@ -375,8 +412,8 @@ export default function AccountDetailScreen() {
             <Text style={modalStyles.helperText}>
               {(() => {
                 const v = parseFloat(balanceInput.replace(',', '.'));
-                if (Number.isNaN(v)) return 'Saisissez le nouveau solde du compte.';
-                const diff = v - Number(account.balance);
+                if (Number.isNaN(v)) return 'Saisissez le solde réel relevé sur votre banque.';
+                const diff = v - balanceAtDate;
                 if (diff === 0) return 'Aucune variation.';
                 return diff > 0
                   ? `+ ${diff.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} seront ajoutés`
@@ -414,6 +451,34 @@ export default function AccountDetailScreen() {
         </View>
       </Modal>
 
+      {/* ── Calendrier pour le solde ── */}
+      <Modal visible={showBalanceCalendar} transparent animationType="fade" onRequestClose={() => setShowBalanceCalendar(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.container, { padding: 8 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
+              <Text style={modalStyles.title}>Date de référence</Text>
+              <TouchableOpacity onPress={() => setShowBalanceCalendar(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+            <CalendarWithPicker
+              current={balanceDate}
+              maxDate={new Date().toISOString().slice(0, 10)}
+              onDayPress={(day: any) => {
+                setBalanceDate(day.dateString);
+                setBalanceDateDisplay(formatDateFrench(day.dateString));
+                setShowBalanceCalendar(false);
+              }}
+              markedDates={balanceDate ? { [balanceDate]: { selected: true, selectedColor: '#60a5fa', selectedTextColor: '#000' } } : {}}
+              accentColor="#60a5fa"
+              bgColor={COLORS.card}
+              textColor={COLORS.text}
+              textSecondaryColor="#334155"
+            />
+          </View>
+        </View>
+      </Modal>
+
       {/* ── Apport modal ── */}
       <Modal visible={showApport} transparent animationType="fade" onRequestClose={() => setShowApport(false)}>
         <View style={modalStyles.overlay}>
@@ -430,6 +495,16 @@ export default function AccountDetailScreen() {
               placeholderTextColor={COLORS.textSecondary}
               autoFocus
             />
+
+            <Text style={modalStyles.label}>Date</Text>
+            <TouchableOpacity
+              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }]}
+              onPress={() => setShowApportCalendar(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: COLORS.text, fontSize: 16 }}>{apportDateDisplay}</Text>
+              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
+            </TouchableOpacity>
 
             <Text style={modalStyles.label}>Note (optionnel)</Text>
             <TextInput
@@ -475,7 +550,7 @@ export default function AccountDetailScreen() {
               onPress={() => setShowMethodPicker((value) => !value)}
               activeOpacity={0.8}
             >
-              <Text style={modalStyles.dropdownText}>{gainLossMode === 'amount' ? 'Montant' : 'Solde'}</Text>
+              <Text style={modalStyles.dropdownText}>{gainLossMode === 'amount' ? 'Montant' : 'Nouveau Solde'}</Text>
               <Ionicons name={showMethodPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
             {showMethodPicker ? (
@@ -498,7 +573,7 @@ export default function AccountDetailScreen() {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={modalStyles.dropdownOptionLabel}>Solde</Text>
+                  <Text style={modalStyles.dropdownOptionLabel}>Nouveau Solde</Text>
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -566,6 +641,16 @@ export default function AccountDetailScreen() {
               </>
             )}
 
+            <Text style={modalStyles.label}>Date</Text>
+            <TouchableOpacity
+              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }]}
+              onPress={() => setShowGainLossCalendar(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: COLORS.text, fontSize: 16 }}>{gainLossDateDisplay}</Text>
+              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
+            </TouchableOpacity>
+
             <Text style={modalStyles.label}>Note (optionnel)</Text>
             <TextInput
               style={modalStyles.input}
@@ -595,6 +680,62 @@ export default function AccountDetailScreen() {
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Calendrier Apport ── */}
+      <Modal visible={showApportCalendar} transparent animationType="fade" onRequestClose={() => setShowApportCalendar(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.container, { padding: 8 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
+              <Text style={modalStyles.title}>Date de l'apport</Text>
+              <TouchableOpacity onPress={() => setShowApportCalendar(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+            <CalendarWithPicker
+              current={apportDate}
+              maxDate={new Date().toISOString().slice(0, 10)}
+              onDayPress={(day: any) => {
+                setApportDate(day.dateString);
+                setApportDateDisplay(formatDateFrench(day.dateString));
+                setShowApportCalendar(false);
+              }}
+              markedDates={apportDate ? { [apportDate]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } } : {}}
+              accentColor={COLORS.emerald}
+              bgColor={COLORS.card}
+              textColor={COLORS.text}
+              textSecondaryColor="#334155"
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Calendrier +/- value ── */}
+      <Modal visible={showGainLossCalendar} transparent animationType="fade" onRequestClose={() => setShowGainLossCalendar(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.container, { padding: 8 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
+              <Text style={modalStyles.title}>Date de la +/- value</Text>
+              <TouchableOpacity onPress={() => setShowGainLossCalendar(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+            <CalendarWithPicker
+              current={gainLossDate}
+              maxDate={new Date().toISOString().slice(0, 10)}
+              onDayPress={(day: any) => {
+                setGainLossDate(day.dateString);
+                setGainLossDateDisplay(formatDateFrench(day.dateString));
+                setShowGainLossCalendar(false);
+              }}
+              markedDates={gainLossDate ? { [gainLossDate]: { selected: true, selectedColor: '#a78bfa', selectedTextColor: '#000' } } : {}}
+              accentColor="#a78bfa"
+              bgColor={COLORS.card}
+              textColor={COLORS.text}
+              textSecondaryColor="#334155"
+            />
           </View>
         </View>
       </Modal>
@@ -662,9 +803,21 @@ export default function AccountDetailScreen() {
                       <Text style={txDetailStyles.rowValue}>{r.value}</Text>
                     </View>
                   ))}
-                  <TouchableOpacity style={txDetailStyles.closeBtn} onPress={() => setSelectedTx(null)}>
-                    <Text style={txDetailStyles.closeBtnText}>Fermer</Text>
-                  </TouchableOpacity>
+                  <View style={txDetailStyles.btnRow}>
+                    <TouchableOpacity style={txDetailStyles.closeBtn} onPress={() => setSelectedTx(null)}>
+                      <Text style={txDetailStyles.closeBtnText}>Fermer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={txDetailStyles.editBtn}
+                      onPress={() => {
+                        setSelectedTx(null);
+                        router.push(`/(tabs)/transactions/edit/${selectedTx!.id}` as any);
+                      }}
+                    >
+                      <Ionicons name="pencil" size={16} color={COLORS.emerald} />
+                      <Text style={txDetailStyles.editBtnText}>Modifier</Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               );
             })()}
@@ -870,7 +1023,10 @@ function makeTxDetailStyles(c: any) {
     row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     rowKey: { fontSize: 14, color: c.textSecondary },
     rowValue: { fontSize: 14, color: c.text, fontWeight: '500' as const, flexShrink: 1, textAlign: 'right' as const, marginLeft: 16 },
-    closeBtn: { marginTop: 24, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
+    closeBtn: { flex: 1, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
     closeBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.text },
+    btnRow: { flexDirection: 'row' as const, gap: 10, marginTop: 24 },
+    editBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: '#34d39944' },
+    editBtnText: { fontSize: 15, fontWeight: '600' as const, color: '#34d399' },
   };
 }

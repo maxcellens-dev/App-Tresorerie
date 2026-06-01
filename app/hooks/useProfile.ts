@@ -26,6 +26,7 @@ export function useProfile(profileId: string | undefined) {
       const financial_profile = (data as { financial_profile?: FinancialProfile }).financial_profile ?? 'suivi';
       const defaultAlloc = DEFAULT_ALLOCATIONS[financial_profile];
       const safetyMargin = (data as { safety_margin_percent?: number }).safety_margin_percent;
+      const safetyAmount = (data as { safety_margin_amount?: number }).safety_margin_amount;
       const save = (data as { allocation_save_percent?: number }).allocation_save_percent;
       const invest = (data as { allocation_invest_percent?: number }).allocation_invest_percent;
       const enjoy = (data as { allocation_enjoy_percent?: number }).allocation_enjoy_percent;
@@ -39,6 +40,7 @@ export function useProfile(profileId: string | undefined) {
         avatar_url: (data as { avatar_url?: string | null }).avatar_url ?? null,
         is_admin: Boolean((data as { is_admin?: boolean }).is_admin),
         safety_margin_percent: safetyMargin !== undefined && safetyMargin !== null ? Number(safetyMargin) : 10,
+        safety_margin_amount: safetyAmount !== undefined && safetyAmount !== null ? Number(safetyAmount) : 0,
         financial_profile,
         allocation_save_percent: save !== undefined && save !== null ? Number(save) : defaultAlloc.save,
         allocation_invest_percent: invest !== undefined && invest !== null ? Number(invest) : defaultAlloc.invest,
@@ -62,6 +64,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       full_name?: string | null;
       avatar_url?: string | null;
       safety_margin_percent?: number;
+      safety_margin_amount?: number;
       financial_profile?: FinancialProfile;
       allocation_save_percent?: number;
       allocation_invest_percent?: number;
@@ -89,17 +92,44 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.theme_preset !== undefined) updates.theme_preset = payload.theme_preset;
       if (payload.currency_code !== undefined) updates.currency_code = payload.currency_code;
 
+      // Séparer safety_margin_amount pour éviter qu'un échec (colonne manquante avant
+      // migration 031) ne bloque les autres mises à jour.
+      const safetyAmount = payload.safety_margin_amount;
+      const otherUpdates = { ...updates };
+
       const { error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(otherUpdates)
         .eq('id', profileId);
       if (error) {
-        console.error('[useUpdateProfile] PATCH profiles échoué:', { error, updates });
+        console.error('[useUpdateProfile] PATCH profiles échoué:', { error, updates: otherUpdates });
         throw error;
+      }
+
+      if (safetyAmount !== undefined) {
+        // 1. Mettre à jour profiles.safety_margin_amount
+        const { error: safetyErr } = await supabase
+          .from('profiles')
+          .update({ safety_margin_amount: safetyAmount })
+          .eq('id', profileId);
+        if (safetyErr) {
+          console.warn('[useUpdateProfile] safety_margin_amount échoué (migration 031 requise ?):', safetyErr);
+        }
+
+        // 2. Synchroniser user_questionnaire_answers.q8 (la valeur numérique en chaîne)
+        const { error: q8Err } = await supabase
+          .from('user_questionnaire_answers')
+          .update({ q8: String(safetyAmount), updated_at: new Date().toISOString() })
+          .eq('user_id', profileId);
+        if (q8Err) {
+          console.warn('[useUpdateProfile] sync q8 échoué:', q8Err);
+        }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [KEY, profileId] });
+      queryClient.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      queryClient.invalidateQueries({ queryKey: ['questionnaire_answers', profileId] });
     },
   });
 }

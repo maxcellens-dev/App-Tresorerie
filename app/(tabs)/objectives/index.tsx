@@ -326,8 +326,8 @@ export default function ObjectivesScreen() {
               onPress={() => router.push('/(tabs)/comptes/transfer')}
               accessibilityRole="button"
             >
-              <Ionicons name="swap-horizontal" size={22} color={COLORS.text} />
-              <Text style={styles.addBtnLabel}>Virement</Text>
+              <Ionicons name="swap-horizontal" size={22} color="#60a5fa" />
+              <Text style={[styles.addBtnLabel, { color: '#60a5fa' }]}>Virement</Text>
             </TouchableOpacity>
             <View style={{ flex: 1 }} />
             <TouchableOpacity
@@ -339,8 +339,8 @@ export default function ObjectivesScreen() {
               }}
               accessibilityRole="button"
             >
-              <Ionicons name="add" size={22} color={COLORS.text} />
-              <Text style={styles.addBtnLabel}>Objectif</Text>
+              <Ionicons name="add" size={22} color="#a78bfa" />
+              <Text style={[styles.addBtnLabel, { color: '#a78bfa' }]}>Objectif</Text>
             </TouchableOpacity>
           </View>
         </View>

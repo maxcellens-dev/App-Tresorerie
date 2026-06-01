@@ -291,6 +291,22 @@ export default function AddObjectiveModal({
                 <Text style={[styles.label, { color: COLORS.text }]}>
                   Compte lié *
                 </Text>
+                {/* Message d'aide : quel compte choisir */}
+                <View style={[styles.accountHint, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40' }]}>
+                  <Text style={[styles.accountHintIcon]}>💡</Text>
+                  <Text style={[styles.accountHintText, { color: COLORS.textSecondary }]}>
+                    Sélectionnez ici le <Text style={{ fontWeight: '700', color: COLORS.text }}>compte d'épargne ou d'investissement</Text> sur lequel vous voulez atteindre cet objectif.
+                    {'\n'}L'avancement est calculé à partir des virements réalisés vers ce compte.
+                  </Text>
+                </View>
+                {accounts.filter(a => a.type === 'savings' || a.type === 'investment').length === 0 && (
+                  <View style={[styles.accountHint, { backgroundColor: '#ef444414', borderColor: '#ef444440', marginTop: 6 }]}>
+                    <Text style={styles.accountHintIcon}>⚠️</Text>
+                    <Text style={[styles.accountHintText, { color: '#f87171' }]}>
+                      Aucun compte d'épargne ou d'investissement trouvé. Créez-en un depuis l'onglet <Text style={{ fontWeight: '700' }}>Comptes</Text> avant de continuer.
+                    </Text>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={[
                     styles.input,
@@ -478,6 +494,24 @@ function makeStyles(c: any) {
   },
   pickerText: {
     fontSize: 14,
+  },
+  accountHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    marginBottom: 8,
+  },
+  accountHintIcon: {
+    fontSize: 14,
+    marginTop: 1,
+  },
+  accountHintText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
   },
   pickerHeader: {
     flexDirection: 'row',

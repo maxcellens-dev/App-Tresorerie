@@ -11,9 +11,9 @@ const STEP_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#22d3ee', '#34d399'];
 
 const STEPS = [
   {
-    label: 'Étape 1 — Net restant du mois',
-    formula: 'Σ transactions futures ce mois (recettes − dépenses)',
-    explanation: 'Toutes les transactions planifiées après aujourd\'hui dans le mois courant : recettes (+) et dépenses (−).',
+    label: 'Étape 1 — Sorties futures du mois',
+    formula: 'Σ transactions futures ce mois avec montant < 0 (dépenses, virements sortants)',
+    explanation: 'Uniquement les sorties planifiées après aujourd\'hui. Les recettes futures ne sont PAS incluses : le calcul part de ce qu\'on a maintenant.',
   },
   {
     label: 'Étape 2 — Engagements mensuels',
@@ -27,23 +27,23 @@ const STEPS = [
   },
   {
     label: 'Étape 4 — Base à dépenser',
-    formula: 'solde courant + net restant − engagements − réservations',
-    explanation: 'Solde réel moins tout ce qui est engagé ou réservé.',
+    formula: 'solde courant + sorties futures − engagements − réservations',
+    explanation: 'Solde réel moins toutes les sorties prévues et engagements.',
   },
   {
-    label: 'Étape 5 — Marge de sécurité',
-    formula: 'max(0, base × (1 − marge% ÷ 100))',
-    explanation: 'Retenue configurable dans Paramètres (10% par défaut). Le résultat ne peut jamais être négatif.',
+    label: 'Étape 5 — Marge de sécurité (montant fixe)',
+    formula: 'max(0, base − marge_de_sécurité_€)',
+    explanation: 'Montant minimum conservé sur les comptes courants quoi qu\'il arrive. Saisi par l\'utilisateur en Q8 du questionnaire. Si solde courant < marge → seule la reco "Conserver" est active.',
   },
 ];
 
 const VARIABLES = [
   ['solde_courant', 'Σ accounts(checking).balance'],
-  ['remaining_month_net', 'transactions future ce mois'],
+  ['future_outflows', 'transactions futures ce mois avec amount < 0'],
   ['committed_projects', 'Σ projects(active).monthly_allocation'],
   ['committed_objectives', 'Σ objectives(active).target_yearly / 12'],
   ['same_account_reserved', 'transactions passées × allocation'],
-  ['marge_sécurité', 'profiles.safety_margin_percent (défaut 10%)'],
+  ['marge_sécurité', 'profiles.safety_margin_amount (Q8, défaut 0 €)'],
 ];
 
 export default function SafeToSpendAdmin() {
@@ -69,13 +69,13 @@ export default function SafeToSpendAdmin() {
           {/* ── Formule résumée ── */}
           <View style={styles.formulaCard}>
             <Text style={styles.formulaLine}>  Solde courant</Text>
-            <Text style={styles.formulaLine}>+ Transactions futures du mois (net)</Text>
+            <Text style={styles.formulaLine}>+ Sorties futures du mois (dépenses uniquement)</Text>
             <Text style={styles.formulaLine}>− Engagements projets (alloc. mensuelle)</Text>
             <Text style={styles.formulaLine}>− Engagements objectifs (cible ÷ 12)</Text>
             <Text style={styles.formulaLine}>− Réservations même-compte (passées)</Text>
             <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
             <Text style={styles.formulaLine}>= Base à dépenser</Text>
-            <Text style={styles.formulaLine}>× (1 − marge de sécurité %)</Text>
+            <Text style={styles.formulaLine}>− Marge de sécurité (montant fixe €)</Text>
             <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
             <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Ce qu'il te reste ce mois-ci</Text>
           </View>

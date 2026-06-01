@@ -126,11 +126,12 @@ export default function TransactionsListScreen() {
       description: 'Naviguez entre les mois avec les flèches, et filtrez par compte avec l\'icône à droite.',
     },
   ];
-  const [accountFilterId, setAccountFilterId] = useState<string | null>(null);
-  const [defaultAccountId, setDefaultAccountId] = useState<string | null>(null);
+  // Multi-compte : ensemble des IDs sélectionnés ([] = tous)
+  const [accountFilterIds, setAccountFilterIds] = useState<string[]>([]);
+  const [defaultCheckingIds, setDefaultCheckingIds] = useState<string[]>([]);
   const [filterInitialized, setFilterInitialized] = useState(false);
   const [showAccountFilter, setShowAccountFilter] = useState(false);
-  
+
   const transactionsQuery = useTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
@@ -140,14 +141,15 @@ export default function TransactionsListScreen() {
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAccounts(user?.id);
 
-  // Par défaut, filtrer sur les comptes courants (premier compte checking trouvé)
+  // Par défaut, sélectionner tous les comptes courants.
+  // Si aucun compte courant, pas de filtre (= Tous).
   useEffect(() => {
     if (!filterInitialized && accounts.length > 0) {
-      const firstChecking = accounts.find((a: any) => a.type === 'checking');
-      if (firstChecking) {
-        setAccountFilterId(firstChecking.id);
-        setDefaultAccountId(firstChecking.id);
-      }
+      const checkingIds = accounts
+        .filter((a: any) => a.type === 'checking')
+        .map((a: any) => a.id);
+      setDefaultCheckingIds(checkingIds);
+      setAccountFilterIds(checkingIds);
       setFilterInitialized(true);
     }
   }, [accounts, filterInitialized]);
@@ -295,12 +297,12 @@ export default function TransactionsListScreen() {
     if (depensesFilter) {
       list = list.filter((t) => t.category?.type === 'expense' && !(t as any).project_id);
     }
-    // Filtre par compte
-    if (accountFilterId) {
-      list = list.filter((t) => t.account_id === accountFilterId);
+    // Filtre par comptes sélectionnés
+    if (accountFilterIds.length > 0) {
+      list = list.filter((t) => accountFilterIds.includes(t.account_id));
     }
     return list;
-  }, [displayedTransactions, categoryFilterId, categories, accountFilterId, regulFilter, mouvementsFilter, recettesFilter, depensesFilter]);
+  }, [displayedTransactions, categoryFilterId, categories, accountFilterIds, regulFilter, mouvementsFilter, recettesFilter, depensesFilter]);
 
   const byMonth = useMemo(() => {
     const map: Record<string, TransactionWithDetails[]> = {};
@@ -329,9 +331,11 @@ export default function TransactionsListScreen() {
     });
   }, [filtered]);
 
-  const isManualFilter = !!accountFilterId && accountFilterId !== defaultAccountId;
+  // Le filtre est "manuel" si la sélection diffère des comptes courants par défaut
+  const isManualFilter =
+    accountFilterIds.length !== defaultCheckingIds.length ||
+    accountFilterIds.some((id) => !defaultCheckingIds.includes(id));
   const hasFilter = !!categoryFilterId || isManualFilter || regulFilter || mouvementsFilter || recettesFilter || depensesFilter;
-  const selectedAccountName = accounts.find(a => a.id === accountFilterId)?.name;
   const selectedCategoryName = categoryFilterId ? categories.find(c => c.id === categoryFilterId)?.name : null;
   
   // Afficher/cacher boutons nav si singleMonth
@@ -431,31 +435,38 @@ export default function TransactionsListScreen() {
               <Ionicons name="chevron-forward" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.filterBtn, !!accountFilterId && styles.filterBtnActive]}
+              style={[styles.filterBtn, accountFilterIds.length > 0 && styles.filterBtnActive]}
               onPress={() => setShowAccountFilter(!showAccountFilter)}
               activeOpacity={0.7}
             >
-              <Ionicons name="filter" size={18} color={accountFilterId ? COLORS.bg : COLORS.textSecondary} />
+              <Ionicons name="filter" size={18} color={accountFilterIds.length > 0 ? COLORS.bg : COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
         {showAccountFilter && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountFilterScroll}>
             <TouchableOpacity
-              style={[styles.accountFilterChip, !accountFilterId && styles.accountFilterChipActive]}
-              onPress={() => { setAccountFilterId(null); setShowAccountFilter(false); }}
+              style={[styles.accountFilterChip, accountFilterIds.length === 0 && styles.accountFilterChipActive]}
+              onPress={() => setAccountFilterIds([])}
             >
-              <Text style={[styles.accountFilterChipText, !accountFilterId && styles.accountFilterChipTextActive]}>Tous</Text>
+              <Text style={[styles.accountFilterChipText, accountFilterIds.length === 0 && styles.accountFilterChipTextActive]}>Tous</Text>
             </TouchableOpacity>
-            {accounts.map((acc) => (
-              <TouchableOpacity
-                key={acc.id}
-                style={[styles.accountFilterChip, accountFilterId === acc.id && styles.accountFilterChipActive]}
-                onPress={() => { setAccountFilterId(acc.id); setShowAccountFilter(false); }}
-              >
-                <Text style={[styles.accountFilterChipText, accountFilterId === acc.id && styles.accountFilterChipTextActive]}>{acc.name}</Text>
-              </TouchableOpacity>
-            ))}
+            {accounts.map((acc) => {
+              const selected = accountFilterIds.includes(acc.id);
+              return (
+                <TouchableOpacity
+                  key={acc.id}
+                  style={[styles.accountFilterChip, selected && styles.accountFilterChipActive]}
+                  onPress={() => {
+                    setAccountFilterIds((prev) =>
+                      prev.includes(acc.id) ? prev.filter((id) => id !== acc.id) : [...prev, acc.id]
+                    );
+                  }}
+                >
+                  <Text style={[styles.accountFilterChipText, selected && styles.accountFilterChipTextActive]}>{acc.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
         <View style={styles.header}>
@@ -466,8 +477,8 @@ export default function TransactionsListScreen() {
             onPress={() => router.push('/(tabs)/transactions/add?type=transfer')}
             accessibilityRole="button"
           >
-            <Ionicons name="swap-horizontal" size={20} color={COLORS.text} />
-            <Text style={styles.addBtnLabel}>Virement</Text>
+            <Ionicons name="swap-horizontal" size={20} color="#60a5fa" />
+            <Text style={[styles.addBtnLabel, { color: '#60a5fa' }]}>Virement</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={expenseBtnRef}
@@ -476,8 +487,8 @@ export default function TransactionsListScreen() {
             onPress={() => router.push('/(tabs)/transactions/add?type=expense')}
             accessibilityRole="button"
           >
-            <Ionicons name="arrow-down" size={20} color={COLORS.text} />
-            <Text style={styles.addBtnLabel}>Dépenses</Text>
+            <Ionicons name="arrow-down" size={20} color={COLORS.danger} />
+            <Text style={[styles.addBtnLabel, { color: COLORS.danger }]}>Dépenses</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={incomeBtnRef}
@@ -486,8 +497,8 @@ export default function TransactionsListScreen() {
             onPress={() => router.push('/(tabs)/transactions/add?type=income')}
             accessibilityRole="button"
           >
-            <Ionicons name="arrow-up" size={20} color={COLORS.text} />
-            <Text style={styles.addBtnLabel}>Recette</Text>
+            <Ionicons name="arrow-up" size={20} color={COLORS.emerald} />
+            <Text style={[styles.addBtnLabel, { color: COLORS.emerald }]}>Recette</Text>
           </TouchableOpacity>
         </View>
         {hasFilter && (
@@ -527,10 +538,14 @@ export default function TransactionsListScreen() {
                 <Ionicons name="close" size={13} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}
-            {isManualFilter && selectedAccountName && (
-              <TouchableOpacity style={styles.filterChip} onPress={() => setAccountFilterId(defaultAccountId)} activeOpacity={0.7}>
+            {isManualFilter && accountFilterIds.length > 0 && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setAccountFilterIds(defaultCheckingIds)} activeOpacity={0.7}>
                 <Ionicons name="wallet-outline" size={13} color={COLORS.emerald} />
-                <Text style={styles.filterChipText}>{selectedAccountName}</Text>
+                <Text style={styles.filterChipText}>
+                  {accountFilterIds.length === 1
+                    ? (accounts.find(a => a.id === accountFilterIds[0])?.name ?? 'Compte')
+                    : `${accountFilterIds.length} comptes`}
+                </Text>
                 <Ionicons name="close" size={13} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}

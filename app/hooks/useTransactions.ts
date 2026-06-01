@@ -162,24 +162,77 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data: row, error: fetchErr } = await supabase
         .from('transactions')
-        .select('account_id, amount, is_draft, project_id, date')
+        .select('account_id, amount, is_draft, project_id, date, linked_account_id, note, category_id')
         .eq('id', id)
         .eq('profile_id', profileId)
         .single();
       if (fetchErr) throw fetchErr;
-      const { error: delErr } = await supabase.from('transactions').delete().eq('id', id).eq('profile_id', profileId);
-      if (delErr) throw delErr;
 
       const isDraft = !!(row as any).is_draft;
       const projectId = (row as any).project_id as string | null;
       const txDate = (row as any).date as string;
       const txAmount = Number((row as any).amount);
+      const linkedAccountId = (row as any).linked_account_id as string | null;
+      const txNote = (row as any).note as string | null;
+      const txCategoryId = (row as any).category_id as string | null;
+      const txAccountId = (row as { account_id: string }).account_id;
+
+      // Chercher la transaction symétrique (l'autre côté d'un virement)
+      // Priorité 1 : via linked_account_id (virements via transfer.tsx)
+      let pairedId: string | null = null;
+      if (linkedAccountId) {
+        const { data: paired } = await supabase
+          .from('transactions')
+          .select('id, amount, is_draft')
+          .eq('profile_id', profileId)
+          .eq('account_id', linkedAccountId)
+          .eq('linked_account_id', txAccountId)
+          .eq('date', txDate)
+          .eq('amount', -txAmount)
+          .maybeSingle();
+        pairedId = paired?.id ?? null;
+      }
+      // Priorité 2 : via note "Virement" + montant opposé + même date (virements via add.tsx)
+      if (!pairedId && txCategoryId === null && txNote && /virement/i.test(txNote)) {
+        const { data: paired } = await supabase
+          .from('transactions')
+          .select('id, amount, is_draft')
+          .eq('profile_id', profileId)
+          .eq('date', txDate)
+          .eq('amount', -txAmount)
+          .is('category_id', null)
+          .neq('account_id', txAccountId)
+          .maybeSingle();
+        pairedId = paired?.id ?? null;
+      }
+
+      // Supprimer la transaction principale
+      const { error: delErr } = await supabase.from('transactions').delete().eq('id', id).eq('profile_id', profileId);
+      if (delErr) throw delErr;
 
       // Les brouillons n'ont jamais affecté le solde → ne pas l'ajuster à la suppression
       if (!isDraft) {
-        const accId = (row as { account_id: string }).account_id;
-        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();
-        if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) - txAmount }).eq('id', accId);
+        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txAccountId).single();
+        if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) - txAmount }).eq('id', txAccountId);
+      }
+
+      // Supprimer le côté symétrique si trouvé
+      if (pairedId) {
+        const { data: pairedRow } = await supabase
+          .from('transactions')
+          .select('account_id, amount, is_draft')
+          .eq('id', pairedId)
+          .eq('profile_id', profileId)
+          .maybeSingle();
+        if (pairedRow) {
+          await supabase.from('transactions').delete().eq('id', pairedId).eq('profile_id', profileId);
+          if (!(pairedRow as any).is_draft) {
+            const pairedAmt = Number((pairedRow as any).amount);
+            const pairedAccId = (pairedRow as any).account_id as string;
+            const { data: pairedAcc } = await supabase.from('accounts').select('balance').eq('id', pairedAccId).single();
+            if (pairedAcc) await supabase.from('accounts').update({ balance: Number(pairedAcc.balance) - pairedAmt }).eq('id', pairedAccId);
+          }
+        }
       }
 
       // Recalcul de l'allocation mensuelle en mode "Date cible" si suppression d'un débit projet

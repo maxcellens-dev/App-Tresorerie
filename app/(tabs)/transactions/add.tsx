@@ -108,7 +108,8 @@ export default function AddTransactionScreen() {
       }
     }
 
-    const finalAmount = isExpense ? -Math.abs(num) : Math.abs(num);
+    // Pour un virement, le compte source est toujours débité (négatif)
+    const finalAmount = (isExpense || isTransfer) ? -Math.abs(num) : Math.abs(num);
     const endDateISO = isRecurring && recurrenceEndDateInput.trim()
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;

@@ -101,10 +101,8 @@ export const Q3_OPTIONS = [
 export const Q4_OPTIONS = [
   'Rien, je finis souvent le mois à découvert',
   "J'ai de quoi vivre sans trop me priver, mais je n'épargne pas",
-  'Un petit surplus que je laisse sur mon compte courant',
-  'Une somme régulière que je peux mettre de côté',
-  "Je l'accumule par habitude sur mes comptes ou livrets sans stratégie précise",
-  "Un excédent que j'épargne et j'investis équitablement",
+  'Une somme que je mets volontairement de côté chaque mois',
+  "Une somme que j'épargne et j'investis équitablement ou occasionnellement",
   "Un montant suffisant que j'investis en priorité",
 ] as const;
 
@@ -143,16 +141,33 @@ export interface QuestionnaireAnswers {
   q5: string;
   q6: string;
   q7: string;
+  /** Montant minimum conservé sur les comptes courants. Chaîne numérique ou '' pour "je ne sais pas" (→ 0). */
+  q8: string;
+}
+
+/** Convertit la réponse Q8 en montant numérique. '' ou "je ne sais pas" → 0. */
+export function safetyMarginFromQ8(q8: string): number {
+  if (!q8 || q8.toLowerCase().includes('sais pas')) return 0;
+  const v = parseFloat(q8.replace(',', '.'));
+  return isNaN(v) || v < 0 ? 0 : v;
 }
 
 // ── Détection revenu irrégulier ───────────────────────────────
 
+const IRREGULAR_INCOME_TYPES = new Set([
+  'Revenu Freelance / Indépendant (Aléatoire)',
+  'Dividendes (Annuel / Ponctuel)',
+]);
+
+/**
+ * Irrégulier seulement si TOUS les types de revenus sélectionnés sont irréguliers
+ * (logique "meilleure réponse" : si le profil a aussi un salaire fixe, il bénéficie
+ * de la régularité de ce revenu pour la détermination du profil).
+ */
 export function detectIrregularIncome(q1: string, q2: string): boolean {
-  return (
-    q1 === 'Revenu Freelance / Indépendant (Aléatoire)' ||
-    q1 === 'Dividendes (Annuel / Ponctuel)' ||
-    q2 === 'De manière totalement imprévisible'
-  );
+  const q1Values = q1.split('|').filter(Boolean);
+  const allIrregular = q1Values.length > 0 && q1Values.every((v) => IRREGULAR_INCOME_TYPES.has(v));
+  return allIrregular || q2 === 'De manière totalement imprévisible';
 }
 
 // ── Jeux de valeurs pour la matrice ──────────────────────────
@@ -171,20 +186,18 @@ const Q6_MID = new Set([
 ]);
 
 const Q4_INVEST = new Set([
-  "Un excédent que j'épargne et j'investis équitablement",
+  "Une somme que j'épargne et j'investis équitablement ou occasionnellement",
   "Un montant suffisant que j'investis en priorité",
 ]);
 
 const Q4_SAVING = new Set([
-  'Une somme régulière que je peux mettre de côté',
-  "Je l'accumule par habitude sur mes comptes ou livrets sans stratégie précise",
-  "Un excédent que j'épargne et j'investis équitablement",
+  'Une somme que je mets volontairement de côté chaque mois',
+  "Une somme que j'épargne et j'investis équitablement ou occasionnellement",
   "Un montant suffisant que j'investis en priorité",
 ]);
 
 const Q4_MINIMAL = new Set([
   "J'ai de quoi vivre sans trop me priver, mais je n'épargne pas",
-  'Un petit surplus que je laisse sur mon compte courant',
 ]);
 
 // ── Calcul du profil initial ──────────────────────────────────

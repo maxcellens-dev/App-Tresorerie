@@ -122,10 +122,21 @@ export default function PilotageScreen() {
 
   const isLoading = pilotageLoading || projectsLoading || objectivesLoading;
 
-  // ── Reste disponible (§8) = base à dépenser − cumuls − réservations ──
-  const baseADepenser = pilotageData?.safe_to_spend ?? 0;
+  // ── Reste disponible = Courant − tout ce qui est affiché ──
+  // Formule directe depuis les valeurs affichées pour cohérence avec l'UI.
   const cumulsTotal = preEpargneTotal + preInvestTotal;
-  const resteDisponible = Math.max(0, baseADepenser - cumulsTotal - reservationsTotal);
+  const safetyMarginDisplay = pilotageData?.safety_margin_amount ?? 0;
+  const resteDisponible = Math.max(0,
+    (pilotageData?.current_checking_balance ?? 0)
+    - (pilotageData?.monthly_savings_planned ?? 0)
+    - (pilotageData?.monthly_invest_planned ?? 0)
+    - (pilotageData?.monthly_reserve_planned ?? 0)
+    - (pilotageData?.month_expenses_total ?? 0)
+    - safetyMarginDisplay
+    - cumulsTotal
+    - reservationsTotal
+  );
+  const baseADepenser = pilotageData?.safe_to_spend ?? 0;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
   // Synchroniser le statut des cumuls (actif / en_depassement)
@@ -227,6 +238,17 @@ export default function PilotageScreen() {
           </View>
         </View>
 
+        {/* Bandeau marge de sécurité */}
+        {(pilotageData.safety_margin_amount ?? 0) > 0 &&
+         pilotageData.total_checking < (pilotageData.safety_margin_amount ?? 0) && (
+          <View style={styles.safetyBanner}>
+            <Ionicons name="warning-outline" size={18} color="#fbbf24" />
+            <Text style={styles.safetyBannerText}>
+              Vos comptes courants ({pilotageData.total_checking.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}) sont en dessous de votre marge de sécurité ({(pilotageData.safety_margin_amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}). Seule la recommandation "Conserver" est active.
+            </Text>
+          </View>
+        )}
+
         {/* Main Content */}
         <ScrollView
           ref={scrollRef}
@@ -293,6 +315,9 @@ export default function PilotageScreen() {
             <View style={styles.sectionHeader}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.sectionTitle}>Suivi du mois</Text>
+              <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginLeft: 8, fontWeight: '500', textTransform: 'capitalize' }}>
+                {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+              </Text>
             </View>
             <View style={styles.sectionDivider} />
 
@@ -302,6 +327,7 @@ export default function PilotageScreen() {
               const invest = pilotageData.monthly_invest_planned;
               const reserve = pilotageData.monthly_reserve_planned;
               const expenses = pilotageData.month_expenses_total;
+              const safetyMargin = pilotageData.safety_margin_amount ?? 0;
 
               const items = [
                 { label: 'Épargne prévue',   value: savings,  icon: 'shield-outline',     color: '#34d399', hint: 'Virements vers épargne + projets' },
@@ -344,6 +370,20 @@ export default function PilotageScreen() {
                     </View>
                     <Text style={[styles.suiviValue, { color: '#f87171' }]}>{fmt(expenses)}</Text>
                   </View>
+
+                  {/* Marge de sécurité — affichée uniquement si > 0 */}
+                  {safetyMargin > 0 && (
+                    <View style={[styles.suiviRow, { opacity: 0.75 }]}>
+                      <View style={[styles.suiviIcon, { backgroundColor: '#fbbf2422' }]}>
+                        <Ionicons name="shield-outline" size={16} color="#fbbf24" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.suiviLabel, { color: '#fbbf24' }]}>Votre marge de sécurité</Text>
+                        <Text style={styles.suiviHint}>Montant minimum à conserver sur le courant</Text>
+                      </View>
+                      <Text style={[styles.suiviValue, { color: '#fbbf24' }]}>{fmt(safetyMargin)}</Text>
+                    </View>
+                  )}
 
                   <View style={styles.suiviDivider} />
 
@@ -522,6 +562,13 @@ function makeStyles(c: AppColors) {
     paddingBottom: 80,
   },
   loader: { marginVertical: 40 },
+  safetyBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#78350f22', borderWidth: 1, borderColor: '#fbbf2440',
+    borderRadius: 12, marginHorizontal: 8, marginBottom: 8,
+    padding: 12,
+  },
+  safetyBannerText: { flex: 1, fontSize: 12, color: '#fbbf24', lineHeight: 18 },
 
   // Section Layout
   section: {

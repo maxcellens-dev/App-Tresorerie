@@ -903,32 +903,31 @@ export default function TreasuryPlanScreen() {
             </View>
             </View>
             </ScrollView>
+            {/* Légende — dans le scroll, sous le tableau */}
+            <View style={styles.legend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.emerald }]} />
+                <Text style={styles.legendText}>Recette / solde positif</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.danger }]} />
+                <Text style={styles.legendText}>Dépense / solde négatif</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <Text style={styles.legendSampleOrange}>123</Text>
+                <Text style={styles.legendText}>Brouillon (manuel)</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <Text style={styles.legendSampleGrey}>123</Text>
+                <Text style={styles.legendText}>Prévisionnel (projet)</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: COLORS.balance }]} />
+                <Text style={styles.legendText}>Solde courant</Text>
+              </View>
+            </View>
           </ScrollView>
         )}
-
-        {/* Légende */}
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.emerald }]} />
-            <Text style={styles.legendText}>Recette / solde positif</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.danger }]} />
-            <Text style={styles.legendText}>Dépense / solde négatif</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <Text style={styles.legendSampleOrange}>123</Text>
-            <Text style={styles.legendText}>Brouillon (manuel)</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <Text style={styles.legendSampleGrey}>123</Text>
-            <Text style={styles.legendText}>Prévisionnel (projet)</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: COLORS.balance }]} />
-            <Text style={styles.legendText}>Solde courant</Text>
-          </View>
-        </View>
       </SafeAreaView>
 
       {/* Menu Modal */}

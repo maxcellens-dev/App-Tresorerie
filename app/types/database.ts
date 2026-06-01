@@ -41,6 +41,8 @@ export interface UserQuestionnaireAnswers {
   q5: string;
   q6: string;
   q7: string;
+  /** Montant minimum conservé sur les comptes courants (€), sous forme de chaîne. Vide = 0. */
+  q8: string;
   answered_at: string;
   updated_at: string;
 }
@@ -91,7 +93,10 @@ export interface Profile {
   safety_threshold_min: number;
   safety_threshold_optimal: number;
   safety_threshold_comfort: number;
+  /** @deprecated — remplacé par safety_margin_amount */
   safety_margin_percent?: number;
+  /** Montant minimum conservé sur les comptes courants (€). Saisi en Q8. */
+  safety_margin_amount?: number;
   financial_profile?: FinancialProfile;
   allocation_save_percent?: number;
   allocation_invest_percent?: number;
@@ -152,6 +157,8 @@ export interface Transaction {
   is_recurring?: boolean;
   recurrence_rule?: RecurrenceRule | null;
   recurrence_end_date?: string | null;
+  /** Modèle récurrent d'origine si cette ligne est une occurrence matérialisée. */
+  materialized_from?: string | null;
   created_at: string;
   updated_at: string;
 }
