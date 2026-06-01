@@ -95,6 +95,16 @@ export default function AddProjectModal({
 
   // ponctuelEntries: key YYYY-MM → { enabled, amount }
   const [ponctuelEntries, setPonctuelEntries] = useState<Record<string, PonctuelEntry>>({});
+  // Jour du mois où les virements ponctuels sont générés (1-31, clampé selon le mois)
+  const [ponctuelDay, setPonctuelDay] = useState('1');
+
+  // Construit la date d'un mois ponctuel au jour choisi (clampé au dernier jour du mois)
+  const ponctuelDateFor = (key: string): string => {
+    const [y, m] = key.split('-').map(Number);
+    const maxDay = new Date(y, m, 0).getDate();
+    const day = Math.min(Math.max(1, parseInt(ponctuelDay) || 1), maxDay);
+    return `${key}-${String(day).padStart(2, '0')}`;
+  };
 
   const [showAccountPicker, setShowAccountPicker] = useState<'source' | 'destination' | null>(null);
   const [showCalendar, setShowCalendar] = useState<'target' | 'payment' | false>(false);
@@ -132,9 +142,12 @@ export default function AddProjectModal({
               entries[key] = { enabled: true, amount: Math.abs(Number(t.amount)).toString() };
             }
             setPonctuelEntries(entries);
+            // Déduire le jour du mois depuis la première transaction
+            if (txns.length > 0) setPonctuelDay(String(Number(txns[0].date.slice(8, 10)) || 1));
           });
       } else {
         setPonctuelEntries({});
+      setPonctuelDay('1');
       }
     } else if (visible) {
       setForm({
@@ -150,6 +163,7 @@ export default function AddProjectModal({
         current_accumulated: 0,
       });
       setPonctuelEntries({});
+      setPonctuelDay('1');
     }
   }, [visible, editingProject]);
 
@@ -235,7 +249,7 @@ export default function AddProjectModal({
       ponctuelList = Object.keys(ponctuelEntries)
         .filter((k) => k >= currentMonthKey && ponctuelEntries[k]?.enabled && parseFloat(ponctuelEntries[k]?.amount || '0') > 0)
         .sort()
-        .map((k) => ({ date: `${k}-01`, amount: parseFloat(ponctuelEntries[k].amount) }));
+        .map((k) => ({ date: ponctuelDateFor(k), amount: parseFloat(ponctuelEntries[k].amount) }));
       const anyEnabled = Object.values(ponctuelEntries).some((e) => e?.enabled && parseFloat(e.amount || '0') > 0);
       if (!anyEnabled) { alert('Veuillez activer au moins un mois avec un montant'); return; }
       monthlyAlloc = ponctuelList.length > 0 ? ponctuelList.reduce((s, e) => s + e.amount, 0) / ponctuelList.length : 0;
@@ -244,6 +258,7 @@ export default function AddProjectModal({
     const resetForm = () => {
       setForm({ name: '', description: '', target_amount: '', allocation_type: 'monthly', monthly_allocation: '', target_date: '', source_account_id: null, linked_account_id: null, first_payment_date: '', current_accumulated: 0 });
       setPonctuelEntries({});
+      setPonctuelDay('1');
       onSuccess?.();
       onClose();
     };
@@ -469,7 +484,26 @@ export default function AddProjectModal({
                 {/* Ponctuel */}
                 {form.allocation_type === 'ponctuel' && (
                   <View style={styles.field}>
-                    <Text style={[styles.label, { color: COLORS.text }]}>Apports par mois</Text>
+                    <Text style={[styles.label, { color: COLORS.text }]}>Jour du mois des virements</Text>
+                    <View style={styles.dateInputContainer}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
+                        placeholder="1"
+                        placeholderTextColor={COLORS.textSecondary}
+                        value={ponctuelDay}
+                        onChangeText={(t) => {
+                          const clean = t.replace(/[^0-9]/g, '');
+                          if (clean === '') { setPonctuelDay(''); return; }
+                          const n = Math.min(31, Math.max(1, parseInt(clean)));
+                          setPonctuelDay(String(n));
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        editable={!isPending}
+                      />
+                      <Text style={{ color: COLORS.textSecondary, fontSize: 13, paddingHorizontal: 4 }}>du mois</Text>
+                    </View>
+                    <Text style={[styles.label, { color: COLORS.text, marginTop: 12 }]}>Apports par mois</Text>
                     <View style={[styles.ponctuelContainer, { backgroundColor: COLORS.background, borderColor: COLORS.border }]}>
                       {ponctuelDisplayMonths.map((m, idx) => {
                         const entry = ponctuelEntries[m.key];
@@ -538,9 +572,9 @@ export default function AddProjectModal({
                     <Text style={styles.infoIcon}>💡</Text>
                     <Text style={[styles.infoText, { color: COLORS.textSecondary }]}>
                       {form.allocation_type === 'ponctuel'
-                        ? 'Les montants saisis seront créés en brouillons dans vos transactions futures.'
-                        : 'L\'allocation mensuelle sera créée en brouillons dans vos transactions futures.'}
-                      {' '}Vous pourrez les <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou modifier individuellement</Text> dans l'onglet Transactions, ou modifier tout le projet en y revenant.
+                        ? 'Chaque montant saisi sera ajouté comme transaction en brouillon à la date prévue.'
+                        : 'Chaque versement mensuel sera ajouté comme transaction en brouillon aux dates à venir.'}
+                      {' '}Vous pourrez ensuite <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou ajuster chaque versement un par un</Text> dans l'onglet Transactions, ou tout modifier d'un coup en rouvrant ce projet.
                     </Text>
                   </View>
                 )}
