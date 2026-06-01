@@ -249,18 +249,6 @@ export default function RecommendationCard({
               <Text style={styles.dismissText}>Ignorer</Text>
             </TouchableOpacity>
 
-            {/* Cumuler — épargne / invest uniquement */}
-            {(currentReco.type === 'save' || currentReco.type === 'invest') && (
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                onPress={() => onCumuler?.(currentReco.type === 'save' ? 'epargne' : 'invest', currentReco)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="layers-outline" size={16} color={COLORS.text} />
-                <Text style={styles.secondaryText}>Cumuler pour plus tard</Text>
-              </TouchableOpacity>
-            )}
-
             {/* Action principale par type (masquée si le compte cible manque) */}
             {currentReco.type === 'save' && hasSavingsAccount !== false && (
               <TouchableOpacity
@@ -293,6 +281,18 @@ export default function RecommendationCard({
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Cumuler — épargne / invest uniquement, pleine largeur sous les actions */}
+          {(currentReco.type === 'save' || currentReco.type === 'invest') && (
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { marginTop: 8 }]}
+              onPress={() => onCumuler?.(currentReco.type === 'save' ? 'epargne' : 'invest', currentReco)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="layers-outline" size={16} color={COLORS.text} />
+              <Text style={styles.secondaryText}>Cumuler pour plus tard</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Message « pas de compte » (§2/§3) */}
           {((currentReco.type === 'save' && hasSavingsAccount === false) ||

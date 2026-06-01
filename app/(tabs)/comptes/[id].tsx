@@ -107,6 +107,18 @@ export default function AccountDetailScreen() {
   const [showGainLossCalendar, setShowGainLossCalendar] = useState(false);
   const [isLoss, setIsLoss] = useState(false);
 
+  // Intérêts (comptes épargne)
+  const [showInterest, setShowInterest] = useState(false);
+  const [interestMode, setInterestMode] = useState<'amount' | 'balance'>('amount');
+  const [showInterestMethodPicker, setShowInterestMethodPicker] = useState(false);
+  const [interestAmount, setInterestAmount] = useState('');
+  const [interestBalance, setInterestBalance] = useState('');
+  const [interestNote, setInterestNote] = useState('Intérêts');
+  const [interestDate, setInterestDate] = useState(todayISO());
+  const [interestDateDisplay, setInterestDateDisplay] = useState(formatDateFrench(todayISO()));
+  const [showInterestCalendar, setShowInterestCalendar] = useState(false);
+  const [interestLoading, setInterestLoading] = useState(false);
+
   async function handleBalance() {
     const newBalance = parseFloat(balanceInput.replace(',', '.'));
     if (Number.isNaN(newBalance)) {
@@ -220,6 +232,57 @@ export default function AccountDetailScreen() {
     }
   }
 
+  async function handleInterest() {
+    let num: number;
+    if (interestMode === 'amount') {
+      num = parseFloat(interestAmount.replace(',', '.'));
+      if (Number.isNaN(num) || num === 0) {
+        Alert.alert('Montant invalide', 'Saisissez un montant.');
+        return;
+      }
+      num = Math.abs(num); // les intérêts sont toujours crédités
+    } else {
+      const balance = parseFloat(interestBalance.replace(',', '.'));
+      if (Number.isNaN(balance)) {
+        Alert.alert('Solde invalide', 'Saisissez un solde final valide.');
+        return;
+      }
+      if (!account) {
+        Alert.alert('Compte introuvable', 'Impossible de calculer le solde.');
+        return;
+      }
+      num = balance - Number(account.balance);
+      if (num === 0) {
+        Alert.alert('Aucune variation', 'Le solde est identique au solde actuel.');
+        return;
+      }
+    }
+
+    if (!id || !user?.id) return;
+    setInterestLoading(true);
+    try {
+      await addTransaction.mutateAsync({
+        account_id: id,
+        category_id: null,
+        amount: num,
+        date: interestDate,
+        note: interestNote.trim() || 'Intérêts',
+        is_recurring: false,
+      });
+      setShowInterest(false);
+      setInterestAmount('');
+      setInterestBalance('');
+      setInterestMode('amount');
+      setInterestNote('Intérêts');
+      setInterestDate(todayISO());
+      setInterestDateDisplay(formatDateFrench(todayISO()));
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
+    } finally {
+      setInterestLoading(false);
+    }
+  }
+
   const balanceAtDate = useMemo(() => {
     if (!id) return account ? Number(account.balance) : 0;
     const afterDate = (transactions as TransactionWithDetails[]).filter(
@@ -298,6 +361,18 @@ export default function AccountDetailScreen() {
               >
                 <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
                 <Text style={[styles.editBtnLabel, { color: '#a78bfa' }]}>+/- value</Text>
+              </TouchableOpacity>
+            ) : null}
+            {account.type === 'savings' ? (
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => { setShowInterest(true); setShowInterestMethodPicker(false); const today = todayISO(); setInterestDate(today); setInterestDateDisplay(formatDateFrench(today)); }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Intérêts"
+              >
+                <Ionicons name="cash-outline" size={20} color="#34d399" />
+                <Text style={[styles.editBtnLabel, { color: '#34d399' }]}>Intérêts</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -750,6 +825,134 @@ export default function AccountDetailScreen() {
               }}
               markedDates={gainLossDate ? { [gainLossDate]: { selected: true, selectedColor: '#a78bfa', selectedTextColor: '#000' } } : {}}
               accentColor="#a78bfa"
+              bgColor={COLORS.card}
+              textColor={COLORS.text}
+              textSecondaryColor="#334155"
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Intérêts modal (comptes épargne) ── */}
+      <Modal visible={showInterest} transparent animationType="fade" onRequestClose={() => { setShowInterest(false); setShowInterestMethodPicker(false); }}>
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.container}>
+            <Text style={modalStyles.title}>Intérêts</Text>
+
+            <Text style={modalStyles.sectionLabel}>Méthode de saisie</Text>
+            <TouchableOpacity
+              style={modalStyles.dropdownField}
+              onPress={() => setShowInterestMethodPicker((v) => !v)}
+              activeOpacity={0.8}
+            >
+              <Text style={modalStyles.dropdownText}>{interestMode === 'amount' ? 'Montant' : 'Nouveau Solde'}</Text>
+              <Ionicons name={showInterestMethodPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            {showInterestMethodPicker ? (
+              <View style={modalStyles.dropdownOptions}>
+                <TouchableOpacity style={modalStyles.dropdownOption} onPress={() => { setInterestMode('amount'); setShowInterestMethodPicker(false); }} activeOpacity={0.8}>
+                  <Text style={modalStyles.dropdownOptionLabel}>Montant</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={modalStyles.dropdownOption} onPress={() => { setInterestMode('balance'); setShowInterestMethodPicker(false); }} activeOpacity={0.8}>
+                  <Text style={modalStyles.dropdownOptionLabel}>Nouveau Solde</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {interestMode === 'amount' ? (
+              <>
+                <Text style={modalStyles.label}>Montant des intérêts</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  value={interestAmount}
+                  onChangeText={setInterestAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="0,00"
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+                <Text style={modalStyles.helperText}>Montant des intérêts à créditer sur le compte.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={modalStyles.label}>Solde actuel</Text>
+                <View style={modalStyles.readOnlyInput}>
+                  <Text style={modalStyles.readOnlyText}>
+                    {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                  </Text>
+                </View>
+                <Text style={modalStyles.label}>Nouveau solde</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  value={interestBalance}
+                  onChangeText={setInterestBalance}
+                  keyboardType="decimal-pad"
+                  placeholder="0,00"
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+                <Text style={modalStyles.helperText}>Les intérêts sont calculés à partir du nouveau solde.</Text>
+              </>
+            )}
+
+            <Text style={modalStyles.label}>Date</Text>
+            <TouchableOpacity
+              style={[modalStyles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowInterestCalendar(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: COLORS.text, fontSize: 16 }}>{interestDateDisplay}</Text>
+              <Ionicons name="calendar-outline" size={20} color={COLORS.emerald} />
+            </TouchableOpacity>
+
+            <Text style={modalStyles.label}>Note (optionnel)</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={interestNote}
+              onChangeText={setInterestNote}
+              placeholder="Intérêts"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+
+            <View style={modalStyles.actions}>
+              <TouchableOpacity style={modalStyles.cancel} onPress={() => { setShowInterest(false); setShowInterestMethodPicker(false); }} activeOpacity={0.7}>
+                <Text style={modalStyles.cancelLabel}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modalStyles.confirm, { backgroundColor: '#34d399' }, interestLoading && { opacity: 0.5 }]}
+                onPress={handleInterest}
+                disabled={interestLoading}
+                activeOpacity={0.8}
+              >
+                {interestLoading ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={modalStyles.confirmLabel}>Valider</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Calendrier Intérêts ── */}
+      <Modal visible={showInterestCalendar} transparent animationType="fade" onRequestClose={() => setShowInterestCalendar(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.container, { padding: 8 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
+              <Text style={modalStyles.title}>Date des intérêts</Text>
+              <TouchableOpacity onPress={() => setShowInterestCalendar(false)}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+            <CalendarWithPicker
+              current={interestDate}
+              maxDate={new Date().toISOString().slice(0, 10)}
+              onDayPress={(day: any) => {
+                setInterestDate(day.dateString);
+                setInterestDateDisplay(formatDateFrench(day.dateString));
+                setShowInterestCalendar(false);
+              }}
+              markedDates={interestDate ? { [interestDate]: { selected: true, selectedColor: '#34d399', selectedTextColor: '#000' } } : {}}
+              accentColor="#34d399"
               bgColor={COLORS.card}
               textColor={COLORS.text}
               textSecondaryColor="#334155"

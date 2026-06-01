@@ -18,6 +18,7 @@ import { useProfile, useUpdateProfile } from './hooks/useProfile';
 import CurrencyPicker from './components/CurrencyPicker';
 import { useSaveQuestionnaire } from './hooks/useFinancialProfile';
 import { useCategories, useSeedDefaultCategories } from './hooks/useCategories';
+import { useSeedDefaultAccounts } from './hooks/useAccounts';
 import {
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
@@ -95,6 +96,7 @@ export default function QuestionnaireScreen() {
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
   const { data: existingCategories = [] } = useCategories(user?.id);
   const seedDefaultCategories = useSeedDefaultCategories(user?.id);
+  const seedDefaultAccounts = useSeedDefaultAccounts(user?.id);
 
   // Charger la progression sauvegardée
   const savedProgress = useMemo(() => loadQuestionnaireProgress(user?.id), [user?.id]);
@@ -200,6 +202,13 @@ export default function QuestionnaireScreen() {
       } catch (e: unknown) {
         console.warn('[questionnaire] seed catégories par défaut échoué (non bloquant):', e);
       }
+    }
+
+    // Créer les comptes par défaut (Compte courant + Livret A + LDDS) si aucun compte.
+    try {
+      await seedDefaultAccounts.mutateAsync();
+    } catch (e: unknown) {
+      console.warn('[questionnaire] seed comptes par défaut échoué (non bloquant):', e);
     }
 
     // Best-effort : marquer l'onboarding terminé dans profiles.

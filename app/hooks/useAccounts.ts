@@ -48,6 +48,45 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+/**
+ * Crée les comptes par défaut à la fin de l'onboarding si l'utilisateur n'en a aucun :
+ * un compte courant, un Livret A et un LDDS (épargne). Idempotent.
+ */
+export function useSeedDefaultAccounts(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+      const { data: existing } = await supabase
+        .from('accounts')
+        .select('id')
+        .eq('profile_id', profileId)
+        .limit(1);
+      if (existing && existing.length > 0) return; // déjà des comptes → ne rien faire
+
+      const defaults = [
+        { name: 'Compte courant', type: 'checking' },
+        { name: 'Livret A', type: 'savings' },
+        { name: 'LDDS', type: 'savings' },
+      ];
+      const { error } = await supabase.from('accounts').insert(
+        defaults.map((d) => ({
+          profile_id: profileId,
+          name: d.name,
+          type: d.type,
+          currency: 'EUR',
+          balance: 0,
+        }))
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
+}
+
 export function useAddAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({

@@ -498,8 +498,19 @@ export default function TreasuryPlanScreen() {
     // au lieu de rétro-projeter les récurrences du mois entier. Cohérent avec l'écran compte.
     const lastDayOf = (y: number, mo: number): string =>
       `${y}-${String(mo).padStart(2, '0')}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`;
+    // Date de la première activité réelle sur les comptes courant (1ère transaction non-brouillon).
+    // Avant cette date, il n'y avait rien → le solde doit être 0, peu importe les écritures saisies.
+    let firstCheckingActivity: string | null = null;
+    for (const t of transactions as TransactionWithDetails[]) {
+      if (t.account?.type !== 'checking') continue;
+      if ((t as any).is_draft) continue;
+      if (!firstCheckingActivity || t.date < firstCheckingActivity) firstCheckingActivity = t.date;
+    }
+
     const realCheckingBalanceAtMonthEnd = (y: number, mo: number): number => {
       const emd = lastDayOf(y, mo);
+      // Mois entièrement antérieur à la première activité → 0 (rien n'existait encore).
+      if (firstCheckingActivity && emd < firstCheckingActivity) return 0;
       let after = 0;
       for (const t of transactions as TransactionWithDetails[]) {
         if (t.account?.type !== 'checking') continue;
