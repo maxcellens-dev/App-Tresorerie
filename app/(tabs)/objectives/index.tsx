@@ -148,13 +148,12 @@ export default function ObjectivesScreen() {
     );
 
     const targetAmount = parseFloat(objective.target_yearly_amount);
-    
-    let currentAmount = 0;
-    if (objective.category === 'Objectif annuel' && objective.linked_account_id) {
-      currentAmount = calculateYearlyTotal(transactions);
-    } else {
-      currentAmount = objective.current_year_invested || 0;
-    }
+
+    // Même logique que le Pilotage : somme des transactions POSITIVES de l'année
+    // sur le compte lié, quelle que soit la catégorie de l'objectif.
+    const currentAmount = objective.linked_account_id
+      ? transactions.filter((t) => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0)
+      : (objective.current_year_invested || 0);
     
     const progress = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
 

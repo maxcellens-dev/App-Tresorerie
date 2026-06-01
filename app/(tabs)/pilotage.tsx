@@ -373,15 +373,14 @@ export default function PilotageScreen() {
 
                   {/* Marge de sécurité — affichée uniquement si > 0 */}
                   {safetyMargin > 0 && (
-                    <View style={[styles.suiviRow, { opacity: 0.75 }]}>
-                      <View style={[styles.suiviIcon, { backgroundColor: '#fbbf2422' }]}>
-                        <Ionicons name="shield-outline" size={16} color="#fbbf24" />
+                    <View style={[styles.suiviRow, { opacity: 0.75, paddingVertical: 6 }]}>
+                      <View style={[styles.suiviIcon, { backgroundColor: '#fbbf2422', width: 24, height: 24 }]}>
+                        <Ionicons name="shield-outline" size={12} color="#fbbf24" />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.suiviLabel, { color: '#fbbf24' }]}>Votre marge de sécurité</Text>
-                        <Text style={styles.suiviHint}>Montant minimum à conserver sur le courant</Text>
+                        <Text style={[styles.suiviLabel, { color: '#fbbf24', fontSize: 11 }]}>Votre marge de sécurité</Text>
                       </View>
-                      <Text style={[styles.suiviValue, { color: '#fbbf24' }]}>{fmt(safetyMargin)}</Text>
+                      <Text style={[styles.suiviValue, { color: '#fbbf24', fontSize: 11 }]}>{fmt(safetyMargin)}</Text>
                     </View>
                   )}
 
