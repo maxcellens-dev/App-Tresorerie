@@ -257,7 +257,7 @@ export default function RecommendationCard({
                 activeOpacity={0.7}
               >
                 <Ionicons name="layers-outline" size={16} color={COLORS.text} />
-                <Text style={styles.secondaryText}>Cumuler</Text>
+                <Text style={styles.secondaryText}>Cumuler pour plus tard</Text>
               </TouchableOpacity>
             )}
 
@@ -451,6 +451,7 @@ function makeStyles(c: any) {
     flexDirection: 'row',
     gap: 10,
     marginTop: 4,
+    flexWrap: 'wrap',
   },
   dismissBtn: {
     flexDirection: 'row',

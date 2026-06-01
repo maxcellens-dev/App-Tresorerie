@@ -491,6 +491,25 @@ export default function TreasuryPlanScreen() {
     const currentIdx = months.findIndex((m) => m.key === currentMonthKey);
     const soldeByMonth: Record<string, number> = {};
 
+    // Solde réel à fin de mois pour les mois PASSÉS :
+    // = solde courant actuel − somme des vraies transactions courant (non-brouillon,
+    //   hors modèles récurrents) datées APRÈS la fin de ce mois.
+    // Cela ancre le solde sur les écritures réelles (ex. régularisation de solde),
+    // au lieu de rétro-projeter les récurrences du mois entier. Cohérent avec l'écran compte.
+    const lastDayOf = (y: number, mo: number): string =>
+      `${y}-${String(mo).padStart(2, '0')}-${String(new Date(y, mo, 0).getDate()).padStart(2, '0')}`;
+    const realCheckingBalanceAtMonthEnd = (y: number, mo: number): number => {
+      const emd = lastDayOf(y, mo);
+      let after = 0;
+      for (const t of transactions as TransactionWithDetails[]) {
+        if (t.account?.type !== 'checking') continue;
+        if ((t as any).is_draft) continue;
+        if (t.is_recurring && t.recurrence_rule) continue; // modèles récurrents exclus (non matérialisés)
+        if (t.date > emd) after += Number(t.amount);
+      }
+      return checkingBalance - after;
+    };
+
     // Helper : net d'un mois quelconque (hors fenêtre) pour les mois intermédiaires
     const computeMonthNet = (y: number, mo: number): number => {
       let net = 0;
@@ -510,12 +529,11 @@ export default function TreasuryPlanScreen() {
     };
 
     if (currentIdx >= 0) {
-      // Mois courant dans la fenêtre
+      // Mois courant dans la fenêtre = solde actuel
       soldeByMonth[currentMonthKey] = checkingBalance;
-      // Passés : remonter en soustrayant le net réel du mois suivant
+      // Passés : solde réel à fin de mois ancré sur les vraies transactions
       for (let i = currentIdx - 1; i >= 0; i--) {
-        const nextKey = months[i + 1].key;
-        soldeByMonth[months[i].key] = soldeByMonth[nextKey] - checkingNetByMonth[nextKey];
+        soldeByMonth[months[i].key] = realCheckingBalanceAtMonthEnd(months[i].year, months[i].month);
       }
       // Futurs : avancer avec checkingNetByMonth (cohérent avec le cas all-future)
       for (let i = currentIdx + 1; i < months.length; i++) {
@@ -536,12 +554,10 @@ export default function TreasuryPlanScreen() {
         soldeByMonth[m.key] = prev;
       });
     } else {
-      // Fenêtre 100% passée : ancrage sur le dernier mois, remonter
-      soldeByMonth[months[months.length - 1].key] = checkingBalance;
-      for (let i = months.length - 2; i >= 0; i--) {
-        const nextKey = months[i + 1].key;
-        soldeByMonth[months[i].key] = soldeByMonth[nextKey] - checkingNetByMonth[nextKey];
-      }
+      // Fenêtre 100% passée : chaque mois = solde réel à fin de mois (ancré sur les vraies transactions)
+      months.forEach((m) => {
+        soldeByMonth[m.key] = realCheckingBalanceAtMonthEnd(m.year, m.month);
+      });
     }
 
     rows.push({ label: 'Solde', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });

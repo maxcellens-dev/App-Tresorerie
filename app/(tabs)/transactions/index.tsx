@@ -591,7 +591,8 @@ export default function TransactionsListScreen() {
 
                         const isDraft = !!(item as any).is_draft;
                         const isProjectDraft = isDraft && isProject;
-                        const isDraftQuickAction = isDraft && key <= currentMonthKey;
+                        // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
+                        const isDraftQuickAction = isDraft;
                         const navigateToEdit = () => {
                           const route = item.displayDate
                             ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`

@@ -264,12 +264,20 @@ export function useUpdateProject(profileId: string | undefined) {
         .maybeSingle();
       const projetsCategoryId = projetsCat?.id ?? null;
 
-      // 2. Supprimer TOUTES les transactions du projet
-      const { error: delErr } = await supabase
+      // 2. Supprimer les transactions du projet à régénérer.
+      //    Ponctuel : préserver les mois PASSÉS (avant le mois courant) — on ne supprime
+      //    que le mois courant et les mois futurs. Mensuel / date : régénération complète.
+      const nowDel = new Date();
+      const currentMonthStart = `${nowDel.getFullYear()}-${String(nowDel.getMonth() + 1).padStart(2, '0')}-01`;
+      let delQuery = supabase
         .from('transactions')
         .delete()
         .eq('project_id', input.id)
         .eq('profile_id', profileId);
+      if (allocType === 'ponctuel') {
+        delQuery = delQuery.gte('date', currentMonthStart);
+      }
+      const { error: delErr } = await delQuery;
       if (delErr) console.warn('Erreur suppression txns projet:', delErr);
 
       // 3a. Ponctuel : régénérer depuis les entrées fournies

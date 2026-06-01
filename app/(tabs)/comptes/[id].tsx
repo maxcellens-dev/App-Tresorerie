@@ -44,6 +44,24 @@ function isInvestmentGainLossNote(note: string | null | undefined): boolean {
   return !!note && /plus|moins|gain|perte/i.test(note);
 }
 
+/** Cherche la transaction symétrique (même note + date + montant opposé sur un autre compte, sans catégorie). */
+function findSymmetricTx(
+  t: TransactionWithDetails,
+  allTx: TransactionWithDetails[],
+  currentAccountId: string,
+): TransactionWithDetails | null {
+  if (!t.note || t.category_id != null) return null;
+  return allTx.find(
+    (p) =>
+      p.id !== t.id &&
+      p.account_id !== currentAccountId &&
+      p.category_id == null &&
+      p.date === t.date &&
+      Math.abs(Number(p.amount) + Number(t.amount)) < 0.01 &&
+      p.note === t.note
+  ) ?? null;
+}
+
 export default function AccountDetailScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
@@ -325,22 +343,22 @@ export default function AccountDetailScreen() {
           <View style={styles.listCard}>
             {accountTransactions.map((t, idx) => {
               const amount = Number(t.amount);
-              const isTransfer = t.category_id == null && isTransferNote(t.note ?? null);
+              const isTransfer = t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transactions as TransactionWithDetails[], id));
               const pair = isTransfer
-                ? (transactions as TransactionWithDetails[]).find(
+                ? ((transactions as TransactionWithDetails[]).find(
                     (p) =>
                       p.account_id !== id &&
                       p.category_id == null &&
-                      isTransferNote(p.note ?? null) &&
+                      (isTransferNote(p.note ?? null) || p.note === t.note) &&
                       p.date === t.date &&
                       Number(p.amount) === -amount
-                  )
+                  ) ?? null)
                 : null;
               const otherAccountName = pair ? accounts.find((a) => a.id === pair.account_id)?.name ?? 'Compte' : 'Compte';
               const label = isTransfer
-                ? amount > 0
-                  ? `Depuis ${otherAccountName}`
-                  : `Vers ${otherAccountName}`
+                ? (isTransferNote(t.note ?? null)
+                    ? (amount > 0 ? `Depuis ${otherAccountName}` : `Vers ${otherAccountName}`)
+                    : (t.note?.trim() || (amount > 0 ? `Depuis ${otherAccountName}` : `Vers ${otherAccountName}`)))
                 : t.note?.trim() || t.category?.name || 'Transaction';
               return (
                 <TouchableOpacity
@@ -747,16 +765,19 @@ export default function AccountDetailScreen() {
             {selectedTx && (() => {
               const amt = Number(selectedTx.amount);
               const isIncoming = amt >= 0;
-              const isTransfer = selectedTx.category_id == null && isTransferNote(selectedTx.note ?? null);
+              const isTransfer = selectedTx.category_id == null && (isTransferNote(selectedTx.note ?? null) || !!findSymmetricTx(selectedTx, transactions as TransactionWithDetails[], id!));
               const pairTx = isTransfer
                 ? (transactions as TransactionWithDetails[]).find(
-                    (p) => p.account_id !== id && p.category_id == null && isTransferNote(p.note ?? null) &&
+                    (p) => p.account_id !== id && p.category_id == null &&
+                      (isTransferNote(p.note ?? null) || p.note === selectedTx.note) &&
                       p.date === selectedTx.date && Number(p.amount) === -amt
                   )
                 : null;
               const otherName = pairTx ? accounts.find((a) => a.id === pairTx.account_id)?.name ?? 'Compte' : null;
               const label = isTransfer
-                ? isIncoming ? `Depuis ${otherName ?? 'Compte'}` : `Vers ${otherName ?? 'Compte'}`
+                ? (isTransferNote(selectedTx.note ?? null)
+                    ? (isIncoming ? `Depuis ${otherName ?? 'Compte'}` : `Vers ${otherName ?? 'Compte'}`)
+                    : (selectedTx.note?.trim() || (isIncoming ? `Depuis ${otherName ?? 'Compte'}` : `Vers ${otherName ?? 'Compte'}`)))
                 : selectedTx.note?.trim() || selectedTx.category?.name || 'Transaction';
 
               const linkedAccountId = (selectedTx as any).linked_account_id as string | null;

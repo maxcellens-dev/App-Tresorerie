@@ -10,6 +10,7 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from './CalendarWithPicker';
 import { useAuth } from '../contexts/AuthContext';
 import { useAddProject, useUpdateProject } from '../hooks/useProjects';
@@ -74,6 +75,10 @@ export default function AddProjectModal({
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts(user?.id || '');
 
   const months12 = useMemo(() => getNext12Months(), []);
+  const currentMonthKey = useMemo(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
 
   const [form, setForm] = useState<FormState>({
     name: '',
@@ -165,12 +170,29 @@ export default function AddProjectModal({
   }, [form.allocation_type, form.target_date, form.target_amount, form.current_accumulated, form.first_payment_date]);
 
   const ponctuelTotal = useMemo(() => {
-    return months12.reduce((sum, m) => {
-      const e = ponctuelEntries[m.key];
+    return Object.values(ponctuelEntries).reduce((sum, e) => {
       if (e?.enabled && e.amount) return sum + (parseFloat(e.amount) || 0);
       return sum;
     }, 0);
-  }, [ponctuelEntries, months12]);
+  }, [ponctuelEntries]);
+
+  // Mois affichés dans le tableau ponctuel = mois PASSÉS déjà saisis (lecture seule, grisés)
+  // + les 12 mois à partir du mois courant (modifiables).
+  const ponctuelDisplayMonths = useMemo(() => {
+    const past = Object.keys(ponctuelEntries)
+      .filter((k) => k < currentMonthKey)
+      .sort()
+      .map((k) => {
+        const [y, m] = k.split('-').map(Number);
+        return {
+          key: k,
+          label: new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+          dayOne: `${k}-01`,
+          isPast: true,
+        };
+      });
+    return [...past, ...months12.map((m) => ({ ...m, isPast: false }))];
+  }, [ponctuelEntries, currentMonthKey, months12]);
 
   const togglePonctuelMonth = (key: string) => {
     setPonctuelEntries((prev) => {
@@ -209,12 +231,14 @@ export default function AddProjectModal({
       if (!form.target_date || !calculatedAllocation) { alert('Veuillez entrer une date cible valide'); return; }
       monthlyAlloc = calculatedAllocation;
     } else {
-      // ponctuel
-      ponctuelList = months12
-        .filter((m) => ponctuelEntries[m.key]?.enabled && parseFloat(ponctuelEntries[m.key]?.amount || '0') > 0)
-        .map((m) => ({ date: m.dayOne, amount: parseFloat(ponctuelEntries[m.key].amount) }));
-      if (ponctuelList.length === 0) { alert('Veuillez activer au moins un mois avec un montant'); return; }
-      monthlyAlloc = ponctuelTotal / ponctuelList.length;
+      // ponctuel — ne régénérer que le mois courant + futurs (les mois passés sont préservés)
+      ponctuelList = Object.keys(ponctuelEntries)
+        .filter((k) => k >= currentMonthKey && ponctuelEntries[k]?.enabled && parseFloat(ponctuelEntries[k]?.amount || '0') > 0)
+        .sort()
+        .map((k) => ({ date: `${k}-01`, amount: parseFloat(ponctuelEntries[k].amount) }));
+      const anyEnabled = Object.values(ponctuelEntries).some((e) => e?.enabled && parseFloat(e.amount || '0') > 0);
+      if (!anyEnabled) { alert('Veuillez activer au moins un mois avec un montant'); return; }
+      monthlyAlloc = ponctuelList.length > 0 ? ponctuelList.reduce((s, e) => s + e.amount, 0) / ponctuelList.length : 0;
     }
 
     const resetForm = () => {
@@ -447,30 +471,41 @@ export default function AddProjectModal({
                   <View style={styles.field}>
                     <Text style={[styles.label, { color: COLORS.text }]}>Apports par mois</Text>
                     <View style={[styles.ponctuelContainer, { backgroundColor: COLORS.background, borderColor: COLORS.border }]}>
-                      {months12.map((m, idx) => {
+                      {ponctuelDisplayMonths.map((m, idx) => {
                         const entry = ponctuelEntries[m.key];
                         const enabled = entry?.enabled ?? false;
+                        const isPast = (m as any).isPast;
                         return (
                           <View
                             key={m.key}
                             style={[
                               styles.ponctuelRow,
-                              idx < months12.length - 1 && { borderBottomWidth: 1, borderBottomColor: COLORS.border },
+                              idx < ponctuelDisplayMonths.length - 1 && { borderBottomWidth: 1, borderBottomColor: COLORS.border },
+                              isPast && { opacity: 0.55 },
                             ]}
                           >
                             <TouchableOpacity
                               style={styles.ponctuelToggle}
-                              onPress={() => togglePonctuelMonth(m.key)}
-                              activeOpacity={0.7}
+                              onPress={() => !isPast && togglePonctuelMonth(m.key)}
+                              activeOpacity={isPast ? 1 : 0.7}
+                              disabled={isPast}
                             >
-                              <View style={[styles.ponctuelDot, enabled && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}>
-                                {enabled && <View style={styles.ponctuelDotInner} />}
-                              </View>
+                              {isPast ? (
+                                <Ionicons name="lock-closed" size={14} color={COLORS.textSecondary} />
+                              ) : (
+                                <View style={[styles.ponctuelDot, enabled && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}>
+                                  {enabled && <View style={styles.ponctuelDotInner} />}
+                                </View>
+                              )}
                             </TouchableOpacity>
                             <Text style={[styles.ponctuelLabel, { color: enabled ? COLORS.text : COLORS.textSecondary }]}>
-                              {m.label}
+                              {m.label}{isPast ? ' · passé' : ''}
                             </Text>
-                            {enabled ? (
+                            {isPast ? (
+                              <Text style={[styles.ponctuelInput, { color: COLORS.textSecondary, borderColor: 'transparent', textAlign: 'right' }]}>
+                                {enabled && entry?.amount ? `${entry.amount} ${CURRENCY_SYMBOL}` : '–'}
+                              </Text>
+                            ) : enabled ? (
                               <TextInput
                                 style={[styles.ponctuelInput, { color: COLORS.blue, borderColor: COLORS.blue + '60' }]}
                                 placeholder="0"
@@ -494,6 +529,19 @@ export default function AddProjectModal({
                         </Text>
                       </View>
                     </View>
+                  </View>
+                )}
+
+                {/* Message d'information sur les brouillons générés */}
+                {!editingProject && (
+                  <View style={[styles.infoBox, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40' }]}>
+                    <Text style={styles.infoIcon}>💡</Text>
+                    <Text style={[styles.infoText, { color: COLORS.textSecondary }]}>
+                      {form.allocation_type === 'ponctuel'
+                        ? 'Les montants saisis seront créés en brouillons dans vos transactions futures.'
+                        : 'L\'allocation mensuelle sera créée en brouillons dans vos transactions futures.'}
+                      {' '}Vous pourrez les <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou modifier individuellement</Text> dans l'onglet Transactions, ou modifier tout le projet en y revenant.
+                    </Text>
                   </View>
                 )}
 
@@ -705,6 +753,10 @@ function makeStyles(c: any) {
   calendarTitle: { fontSize: 16, fontWeight: '600', flex: 1, textAlign: 'center' },
   calendarWrapper: { height: 420, justifyContent: 'flex-start' },
   calendar: { overflow: 'hidden' },
+  // Info box
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 12 },
+  infoIcon: { fontSize: 14, marginTop: 1 },
+  infoText: { flex: 1, fontSize: 12, lineHeight: 17 },
   // Ponctuel
   ponctuelContainer: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   ponctuelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },

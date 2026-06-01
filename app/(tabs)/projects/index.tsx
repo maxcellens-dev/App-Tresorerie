@@ -225,23 +225,36 @@ export default function ProjectsScreen() {
                 {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
               </Text>
             </View>
-            <View>
-              <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
-                Allocation mensuelle
-              </Text>
-              <Text style={[styles.detailValue, { color: COLORS.primary }]}>
-                {CURRENCY_SYMBOL}{monthlyAllocation.toFixed(2)}/mois
-              </Text>
-            </View>
-            {monthsToComplete > 0 && !isComplete && (
+            {project.allocation_type === 'ponctuel' ? (
               <View>
                 <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
-                  Durée restante
+                  Restant à verser
                 </Text>
-                <Text style={[styles.detailValue, { color: COLORS.text }]}>
-                  {monthsToComplete}m
+                <Text style={[styles.detailValue, { color: COLORS.primary }]}>
+                  {CURRENCY_SYMBOL}{Math.max(0, targetAmount - currentAccumulated).toFixed(2)}
                 </Text>
               </View>
+            ) : (
+              <>
+                <View>
+                  <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
+                    Allocation mensuelle
+                  </Text>
+                  <Text style={[styles.detailValue, { color: COLORS.primary }]}>
+                    {CURRENCY_SYMBOL}{monthlyAllocation.toFixed(2)}/mois
+                  </Text>
+                </View>
+                {monthsToComplete > 0 && !isComplete && (
+                  <View>
+                    <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
+                      Durée restante
+                    </Text>
+                    <Text style={[styles.detailValue, { color: COLORS.text }]}>
+                      {monthsToComplete}m
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
           </View>
 
