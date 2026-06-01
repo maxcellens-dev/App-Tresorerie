@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,8 @@ import { useProjects } from '../hooks/useProjects';
 import { useObjectives } from '../hooks/useObjectives';
 import { useAccounts } from '../hooks/useAccounts';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../hooks/usePreSavings';
-import { useReservations, useAddReservation } from '../hooks/useReservations';
+import { useReservations, useSetMonthlyReservation } from '../hooks/useReservations';
+import { useReleaseReservedByProject } from '../hooks/useTransactions';
 import { useRecoThresholds } from '../hooks/useRecoThresholds';
 import RecommendationCard from '../components/RecommendationCard';
 import PreSavingsModal from '../components/PreSavingsModal';
@@ -54,16 +55,26 @@ export default function PilotageScreen() {
   const addPreSaving = useAddPreSavingEntry(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
   const setPreSavingStatus = useSetPreSavingStatus(user?.id);
-  const addReservation = useAddReservation(user?.id);
+  const setMonthlyReservation = useSetMonthlyReservation(user?.id);
 
   // Modale pré-épargne/pré-invest + panneau cumuls
   const [preModal, setPreModal] = useState<PreSavingType | null>(null);
   const [preModalAmount, setPreModalAmount] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [showReservedModal, setShowReservedModal] = useState(false);
+  const releaseReserved = useReleaseReservedByProject(user?.id);
 
+  const fmtMain = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
   const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
   const preInvestTotal = preSavings?.invest.total_cumule ?? 0;
-  const reservationsTotal = reservations.reduce((s, r) => s + Number(r.montant), 0);
+  // Réservations « Conserver pour plus tard » : seulement celles du mois courant (réinitialisé chaque mois).
+  const reservationsTotal = React.useMemo(() => {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return reservations
+      .filter((r) => (r.created_at ?? '').slice(0, 7) === monthKey)
+      .reduce((s, r) => s + Number(r.montant), 0);
+  }, [reservations]);
 
   // Compte courant principal (solde le plus élevé) + présence des comptes cibles
   const mainCheckingId = [...accounts]
@@ -325,14 +336,15 @@ export default function PilotageScreen() {
               const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
               const savings = pilotageData.monthly_savings_planned;
               const invest = pilotageData.monthly_invest_planned;
-              const reserve = pilotageData.monthly_reserve_planned;
+              // Réservé = réservations projets (même compte) + montant conservé du mois (recos)
+              const reserve = pilotageData.monthly_reserve_planned + reservationsTotal;
               const expenses = pilotageData.month_expenses_total;
               const safetyMargin = pilotageData.safety_margin_amount ?? 0;
 
               const items = [
                 { label: 'Épargne prévue',   value: savings,  icon: 'shield-outline',     color: '#34d399', hint: 'Virements vers épargne + projets' },
                 { label: 'Investissement',   value: invest,   icon: 'trending-up-outline', color: '#a78bfa', hint: 'Virements vers comptes d\'investissement' },
-                { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: '#60a5fa', hint: 'Argent tagué « Réservé »' },
+                { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: '#60a5fa', hint: 'Conservé ce mois (projets + recos)' },
               ];
 
               // Reste du mois = reste disponible (base − cumuls − réservations)
@@ -344,18 +356,27 @@ export default function PilotageScreen() {
 
               return (
                 <View style={styles.suiviCard}>
-                  {items.map((it) => (
-                    <View key={it.label} style={styles.suiviRow}>
-                      <View style={[styles.suiviIcon, { backgroundColor: it.color + '22' }]}>
-                        <Ionicons name={it.icon as any} size={16} color={it.color} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.suiviLabel}>{it.label}</Text>
-                        <Text style={styles.suiviHint}>{it.hint}</Text>
-                      </View>
-                      <Text style={[styles.suiviValue, { color: it.color }]}>{fmt(it.value)}</Text>
-                    </View>
-                  ))}
+                  {items.map((it) => {
+                    const isReserveRow = it.label === 'Réservé';
+                    const RowWrap: any = isReserveRow ? TouchableOpacity : View;
+                    return (
+                      <RowWrap
+                        key={it.label}
+                        style={styles.suiviRow}
+                        {...(isReserveRow ? { onPress: () => setShowReservedModal(true), activeOpacity: 0.7 } : {})}
+                      >
+                        <View style={[styles.suiviIcon, { backgroundColor: it.color + '22' }]}>
+                          <Ionicons name={it.icon as any} size={16} color={it.color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.suiviLabel}>{it.label}</Text>
+                          <Text style={styles.suiviHint}>{it.hint}</Text>
+                        </View>
+                        <Text style={[styles.suiviValue, { color: it.color }]}>{fmt(it.value)}</Text>
+                        {isReserveRow && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 4 }} />}
+                      </RowWrap>
+                    );
+                  })}
 
                   <View style={styles.suiviDivider} />
 
@@ -449,9 +470,12 @@ export default function PilotageScreen() {
               onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
               onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
               onCumuler={(type, reco) => { setPreModalAmount(reco.amount); setPreModal(type); }}
-              onReserver={(reco) => {
+              reservedThisMonth={reservationsTotal}
+              onReserver={(reco, amount) => {
+                // `amount` = nouveau TOTAL conservé du mois (incluant cette reco) → on remplace.
                 const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                addReservation.mutate({ montant: Math.round(reco.amount), libelle: `Réservé ${monthYear}` });
+                const newTotal = Math.round(amount ?? (reservationsTotal + reco.amount));
+                setMonthlyReservation.mutate({ montant: newTotal, libelle: `Réservé ${monthYear}` });
               }}
             />
 
@@ -538,6 +562,85 @@ export default function PilotageScreen() {
           setPreModal(type);
         }}
       />
+
+      {/* Modal des montants réservés */}
+      <Modal visible={showReservedModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowReservedModal(false)}>
+        <View style={styles.reservedOverlay}>
+          <View style={styles.reservedSheet}>
+            <View style={styles.reservedHeader}>
+              <Text style={styles.reservedTitle}>Montants réservés</Text>
+              <TouchableOpacity onPress={() => setShowReservedModal(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {/* Conservé du mois (recommandations) */}
+              {reservationsTotal > 0 && (
+                <View style={styles.reservedItem}>
+                  <View style={[styles.reservedItemIcon, { backgroundColor: '#fbbf2422' }]}>
+                    <Ionicons name="hourglass-outline" size={16} color="#fbbf24" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reservedItemName}>Conservé ce mois (recommandations)</Text>
+                    <Text style={styles.reservedItemHint}>Se réinitialise chaque mois</Text>
+                  </View>
+                  <Text style={[styles.reservedItemAmount, { color: '#fbbf24' }]}>{fmtMain(reservationsTotal)}</Text>
+                </View>
+              )}
+
+              {/* Réservé par projet */}
+              {pilotageData.reserved_by_project.map((r) => (
+                <View key={r.id} style={styles.reservedProjectBlock}>
+                  <View style={styles.reservedItem}>
+                    <View style={[styles.reservedItemIcon, { backgroundColor: '#60a5fa22' }]}>
+                      <Ionicons name="bookmark" size={16} color="#60a5fa" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reservedItemName} numberOfLines={1}>{r.name}</Text>
+                      <Text style={styles.reservedItemHint}>Projet · réservé jusqu'à utilisation</Text>
+                    </View>
+                    <Text style={[styles.reservedItemAmount, { color: '#60a5fa' }]}>{fmtMain(r.total)}</Text>
+                  </View>
+                  <View style={styles.reservedActions}>
+                    <TouchableOpacity
+                      style={styles.reservedReleaseBtn}
+                      activeOpacity={0.7}
+                      onPress={() => { releaseReserved.mutate(r.id); }}
+                    >
+                      <Ionicons name="lock-open-outline" size={14} color="#f87171" />
+                      <Text style={styles.reservedReleaseText}>Libérer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.reservedTransferBtn}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setShowReservedModal(false);
+                        const q = new URLSearchParams({
+                          from: r.source_account_id ?? '',
+                          to: r.linked_account_id ?? '',
+                          amount: String(Math.round(r.total)),
+                          label: r.name,
+                          origin: 'pilotage',
+                          releaseProject: r.id,
+                        });
+                        router.push(`/(tabs)/comptes/transfer?${q.toString()}` as any);
+                      }}
+                    >
+                      <Ionicons name="swap-horizontal" size={14} color="#34d399" />
+                      <Text style={styles.reservedTransferText}>Créer un virement</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              {reservationsTotal <= 0 && pilotageData.reserved_by_project.length === 0 && (
+                <Text style={styles.reservedEmpty}>Aucun montant réservé pour le moment.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -800,5 +903,36 @@ function makeStyles(c: AppColors) {
     fontSize: 11,
     color: c.textSecondary,
   },
+  // Modal Réservé
+  reservedOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  reservedSheet: {
+    backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder, gap: 8,
+  },
+  reservedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  reservedTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+  reservedItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  reservedItemIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  reservedItemName: { fontSize: 14, fontWeight: '700', color: c.text },
+  reservedItemHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  reservedItemAmount: { fontSize: 15, fontWeight: '800' },
+  reservedProjectBlock: {
+    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14,
+    paddingHorizontal: 12, marginTop: 8, backgroundColor: c.card,
+  },
+  reservedActions: { flexDirection: 'row', gap: 8, paddingBottom: 12, paddingTop: 2 },
+  reservedReleaseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: '#f8717144', backgroundColor: '#f8717112',
+  },
+  reservedReleaseText: { fontSize: 12, fontWeight: '700', color: '#f87171' },
+  reservedTransferBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
+    borderWidth: 1, borderColor: '#34d39944', backgroundColor: '#34d39912',
+  },
+  reservedTransferText: { fontSize: 12, fontWeight: '700', color: '#34d399' },
+  reservedEmpty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 24 },
   });
 }

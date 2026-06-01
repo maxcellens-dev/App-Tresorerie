@@ -90,6 +90,29 @@ export function useAddTransaction(profileId: string | undefined) {
   });
 }
 
+/** Libère (supprime) tous les brouillons « Conservés » (is_reserved) d'un projet. */
+export function useReleaseReservedByProject(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('profile_id', profileId)
+        .eq('project_id', projectId)
+        .eq('is_draft', true)
+        .eq('is_reserved', true);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      client.invalidateQueries({ queryKey: ['projects', profileId] });
+    },
+  });
+}
+
 export function useUpdateTransaction(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
@@ -101,6 +124,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       date?: string;
       note?: string | null;
       is_draft?: boolean;
+      is_reserved?: boolean;
       is_recurring?: boolean;
       recurrence_rule?: RecurrenceRule | null;
       recurrence_end_date?: string | null;
@@ -128,6 +152,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       if (input.date !== undefined) updates.date = input.date;
       if (input.note !== undefined) updates.note = input.note;
       if (input.is_draft !== undefined) updates.is_draft = input.is_draft;
+      if (input.is_reserved !== undefined) updates.is_reserved = input.is_reserved;
       if (input.is_recurring !== undefined) updates.is_recurring = input.is_recurring;
       if (input.recurrence_rule !== undefined) updates.recurrence_rule = input.recurrence_rule;
       if (input.recurrence_end_date !== undefined) updates.recurrence_end_date = input.recurrence_end_date;

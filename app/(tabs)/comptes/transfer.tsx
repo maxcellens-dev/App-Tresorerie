@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
-import { useAddTransaction } from '../../hooks/useTransactions';
+import { useAddTransaction, useReleaseReservedByProject } from '../../hooks/useTransactions';
 import { useResetPreSaving } from '../../hooks/usePreSavings';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
@@ -36,11 +36,13 @@ export default function TransferScreen() {
   const params = useLocalSearchParams<{
     from?: string; to?: string; amount?: string; label?: string; date?: string;
     destType?: string; recoComplete?: string; resetPreSaving?: string; origin?: string;
+    releaseProject?: string;
   }>();
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
+  const releaseReserved = useReleaseReservedByProject(user?.id);
 
   // Filtre du compte cible : si destType fourni (depuis une reco), n'autoriser que ce type
   const destAccounts = params.destType
@@ -128,6 +130,10 @@ export default function TransferScreen() {
       // Virement global d'un cumul → remettre le cumul à 0
       if (params.resetPreSaving) {
         await resetPreSaving.mutateAsync(params.resetPreSaving as PreSavingType);
+      }
+      // Virement issu d'un montant réservé de projet → libérer (supprimer) les brouillons réservés
+      if (params.releaseProject) {
+        await releaseReserved.mutateAsync(params.releaseProject);
       }
       goBack();
     } catch (e: unknown) {

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
@@ -20,8 +20,10 @@ interface SmartRecommendationCardProps {
   onInvestir?: (reco: SmartRecommendation) => void;
   /** Bouton « Cumuler » → ouvrir la modale pré-épargne/pré-invest. */
   onCumuler?: (type: 'epargne' | 'invest', reco: SmartRecommendation) => void;
-  /** Reco Conserver → créer une réservation (après confirmation inline). */
-  onReserver?: (reco: SmartRecommendation) => void;
+  /** Reco Conserver → créer une réservation (après confirmation inline). Montant éditable. */
+  onReserver?: (reco: SmartRecommendation, amount?: number) => void;
+  /** Total déjà conservé ce mois (réservations) — affiché et inclus dans le nouveau total. */
+  reservedThisMonth?: number;
   /** Présence d'un compte épargne / investissement (pour le message « pas de compte »). */
   hasSavingsAccount?: boolean;
   hasInvestmentAccount?: boolean;
@@ -38,6 +40,7 @@ export default function RecommendationCard({
   onInvestir,
   onCumuler,
   onReserver,
+  reservedThisMonth = 0,
   hasSavingsAccount,
   hasInvestmentAccount,
   onCreateAccount,
@@ -48,6 +51,7 @@ export default function RecommendationCard({
   const [ignored, setIgnored] = useState<IgnoredMap>({});
   const [completed, setCompleted] = useState<RecoType[]>([]);
   const [confirmReserve, setConfirmReserve] = useState(false);
+  const [reserveAmount, setReserveAmount] = useState('');
 
   // Recharger les masquages à chaque focus (ex : retour de l'écran virement)
   const reloadDismissals = React.useCallback(() => {
@@ -66,7 +70,9 @@ export default function RecommendationCard({
   };
 
   const handleConfirmReserve = (reco: SmartRecommendation) => {
-    onReserver?.(reco);
+    const parsed = parseFloat(reserveAmount.replace(',', '.'));
+    const amount = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : reco.amount;
+    onReserver?.(reco, amount);
     addCompleted('keep');
     setCompleted(prev => prev.includes('keep') ? prev : [...prev, 'keep']);
     setConfirmReserve(false);
@@ -224,8 +230,22 @@ export default function RecommendationCard({
       {confirmReserve && currentReco.type === 'keep' ? (
         <View style={styles.confirmBox}>
           <Text style={styles.confirmText}>
-            Réserver {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL} pour plus tard ? Cette somme sera déduite de votre reste disponible mais reste sur votre compte courant.
+            {reservedThisMonth > 0
+              ? `Déjà conservé ce mois : ${reservedThisMonth.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}. Validez le nouveau total à conserver ce mois-ci :`
+              : 'Montant à conserver ce mois-ci ? Cette somme est déduite de votre reste disponible mais reste sur votre compte courant.'}
           </Text>
+          <View style={styles.reserveAmountRow}>
+            <TextInput
+              style={styles.reserveInput}
+              value={reserveAmount}
+              onChangeText={(t) => setReserveAmount(t.replace(/[^0-9.,]/g, ''))}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={COLORS.textSecondary}
+              selectTextOnFocus
+            />
+            <Text style={styles.reserveCurrency}>{CURRENCY_SYMBOL}</Text>
+          </View>
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.dismissBtn} onPress={() => setConfirmReserve(false)} activeOpacity={0.7}>
               <Text style={styles.dismissText}>Annuler</Text>
@@ -273,7 +293,7 @@ export default function RecommendationCard({
             {currentReco.type === 'keep' && (
               <TouchableOpacity
                 style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
-                onPress={() => setConfirmReserve(true)}
+                onPress={() => { setReserveAmount(String(Math.round(reservedThisMonth + currentReco.amount))); setConfirmReserve(true); }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="bookmark-outline" size={16} color={currentReco.color} />
@@ -517,6 +537,25 @@ function makeStyles(c: any) {
     color: c.text,
     lineHeight: 17,
   },
+  reserveAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reserveInput: {
+    flex: 1,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 18,
+    fontWeight: '700',
+    color: c.text,
+    textAlign: 'right',
+  },
+  reserveCurrency: { fontSize: 16, fontWeight: '700', color: c.textSecondary },
   noAccountBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
     backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,

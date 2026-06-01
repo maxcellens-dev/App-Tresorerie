@@ -18,9 +18,13 @@ export interface PilotageData {
   // Suivi des engagements du mois en cours
   monthly_savings_planned: number;       // virements récurrents épargne + projets
   monthly_invest_planned: number;        // virements récurrents invest + objectifs
-  monthly_reserve_planned: number;       // réservé sur le compte courant (projets même compte)
+  monthly_reserve_planned: number;       // total réservé (projets même compte + brouillons conservés)
   month_expenses_total: number;          // total dépenses du mois (passées + à venir, hors virements)
   committed_objective_monthly: number;   // engagements objectifs actifs (cible annuelle ÷ 12)
+  reserved_by_project: Array<{           // détail du Réservé par projet (pour le modal)
+    id: string; name: string; total: number;
+    source_account_id: string | null; linked_account_id: string | null;
+  }>;
 
   // Step 2: Variable Expense Trend
   avg_variable_expenses_3m: number;
@@ -371,10 +375,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     .filter(p => !isSameAccountProject(p))
     .reduce((s, p) => s + Number(p.monthly_allocation || 0), 0);
 
-  const project_reserved_monthly = activeProjects
-    .filter(p => isSameAccountProject(p))
-    .reduce((s, p) => s + Number(p.monthly_allocation || 0), 0);
-
   let transfer_savings = 0;   // virements vers comptes épargne (depuis courant)
   let transfer_invest = 0;    // virements vers comptes investissement (depuis courant/épargne)
   let month_expenses_total = 0;
@@ -415,7 +415,45 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const monthly_savings_planned = transfer_savings + project_savings_monthly;
   const monthly_invest_planned = transfer_invest; // virements réels uniquement (objectifs exclus)
-  const monthly_reserve_planned = project_reserved_monthly;
+
+  // =====================================================================
+  // RÉSERVÉ : montants mis de côté persistants (jusqu'à utilisation/libération)
+  //  - Projets « même compte » actifs : allocation mensuelle (comme avant)
+  //  - Brouillons « Conservés » (is_reserved) : montant du brouillon, groupé par projet
+  // =====================================================================
+  const projectsById: Record<string, Project> = {};
+  projects.forEach((p) => { projectsById[p.id] = p; });
+
+  const reservedMap: Record<string, {
+    id: string; name: string; total: number;
+    source_account_id: string | null; linked_account_id: string | null;
+  }> = {};
+
+  const addReserved = (proj: Project, amount: number) => {
+    if (amount <= 0) return;
+    if (!reservedMap[proj.id]) {
+      reservedMap[proj.id] = {
+        id: proj.id, name: proj.name, total: 0,
+        source_account_id: proj.source_account_id ?? null,
+        linked_account_id: proj.linked_account_id ?? null,
+      };
+    }
+    reservedMap[proj.id].total += amount;
+  };
+
+  // Brouillons « Conservés » (is_reserved) — inclut les projets même-compte (réservés d'office).
+  // Groupés par projet (1 ligne par projet, montants cumulés).
+  for (const t of transactions) {
+    if (!(t as any).is_draft || !(t as any).is_reserved) continue;
+    const pid = (t as any).project_id as string | null;
+    if (!pid) continue;
+    const proj = projectsById[pid];
+    if (!proj) continue;
+    addReserved(proj, Math.abs(Number(t.amount)) || Number(proj.monthly_allocation || 0));
+  }
+
+  const reserved_by_project = Object.values(reservedMap);
+  const monthly_reserve_planned = reserved_by_project.reduce((s, r) => s + r.total, 0);
 
   return {
     safe_to_spend,
@@ -429,6 +467,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     monthly_reserve_planned,
     month_expenses_total,
     committed_objective_monthly,
+    reserved_by_project,
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,

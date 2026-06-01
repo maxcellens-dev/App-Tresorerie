@@ -26,19 +26,21 @@ function buildProjectTransactions(opts: {
   const txns: any[] = [];
 
   if (sameAccount) {
+    // Même compte : brouillon « Conservé » d'office (réservation pure sur le compte).
     txns.push({
       profile_id: profileId,
       account_id: sourceAccountId,
       category_id: projetsCategoryId,
-      amount: 0,
+      amount: -monthlyAllocation,
       date,
-      note: `🔒 ${projectName} · ${monthlyAllocation.toFixed(0)} ${CURRENCY_SYMBOL}/mois`,
+      note: `🔒 ${projectName}`,
       is_forecast: false,
       is_recurring: false,
       recurrence_rule: null,
       recurrence_end_date: null,
       project_id: projectId,
       is_draft: true,
+      is_reserved: true,
     });
   } else {
     // Seul le débit est créé ; le crédit est généré à la validation dans l'écran Transactions

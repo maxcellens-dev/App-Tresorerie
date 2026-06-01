@@ -154,7 +154,8 @@ export default function TransactionsListScreen() {
     }
   }, [accounts, filterInitialized]);
   
-  const [periodOffset, setPeriodOffset] = useState(-1);
+  // -2 → fenêtre [m-2, m-1, m] ; l'affichage trié décroissant montre M, m-1, m-2 de haut en bas
+  const [periodOffset, setPeriodOffset] = useState(-2);
   const [categoryFilterId, setCategoryFilterId] = useState<string | null>(params.categoryId ?? null);
   const [regulFilter, setRegulFilter] = useState(params.filterType === 'regul');
   const [mouvementsFilter, setMouvementsFilter] = useState(params.filterType === 'mouvements');
@@ -410,6 +411,44 @@ export default function TransactionsListScreen() {
     });
   }
 
+  // Conserver un brouillon de projet : le marque « Réservé » (pas de dépense validée),
+  // son montant alimente la ligne Réservé du Pilotage jusqu'à utilisation/libération.
+  function confirmConserveDraft(item: TransactionWithDetails) {
+    const label = item.note || item.category?.name || 'ce montant';
+    const montant = Math.abs(Number(item.amount));
+    showConfirm({
+      title: 'Conserver pour plus tard',
+      message: `Mettre ${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € de "${label}" en Réservé ? Le montant n'est pas dépensé mais mis de côté et visible dans la ligne Réservé du Pilotage.`,
+      confirmLabel: 'Conserver',
+      confirmColor: '#60a5fa',
+      onConfirm: async () => {
+        try {
+          await updateTx.mutateAsync({ id: item.id, is_reserved: true });
+        } catch (e: unknown) {
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de conserver.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+        }
+      },
+    });
+  }
+
+  // Libérer une réservation depuis la liste : supprime le brouillon réservé.
+  function confirmLiberateReserved(item: TransactionWithDetails) {
+    const label = item.note || item.category?.name || 'ce montant';
+    showConfirm({
+      title: 'Libérer la réservation',
+      message: `Libérer "${label}" ? Le brouillon réservé sera supprimé et le montant retiré du Réservé.`,
+      confirmLabel: 'Libérer',
+      confirmColor: '#f87171',
+      onConfirm: async () => {
+        try {
+          await deleteTx.mutateAsync(item.id);
+        } catch (e: unknown) {
+          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de libérer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+        }
+      },
+    });
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
@@ -423,9 +462,9 @@ export default function TransactionsListScreen() {
             >
               <Ionicons name="chevron-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.periodLabel} onPress={() => setPeriodOffset(-1)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.periodLabel} onPress={() => setPeriodOffset(-2)} activeOpacity={0.7}>
               <Text style={styles.periodText}>{monthRangeText}</Text>
-              {periodOffset !== -1 && <Text style={styles.periodLabelHint}>Appuyer pour revenir</Text>}
+              {periodOffset !== -2 && <Text style={styles.periodLabelHint}>Appuyer pour revenir</Text>}
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.periodBtn} 
@@ -591,6 +630,7 @@ export default function TransactionsListScreen() {
 
                         const isDraft = !!(item as any).is_draft;
                         const isProjectDraft = isDraft && isProject;
+                        const isReserved = !!(item as any).is_reserved;
                         // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
                         const isDraftQuickAction = isDraft;
                         const navigateToEdit = () => {
@@ -622,9 +662,16 @@ export default function TransactionsListScreen() {
                                   <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
                                     {item.note || item.category?.name || 'Sans libellé'}
                                   </Text>
-                                  <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
-                                    <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
-                                  </View>
+                                  {isReserved ? (
+                                    <View style={styles.reservedBadge}>
+                                      <Ionicons name="bookmark" size={9} color="#60a5fa" />
+                                      <Text style={styles.reservedBadgeText}>Réservé</Text>
+                                    </View>
+                                  ) : (
+                                    <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
+                                      <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
+                                    </View>
+                                  )}
                                   {isRecurring && (
                                     <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
                                   )}
@@ -635,21 +682,44 @@ export default function TransactionsListScreen() {
                               </TouchableOpacity>
                               <View style={styles.rowRightDraft}>
                                 <View style={styles.draftActionRow}>
-                                  <TouchableOpacity
-                                    style={styles.draftActionValidate}
-                                    onPress={() => confirmValidateDraft(item)}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Ionicons name="checkmark" size={13} color="#34d399" />
-                                    <Text style={styles.draftActionValidateText}>Valider</Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={styles.draftActionDelete}
-                                    onPress={() => confirmDeleteDraft(item)}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Ionicons name="trash-outline" size={13} color="#f87171" />
-                                  </TouchableOpacity>
+                                  {isReserved ? (
+                                    <TouchableOpacity
+                                      style={styles.draftActionDelete}
+                                      onPress={() => confirmLiberateReserved(item)}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Ionicons name="lock-open-outline" size={13} color="#f87171" />
+                                      <Text style={[styles.draftActionValidateText, { color: '#f87171' }]}>Libérer</Text>
+                                    </TouchableOpacity>
+                                  ) : (
+                                    <>
+                                      <TouchableOpacity
+                                        style={styles.draftActionValidate}
+                                        onPress={() => confirmValidateDraft(item)}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Ionicons name="checkmark" size={13} color="#34d399" />
+                                        <Text style={styles.draftActionValidateText}>Valider</Text>
+                                      </TouchableOpacity>
+                                      {isProjectDraft && (
+                                        <TouchableOpacity
+                                          style={styles.draftActionConserve}
+                                          onPress={() => confirmConserveDraft(item)}
+                                          activeOpacity={0.7}
+                                        >
+                                          <Ionicons name="bookmark-outline" size={13} color="#60a5fa" />
+                                          <Text style={styles.draftActionConserveText}>Conserver</Text>
+                                        </TouchableOpacity>
+                                      )}
+                                      <TouchableOpacity
+                                        style={styles.draftActionDelete}
+                                        onPress={() => confirmDeleteDraft(item)}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Ionicons name="trash-outline" size={13} color="#f87171" />
+                                      </TouchableOpacity>
+                                    </>
+                                  )}
                                 </View>
                                 <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg, { textAlign: 'right', marginTop: 4 }]}>
                                   {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
@@ -805,10 +875,14 @@ function makeStyles(c: any) {
   draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#f59e0b' },
   draftBadgeTextProject: { color: '#60a5fa' },
   rowRightDraft: { alignItems: 'flex-end' },
-  draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' },
   draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#34d39918', borderWidth: 1, borderColor: '#34d39944' },
   draftActionValidateText: { fontSize: 11, fontWeight: '700', color: '#34d399' },
-  draftActionDelete: { padding: 4, borderRadius: 8, backgroundColor: '#f8717118', borderWidth: 1, borderColor: '#f8717144' },
+  draftActionConserve: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#60a5fa18', borderWidth: 1, borderColor: '#60a5fa44' },
+  draftActionConserveText: { fontSize: 11, fontWeight: '700', color: '#60a5fa' },
+  draftActionDelete: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#f8717118', borderWidth: 1, borderColor: '#f8717144' },
+  reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#60a5fa22', borderWidth: 1, borderColor: '#60a5fa' },
+  reservedBadgeText: { fontSize: 10, fontWeight: '700', color: '#60a5fa' },
   rowAccent: {
     position: 'absolute' as const,
     left: 0,

@@ -154,6 +154,8 @@ export interface Transaction {
   is_forecast: boolean;
   is_reconciled: boolean;
   is_draft?: boolean;
+  /** Brouillon « Conservé » : montant mis de côté (Réservé) sans être validé. */
+  is_reserved?: boolean;
   is_recurring?: boolean;
   recurrence_rule?: RecurrenceRule | null;
   recurrence_end_date?: string | null;
