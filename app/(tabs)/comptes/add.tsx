@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+﻿import { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -8,6 +9,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAddAccount } from '../../hooks/useAccounts';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../hooks/useFiscalEnvelopes';
+import CalendarWithPicker from '../../components/CalendarWithPicker';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 
 
 const TYPES = [
@@ -23,23 +26,48 @@ export default function AddAccountScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const addAccount = useAddAccount(user?.id);
+  const scrollRef = useRef<ScrollView>(null);
 
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
   const [currency, setCurrency] = useState('EUR');
   const [balance, setBalance] = useState('0');
+  const [initDate, setInitDate] = useState(todayISO());
+  const [initDateDisplay, setInitDateDisplay] = useState(formatDateFrench(todayISO()));
+  const [showCalendar, setShowCalendar] = useState(false);
   const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('cto');
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
 
+  const [formError, setFormError] = useState<string | null>(null);
+  const [errorFields, setErrorFields] = useState<string[]>([]);
+
+  function showError(msg: string, fields: string[]) {
+    setFormError(msg);
+    setErrorFields(fields);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
+
+  function clearFieldError(field: string) {
+    setErrorFields((prev) => prev.filter((f) => f !== field));
+    setFormError(null);
+  }
+
   async function handleSubmit() {
+    setFormError(null);
+    setErrorFields([]);
+
     const trimmed = name.trim();
     if (!trimmed) {
-      Alert.alert('Nom requis', 'Donnez un nom au compte.');
+      showError('Le nom du compte est obligatoire.', ['name']);
       return;
     }
     const num = parseFloat(balance.replace(',', '.'));
     if (Number.isNaN(num)) {
-      Alert.alert('Solde invalide', 'Saisissez un nombre.');
+      showError('Le solde initial doit être un nombre valide.', ['balance']);
+      return;
+    }
+    if (!initDate) {
+      showError('La date du solde est obligatoire.', ['initDate']);
       return;
     }
 
@@ -50,11 +78,12 @@ export default function AddAccountScreen() {
         currency: currency || 'EUR',
         balance: num,
         fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
+        init_date: initDate,
       });
 
       router.back();
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+      showError(e instanceof Error ? e.message : "Impossible d'enregistrer.", []);
     }
   }
 
@@ -74,6 +103,7 @@ export default function AddAccountScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -81,12 +111,20 @@ export default function AddAccountScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>Nouveau compte</Text>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.label}>Nom du compte</Text>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Bandeau d'erreur global */}
+          {formError && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#ef4444" />
+              <Text style={styles.errorBannerText}>{formError}</Text>
+            </View>
+          )}
+
+          <Text style={styles.label}>Nom du compte *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errorFields.includes('name') && styles.inputError]}
             value={name}
-            onChangeText={setName}
+            onChangeText={(v) => { setName(v); clearFieldError('name'); }}
             placeholder="Ex. Compte courant"
             placeholderTextColor={COLORS.textSecondary}
           />
@@ -126,17 +164,45 @@ export default function AddAccountScreen() {
             </>
           )}
 
-          <Text style={styles.label}>Solde initial</Text>
+          {/* Solde initial + date */}
+          <Text style={styles.label}>Solde initial *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errorFields.includes('balance') && styles.inputError]}
             value={balance}
-            onChangeText={setBalance}
+            onChangeText={(v) => { setBalance(v); clearFieldError('balance'); }}
             placeholder="0"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
             returnKeyType="done"
-            onSubmitEditing={handleSubmit}
           />
+
+          <Text style={styles.label}>Date du solde *</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0 }, errorFields.includes('initDate') && styles.inputError]}
+              value={initDateDisplay}
+              onChangeText={(text) => {
+                setInitDateDisplay(text);
+                const parsed = parseDateFromFrench(text);
+                if (parsed) { setInitDate(parsed); clearFieldError('initDate'); }
+              }}
+              onBlur={() => { if (initDate) setInitDateDisplay(formatDateFrench(initDate)); }}
+              placeholder="jj-mm-aaaa"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+            <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar(true)}>
+              <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Note explicative */}
+          <View style={styles.initDateNote}>
+            <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} style={{ marginTop: 1 }} />
+            <Text style={styles.initDateNoteText}>
+              Indiquez la date exacte à laquelle ce solde a été constaté (ex. relevé bancaire du 12 mai → saisissez le 12 mai).
+              Les transactions que vous saisirez à une date antérieure mais dans ce même mois seront considérées comme déjà incluses dans ce solde — elles n'auront aucun impact sur celui-ci.
+            </Text>
+          </View>
 
           <TouchableOpacity
             style={[styles.submitBtn, addAccount.isPending && styles.submitBtnDisabled]}
@@ -152,6 +218,36 @@ export default function AddAccountScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Calendar Modal */}
+      <Modal visible={showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+        <View style={styles.calendarOverlay}>
+          <View style={styles.calendarContainer}>
+            <View style={styles.calendarHeader}>
+              <TouchableOpacity onPress={() => setShowCalendar(false)}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.text }}>Date du solde</Text>
+              <View style={{ width: 50 }} />
+            </View>
+            <CalendarWithPicker
+              current={initDate}
+              maxDate={todayISO()}
+              onDayPress={(day: any) => {
+                setInitDate(day.dateString);
+                setInitDateDisplay(formatDateFrench(day.dateString));
+                clearFieldError('initDate');
+                setShowCalendar(false);
+              }}
+              markedDates={initDate ? { [initDate]: { selected: true, selectedColor: COLORS.emerald, selectedTextColor: '#000' } } : {}}
+              accentColor={COLORS.emerald}
+              bgColor={COLORS.card}
+              textColor={COLORS.text}
+              textSecondaryColor="#334155"
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -164,6 +260,18 @@ function makeStyles(c: any) {
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
@@ -176,17 +284,63 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 20,
   },
+  inputError: { borderColor: '#ef4444' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, color: c.text },
   chipTextActive: { color: c.bg, fontWeight: '600' },
+  initDateNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  initDateNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
   text: { color: c.text, marginBottom: 16 },
   btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },
   btnLabel: { color: c.text, fontWeight: '600' },
-  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   submitBtnDisabled: { opacity: 0.6 },
   submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+  calendarBtn: {
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    borderRadius: 12,
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarContainer: {
+    backgroundColor: c.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    width: '90%',
+    maxWidth: 380,
+    overflow: 'hidden',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: c.cardBorder,
+  },
 });
 }

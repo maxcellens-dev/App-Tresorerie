@@ -1,5 +1,7 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -452,6 +454,7 @@ export default function TransactionsListScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {showPeriodNav && (
           <View style={styles.periodNav} ref={periodNavRef}>
@@ -536,8 +539,8 @@ export default function TransactionsListScreen() {
             onPress={() => router.push('/(tabs)/transactions/add?type=income')}
             accessibilityRole="button"
           >
-            <Ionicons name="arrow-up" size={20} color={COLORS.emerald} />
-            <Text style={[styles.addBtnLabel, { color: COLORS.emerald }]}>Recette</Text>
+            <Ionicons name="arrow-up" size={20} color="#00B67A" />
+            <Text style={[styles.addBtnLabel, { color: '#00B67A' }]}>Recette</Text>
           </TouchableOpacity>
         </View>
         {hasFilter && (
@@ -828,10 +831,8 @@ function makeStyles(c: any) {
     gap: 6,
     backgroundColor: c.card,
     paddingHorizontal: 10,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
+    paddingVertical: 11,
+    borderRadius: 14,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   addBtnLabel: { fontSize: 13, fontWeight: '600', color: c.text },
@@ -843,69 +844,73 @@ function makeStyles(c: any) {
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
-  monthBlock: { marginBottom: 24 },
-  monthHeader: { paddingVertical: 10, paddingHorizontal: 4, marginBottom: 8 },
-  monthHeaderText: { fontSize: 15, fontWeight: '700', color: c.textSecondary, textTransform: 'capitalize' },
+  monthBlock: { marginBottom: 20 },
+  monthHeader: { paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4 },
+  monthHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: c.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.8,
+  },
   card: {
     backgroundColor: c.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
+    borderRadius: 18,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 13,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.5,
     borderBottomColor: c.cardBorder,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   rowLast: { borderBottomWidth: 0 },
-  rowFuture: { opacity: 0.4 },
+  rowFuture: { opacity: 0.38 },
   rowAlignStart: { alignItems: 'flex-start' },
-  rowDraft: { borderLeftWidth: 3, borderLeftColor: '#f59e0b', borderStyle: 'dashed' as any },
-  rowDraftProject: { borderLeftWidth: 3, borderLeftColor: '#60a5fa', borderStyle: 'dashed' as any },
-  rowLabelDraft: { fontStyle: 'italic', color: '#f59e0b' },
-  rowLabelDraftProject: { fontStyle: 'italic', color: '#60a5fa' },
-  draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#f59e0b22', borderWidth: 1, borderColor: '#f59e0b' },
-  draftBadgeProject: { backgroundColor: '#60a5fa22', borderColor: '#60a5fa' },
-  draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#f59e0b' },
-  draftBadgeTextProject: { color: '#60a5fa' },
+  rowDraft: { borderLeftWidth: 2, borderLeftColor: '#FF9500' },
+  rowDraftProject: { borderLeftWidth: 2, borderLeftColor: '#0075FF' },
+  rowLabelDraft: { fontStyle: 'italic', color: '#FF9500' },
+  rowLabelDraftProject: { fontStyle: 'italic', color: '#0075FF' },
+  draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#FF950022', borderWidth: 1, borderColor: '#FF9500' },
+  draftBadgeProject: { backgroundColor: '#0075FF22', borderColor: '#0075FF' },
+  draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#FF9500' },
+  draftBadgeTextProject: { color: '#0075FF' },
   rowRightDraft: { alignItems: 'flex-end' },
   draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' },
-  draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#34d39918', borderWidth: 1, borderColor: '#34d39944' },
-  draftActionValidateText: { fontSize: 11, fontWeight: '700', color: '#34d399' },
-  draftActionConserve: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#60a5fa18', borderWidth: 1, borderColor: '#60a5fa44' },
-  draftActionConserveText: { fontSize: 11, fontWeight: '700', color: '#60a5fa' },
-  draftActionDelete: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#f8717118', borderWidth: 1, borderColor: '#f8717144' },
-  reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#60a5fa22', borderWidth: 1, borderColor: '#60a5fa' },
-  reservedBadgeText: { fontSize: 10, fontWeight: '700', color: '#60a5fa' },
+  draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#00B67A18', borderWidth: 1, borderColor: '#00B67A44' },
+  draftActionValidateText: { fontSize: 11, fontWeight: '700', color: '#00B67A' },
+  draftActionConserve: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#0075FF18', borderWidth: 1, borderColor: '#0075FF44' },
+  draftActionConserveText: { fontSize: 11, fontWeight: '700', color: '#0075FF' },
+  draftActionDelete: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#FF3B3018', borderWidth: 1, borderColor: '#FF3B3044' },
+  reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#0075FF22', borderWidth: 1, borderColor: '#0075FF' },
+  reservedBadgeText: { fontSize: 10, fontWeight: '700', color: '#0075FF' },
   rowAccent: {
     position: 'absolute' as const,
     left: 0,
-    top: 6,
-    bottom: 6,
-    width: 3,
+    top: 8,
+    bottom: 8,
+    width: 2.5,
     borderRadius: 1.5,
   },
-  rowAccentIncome: { backgroundColor: '#34d39950' },
-  rowAccentProject: { backgroundColor: '#22d3ee50' },
-  rowLeft: { flex: 1, marginRight: 8 },
+  rowAccentIncome: { backgroundColor: '#00B67A60' },
+  rowAccentProject: { backgroundColor: '#00C4CC60' },
+  rowLeft: { flex: 1, marginRight: 10 },
   rowLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   projectDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#a78bfa',
+    backgroundColor: '#00C4CC',
     marginRight: 6,
   },
   rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flexShrink: 1 },
   rowMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-  rowAmount: { fontSize: 15, fontWeight: '700', color: c.emerald },
-  rowAmountNeg: { color: c.textSecondary },
+  rowAmount: { fontSize: 15, fontWeight: '700', color: '#00B67A' },
+  rowAmountNeg: { color: c.text },
   reservationBadge: {
     backgroundColor: '#22d3ee18',
     borderWidth: 1,

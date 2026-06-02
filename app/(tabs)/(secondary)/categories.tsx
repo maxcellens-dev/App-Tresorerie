@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   View,
   Text,
@@ -11,6 +12,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -63,6 +65,8 @@ export default function CategoriesScreen() {
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean } | null>(null);
   const [editName, setEditName] = useState('');
   const [editVariable, setEditVariable] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const hasSeeded = useRef(false);
 
   useEffect(() => {
@@ -74,15 +78,16 @@ export default function CategoriesScreen() {
   async function handleAdd() {
     const trimmed = newName.trim();
     if (!trimmed) {
-      Alert.alert('Nom requis', 'Saisissez un nom de catégorie.');
+      setAddError('Le nom de la catégorie est obligatoire.');
       return;
     }
+    setAddError(null);
     try {
       await addCategory.mutateAsync({ name: trimmed, type: newType, parent_id: newParentId });
       setNewName('');
       setNewParentId(null);
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’ajouter.');
+      setAddError(e instanceof Error ? e.message : "Impossible d'ajouter.");
     }
   }
 
@@ -93,7 +98,12 @@ export default function CategoriesScreen() {
   }
 
   async function handleSaveEdit() {
-    if (!editModal || !editName.trim()) return;
+    if (!editModal) return;
+    if (!editName.trim()) {
+      setEditError('Le nom est obligatoire.');
+      return;
+    }
+    setEditError(null);
     try {
       const isExpenseParent = editModal.type === 'expense' && !editModal.parent_id;
       const variableChanged = isExpenseParent && editVariable !== (editModal.is_variable ?? false);
@@ -108,8 +118,9 @@ export default function CategoriesScreen() {
 
       await updateCategory.mutateAsync({ id: editModal.id, name: editName.trim() });
       setEditModal(null);
+      setEditError(null);
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de modifier.');
+      setEditError(e instanceof Error ? e.message : 'Impossible de modifier.');
     }
   }
 
@@ -161,10 +172,12 @@ export default function CategoriesScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Catégories</Text>
         </View>
@@ -229,14 +242,19 @@ export default function CategoriesScreen() {
                 </>
               )}
               <TextInput
-                style={styles.input}
+                style={[styles.input, addError ? { borderColor: '#ef4444' } : {}]}
                 value={newName}
-                onChangeText={setNewName}
+                onChangeText={(v) => { setNewName(v); if (addError) setAddError(null); }}
                 placeholder="Nom (ex. Salaires, Loyer)"
                 placeholderTextColor={COLORS.textSecondary}
                 returnKeyType="done"
                 onSubmitEditing={handleAdd}
               />
+              {addError && (
+                <View style={styles.inlineError}>
+                  <Text style={styles.inlineErrorText}>{addError}</Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={[styles.addBtn, addCategory.isPending && styles.addBtnDisabled]}
                 onPress={handleAdd}
@@ -342,14 +360,19 @@ export default function CategoriesScreen() {
         )}
       </SafeAreaView>
 
-      <Modal visible={!!editModal} transparent animationType="fade">
+      <Modal visible={!!editModal} transparent animationType="fade" onRequestClose={() => { setEditModal(null); setEditError(null); }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Modifier la catégorie</Text>
+            {editError && (
+              <View style={styles.inlineError}>
+                <Text style={styles.inlineErrorText}>{editError}</Text>
+              </View>
+            )}
             <TextInput
-              style={styles.input}
+              style={[styles.input, editError ? { borderColor: '#ef4444' } : {}]}
               value={editName}
-              onChangeText={setEditName}
+              onChangeText={(v) => { setEditName(v); if (editError) setEditError(null); }}
               placeholder="Nom"
               placeholderTextColor={COLORS.textSecondary}
               autoFocus
@@ -379,7 +402,7 @@ export default function CategoriesScreen() {
               </View>
             ) : null}
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalBtn} onPress={() => setEditModal(null)}>
+              <TouchableOpacity style={styles.modalBtn} onPress={() => { setEditModal(null); setEditError(null); }}>
                 <Text style={styles.modalBtnLabel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -401,7 +424,7 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
-  backBtn: { padding: 4, marginRight: 12 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', padding: 4, marginRight: 12 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
@@ -463,6 +486,8 @@ function makeStyles(c: any) {
   addBtn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
   addBtnDisabled: { opacity: 0.6 },
   addBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
+  inlineError: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', borderRadius: 8, padding: 10, marginBottom: 10 },
+  inlineErrorText: { fontSize: 13, color: '#ef4444', lineHeight: 18 },
   loader: { marginVertical: 24 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
   card: {

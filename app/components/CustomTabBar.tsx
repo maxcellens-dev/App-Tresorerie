@@ -21,15 +21,15 @@ const ITEMS: TabItem[] = [
   { name: 'projection', label: 'Projection', icon: 'trending-up' },
 ];
 
-export default function CustomTabBar({ state, navigation }: any) {
+export default function CustomTabBar({ state }: any) {
   const router = useRouter();
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const activeRoute = state?.routes?.[state.index]?.name;
-  const isWeb = Platform.OS === 'web';
 
   return (
-    <View style={[styles.bar, isWeb && { backgroundColor: COLORS.card }]}>
+    <View style={styles.bar}>
+      <View style={styles.topBorder} />
       {ITEMS.map((it) => {
         const focused = activeRoute === it.name;
         const color = focused ? COLORS.tabActive : COLORS.tabInactive;
@@ -40,7 +40,13 @@ export default function CustomTabBar({ state, navigation }: any) {
             onPress={() => router.push(`/(tabs)/${it.name}` as any)}
             accessibilityRole="button"
           >
-            <Ionicons name={`${it.icon}${focused ? '' : '-outline'}` as any} size={22} color={color} />
+            {focused ? (
+              <View style={[styles.activeIndicator, { backgroundColor: COLORS.tabActive + '20' }]}>
+                <Ionicons name={it.icon as any} size={22} color={color} />
+              </View>
+            ) : (
+              <Ionicons name={`${it.icon}-outline` as any} size={22} color={color} />
+            )}
             <Text style={[styles.label, { color }]}>{it.label}</Text>
           </TouchableOpacity>
         );
@@ -56,13 +62,26 @@ function makeStyles(c: any) {
       justifyContent: 'space-between',
       alignItems: 'center',
       height: 72,
-      paddingTop: 8,
+      paddingTop: 4,
       paddingHorizontal: 8,
-      borderTopWidth: 1,
-      borderTopColor: c.cardBorder,
-      backgroundColor: 'transparent',
+      backgroundColor: c.bg,
     },
-    item: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
-    label: { fontSize: 11, fontWeight: '600', marginTop: 4 },
+    topBorder: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 0.5,
+      backgroundColor: c.cardBorder,
+    },
+    item: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, gap: 4 },
+    activeIndicator: {
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    label: { fontSize: 10, fontWeight: '600' },
   });
 }

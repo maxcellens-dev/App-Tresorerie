@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -317,6 +318,7 @@ export default function AccountDetailScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />

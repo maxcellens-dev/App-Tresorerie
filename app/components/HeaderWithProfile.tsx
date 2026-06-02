@@ -20,6 +20,19 @@ interface HeaderWithProfileProps {
   hideProfile?: boolean;
 }
 
+/** Blende une couleur d'accent (#RRGGBB) à 30 % sur le fond — couleur opaque, aucun problème d'alpha sur web. */
+function blendAccent(bg: string, accent: string, opacity = 0.30): string {
+  try {
+    const parse = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+    const [r1, g1, b1] = parse(bg.length >= 7 ? bg.slice(0, 7) : '#000000');
+    const [r2, g2, b2] = parse(accent.length >= 7 ? accent.slice(0, 7) : '#000000');
+    const r = Math.round(r1 * (1 - opacity) + r2 * opacity);
+    const g = Math.round(g1 * (1 - opacity) + g2 * opacity);
+    const b = Math.round(b1 * (1 - opacity) + b2 * opacity);
+    return `rgb(${r},${g},${b})`;
+  } catch { return bg; }
+}
+
 export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
@@ -103,30 +116,28 @@ function makeStyles(c: any) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 10,
-    ...(Platform.OS === 'web' ? {} : {}),
-    backgroundColor: c.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: c.cardBorder,
+    // Couleur blendée opaque = 30 % accent sur fond → raccord gradient, compatible web
+    backgroundColor: blendAccent(c.bg, c.emerald, 0.30),
   },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 6, marginRight: 6 },
-  backText: { color: c.text, marginLeft: 6, fontSize: 14, fontWeight: '600' },
-  title: { fontSize: 20, fontWeight: '700', color: c.text },
+  backText: { color: c.text, marginLeft: 4, fontSize: 14, fontWeight: '600' },
+  title: { fontSize: 18, fontWeight: '700', color: c.text, letterSpacing: -0.3 },
   greetingWrap: { justifyContent: 'center' },
-  greeting: { fontSize: 15, color: c.textSecondary, fontWeight: '500' },
-  greetingName: { fontSize: 18, color: c.text, fontWeight: '800', marginTop: 1 },
+  greeting: { fontSize: 14, color: c.textSecondary, fontWeight: '400' },
+  greetingName: { fontSize: 20, color: c.text, fontWeight: '700', marginTop: 1, letterSpacing: -0.4 },
   date: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn: { padding: 8 },
   avatarWrap: { padding: 4 },
-  avatar: { width: 36, height: 36, borderRadius: 18 },
+  avatar: { width: 34, height: 34, borderRadius: 17 },
   avatarPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: c.cardBorder,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
   },

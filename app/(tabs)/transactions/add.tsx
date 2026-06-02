@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+﻿import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -50,6 +51,9 @@ export default function AddTransactionScreen() {
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState(''); // vide = sans fin
   const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [errorFields, setErrorFields] = useState<string[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
 
   const isExpense = transactionType === 'expense';
   const isIncome = transactionType === 'income';
@@ -86,24 +90,33 @@ export default function AddTransactionScreen() {
     setAccountId(lastUsed ? lastUsed.account_id : checkingAccounts[0].id);
   }, [accounts, transactions]);
 
+  function showError(msg: string, fields: string[] = []) {
+    setFormError(msg);
+    setErrorFields(fields);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
+
   async function handleSubmit(isDraft = false) {
+    setFormError(null);
+    setErrorFields([]);
+
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
-      Alert.alert('Montant invalide', 'Saisissez un montant.');
+      showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
       return;
     }
     if (!accountId) {
-      Alert.alert('Compte requis', 'Choisissez un compte source.');
+      showError('Veuillez choisir un compte source.', ['account']);
       return;
     }
 
     if (isTransfer) {
       if (!targetAccountId) {
-        Alert.alert('Compte cible requis', 'Choisissez un compte de destination.');
+        showError('Veuillez choisir un compte de destination.', ['targetAccount']);
         return;
       }
       if (accountId === targetAccountId) {
-        Alert.alert('Comptes identiques', 'Choisissez des comptes différents.');
+        showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
         return;
       }
     }
@@ -143,7 +156,7 @@ export default function AddTransactionScreen() {
 
       router.back();
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
+      showError(e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     }
   }
 
@@ -163,10 +176,17 @@ export default function AddTransactionScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <HeaderWithProfile title="Nouvelle transaction" showBack={true} hideProfile={true} />
         
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {formError && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#ef4444" />
+              <Text style={styles.errorBannerText}>{formError}</Text>
+            </View>
+          )}
           <View style={styles.typeSelector}>
             <TouchableOpacity
               style={[styles.typeBtn, isExpense && styles.typeBtnActive]}
@@ -255,11 +275,11 @@ export default function AddTransactionScreen() {
           />
 
           {/* Montant */}
-          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
+          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL}) *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errorFields.includes('amount') && styles.inputError]}
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
@@ -451,6 +471,19 @@ function makeStyles(c: any) {
   chipText: { fontSize: 14, color: c.text },
   chipTextActive: { color: c.bg, fontWeight: '600' },
   chipTextDisabled: { opacity: 0.5 },
+  inputError: { borderColor: '#ef4444' },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 16 },
   text: { color: c.text, marginBottom: 16 },
   btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },

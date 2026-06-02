@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+﻿import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -35,6 +36,9 @@ export default function EditAccountScreen() {
   const [type, setType] = useState('checking');
   const [currency, setCurrency] = useState('EUR');
   const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('cto');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [errorFields, setErrorFields] = useState<string[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (account) {
@@ -47,9 +51,13 @@ export default function EditAccountScreen() {
 
   async function handleSubmit() {
     if (!id) return;
+    setFormError(null);
+    setErrorFields([]);
     const trimmed = name.trim();
     if (!trimmed) {
-      Alert.alert('Nom requis', 'Donnez un nom au compte.');
+      setFormError('Le nom du compte est obligatoire.');
+      setErrorFields(['name']);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     try {
@@ -62,14 +70,16 @@ export default function EditAccountScreen() {
       });
       router.back();
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d’enregistrer.');
+      setFormError(e instanceof Error ? e.message : "Impossible d'enregistrer.");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     }
   }
 
   const doClose = () => {
     if (!id) return;
     closeAccount.mutateAsync(id).then(() => router.back()).catch((e: unknown) => {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de fermer le compte.');
+      setFormError(e instanceof Error ? e.message : 'Impossible de fermer le compte.');
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     });
   };
 
@@ -83,7 +93,7 @@ export default function EditAccountScreen() {
     }
     Alert.alert(
       'Fermer le compte',
-      'Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l’utiliser pour des virements ou nouvelles transactions. Confirmer ?',
+      "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -112,6 +122,7 @@ export default function EditAccountScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -119,9 +130,20 @@ export default function EditAccountScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>Modifier le compte</Text>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.label}>Nom du compte</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ex. Compte courant" placeholderTextColor={COLORS.textSecondary} />
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {formError && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>{formError}</Text>
+            </View>
+          )}
+          <Text style={styles.label}>Nom du compte *</Text>
+          <TextInput
+            style={[styles.input, errorFields.includes('name') && styles.inputError]}
+            value={name}
+            onChangeText={(v) => { setName(v); setErrorFields((p) => p.filter((f) => f !== 'name')); setFormError(null); }}
+            placeholder="Ex. Compte courant"
+            placeholderTextColor={COLORS.textSecondary}
+          />
 
           <Text style={styles.label}>Type</Text>
           <View style={styles.chipRow}>
@@ -197,6 +219,18 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 20,
   },
+  inputError: { borderColor: '#ef4444' },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },

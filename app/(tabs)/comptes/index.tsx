@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react';
+﻿import { useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -82,35 +83,19 @@ export default function AccountsListScreen() {
     }
   };
 
+  // Formatage du total : partie entière + centimes séparés
+  const totalFormatted = (() => {
+    const abs = Math.abs(total);
+    const [int, dec] = abs.toFixed(2).split('.');
+    const intFmt = Number(int).toLocaleString('fr-FR');
+    return { sign: total < 0 ? '-' : '', int: intFmt, dec };
+  })();
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <View style={styles.header}>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              ref={addBtnRef}
-              style={styles.addBtn}
-              activeOpacity={0.8}
-              onPress={() => router.push('/(tabs)/comptes/add')}
-              accessibilityRole="button"
-            >
-              <Ionicons name="add" size={24} color={COLORS.emerald} />
-              <Text style={[styles.addBtnLabel, { color: COLORS.emerald }]}>Compte</Text>
-            </TouchableOpacity>
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity
-              ref={transferBtnRef}
-              style={styles.addBtn}
-              activeOpacity={0.8}
-              onPress={() => router.push('/(tabs)/comptes/transfer')}
-              accessibilityRole="button"
-            >
-              <Ionicons name="swap-horizontal" size={22} color="#60a5fa" />
-              <Text style={[styles.addBtnLabel, { color: '#60a5fa' }]}>Virement</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -124,7 +109,44 @@ export default function AccountsListScreen() {
             />
           }
         >
-          {/* Banner de bienvenue — premier lancement après questionnaire */}
+          {/* ── Hero : solde total ── */}
+          <View style={styles.hero}>
+            <Text style={styles.heroLabel}>Total liquidités</Text>
+            <View style={styles.heroAmountRow}>
+              <Text style={styles.heroAmount}>
+                {totalFormatted.sign}{totalFormatted.int}
+                <Text style={styles.heroDec}>,{totalFormatted.dec} {CURRENCY_SYMBOL}</Text>
+              </Text>
+            </View>
+
+            {/* Quick actions */}
+            <View style={styles.quickActions}>
+              <TouchableOpacity
+                ref={addBtnRef}
+                style={styles.quickBtn}
+                activeOpacity={0.75}
+                onPress={() => router.push('/(tabs)/comptes/add')}
+              >
+                <View style={styles.quickIcon}>
+                  <Ionicons name="add" size={22} color="#FFFFFF" />
+                </View>
+                <Text style={styles.quickLabel}>Compte</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                ref={transferBtnRef}
+                style={styles.quickBtn}
+                activeOpacity={0.75}
+                onPress={() => router.push('/(tabs)/comptes/transfer')}
+              >
+                <View style={styles.quickIcon}>
+                  <Ionicons name="swap-horizontal" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.quickLabel}>Virement</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Banner de bienvenue */}
           {welcome === '1' && !welcomeDismissed && (
             <View style={styles.welcomeBanner}>
               <View style={styles.welcomeBannerRow}>
@@ -132,18 +154,18 @@ export default function AccountsListScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.welcomeBannerTitle}>Bienvenue ! Votre profil est créé.</Text>
                   <Text style={styles.welcomeBannerText}>
-                    Commencez par ajouter vos comptes bancaires, d'épargne et d'investissement pour que l'application puisse calculer vos recommandations.
+                    Commencez par ajouter vos comptes bancaires, d'épargne et d'investissement.
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setWelcomeDismissed(true)} style={{ padding: 4 }}>
-                  <Ionicons name="close" size={18} color="#94a3b8" />
+                  <Ionicons name="close" size={18} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
                 style={styles.welcomeBannerBtn}
                 onPress={() => { setWelcomeDismissed(true); router.push('/(tabs)/comptes/add'); }}
               >
-                <Ionicons name="add" size={16} color="#020617" />
+                <Ionicons name="add" size={16} color={COLORS.bg} />
                 <Text style={styles.welcomeBannerBtnLabel}>Ajouter mon premier compte</Text>
               </TouchableOpacity>
             </View>
@@ -151,57 +173,65 @@ export default function AccountsListScreen() {
 
           {isLoading ? (
             <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
+          ) : accounts.length === 0 ? (
+            <Text style={styles.empty}>Aucun compte. Appuyez sur « Compte » pour commencer.</Text>
           ) : (
-            <>
-              <View style={styles.totalCard}>
-                <Text style={styles.totalLabel}>Total liquidités</Text>
-                <Text style={styles.totalAmount}>{total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}</Text>
-              </View>
-              {accounts.length === 0 ? (
-                <Text style={styles.empty}>Aucun compte. Ajoutez un compte pour suivre vos soldes.</Text>
-              ) : (
-                sortedAccounts.map((acc) => {
-                  const color = accountColor(acc.type);
-                  const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
-                  return (
-                    <TouchableOpacity
-                      key={acc.id}
-                      style={[styles.accountCard, { borderLeftWidth: 3, borderLeftColor: color }]}
-                      onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                    >
-                      <View style={styles.accountRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Ionicons name={iconName as any} size={16} color={color} />
-                          <Text style={styles.accountName}>{acc.name}</Text>
-                        </View>
-                        <Text style={[styles.accountBalance, { color }]}>
-                          {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
-                        </Text>
-                      </View>
+            /* ── Liste Revolut ── */
+            <View style={styles.accountList}>
+              {sortedAccounts.map((acc, idx) => {
+                const color = accountColor(acc.type);
+                const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
+                const isLast = idx === sortedAccounts.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[styles.accountRow, !isLast && styles.accountRowBorder]}
+                    onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                  >
+                    {/* Icône circulaire */}
+                    <View style={[styles.accountIconCircle, { backgroundColor: color + '1A' }]}>
+                      <Ionicons name={iconName as any} size={18} color={color} />
+                    </View>
+                    {/* Nom + type */}
+                    <View style={styles.accountInfo}>
+                      <Text style={styles.accountName}>{acc.name}</Text>
                       <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
-                    </TouchableOpacity>
-                  );
-                })
-              )}
-            </>
+                    </View>
+                    {/* Solde */}
+                    <View style={styles.accountBalanceWrap}>
+                      <Text style={styles.accountBalance}>
+                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           )}
+
           {archivedAccounts.length > 0 && (
             <View style={styles.archivedSection}>
               <Text style={styles.archivedTitle}>Comptes archivés</Text>
-              <Text style={styles.archivedHint}>Comptes fermés, non utilisables pour virements ou nouvelles transactions.</Text>
-              {archivedAccounts.map((acc) => (
-                <View key={acc.id} style={styles.archivedCard}>
-                  <View style={styles.accountRow}>
-                    <Text style={styles.archivedName}>{acc.name}</Text>
-                    <Text style={styles.archivedBalance}>
+              <Text style={styles.archivedHint}>Comptes fermés — non utilisables pour de nouvelles opérations.</Text>
+              <View style={styles.accountList}>
+                {archivedAccounts.map((acc, idx) => (
+                  <View key={acc.id} style={[styles.accountRow, idx < archivedAccounts.length - 1 && styles.accountRowBorder, { opacity: 0.55 }]}>
+                    <View style={[styles.accountIconCircle, { backgroundColor: COLORS.cardBorder }]}>
+                      <Ionicons name="archive-outline" size={16} color={COLORS.textSecondary} />
+                    </View>
+                    <View style={styles.accountInfo}>
+                      <Text style={[styles.accountName, { color: COLORS.textSecondary }]}>{acc.name}</Text>
+                      <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
+                    </View>
+                    <Text style={[styles.accountBalance, { color: COLORS.textSecondary }]}>
                       {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
                     </Text>
                   </View>
-                  <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
           )}
           <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
@@ -223,75 +253,129 @@ export default function AccountsListScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, width: '100%' },
-  title: { fontSize: 24, fontWeight: '700', color: c.text },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: c.card,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-  },
-  addBtnLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+  safe: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
-  totalCard: {
+
+  // ── Hero ──
+  hero: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 28,
+  },
+  heroLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.75)',
+    letterSpacing: 0.3,
+    marginBottom: 8,
+  },
+  heroAmountRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  heroAmount: {
+    fontSize: 44,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+    lineHeight: 52,
+  },
+  heroDec: {
+    fontSize: 26,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 44,
+  },
+
+  // ── Quick actions ──
+  quickActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 24,
+  },
+  quickBtn: {
+    alignItems: 'center',
+    gap: 7,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+  },
+  quickIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  quickLabel: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+
+  // ── Liste comptes ──
+  accountList: {
+    marginHorizontal: 16,
+    backgroundColor: c.card,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  accountRowBorder: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: c.cardBorder,
+  },
+  accountIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  accountInfo: { flex: 1, gap: 2 },
+  accountName: { fontSize: 15, fontWeight: '600', color: c.text },
+  accountType: { fontSize: 12, color: c.textSecondary },
+  accountBalanceWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  accountBalance: { fontSize: 15, fontWeight: '600', color: c.text },
+
+  // ── Empty ──
+  empty: {
+    marginHorizontal: 24,
+    padding: 32,
+    color: c.textSecondary,
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+
+  // ── Archivés ──
+  archivedSection: { marginTop: 8, marginBottom: 16 },
+  archivedTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 4, marginLeft: 24 },
+  archivedHint: { fontSize: 12, color: c.textSecondary, marginBottom: 10, marginLeft: 24 },
+
+  // ── Hint bas de page ──
+  hint: { marginTop: 8, marginBottom: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
+
+  // ── Bienvenue ──
+  welcomeBanner: {
+    marginHorizontal: 16,
     backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: c.cardBorder,
-    padding: 20,
+    borderColor: c.emerald + '40',
+    padding: 16,
     marginBottom: 16,
-  },
-  totalLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
-  totalAmount: { fontSize: 28, fontWeight: '800', color: c.emerald },
-  accountCard: {
-    backgroundColor: c.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    padding: 16,
-    marginBottom: 12,
-  },
-  accountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  accountName: { fontSize: 16, fontWeight: '600', color: c.text },
-  accountBalance: { fontSize: 16, fontWeight: '700', color: c.text },
-  accountType: { fontSize: 12, color: c.textSecondary, marginTop: 4 },
-  empty: { padding: 24, color: c.textSecondary, textAlign: 'center', marginBottom: 16 },
-  archivedSection: { marginTop: 24, marginBottom: 16 },
-  archivedTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
-  archivedHint: { fontSize: 12, color: c.textSecondary, marginBottom: 12 },
-  archivedCard: {
-    backgroundColor: c.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    padding: 16,
-    marginBottom: 12,
-    opacity: 0.85,
-  },
-  archivedName: { fontSize: 16, fontWeight: '600', color: c.textSecondary },
-  archivedBalance: { fontSize: 14, color: c.textSecondary },
-  hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
-  welcomeBanner: {
-    backgroundColor: '#0d2318', borderRadius: 16, borderWidth: 1,
-    borderColor: '#34d39940', padding: 16, marginBottom: 16, gap: 12,
+    gap: 12,
   },
   welcomeBannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   welcomeBannerEmoji: { fontSize: 28 },
-  welcomeBannerTitle: { fontSize: 15, fontWeight: '700', color: '#34d399', marginBottom: 4 },
-  welcomeBannerText: { fontSize: 13, color: '#cbd5e1', lineHeight: 18 },
+  welcomeBannerTitle: { fontSize: 15, fontWeight: '700', color: c.emerald, marginBottom: 4 },
+  welcomeBannerText: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
   welcomeBannerBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#34d399', borderRadius: 12, paddingVertical: 12,
+    backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 12,
   },
   welcomeBannerBtnLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
 });

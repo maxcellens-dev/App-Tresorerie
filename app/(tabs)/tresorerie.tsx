@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl, TextInput } from 'react-native';
+import ScreenGradient from '../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -507,10 +509,39 @@ export default function TreasuryPlanScreen() {
       if (!firstCheckingActivity || t.date < firstCheckingActivity) firstCheckingActivity = t.date;
     }
 
+    // Mois d'initialisation des comptes courants (YYYY-MM) — pour le calcul rétrograde avec init_date.
+    const checkingInitMonths = new Set<string>();
+    for (const acc of accounts) {
+      if (acc.type !== 'checking') continue;
+      const d = (acc as any).init_date as string | null | undefined;
+      if (d) checkingInitMonths.add(d.slice(0, 7));
+    }
+
     const realCheckingBalanceAtMonthEnd = (y: number, mo: number): number => {
       const emd = lastDayOf(y, mo);
-      // Mois entièrement antérieur à la première activité → 0 (rien n'existait encore).
-      if (firstCheckingActivity && emd < firstCheckingActivity) return 0;
+      const myYM = `${y}-${String(mo).padStart(2, '0')}`;
+
+      // Mois entièrement antérieur à la première activité → 0, sauf exception init_date.
+      if (firstCheckingActivity && emd < firstCheckingActivity) {
+        // Exception : le mois immédiatement avant le mois d'initialisation d'un compte courant
+        // avec des transactions pré-init dans ce mois → afficher le solde rétrograde.
+        const nextYM = mo === 12
+          ? `${y + 1}-01`
+          : `${y}-${String(mo + 1).padStart(2, '0')}`;
+        const isBeforeInitMonth = checkingInitMonths.has(nextYM);
+        const hasPreInitInNextMonth = isBeforeInitMonth && (transactions as TransactionWithDetails[]).some(
+          (t) => t.account?.type === 'checking' && !(t as any).is_draft &&
+                 !(t.is_recurring && t.recurrence_rule) && t.date > emd && t.date.slice(0, 7) === nextYM
+        );
+        // Exception : ce mois a ses propres transactions non-brouillon
+        const hasOwnTransactions = (transactions as TransactionWithDetails[]).some(
+          (t) => t.account?.type === 'checking' && !(t as any).is_draft &&
+                 !(t.is_recurring && t.recurrence_rule) && t.date.slice(0, 7) === myYM
+        );
+
+        if (!hasPreInitInNextMonth && !hasOwnTransactions) return 0;
+      }
+
       let after = 0;
       for (const t of transactions as TransactionWithDetails[]) {
         if (t.account?.type !== 'checking') continue;
@@ -727,6 +758,7 @@ export default function TreasuryPlanScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <Text style={styles.subtitle}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
 
@@ -1246,7 +1278,7 @@ function makeStyles(c: any) {
   scrollInnerContent: {},
   scroll: { flex: 1 },
   tableWrap: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: c.card,
     marginBottom: 24,
@@ -1266,36 +1298,36 @@ function makeStyles(c: any) {
     minHeight: 48,
     alignItems: 'center',
   },
-  tableRowIncome: { backgroundColor: 'rgba(52, 211, 153, 0.05)' },
-  tableRowExpense: { backgroundColor: 'rgba(248, 113, 113, 0.04)' },
+  tableRowIncome: { backgroundColor: 'rgba(0, 182, 122, 0.05)' },
+  tableRowExpense: { backgroundColor: 'rgba(255, 59, 48, 0.04)' },
   tableRowBalance: {
-    backgroundColor: 'rgba(96, 165, 250, 0.12)',
+    backgroundColor: 'rgba(0, 117, 255, 0.10)',
     borderLeftWidth: 3,
-    borderLeftColor: c.balance,
+    borderLeftColor: '#0075FF',
     paddingVertical: 10,
   },
-  tableRowHighlight: { backgroundColor: 'rgba(52, 211, 153, 0.05)' },
+  tableRowHighlight: { backgroundColor: 'rgba(0, 182, 122, 0.05)' },
   tableRowBlockStart: { marginTop: 20 },
   tableRowSectionHeader: {
     paddingVertical: 12,
   },
   tableRowSectionRecettes: {
-    backgroundColor: 'rgba(52, 211, 153, 0.12)',
+    backgroundColor: 'rgba(0, 182, 122, 0.10)',
     borderLeftWidth: 3,
     borderLeftColor: c.emerald,
   },
   tableRowSectionDepenses: {
-    backgroundColor: 'rgba(248, 113, 113, 0.12)',
+    backgroundColor: 'rgba(255, 59, 48, 0.10)',
     borderLeftWidth: 3,
     borderLeftColor: c.danger,
   },
   tableRowSectionMouvements: {
-    backgroundColor: 'rgba(100, 116, 139, 0.15)',
+    backgroundColor: 'rgba(142, 148, 154, 0.12)',
     borderLeftWidth: 3,
-    borderLeftColor: '#64748b',
+    borderLeftColor: '#8E949A',
     paddingVertical: 12,
   },
-  tableRowMouvement: { backgroundColor: 'rgba(100, 116, 139, 0.06)' },
+  tableRowMouvement: { backgroundColor: 'rgba(142, 148, 154, 0.05)' },
   tableRowParentCategory: {
     borderLeftWidth: 2,
     borderLeftColor: 'rgba(148, 163, 184, 0.18)',
@@ -1303,15 +1335,15 @@ function makeStyles(c: any) {
   tableRowParentCategoryIncome: { backgroundColor: 'rgba(52, 211, 153, 0.11)' },
   tableRowParentCategoryExpense: { backgroundColor: 'rgba(248, 113, 113, 0.09)' },
   tableRowTotalRecettes: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(52, 211, 153, 0.25)',
-    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0, 182, 122, 0.3)',
+    backgroundColor: 'rgba(0, 182, 122, 0.08)',
     paddingVertical: 12,
   },
   tableRowTotalDepenses: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(248, 113, 113, 0.25)',
-    backgroundColor: 'rgba(248, 113, 113, 0.1)',
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255, 59, 48, 0.3)',
+    backgroundColor: 'rgba(255, 59, 48, 0.08)',
     paddingVertical: 12,
   },
   cell: { paddingHorizontal: 10, justifyContent: 'center' },
@@ -1350,9 +1382,9 @@ function makeStyles(c: any) {
   cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
   cellNumPositive: { color: c.emerald, fontWeight: '600' },
   cellNumNegative: { color: c.danger, fontWeight: '600' },
-  cellNumSectionMouvements: { color: '#94a3b8' },
-  cellNumDraft: { color: '#f97316', fontStyle: 'italic' },
-  cellNumForecast: { color: '#64748b', fontStyle: 'italic' },
+  cellNumSectionMouvements: { color: '#8E949A' },
+  cellNumDraft: { color: '#FF9500', fontStyle: 'italic' },
+  cellNumForecast: { color: '#8E949A', fontStyle: 'italic' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: c.cardBorder },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },

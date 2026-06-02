@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
+﻿import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
+import ScreenGradient from '../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
@@ -461,7 +463,9 @@ function KpiCard({ icon, label, value, color, sub }: { icon: string; label: stri
 /* ═══════════════════  MAIN SCREEN  ═══════════════════ */
 export default function ReportingScreen() {
   const C = useReportingColors();
+  const THEME = useAppColors(); // accent réel — C.emerald est écrasé par CHART
   const s = makeStyles(C);
+  const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const { width: screenW } = useWindowDimensions();
@@ -640,7 +644,8 @@ export default function ReportingScreen() {
     return (
       <View style={s.root}>
         <StatusBar style="light" />
-        <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+              <ScreenGradient />
+      <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="lock-closed-outline" size={48} color={C.textSecondary} />
             <Text style={{ color: C.textSecondary, marginTop: 12, fontSize: 15 }}>Connectez-vous pour accéder au reporting.</Text>
@@ -655,6 +660,7 @@ export default function ReportingScreen() {
   return (
     <View style={s.root}>
       <StatusBar style="light" />
+            <ScreenGradient />
       <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
         <ScrollView
           style={s.scroll}
@@ -664,8 +670,16 @@ export default function ReportingScreen() {
         >
           {/* ═══ HEADER ═══ */}
           <FadeIn>
-            <Text style={s.pageTitle}>Reporting</Text>
-            <Text style={s.pageSub}>{currentMonthLabel.charAt(0).toUpperCase() + currentMonthLabel.slice(1)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)}
+              >
+                <Ionicons name="chevron-back" size={20} color={C.textSecondary} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: C.textSecondary }}>Retour</Text>
+              </TouchableOpacity>
+              <Text style={[s.pageSub, { marginLeft: 'auto' }]}>{currentMonthLabel.charAt(0).toUpperCase() + currentMonthLabel.slice(1)}</Text>
+            </View>
           </FadeIn>
 
           {/* ═══ KPI CARDS ═══ */}

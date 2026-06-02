@@ -1,6 +1,8 @@
-import { useRef } from 'react';
+﻿import { useRef } from 'react';
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, RefreshControl } from 'react-native';
+import ScreenGradient from '../components/ScreenGradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -193,7 +195,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {Platform.OS === 'web' && typeof document !== 'undefined' && (
           <input
             ref={(el: any) => { fileInputRef.current = el; }}

@@ -121,6 +121,8 @@ export interface Account {
   balance: number;
   is_active: boolean;
   fiscal_envelope?: 'pea' | 'av' | 'cto' | 'autre' | null;
+  /** Date ISO (YYYY-MM-DD) à laquelle le solde initial a été constaté. */
+  init_date?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,4 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+﻿import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -13,10 +15,10 @@ export default function LegalScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.title}>Mentions légales</Text>

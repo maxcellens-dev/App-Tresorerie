@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform, Modal } from 'react-native';
-// Alert/Platform kept for validation alerts (invalid amount, missing date, etc.)
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal } from 'react-native';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -41,6 +41,9 @@ export default function EditTransactionScreen() {
   const [confirmModal, setConfirmModal] = useState<{
     title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void;
   } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [errorFields, setErrorFields] = useState<string[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
 
   function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
     setConfirmModal(opts);
@@ -125,11 +128,20 @@ export default function EditTransactionScreen() {
   const isInstanceEdit = Boolean(instanceDate && tx?.is_recurring);
   const isInstanceOccurrenceEdit = isInstanceEdit && editMode === 'single';
 
+  function showError(msg: string, fields: string[] = []) {
+    setFormError(msg);
+    setErrorFields(fields);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
+
   async function handleSubmitWithDraft(isDraft = false) {
     if (!id || !tx) return;
+    setFormError(null);
+    setErrorFields([]);
+
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
-      Alert.alert('Montant invalide', 'Saisissez un montant.');
+      showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
       return;
     }
 
@@ -144,12 +156,12 @@ export default function EditTransactionScreen() {
       : '';
 
     if (futureAmount.trim() && !effectiveDateISO) {
-      Alert.alert("Date d'effet manquante", "Indiquez la date à partir de laquelle appliquer le nouveau montant.");
+      showError("La date d'effet est obligatoire lorsqu'un nouveau montant futur est saisi.", ['futureDate']);
       return;
     }
 
     if (effectiveDateISO && (!futureAmountNum || Number.isNaN(futureAmountNum))) {
-      Alert.alert('Montant futur invalide', 'Saisissez un montant futur valide.');
+      showError('Le montant futur est invalide.', ['futureAmount']);
       return;
     }
 
@@ -181,7 +193,7 @@ export default function EditTransactionScreen() {
         }
         closeEditor();
       } catch (e: unknown) {
-        Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
+        showError(e instanceof Error ? e.message : "Impossible d'enregistrer.");
       }
       return;
     }
@@ -229,7 +241,7 @@ export default function EditTransactionScreen() {
         }
         closeEditor();
       } catch (e: unknown) {
-        Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
+        showError(e instanceof Error ? e.message : "Impossible d'enregistrer.");
       }
       return;
     }
@@ -249,7 +261,7 @@ export default function EditTransactionScreen() {
       });
       closeEditor();
     } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'enregistrer.");
+      showError(e instanceof Error ? e.message : "Impossible d'enregistrer.");
     }
   }
 
@@ -291,6 +303,7 @@ export default function EditTransactionScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -304,7 +317,13 @@ export default function EditTransactionScreen() {
           </View>
         )}
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {formError && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color="#ef4444" />
+              <Text style={styles.errorBannerText}>{formError}</Text>
+            </View>
+          )}
           {isVirement ? (
             /* ── Virement : affichage read-only type + comptes ── */
             <>
@@ -367,11 +386,11 @@ export default function EditTransactionScreen() {
           />
 
           {/* Montant */}
-          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (' + CURRENCY_SYMBOL + ')'}</Text>
+          <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (' + CURRENCY_SYMBOL + ')'} *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errorFields.includes('amount') && styles.inputError]}
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
@@ -639,6 +658,19 @@ function makeStyles(c: any) {
   toggleLabelActive: { color: c.bg },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20 },
+  inputError: { borderColor: '#ef4444' },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
   hint: { color: c.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 16 },
   chipScroll: { marginBottom: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },

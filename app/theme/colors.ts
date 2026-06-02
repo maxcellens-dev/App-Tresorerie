@@ -1,61 +1,57 @@
 /**
- * Palette de couleurs unifiée pour l'ensemble de l'application.
+ * Palette de couleurs sémantiques — identité Revolut-inspired.
  *
- * Couleurs par type de compte / catégorie financière :
- *   - Épargne          → vert   (#34d399)
- *   - Investissement    → violet (#a78bfa)
- *   - Compte Courant    → bleu   (#60a5fa)
- *   - Dépenses variables→ orangé (#f59e0b)
- *
- * La page Trésorerie conserve ses propres couleurs.
+ * Types de compte :
+ *   Épargne        → vert   (#00B67A)
+ *   Investissement → violet (#9B5CF6)
+ *   Courant        → bleu   (#0075FF)
+ *   Dépenses var.  → orange (#FF9500)
  */
 
-/* ── Base (dark theme) ── */
+/* ── Base (dark) ── */
 export const BASE = {
-  bg: '#020617',
-  card: '#0f172a',
-  cardBorder: '#1e293b',
-  text: '#ffffff',
-  textSecondary: '#94a3b8',
+  bg: '#000000',
+  card: '#111214',
+  cardBorder: '#2A2B2E',
+  text: '#FFFFFF',
+  textSecondary: '#8E949A',
 };
 
 /* ── Couleurs par type de compte ── */
 export const ACCOUNT_COLORS: Record<string, string> = {
-  savings: '#34d399',     // Épargne  → vert
-  investment: '#a78bfa',  // Investissement → violet
-  checking: '#60a5fa',    // Courant  → bleu
-  other: '#94a3b8',       // Autre    → gris
+  savings:    '#00B67A',
+  investment: '#9B5CF6',
+  checking:   '#0075FF',
+  other:      '#8E949A',
 };
 
 /* ── Couleurs sémantiques ── */
 export const SEMANTIC = {
-  income: '#34d399',       // Recettes → vert
-  expense: '#94a3b8',      // Dépenses (liste) → gris discret
-  expenseChart: '#fb7185', // Dépenses (graphiques) → rose
-  expenseChartDark: '#e11d48',
-  variableExpense: '#f59e0b', // Dépenses variables → orangé/ambre
-  project: '#22d3ee',      // Projets → cyan
-  objective: '#34d399',    // Objectifs → vert
+  income:           '#00B67A',
+  expense:          '#8E949A',
+  expenseChart:     '#FF3B30',
+  expenseChartDark: '#CC2F26',
+  variableExpense:  '#FF9500',
+  project:          '#00C4CC',
+  objective:        '#00B67A',
 
-  positive: '#34d399',
-  negative: '#fb7185',
+  positive: '#00B67A',
+  negative: '#FF3B30',
 
-  danger: '#ef4444',
-  warning: '#f59e0b',
-  success: '#34d399',
+  danger:  '#FF3B30',
+  warning: '#FF9500',
+  success: '#00B67A',
 };
 
 /* ── Icônes par type de compte ── */
 export const ACCOUNT_ICONS: Record<string, string> = {
-  savings: 'leaf-outline',
+  savings:    'leaf-outline',
   investment: 'trending-up-outline',
-  checking: 'wallet-outline',
-  other: 'cash-outline',
+  checking:   'wallet-outline',
+  other:      'cash-outline',
 };
 
-/**
- * Helper rapide : couleur d'un type de compte
- */
+/** Helper : couleur d'un type de compte */
 export function accountColor(type: string): string {
   return ACCOUNT_COLORS[type] ?? ACCOUNT_COLORS.other;
 }

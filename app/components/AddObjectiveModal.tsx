@@ -47,6 +47,8 @@ export default function AddObjectiveModal({
   });
 
   const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [errorFields, setErrorFields] = useState<string[]>([]);
 
   // Load editing objective data when modal opens
   useEffect(() => {
@@ -72,12 +74,21 @@ export default function AddObjectiveModal({
   }, [visible, editingObjective]);
 
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.target_yearly_amount.trim()) {
-      alert('Veuillez remplir au moins le nom et le montant cible');
+    setFormError(null);
+    setErrorFields([]);
+    if (!form.name.trim()) {
+      setFormError("Le nom de l'objectif est obligatoire.");
+      setErrorFields(['name']);
+      return;
+    }
+    if (!form.target_yearly_amount.trim() || isNaN(parseFloat(form.target_yearly_amount))) {
+      setFormError('Le montant cible annuel est obligatoire.');
+      setErrorFields(['amount']);
       return;
     }
     if (!form.linked_account_id) {
-      alert('Veuillez sélectionner un compte lié');
+      setFormError('Veuillez sélectionner un compte lié.');
+      setErrorFields(['account']);
       return;
     }
 
@@ -139,6 +150,8 @@ export default function AddObjectiveModal({
       linked_account_id: null,
     });
     setShowAccountPicker(false);
+    setFormError(null);
+    setErrorFields([]);
     onClose();
   };
 
@@ -155,7 +168,7 @@ export default function AddObjectiveModal({
         <View
           style={[
             styles.container,
-            { backgroundColor: COLORS.surface, borderColor: COLORS.border },
+            { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border },
           ]}
         >
           {/* Header */}
@@ -174,6 +187,12 @@ export default function AddObjectiveModal({
           {/* Form */}
           {!showAccountPicker ? (
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+              {/* Bandeau erreur */}
+              {formError && (
+                <View style={[styles.errorBanner, { borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                  <Text style={styles.errorBannerText}>{formError}</Text>
+                </View>
+              )}
               {/* Name */}
               <View style={styles.field}>
                 <Text style={[styles.label, { color: COLORS.text }]}>
@@ -185,13 +204,13 @@ export default function AddObjectiveModal({
                     {
                       backgroundColor: COLORS.background,
                       color: COLORS.text,
-                      borderColor: COLORS.border,
+                      borderColor: errorFields.includes('name') ? '#ef4444' : COLORS.border,
                     },
                   ]}
                   placeholder="Ex. Investir en bourse"
                   placeholderTextColor={COLORS.textSecondary}
                   value={form.name}
-                  onChangeText={(text) => setForm({ ...form, name: text })}
+                  onChangeText={(text) => { setForm({ ...form, name: text }); setErrorFields((p) => p.filter((f) => f !== 'name')); setFormError(null); }}
                   editable={!(addObjectiveMutation.isPending || updateObjectiveMutation.isPending)}
                 />
               </View>
@@ -231,7 +250,7 @@ export default function AddObjectiveModal({
                     {
                       backgroundColor: COLORS.background,
                       color: COLORS.text,
-                      borderColor: COLORS.border,
+                      borderColor: errorFields.includes('amount') ? '#ef4444' : COLORS.border,
                     },
                   ]}
                   placeholder="5000"
@@ -247,6 +266,8 @@ export default function AddObjectiveModal({
                         ? (yearly / 12).toFixed(2).replace(/\.?0+$/, '')
                         : '',
                     });
+                    setErrorFields((p) => p.filter((f) => f !== 'amount'));
+                    setFormError(null);
                   }}
                   keyboardType="decimal-pad"
                   editable={!(addObjectiveMutation.isPending || updateObjectiveMutation.isPending)}
@@ -312,11 +333,11 @@ export default function AddObjectiveModal({
                     styles.input,
                     {
                       backgroundColor: COLORS.background,
-                      borderColor: COLORS.border,
+                      borderColor: errorFields.includes('account') ? '#ef4444' : COLORS.border,
                       justifyContent: 'center',
                     },
                   ]}
-                  onPress={() => setShowAccountPicker(true)}
+                  onPress={() => { setShowAccountPicker(true); setErrorFields((p) => p.filter((f) => f !== 'account')); setFormError(null); }}
                   disabled={addObjectiveMutation.isPending}
                 >
                   <Text
@@ -582,6 +603,17 @@ function makeStyles(c: any) {
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  errorBanner: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  errorBannerText: {
+    fontSize: 13,
+    color: '#ef4444',
+    lineHeight: 18,
   },
 });
 }

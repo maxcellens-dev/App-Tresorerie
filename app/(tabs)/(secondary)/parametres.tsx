@@ -1,5 +1,7 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -8,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../theme/palette';
+import { useStyleConfig } from '../../hooks/useStyleConfig';
 import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
@@ -29,6 +32,22 @@ export default function SettingsScreen() {
 
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
+
+  // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
+  const { data: styleConfig } = useStyleConfig();
+  const allPresets = useMemo(() => {
+    const native = THEME_PRESETS.map((p) => ({
+      id: p.id,
+      label: p.label,
+      swatch: styleConfig?.custom_accents?.[p.id] ?? p.swatch,
+    }));
+    const extra = (styleConfig?.extra_presets ?? []).map((p) => ({
+      id: p.id,
+      label: p.label,
+      swatch: p.dark,
+    }));
+    return [...native, ...extra];
+  }, [styleConfig]);
 
   // ── Guide "bulles" ──
   const guide = useScreenGuide('parametres', user?.id);
@@ -93,6 +112,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -199,13 +219,13 @@ export default function SettingsScreen() {
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
               <Text style={styles.rowLabel}>Couleur d'accent</Text>
               <View style={styles.presetRow}>
-                {THEME_PRESETS.map((p) => {
+                {allPresets.map((p) => {
                   const active = currentPreset === p.id;
                   return (
                     <TouchableOpacity
                       key={p.id}
                       style={[styles.presetDot, { backgroundColor: p.swatch }, active && styles.presetDotActive]}
-                      onPress={() => setPreset(p.id)}
+                      onPress={() => setPreset(p.id as ThemePreset)}
                       activeOpacity={0.8}
                       accessibilityLabel={p.label}
                     >
@@ -321,10 +341,11 @@ function makeStyles(c: AppColors) {
     segmentLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
     segmentLabelActive: { color: c.bg },
     currencyHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
-    presetRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    presetRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
     presetDot: {
       width: 32, height: 32, borderRadius: 16,
       alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: c.cardBorder,
     },
     presetDotActive: {
       borderWidth: 2, borderColor: c.text,

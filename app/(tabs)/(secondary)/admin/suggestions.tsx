@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -49,19 +49,19 @@ export default function AdminSuggestions() {
   const [newIdea, setNewIdea] = useState('');
 
   const handleAddRoadmap = async () => {
-    if (!newIdea.trim()) { Alert.alert('Champ requis', 'Saisissez une idée.'); return; }
+    if (!newIdea.trim()) return;
     try {
       await addRoadmapIdea.mutateAsync({ title: newIdea.trim() });
       setNewIdea('');
-    } catch (e: unknown) {
-      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'ajouter.');
-    }
+    } catch (e: unknown) { console.error(e); }
   };
 
   const handleDeleteRoadmap = (id: string) => {
+    const doIt = () => deleteRoadmapIdea.mutate(id);
+    if (Platform.OS === 'web') { if (window.confirm('Retirer cette idée de la roadmap ?')) doIt(); return; }
     Alert.alert('Supprimer', 'Retirer cette idée de la roadmap ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: () => deleteRoadmapIdea.mutate(id) },
+      { text: 'Supprimer', style: 'destructive', onPress: doIt },
     ]);
   };
 
@@ -84,16 +84,20 @@ export default function AdminSuggestions() {
   });
 
   const handleDelete = (id: string) => {
+    const doIt = () => deleteMutation.mutate(id);
+    if (Platform.OS === 'web') { if (window.confirm('Supprimer cette suggestion ?')) doIt(); return; }
     Alert.alert('Supprimer', 'Supprimer cette suggestion ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: () => deleteMutation.mutate(id) },
+      { text: 'Supprimer', style: 'destructive', onPress: doIt },
     ]);
   };
 
   const handleDeleteAll = () => {
+    const doIt = () => deleteAllMutation.mutate();
+    if (Platform.OS === 'web') { if (window.confirm(`Supprimer les ${suggestions.length} suggestions ?`)) doIt(); return; }
     Alert.alert('Tout supprimer', `Supprimer les ${suggestions.length} suggestions ?`, [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer tout', style: 'destructive', onPress: () => deleteAllMutation.mutate() },
+      { text: 'Supprimer tout', style: 'destructive', onPress: doIt },
     ]);
   };
 
@@ -101,7 +105,7 @@ export default function AdminSuggestions() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/(tabs)/(secondary)/admin' as any)}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput,
 } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -196,9 +198,9 @@ export default function ProfilFinancierScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

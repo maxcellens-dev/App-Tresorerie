@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+﻿import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   useWindowDimensions,
@@ -7,6 +7,7 @@ import { CURRENCY_SYMBOL } from '../lib/currency';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenGradient from '../components/ScreenGradient';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -275,14 +276,10 @@ export default function ProjectionScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style={COLORS.bg === '#020617' ? 'light' : 'dark'} />
+      <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-          <Text style={styles.pageTitle}>Projection</Text>
-          <Text style={styles.pageSub}>
-            Vos résultats prévisionnels, basés sur votre situation réelle. Ajustez les valeurs pour simuler.
-          </Text>
 
           {/* Onglets */}
           <View style={styles.tabs}>

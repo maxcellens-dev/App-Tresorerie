@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
+import ScreenGradient from '../../components/ScreenGradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Stack, useRouter } from 'expo-router';
@@ -355,6 +357,7 @@ export default function ProjectsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
           <View style={styles.headerActions}>

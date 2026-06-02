@@ -90,7 +90,7 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
 export function useAddAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null }) => {
+    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom du compte est requis.');
@@ -112,6 +112,7 @@ export function useAddAccount(profileId: string | undefined) {
           currency: input.currency || 'EUR',
           balance: input.balance ?? 0,
           ...(input.type === 'investment' && input.fiscal_envelope ? { fiscal_envelope: input.fiscal_envelope } : {}),
+          ...(input.init_date ? { init_date: input.init_date } : {}),
         })
         .select()
         .single();

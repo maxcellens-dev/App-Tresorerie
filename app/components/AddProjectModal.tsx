@@ -108,6 +108,8 @@ export default function AddProjectModal({
 
   const [showAccountPicker, setShowAccountPicker] = useState<'source' | 'destination' | null>(null);
   const [showCalendar, setShowCalendar] = useState<'target' | 'payment' | false>(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [errorFields, setErrorFields] = useState<string[]>([]);
 
   // Load editing project data when modal opens
   useEffect(() => {
@@ -226,12 +228,27 @@ export default function AddProjectModal({
   };
 
   const handleSubmit = async () => {
-    if (!form.name.trim() || !form.target_amount.trim()) {
-      alert('Veuillez remplir au moins le nom et le montant cible');
+    setFormError(null);
+    setErrorFields([]);
+
+    if (!form.name.trim()) {
+      setFormError('Le nom du projet est obligatoire.');
+      setErrorFields(['name']);
       return;
     }
-    if (!form.source_account_id || !form.linked_account_id) {
-      alert('Veuillez sélectionner un compte source et un compte de destination');
+    if (!form.target_amount.trim() || isNaN(parseFloat(form.target_amount))) {
+      setFormError('Le montant cible est obligatoire.');
+      setErrorFields(['target_amount']);
+      return;
+    }
+    if (!form.source_account_id) {
+      setFormError('Veuillez sélectionner un compte source.');
+      setErrorFields(['source_account']);
+      return;
+    }
+    if (!form.linked_account_id) {
+      setFormError('Veuillez sélectionner un compte de destination.');
+      setErrorFields(['linked_account']);
       return;
     }
 
@@ -239,10 +256,18 @@ export default function AddProjectModal({
     let ponctuelList: { date: string; amount: number }[] | undefined;
 
     if (form.allocation_type === 'monthly') {
-      if (!form.monthly_allocation.trim()) { alert('Veuillez entrer une allocation mensuelle'); return; }
+      if (!form.monthly_allocation.trim()) {
+        setFormError("L'allocation mensuelle est obligatoire.");
+        setErrorFields(['monthly_allocation']);
+        return;
+      }
       monthlyAlloc = parseFloat(form.monthly_allocation);
     } else if (form.allocation_type === 'date') {
-      if (!form.target_date || !calculatedAllocation) { alert('Veuillez entrer une date cible valide'); return; }
+      if (!form.target_date || !calculatedAllocation) {
+        setFormError('Veuillez entrer une date cible valide.');
+        setErrorFields(['target_date']);
+        return;
+      }
       monthlyAlloc = calculatedAllocation;
     } else {
       // ponctuel — ne régénérer que le mois courant + futurs (les mois passés sont préservés)
@@ -251,7 +276,10 @@ export default function AddProjectModal({
         .sort()
         .map((k) => ({ date: ponctuelDateFor(k), amount: parseFloat(ponctuelEntries[k].amount) }));
       const anyEnabled = Object.values(ponctuelEntries).some((e) => e?.enabled && parseFloat(e.amount || '0') > 0);
-      if (!anyEnabled) { alert('Veuillez activer au moins un mois avec un montant'); return; }
+      if (!anyEnabled) {
+        setFormError('Veuillez activer au moins un mois avec un montant.');
+        return;
+      }
       monthlyAlloc = ponctuelList.length > 0 ? ponctuelList.reduce((s, e) => s + e.amount, 0) / ponctuelList.length : 0;
     }
 
@@ -308,6 +336,8 @@ export default function AddProjectModal({
     setPonctuelEntries({});
     setShowAccountPicker(null);
     setShowCalendar(false);
+    setFormError(null);
+    setErrorFields([]);
     onClose();
   };
 
@@ -350,7 +380,7 @@ export default function AddProjectModal({
     <>
       <Modal visible={visible && !showCalendar} transparent animationType="slide" onRequestClose={handleClose}>
         <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-          <View style={[styles.container, { backgroundColor: COLORS.surface, borderColor: COLORS.border }]}>
+          <View style={[styles.container, { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border }]}>
             {/* Header */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: COLORS.text }]}>
@@ -363,15 +393,21 @@ export default function AddProjectModal({
 
             {!showAccountPicker ? (
               <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+                {/* Bandeau erreur */}
+                {formError && (
+                  <View style={[styles.errorBanner, { borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                    <Text style={styles.errorBannerText}>{formError}</Text>
+                  </View>
+                )}
                 {/* Nom */}
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: COLORS.text }]}>Nom du projet *</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: COLORS.border }]}
+                    style={[styles.input, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: errorFields.includes('name') ? '#ef4444' : COLORS.border }]}
                     placeholder="Ex. Nouvelle voiture"
                     placeholderTextColor={COLORS.textSecondary}
                     value={form.name}
-                    onChangeText={(t) => setForm({ ...form, name: t })}
+                    onChangeText={(t) => { setForm({ ...form, name: t }); setErrorFields((p) => p.filter((f) => f !== 'name')); setFormError(null); }}
                     editable={!isPending}
                   />
                 </View>
@@ -724,7 +760,7 @@ export default function AddProjectModal({
       {/* Calendar modal */}
       <Modal visible={!!showCalendar && visible} transparent animationType="slide" onRequestClose={() => setShowCalendar(false)}>
         <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-          <View style={[styles.calendarContainer, { backgroundColor: COLORS.surface, borderColor: COLORS.border }]}>
+          <View style={[styles.calendarContainer, { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border }]}>
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => setShowCalendar(false)}>
                 <Text style={[styles.calendarHeaderText, { color: COLORS.primary }]}>Fermer</Text>
@@ -747,7 +783,7 @@ export default function AddProjectModal({
                   return { [dateStr]: { selected: true, selectedColor: COLORS.primary, selectedTextColor: '#000' } };
                 })()}
                 accentColor={COLORS.primary}
-                bgColor={COLORS.surface}
+                bgColor={COLORS.cardSolid}
                 textColor={COLORS.text}
                 textSecondaryColor={COLORS.textSecondary}
                 style={styles.calendar}
@@ -809,6 +845,8 @@ function makeStyles(c: any) {
   accountNoteIcon: { fontSize: 13, marginTop: 1 },
   accountNoteText: { flex: 1, fontSize: 12, lineHeight: 17 },
   accountHint: { fontSize: 11, lineHeight: 16, marginTop: 6 },
+  errorBanner: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 12 },
+  errorBannerText: { fontSize: 13, color: '#ef4444', lineHeight: 18 },
   // Ponctuel
   ponctuelContainer: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   ponctuelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },

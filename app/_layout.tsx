@@ -10,6 +10,7 @@ import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
 import ProfileChangeModal from './components/ProfileChangeModal';
+import FontApplier from './components/FontApplier';
 import { useAppColors } from './hooks/useAppColors';
 import { useCurrency } from './hooks/useCurrency';
 import './global.css';
@@ -89,6 +90,7 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <ConfigSync />
+          <FontApplier />
           <RecurringMaterializer />
           <AppChrome />
         </AuthProvider>

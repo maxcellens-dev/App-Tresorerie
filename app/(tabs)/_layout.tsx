@@ -12,7 +12,8 @@ function TabsHeader({ route }: { route: any }) {
   const fullPath = segments.join('/');
   
   const titleMap: Record<string, string> = {
-    '(tabs)/pilotage': '',
+    '(tabs)/pilotage': 'Tableau de bord',
+    '(tabs)/projection': 'Projection',
     '(tabs)/transactions': 'Transactions',
     '(tabs)/tresorerie': 'Plan de trésorerie',
     '(tabs)/comptes': 'Comptes',
@@ -60,7 +61,7 @@ export default function TabsLayout() {
       screenOptions={({ route }) => ({
         headerShown: true,
         header: () => <TabsHeader route={route} />,
-        headerStyle: { backgroundColor: COLORS.bg },
+        headerStyle: { backgroundColor: 'transparent' },
         headerShadowVisible: false,
         sceneContainerStyle: styles.sceneContainer,
         tabBarActiveTintColor: COLORS.tabActive,

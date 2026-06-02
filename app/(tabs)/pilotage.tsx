@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal } from 'react-native';
+import ScreenGradient from '../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -241,14 +243,8 @@ export default function PilotageScreen() {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Tableau de bord</Text>
-          </View>
-        </View>
-
         {/* Bandeau marge de sécurité */}
         {(pilotageData.safety_margin_amount ?? 0) > 0 &&
          pilotageData.total_checking < (pilotageData.safety_margin_amount ?? 0) && (
@@ -301,13 +297,11 @@ export default function PilotageScreen() {
                   return (
                     <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: col }]}>
                       <Ionicons name="leaf-outline" size={16} color={col} style={{ marginBottom: 2 }} />
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                        <Text style={styles.summaryLabel}>Épargne</Text>
-                        <Text style={{ fontSize: 9, fontWeight: '700', color: col }}>{kw}</Text>
-                      </View>
+                      <Text style={styles.summaryLabel}>Épargne</Text>
                       <Text style={[styles.summaryAmount, { color: col }]}>
                         {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}
                       </Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: col, marginTop: 2 }}>{kw}</Text>
                     </View>
                   );
                 })()}
@@ -695,16 +689,15 @@ function makeStyles(c: AppColors) {
     paddingHorizontal: 4,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 22,
+    fontWeight: '700',
     color: c.text,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
   sectionDivider: {
-    height: 1,
+    height: 0.5,
     backgroundColor: c.cardBorder,
     marginHorizontal: 4,
-    opacity: 0.6,
   },
 
   // Grid
@@ -725,20 +718,20 @@ function makeStyles(c: AppColors) {
   },
   summaryGrid: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
   },
   summaryItem: {
     flex: 1,
-    backgroundColor: c.bg,
-    padding: 10,
-    borderRadius: 12,
+    backgroundColor: c.card,
+    padding: 14,
+    borderRadius: 16,
     gap: 4,
   },
   summaryItemEpargne: {
     flex: 1.4,
-    backgroundColor: c.bg,
-    padding: 10,
-    borderRadius: 12,
+    backgroundColor: c.card,
+    padding: 14,
+    borderRadius: 16,
     gap: 3,
     borderLeftWidth: 3,
     borderLeftColor: ACCOUNT_COLORS.savings,
@@ -749,7 +742,7 @@ function makeStyles(c: AppColors) {
     fontWeight: '600',
   },
   summaryAmount: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '700',
     color: ACCOUNT_COLORS.checking,
   },
@@ -814,9 +807,9 @@ function makeStyles(c: AppColors) {
   },
   suiviLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   suiviHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
-  suiviValue: { fontSize: 15, fontWeight: '800' },
-  suiviLabelBig: { fontSize: 16, color: c.text, fontWeight: '800' },
-  suiviValueBig: { fontSize: 20, fontWeight: '800' },
+  suiviValue: { fontSize: 16, fontWeight: '700' },
+  suiviLabelBig: { fontSize: 16, color: c.text, fontWeight: '700' },
+  suiviValueBig: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
 
   // Recommandations — bandeau cumuls / alerte / bouton
   overspendBox: {
