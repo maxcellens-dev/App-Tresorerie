@@ -52,10 +52,12 @@ const QUESTIONS: Array<{
   { key: 'q7', label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
   // Q8 : rendu spécial (TextInput), pas d'options
   { key: 'q8', label: 'Quel montant minimum souhaitez-vous toujours conserver sur vos comptes courants, quoi qu\'il arrive ?', options: [] },
+  // Q9 : rendu spécial (TextInput), pas d'options
+  { key: 'q9', label: 'Combien dépensez-vous environ par semaine pour vos courses, loisirs et dépenses variables ?', options: [] },
 ];
 
-// 0 = welcome, 1-8 = questions, 9 = résultat
-const TOTAL_STEPS = 10;
+// 0 = welcome, 1-9 = questions, 10 = résultat
+const TOTAL_STEPS = 11;
 
 // ── Sous-composants ──────────────────────────────────────────
 
@@ -104,7 +106,7 @@ export default function QuestionnaireScreen() {
   const [step, setStep] = useState(savedProgress?.currentStep ?? 0);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(
     (savedProgress?.answers as unknown as QuestionnaireAnswers) ?? {
-      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '',
+      q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '',
     }
   );
   const [saving, setSaving] = useState(false);
@@ -164,15 +166,15 @@ export default function QuestionnaireScreen() {
       return;
     }
     const q = QUESTIONS[step - 1];
-    // Q8 : vide = "je ne sais pas" (valeur 0), toujours valide
-    if (q.key !== 'q8' && !answers[q.key]) {
+    // Q8 et Q9 : vide = "je ne sais pas" (valeur 0), toujours valide
+    if (q.key !== 'q8' && q.key !== 'q9' && !answers[q.key]) {
       Alert.alert('Sélection requise', 'Choisissez une réponse pour continuer.');
       return;
     }
-    if (step < 8) {
+    if (step < 9) {
       animateToStep(step + 1);
     } else {
-      animateToStep(9);
+      animateToStep(10);
     }
   }
 
@@ -230,7 +232,7 @@ export default function QuestionnaireScreen() {
   }, [answers]);
 
   const isIrregular = detectIrregularIncome(answers.q1, answers.q2);
-  const currentQ = step >= 1 && step <= 8 ? QUESTIONS[step - 1] : null;
+  const currentQ = step >= 1 && step <= 9 ? QUESTIONS[step - 1] : null;
   const profile = assignedProfile ? PROFILE_INFO[assignedProfile] : null;
   const alloc = assignedProfile ? PROFILE_ALLOCATIONS[assignedProfile] : null;
 
@@ -242,7 +244,7 @@ export default function QuestionnaireScreen() {
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
 
         {/* Barre de progression */}
-        {step > 0 && step < 9 && (
+        {step > 0 && step < 10 && (
           <View style={styles.progressContainer}>
             <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
               <Ionicons name="arrow-back" size={22} color="#94a3b8" />
@@ -304,9 +306,9 @@ export default function QuestionnaireScreen() {
           )}
 
           {/* ── Écrans 1-8 : Questions ─────────────────── */}
-          {step >= 1 && step <= 8 && currentQ && (
+          {step >= 1 && step <= 9 && currentQ && (
             <View style={styles.questionScreen}>
-              <Text style={styles.questionNum}>Question {step} sur 8</Text>
+              <Text style={styles.questionNum}>Question {step} sur 9</Text>
               <Text style={styles.questionText}>{currentQ.label}</Text>
 
               {step === 2 && isIrregular && (
@@ -318,37 +320,44 @@ export default function QuestionnaireScreen() {
                 </View>
               )}
 
-              {/* ── Q8 : saisie du montant minimum ── */}
-              {step === 8 ? (
+              {/* ── Q8 / Q9 : saisie d'un montant (€) ── */}
+              {step === 8 || step === 9 ? (
                 <ScrollView
                   style={styles.optionsScroll}
                   contentContainerStyle={styles.optionsContent}
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={styles.infoBox}>
-                    <Ionicons name="shield-checkmark-outline" size={15} color="#60a5fa" />
+                    <Ionicons name={step === 8 ? 'shield-checkmark-outline' : 'cart-outline'} size={15} color="#60a5fa" />
                     <Text style={styles.infoText}>
-                      Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.
+                      {step === 8
+                        ? 'Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.'
+                        : 'Sert à estimer votre enveloppe de dépenses variables (courses, loisirs, imprévus) au début, tant que l’historique est insuffisant. Montant par semaine.'}
                     </Text>
                   </View>
                   <TextInput
                     style={styles.q8Input}
-                    value={answers.q8}
-                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect('q8', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
+                    value={step === 8 ? answers.q8 : answers.q9}
+                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect(step === 8 ? 'q8' : 'q9', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
                     keyboardType="decimal-pad"
-                    placeholder="Ex. 500"
+                    placeholder={step === 8 ? 'Ex. 500' : 'Ex. 120'}
                     placeholderTextColor={COLORS.textSecondary}
                   />
-                  <Text style={styles.q8Currency}>€</Text>
+                  <Text style={styles.q8Currency}>{step === 8 ? '€' : '€ / semaine'}</Text>
+                  {step === 9 && answers.q9 ? (
+                    <Text style={[styles.q8DontKnowText, { textAlign: 'center', marginTop: 8 }]}>
+                      ≈ {Math.round(parseFloat(answers.q9.replace(',', '.') || '0') * 4.33).toLocaleString('fr-FR')} € / mois
+                    </Text>
+                  ) : null}
                   <TouchableOpacity
                     style={styles.q8DontKnow}
                     onPress={() => {
-                      handleSelect('q8', '');
+                      handleSelect(step === 8 ? 'q8' : 'q9', '');
                       handleNext();
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.q8DontKnowText}>Je ne sais pas → 0 €</Text>
+                    <Text style={styles.q8DontKnowText}>Je ne sais pas → on l’estimera</Text>
                   </TouchableOpacity>
                   <View style={{ height: 100 }} />
                 </ScrollView>
@@ -422,12 +431,12 @@ export default function QuestionnaireScreen() {
 
               <View style={styles.questionFooter}>
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1 }, (step !== 8 && !answers[currentQ.key]) && styles.btnDisabled]}
+                  style={[styles.primaryBtn, { flex: 1 }, (step < 8 && !answers[currentQ.key]) && styles.btnDisabled]}
                   onPress={handleNext}
-                  disabled={step !== 8 && !answers[currentQ.key]}
+                  disabled={step < 8 && !answers[currentQ.key]}
                 >
                   <Text style={styles.primaryBtnLabel}>
-                    {step === 8 ? 'Voir mon profil' : 'Continuer'}
+                    {step === 9 ? 'Voir mon profil' : 'Continuer'}
                   </Text>
                   <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
                 </TouchableOpacity>
@@ -435,8 +444,8 @@ export default function QuestionnaireScreen() {
             </View>
           )}
 
-          {/* ── Écran 9 : Résultat ───────────────────── */}
-          {step === 9 && profile && assignedProfile && alloc && (
+          {/* ── Écran 10 : Résultat ───────────────────── */}
+          {step === 10 && profile && assignedProfile && alloc && (
             <ScrollView contentContainerStyle={styles.resultScreen} showsVerticalScrollIndicator={false}>
               <View style={styles.resultBadge}>
                 <Text style={styles.resultBadgeText}>Profil attribué !</Text>

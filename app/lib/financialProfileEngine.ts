@@ -143,6 +143,8 @@ export interface QuestionnaireAnswers {
   q7: string;
   /** Montant minimum conservé sur les comptes courants. Chaîne numérique ou '' pour "je ne sais pas" (→ 0). */
   q8: string;
+  /** Estimation hebdomadaire des dépenses variables (€/semaine). Chaîne numérique ou '' (→ 0). */
+  q9: string;
 }
 
 /** Convertit la réponse Q8 en montant numérique. '' ou "je ne sais pas" → 0. */
@@ -150,6 +152,21 @@ export function safetyMarginFromQ8(q8: string): number {
   if (!q8 || q8.toLowerCase().includes('sais pas')) return 0;
   const v = parseFloat(q8.replace(',', '.'));
   return isNaN(v) || v < 0 ? 0 : v;
+}
+
+/** Montant hebdomadaire variable (€/semaine) → € net numérique. '' → 0. */
+export function weeklyVariableFromQ9(q9: string): number {
+  if (!q9) return 0;
+  const v = parseFloat(q9.replace(',', '.'));
+  return isNaN(v) || v < 0 ? 0 : v;
+}
+
+/** Facteur de conversion hebdomadaire → mensuel (52 semaines / 12 mois). */
+export const WEEKS_PER_MONTH = 4.33;
+
+/** Estimation mensuelle des dépenses variables à partir de la réponse hebdo Q9. */
+export function monthlyVariableFromQ9(q9: string): number {
+  return weeklyVariableFromQ9(q9) * WEEKS_PER_MONTH;
 }
 
 // ── Détection revenu irrégulier ───────────────────────────────

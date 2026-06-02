@@ -22,6 +22,8 @@ import {
   type InvestYearRow,
 } from '../lib/projectionEngine';
 
+import { semanticText } from '../theme/palette';
+
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
 
@@ -283,11 +285,11 @@ export default function ProjectionScreen() {
 
           {/* Onglets */}
           <View style={styles.tabs}>
-            <TouchableOpacity style={[styles.tab, activeTab === 'invest' && { backgroundColor: INVEST_COLOR, borderColor: INVEST_COLOR }]} onPress={() => setActiveTab('invest')}>
+            <TouchableOpacity style={[styles.tab, activeTab === 'invest' && { backgroundColor: semanticText(INVEST_COLOR, COLORS), borderColor: semanticText(INVEST_COLOR, COLORS) }]} onPress={() => setActiveTab('invest')}>
               <Ionicons name="trending-up" size={16} color={activeTab === 'invest' ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'invest' && { color: '#fff' }]}>Investissements</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.tab, activeTab === 'epargne' && { backgroundColor: SAVINGS_COLOR, borderColor: SAVINGS_COLOR }]} onPress={() => setActiveTab('epargne')}>
+            <TouchableOpacity style={[styles.tab, activeTab === 'epargne' && { backgroundColor: semanticText(SAVINGS_COLOR, COLORS), borderColor: semanticText(SAVINGS_COLOR, COLORS) }]} onPress={() => setActiveTab('epargne')}>
               <Ionicons name="shield-checkmark" size={16} color={activeTab === 'epargne' ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'epargne' && { color: '#fff' }]}>Épargne</Text>
             </TouchableOpacity>
@@ -301,7 +303,7 @@ export default function ProjectionScreen() {
           <View style={styles.kpiRow}>
             <View style={[styles.kpiCard, { borderLeftColor: INVEST_COLOR }]}>
               <Text style={styles.kpiLabel}>Valeur projetée</Text>
-              <Text style={[styles.kpiValue, { color: INVEST_COLOR }]}>{fmt(investFinal?.value ?? 0)}</Text>
+              <Text style={[styles.kpiValue, { color: semanticText(INVEST_COLOR, COLORS) }]}>{fmt(investFinal?.value ?? 0)}</Text>
               <Text style={styles.kpiSub}>après {years} ans</Text>
             </View>
             <View style={styles.kpiCard}>
@@ -313,7 +315,7 @@ export default function ProjectionScreen() {
           <View style={styles.kpiRow}>
             <View style={[styles.kpiCard, { borderLeftColor: SAVINGS_COLOR }]}>
               <Text style={styles.kpiLabel}>Plus-value nette</Text>
-              <Text style={[styles.kpiValue, { color: SAVINGS_COLOR }]}>+{fmt(investFinal?.netGainTotal ?? 0)}</Text>
+              <Text style={[styles.kpiValue, { color: semanticText(SAVINGS_COLOR, COLORS) }]}>+{fmt(investFinal?.netGainTotal ?? 0)}</Text>
               <Text style={styles.kpiSub}>après fiscalité</Text>
             </View>
             <View style={styles.kpiCard}>
@@ -487,7 +489,7 @@ export default function ProjectionScreen() {
               <View key={hz.years} style={styles.horizonCard}>
                 <Text style={styles.horizonSaved}>Épargné : {fmt(hz.contributed)}</Text>
                 <Text style={styles.horizonLabel}>Dans {hz.label}</Text>
-                <Text style={[styles.horizonValue, { color: SAVINGS_COLOR }]}>{fmt(hz.total)}</Text>
+                <Text style={[styles.horizonValue, { color: semanticText(SAVINGS_COLOR, COLORS) }]}>{fmt(hz.total)}</Text>
               </View>
             ))}
           </View>

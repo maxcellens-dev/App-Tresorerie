@@ -173,3 +173,31 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
 
 export const DEFAULT_MODE: ThemeMode = 'dark';
 export const DEFAULT_PRESET: ThemePreset = 'emerald';
+
+/** Assombrit une couleur hex (#RRGGBB) vers le noir d'un facteur 0-1. */
+function darkenHex(hex: string, factor: number): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  const f = Math.min(1, Math.max(0, factor));
+  const r = Math.round(parseInt(hex.slice(1, 3), 16) * (1 - f));
+  const g = Math.round(parseInt(hex.slice(3, 5), 16) * (1 - f));
+  const b = Math.round(parseInt(hex.slice(5, 7), 16) * (1 - f));
+  const h = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
+/**
+ * Couleur sémantique adaptée au texte selon le mode.
+ * - Mode sombre : couleur inchangée (ressort bien sur fond noir).
+ * - Mode clair  : couleur assombrie ~25 % (moins « flashy » sur fond blanc),
+ *   sans modifier la palette stockée.
+ */
+export function semanticText(hex: string, COLORS: AppColors): string {
+  const isLight = COLORS.bg === '#FFFFFF';
+  return isLight ? darkenHex(hex, 0.28) : hex;
+}
+
+/** Pastille translucide (12 %) pour poser une valeur colorée. */
+export function semanticPill(hex: string): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  return hex + '1F'; // ~12 %
+}

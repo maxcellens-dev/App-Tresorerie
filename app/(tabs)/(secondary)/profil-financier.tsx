@@ -36,6 +36,7 @@ const QUESTIONS = [
   { key: 'q6' as const, label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
   { key: 'q7' as const, label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
   { key: 'q8' as const, label: 'Montant minimum conservé sur vos comptes courants (€)', options: [] as readonly string[] },
+  { key: 'q9' as const, label: 'Dépenses variables hebdomadaires (courses, loisirs, imprévus)', options: [] as readonly string[] },
 ];
 
 function OptionList({
@@ -107,15 +108,16 @@ export default function ProfilFinancierScreen() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '',
+    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '',
   });
 
   function startEditing() {
     if (savedAnswers) {
       setAnswers({
         q1: savedAnswers.q1 ?? '',
-        // q8 may not exist yet in older records
+        // q8/q9 may not exist yet in older records
         q8: (savedAnswers as any).q8 ?? '',
+        q9: (savedAnswers as any).q9 ?? '',
         q2: savedAnswers.q2 ?? '',
         q3: savedAnswers.q3 ?? '',
         q4: savedAnswers.q4 ?? '',
@@ -137,10 +139,11 @@ export default function ProfilFinancierScreen() {
       q6: 'Q6 — Taux d\'épargne',
       q7: 'Q7 — Objectif prioritaire',
       q8: 'Q8 — Marge de sécurité',
+      q9: 'Q9 — Dépenses variables hebdo',
     };
-    // Q8 est optionnel (vide = 0 €), on l'exclut de la vérification
+    // Q8 et Q9 sont optionnels (vide = 0), on les exclut de la vérification
     const missing = (Object.keys(qLabels) as (keyof QuestionnaireAnswers)[])
-      .filter(k => k !== 'q8' && !answers[k])
+      .filter(k => k !== 'q8' && k !== 'q9' && !answers[k])
       .map(k => qLabels[k]);
 
     if (missing.length > 0) {
@@ -286,6 +289,8 @@ export default function ProfilFinancierScreen() {
                     const answer = (savedAnswers as any)[q.key] as string | undefined;
                     const displayAnswer = q.key === 'q8' && answer
                       ? (safetyMarginFromQ8(answer) > 0 ? safetyMarginFromQ8(answer).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €' : 'Non défini (0 €)')
+                      : q.key === 'q9'
+                      ? (answer && parseFloat(answer.replace(',', '.')) > 0 ? parseFloat(answer.replace(',', '.')).toLocaleString('fr-FR') + ' € / sem.' : 'Estimation auto')
                       : q.key === 'q1' && answer && answer.includes('|')
                       ? answer.split('|').filter(Boolean).join(', ')
                       : (answer || '—');
@@ -346,6 +351,30 @@ export default function ProfilFinancierScreen() {
                       </TouchableOpacity>
                       <Text style={styles.q8Hint}>
                         Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € — déduit du "Reste du mois" dans le Pilotage.
+                      </Text>
+                    </View>
+                  ) : q.key === 'q9' ? (
+                    <View style={styles.q8Block}>
+                      <View style={styles.q8Row}>
+                        <TextInput
+                          style={styles.q8Input}
+                          value={answers.q9}
+                          onChangeText={v => { const clean = v.replace(/[^0-9.,]/g, ''); setAnswers(prev => ({ ...prev, q9: clean ? String(parseFloat(clean.replace(',', '.')) || '') : '' })); }}
+                          keyboardType="decimal-pad"
+                          placeholder="0"
+                          placeholderTextColor={COLORS.textSecondary}
+                        />
+                        <Text style={styles.q8CurrencyLabel}>€ / sem.</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.q8DontKnow}
+                        onPress={() => setAnswers(prev => ({ ...prev, q9: '' }))}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.q8DontKnowText}>Effacer / Je ne sais pas → estimation auto</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.q8Hint}>
+                        Sert de repli pour l'« Enveloppe variables » du Pilotage tant que l'historique est insuffisant. ≈ {Math.round((parseFloat((answers.q9 || '0').replace(',', '.')) || 0) * 4.33).toLocaleString('fr-FR')} € / mois.
                       </Text>
                     </View>
                   ) : (

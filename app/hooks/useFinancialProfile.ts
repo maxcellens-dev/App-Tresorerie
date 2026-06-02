@@ -7,6 +7,7 @@ import {
   computeMonthlyMetrics,
   PROFILE_ALLOCATIONS,
   safetyMarginFromQ8,
+  weeklyVariableFromQ9,
 } from '../lib/financialProfileEngine';
 import type {
   UserFinancialProfile,
@@ -147,7 +148,7 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         .upsert({
           user_id: userId,
           q1: answers.q1, q2: answers.q2, q3: answers.q3, q4: answers.q4,
-          q5: answers.q5, q6: answers.q6, q7: answers.q7, q8: answers.q8 ?? '',
+          q5: answers.q5, q6: answers.q6, q7: answers.q7, q8: answers.q8 ?? '', q9: answers.q9 ?? '',
           answered_at: now, updated_at: now,
         }, { onConflict: 'user_id' });
       if (qErr) throw qErr;
@@ -208,6 +209,15 @@ export function useSaveQuestionnaire(userId: string | undefined) {
       }).eq('id', userId);
       if (marginErr) {
         console.warn('[saveQuestionnaire] update safety_margin_amount échoué (migration 031 requise ?):', marginErr);
+      }
+
+      // 5c. Mise à jour du budget variable hebdo (non-fatale, migration 035 requise)
+      const weeklyVar = weeklyVariableFromQ9(answers.q9 ?? '');
+      const { error: weeklyErr } = await supabase.from('profiles').update({
+        weekly_variable_budget: weeklyVar > 0 ? weeklyVar : null,
+      }).eq('id', userId);
+      if (weeklyErr) {
+        console.warn('[saveQuestionnaire] update weekly_variable_budget échoué (migration 035 requise ?):', weeklyErr);
       }
 
       return profileId;

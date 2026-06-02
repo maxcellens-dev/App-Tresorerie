@@ -41,6 +41,8 @@ export function useProfile(profileId: string | undefined) {
         is_admin: Boolean((data as { is_admin?: boolean }).is_admin),
         safety_margin_percent: safetyMargin !== undefined && safetyMargin !== null ? Number(safetyMargin) : 10,
         safety_margin_amount: safetyAmount !== undefined && safetyAmount !== null ? Number(safetyAmount) : 0,
+        weekly_variable_budget: (data as { weekly_variable_budget?: number | null }).weekly_variable_budget != null
+          ? Number((data as { weekly_variable_budget?: number }).weekly_variable_budget) : undefined,
         financial_profile,
         allocation_save_percent: save !== undefined && save !== null ? Number(save) : defaultAlloc.save,
         allocation_invest_percent: invest !== undefined && invest !== null ? Number(invest) : defaultAlloc.invest,
@@ -65,6 +67,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       avatar_url?: string | null;
       safety_margin_percent?: number;
       safety_margin_amount?: number;
+      weekly_variable_budget?: number | null;
       financial_profile?: FinancialProfile;
       allocation_save_percent?: number;
       allocation_invest_percent?: number;
@@ -90,6 +93,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.initial_onboarding_completed !== undefined) updates.initial_onboarding_completed = payload.initial_onboarding_completed;
       if (payload.theme_mode !== undefined) updates.theme_mode = payload.theme_mode;
       if (payload.theme_preset !== undefined) updates.theme_preset = payload.theme_preset;
+      if (payload.weekly_variable_budget !== undefined) updates.weekly_variable_budget = payload.weekly_variable_budget;
       if (payload.currency_code !== undefined) updates.currency_code = payload.currency_code;
 
       // Séparer safety_margin_amount pour éviter qu'un échec (colonne manquante avant

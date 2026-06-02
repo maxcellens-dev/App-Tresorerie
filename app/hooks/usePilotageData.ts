@@ -31,6 +31,13 @@ export interface PilotageData {
   current_month_variable: number;
   variable_trend_percentage: number;
 
+  // Enveloppe des dépenses variables (estimation dynamique)
+  variable_envelope_initial: number;    // enveloppe estimée du mois (historique ou onboarding)
+  variable_envelope_spent: number;      // dépenses variables déjà engagées ce mois
+  variable_envelope_remaining: number;  // = max(0, initial − spent) : reste à déduire du « Reste du mois »
+  variable_envelope_source: 'history' | 'onboarding' | 'none';
+  variable_envelope_months_used: number; // nb de mois d'historique utilisés (si source = history)
+
   // Step 3: Surplus & Recommendation
   projected_surplus: number;
   recommendation: 'À ÉPARGNER' | 'À INVESTIR';
@@ -455,6 +462,84 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const reserved_by_project = Object.values(reservedMap);
   const monthly_reserve_planned = reserved_by_project.reduce((s, r) => s + r.total, 0);
 
+  // =====================================================================
+  // ENVELOPPE DES DÉPENSES VARIABLES (estimation dynamique)
+  //  Définition : dépenses NON récurrentes (depuis comptes courants, hors
+  //  virements/projets) + régularisations de solde (net signé).
+  //  Initiale :
+  //    - ≥ 2 mois d'historique (M-1..M-6) → moyenne sur les mois disponibles
+  //    - sinon → estimation onboarding (q9 hebdo × 4.33)
+  //  Restant = max(0, initiale − déjà dépensé ce mois) → déduit du Reste.
+  // =====================================================================
+  const WEEKS_PER_MONTH = 4.33;
+
+  const isNonRecurringTx = (t: TransactionWithCategory) =>
+    !(Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule));
+  const isRegulTx = (t: TransactionWithCategory) => {
+    const cat = t.category;
+    if (cat?.name && /r[ée]gularisation/i.test(cat.name)) return true;
+    const note = (t as any).note as string | null;
+    return !!(note && (/r[ée]gularisation/i.test(note) || note === 'Ajustement de solde'));
+  };
+  // Contribution d'une transaction aux dépenses variables (€), net signé.
+  const variableContribution = (t: TransactionWithCategory): number => {
+    if (!isNonRecurringTx(t)) return 0;
+    if (accountTypeById[t.account_id] !== 'checking') return 0;
+    if ((t as any).linked_account_id || (t as any).project_id) return 0; // pas un virement / projet
+    const amt = Number(t.amount);
+    if (isRegulTx(t)) return -amt; // régul : dépense (−) → +, recette (+) → −
+    if (amt < 0) {
+      const cat = t.category;
+      const isExpenseCat = !cat || cat.type === 'expense';
+      return isExpenseCat ? -amt : 0; // dépense → +abs
+    }
+    return 0; // recette non-régul ignorée
+  };
+
+  // Historique des 6 mois précédents
+  const pastMonths: Array<{ year: number; month: number; key: string }> = [];
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(currentYear, currentMonth - 1 - i, 1);
+    pastMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1, key: `${d.getFullYear()}-${d.getMonth() + 1}` });
+  }
+  const variableByPastMonth: Record<string, number> = {};
+  const monthHasData: Record<string, boolean> = {};
+  pastMonths.forEach(m => { variableByPastMonth[m.key] = 0; monthHasData[m.key] = false; });
+
+  let variable_envelope_spent = 0;
+  for (const t of transactions) {
+    if (!isNonRecurringTx(t)) continue;
+    const [ty, tm] = t.date.split('-').map(Number);
+    const key = `${ty}-${tm}`;
+    if (ty === currentYear && tm === currentMonth) {
+      variable_envelope_spent += variableContribution(t);
+    } else if (key in variableByPastMonth) {
+      monthHasData[key] = true; // toute transaction non récurrente = mois suivi
+      variableByPastMonth[key] += variableContribution(t);
+    }
+  }
+  variable_envelope_spent = Math.max(0, variable_envelope_spent);
+
+  const monthsWithData = pastMonths.filter(m => monthHasData[m.key]);
+  let variable_envelope_initial = 0;
+  let variable_envelope_source: 'history' | 'onboarding' | 'none' = 'none';
+  let variable_envelope_months_used = 0;
+
+  if (monthsWithData.length >= 2) {
+    const sum = monthsWithData.reduce((s, m) => s + Math.max(0, variableByPastMonth[m.key]), 0);
+    variable_envelope_initial = sum / monthsWithData.length;
+    variable_envelope_source = 'history';
+    variable_envelope_months_used = monthsWithData.length;
+  } else {
+    const weekly = Number(profile?.weekly_variable_budget ?? 0);
+    if (weekly > 0) {
+      variable_envelope_initial = weekly * WEEKS_PER_MONTH;
+      variable_envelope_source = 'onboarding';
+    }
+  }
+
+  const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
+
   return {
     safe_to_spend,
     current_checking_balance,
@@ -471,6 +556,11 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,
+    variable_envelope_initial,
+    variable_envelope_spent,
+    variable_envelope_remaining,
+    variable_envelope_source,
+    variable_envelope_months_used,
     projected_surplus,
     recommendation,
     safety_margin_percent,

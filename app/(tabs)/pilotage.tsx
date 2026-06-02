@@ -1,11 +1,13 @@
 ﻿import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
+import { supabase } from '../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import { usePilotageData } from '../hooks/usePilotageData';
 import { useProjects } from '../hooks/useProjects';
 import { useObjectives } from '../hooks/useObjectives';
@@ -32,6 +34,7 @@ import type { BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
+import { semanticText } from '../theme/palette';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 export default function PilotageScreen() {
@@ -65,6 +68,11 @@ export default function PilotageScreen() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [showReservedModal, setShowReservedModal] = useState(false);
   const releaseReserved = useReleaseReservedByProject(user?.id);
+  // Modale de saisie de l'estimation hebdo des dépenses variables (alimente q9)
+  const { data: profile } = useProfile(user?.id);
+  const [showVariableModal, setShowVariableModal] = useState(false);
+  const [weeklyVariableInput, setWeeklyVariableInput] = useState('');
+  const updateProfileVar = useUpdateProfile(user?.id);
 
   const fmtMain = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
   const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
@@ -139,12 +147,15 @@ export default function PilotageScreen() {
   // Formule directe depuis les valeurs affichées pour cohérence avec l'UI.
   const cumulsTotal = preEpargneTotal + preInvestTotal;
   const safetyMarginDisplay = pilotageData?.safety_margin_amount ?? 0;
+  // Enveloppe variable restante (estimation des dépenses variables non encore engagées ce mois)
+  const variableEnvelopeRemaining = pilotageData?.variable_envelope_remaining ?? 0;
   const resteDisponible = Math.max(0,
     (pilotageData?.current_checking_balance ?? 0)
     - (pilotageData?.monthly_savings_planned ?? 0)
     - (pilotageData?.monthly_invest_planned ?? 0)
     - (pilotageData?.monthly_reserve_planned ?? 0)
     - (pilotageData?.month_expenses_total ?? 0)
+    - variableEnvelopeRemaining
     - safetyMarginDisplay
     - cumulsTotal
     - reservationsTotal
@@ -286,7 +297,7 @@ export default function PilotageScreen() {
                 <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.checking }]}>
                   <Ionicons name="wallet-outline" size={16} color={ACCOUNT_COLORS.checking} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Courant</Text>
-                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.checking }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
+                  <Text style={[styles.summaryAmount, { color: semanticText(ACCOUNT_COLORS.checking, COLORS) }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
                 </View>
 
                 {/* Épargne — avec badge de santé, sans barre ni légende */}
@@ -294,14 +305,15 @@ export default function PilotageScreen() {
                   const s = pilotageData.total_savings;
                   const col = s < 5000 ? '#ef4444' : s < 10000 ? '#f59e0b' : ACCOUNT_COLORS.savings;
                   const kw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
+                  const colT = semanticText(col, COLORS);
                   return (
                     <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: col }]}>
                       <Ionicons name="leaf-outline" size={16} color={col} style={{ marginBottom: 2 }} />
                       <Text style={styles.summaryLabel}>Épargne</Text>
-                      <Text style={[styles.summaryAmount, { color: col }]}>
+                      <Text style={[styles.summaryAmount, { color: colT }]}>
                         {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}
                       </Text>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: col, marginTop: 2 }}>{kw}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: colT, marginTop: 2 }}>{kw}</Text>
                     </View>
                   );
                 })()}
@@ -310,7 +322,7 @@ export default function PilotageScreen() {
                 <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.investment }]}>
                   <Ionicons name="trending-up-outline" size={16} color={ACCOUNT_COLORS.investment} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Investissements</Text>
-                  <Text style={[styles.summaryAmount, { color: ACCOUNT_COLORS.investment }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
+                  <Text style={[styles.summaryAmount, { color: semanticText(ACCOUNT_COLORS.investment, COLORS) }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
                 </View>
               </View>
             </View>
@@ -366,7 +378,7 @@ export default function PilotageScreen() {
                           <Text style={styles.suiviLabel}>{it.label}</Text>
                           <Text style={styles.suiviHint}>{it.hint}</Text>
                         </View>
-                        <Text style={[styles.suiviValue, { color: it.color }]}>{fmt(it.value)}</Text>
+                        <Text style={[styles.suiviValue, { color: semanticText(it.color, COLORS) }]}>{fmt(it.value)}</Text>
                         {isReserveRow && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 4 }} />}
                       </RowWrap>
                     );
@@ -383,8 +395,43 @@ export default function PilotageScreen() {
                       <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Dépenses du mois</Text>
                       <Text style={styles.suiviHint}>Passées + à venir</Text>
                     </View>
-                    <Text style={[styles.suiviValue, { color: '#f87171' }]}>{fmt(expenses)}</Text>
+                    <Text style={[styles.suiviValue, { color: semanticText('#f87171', COLORS) }]}>{fmt(expenses)}</Text>
                   </View>
+
+                  {/* Enveloppe des dépenses variables (estimation restante) */}
+                  {(() => {
+                    const env = pilotageData.variable_envelope_remaining;
+                    const src = pilotageData.variable_envelope_source;
+                    const nMonths = pilotageData.variable_envelope_months_used;
+                    const hint = src === 'history'
+                      ? `Estimé sur ${nMonths} mois · reste à dépenser`
+                      : src === 'onboarding'
+                        ? 'Estimation hebdo · reste à dépenser'
+                        : 'À renseigner — appuyez pour estimer';
+                    const col = '#f59e0b';
+                    return (
+                      <TouchableOpacity
+                        style={styles.suiviRow}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setWeeklyVariableInput(
+                            profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : ''
+                          );
+                          setShowVariableModal(true);
+                        }}
+                      >
+                        <View style={[styles.suiviIcon, { backgroundColor: col + '22' }]}>
+                          <Ionicons name="cart-outline" size={16} color={col} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.suiviLabel}>Enveloppe variables</Text>
+                          <Text style={styles.suiviHint}>{hint}</Text>
+                        </View>
+                        <Text style={[styles.suiviValue, { color: semanticText(col, COLORS) }]}>{fmt(env)}</Text>
+                        <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 4 }} />
+                      </TouchableOpacity>
+                    );
+                  })()}
 
                   {/* Marge de sécurité — affichée uniquement si > 0 */}
                   {safetyMargin > 0 && (
@@ -410,7 +457,7 @@ export default function PilotageScreen() {
                       <Text style={styles.suiviLabelBig}>Reste du mois</Text>
                       <Text style={styles.suiviHint}>{restHint}</Text>
                     </View>
-                    <Text style={[styles.suiviValueBig, { color: restColor }]}>{fmt(rest)}</Text>
+                    <Text style={[styles.suiviValueBig, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>
                   </View>
                 </View>
               );
@@ -644,6 +691,58 @@ export default function PilotageScreen() {
                 <Text style={styles.reservedEmpty}>Aucun montant réservé pour le moment.</Text>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modale : estimation hebdo des dépenses variables (alimente q9) */}
+      <Modal visible={showVariableModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowVariableModal(false)}>
+        <View style={styles.varModalOverlay}>
+          <View style={styles.varModalBox}>
+            <Text style={styles.varModalTitle}>Dépenses variables</Text>
+            <Text style={styles.varModalHint}>
+              Combien dépensez-vous environ par semaine pour vos courses, loisirs et dépenses variables ?
+            </Text>
+            <View style={styles.varModalInputRow}>
+              <TextInput
+                style={styles.varModalInput}
+                value={weeklyVariableInput}
+                onChangeText={(v) => setWeeklyVariableInput(v.replace(/[^0-9.,]/g, ''))}
+                keyboardType="decimal-pad"
+                placeholder="Ex. 120"
+                placeholderTextColor={COLORS.textSecondary}
+                autoFocus
+              />
+              <Text style={styles.varModalUnit}>€ / semaine</Text>
+            </View>
+            {weeklyVariableInput ? (
+              <Text style={styles.varModalMonthly}>
+                ≈ {Math.round((parseFloat(weeklyVariableInput.replace(',', '.')) || 0) * 4.33).toLocaleString('fr-FR')} {CURRENCY_SYMBOL} / mois
+              </Text>
+            ) : null}
+            <View style={styles.varModalActions}>
+              <TouchableOpacity style={styles.varModalCancel} onPress={() => setShowVariableModal(false)}>
+                <Text style={styles.varModalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.varModalSave}
+                onPress={async () => {
+                  const weekly = parseFloat(weeklyVariableInput.replace(',', '.')) || 0;
+                  try {
+                    await updateProfileVar.mutateAsync({ weekly_variable_budget: weekly > 0 ? weekly : null });
+                    // Sync best-effort de la réponse q9 (si la ligne existe déjà)
+                    if (supabase && user?.id) {
+                      await supabase.from('user_questionnaire_answers')
+                        .update({ q9: weekly > 0 ? String(weekly) : '' })
+                        .eq('user_id', user.id);
+                    }
+                  } catch (e) { console.warn('[pilotage] maj budget variable échouée:', e); }
+                  setShowVariableModal(false);
+                }}
+              >
+                <Text style={styles.varModalSaveText}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -939,5 +1038,22 @@ function makeStyles(c: AppColors) {
   },
   reservedTransferText: { fontSize: 12, fontWeight: '700', color: '#34d399' },
   reservedEmpty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 24 },
+  // Modale enveloppe variable
+  varModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  varModalBox: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 22 },
+  varModalTitle: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 8 },
+  varModalHint: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 18 },
+  varModalInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  varModalInput: {
+    flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700', color: c.text,
+  },
+  varModalUnit: { fontSize: 14, color: c.textSecondary, fontWeight: '600' },
+  varModalMonthly: { fontSize: 13, color: c.emerald, fontWeight: '600', marginTop: 10 },
+  varModalActions: { flexDirection: 'row', gap: 12, marginTop: 22 },
+  varModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+  varModalCancelText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
+  varModalSave: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
+  varModalSaveText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   });
 }

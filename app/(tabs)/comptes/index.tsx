@@ -128,7 +128,7 @@ export default function AccountsListScreen() {
                 onPress={() => router.push('/(tabs)/comptes/add')}
               >
                 <View style={styles.quickIcon}>
-                  <Ionicons name="add" size={22} color="#FFFFFF" />
+                  <Ionicons name="add" size={22} color={COLORS.emerald} />
                 </View>
                 <Text style={styles.quickLabel}>Compte</Text>
               </TouchableOpacity>
@@ -139,7 +139,7 @@ export default function AccountsListScreen() {
                 onPress={() => router.push('/(tabs)/comptes/transfer')}
               >
                 <View style={styles.quickIcon}>
-                  <Ionicons name="swap-horizontal" size={20} color="#FFFFFF" />
+                  <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
                 </View>
                 <Text style={styles.quickLabel}>Virement</Text>
               </TouchableOpacity>
@@ -267,7 +267,7 @@ function makeStyles(c: any) {
   heroLabel: {
     fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.75)',
+    color: c.textSecondary,
     letterSpacing: 0.3,
     marginBottom: 8,
   },
@@ -275,14 +275,14 @@ function makeStyles(c: any) {
   heroAmount: {
     fontSize: 44,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: c.text,
     letterSpacing: -1,
     lineHeight: 52,
   },
   heroDec: {
     fontSize: 26,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: c.textSecondary,
     lineHeight: 44,
   },
 
@@ -303,9 +303,9 @@ function makeStyles(c: any) {
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: c.emerald + '22',
   },
-  quickLabel: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  quickLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
 
   // ── Liste comptes ──
   accountList: {

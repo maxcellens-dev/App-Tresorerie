@@ -43,6 +43,8 @@ export interface UserQuestionnaireAnswers {
   q7: string;
   /** Montant minimum conservé sur les comptes courants (€), sous forme de chaîne. Vide = 0. */
   q8: string;
+  /** Estimation hebdomadaire des dépenses variables (€/semaine), sous forme de chaîne. Vide = non renseigné. */
+  q9: string;
   answered_at: string;
   updated_at: string;
 }
@@ -97,6 +99,8 @@ export interface Profile {
   safety_margin_percent?: number;
   /** Montant minimum conservé sur les comptes courants (€). Saisi en Q8. */
   safety_margin_amount?: number;
+  /** Estimation hebdomadaire des dépenses variables (€/semaine). Saisi en Q9. Repli quand l'historique est insuffisant. */
+  weekly_variable_budget?: number;
   financial_profile?: FinancialProfile;
   allocation_save_percent?: number;
   allocation_invest_percent?: number;
