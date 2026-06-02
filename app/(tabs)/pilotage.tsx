@@ -378,8 +378,8 @@ export default function PilotageScreen() {
                           <Text style={styles.suiviLabel}>{it.label}</Text>
                           <Text style={styles.suiviHint}>{it.hint}</Text>
                         </View>
+                        {isReserveRow && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}
                         <Text style={[styles.suiviValue, { color: semanticText(it.color, COLORS) }]}>{fmt(it.value)}</Text>
-                        {isReserveRow && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 4 }} />}
                       </RowWrap>
                     );
                   })}
@@ -427,8 +427,8 @@ export default function PilotageScreen() {
                           <Text style={styles.suiviLabel}>Enveloppe variables</Text>
                           <Text style={styles.suiviHint}>{hint}</Text>
                         </View>
+                        <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
                         <Text style={[styles.suiviValue, { color: semanticText(col, COLORS) }]}>{fmt(env)}</Text>
-                        <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 4 }} />
                       </TouchableOpacity>
                     );
                   })()}

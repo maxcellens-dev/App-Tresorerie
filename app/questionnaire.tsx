@@ -46,14 +46,14 @@ const QUESTIONS: Array<{
   { key: 'q1', label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
   { key: 'q2', label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
   { key: 'q3', label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
-  { key: 'q4', label: 'Une fois vos factures et dépenses obligatoires payées, que reste-t-il ?', options: Q4_OPTIONS },
+  // Q9 (dépenses variables hebdo) affichée en 4e position — rendu spécial (TextInput)
+  { key: 'q9', label: 'Combien dépensez-vous environ par semaine pour vos courses, loisirs et dépenses variables ?', options: [] },
+  { key: 'q4', label: 'Une fois toutes vos dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
   { key: 'q5', label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
   { key: 'q6', label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
   { key: 'q7', label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
   // Q8 : rendu spécial (TextInput), pas d'options
   { key: 'q8', label: 'Quel montant minimum souhaitez-vous toujours conserver sur vos comptes courants, quoi qu\'il arrive ?', options: [] },
-  // Q9 : rendu spécial (TextInput), pas d'options
-  { key: 'q9', label: 'Combien dépensez-vous environ par semaine pour vos courses, loisirs et dépenses variables ?', options: [] },
 ];
 
 // 0 = welcome, 1-9 = questions, 10 = résultat
@@ -311,7 +311,7 @@ export default function QuestionnaireScreen() {
               <Text style={styles.questionNum}>Question {step} sur 9</Text>
               <Text style={styles.questionText}>{currentQ.label}</Text>
 
-              {step === 2 && isIrregular && (
+              {currentQ.key === 'q2' && isIrregular && (
                 <View style={styles.infoBox}>
                   <Ionicons name="information-circle-outline" size={15} color="#60a5fa" />
                   <Text style={styles.infoText}>
@@ -321,30 +321,30 @@ export default function QuestionnaireScreen() {
               )}
 
               {/* ── Q8 / Q9 : saisie d'un montant (€) ── */}
-              {step === 8 || step === 9 ? (
+              {currentQ.key === 'q8' || currentQ.key === 'q9' ? (
                 <ScrollView
                   style={styles.optionsScroll}
                   contentContainerStyle={styles.optionsContent}
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={styles.infoBox}>
-                    <Ionicons name={step === 8 ? 'shield-checkmark-outline' : 'cart-outline'} size={15} color="#60a5fa" />
+                    <Ionicons name={currentQ.key === 'q8' ? 'shield-checkmark-outline' : 'cart-outline'} size={15} color="#60a5fa" />
                     <Text style={styles.infoText}>
-                      {step === 8
+                      {currentQ.key === 'q8'
                         ? 'Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.'
                         : 'Sert à estimer votre enveloppe de dépenses variables (courses, loisirs, imprévus) au début, tant que l’historique est insuffisant. Montant par semaine.'}
                     </Text>
                   </View>
                   <TextInput
                     style={styles.q8Input}
-                    value={step === 8 ? answers.q8 : answers.q9}
-                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect(step === 8 ? 'q8' : 'q9', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
+                    value={currentQ.key === 'q8' ? answers.q8 : answers.q9}
+                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect(currentQ.key === 'q8' ? 'q8' : 'q9', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
                     keyboardType="decimal-pad"
-                    placeholder={step === 8 ? 'Ex. 500' : 'Ex. 120'}
+                    placeholder={currentQ.key === 'q8' ? 'Ex. 500' : 'Ex. 120'}
                     placeholderTextColor={COLORS.textSecondary}
                   />
-                  <Text style={styles.q8Currency}>{step === 8 ? '€' : '€ / semaine'}</Text>
-                  {step === 9 && answers.q9 ? (
+                  <Text style={styles.q8Currency}>{currentQ.key === 'q8' ? '€' : '€ / semaine'}</Text>
+                  {currentQ.key === 'q9' && answers.q9 ? (
                     <Text style={[styles.q8DontKnowText, { textAlign: 'center', marginTop: 8 }]}>
                       ≈ {Math.round(parseFloat(answers.q9.replace(',', '.') || '0') * 4.33).toLocaleString('fr-FR')} € / mois
                     </Text>
@@ -352,7 +352,7 @@ export default function QuestionnaireScreen() {
                   <TouchableOpacity
                     style={styles.q8DontKnow}
                     onPress={() => {
-                      handleSelect(step === 8 ? 'q8' : 'q9', '');
+                      handleSelect(currentQ.key === 'q8' ? 'q8' : 'q9', '');
                       handleNext();
                     }}
                     activeOpacity={0.8}
@@ -368,7 +368,7 @@ export default function QuestionnaireScreen() {
                 showsVerticalScrollIndicator={false}
               >
                 {/* Q1 : indication multi-select */}
-                {step === 1 && (
+                {currentQ.key === 'q1' && (
                   <View style={styles.infoBox}>
                     <Ionicons name="checkbox-outline" size={15} color="#60a5fa" />
                     <Text style={styles.infoText}>Vous pouvez sélectionner plusieurs types de revenus.</Text>
@@ -376,7 +376,7 @@ export default function QuestionnaireScreen() {
                 )}
 
                 {/* Q6 : calculateur de % */}
-                {step === 6 && (
+                {currentQ.key === 'q6' && (
                   <View style={styles.calculatorBox}>
                     <Text style={styles.calcTitle}>Calculateur (optionnel)</Text>
                     <View style={styles.calcRow}>
@@ -417,12 +417,12 @@ export default function QuestionnaireScreen() {
                     key={opt}
                     label={opt}
                     selected={
-                      step === 1
+                      currentQ.key === 'q1'
                         ? answers.q1.split('|').includes(opt)
                         : answers[currentQ.key] === opt
                     }
                     onSelect={() => handleSelect(currentQ.key, opt)}
-                    multiSelect={step === 1}
+                    multiSelect={currentQ.key === 'q1'}
                   />
                 ))}
                 <View style={{ height: 100 }} />
@@ -431,9 +431,9 @@ export default function QuestionnaireScreen() {
 
               <View style={styles.questionFooter}>
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { flex: 1 }, (step < 8 && !answers[currentQ.key]) && styles.btnDisabled]}
+                  style={[styles.primaryBtn, { flex: 1 }, (currentQ.key !== 'q8' && currentQ.key !== 'q9' && !answers[currentQ.key]) && styles.btnDisabled]}
                   onPress={handleNext}
-                  disabled={step < 8 && !answers[currentQ.key]}
+                  disabled={currentQ.key !== 'q8' && currentQ.key !== 'q9' && !answers[currentQ.key]}
                 >
                   <Text style={styles.primaryBtnLabel}>
                     {step === 9 ? 'Voir mon profil' : 'Continuer'}

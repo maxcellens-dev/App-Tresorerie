@@ -31,12 +31,12 @@ const QUESTIONS = [
   { key: 'q1' as const, label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
   { key: 'q2' as const, label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
   { key: 'q3' as const, label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
-  { key: 'q4' as const, label: 'Une fois vos factures et dépenses obligatoires payées, que reste-t-il ?', options: Q4_OPTIONS },
+  { key: 'q9' as const, label: 'Dépenses variables hebdomadaires (courses, loisirs, imprévus)', options: [] as readonly string[] },
+  { key: 'q4' as const, label: 'Une fois toutes vos dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
   { key: 'q5' as const, label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
   { key: 'q6' as const, label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
   { key: 'q7' as const, label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
   { key: 'q8' as const, label: 'Montant minimum conservé sur vos comptes courants (€)', options: [] as readonly string[] },
-  { key: 'q9' as const, label: 'Dépenses variables hebdomadaires (courses, loisirs, imprévus)', options: [] as readonly string[] },
 ];
 
 function OptionList({
