@@ -403,22 +403,28 @@ export default function PilotageScreen() {
                     const env = pilotageData.variable_envelope_remaining;
                     const src = pilotageData.variable_envelope_source;
                     const nMonths = pilotageData.variable_envelope_months_used;
+                    // La saisie manuelle (repli onboarding) ne sert que sans historique suffisant.
+                    // Avec un historique utilisé, la ligne n'est ni cliquable ni fléchée.
+                    const editable = src !== 'history';
                     const hint = src === 'history'
                       ? `Estimé sur ${nMonths} mois · reste à dépenser`
                       : src === 'onboarding'
                         ? 'Estimation hebdo · reste à dépenser'
                         : 'À renseigner — appuyez pour estimer';
                     const col = '#f59e0b';
+                    const RowWrap: any = editable ? TouchableOpacity : View;
                     return (
-                      <TouchableOpacity
+                      <RowWrap
                         style={styles.suiviRow}
-                        activeOpacity={0.7}
-                        onPress={() => {
-                          setWeeklyVariableInput(
-                            profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : ''
-                          );
-                          setShowVariableModal(true);
-                        }}
+                        {...(editable ? {
+                          activeOpacity: 0.7,
+                          onPress: () => {
+                            setWeeklyVariableInput(
+                              profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : ''
+                            );
+                            setShowVariableModal(true);
+                          },
+                        } : {})}
                       >
                         <View style={[styles.suiviIcon, { backgroundColor: col + '22' }]}>
                           <Ionicons name="cart-outline" size={16} color={col} />
@@ -427,9 +433,9 @@ export default function PilotageScreen() {
                           <Text style={styles.suiviLabel}>Enveloppe variables</Text>
                           <Text style={styles.suiviHint}>{hint}</Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
+                        {editable && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}
                         <Text style={[styles.suiviValue, { color: semanticText(col, COLORS) }]}>{fmt(env)}</Text>
-                      </TouchableOpacity>
+                      </RowWrap>
                     );
                   })()}
 
