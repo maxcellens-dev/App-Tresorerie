@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { useStyleConfig, useSaveStyleConfig, type StyleConfig, type CustomPreset } from '../../../hooks/useStyleConfig';
+import { useStyleConfig, useSaveStyleConfig, getGradientStops, type StyleConfig, type CustomPreset, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
 import { THEME_PRESETS, THEME_MODES, buildColors } from '../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../theme/palette';
 
@@ -52,10 +52,10 @@ export default function StyleEditor() {
   const [preset, setPreset]   = useState<ThemePreset>('emerald');
 
   const [darkGradEnabled, setDarkGradEnabled]   = useState(true);
-  const [darkGradOpacity, setDarkGradOpacity]   = useState('30');
+  const [darkStops,       setDarkStops]         = useState<string[]>(['30', '18', '10', '5']);
   const [darkCardAlpha,   setDarkCardAlpha]     = useState('8');
   const [lightGradEnabled, setLightGradEnabled] = useState(true);
-  const [lightGradOpacity, setLightGradOpacity] = useState('20');
+  const [lightStops,       setLightStops]       = useState<string[]>(['20', '12', '7', '3']);
   const [lightCardAlpha,   setLightCardAlpha]   = useState('4');
 
   const [fontFamily, setFontFamily] = useState('System');
@@ -79,11 +79,13 @@ export default function StyleEditor() {
 
   useEffect(() => {
     if (styleConfig) {
+      const toStopStrings = (cfg: ModeStyleConfig, fb: number) =>
+        getGradientStops(cfg, fb).map((v) => String(Math.round(v * 100)));
       setDarkGradEnabled(styleConfig.dark.gradient_enabled);
-      setDarkGradOpacity(String(styleConfig.dark.gradient_opacity));
+      setDarkStops(toStopStrings(styleConfig.dark, 30));
       setDarkCardAlpha(String(styleConfig.dark.card_alpha));
       setLightGradEnabled(styleConfig.light.gradient_enabled);
-      setLightGradOpacity(String(styleConfig.light.gradient_opacity));
+      setLightStops(toStopStrings(styleConfig.light, 20));
       setLightCardAlpha(String(styleConfig.light.card_alpha));
       setFontFamily(styleConfig.font_family ?? 'System');
       setExtraPresets(styleConfig.extra_presets ?? []);
@@ -101,14 +103,17 @@ export default function StyleEditor() {
   const previewAlpha = previewMode === 'dark' ? Number(darkCardAlpha || 0) : Number(lightCardAlpha || 0);
   const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha });
   const curGradEnabled = previewMode === 'dark' ? darkGradEnabled : lightGradEnabled;
-  const curGradOpacity = Number(previewMode === 'dark' ? darkGradOpacity : lightGradOpacity) / 100;
+  const curStops = (previewMode === 'dark' ? darkStops : lightStops).map(s => Math.min(100, Math.max(0, Number(s) || 0)) / 100);
 
   // Getters/setters du mode édité (onglet Fond)
-  const aEnabled  = activeMode === 'dark' ? darkGradEnabled  : lightGradEnabled;
-  const aGrad     = activeMode === 'dark' ? darkGradOpacity  : lightGradOpacity;
-  const aAlpha    = activeMode === 'dark' ? darkCardAlpha    : lightCardAlpha;
+  const aEnabled = activeMode === 'dark' ? darkGradEnabled : lightGradEnabled;
+  const aStops   = activeMode === 'dark' ? darkStops : lightStops;
+  const aAlpha   = activeMode === 'dark' ? darkCardAlpha : lightCardAlpha;
   const setEnabled = (v: boolean) => activeMode === 'dark' ? setDarkGradEnabled(v) : setLightGradEnabled(v);
-  const setGrad    = (v: string)  => activeMode === 'dark' ? setDarkGradOpacity(v) : setLightGradOpacity(v);
+  const setStop    = (i: number, v: string) => {
+    const setter = activeMode === 'dark' ? setDarkStops : setLightStops;
+    setter(prev => prev.map((s, idx) => idx === i ? v : s));
+  };
   const setAlpha   = (v: string)  => activeMode === 'dark' ? setDarkCardAlpha(v)   : setLightCardAlpha(v);
 
   async function handleSave() {
@@ -117,9 +122,10 @@ export default function StyleEditor() {
       await updateProfile.mutateAsync({ theme_mode: previewMode, theme_preset: preset });
       const validated: Record<string, string> = {};
       THEME_PRESETS.forEach(p => { const v = accentInputs[p.id] ?? ''; if (isValidHex(v)) validated[p.id] = v; });
+      const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
-        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkGradOpacity) || 0),  card_alpha: clampPct(Number(darkCardAlpha) || 0) },
-        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightGradOpacity) || 0), card_alpha: clampPct(Number(lightCardAlpha) || 0) },
+        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0) },
+        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0) },
         font_family: fontFamily,
         custom_accents: validated,
         extra_presets: extraPresets,
@@ -174,8 +180,8 @@ export default function StyleEditor() {
           {/* ══ Aperçu (toujours visible) ══ */}
           <View style={styles.preview}>
             <LinearGradient
-              colors={curGradEnabled && curGradOpacity > 0
-                ? [previewColors.emerald + toHex(curGradOpacity), previewColors.emerald + toHex(curGradOpacity * 0.6), previewColors.emerald + toHex(curGradOpacity * 0.33), previewColors.bg]
+              colors={curGradEnabled && curStops.some(s => s > 0)
+                ? curStops.map(s => previewColors.emerald + toHex(s)) as any
                 : [previewColors.bg, previewColors.bg]}
               locations={[0, 0.28, 0.58, 1]}
               style={StyleSheet.absoluteFillObject}
@@ -336,10 +342,23 @@ export default function StyleEditor() {
                   <ModeBtn label="Désactivé" icon="eye-off-outline" active={!aEnabled} accent={COLORS.danger} COLORS={COLORS} onPress={() => setEnabled(false)} />
                 </View>
                 {aEnabled && (
-                  <View style={styles.inputRow}>
-                    <Text style={styles.inputLabel}>Opacité du dégradé (0-100 %)</Text>
-                    <PctInput value={aGrad} onChange={v => setGrad(v)} COLORS={COLORS} />
-                  </View>
+                  <>
+                    <Text style={[styles.hint, { marginTop: 14 }]}>
+                      Opacité de chaque palier (haut → bas). Ex : 30 · 18 · 10 · 5.
+                    </Text>
+                    {(['Palier 1 (haut)', 'Palier 2', 'Palier 3', 'Palier 4 (bas)'] as const).map((lbl, i) => (
+                      <View key={i} style={styles.inputRow}>
+                        <Text style={styles.inputLabel}>{lbl}</Text>
+                        <PctInput value={aStops[i] ?? '0'} onChange={v => setStop(i, v)} COLORS={COLORS} />
+                      </View>
+                    ))}
+                    {/* Barre de prévisualisation horizontale du dégradé */}
+                    <LinearGradient
+                      colors={aStops.map(s => previewColors.emerald + toHex(Math.min(100, Math.max(0, Number(s) || 0)) / 100)) as any}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      style={styles.gradBar}
+                    />
+                  </>
                 )}
               </Section>
 
@@ -479,6 +498,7 @@ function makeStyles(c: any) {
   pctInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, color: c.text, fontSize: 18, fontWeight: '700', width: 72, textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   pctUnit: { fontSize: 16, color: c.textSecondary, fontWeight: '600' },
 
+  gradBar: { height: 40, borderRadius: 10, marginTop: 14, borderWidth: 1, borderColor: c.cardBorder },
   alphaRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   alphaSample: { flex: 1, height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
 

@@ -7,10 +7,21 @@ import { supabase } from '../lib/supabase';
 
 export interface ModeStyleConfig {
   gradient_enabled: boolean;
-  /** Opacité stop 1 du gradient (0-100). Ex: 30 = 30 % */
+  /** Opacité stop 1 du gradient (0-100). Conservé pour compat / 1er palier. */
   gradient_opacity: number;
+  /** Les 4 paliers d'opacité du dégradé (0-100), du haut vers le bas. */
+  gradient_stops?: number[];
   /** Alpha des cartes (0-100). Ex: 8 = 8 % */
   card_alpha: number;
+}
+
+/** Retourne les 4 paliers d'opacité du dégradé (en 0-1) pour un mode. */
+export function getGradientStops(cfg: ModeStyleConfig | undefined, fallbackOpacity = 30): number[] {
+  if (cfg?.gradient_stops && cfg.gradient_stops.length === 4) {
+    return cfg.gradient_stops.map((v) => Math.min(100, Math.max(0, v)) / 100);
+  }
+  const base = (cfg?.gradient_opacity ?? fallbackOpacity) / 100;
+  return [base, base * 0.6, base * 0.33, base * 0.16];
 }
 
 export interface CustomPreset {
@@ -36,12 +47,13 @@ export interface StyleConfig {
 export const MODE_DEFAULTS: ModeStyleConfig = {
   gradient_enabled: true,
   gradient_opacity: 30,
+  gradient_stops: [30, 18, 10, 5],
   card_alpha: 8,
 };
 
 export const STYLE_DEFAULTS: StyleConfig = {
   dark:  { ...MODE_DEFAULTS },
-  light: { gradient_enabled: true, gradient_opacity: 20, card_alpha: 4 },
+  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 4 },
   font_family: 'System',
   custom_accents: {},
   extra_presets: [],

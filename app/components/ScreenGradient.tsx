@@ -9,7 +9,7 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../hooks/useAppColors';
-import { useStyleConfig } from '../hooks/useStyleConfig';
+import { useStyleConfig, getGradientStops } from '../hooks/useStyleConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 
@@ -28,21 +28,19 @@ export default function ScreenGradient() {
   const mode = (profile?.theme_mode ?? 'dark') as 'dark' | 'light';
   const cfg = mode === 'light' ? styleConfig?.light : styleConfig?.dark;
 
-  // Valeurs par défaut si la config n'est pas encore chargée
   const enabled = cfg?.gradient_enabled ?? true;
-  const opacityPct = cfg?.gradient_opacity ?? (mode === 'light' ? 20 : 30);
+  if (!enabled) return null;
 
-  if (!enabled || opacityPct <= 0) return null;
+  // 4 paliers d'opacité configurables (du haut vers le bas)
+  const stops = getGradientStops(cfg, mode === 'light' ? 20 : 30);
+  if (stops.every((s) => s <= 0)) return null;
 
-  const base = opacityPct / 100; // intensité du stop le plus fort (0-1)
-  const a1 = toHexAlpha(base);          // 100 % de l'intensité
-  const a2 = toHexAlpha(base * 0.6);    // 60 %
-  const a3 = toHexAlpha(base * 0.33);   // 33 %
   const accent = COLORS.emerald;
+  const colors = stops.map((s) => accent + toHexAlpha(s));
 
   return (
     <LinearGradient
-      colors={[accent + a1, accent + a2, accent + a3, COLORS.bg]}
+      colors={colors as any}
       locations={[0, 0.28, 0.58, 1.0]}
       style={StyleSheet.absoluteFillObject}
       pointerEvents="none"
