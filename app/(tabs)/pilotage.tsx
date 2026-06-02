@@ -713,7 +713,7 @@ export default function PilotageScreen() {
                 placeholderTextColor={COLORS.textSecondary}
                 autoFocus
               />
-              <Text style={styles.varModalUnit}>€ / semaine</Text>
+              <Text style={styles.varModalUnit} numberOfLines={1}>€ / sem.</Text>
             </View>
             {weeklyVariableInput ? (
               <Text style={styles.varModalMonthly}>
@@ -1043,12 +1043,13 @@ function makeStyles(c: AppColors) {
   varModalBox: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 22 },
   varModalTitle: { fontSize: 18, fontWeight: '700', color: c.text, marginBottom: 8 },
   varModalHint: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 18 },
-  varModalInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  varModalInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   varModalInput: {
-    flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    flexGrow: 0, flexShrink: 1, width: 150, maxWidth: '60%',
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700', color: c.text,
   },
-  varModalUnit: { fontSize: 14, color: c.textSecondary, fontWeight: '600' },
+  varModalUnit: { fontSize: 14, color: c.textSecondary, fontWeight: '600', flexShrink: 0 },
   varModalMonthly: { fontSize: 13, color: c.emerald, fontWeight: '600', marginTop: 10 },
   varModalActions: { flexDirection: 'row', gap: 12, marginTop: 22 },
   varModalCancel: { flex: 1, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
