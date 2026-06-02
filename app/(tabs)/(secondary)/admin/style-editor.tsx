@@ -61,6 +61,7 @@ export default function StyleEditor() {
   const [fontFamily, setFontFamily] = useState('System');
   const [accentInputs, setAccentInputs] = useState<Record<string, string>>({});
   const [extraPresets, setExtraPresets] = useState<CustomPreset[]>([]);
+  const [hiddenPresets, setHiddenPresets] = useState<string[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newDark,  setNewDark]  = useState('#FFFFFF');
   const [newLight, setNewLight] = useState('#000000');
@@ -86,6 +87,7 @@ export default function StyleEditor() {
       setLightCardAlpha(String(styleConfig.light.card_alpha));
       setFontFamily(styleConfig.font_family ?? 'System');
       setExtraPresets(styleConfig.extra_presets ?? []);
+      setHiddenPresets(styleConfig.hidden_presets ?? []);
       const inputs: Record<string, string> = {};
       THEME_PRESETS.forEach(p => { inputs[p.id] = styleConfig.custom_accents?.[p.id] ?? p.swatch; });
       setAccentInputs(inputs);
@@ -121,6 +123,7 @@ export default function StyleEditor() {
         font_family: fontFamily,
         custom_accents: validated,
         extra_presets: extraPresets,
+        hidden_presets: hiddenPresets,
       };
       await saveStyle.mutateAsync(sc);
       setSaved(true);
@@ -238,26 +241,33 @@ export default function StyleEditor() {
               </Section>
 
               <Section label="Couleurs d'accentuation (modifiables)" icon="color-palette-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Cliquez la pastille pour l'activer, modifiez le code hex pour changer sa couleur (mode sombre).</Text>
+                <Text style={styles.hint}>Pastille = activer · code hex = modifier · œil = masquer dans Paramètres.</Text>
                 <View style={{ gap: 10 }}>
                   {THEME_PRESETS.map(p => {
                     const inputHex = accentInputs[p.id] ?? p.swatch;
                     const valid = isValidHex(inputHex);
                     const col = valid ? inputHex : p.swatch;
                     const active = preset === p.id;
+                    const hidden = hiddenPresets.includes(p.id);
                     return (
-                      <View key={p.id} style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }]}>
+                      <View key={p.id} style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }, hidden && { opacity: 0.45 }]}>
                         <TouchableOpacity style={[styles.swatch, { backgroundColor: col }]} onPress={() => setPreset(p.id)} activeOpacity={0.8}>
                           {active && <Ionicons name="checkmark" size={14} color="#fff" />}
                         </TouchableOpacity>
-                        <Text style={styles.accentLabel}>{p.emoji} {p.label}</Text>
+                        <Text style={styles.accentLabel}>{p.emoji} {p.label}{hidden ? ' · masqué' : ''}</Text>
                         <TextInput
-                          style={[styles.hexInput, !valid && { borderColor: COLORS.danger }]}
+                          style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
                           value={inputHex}
                           onChangeText={v => setAccentInputs(prev => ({ ...prev, [p.id]: v }))}
                           placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
                           maxLength={7} autoCapitalize="characters"
                         />
+                        <TouchableOpacity
+                          onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== p.id) : [...prev, p.id])}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={hidden ? COLORS.textSecondary : COLORS.emerald} />
+                        </TouchableOpacity>
                       </View>
                     );
                   })}

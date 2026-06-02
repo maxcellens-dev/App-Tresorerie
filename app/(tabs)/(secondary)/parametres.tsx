@@ -36,6 +36,7 @@ export default function SettingsScreen() {
   // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
   const { data: styleConfig } = useStyleConfig();
   const allPresets = useMemo(() => {
+    const hidden = new Set(styleConfig?.hidden_presets ?? []);
     const native = THEME_PRESETS.map((p) => ({
       id: p.id,
       label: p.label,
@@ -46,7 +47,7 @@ export default function SettingsScreen() {
       label: p.label,
       swatch: p.dark,
     }));
-    return [...native, ...extra];
+    return [...native, ...extra].filter((p) => !hidden.has(p.id));
   }, [styleConfig]);
 
   // ── Guide "bulles" ──

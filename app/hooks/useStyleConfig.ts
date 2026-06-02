@@ -29,6 +29,8 @@ export interface StyleConfig {
   custom_accents: Record<string, string>;
   /** Presets personnalisés créés dans le style editor */
   extra_presets: CustomPreset[];
+  /** Identifiants des presets (natifs ou custom) masqués dans Paramètres */
+  hidden_presets: string[];
 }
 
 export const MODE_DEFAULTS: ModeStyleConfig = {
@@ -43,6 +45,7 @@ export const STYLE_DEFAULTS: StyleConfig = {
   font_family: 'System',
   custom_accents: {},
   extra_presets: [],
+  hidden_presets: [],
 };
 
 const KEY = 'style_config';
@@ -60,6 +63,7 @@ export function useStyleConfig() {
         font_family:    style?.font_family    ?? STYLE_DEFAULTS.font_family,
         custom_accents: style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
+        hidden_presets: style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -78,6 +82,8 @@ export function useSaveStyleConfig() {
         light: { ...STYLE_DEFAULTS.light, ...(existing.style?.light ?? {}) },
         font_family:    existing.style?.font_family    ?? STYLE_DEFAULTS.font_family,
         custom_accents: existing.style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
+        extra_presets:  existing.style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
+        hidden_presets: existing.style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
       };
       const merged: StyleConfig = {
         dark:  { ...prev.dark,  ...(config.dark  ?? {}) },
@@ -85,6 +91,7 @@ export function useSaveStyleConfig() {
         font_family:    config.font_family    ?? prev.font_family,
         custom_accents: config.custom_accents ?? prev.custom_accents,
         extra_presets:  config.extra_presets  ?? prev.extra_presets,
+        hidden_presets: config.hidden_presets ?? prev.hidden_presets,
       };
       const { error } = await supabase.from('app_config').update({
         theme: { ...existing, style: merged },
