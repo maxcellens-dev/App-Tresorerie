@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -7,8 +7,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { useAllSupportRequests, type SupportRequest } from '../../../hooks/useSupport';
+import { useAllSupportRequests, useDeleteSupportRequest, useDeleteClosedSupportRequests, type SupportRequest } from '../../../hooks/useSupport';
 import SupportThreadModal from '../../../components/SupportThreadModal';
+
+function confirmThen(message: string, onYes: () => void) {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.confirm(message)) onYes();
+  } else {
+    Alert.alert('Confirmer', message, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Supprimer', style: 'destructive', onPress: onYes },
+    ]);
+  }
+}
 
 
 type Filter = 'open' | 'closed' | 'all';
@@ -26,9 +37,13 @@ export default function AdminAssistance() {
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
 
   const { data: requests = [], isLoading, refetch } = useAllSupportRequests(!!isAdmin);
+  const deleteRequest = useDeleteSupportRequest();
+  const deleteClosed = useDeleteClosedSupportRequests();
   const [filter, setFilter] = useState<Filter>('open');
   const [open, setOpen] = useState<SupportRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const closedCount = requests.filter((r) => r.status === 'closed').length;
 
   const filtered = useMemo(() => {
     const list = filter === 'all' ? requests : requests.filter((r) => r.status === filter);
@@ -76,6 +91,17 @@ export default function AdminAssistance() {
           ))}
         </View>
 
+        {filter === 'closed' && closedCount > 0 && (
+          <TouchableOpacity
+            style={styles.bulkDeleteBtn}
+            activeOpacity={0.7}
+            onPress={() => confirmThen(`Supprimer définitivement ${closedCount} demande${closedCount > 1 ? 's' : ''} clôturée${closedCount > 1 ? 's' : ''} ?`, () => deleteClosed.mutate())}
+          >
+            <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
+            <Text style={styles.bulkDeleteText}>Supprimer les clôturées ({closedCount})</Text>
+          </TouchableOpacity>
+        )}
+
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={{ paddingBottom: 100 }}
@@ -96,6 +122,14 @@ export default function AdminAssistance() {
                   <Text style={styles.reqMeta}>{formatDate(r.last_message_at)}</Text>
                 </View>
                 {r.admin_unread && <View style={styles.unreadDot} />}
+                <TouchableOpacity
+                  style={styles.cardDeleteBtn}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  onPress={() => confirmThen(`Supprimer la demande « ${r.subject} » de ${r.profile_email || 'cet utilisateur'} ?`, () => deleteRequest.mutate(r.id))}
+                >
+                  <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                </TouchableOpacity>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             ))
@@ -124,7 +158,10 @@ function makeStyles(c: any) {
     backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
     title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 6 },
     subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
-    filterRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    bulkDeleteBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', marginBottom: 14 },
+    bulkDeleteText: { fontSize: 12, fontWeight: '700', color: c.danger },
+    cardDeleteBtn: { padding: 4 },
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
     chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     chipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },

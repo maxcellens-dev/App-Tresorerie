@@ -126,10 +126,15 @@ export default function SettingsScreen() {
           {/* ── Mon compte ── */}
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <View style={styles.card}>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
               <Ionicons name="person-circle-outline" size={20} color={COLORS.emerald} />
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Mon profil</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.emerald} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/mes-donnees')}>
+              <Ionicons name="download-outline" size={20} color={COLORS.emerald} />
+              <Text style={styles.rowLabel}>Mes données</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 

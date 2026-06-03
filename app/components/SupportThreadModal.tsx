@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
-import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus } from '../hooks/useSupport';
+import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
 
 interface Props {
   visible: boolean;
@@ -26,6 +26,8 @@ function formatTime(iso: string) {
 export default function SupportThreadModal({ visible, requestId, subject, status, role, authorId, onClose }: Props) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const { data: liveRequest } = useSupportRequest(visible ? requestId ?? undefined : undefined);
+  const liveStatus: 'open' | 'closed' = liveRequest?.status ?? status;
   const { data: messages = [], isLoading } = useSupportMessages(visible ? requestId ?? undefined : undefined);
   const addMessage = useAddSupportMessage();
   const markRead = useMarkSupportRead();
@@ -49,7 +51,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
     setText('');
   };
 
-  const isClosed = status === 'closed';
+  const isClosed = liveStatus === 'closed';
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>

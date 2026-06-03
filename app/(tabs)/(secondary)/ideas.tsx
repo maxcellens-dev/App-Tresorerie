@@ -49,7 +49,11 @@ export default function IdeasScreen() {
   const { user } = useAuth();
   const [idea, setIdea] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const { data: mySuggestions = [] } = useSuggestions(user?.id);
+  const archivedSuggestions = mySuggestions.filter((s: any) => s.status === 'closed');
+  const activeSuggestions = mySuggestions.filter((s: any) => s.status !== 'closed');
+  const visibleSuggestions = showArchived ? archivedSuggestions : activeSuggestions;
   const { data: roadmapIdeas = [] } = useRoadmapIdeas();
   const addSuggestion = useAddSuggestion(user?.id);
 
@@ -115,14 +119,29 @@ export default function IdeasScreen() {
 
           {mySuggestions.length > 0 && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Mes suggestions envoyées</Text>
-              {mySuggestions.map((s: any, i: number) => (
-                <View key={s.id ?? i} style={styles.ideaRow}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={COLORS.textSecondary} />
-                  <Text style={styles.ideaText} numberOfLines={2}>{s.content}</Text>
-                  <Text style={styles.ideaDate}>{new Date(s.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</Text>
-                </View>
-              ))}
+              <View style={styles.suggHeaderRow}>
+                <Text style={[styles.cardTitle, { marginBottom: 0 }]}>{showArchived ? 'Suggestions traitées' : 'Mes suggestions envoyées'}</Text>
+                {(archivedSuggestions.length > 0 || showArchived) && (
+                  <TouchableOpacity style={styles.archiveBtn} onPress={() => setShowArchived((v) => !v)} activeOpacity={0.7}>
+                    <Ionicons name={showArchived ? 'arrow-back' : 'archive-outline'} size={14} color={COLORS.emerald} />
+                    <Text style={styles.archiveBtnText}>{showArchived ? 'En cours' : `Archives${archivedSuggestions.length ? ` (${archivedSuggestions.length})` : ''}`}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {visibleSuggestions.length === 0 ? (
+                <Text style={styles.suggEmpty}>{showArchived ? 'Aucune suggestion traitée.' : 'Aucune suggestion en cours.'}</Text>
+              ) : (
+                visibleSuggestions.map((s: any, i: number) => (
+                  <View key={s.id ?? i} style={styles.ideaRow}>
+                    <Ionicons name={s.status === 'closed' ? 'checkmark-done-outline' : 'chatbubble-ellipses-outline'} size={18} color={s.status === 'closed' ? COLORS.emerald : COLORS.textSecondary} />
+                    <Text style={styles.ideaText} numberOfLines={2}>{s.content}</Text>
+                    {s.status === 'closed' && (
+                      <View style={styles.treatedBadge}><Text style={styles.treatedText}>Traitée</Text></View>
+                    )}
+                    <Text style={styles.ideaDate}>{new Date(s.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</Text>
+                  </View>
+                ))
+              )}
             </View>
           )}
 
@@ -171,6 +190,12 @@ function makeStyles(c: any) {
   },
   successTitle: { fontSize: 18, fontWeight: '700', color: c.text },
   successText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
+  suggHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  archiveBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '44', backgroundColor: c.emerald + '14' },
+  archiveBtnText: { fontSize: 12, fontWeight: '700', color: c.emerald },
+  suggEmpty: { fontSize: 13, color: c.textSecondary, paddingVertical: 12, textAlign: 'center' },
+  treatedBadge: { backgroundColor: c.emerald + '22', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  treatedText: { fontSize: 10, fontWeight: '700', color: c.emerald },
   ideaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
   ideaText: { flex: 1, fontSize: 13, color: c.text },
   ideaDate: { fontSize: 11, color: c.textSecondary },

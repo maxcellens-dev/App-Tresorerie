@@ -29,6 +29,13 @@ export default function AssistanceScreen() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [openRequest, setOpenRequest] = useState<SupportRequest | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Une demande clôturée ET dont la réponse a été vue (user_unread = false) part aux archives.
+  const isArchived = (r: SupportRequest) => r.status === 'closed' && !r.user_unread;
+  const archived = requests.filter(isArchived);
+  const active = requests.filter((r) => !isArchived(r));
+  const visibleList = showArchived ? archived : active;
 
   const submitNew = async () => {
     if (!body.trim()) return;
@@ -71,11 +78,21 @@ export default function AssistanceScreen() {
           {/* Mes demandes */}
           {(isLoading || requests.length > 0) && (
             <View style={styles.card}>
-              <Text style={[styles.cardTitle, { textAlign: 'left', marginBottom: 12 }]}>Mes demandes</Text>
+              <View style={styles.reqHeaderRow}>
+                <Text style={[styles.cardTitle, { textAlign: 'left', marginBottom: 0 }]}>{showArchived ? 'Archives' : 'Mes demandes'}</Text>
+                {(archived.length > 0 || showArchived) && (
+                  <TouchableOpacity style={styles.archiveBtn} onPress={() => setShowArchived((v) => !v)} activeOpacity={0.7}>
+                    <Ionicons name={showArchived ? 'arrow-back' : 'archive-outline'} size={14} color={COLORS.emerald} />
+                    <Text style={styles.archiveBtnText}>{showArchived ? 'Demandes' : `Archives${archived.length ? ` (${archived.length})` : ''}`}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               {isLoading ? (
-                <ActivityIndicator color={COLORS.emerald} />
+                <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 12 }} />
+              ) : visibleList.length === 0 ? (
+                <Text style={styles.reqEmpty}>{showArchived ? 'Aucune demande archivée.' : 'Aucune demande en cours.'}</Text>
               ) : (
-                requests.map((r) => (
+                visibleList.map((r) => (
                   <TouchableOpacity key={r.id} style={styles.reqRow} activeOpacity={0.7} onPress={() => setOpenRequest(r)}>
                     <View style={[styles.reqDot, { backgroundColor: r.status === 'closed' ? COLORS.textSecondary : COLORS.green }]} />
                     <View style={{ flex: 1 }}>
@@ -190,6 +207,10 @@ function makeStyles(c: any) {
     backgroundColor: c.emerald, paddingVertical: 13, borderRadius: 12, marginTop: 14,
   },
   btnText: { fontSize: 15, fontWeight: '700', color: c.bg },
+  reqHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  archiveBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '44', backgroundColor: c.emerald + '14' },
+  archiveBtnText: { fontSize: 12, fontWeight: '700', color: c.emerald },
+  reqEmpty: { fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
   reqRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderColor: c.cardBorder },
   reqDot: { width: 8, height: 8, borderRadius: 4 },
   reqSubject: { fontSize: 14, fontWeight: '600', color: c.text },

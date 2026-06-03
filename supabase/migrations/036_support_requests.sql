@@ -47,6 +47,11 @@ CREATE POLICY "support_requests_update" ON support_requests FOR UPDATE TO authen
     OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.is_admin)
   );
 
+-- Suppression réservée aux admins (les messages partent en cascade).
+DROP POLICY IF EXISTS "support_requests_delete" ON support_requests;
+CREATE POLICY "support_requests_delete" ON support_requests FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.is_admin));
+
 -- ── support_messages : accès lié à l'accès de la demande parente ──
 DROP POLICY IF EXISTS "support_messages_select" ON support_messages;
 CREATE POLICY "support_messages_select" ON support_messages FOR SELECT TO authenticated
@@ -67,3 +72,7 @@ CREATE POLICY "support_messages_insert" ON support_messages FOR INSERT TO authen
         AND (r.profile_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.is_admin))
     )
   );
+
+DROP POLICY IF EXISTS "support_messages_delete" ON support_messages;
+CREATE POLICY "support_messages_delete" ON support_messages FOR DELETE TO authenticated
+  USING (EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.is_admin));

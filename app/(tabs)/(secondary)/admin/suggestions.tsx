@@ -16,6 +16,7 @@ interface Suggestion {
   profile_id: string;
   content: string;
   created_at: string;
+  status?: string;
   profiles?: { full_name: string | null; email: string | null } | null;
 }
 
@@ -81,6 +82,15 @@ export default function AdminSuggestions() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-suggestions'] }); },
+  });
+
+  const setStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: 'open' | 'closed' }) => {
+      if (!supabase) throw new Error('Supabase indisponible');
+      const { error } = await supabase.from('suggestions').update({ status }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-suggestions'] }); qc.invalidateQueries({ queryKey: ['suggestions'] }); },
   });
 
   const handleDelete = (id: string) => {
@@ -180,6 +190,7 @@ export default function AdminSuggestions() {
           {suggestions.map((s) => {
             const name = s.profiles?.full_name || s.profiles?.email || 'Utilisateur';
             const date = new Date(s.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const isClosed = s.status === 'closed';
             return (
               <View key={s.id} style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -187,13 +198,25 @@ export default function AdminSuggestions() {
                     <Ionicons name="person-circle-outline" size={20} color={COLORS.emerald} />
                     <Text style={styles.userName}>{name}</Text>
                   </View>
-                  <Text style={styles.dateText}>{date}</Text>
+                  <View style={[styles.statusPill, { backgroundColor: (isClosed ? COLORS.textSecondary : COLORS.emerald) + '22' }]}>
+                    <Text style={[styles.statusPillText, { color: isClosed ? COLORS.textSecondary : COLORS.emerald }]}>{isClosed ? 'Traitée' : 'En cours'}</Text>
+                  </View>
                 </View>
+                <Text style={styles.dateText}>{date}</Text>
                 <Text style={styles.contentText}>{s.content}</Text>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(s.id)}>
-                  <Ionicons name="trash-outline" size={16} color={COLORS.red} />
-                  <Text style={styles.deleteBtnText}>Supprimer</Text>
-                </TouchableOpacity>
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => setStatusMutation.mutate({ id: s.id, status: isClosed ? 'open' : 'closed' })}
+                  >
+                    <Ionicons name={isClosed ? 'refresh-outline' : 'checkmark-done-outline'} size={16} color={COLORS.emerald} />
+                    <Text style={[styles.actionBtnText, { color: COLORS.emerald }]}>{isClosed ? 'Rouvrir' : 'Clôturer'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(s.id)}>
+                    <Ionicons name="trash-outline" size={16} color={COLORS.red} />
+                    <Text style={[styles.actionBtnText, { color: COLORS.red }]}>Supprimer</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           })}
@@ -244,12 +267,15 @@ function makeStyles(c: any) {
     backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,
     padding: 16, marginBottom: 12,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   userBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   userName: { fontSize: 13, fontWeight: '600', color: c.emerald },
-  dateText: { fontSize: 11, color: c.textSecondary },
+  statusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  statusPillText: { fontSize: 11, fontWeight: '700' },
+  dateText: { fontSize: 11, color: c.textSecondary, marginBottom: 10 },
   contentText: { fontSize: 14, color: c.text, lineHeight: 20, marginBottom: 12 },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
-  deleteBtnText: { fontSize: 12, color: c.red },
+  cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 16, borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 10 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actionBtnText: { fontSize: 12, fontWeight: '600' },
 });
 }

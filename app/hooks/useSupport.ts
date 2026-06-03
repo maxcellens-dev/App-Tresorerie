@@ -89,6 +89,22 @@ export function useAllSupportRequests(enabled = true) {
   });
 }
 
+// ── Une demande (live, pour refléter le statut dans le fil) ─────
+
+export function useSupportRequest(requestId: string | undefined) {
+  return useQuery({
+    queryKey: ['support_request', requestId],
+    queryFn: async (): Promise<SupportRequest | null> => {
+      if (!supabase || !requestId) return null;
+      const { data, error } = await supabase.from('support_requests').select('*').eq('id', requestId).maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as SupportRequest | null;
+    },
+    enabled: !!requestId,
+    refetchInterval: 8000,
+  });
+}
+
 // ── Fil de messages (commun) ────────────────────────────────────
 
 export function useSupportMessages(requestId: string | undefined) {
@@ -129,6 +145,7 @@ export function useAddSupportMessage() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['support_messages', vars.requestId] });
       qc.invalidateQueries({ queryKey: ['support_requests'] });
+      qc.invalidateQueries({ queryKey: ['support_request', vars.requestId] });
     },
   });
 }
@@ -139,6 +156,35 @@ export function useSetSupportStatus() {
     mutationFn: async ({ requestId, status }: { requestId: string; status: 'open' | 'closed' }) => {
       if (!supabase) throw new Error('Backend indisponible');
       const { error } = await supabase.from('support_requests').update({ status }).eq('id', requestId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['support_requests'] });
+      qc.invalidateQueries({ queryKey: ['support_request', vars.requestId] });
+    },
+  });
+}
+
+/** Supprime une demande (admin). Les messages partent en cascade. */
+export function useDeleteSupportRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('support_requests').delete().eq('id', requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['support_requests'] }); },
+  });
+}
+
+/** Supprime en masse toutes les demandes clôturées (admin). */
+export function useDeleteClosedSupportRequests() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('support_requests').delete().eq('status', 'closed');
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['support_requests'] }); },
