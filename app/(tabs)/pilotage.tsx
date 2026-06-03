@@ -2,6 +2,7 @@
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
+import { tabRect } from '../lib/tourTargets';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import { supabase } from '../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -105,6 +106,13 @@ export default function PilotageScreen() {
   const projectsObjectivesRef = React.useRef<View>(null);
 
   const PILOTAGE_GUIDE: BubbleStep[] = [
+    {
+      getRect: () => tabRect(2),
+      icon: 'home',
+      iconColor: '#34d399',
+      title: 'Onglet Pilotage',
+      description: 'Touchez « Pilotage » dans la barre du bas : c\'est votre tableau de bord.',
+    },
     {
       getRef: () => overviewRef,
       icon: 'analytics-outline',

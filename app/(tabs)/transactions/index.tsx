@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import { tabRect } from '../../lib/tourTargets';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -100,6 +101,13 @@ export default function TransactionsListScreen() {
   const periodNavRef = useRef<any>(null);
 
   const TX_GUIDE_STEPS: BubbleStep[] = [
+    {
+      getRect: () => tabRect(1),
+      icon: 'list',
+      iconColor: '#34d399',
+      title: 'Onglet Transactions',
+      description: 'Touchez « Transactions » dans la barre du bas pour saisir et consulter vos opérations.',
+    },
     {
       getRef: () => expenseBtnRef,
       icon: 'arrow-down',

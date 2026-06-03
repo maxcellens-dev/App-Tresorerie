@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import GuideOverlay from '../components/GuideOverlay';
+import { tabRect } from '../lib/tourTargets';
 import type { BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../hooks/useTransactions';
@@ -113,6 +114,13 @@ export default function TreasuryPlanScreen() {
   const scrollOuterRef = React.useRef<ScrollView>(null);
 
   const TRESO_GUIDE: BubbleStep[] = [
+    {
+      getRect: () => tabRect(3),
+      icon: 'calendar',
+      iconColor: '#34d399',
+      title: 'Onglet Tréso',
+      description: 'Touchez « Tréso » dans la barre du bas pour votre plan de trésorerie sur 12 mois.',
+    },
     {
       getRef: () => navRowRef,
       icon: 'calendar-outline',

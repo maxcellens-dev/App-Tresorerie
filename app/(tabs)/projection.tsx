@@ -12,6 +12,7 @@ import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import GuideOverlay, { type BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
+import { tabRect } from '../lib/tourTargets';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -151,6 +152,7 @@ export default function ProjectionScreen() {
   const chartRef = React.useRef<View>(null);
   const hypoRef = React.useRef<View>(null);
   const PROJECTION_GUIDE: BubbleStep[] = [
+    { getRect: () => tabRect(4), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
     { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },
     { getRef: () => chartRef, icon: 'trending-up-outline', iconColor: '#a78bfa', title: 'Votre patrimoine dans le temps', description: 'Visualisez la croissance projetée année après année selon vos hypothèses.' },
     { getRef: () => hypoRef, icon: 'options-outline', iconColor: '#34d399', title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },

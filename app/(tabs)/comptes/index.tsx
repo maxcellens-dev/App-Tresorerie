@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import { tabRect } from '../../lib/tourTargets';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -40,6 +41,13 @@ export default function AccountsListScreen() {
   const transferBtnRef = useRef<any>(null);
 
   const GUIDE_STEPS: BubbleStep[] = [
+    {
+      getRect: () => tabRect(0),
+      icon: 'wallet',
+      iconColor: '#34d399',
+      title: 'Onglet Comptes',
+      description: 'Touchez « Comptes » dans la barre du bas pour gérer vos comptes et virements.',
+    },
     {
       getRef: () => addBtnRef,
       icon: 'add-circle',

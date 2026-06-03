@@ -11,6 +11,7 @@ import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
+import { headerProfileRect } from '../../lib/tourTargets';
 import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
@@ -62,6 +63,13 @@ export default function SettingsScreen() {
   const marginRowRef = useRef<any>(null);
 
   const GUIDE_STEPS: BubbleStep[] = [
+    {
+      getRect: () => headerProfileRect(),
+      icon: 'settings',
+      iconColor: COLORS.emerald,
+      title: 'Paramètres',
+      description: 'Accessible en haut à droite via votre avatar. Vous y réglez l\'app, vos catégories et l\'assistance.',
+    },
     {
       getRef: () => categoriesRowRef,
       icon: 'pie-chart-outline',

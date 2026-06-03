@@ -19,7 +19,9 @@ const { width: SW, height: SH } = Dimensions.get('window');
 
 export interface BubbleStep {
   /** Retourne la ref de la View à mettre en avant. */
-  getRef: () => React.RefObject<any>;
+  getRef?: () => React.RefObject<any>;
+  /** Alternative : rectangle calculé (ex. bouton d'onglet/header) — prioritaire sur getRef. */
+  getRect?: () => { x: number; y: number; w: number; h: number };
   icon: string;
   iconColor: string;
   title: string;
@@ -62,7 +64,13 @@ export default function GuideOverlay({
     setMeasuring(true);
     setRect(null);
 
-    const node = step.getRef()?.current;
+    // Étape à rectangle calculé (bouton de navigation) : pas de mesure ni de scroll.
+    if (step.getRect) {
+      const r = step.getRect();
+      if (r) { setRect(r); setMeasuring(false); return; }
+    }
+
+    const node = step.getRef?.()?.current;
     if (!node) {
       // Pas de cible → bulle centrée
       setMeasuring(false);
@@ -177,8 +185,8 @@ export default function GuideOverlay({
           style={[
             styles.arrow,
             pointer === 'up'
-              ? { top: bubbleTop - 8, left: arrowLeft, borderBottomColor: COLORS.card }
-              : { top: bubbleTop + BUBBLE_H - 2, left: arrowLeft, borderTopColor: COLORS.card },
+              ? { top: bubbleTop - 8, left: arrowLeft, borderBottomColor: COLORS.cardSolid }
+              : { top: bubbleTop + BUBBLE_H - 2, left: arrowLeft, borderTopColor: COLORS.cardSolid },
             pointer === 'up' ? styles.arrowUp : styles.arrowDown,
           ]}
         />
@@ -232,7 +240,7 @@ export default function GuideOverlay({
 function makeStyles(c: any) {
   return StyleSheet.create({
   fill: { ...StyleSheet.absoluteFillObject, zIndex: 1000 },
-  mask: { position: 'absolute', backgroundColor: 'rgba(2, 6, 23, 0.82)' },
+  mask: { position: 'absolute', backgroundColor: 'rgba(2, 6, 23, 0.55)' },
   highlight: {
     position: 'absolute', borderRadius: 14,
     borderWidth: 2, borderColor: c.emerald,
@@ -249,7 +257,7 @@ function makeStyles(c: any) {
   arrowDown: { borderTopWidth: 8 },
   bubble: {
     position: 'absolute', left: 16, right: 16,
-    backgroundColor: c.card, borderRadius: 18,
+    backgroundColor: c.cardSolid, borderRadius: 18,
     borderWidth: 1, borderColor: c.border,
     padding: 18, gap: 14,
     ...(Platform.OS === 'web'

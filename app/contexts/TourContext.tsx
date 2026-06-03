@@ -38,9 +38,11 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const [index, setIndex] = useState(0);
   const navTimer = useRef<any>(null);
 
+  // `replace` (et non `push`) pour ne pas empiler de doublon de l'écran (ex. comptes
+  // déjà affiché avec ?welcome=1) — sinon deux GuideOverlay se chevauchent.
   const goTo = (route: string) => {
     if (navTimer.current) clearTimeout(navTimer.current);
-    navTimer.current = setTimeout(() => router.push(route as any), 60);
+    navTimer.current = setTimeout(() => router.replace(route as any), 60);
   };
 
   const start = useCallback(() => {
@@ -57,6 +59,8 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
       if (next >= ORDER.length) {
         setActive(false);
         updateOnboarding.mutate({ app_tour_done: true });
+        // Fin du tour → retour sur Comptes (où le guide « Pour bien démarrer » prend le relais).
+        goTo('/(tabs)/comptes');
         return i;
       }
       goTo(ORDER[next].route);
