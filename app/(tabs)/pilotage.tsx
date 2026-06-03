@@ -410,9 +410,9 @@ export default function PilotageScreen() {
                     // Avec un historique utilisé, la ligne n'est ni cliquable ni fléchée.
                     const editable = src !== 'history';
                     const hint = src === 'history'
-                      ? `Vos dépenses prévues · estimées sur ${nMonths} mois`
+                      ? `Estimées sur les ${nMonths} derniers mois`
                       : src === 'onboarding'
-                        ? 'Vos dépenses prévues · estimation hebdo'
+                        ? 'Estimation hebdo'
                         : 'À renseigner — appuyez pour estimer';
                     const col = COLORS.orange;
                     const RowWrap: any = editable ? TouchableOpacity : View;

@@ -110,6 +110,12 @@ export default function AddTransactionScreen() {
       return;
     }
 
+    // Sous-catégorie obligatoire pour une dépense / recette validée (les brouillons restent libres).
+    if (!isTransfer && !isDraft && !categoryId) {
+      showError('Veuillez choisir une sous-catégorie.', ['category']);
+      return;
+    }
+
     if (isTransfer) {
       if (!targetAccountId) {
         showError('Veuillez choisir un compte de destination.', ['targetAccount']);
@@ -317,8 +323,8 @@ export default function AddTransactionScreen() {
               key={isExpense ? 'expense' : 'income'}
               groups={categoryGroups}
               selectedCategoryId={categoryId}
-              onSelect={setCategoryId}
-              label="Sous-catégorie (optionnel)"
+              onSelect={(id) => { setCategoryId(id); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
+              label="Sous-catégorie *"
             />
           )}
 
