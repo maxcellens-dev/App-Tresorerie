@@ -13,10 +13,11 @@ export function useBrandColors(): AppColors {
   return useMemo(
     () => buildColors('dark', 'emerald', {
       cardAlpha: styleConfig?.dark.card_alpha,
+      bgColor: styleConfig?.dark.bg_color,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
       semanticColors: styleConfig?.semantic_colors,
     }),
-    [styleConfig?.dark.card_alpha, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
+    [styleConfig?.dark.card_alpha, styleConfig?.dark.bg_color, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
   );
 }

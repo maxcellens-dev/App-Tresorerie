@@ -13,6 +13,8 @@ export interface ModeStyleConfig {
   gradient_stops?: number[];
   /** Alpha des cartes (0-100). Ex: 8 = 8 % */
   card_alpha: number;
+  /** Couleur de fond de l'app (derrière le dégradé). Hex. */
+  bg_color?: string;
 }
 
 /** Retourne les 4 paliers d'opacité du dégradé (en 0-1) pour un mode. */
@@ -42,8 +44,17 @@ export interface StyleConfig {
   extra_presets: CustomPreset[];
   /** Identifiants des presets (natifs ou custom) masqués dans Paramètres */
   hidden_presets: string[];
+  /** Ordre d'affichage des presets (ids natifs + custom). Les ids absents sont ajoutés à la fin. */
+  preset_order: string[];
   /** Surcharges des couleurs sémantiques globales { danger, blue, violet, green, orange, teal, yellow } */
   semantic_colors: Record<string, string>;
+}
+
+/** Ordonne une liste d'ids de presets selon l'ordre sauvegardé (ids absents ajoutés à la fin). */
+export function orderPresetIds(allIds: string[], order: string[] | undefined): string[] {
+  const ord = (order ?? []).filter((id) => allIds.includes(id));
+  const missing = allIds.filter((id) => !ord.includes(id));
+  return [...ord, ...missing];
 }
 
 export const MODE_DEFAULTS: ModeStyleConfig = {
@@ -51,15 +62,17 @@ export const MODE_DEFAULTS: ModeStyleConfig = {
   gradient_opacity: 30,
   gradient_stops: [30, 18, 10, 5],
   card_alpha: 8,
+  bg_color: '#000000',
 };
 
 export const STYLE_DEFAULTS: StyleConfig = {
   dark:  { ...MODE_DEFAULTS },
-  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 4 },
+  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 4, bg_color: '#FFFFFF' },
   font_family: 'System',
   custom_accents: {},
   extra_presets: [],
   hidden_presets: [],
+  preset_order: [],
   semantic_colors: {},
 };
 
@@ -79,6 +92,7 @@ export function useStyleConfig() {
         custom_accents: style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
         hidden_presets: style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
+        preset_order: style?.preset_order ?? STYLE_DEFAULTS.preset_order,
         semantic_colors: style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
       };
     },
@@ -100,6 +114,7 @@ export function useSaveStyleConfig() {
         custom_accents: existing.style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  existing.style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
         hidden_presets: existing.style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
+        preset_order: existing.style?.preset_order ?? STYLE_DEFAULTS.preset_order,
         semantic_colors: existing.style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
       };
       const merged: StyleConfig = {
@@ -109,6 +124,7 @@ export function useSaveStyleConfig() {
         custom_accents: config.custom_accents ?? prev.custom_accents,
         extra_presets:  config.extra_presets  ?? prev.extra_presets,
         hidden_presets: config.hidden_presets ?? prev.hidden_presets,
+        preset_order: config.preset_order ?? prev.preset_order,
         semantic_colors: config.semantic_colors ?? prev.semantic_colors,
       };
       const { error } = await supabase.from('app_config').update({

@@ -10,7 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../theme/palette';
-import { useStyleConfig } from '../../hooks/useStyleConfig';
+import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
@@ -48,7 +48,11 @@ export default function SettingsScreen() {
       label: p.label,
       swatch: p.dark,
     }));
-    return [...native, ...extra].filter((p) => !hidden.has(p.id));
+    const all = [...native, ...extra];
+    const ordered = orderPresetIds(all.map((p) => p.id), styleConfig?.preset_order);
+    return ordered
+      .map((id) => all.find((p) => p.id === id)!)
+      .filter((p) => p && !hidden.has(p.id));
   }, [styleConfig]);
 
   // ── Guide "bulles" ──

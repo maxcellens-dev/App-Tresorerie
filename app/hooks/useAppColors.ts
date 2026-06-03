@@ -24,14 +24,18 @@ export function useAppColors(): AppColors {
   const cardAlpha = mode === 'light'
     ? styleConfig?.light.card_alpha
     : styleConfig?.dark.card_alpha;
+  const bgColor = mode === 'light'
+    ? styleConfig?.light.bg_color
+    : styleConfig?.dark.bg_color;
 
   return useMemo(
     () => buildColors(mode, preset, {
       cardAlpha,
+      bgColor,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
       semanticColors: styleConfig?.semantic_colors,
     }),
-    [mode, preset, cardAlpha, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
+    [mode, preset, cardAlpha, bgColor, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
   );
 }

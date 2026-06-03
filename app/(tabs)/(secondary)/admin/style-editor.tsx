@@ -8,8 +8,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { useStyleConfig, useSaveStyleConfig, getGradientStops, type StyleConfig, type CustomPreset, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
-import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_LABELS } from '../../../theme/palette';
+import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
+import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../theme/palette';
 
 
@@ -54,15 +54,18 @@ export default function StyleEditor() {
   const [darkGradEnabled, setDarkGradEnabled]   = useState(true);
   const [darkStops,       setDarkStops]         = useState<string[]>(['30', '18', '10', '5']);
   const [darkCardAlpha,   setDarkCardAlpha]     = useState('8');
+  const [darkBg,          setDarkBg]            = useState(DEFAULT_BG.dark);
   const [lightGradEnabled, setLightGradEnabled] = useState(true);
   const [lightStops,       setLightStops]       = useState<string[]>(['20', '12', '7', '3']);
   const [lightCardAlpha,   setLightCardAlpha]   = useState('4');
+  const [lightBg,          setLightBg]          = useState(DEFAULT_BG.light);
 
   const [fontFamily, setFontFamily] = useState('System');
   const [accentInputs, setAccentInputs] = useState<Record<string, string>>({});
   const [semanticInputs, setSemanticInputs] = useState<Record<string, string>>({});
   const [extraPresets, setExtraPresets] = useState<CustomPreset[]>([]);
   const [hiddenPresets, setHiddenPresets] = useState<string[]>([]);
+  const [presetOrder, setPresetOrder] = useState<string[]>([]);
   const [newLabel, setNewLabel] = useState('');
   const [newDark,  setNewDark]  = useState('#FFFFFF');
   const [newLight, setNewLight] = useState('#000000');
@@ -85,12 +88,16 @@ export default function StyleEditor() {
       setDarkGradEnabled(styleConfig.dark.gradient_enabled);
       setDarkStops(toStopStrings(styleConfig.dark, 30));
       setDarkCardAlpha(String(styleConfig.dark.card_alpha));
+      setDarkBg(styleConfig.dark.bg_color ?? DEFAULT_BG.dark);
       setLightGradEnabled(styleConfig.light.gradient_enabled);
       setLightStops(toStopStrings(styleConfig.light, 20));
       setLightCardAlpha(String(styleConfig.light.card_alpha));
+      setLightBg(styleConfig.light.bg_color ?? DEFAULT_BG.light);
       setFontFamily(styleConfig.font_family ?? 'System');
       setExtraPresets(styleConfig.extra_presets ?? []);
       setHiddenPresets(styleConfig.hidden_presets ?? []);
+      const allIds = [...THEME_PRESETS.map(p => p.id), ...(styleConfig.extra_presets ?? []).map(p => p.id)];
+      setPresetOrder(orderPresetIds(allIds, styleConfig.preset_order));
       const inputs: Record<string, string> = {};
       THEME_PRESETS.forEach(p => { inputs[p.id] = styleConfig.custom_accents?.[p.id] ?? p.swatch; });
       setAccentInputs(inputs);
@@ -108,8 +115,22 @@ export default function StyleEditor() {
   const liveSemantics: Record<string, string> = {};
   SEMANTIC_KEYS.forEach(k => { const v = semanticInputs[k] ?? ''; if (isValidHex(v)) liveSemantics[k] = v; });
 
+  // Liste ordonnée des presets (natifs + custom) pour l'affichage et le réordonnancement
+  const allPresetIds = [...THEME_PRESETS.map(p => p.id), ...extraPresets.map(p => p.id)];
+  const orderedPresetIds = orderPresetIds(allPresetIds, presetOrder);
+  const movePreset = (id: string, dir: -1 | 1) => {
+    const ids = orderPresetIds(allPresetIds, presetOrder);
+    const i = ids.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    const arr = [...ids];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    setPresetOrder(arr);
+  };
+
   const previewAlpha = previewMode === 'dark' ? Number(darkCardAlpha || 0) : Number(lightCardAlpha || 0);
-  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics });
+  const previewBg = previewMode === 'dark' ? darkBg : lightBg;
+  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, bgColor: previewBg });
   const curGradEnabled = previewMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const curStops = (previewMode === 'dark' ? darkStops : lightStops).map(s => Math.min(100, Math.max(0, Number(s) || 0)) / 100);
 
@@ -117,12 +138,14 @@ export default function StyleEditor() {
   const aEnabled = activeMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const aStops   = activeMode === 'dark' ? darkStops : lightStops;
   const aAlpha   = activeMode === 'dark' ? darkCardAlpha : lightCardAlpha;
+  const aBg      = activeMode === 'dark' ? darkBg : lightBg;
   const setEnabled = (v: boolean) => activeMode === 'dark' ? setDarkGradEnabled(v) : setLightGradEnabled(v);
   const setStop    = (i: number, v: string) => {
     const setter = activeMode === 'dark' ? setDarkStops : setLightStops;
     setter(prev => prev.map((s, idx) => idx === i ? v : s));
   };
   const setAlpha   = (v: string)  => activeMode === 'dark' ? setDarkCardAlpha(v)   : setLightCardAlpha(v);
+  const setBg      = (v: string)  => activeMode === 'dark' ? setDarkBg(v)          : setLightBg(v);
 
   async function handleSave() {
     setSaving(true); setSaved(false);
@@ -134,12 +157,13 @@ export default function StyleEditor() {
       SEMANTIC_KEYS.forEach(k => { const v = semanticInputs[k] ?? ''; if (isValidHex(v)) validatedSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
-        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0) },
-        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0) },
+        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg) ? darkBg.toUpperCase() : DEFAULT_BG.dark },
+        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light },
         font_family: fontFamily,
         custom_accents: validated,
         extra_presets: extraPresets,
         hidden_presets: hiddenPresets,
+        preset_order: orderPresetIds([...THEME_PRESETS.map(p => p.id), ...extraPresets.map(p => p.id)], presetOrder),
         semantic_colors: validatedSemantics,
       };
       await saveStyle.mutateAsync(sc);
@@ -257,38 +281,92 @@ export default function StyleEditor() {
                 </View>
               </Section>
 
-              <Section label="Couleurs d'accentuation (modifiables)" icon="color-palette-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Pastille = activer · code hex = modifier · œil = masquer dans Paramètres.</Text>
+              <Section label="Couleurs d'accentuation (presets)" icon="color-palette-outline" COLORS={COLORS}>
+                <Text style={styles.hint}>Pastille = activer · code hex = modifier · œil = masquer · flèches = réordonner (l'ordre s'applique aussi dans Paramètres). Ajoutez vos propres presets en bas.</Text>
                 <View style={{ gap: 10 }}>
-                  {THEME_PRESETS.map(p => {
-                    const inputHex = accentInputs[p.id] ?? p.swatch;
+                  {orderedPresetIds.map((id, idx) => {
+                    const native = THEME_PRESETS.find(p => p.id === id);
+                    const custom = extraPresets.find(p => p.id === id);
+                    if (!native && !custom) return null;
+                    const active = preset === id;
+                    const hidden = hiddenPresets.includes(id);
+                    const inputHex = native ? (accentInputs[id] ?? native.swatch) : (custom!.dark);
                     const valid = isValidHex(inputHex);
-                    const col = valid ? inputHex : p.swatch;
-                    const active = preset === p.id;
-                    const hidden = hiddenPresets.includes(p.id);
+                    const col = valid ? inputHex : (native?.swatch ?? '#888');
                     return (
-                      <View key={p.id} style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }, hidden && { opacity: 0.45 }]}>
-                        <TouchableOpacity style={[styles.swatch, { backgroundColor: col }]} onPress={() => setPreset(p.id)} activeOpacity={0.8}>
+                      <View key={id} style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }, hidden && { opacity: 0.45 }]}>
+                        <View style={styles.moveCol}>
+                          <TouchableOpacity onPress={() => movePreset(id, -1)} disabled={idx === 0} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
+                            <Ionicons name="chevron-up" size={16} color={idx === 0 ? COLORS.cardBorder : COLORS.textSecondary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => movePreset(id, 1)} disabled={idx === orderedPresetIds.length - 1} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
+                            <Ionicons name="chevron-down" size={16} color={idx === orderedPresetIds.length - 1 ? COLORS.cardBorder : COLORS.textSecondary} />
+                          </TouchableOpacity>
+                        </View>
+                        <TouchableOpacity style={[styles.swatch, { backgroundColor: col }]} onPress={() => setPreset(id)} activeOpacity={0.8}>
                           {active && <Ionicons name="checkmark" size={14} color="#fff" />}
                         </TouchableOpacity>
-                        <Text style={styles.accentLabel}>{p.emoji} {p.label}{hidden ? ' · masqué' : ''}</Text>
-                        <TextInput
-                          style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
-                          value={inputHex}
-                          onChangeText={v => setAccentInputs(prev => ({ ...prev, [p.id]: v }))}
-                          placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                          maxLength={7} autoCapitalize="characters"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== p.id) : [...prev, p.id])}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={hidden ? COLORS.textSecondary : COLORS.emerald} />
-                        </TouchableOpacity>
+                        <Text style={styles.accentLabel} numberOfLines={1}>
+                          {native ? `${native.emoji} ${native.label}` : custom!.label}{hidden ? ' · masqué' : ''}
+                        </Text>
+                        {native ? (
+                          <TextInput
+                            style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
+                            value={inputHex}
+                            onChangeText={v => setAccentInputs(prev => ({ ...prev, [id]: v }))}
+                            placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                            maxLength={7} autoCapitalize="characters"
+                          />
+                        ) : (
+                          <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginRight: 6 }}>{custom!.dark}</Text>
+                        )}
+                        {native ? (
+                          <TouchableOpacity
+                            onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== id) : [...prev, id])}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={hidden ? COLORS.textSecondary : COLORS.emerald} />
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            onPress={() => { if (preset === id) setPreset('emerald'); setExtraPresets(prev => prev.filter(x => x.id !== id)); setPresetOrder(prev => prev.filter(x => x !== id)); }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="close-circle" size={20} color={COLORS.danger} />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     );
                   })}
+
+                  {/* Créateur de preset d'accent */}
+                  <View style={[styles.accentItem, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>+ Nouveau preset d'accent</Text>
+                    <TextInput style={[styles.hexInput, { textAlign: 'left', paddingLeft: 10 }]} value={newLabel} onChangeText={setNewLabel}
+                      placeholder="Nom (ex. Turquoise)" placeholderTextColor={COLORS.textSecondary} />
+                    <View style={styles.row2g}>
+                      <View style={[styles.swatch, { backgroundColor: isValidHex(newDark) ? newDark : '#888' }]} />
+                      <TextInput style={[styles.hexInput, { flex: 1 }]} value={newDark} onChangeText={setNewDark} placeholder="#RRGGBB sombre" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
+                    </View>
+                    <View style={styles.row2g}>
+                      <View style={[styles.swatch, { backgroundColor: isValidHex(newLight) ? newLight : '#888', borderWidth: 1, borderColor: COLORS.cardBorder }]} />
+                      <TextInput style={[styles.hexInput, { flex: 1 }]} value={newLight} onChangeText={setNewLight} placeholder="#RRGGBB clair" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
+                    </View>
+                    <TouchableOpacity
+                      style={{ backgroundColor: (newLabel.trim() && isValidHex(newDark) && isValidHex(newLight)) ? COLORS.emerald : COLORS.cardBorder, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                      onPress={() => {
+                        if (!newLabel.trim() || !isValidHex(newDark) || !isValidHex(newLight)) return;
+                        const newId = 'custom_' + Date.now();
+                        setExtraPresets(prev => [...prev, { id: newId, label: newLabel.trim(), dark: newDark.toUpperCase(), light: newLight.toUpperCase() }]);
+                        setPresetOrder(prev => [...prev, newId]);
+                        setNewLabel(''); setNewDark('#FFFFFF'); setNewLight('#000000');
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>+ Ajouter ce preset</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+                <Text style={[styles.hint, { marginTop: 10 }]}>Les presets sont disponibles pour tous les utilisateurs dans Paramètres.</Text>
               </Section>
 
               <Section label="Couleurs principales (montants, boutons, textes)" icon="brush-outline" COLORS={COLORS}>
@@ -323,44 +401,6 @@ export default function StyleEditor() {
                 </View>
               </Section>
 
-              <Section label="Presets personnalisés" icon="add-circle-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Disponibles ensuite pour tous les utilisateurs dans Paramètres.</Text>
-                {extraPresets.map(p => (
-                  <View key={p.id} style={[styles.accentItem, preset === p.id && { borderColor: p.dark, borderWidth: 2 }]}>
-                    <TouchableOpacity style={[styles.swatch, { backgroundColor: p.dark }]} onPress={() => setPreset(p.id)} activeOpacity={0.8}>
-                      {preset === p.id && <Ionicons name="checkmark" size={14} color="#fff" />}
-                    </TouchableOpacity>
-                    <Text style={styles.accentLabel}>{p.label}</Text>
-                    <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginRight: 6 }}>{p.dark}</Text>
-                    <TouchableOpacity onPress={() => { if (preset === p.id) setPreset('emerald'); setExtraPresets(prev => prev.filter(x => x.id !== p.id)); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Ionicons name="close-circle" size={20} color={COLORS.danger} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                <View style={[styles.accentItem, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary }}>Nouveau preset</Text>
-                  <TextInput style={[styles.hexInput, { textAlign: 'left', paddingLeft: 10 }]} value={newLabel} onChangeText={setNewLabel}
-                    placeholder="Nom (ex. Turquoise)" placeholderTextColor={COLORS.textSecondary} />
-                  <View style={styles.row2g}>
-                    <View style={[styles.swatch, { backgroundColor: isValidHex(newDark) ? newDark : '#888' }]} />
-                    <TextInput style={[styles.hexInput, { flex: 1 }]} value={newDark} onChangeText={setNewDark} placeholder="#RRGGBB sombre" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
-                  </View>
-                  <View style={styles.row2g}>
-                    <View style={[styles.swatch, { backgroundColor: isValidHex(newLight) ? newLight : '#888', borderWidth: 1, borderColor: COLORS.cardBorder }]} />
-                    <TextInput style={[styles.hexInput, { flex: 1 }]} value={newLight} onChangeText={setNewLight} placeholder="#RRGGBB clair" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
-                  </View>
-                  <TouchableOpacity
-                    style={{ backgroundColor: (newLabel.trim() && isValidHex(newDark) && isValidHex(newLight)) ? COLORS.emerald : COLORS.cardBorder, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
-                    onPress={() => {
-                      if (!newLabel.trim() || !isValidHex(newDark) || !isValidHex(newLight)) return;
-                      setExtraPresets(prev => [...prev, { id: 'custom_' + Date.now(), label: newLabel.trim(), dark: newDark.toUpperCase(), light: newLight.toUpperCase() }]);
-                      setNewLabel(''); setNewDark('#FFFFFF'); setNewLight('#000000');
-                    }}
-                  >
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>+ Ajouter ce preset</Text>
-                  </TouchableOpacity>
-                </View>
-              </Section>
             </>
           )}
 
@@ -378,6 +418,31 @@ export default function StyleEditor() {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              <Section label="Couleur de fond de l'app" icon="contrast-outline" COLORS={COLORS}>
+                <Text style={styles.hint}>Couleur derrière le dégradé. {activeMode === 'dark' ? 'En sombre, un noir pur peut être adouci (ex. #0A0E14).' : ''}</Text>
+                <View style={styles.accentItem}>
+                  <View style={[styles.swatch, { backgroundColor: isValidHex(aBg) ? aBg : DEFAULT_BG[activeMode], borderWidth: 1, borderColor: COLORS.cardBorder }]} />
+                  <Text style={styles.accentLabel}>Fond {activeMode === 'dark' ? 'sombre' : 'clair'}</Text>
+                  <TextInput
+                    style={[styles.hexInput, { width: 96 }, !isValidHex(aBg) && { borderColor: COLORS.danger }]}
+                    value={aBg}
+                    onChangeText={setBg}
+                    placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                    maxLength={7} autoCapitalize="characters"
+                  />
+                  <TouchableOpacity onPress={() => setBg(DEFAULT_BG[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aBg.toUpperCase() === DEFAULT_BG[activeMode]}>
+                    <Ionicons name="refresh-outline" size={20} color={aBg.toUpperCase() === DEFAULT_BG[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.alphaRow}>
+                  {(activeMode === 'dark' ? ['#000000', '#0A0E14', '#111418', '#16181C'] : ['#FFFFFF', '#F7F8FA', '#F2F3F5', '#EAECEF']).map(hex => (
+                    <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex }, aBg.toUpperCase() === hex && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
+                      <Text style={{ color: activeMode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '600' }}>{hex.replace('#', '')}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </Section>
 
               <Section label="Dégradé de fond" icon="layers-outline" COLORS={COLORS}>
                 <View style={styles.row2}>
@@ -527,6 +592,7 @@ function makeStyles(c: any) {
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 17 },
 
   accentItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 },
+  moveCol: { width: 20, alignItems: 'center', justifyContent: 'center', marginRight: -2 },
   swatch: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   accentLabel: { flex: 1, fontSize: 14, color: c.text, fontWeight: '500' },
   hexInput: { width: 96, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 8, color: c.text, fontSize: 13, fontWeight: '600', textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },

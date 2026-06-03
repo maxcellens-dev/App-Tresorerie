@@ -137,7 +137,12 @@ export interface BuildColorsOptions {
   extraPresets?: { id: string; label: string; dark: string; light: string }[];
   /** Surcharges hex des couleurs sémantiques { danger:'#xxxxxx', blue:'#xxxxxx', ... } */
   semanticColors?: Record<string, string>;
+  /** Couleur de fond de l'app (derrière le dégradé) pour le mode courant. */
+  bgColor?: string;
 }
+
+/** Couleurs de fond par défaut par mode (modifiables via le Style Editor). */
+export const DEFAULT_BG: Record<ThemeMode, string> = { dark: '#000000', light: '#FFFFFF' };
 
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
 export function resolveAccent(mode: ThemeMode, preset: string, opts?: BuildColorsOptions): string {
@@ -157,6 +162,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const base = MODE_BASE[mode] ?? MODE_BASE.dark;
   const accent = resolveAccent(mode, preset, opts);
   const isLight = mode === 'light';
+  const bg = (opts?.bgColor && /^#[0-9A-Fa-f]{6}$/.test(opts.bgColor)) ? opts.bgColor : base.bg;
 
   // Transparence des cartes configurable
   const alpha = Math.min(100, Math.max(0, opts?.cardAlpha ?? (isLight ? 4 : 8))) / 100;
@@ -178,7 +184,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const yellow = sem('yellow');
 
   return {
-    bg: base.bg,
+    bg,
     card,
     cardSolid: base.cardSolid,
     cardBorder,
@@ -190,11 +196,11 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     primary: accent,
     // alias
     border: cardBorder,
-    background: base.bg,
+    background: bg,
     surface: card,
     sub: base.textSecondary,
     red: danger,
-    screenBg: base.bg,
+    screenBg: bg,
     tabActive: accent,
     tabInactive: base.textSecondary,
     // sémantiques (overridables)
