@@ -5,13 +5,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppColors } from './hooks/useAppColors';
+import { useBrandColors } from './hooks/useBrandColors';
 
 const { width } = Dimensions.get('window');
 
 
 export default function WelcomeScreen() {
-  const COLORS = useAppColors();
+  const COLORS = useBrandColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -37,7 +37,8 @@ export default function WelcomeScreen() {
       <StatusBar style="light" />
       <View style={styles.background}>
         <LinearGradient
-          colors={['#0f172a', '#020617', '#020617']}
+          colors={[COLORS.emerald + '4D', COLORS.emerald + '1A', COLORS.bg, COLORS.bg]}
+          locations={[0, 0.25, 0.6, 1]}
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.glowTop} />
@@ -135,7 +136,7 @@ function makeStyles(c: any) {
     width: width * 0.8,
     height: width * 0.8,
     borderRadius: width * 0.4,
-    backgroundColor: '#34d39915',
+    backgroundColor: c.emerald + '22',
     transform: [{ scaleX: 1.5 }],
   },
   glowBottom: {
@@ -145,7 +146,7 @@ function makeStyles(c: any) {
     width: width * 0.8,
     height: width * 0.8,
     borderRadius: width * 0.4,
-    backgroundColor: '#3b82f610',
+    backgroundColor: c.emerald + '10',
     transform: [{ scaleX: 1.5 }],
   },
   safe: { flex: 1 },
@@ -161,12 +162,12 @@ function makeStyles(c: any) {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+    backgroundColor: c.emerald + '1A',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.2)',
+    borderColor: c.emerald + '33',
   },
   appName: {
     fontSize: 36,
@@ -195,7 +196,7 @@ function makeStyles(c: any) {
     marginBottom: 48,
   },
   ctaCard: {
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: c.card,
     borderWidth: 1,
     borderColor: c.cardBorder,
     borderRadius: 24,
@@ -261,11 +262,11 @@ function makeStyles(c: any) {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: c.card,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(30, 41, 59, 0.5)',
+    borderColor: c.cardBorder,
   },
   featureIcon: {
     width: 48,

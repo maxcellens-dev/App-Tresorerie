@@ -11,7 +11,7 @@ import { useTransactions, useUpdateTransaction, useDeleteTransaction, useValidat
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
-import { accountColor, SEMANTIC } from '../../theme/colors';
+import { accountColor } from '../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../types/database';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
@@ -519,8 +519,8 @@ export default function TransactionsListScreen() {
             onPress={() => router.push('/(tabs)/transactions/add?type=transfer')}
             accessibilityRole="button"
           >
-            <Ionicons name="swap-horizontal" size={20} color="#60a5fa" />
-            <Text style={[styles.addBtnLabel, { color: '#60a5fa' }]}>Virement</Text>
+            <Ionicons name="swap-horizontal" size={20} color={COLORS.blue} />
+            <Text style={[styles.addBtnLabel, { color: COLORS.blue }]}>Virement</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={expenseBtnRef}
@@ -539,8 +539,8 @@ export default function TransactionsListScreen() {
             onPress={() => router.push('/(tabs)/transactions/add?type=income')}
             accessibilityRole="button"
           >
-            <Ionicons name="arrow-up" size={20} color="#00B67A" />
-            <Text style={[styles.addBtnLabel, { color: '#00B67A' }]}>Recette</Text>
+            <Ionicons name="arrow-up" size={20} color={COLORS.green} />
+            <Text style={[styles.addBtnLabel, { color: COLORS.green }]}>Recette</Text>
           </TouchableOpacity>
         </View>
         {hasFilter && (
@@ -643,7 +643,7 @@ export default function TransactionsListScreen() {
                           router.push(route as any);
                         };
                         const accentStyle = isProject
-                          ? { backgroundColor: SEMANTIC.project + '50' }
+                          ? { backgroundColor: COLORS.teal + '50' }
                           : amt > 0
                             ? { backgroundColor: acctCol + '50' }
                             : { backgroundColor: acctCol + '25' };
@@ -661,13 +661,13 @@ export default function TransactionsListScreen() {
                               <View style={[styles.rowAccent, accentStyle]} />
                               <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
                                 <View style={styles.rowLabelRow}>
-                                  {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
+                                  {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
                                   <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
                                     {item.note || item.category?.name || 'Sans libellé'}
                                   </Text>
                                   {isReserved ? (
                                     <View style={styles.reservedBadge}>
-                                      <Ionicons name="bookmark" size={9} color="#60a5fa" />
+                                      <Ionicons name="bookmark" size={9} color={COLORS.blue} />
                                       <Text style={styles.reservedBadgeText}>Réservé</Text>
                                     </View>
                                   ) : (
@@ -691,8 +691,8 @@ export default function TransactionsListScreen() {
                                       onPress={() => confirmLiberateReserved(item)}
                                       activeOpacity={0.7}
                                     >
-                                      <Ionicons name="lock-open-outline" size={13} color="#f87171" />
-                                      <Text style={[styles.draftActionValidateText, { color: '#f87171' }]}>Libérer</Text>
+                                      <Ionicons name="lock-open-outline" size={13} color={COLORS.danger} />
+                                      <Text style={[styles.draftActionValidateText, { color: COLORS.danger }]}>Libérer</Text>
                                     </TouchableOpacity>
                                   ) : (
                                     <>
@@ -701,7 +701,7 @@ export default function TransactionsListScreen() {
                                         onPress={() => confirmValidateDraft(item)}
                                         activeOpacity={0.7}
                                       >
-                                        <Ionicons name="checkmark" size={13} color="#34d399" />
+                                        <Ionicons name="checkmark" size={13} color={COLORS.green} />
                                         <Text style={styles.draftActionValidateText}>Valider</Text>
                                       </TouchableOpacity>
                                       {isProjectDraft && (
@@ -710,7 +710,7 @@ export default function TransactionsListScreen() {
                                           onPress={() => confirmConserveDraft(item)}
                                           activeOpacity={0.7}
                                         >
-                                          <Ionicons name="bookmark-outline" size={13} color="#60a5fa" />
+                                          <Ionicons name="bookmark-outline" size={13} color={COLORS.blue} />
                                           <Text style={styles.draftActionConserveText}>Conserver</Text>
                                         </TouchableOpacity>
                                       )}
@@ -719,12 +719,12 @@ export default function TransactionsListScreen() {
                                         onPress={() => confirmDeleteDraft(item)}
                                         activeOpacity={0.7}
                                       >
-                                        <Ionicons name="trash-outline" size={13} color="#f87171" />
+                                        <Ionicons name="trash-outline" size={13} color={COLORS.danger} />
                                       </TouchableOpacity>
                                     </>
                                   )}
                                 </View>
-                                <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg, { textAlign: 'right', marginTop: 4 }]}>
+                                <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right', marginTop: 4 }]}>
                                   {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
                                 </Text>
                               </View>
@@ -743,7 +743,7 @@ export default function TransactionsListScreen() {
                             <View style={[styles.rowAccent, accentStyle]} />
                             <View style={styles.rowLeft}>
                               <View style={styles.rowLabelRow}>
-                                {isProject && <View style={[styles.projectDot, { backgroundColor: SEMANTIC.project }]} />}
+                                {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
                                 <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
                                   {item.note || item.category?.name || 'Sans libellé'}
                                 </Text>
@@ -765,7 +765,7 @@ export default function TransactionsListScreen() {
                                 <Text style={styles.reservationText}>Réservé</Text>
                               </View>
                             ) : (
-                              <Text style={[styles.rowAmount, amt > 0 ? { color: SEMANTIC.income } : styles.rowAmountNeg]}>
+                              <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg]}>
                                 {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
                               </Text>
                             )}
@@ -871,23 +871,23 @@ function makeStyles(c: any) {
   rowLast: { borderBottomWidth: 0 },
   rowFuture: { opacity: 0.38 },
   rowAlignStart: { alignItems: 'flex-start' },
-  rowDraft: { borderLeftWidth: 2, borderLeftColor: '#FF9500' },
-  rowDraftProject: { borderLeftWidth: 2, borderLeftColor: '#0075FF' },
-  rowLabelDraft: { fontStyle: 'italic', color: '#FF9500' },
-  rowLabelDraftProject: { fontStyle: 'italic', color: '#0075FF' },
-  draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#FF950022', borderWidth: 1, borderColor: '#FF9500' },
-  draftBadgeProject: { backgroundColor: '#0075FF22', borderColor: '#0075FF' },
-  draftBadgeText: { fontSize: 10, fontWeight: '700', color: '#FF9500' },
-  draftBadgeTextProject: { color: '#0075FF' },
+  rowDraft: { borderLeftWidth: 2, borderLeftColor: c.orange },
+  rowDraftProject: { borderLeftWidth: 2, borderLeftColor: c.blue },
+  rowLabelDraft: { fontStyle: 'italic', color: c.orange },
+  rowLabelDraftProject: { fontStyle: 'italic', color: c.blue },
+  draftBadge: { marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: c.orange + '22', borderWidth: 1, borderColor: c.orange },
+  draftBadgeProject: { backgroundColor: c.blue + '22', borderColor: c.blue },
+  draftBadgeText: { fontSize: 10, fontWeight: '700', color: c.orange },
+  draftBadgeTextProject: { color: c.blue },
   rowRightDraft: { alignItems: 'flex-end' },
   draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' },
-  draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#00B67A18', borderWidth: 1, borderColor: '#00B67A44' },
-  draftActionValidateText: { fontSize: 11, fontWeight: '700', color: '#00B67A' },
-  draftActionConserve: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: '#0075FF18', borderWidth: 1, borderColor: '#0075FF44' },
-  draftActionConserveText: { fontSize: 11, fontWeight: '700', color: '#0075FF' },
-  draftActionDelete: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#FF3B3018', borderWidth: 1, borderColor: '#FF3B3044' },
-  reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: '#0075FF22', borderWidth: 1, borderColor: '#0075FF' },
-  reservedBadgeText: { fontSize: 10, fontWeight: '700', color: '#0075FF' },
+  draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: c.green + '18', borderWidth: 1, borderColor: c.green + '44' },
+  draftActionValidateText: { fontSize: 11, fontWeight: '700', color: c.green },
+  draftActionConserve: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: c.blue + '18', borderWidth: 1, borderColor: c.blue + '44' },
+  draftActionConserveText: { fontSize: 11, fontWeight: '700', color: c.blue },
+  draftActionDelete: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: c.danger + '18', borderWidth: 1, borderColor: c.danger + '44' },
+  reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: c.blue + '22', borderWidth: 1, borderColor: c.blue },
+  reservedBadgeText: { fontSize: 10, fontWeight: '700', color: c.blue },
   rowAccent: {
     position: 'absolute' as const,
     left: 0,
@@ -896,31 +896,31 @@ function makeStyles(c: any) {
     width: 2.5,
     borderRadius: 1.5,
   },
-  rowAccentIncome: { backgroundColor: '#00B67A60' },
-  rowAccentProject: { backgroundColor: '#00C4CC60' },
+  rowAccentIncome: { backgroundColor: c.green + '60' },
+  rowAccentProject: { backgroundColor: c.teal + '60' },
   rowLeft: { flex: 1, marginRight: 10 },
   rowLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   projectDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#00C4CC',
+    backgroundColor: c.teal,
     marginRight: 6,
   },
   rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flexShrink: 1 },
   rowMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-  rowAmount: { fontSize: 15, fontWeight: '700', color: '#00B67A' },
+  rowAmount: { fontSize: 15, fontWeight: '700', color: c.green },
   rowAmountNeg: { color: c.text },
   reservationBadge: {
-    backgroundColor: '#22d3ee18',
+    backgroundColor: c.teal + '18',
     borderWidth: 1,
-    borderColor: '#22d3ee40',
+    borderColor: c.teal + '40',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   reservationText: {
-    color: '#22d3ee',
+    color: c.teal,
     fontSize: 12,
     fontWeight: '600',
   },

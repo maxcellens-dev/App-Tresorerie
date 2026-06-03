@@ -7,7 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
-import { accountColor, ACCOUNT_ICONS } from '../../theme/colors';
+import { ACCOUNT_ICONS } from '../../theme/colors';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
@@ -68,6 +68,13 @@ export default function AccountsListScreen() {
     }),
     [accounts]
   );
+
+  // Couleur par type de compte, pilotée par les couleurs sémantiques (réactif au Style Editor).
+  const accountColor = (type: string) =>
+    type === 'savings' ? COLORS.savings
+    : type === 'investment' ? COLORS.investment
+    : type === 'checking' ? COLORS.checking
+    : COLORS.textSecondary;
 
   const total = accounts.reduce((s, a) => s + a.balance, 0);
   

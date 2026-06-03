@@ -30,7 +30,8 @@ export function useAppColors(): AppColors {
       cardAlpha,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
+      semanticColors: styleConfig?.semantic_colors,
     }),
-    [mode, preset, cardAlpha, styleConfig?.custom_accents, styleConfig?.extra_presets]
+    [mode, preset, cardAlpha, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
   );
 }

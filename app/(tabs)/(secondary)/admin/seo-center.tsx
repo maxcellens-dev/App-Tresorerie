@@ -155,7 +155,7 @@ export default function SEOCenter() {
             </TouchableOpacity>
 
             {message && (
-              <Text style={[styles.message, message.startsWith('✗') ? { color: '#ef4444' } : { color: COLORS.emerald }]}>
+              <Text style={[styles.message, message.startsWith('✗') ? { color: COLORS.danger } : { color: COLORS.emerald }]}>
                 {message}
               </Text>
             )}

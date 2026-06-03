@@ -42,12 +42,41 @@ export interface AppColors {
   teal: string;
   amber: string;
   green: string;
+  yellow: string;
   warning: string;
   success: string;
   selected: string;
   currentMonth: string;
   [key: string]: string;
 }
+
+/**
+ * Couleurs sémantiques principales — valeurs par défaut harmonisées (pastel).
+ * Surchargeables globalement depuis le Style Editor (admin) via `semantic_colors`.
+ * Ces clés pilotent boutons, montants et textes partout dans l'app.
+ */
+export const SEMANTIC_KEYS = ['danger', 'blue', 'violet', 'green', 'orange', 'teal', 'yellow'] as const;
+export type SemanticKey = typeof SEMANTIC_KEYS[number];
+
+export const SEMANTIC_DEFAULTS: Record<SemanticKey, string> = {
+  danger: '#f87171', // rouge (dépenses, suppression, erreurs)
+  blue:   '#60a5fa', // compte courant, réservé, virement, solde
+  violet: '#a78bfa', // investissement
+  green:  '#00B67A', // épargne, recettes, succès
+  orange: '#FF9500', // dépenses variables
+  teal:   '#00C4CC', // projets
+  yellow: '#fbbf24', // marge de sécurité
+};
+
+export const SEMANTIC_LABELS: Record<SemanticKey, { label: string; emoji: string }> = {
+  danger: { label: 'Rouge (dépenses)',       emoji: '🔴' },
+  blue:   { label: 'Bleu (courant)',          emoji: '🔵' },
+  violet: { label: 'Violet (investissement)', emoji: '🟣' },
+  green:  { label: 'Vert (épargne)',          emoji: '🟢' },
+  orange: { label: 'Orange (variables)',      emoji: '🟠' },
+  teal:   { label: 'Teal (projets)',          emoji: '🩵' },
+  yellow: { label: 'Jaune (marge)',           emoji: '🟡' },
+};
 
 /** Surfaces de base par mode (sans la transparence configurable). */
 const MODE_BASE: Record<ThemeMode, {
@@ -106,6 +135,8 @@ export interface BuildColorsOptions {
   customAccents?: Record<string, string>;
   /** Presets personnalisés créés dans le Style Editor */
   extraPresets?: { id: string; label: string; dark: string; light: string }[];
+  /** Surcharges hex des couleurs sémantiques { danger:'#xxxxxx', blue:'#xxxxxx', ... } */
+  semanticColors?: Record<string, string>;
 }
 
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
@@ -133,6 +164,19 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const card = `rgba(${cardRGB},${alpha})`;
   const cardBorder = `rgba(${cardRGB},${Math.min(1, alpha + 0.04)})`;
 
+  // Couleurs sémantiques (surchargeables globalement via le Style Editor admin).
+  const sem = (key: SemanticKey): string => {
+    const v = opts?.semanticColors?.[key];
+    return v && /^#[0-9A-Fa-f]{6}$/.test(v) ? v : SEMANTIC_DEFAULTS[key];
+  };
+  const danger = sem('danger');
+  const blue   = sem('blue');
+  const violet = sem('violet');
+  const green  = sem('green');
+  const orange = sem('orange');
+  const teal   = sem('teal');
+  const yellow = sem('yellow');
+
   return {
     bg: base.bg,
     card,
@@ -140,7 +184,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     cardBorder,
     text: base.text,
     textSecondary: base.textSecondary,
-    danger: base.danger,
+    danger,
     emerald: accent,
     accent,
     primary: accent,
@@ -149,23 +193,24 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     background: base.bg,
     surface: card,
     sub: base.textSecondary,
-    red: base.danger,
+    red: danger,
     screenBg: base.bg,
     tabActive: accent,
     tabInactive: base.textSecondary,
-    // sémantiques fixes
-    checking: '#0075FF',
-    savings:  '#00B67A',
-    investment: '#9B5CF6',
-    balance: '#0075FF',
-    blue:   '#0075FF',
-    orange: '#FF9500',
-    violet: '#9B5CF6',
-    teal:   '#00C4CC',
-    amber:  '#FF9500',
-    green:  '#00B67A',
-    warning: '#FF9500',
-    success: '#00B67A',
+    // sémantiques (overridables)
+    checking: blue,
+    savings:  green,
+    investment: violet,
+    balance: blue,
+    blue,
+    orange,
+    violet,
+    teal,
+    amber:  orange,
+    green,
+    yellow,
+    warning: orange,
+    success: green,
     selected:     isLight ? '#F0F7FF' : '#0A1A2E',
     currentMonth: isLight ? '#F0F7FF' : '#0A1A2E',
   } as AppColors;

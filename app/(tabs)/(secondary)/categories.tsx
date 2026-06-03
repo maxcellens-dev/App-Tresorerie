@@ -242,7 +242,7 @@ export default function CategoriesScreen() {
                 </>
               )}
               <TextInput
-                style={[styles.input, addError ? { borderColor: '#ef4444' } : {}]}
+                style={[styles.input, addError ? { borderColor: COLORS.danger } : {}]}
                 value={newName}
                 onChangeText={(v) => { setNewName(v); if (addError) setAddError(null); }}
                 placeholder="Nom (ex. Salaires, Loyer)"
@@ -370,7 +370,7 @@ export default function CategoriesScreen() {
               </View>
             )}
             <TextInput
-              style={[styles.input, editError ? { borderColor: '#ef4444' } : {}]}
+              style={[styles.input, editError ? { borderColor: COLORS.danger } : {}]}
               value={editName}
               onChangeText={(v) => { setEditName(v); if (editError) setEditError(null); }}
               placeholder="Nom"
@@ -486,8 +486,8 @@ function makeStyles(c: any) {
   addBtn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
   addBtnDisabled: { opacity: 0.6 },
   addBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
-  inlineError: { backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.4)', borderRadius: 8, padding: 10, marginBottom: 10 },
-  inlineErrorText: { fontSize: 13, color: '#ef4444', lineHeight: 18 },
+  inlineError: { backgroundColor: c.danger + '1F', borderWidth: 1, borderColor: c.danger + '66', borderRadius: 8, padding: 10, marginBottom: 10 },
+  inlineErrorText: { fontSize: 13, color: c.danger, lineHeight: 18 },
   loader: { marginVertical: 24 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
   card: {

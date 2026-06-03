@@ -183,7 +183,7 @@ export default function AddTransactionScreen() {
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={16} color="#ef4444" />
+              <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
               <Text style={styles.errorBannerText}>{formError}</Text>
             </View>
           )}
@@ -471,19 +471,19 @@ function makeStyles(c: any) {
   chipText: { fontSize: 14, color: c.text },
   chipTextActive: { color: c.bg, fontWeight: '600' },
   chipTextDisabled: { opacity: 0.5 },
-  inputError: { borderColor: '#ef4444' },
+  inputError: { borderColor: c.danger },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    backgroundColor: c.danger + '1F',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
+    borderColor: c.danger + '66',
     borderRadius: 10,
     padding: 12,
     marginBottom: 20,
   },
-  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
+  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 16 },
   text: { color: c.text, marginBottom: 16 },
   btn: { backgroundColor: c.card, padding: 14, borderRadius: 12, alignSelf: 'flex-start' },

@@ -395,7 +395,7 @@ export default function AddProjectModal({
               <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
                 {/* Bandeau erreur */}
                 {formError && (
-                  <View style={[styles.errorBanner, { borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                  <View style={[styles.errorBanner, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '1F' }]}>
                     <Text style={styles.errorBannerText}>{formError}</Text>
                   </View>
                 )}
@@ -403,7 +403,7 @@ export default function AddProjectModal({
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: COLORS.text }]}>Nom du projet *</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: errorFields.includes('name') ? '#ef4444' : COLORS.border }]}
+                    style={[styles.input, { backgroundColor: COLORS.background, color: COLORS.text, borderColor: errorFields.includes('name') ? COLORS.danger : COLORS.border }]}
                     placeholder="Ex. Nouvelle voiture"
                     placeholderTextColor={COLORS.textSecondary}
                     value={form.name}
@@ -846,7 +846,7 @@ function makeStyles(c: any) {
   accountNoteText: { flex: 1, fontSize: 12, lineHeight: 17 },
   accountHint: { fontSize: 11, lineHeight: 16, marginTop: 6 },
   errorBanner: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 12 },
-  errorBannerText: { fontSize: 13, color: '#ef4444', lineHeight: 18 },
+  errorBannerText: { fontSize: 13, color: c.danger, lineHeight: 18 },
   // Ponctuel
   ponctuelContainer: { borderRadius: 10, borderWidth: 1, overflow: 'hidden' },
   ponctuelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },

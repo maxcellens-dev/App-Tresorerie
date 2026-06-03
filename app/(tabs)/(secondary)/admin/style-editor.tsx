@@ -9,7 +9,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, type StyleConfig, type CustomPreset, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
-import { THEME_PRESETS, THEME_MODES, buildColors } from '../../../theme/palette';
+import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_LABELS } from '../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../theme/palette';
 
 
@@ -60,6 +60,7 @@ export default function StyleEditor() {
 
   const [fontFamily, setFontFamily] = useState('System');
   const [accentInputs, setAccentInputs] = useState<Record<string, string>>({});
+  const [semanticInputs, setSemanticInputs] = useState<Record<string, string>>({});
   const [extraPresets, setExtraPresets] = useState<CustomPreset[]>([]);
   const [hiddenPresets, setHiddenPresets] = useState<string[]>([]);
   const [newLabel, setNewLabel] = useState('');
@@ -93,6 +94,9 @@ export default function StyleEditor() {
       const inputs: Record<string, string> = {};
       THEME_PRESETS.forEach(p => { inputs[p.id] = styleConfig.custom_accents?.[p.id] ?? p.swatch; });
       setAccentInputs(inputs);
+      const semInputs: Record<string, string> = {};
+      SEMANTIC_KEYS.forEach(k => { semInputs[k] = styleConfig.semantic_colors?.[k] ?? SEMANTIC_DEFAULTS[k]; });
+      setSemanticInputs(semInputs);
     }
   }, [styleConfig]);
 
@@ -100,8 +104,12 @@ export default function StyleEditor() {
   const liveAccents: Record<string, string> = {};
   THEME_PRESETS.forEach(p => { const v = accentInputs[p.id] ?? ''; if (isValidHex(v)) liveAccents[p.id] = v; });
 
+  // Couleurs sémantiques valides pour l'aperçu live
+  const liveSemantics: Record<string, string> = {};
+  SEMANTIC_KEYS.forEach(k => { const v = semanticInputs[k] ?? ''; if (isValidHex(v)) liveSemantics[k] = v; });
+
   const previewAlpha = previewMode === 'dark' ? Number(darkCardAlpha || 0) : Number(lightCardAlpha || 0);
-  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha });
+  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics });
   const curGradEnabled = previewMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const curStops = (previewMode === 'dark' ? darkStops : lightStops).map(s => Math.min(100, Math.max(0, Number(s) || 0)) / 100);
 
@@ -122,6 +130,8 @@ export default function StyleEditor() {
       await updateProfile.mutateAsync({ theme_mode: previewMode, theme_preset: preset });
       const validated: Record<string, string> = {};
       THEME_PRESETS.forEach(p => { const v = accentInputs[p.id] ?? ''; if (isValidHex(v)) validated[p.id] = v; });
+      const validatedSemantics: Record<string, string> = {};
+      SEMANTIC_KEYS.forEach(k => { const v = semanticInputs[k] ?? ''; if (isValidHex(v)) validatedSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
         dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0) },
@@ -130,6 +140,7 @@ export default function StyleEditor() {
         custom_accents: validated,
         extra_presets: extraPresets,
         hidden_presets: hiddenPresets,
+        semantic_colors: validatedSemantics,
       };
       await saveStyle.mutateAsync(sc);
       setSaved(true);
@@ -273,6 +284,38 @@ export default function StyleEditor() {
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                           <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={hidden ? COLORS.textSecondary : COLORS.emerald} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              </Section>
+
+              <Section label="Couleurs principales (montants, boutons, textes)" icon="brush-outline" COLORS={COLORS}>
+                <Text style={styles.hint}>Ces couleurs pilotent les montants, boutons et libellés partout dans l'app (recettes, dépenses, comptes, projets…). Globales à tous les utilisateurs.</Text>
+                <View style={{ gap: 10 }}>
+                  {SEMANTIC_KEYS.map(k => {
+                    const inputHex = semanticInputs[k] ?? SEMANTIC_DEFAULTS[k];
+                    const valid = isValidHex(inputHex);
+                    const col = valid ? inputHex : SEMANTIC_DEFAULTS[k];
+                    const isDefault = inputHex.toUpperCase() === SEMANTIC_DEFAULTS[k].toUpperCase();
+                    return (
+                      <View key={k} style={styles.accentItem}>
+                        <View style={[styles.swatch, { backgroundColor: col }]} />
+                        <Text style={styles.accentLabel}>{SEMANTIC_LABELS[k].emoji} {SEMANTIC_LABELS[k].label}</Text>
+                        <TextInput
+                          style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
+                          value={inputHex}
+                          onChangeText={v => setSemanticInputs(prev => ({ ...prev, [k]: v }))}
+                          placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                          maxLength={7} autoCapitalize="characters"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setSemanticInputs(prev => ({ ...prev, [k]: SEMANTIC_DEFAULTS[k] }))}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          disabled={isDefault}
+                        >
+                          <Ionicons name="refresh-outline" size={20} color={isDefault ? COLORS.cardBorder : COLORS.emerald} />
                         </TouchableOpacity>
                       </View>
                     );

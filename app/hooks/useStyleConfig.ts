@@ -42,6 +42,8 @@ export interface StyleConfig {
   extra_presets: CustomPreset[];
   /** Identifiants des presets (natifs ou custom) masqués dans Paramètres */
   hidden_presets: string[];
+  /** Surcharges des couleurs sémantiques globales { danger, blue, violet, green, orange, teal, yellow } */
+  semantic_colors: Record<string, string>;
 }
 
 export const MODE_DEFAULTS: ModeStyleConfig = {
@@ -58,6 +60,7 @@ export const STYLE_DEFAULTS: StyleConfig = {
   custom_accents: {},
   extra_presets: [],
   hidden_presets: [],
+  semantic_colors: {},
 };
 
 const KEY = 'style_config';
@@ -76,6 +79,7 @@ export function useStyleConfig() {
         custom_accents: style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
         hidden_presets: style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
+        semantic_colors: style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -96,6 +100,7 @@ export function useSaveStyleConfig() {
         custom_accents: existing.style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  existing.style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
         hidden_presets: existing.style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
+        semantic_colors: existing.style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
       };
       const merged: StyleConfig = {
         dark:  { ...prev.dark,  ...(config.dark  ?? {}) },
@@ -104,6 +109,7 @@ export function useSaveStyleConfig() {
         custom_accents: config.custom_accents ?? prev.custom_accents,
         extra_presets:  config.extra_presets  ?? prev.extra_presets,
         hidden_presets: config.hidden_presets ?? prev.hidden_presets,
+        semantic_colors: config.semantic_colors ?? prev.semantic_colors,
       };
       const { error } = await supabase.from('app_config').update({
         theme: { ...existing, style: merged },

@@ -331,11 +331,11 @@ export default function ProjectsScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#ef444420' }]}
+            style={[styles.actionButton, { backgroundColor: COLORS.danger + '20' }]}
             onPress={() => handleDelete(project.id)}
           >
-            <Ionicons name="trash" size={16} color="#ef4444" />
-            <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Supprimer</Text>
+            <Ionicons name="trash" size={16} color={COLORS.danger} />
+            <Text style={[styles.actionButtonText, { color: COLORS.danger }]}>Supprimer</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -419,7 +419,7 @@ export default function ProjectsScreen() {
         <View style={styles.confirmDialogOverlay}>
           <View style={styles.confirmDialog}>
             <Text style={[styles.confirmTitle, { color: COLORS.text }]}>
-              <Ionicons name="warning" size={18} color="#ef4444" />{'  '}Supprimer le projet
+              <Ionicons name="warning" size={18} color={COLORS.danger} />{'  '}Supprimer le projet
             </Text>
 
             {showDeleteOptions ? (
@@ -439,9 +439,9 @@ export default function ProjectsScreen() {
                   <View style={styles.deleteOptionRadio}>
                     <View style={[
                       styles.radioOuter,
-                      deleteMode === 'full' && { borderColor: '#ef4444' },
+                      deleteMode === 'full' && { borderColor: COLORS.danger },
                     ]}>
-                      {deleteMode === 'full' && <View style={[styles.radioInner, { backgroundColor: '#ef4444' }]} />}
+                      {deleteMode === 'full' && <View style={[styles.radioInner, { backgroundColor: COLORS.danger }]} />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.deleteOptionTitle, { color: COLORS.text }]}>
@@ -525,7 +525,7 @@ export default function ProjectsScreen() {
                   <TouchableOpacity
                     style={[
                       styles.confirmActionBtn,
-                      { backgroundColor: deleteMode === 'full' ? '#ef4444' : '#f59e0b' },
+                      { backgroundColor: deleteMode === 'full' ? COLORS.danger : COLORS.orange },
                       (deleteMode === 'from-date' && !selectedFromDate) && { opacity: 0.5 },
                     ]}
                     onPress={deleteMode === 'full' ? confirmDeleteFull : confirmDeleteFromDate}
@@ -575,7 +575,7 @@ export default function ProjectsScreen() {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.confirmActionBtn, { backgroundColor: '#ef4444' }]}
+                    style={[styles.confirmActionBtn, { backgroundColor: COLORS.danger }]}
                     onPress={confirmDeleteFull}
                     disabled={deleteFullMutation.isPending}
                   >

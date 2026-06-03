@@ -320,7 +320,7 @@ export default function EditTransactionScreen() {
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={16} color="#ef4444" />
+              <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
               <Text style={styles.errorBannerText}>{formError}</Text>
             </View>
           )}
@@ -658,19 +658,19 @@ function makeStyles(c: any) {
   toggleLabelActive: { color: c.bg },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20 },
-  inputError: { borderColor: '#ef4444' },
+  inputError: { borderColor: c.danger },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    backgroundColor: c.danger + '1F',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
+    borderColor: c.danger + '66',
     borderRadius: 10,
     padding: 12,
     marginBottom: 20,
   },
-  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
+  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
   hint: { color: c.textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 16 },
   chipScroll: { marginBottom: 16 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },

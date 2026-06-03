@@ -98,12 +98,12 @@ export default function TransactionAmountCell({
             <View style={styles.menu}>
               {isRecurring && (
                 <Pressable style={styles.menuItem} onPress={handleEditMonth}>
-                  <Ionicons name="pencil" size={16} color="#34d399" />
+                  <Ionicons name="pencil" size={16} color={COLORS.green} />
                   <Text style={styles.menuItemText}>Modifier prix ce mois</Text>
                 </Pressable>
               )}
               <Pressable style={styles.menuItem} onPress={handleViewDetail}>
-                <Ionicons name="eye" size={16} color="#60a5fa" />
+                <Ionicons name="eye" size={16} color={COLORS.blue} />
                 <Text style={styles.menuItemText}>Voir transaction</Text>
               </Pressable>
             </View>
@@ -121,11 +121,11 @@ function makeStyles(c: any) {
     color: c.text,
   },
   positive: {
-    color: '#34d399',
+    color: c.green,
     fontWeight: '600',
   },
   negative: {
-    color: '#f87171',
+    color: c.danger,
     fontWeight: '600',
   },
   parentCategory: {

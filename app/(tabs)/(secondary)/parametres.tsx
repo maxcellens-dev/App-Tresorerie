@@ -32,6 +32,7 @@ export default function SettingsScreen() {
 
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
+  const isAdmin = profile?.is_admin ?? false;
 
   // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
   const { data: styleConfig } = useStyleConfig();
@@ -195,26 +196,28 @@ export default function SettingsScreen() {
           {/* ── Apparence ── */}
           <Text style={styles.sectionTitle}>Apparence</Text>
           <View style={styles.card}>
-            {/* Mode clair / sombre */}
-            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-              <Text style={styles.rowLabel}>Mode d'affichage</Text>
-              <View style={styles.segmentRow}>
-                {THEME_MODES.map((m) => {
-                  const active = currentMode === m.id;
-                  return (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[styles.segment, active && styles.segmentActive]}
-                      onPress={() => setMode(m.id)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name={m.icon as any} size={16} color={active ? COLORS.bg : COLORS.textSecondary} />
-                      <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{m.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+            {/* Mode clair / sombre — réservé à l'admin (par défaut : sombre pour tous) */}
+            {isAdmin && (
+              <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+                <Text style={styles.rowLabel}>Mode d'affichage</Text>
+                <View style={styles.segmentRow}>
+                  {THEME_MODES.map((m) => {
+                    const active = currentMode === m.id;
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[styles.segment, active && styles.segmentActive]}
+                        onPress={() => setMode(m.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name={m.icon as any} size={16} color={active ? COLORS.bg : COLORS.textSecondary} />
+                        <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{m.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Preset de couleur */}
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>

@@ -349,8 +349,8 @@ export default function AccountDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Nouveau Solde"
               >
-                <Ionicons name="wallet-outline" size={20} color="#60a5fa" />
-                <Text style={[styles.editBtnLabel, { color: '#60a5fa' }]}>Nouveau Solde</Text>
+                <Ionicons name="wallet-outline" size={20} color={COLORS.blue} />
+                <Text style={[styles.editBtnLabel, { color: COLORS.blue }]}>Nouveau Solde</Text>
               </TouchableOpacity>
             ) : null}
             {account.type === 'investment' ? (
@@ -361,8 +361,8 @@ export default function AccountDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Plus / moins value"
               >
-                <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
-                <Text style={[styles.editBtnLabel, { color: '#a78bfa' }]}>+/- value</Text>
+                <Ionicons name="trending-up-outline" size={20} color={COLORS.violet} />
+                <Text style={[styles.editBtnLabel, { color: COLORS.violet }]}>+/- value</Text>
               </TouchableOpacity>
             ) : null}
             {account.type === 'savings' ? (
@@ -373,8 +373,8 @@ export default function AccountDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Intérêts"
               >
-                <Ionicons name="cash-outline" size={20} color="#34d399" />
-                <Text style={[styles.editBtnLabel, { color: '#34d399' }]}>Intérêts</Text>
+                <Ionicons name="cash-outline" size={20} color={COLORS.green} />
+                <Text style={[styles.editBtnLabel, { color: COLORS.green }]}>Intérêts</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -384,8 +384,8 @@ export default function AccountDetailScreen() {
               accessibilityRole="button"
               accessibilityLabel="Apport"
             >
-              <Ionicons name="add-circle-outline" size={20} color="#f59e0b" />
-              <Text style={[styles.editBtnLabel, { color: '#f59e0b' }]}>Apport</Text>
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.orange} />
+              <Text style={[styles.editBtnLabel, { color: COLORS.orange }]}>Apport</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.editBtn}
@@ -1086,7 +1086,7 @@ function makeStyles(c: any) {
     marginBottom: 24,
   },
   balanceLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
-  balanceAmount: { fontSize: 26, fontWeight: '800', color: c.emerald },
+  balanceAmount: { fontSize: 26, fontWeight: '800', color: c.text },
   accountType: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
   loader: { marginVertical: 20 },
@@ -1122,8 +1122,8 @@ function makeStyles(c: any) {
   transferDate: { fontSize: 13, color: c.textSecondary, marginBottom: 2 },
   transferLabel: { fontSize: 15, fontWeight: '600', color: c.text },
   transferAmount: { fontSize: 15, fontWeight: '700' },
-  transferAmountIn: { color: c.emerald },
-  transferAmountOut: { color: c.danger },
+  transferAmountIn: { color: c.green },
+  transferAmountOut: { color: c.text },
   hint: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   text: { color: c.text },
 });
@@ -1243,7 +1243,7 @@ function makeTxDetailStyles(c: any) {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
     sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
     handle: { width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
-    amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? '#34d399' : '#f87171', textAlign: 'center' as const, marginBottom: 4 }),
+    amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? c.green : c.text, textAlign: 'center' as const, marginBottom: 4 }),
     labelText: { fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },
     divider: { height: 1, backgroundColor: c.cardBorder, marginBottom: 16 },
     row: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
@@ -1252,7 +1252,7 @@ function makeTxDetailStyles(c: any) {
     closeBtn: { flex: 1, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, alignItems: 'center' as const },
     closeBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.text },
     btnRow: { flexDirection: 'row' as const, gap: 10, marginTop: 24 },
-    editBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: '#34d39944' },
-    editBtnText: { fontSize: 15, fontWeight: '600' as const, color: '#34d399' },
+    editBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, borderWidth: 1, borderColor: c.green + '44' },
+    editBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.green },
   };
 }

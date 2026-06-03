@@ -189,7 +189,7 @@ export default function AddObjectiveModal({
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               {/* Bandeau erreur */}
               {formError && (
-                <View style={[styles.errorBanner, { borderColor: 'rgba(239,68,68,0.4)', backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+                <View style={[styles.errorBanner, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '1F' }]}>
                   <Text style={styles.errorBannerText}>{formError}</Text>
                 </View>
               )}
@@ -204,7 +204,7 @@ export default function AddObjectiveModal({
                     {
                       backgroundColor: COLORS.background,
                       color: COLORS.text,
-                      borderColor: errorFields.includes('name') ? '#ef4444' : COLORS.border,
+                      borderColor: errorFields.includes('name') ? COLORS.danger : COLORS.border,
                     },
                   ]}
                   placeholder="Ex. Investir en bourse"
@@ -250,7 +250,7 @@ export default function AddObjectiveModal({
                     {
                       backgroundColor: COLORS.background,
                       color: COLORS.text,
-                      borderColor: errorFields.includes('amount') ? '#ef4444' : COLORS.border,
+                      borderColor: errorFields.includes('amount') ? COLORS.danger : COLORS.border,
                     },
                   ]}
                   placeholder="5000"
@@ -321,9 +321,9 @@ export default function AddObjectiveModal({
                   </Text>
                 </View>
                 {accounts.filter(a => a.type === 'savings' || a.type === 'investment').length === 0 && (
-                  <View style={[styles.accountHint, { backgroundColor: '#ef444414', borderColor: '#ef444440', marginTop: 6 }]}>
+                  <View style={[styles.accountHint, { backgroundColor: COLORS.danger + '14', borderColor: COLORS.danger + '40', marginTop: 6 }]}>
                     <Text style={styles.accountHintIcon}>⚠️</Text>
-                    <Text style={[styles.accountHintText, { color: '#f87171' }]}>
+                    <Text style={[styles.accountHintText, { color: COLORS.danger }]}>
                       Aucun compte d'épargne ou d'investissement trouvé. Créez-en un depuis l'onglet <Text style={{ fontWeight: '700' }}>Comptes</Text> avant de continuer.
                     </Text>
                   </View>
@@ -333,7 +333,7 @@ export default function AddObjectiveModal({
                     styles.input,
                     {
                       backgroundColor: COLORS.background,
-                      borderColor: errorFields.includes('account') ? '#ef4444' : COLORS.border,
+                      borderColor: errorFields.includes('account') ? COLORS.danger : COLORS.border,
                       justifyContent: 'center',
                     },
                   ]}
@@ -612,7 +612,7 @@ function makeStyles(c: any) {
   },
   errorBannerText: {
     fontSize: 13,
-    color: '#ef4444',
+    color: c.danger,
     lineHeight: 18,
   },
 });

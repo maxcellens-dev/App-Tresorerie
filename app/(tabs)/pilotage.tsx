@@ -21,7 +21,6 @@ import PreSavingsModal from '../components/PreSavingsModal';
 import CumulsPanel from '../components/CumulsPanel';
 import ProjectsListCard from '../components/ProjectsListCard';
 import ObjectivesListCard from '../components/ObjectivesListCard';
-import { ACCOUNT_COLORS } from '../theme/colors';
 import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 import type { PreSavingType } from '../types/database';
@@ -260,7 +259,7 @@ export default function PilotageScreen() {
         {(pilotageData.safety_margin_amount ?? 0) > 0 &&
          pilotageData.total_checking < (pilotageData.safety_margin_amount ?? 0) && (
           <View style={styles.safetyBanner}>
-            <Ionicons name="warning-outline" size={18} color="#fbbf24" />
+            <Ionicons name="warning-outline" size={18} color={COLORS.yellow} />
             <Text style={styles.safetyBannerText}>
               Vos comptes courants ({pilotageData.total_checking.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}) sont en dessous de votre marge de sécurité ({(pilotageData.safety_margin_amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}). Seule la recommandation "Conserver" est active.
             </Text>
@@ -294,16 +293,16 @@ export default function PilotageScreen() {
             <View style={styles.accountSummary}>
               <View style={styles.summaryGrid}>
                 {/* Courant — en premier */}
-                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.checking }]}>
-                  <Ionicons name="wallet-outline" size={16} color={ACCOUNT_COLORS.checking} style={{ marginBottom: 2 }} />
+                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: COLORS.checking }]}>
+                  <Ionicons name="wallet-outline" size={16} color={COLORS.checking} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Courant</Text>
-                  <Text style={[styles.summaryAmount, { color: semanticText(ACCOUNT_COLORS.checking, COLORS) }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
+                  <Text style={[styles.summaryAmount, { color: semanticText(COLORS.checking, COLORS) }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
                 </View>
 
                 {/* Épargne — avec badge de santé, sans barre ni légende */}
                 {(() => {
                   const s = pilotageData.total_savings;
-                  const col = s < 5000 ? '#ef4444' : s < 10000 ? '#f59e0b' : ACCOUNT_COLORS.savings;
+                  const col = s < 5000 ? COLORS.danger : s < 10000 ? COLORS.orange : COLORS.savings;
                   const kw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
                   const colT = semanticText(col, COLORS);
                   return (
@@ -319,22 +318,26 @@ export default function PilotageScreen() {
                 })()}
 
                 {/* Investissements */}
-                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: ACCOUNT_COLORS.investment }]}>
-                  <Ionicons name="trending-up-outline" size={16} color={ACCOUNT_COLORS.investment} style={{ marginBottom: 2 }} />
+                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: COLORS.investment }]}>
+                  <Ionicons name="trending-up-outline" size={16} color={COLORS.investment} style={{ marginBottom: 2 }} />
                   <Text style={styles.summaryLabel}>Investissements</Text>
-                  <Text style={[styles.summaryAmount, { color: semanticText(ACCOUNT_COLORS.investment, COLORS) }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
+                  <Text style={[styles.summaryAmount, { color: semanticText(COLORS.investment, COLORS) }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
                 </View>
               </View>
             </View>
           </View>
 
           <View style={styles.section} ref={suiviRef}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="wallet-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Suivi du mois</Text>
-              <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginLeft: 8, fontWeight: '500', textTransform: 'capitalize' }}>
-                {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-              </Text>
+            <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="wallet-outline" size={18} color={COLORS.emerald} />
+                <Text style={styles.sectionTitle}>Suivi du mois</Text>
+              </View>
+              <View style={styles.monthPill}>
+                <Text style={styles.monthPillText}>
+                  {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                </Text>
+              </View>
             </View>
             <View style={styles.sectionDivider} />
 
@@ -348,16 +351,16 @@ export default function PilotageScreen() {
               const safetyMargin = pilotageData.safety_margin_amount ?? 0;
 
               const items = [
-                { label: 'Épargne prévue',   value: savings,  icon: 'shield-outline',     color: '#34d399', hint: 'Virements vers épargne + projets' },
-                { label: 'Investissement',   value: invest,   icon: 'trending-up-outline', color: '#a78bfa', hint: 'Virements vers comptes d\'investissement' },
-                { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: '#60a5fa', hint: 'Conservé ce mois (projets + recos)' },
+                { label: 'Épargne prévue',   value: savings,  icon: 'shield-outline',     color: COLORS.green,  hint: 'Virements vers épargne + projets' },
+                { label: 'Investissement',   value: invest,   icon: 'trending-up-outline', color: COLORS.violet, hint: 'Virements vers comptes d\'investissement' },
+                { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: COLORS.blue,   hint: 'Conservé ce mois (projets + recos)' },
               ];
 
               // Reste du mois = reste disponible (base − cumuls − réservations)
               const rest = resteDisponible;
               const restNeg = rest < 0;
               const restLow = rest < pilotageData.committed_allocations;
-              const restColor = restNeg ? '#f87171' : restLow ? '#fbbf24' : '#34d399';
+              const restColor = restNeg ? COLORS.danger : restLow ? COLORS.yellow : COLORS.green;
               const restHint = restNeg ? 'Attention : solde insuffisant' : restLow ? 'Prudence requise' : 'Vous êtes en bonne position';
 
               return (
@@ -388,14 +391,14 @@ export default function PilotageScreen() {
 
                   {/* Dépenses du mois */}
                   <View style={styles.suiviRow}>
-                    <View style={[styles.suiviIcon, { backgroundColor: '#f8717122' }]}>
-                      <Ionicons name="card-outline" size={16} color="#f87171" />
+                    <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
+                      <Ionicons name="card-outline" size={16} color={COLORS.danger} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Dépenses du mois</Text>
-                      <Text style={styles.suiviHint}>Passées + à venir</Text>
+                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Dépensé ce mois-ci</Text>
+                      <Text style={styles.suiviHint}>Transactions passées et récurrentes à venir</Text>
                     </View>
-                    <Text style={[styles.suiviValue, { color: semanticText('#f87171', COLORS) }]}>{fmt(expenses)}</Text>
+                    <Text style={[styles.suiviValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(expenses)}</Text>
                   </View>
 
                   {/* Enveloppe des dépenses variables (estimation restante) */}
@@ -407,11 +410,11 @@ export default function PilotageScreen() {
                     // Avec un historique utilisé, la ligne n'est ni cliquable ni fléchée.
                     const editable = src !== 'history';
                     const hint = src === 'history'
-                      ? `Estimé sur ${nMonths} mois · reste à dépenser`
+                      ? `Vos dépenses prévues · estimées sur ${nMonths} mois`
                       : src === 'onboarding'
-                        ? 'Estimation hebdo · reste à dépenser'
+                        ? 'Vos dépenses prévues · estimation hebdo'
                         : 'À renseigner — appuyez pour estimer';
-                    const col = '#f59e0b';
+                    const col = COLORS.orange;
                     const RowWrap: any = editable ? TouchableOpacity : View;
                     return (
                       <RowWrap
@@ -430,7 +433,7 @@ export default function PilotageScreen() {
                           <Ionicons name="cart-outline" size={16} color={col} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.suiviLabel}>Enveloppe variables</Text>
+                          <Text style={styles.suiviLabel}>Dépenses variables prévues</Text>
                           <Text style={styles.suiviHint}>{hint}</Text>
                         </View>
                         {editable && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}
@@ -442,13 +445,13 @@ export default function PilotageScreen() {
                   {/* Marge de sécurité — affichée uniquement si > 0 */}
                   {safetyMargin > 0 && (
                     <View style={[styles.suiviRow, { opacity: 0.75, paddingVertical: 6 }]}>
-                      <View style={[styles.suiviIcon, { backgroundColor: '#fbbf2422', width: 24, height: 24 }]}>
-                        <Ionicons name="shield-outline" size={12} color="#fbbf24" />
+                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.yellow + '22', width: 24, height: 24 }]}>
+                        <Ionicons name="shield-outline" size={12} color={COLORS.yellow} />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.suiviLabel, { color: '#fbbf24', fontSize: 11 }]}>Votre marge de sécurité</Text>
+                        <Text style={[styles.suiviLabel, { color: COLORS.yellow, fontSize: 11 }]}>Votre marge de sécurité</Text>
                       </View>
-                      <Text style={[styles.suiviValue, { color: '#fbbf24', fontSize: 11 }]}>{fmt(safetyMargin)}</Text>
+                      <Text style={[styles.suiviValue, { color: COLORS.yellow, fontSize: 11 }]}>{fmt(safetyMargin)}</Text>
                     </View>
                   )}
 
@@ -481,7 +484,7 @@ export default function PilotageScreen() {
             {/* Alerte de dépassement (§8) */}
             {enDepassement && (
               <View style={styles.overspendBox}>
-                <Ionicons name="warning-outline" size={16} color="#f87171" />
+                <Ionicons name="warning-outline" size={16} color={COLORS.danger} />
                 <Text style={styles.overspendText}>
                   Vos réservations mentales dépassent votre reste disponible. Réduisez ou annulez un cumul.
                 </Text>
@@ -626,14 +629,14 @@ export default function PilotageScreen() {
               {reservationsTotal > 0 && (
                 <View style={styles.reservedProjectBlock}>
                   <View style={styles.reservedItem}>
-                    <View style={[styles.reservedItemIcon, { backgroundColor: '#fbbf2422' }]}>
-                      <Ionicons name="hourglass-outline" size={16} color="#fbbf24" />
+                    <View style={[styles.reservedItemIcon, { backgroundColor: COLORS.yellow + '22' }]}>
+                      <Ionicons name="hourglass-outline" size={16} color={COLORS.yellow} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.reservedItemName}>Conservé ce mois (recommandations)</Text>
                       <Text style={styles.reservedItemHint}>Se réinitialise chaque mois</Text>
                     </View>
-                    <Text style={[styles.reservedItemAmount, { color: '#fbbf24' }]}>{fmtMain(reservationsTotal)}</Text>
+                    <Text style={[styles.reservedItemAmount, { color: COLORS.yellow }]}>{fmtMain(reservationsTotal)}</Text>
                   </View>
                   <View style={styles.reservedActions}>
                     <TouchableOpacity
@@ -641,7 +644,7 @@ export default function PilotageScreen() {
                       activeOpacity={0.7}
                       onPress={() => { setMonthlyReservation.mutate({ montant: 0 }); }}
                     >
-                      <Ionicons name="lock-open-outline" size={14} color="#f87171" />
+                      <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
                       <Text style={styles.reservedReleaseText}>Libérer</Text>
                     </TouchableOpacity>
                   </View>
@@ -652,14 +655,14 @@ export default function PilotageScreen() {
               {pilotageData.reserved_by_project.map((r) => (
                 <View key={r.id} style={styles.reservedProjectBlock}>
                   <View style={styles.reservedItem}>
-                    <View style={[styles.reservedItemIcon, { backgroundColor: '#60a5fa22' }]}>
-                      <Ionicons name="bookmark" size={16} color="#60a5fa" />
+                    <View style={[styles.reservedItemIcon, { backgroundColor: COLORS.blue + '22' }]}>
+                      <Ionicons name="bookmark" size={16} color={COLORS.blue} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.reservedItemName} numberOfLines={1}>{r.name}</Text>
                       <Text style={styles.reservedItemHint}>Projet · réservé jusqu'à utilisation</Text>
                     </View>
-                    <Text style={[styles.reservedItemAmount, { color: '#60a5fa' }]}>{fmtMain(r.total)}</Text>
+                    <Text style={[styles.reservedItemAmount, { color: COLORS.blue }]}>{fmtMain(r.total)}</Text>
                   </View>
                   <View style={styles.reservedActions}>
                     <TouchableOpacity
@@ -667,7 +670,7 @@ export default function PilotageScreen() {
                       activeOpacity={0.7}
                       onPress={() => { releaseReserved.mutate(r.id); }}
                     >
-                      <Ionicons name="lock-open-outline" size={14} color="#f87171" />
+                      <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
                       <Text style={styles.reservedReleaseText}>Libérer</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -686,7 +689,7 @@ export default function PilotageScreen() {
                         router.push(`/(tabs)/comptes/transfer?${q.toString()}` as any);
                       }}
                     >
-                      <Ionicons name="swap-horizontal" size={14} color="#34d399" />
+                      <Ionicons name="swap-horizontal" size={14} color={COLORS.green} />
                       <Text style={styles.reservedTransferText}>Créer un virement</Text>
                     </TouchableOpacity>
                   </View>
@@ -777,11 +780,11 @@ function makeStyles(c: AppColors) {
   loader: { marginVertical: 40 },
   safetyBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#78350f22', borderWidth: 1, borderColor: '#fbbf2440',
+    backgroundColor: c.yellow + '1A', borderWidth: 1, borderColor: c.yellow + '40',
     borderRadius: 12, marginHorizontal: 8, marginBottom: 8,
     padding: 12,
   },
-  safetyBannerText: { flex: 1, fontSize: 12, color: '#fbbf24', lineHeight: 18 },
+  safetyBannerText: { flex: 1, fontSize: 12, color: c.yellow, lineHeight: 18 },
 
   // Section Layout
   section: {
@@ -803,6 +806,20 @@ function makeStyles(c: AppColors) {
     height: 0.5,
     backgroundColor: c.cardBorder,
     marginHorizontal: 4,
+  },
+  monthPill: {
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  monthPillText: {
+    fontSize: 12,
+    color: c.textSecondary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
 
   // Grid
@@ -839,7 +856,7 @@ function makeStyles(c: AppColors) {
     borderRadius: 16,
     gap: 3,
     borderLeftWidth: 3,
-    borderLeftColor: ACCOUNT_COLORS.savings,
+    borderLeftColor: c.savings,
   },
   summaryLabel: {
     fontSize: 11,
@@ -849,7 +866,7 @@ function makeStyles(c: AppColors) {
   summaryAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: ACCOUNT_COLORS.checking,
+    color: c.checking,
   },
   gaugeBarOuter: {
     height: 5,
@@ -919,10 +936,10 @@ function makeStyles(c: AppColors) {
   // Recommandations — bandeau cumuls / alerte / bouton
   overspendBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f8717115', borderRadius: 10, borderWidth: 1, borderColor: '#f8717140',
+    backgroundColor: c.danger + '15', borderRadius: 10, borderWidth: 1, borderColor: c.danger + '40',
     paddingHorizontal: 12, paddingVertical: 10,
   },
-  overspendText: { flex: 1, fontSize: 12, color: '#f87171', fontWeight: '500', lineHeight: 16 },
+  overspendText: { flex: 1, fontSize: 12, color: c.danger, fontWeight: '500', lineHeight: 16 },
   cumulsBanner: {
     flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10,
     backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder,
@@ -1034,15 +1051,15 @@ function makeStyles(c: AppColors) {
   reservedReleaseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: '#f8717144', backgroundColor: '#f8717112',
+    borderWidth: 1, borderColor: c.danger + '44', backgroundColor: c.danger + '12',
   },
-  reservedReleaseText: { fontSize: 12, fontWeight: '700', color: '#f87171' },
+  reservedReleaseText: { fontSize: 12, fontWeight: '700', color: c.danger },
   reservedTransferBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: '#34d39944', backgroundColor: '#34d39912',
+    borderWidth: 1, borderColor: c.green + '44', backgroundColor: c.green + '12',
   },
-  reservedTransferText: { fontSize: 12, fontWeight: '700', color: '#34d399' },
+  reservedTransferText: { fontSize: 12, fontWeight: '700', color: c.green },
   reservedEmpty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 24 },
   // Modale enveloppe variable
   varModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },

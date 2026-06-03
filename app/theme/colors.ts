@@ -17,11 +17,11 @@ export const BASE = {
   textSecondary: '#8E949A',
 };
 
-/* ── Couleurs par type de compte ── */
+/* ── Couleurs par type de compte (harmonisées pastel) ── */
 export const ACCOUNT_COLORS: Record<string, string> = {
   savings:    '#00B67A',
-  investment: '#9B5CF6',
-  checking:   '#0075FF',
+  investment: '#a78bfa',
+  checking:   '#60a5fa',
   other:      '#8E949A',
 };
 
@@ -29,16 +29,16 @@ export const ACCOUNT_COLORS: Record<string, string> = {
 export const SEMANTIC = {
   income:           '#00B67A',
   expense:          '#8E949A',
-  expenseChart:     '#FF3B30',
+  expenseChart:     '#f87171',
   expenseChartDark: '#CC2F26',
   variableExpense:  '#FF9500',
   project:          '#00C4CC',
   objective:        '#00B67A',
 
   positive: '#00B67A',
-  negative: '#FF3B30',
+  negative: '#f87171',
 
-  danger:  '#FF3B30',
+  danger:  '#f87171',
   warning: '#FF9500',
   success: '#00B67A',
 };

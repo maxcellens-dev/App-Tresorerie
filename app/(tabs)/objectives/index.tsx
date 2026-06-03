@@ -50,7 +50,7 @@ export default function ObjectivesScreen() {
     if (current_savings < safety_threshold_min) {
       return {
         icon: 'warning' as const,
-        color: '#ef4444',
+        color: COLORS.danger,
         title: 'Épargne critique',
         message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) est en dessous du seuil minimum (${safety_threshold_min.toFixed(0)} ${CURRENCY_SYMBOL}). Concentrez-vous sur la reconstitution de votre épargne de précaution avant de poursuivre vos objectifs.`,
       };
@@ -289,14 +289,14 @@ export default function ObjectivesScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: '#ef4444' + '20' }]}
+            style={[styles.actionButton, { backgroundColor: COLORS.danger + '20' }]}
             onPress={() => {
               console.log('[DeleteButton] onPress triggered for objective:', objective.id);
               handleDelete(objective.id);
             }}
           >
-            <Ionicons name="trash" size={16} color="#ef4444" />
-            <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Supprimer</Text>
+            <Ionicons name="trash" size={16} color={COLORS.danger} />
+            <Text style={[styles.actionButtonText, { color: COLORS.danger }]}>Supprimer</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -399,7 +399,7 @@ export default function ObjectivesScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmButtonDelete, { backgroundColor: '#ef4444' }]}
+                style={[styles.confirmButtonDelete, { backgroundColor: COLORS.danger }]}
                 onPress={confirmDelete}
                 disabled={deleteObjectiveMutation.isPending}
               >

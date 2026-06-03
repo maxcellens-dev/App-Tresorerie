@@ -115,7 +115,7 @@ export default function AddAccountScreen() {
           {/* Bandeau d'erreur global */}
           {formError && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={16} color="#ef4444" />
+              <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
               <Text style={styles.errorBannerText}>{formError}</Text>
             </View>
           )}
@@ -264,14 +264,14 @@ function makeStyles(c: any) {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.12)',
+    backgroundColor: c.danger + '1F',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
+    borderColor: c.danger + '66',
     borderRadius: 10,
     padding: 12,
     marginBottom: 20,
   },
-  errorBannerText: { flex: 1, fontSize: 13, color: '#ef4444', lineHeight: 18 },
+  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,
@@ -284,7 +284,7 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 20,
   },
-  inputError: { borderColor: '#ef4444' },
+  inputError: { borderColor: c.danger },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },

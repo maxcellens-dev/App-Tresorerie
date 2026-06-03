@@ -265,7 +265,7 @@ export default function RecommendationCard({
           <View style={styles.actionRow}>
             {/* Ignorer — toujours présent */}
             <TouchableOpacity style={styles.dismissBtn} onPress={() => handleIgnore(currentReco)} activeOpacity={0.7}>
-              <Ionicons name="close" size={16} color="#ef4444" />
+              <Ionicons name="close" size={16} color={COLORS.danger} />
               <Text style={styles.dismissText}>Ignorer</Text>
             </TouchableOpacity>
 
@@ -482,12 +482,12 @@ function makeStyles(c: any) {
     paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ef444430',
-    backgroundColor: '#ef444408',
+    borderColor: c.danger + '30',
+    backgroundColor: c.danger + '08',
   },
   dismissText: {
     fontSize: 12,
-    color: '#ef4444',
+    color: c.danger,
     fontWeight: '500',
   },
   actionBtn: {

@@ -177,7 +177,7 @@ function makeStyles(c: any) {
   infoValue: { fontSize: 14, color: c.text },
   refreshBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 8 },
   refreshLabel: { color: c.bg, fontWeight: '700', fontSize: 16 },
-  error: { marginTop: 14, fontSize: 13, color: '#ef4444', textAlign: 'center' },
+  error: { marginTop: 14, fontSize: 13, color: c.danger, textAlign: 'center' },
   text: { color: c.text },
 });
 }

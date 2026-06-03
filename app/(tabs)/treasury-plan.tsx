@@ -470,7 +470,10 @@ export default function TreasuryPlanScreen() {
                     const val = row.values[m.key] ?? 0;
                     const isPos = val >= 0;
                     const isBalance = row.type === 'balance';
-                    
+                    // Mois antérieurs : valeurs réalisées → colorées (vert recettes / rouge dépenses).
+                    // Mois en cours + futurs : projections → neutres (blanc). Les lignes Solde restent colorées par signe.
+                    const isPastMonth = m.year < currentYear || (m.year === currentYear && m.month < currentMonth);
+
                     return (
                       <TouchableOpacity
                         key={m.key}
@@ -494,8 +497,8 @@ export default function TreasuryPlanScreen() {
                         <Text
                           style={[
                             styles.cellNumText,
-                            row.type === 'income' && styles.cellNumPositive,
-                            row.type === 'expense' && row.label !== 'Solde mensuel' && row.label !== 'Solde anticipé' && styles.cellNumNegative,
+                            isPastMonth && row.type === 'income' && styles.cellNumPositive,
+                            isPastMonth && row.type === 'expense' && row.label !== 'Solde mensuel' && row.label !== 'Solde anticipé' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
                           ]}
@@ -546,7 +549,7 @@ export default function TreasuryPlanScreen() {
                 openEditModal(menuModalState.monthKey || '', menuModalState.categoryId ?? null, menuModalState.value || 0);
               }}
             >
-              <Ionicons name="pencil" size={20} color="#34d399" />
+              <Ionicons name="pencil" size={20} color={COLORS.green} />
               <Text style={styles.menuOptionText}>Modifier montant</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -556,7 +559,7 @@ export default function TreasuryPlanScreen() {
                 goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId ?? null);
               }}
             >
-              <Ionicons name="eye" size={20} color="#60a5fa" />
+              <Ionicons name="eye" size={20} color={COLORS.blue} />
               <Text style={styles.menuOptionText}>Voir transaction</Text>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -691,7 +694,7 @@ function makeStyles(c: any) {
   cellLabelTotalDepenses: { fontSize: 12, fontWeight: '800', color: c.danger, letterSpacing: 0.8 },
   cellNumText: { fontSize: 13, color: c.text },
   cellNumTextParentCategory: { fontWeight: '700' },
-  cellNumPositive: { color: c.emerald, fontWeight: '600' },
+  cellNumPositive: { color: c.green, fontWeight: '600' },
   cellNumNegative: { color: c.danger, fontWeight: '600' },
   menuOverlay: {
     flex: 1,

@@ -890,6 +890,9 @@ export default function TreasuryPlanScreen() {
                     const isBalance = row.type === 'balance';
                     // Dépenses toujours affichées en positif (sauf soldes et mouvements qui gardent le signe)
                     const displayVal = row.type === 'expense' ? Math.abs(val) : val;
+                    // Mois antérieurs = réalisé → recettes vertes / dépenses rouges.
+                    // Mois en cours + futurs = projection → neutre (blanc), sauf brouillon (orange) / prévisionnel (gris).
+                    const isPastMonth = m.key < getMonthKey(currentYear, currentMonth);
 
                     return (
                       <TouchableOpacity
@@ -939,8 +942,8 @@ export default function TreasuryPlanScreen() {
                         <Text
                           style={[
                             styles.cellNumText,
-                            row.type === 'income' && styles.cellNumPositive,
-                            row.type === 'expense' && styles.cellNumNegative,
+                            isPastMonth && row.type === 'income' && styles.cellNumPositive,
+                            isPastMonth && row.type === 'expense' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
@@ -965,7 +968,7 @@ export default function TreasuryPlanScreen() {
             {/* Légende — dans le scroll, sous le tableau */}
             <View style={styles.legend}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.emerald }]} />
+                <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
                 <Text style={styles.legendText}>Recette / solde positif</Text>
               </View>
               <View style={styles.legendItem}>
@@ -1301,9 +1304,9 @@ function makeStyles(c: any) {
   tableRowIncome: { backgroundColor: 'rgba(0, 182, 122, 0.05)' },
   tableRowExpense: { backgroundColor: 'rgba(255, 59, 48, 0.04)' },
   tableRowBalance: {
-    backgroundColor: 'rgba(0, 117, 255, 0.10)',
+    backgroundColor: c.balance + '1A',
     borderLeftWidth: 3,
-    borderLeftColor: '#0075FF',
+    borderLeftColor: c.balance,
     paddingVertical: 10,
   },
   tableRowHighlight: { backgroundColor: 'rgba(0, 182, 122, 0.05)' },
@@ -1380,7 +1383,7 @@ function makeStyles(c: any) {
   cellNumText: { fontSize: 13, color: c.text },
   cellNumTextParentCategory: { fontWeight: '700' },
   cellNumTextSectionTotal: { fontSize: 15, fontWeight: '800' },
-  cellNumPositive: { color: c.emerald, fontWeight: '600' },
+  cellNumPositive: { color: c.green, fontWeight: '600' },
   cellNumNegative: { color: c.danger, fontWeight: '600' },
   cellNumSectionMouvements: { color: '#8E949A' },
   cellNumDraft: { color: '#FF9500', fontStyle: 'italic' },
