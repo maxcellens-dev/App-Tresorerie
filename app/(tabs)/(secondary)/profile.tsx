@@ -13,6 +13,8 @@ import { supabase } from '../../lib/supabase';
 import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
+import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
 
 
 export default function ProfileScreen() {
@@ -35,6 +37,18 @@ export default function ProfileScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // ── Guide de présentation (bulles) ──
+  const guide = useScreenGuide('profile', user?.id);
+  const scrollRef = useRef<ScrollView>(null);
+  const avatarRef = useRef<View>(null);
+  const infoRef = useRef<View>(null);
+  const pwdRef = useRef<View>(null);
+  const PROFILE_GUIDE: BubbleStep[] = [
+    { getRef: () => avatarRef, icon: 'person-circle-outline', iconColor: '#34d399', title: 'Votre profil', description: 'Ajoutez une photo et personnalisez votre compte.' },
+    { getRef: () => infoRef, icon: 'create-outline', iconColor: '#60a5fa', title: 'Vos informations', description: 'Modifiez votre nom puis enregistrez. L\'e-mail est géré par la connexion.' },
+    { getRef: () => pwdRef, icon: 'lock-closed-outline', iconColor: '#a78bfa', title: 'Sécurité', description: 'Changez votre mot de passe quand vous le souhaitez.' },
+  ];
 
   useEffect(() => {
     setFullName(profile?.full_name ?? user?.user_metadata?.full_name ?? '');
@@ -224,8 +238,8 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Mon profil</Text>
         </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.avatarSection}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.avatarSection} ref={avatarRef}>
             {avatarUrl ? (
               <Image source={{ uri: avatarUrl }} style={styles.avatar} />
             ) : (
@@ -264,24 +278,26 @@ export default function ProfileScreen() {
             <Text style={styles.avatarHint}>WebP/JPEG, max 30 Ko</Text>
           </View>
 
-          <Text style={styles.label}>Nom</Text>
-          <TextInput
-            style={styles.input}
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder="Votre nom"
-            placeholderTextColor={COLORS.textSecondary}
-          />
+          <View ref={infoRef}>
+            <Text style={styles.label}>Nom</Text>
+            <TextInput
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Votre nom"
+              placeholderTextColor={COLORS.textSecondary}
+            />
 
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            style={[styles.input, styles.inputReadOnly]}
-            value={email}
-            editable={false}
-            placeholder="email@exemple.com"
-            placeholderTextColor={COLORS.textSecondary}
-          />
-          <Text style={styles.hint}>L'e-mail est géré par la connexion.</Text>
+            <Text style={styles.label}>E-mail</Text>
+            <TextInput
+              style={[styles.input, styles.inputReadOnly]}
+              value={email}
+              editable={false}
+              placeholder="email@exemple.com"
+              placeholderTextColor={COLORS.textSecondary}
+            />
+            <Text style={styles.hint}>L'e-mail est géré par la connexion.</Text>
+          </View>
 
           <TouchableOpacity
             style={[styles.submitBtn, updateProfile.isPending && styles.submitBtnDisabled]}
@@ -292,7 +308,7 @@ export default function ProfileScreen() {
             {updateProfile.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer le profil</Text>}
           </TouchableOpacity>
 
-          <View style={styles.section}>
+          <View style={styles.section} ref={pwdRef}>
             <Text style={styles.sectionTitle}>Changer le mot de passe</Text>
             <Text style={styles.label}>Nouveau mot de passe</Text>
             <TextInput
@@ -402,6 +418,16 @@ export default function ProfileScreen() {
           </View>
         </Modal>
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={PROFILE_GUIDE}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(PROFILE_GUIDE.length)}
+        onSkip={guide.skip}
+        scrollRef={scrollRef}
+        screenTitle="Profil"
+      />
     </View>
   );
 }

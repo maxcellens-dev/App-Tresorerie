@@ -5,6 +5,7 @@ import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TourProvider } from './contexts/TourContext';
 import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
@@ -62,6 +63,7 @@ function AppChrome() {
   }, [loading, user, isTabs, root]);
 
   return (
+    <TourProvider>
     <View style={styles.root}>
       {!hideChrome && user && !isTabs && (
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
@@ -82,6 +84,7 @@ function AppChrome() {
       {/* Modale de changement de profil — affichée au-dessus de tout */}
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
     </View>
+    </TourProvider>
   );
 }
 

@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  useWindowDimensions,
+  useWindowDimensions, Platform,
 } from 'react-native';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
+import GuideOverlay, { type BubbleStep } from '../components/GuideOverlay';
+import { useScreenGuide } from '../hooks/useScreenGuide';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -141,6 +143,18 @@ export default function ProjectionScreen() {
 
   const chartWidth = Math.min(width - 48, 560);
   const num = (s: string) => parseFloat(String(s).replace(/\s/g, '').replace(/,/g, '.')) || 0;
+
+  // ── Guide de présentation (bulles) ──
+  const guide = useScreenGuide('projection', user?.id);
+  const scrollRef = React.useRef<ScrollView>(null);
+  const tabsRef = React.useRef<View>(null);
+  const chartRef = React.useRef<View>(null);
+  const hypoRef = React.useRef<View>(null);
+  const PROJECTION_GUIDE: BubbleStep[] = [
+    { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },
+    { getRef: () => chartRef, icon: 'trending-up-outline', iconColor: '#a78bfa', title: 'Votre patrimoine dans le temps', description: 'Visualisez la croissance projetée année après année selon vos hypothèses.' },
+    { getRef: () => hypoRef, icon: 'options-outline', iconColor: '#34d399', title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
+  ];
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne'>('invest');
 
@@ -293,10 +307,10 @@ export default function ProjectionScreen() {
       <ScreenGradient />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Onglets */}
-          <View style={styles.tabs}>
+          <View style={styles.tabs} ref={tabsRef}>
             <TouchableOpacity style={[styles.tab, activeTab === 'invest' && { backgroundColor: semanticText(INVEST_COLOR, COLORS), borderColor: semanticText(INVEST_COLOR, COLORS) }]} onPress={() => setActiveTab('invest')}>
               <Ionicons name="trending-up" size={16} color={activeTab === 'invest' ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'invest' && { color: '#fff' }]}>Investissements</Text>
@@ -338,7 +352,7 @@ export default function ProjectionScreen() {
           </View>
 
           {/* Graphique global */}
-          <View style={styles.chartCard}>
+          <View style={styles.chartCard} ref={chartRef}>
             <GrowthChart points={curve} width={chartWidth} color={INVEST_COLOR} />
             <View style={styles.legendRow}>
               <View style={styles.legendItem}><View style={[styles.legendLine, { backgroundColor: INVEST_COLOR }]} /><Text style={styles.legendText}>Valeur du portefeuille</Text></View>
@@ -347,7 +361,7 @@ export default function ProjectionScreen() {
           </View>
 
           {/* Hypothèses PAR COMPTE */}
-          <View style={styles.controlsCard}>
+          <View style={styles.controlsCard} ref={hypoRef}>
             <Text style={styles.controlsTitle}>Hypothèses par compte</Text>
             {/* Sélecteur de compte */}
             {investAccounts.length > 1 && (
@@ -510,6 +524,16 @@ export default function ProjectionScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={PROJECTION_GUIDE}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(PROJECTION_GUIDE.length)}
+        onSkip={guide.skip}
+        scrollRef={scrollRef}
+        screenTitle="Projection"
+      />
     </View>
   );
 }
@@ -573,13 +597,17 @@ function makeStyles(c: any) {
     fiscalNoteText: { flex: 1, fontSize: 11, color: c.textSecondary, lineHeight: 15 },
 
     fieldRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-    field: { gap: 5 },
+    field: { gap: 5, minWidth: 0 },
     fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
     fieldInputWrap: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg,
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12,
+      minWidth: 0,
     },
-    fieldInput: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', paddingVertical: 9 },
+    fieldInput: {
+      flex: 1, minWidth: 0, color: c.text, fontSize: 16, fontWeight: '700', paddingVertical: 9,
+      ...(Platform.OS === 'web' ? { outlineStyle: 'none', width: 0 } as any : {}),
+    },
     fieldSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
