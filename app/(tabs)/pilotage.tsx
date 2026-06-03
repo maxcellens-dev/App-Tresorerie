@@ -266,7 +266,7 @@ export default function PilotageScreen() {
           <View style={styles.safetyBanner}>
             <Ionicons name="warning-outline" size={18} color={COLORS.yellow} />
             <Text style={styles.safetyBannerText}>
-              Vos comptes courants ({pilotageData.total_checking.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}) sont en dessous de votre marge de sécurité ({(pilotageData.safety_margin_amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}). Seule la recommandation "Conserver" est active.
+              Vos comptes courants ({pilotageData.total_checking.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}) sont en dessous de votre marge de sécurité ({(pilotageData.safety_margin_amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}).
             </Text>
           </View>
         )}
