@@ -74,7 +74,7 @@ export default function SettingsScreen() {
       icon: 'shield-outline',
       iconColor: '#60a5fa',
       title: 'Marge de sécurité',
-      description: 'Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Déduit du "Reste du mois" dans le Pilotage.',
+      description: 'Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
     },
   ];
 

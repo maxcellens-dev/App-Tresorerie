@@ -268,7 +268,7 @@ export default function RecommendationsAdmin() {
           {/* ── Seuils d'affichage ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Seuils d'affichage</Text>
           <Text style={styles.typeDesc}>
-            Une reco n'est affichée que si le « Reste du mois » atteint son seuil. Conserver n'a pas de seuil.
+            Une reco n'est affichée que si le « Budget libre à allouer » atteint son seuil. Conserver n'a pas de seuil.
           </Text>
           {([
             { key: 'epargne' as const, label: 'Épargne', color: RECO_COLORS.save },

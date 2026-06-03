@@ -363,7 +363,7 @@ export default function ProjectionScreen() {
                 <View style={styles.fieldRow}>
                   <NumField label="Apport existant" value={selHypo.contributed} onChange={(v) => updateHypo(selectedAcc.id, { contributed: v })} suffix={CURRENCY_SYMBOL} colors={COLORS} />
                   <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 10 }}>
-                    <Text style={styles.miniHint}>Capital versé (base fiscale). La plus-value = valeur − apport.</Text>
+                    <Text style={styles.miniHint}>Plus-value = valeur − apport.</Text>
                   </View>
                 </View>
                 <View style={styles.fieldRow}>

@@ -1,7 +1,13 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { Category } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+
+/** Normalise pour une recherche insensible à la casse et aux accents. */
+function norm(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
 
 export type CategoryGroup = { parentId: string; parentName: string; children: Category[] };
 
@@ -38,13 +44,49 @@ interface CategoryPickerProps {
 export default function CategoryPicker({ groups, selectedCategoryId, onSelect, label = 'Sous-catégorie (optionnel)' }: CategoryPickerProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const [query, setQuery] = useState('');
   const childIds = useMemo(() => new Set(groups.flatMap((g) => g.children.map((c) => c.id))), [groups]);
   const isNoneSelected = !selectedCategoryId || !childIds.has(selectedCategoryId);
+
+  // Filtrage par recherche (insensible casse/accents). Un parent reste affiché
+  // si son nom matche OU s'il a au moins un enfant qui matche.
+  const filteredGroups = useMemo(() => {
+    const q = norm(query);
+    if (!q) return groups;
+    return groups
+      .map((g) => {
+        if (norm(g.parentName).includes(q)) return g;
+        const children = g.children.filter((c) => norm(c.name).includes(q));
+        return { ...g, children };
+      })
+      .filter((g) => g.children.length > 0);
+  }, [groups, query]);
+
   return (
     <View style={styles.block}>
       <Text style={styles.label}>{label}</Text>
+      {groups.length > 0 && (
+        <View style={styles.searchRow}>
+          <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Rechercher une sous-catégorie…"
+            placeholderTextColor={COLORS.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       <View style={styles.listContainer}>
-        <ScrollView style={styles.list} nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={styles.listContent}>
+        <ScrollView style={styles.list} nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
           <TouchableOpacity
             style={[styles.row, isNoneSelected && styles.rowActive]}
             onPress={() => onSelect('')}
@@ -55,7 +97,10 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
           {groups.length === 0 && (
             <Text style={styles.hint}>Aucune sous-catégorie. Ajoutez-en dans l’onglet Catégories.</Text>
           )}
-          {groups.map((group) => (
+          {groups.length > 0 && filteredGroups.length === 0 && (
+            <Text style={styles.hint}>Aucun résultat pour « {query} ».</Text>
+          )}
+          {filteredGroups.map((group) => (
             <View key={group.parentId} style={styles.section}>
               <Text style={styles.sectionHeader}>{group.parentName}</Text>
               {group.children.map((cat) => (
@@ -82,6 +127,15 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   block: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    backgroundColor: c.card, paddingHorizontal: 12, paddingVertical: Platform.OS === 'web' ? 10 : 8, marginBottom: 8,
+  },
+  searchInput: {
+    flex: 1, fontSize: 15, color: c.text,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+  },
   listContainer: { maxHeight: 200, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.cardSolid },
   list: { flex: 1 },
   listContent: { paddingVertical: 4, paddingBottom: 12 },

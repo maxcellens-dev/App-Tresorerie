@@ -113,7 +113,7 @@ export default function PilotageScreen() {
       icon: 'wallet-outline',
       iconColor: '#34d399',
       title: 'Suivi du mois',
-      description: 'Vos engagements du mois (épargne, investissement, réservé) et vos dépenses. En bas, le « Reste du mois » : ce qu\'il vous reste à dépenser librement.',
+      description: 'Vos engagements du mois (épargne, investissement, réservé) et vos dépenses. En bas, le « Budget libre à allouer » : ce qu\'il vous reste à dépenser librement.',
     },
     {
       getRef: () => monthRef,
@@ -463,7 +463,7 @@ export default function PilotageScreen() {
                       <Ionicons name="wallet-outline" size={17} color={restColor} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.suiviLabelBig}>Reste du mois</Text>
+                      <Text style={styles.suiviLabelBig}>Budget libre à allouer</Text>
                       <Text style={styles.suiviHint}>{restHint}</Text>
                     </View>
                     <Text style={[styles.suiviValueBig, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>

@@ -350,7 +350,7 @@ export default function ProfilFinancierScreen() {
                         <Text style={styles.q8DontKnowText}>Effacer / Je ne sais pas → 0 €</Text>
                       </TouchableOpacity>
                       <Text style={styles.q8Hint}>
-                        Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € — déduit du "Reste du mois" dans le Pilotage.
+                        Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € — déduit du "Budget libre à allouer" dans le Pilotage.
                       </Text>
                     </View>
                   ) : q.key === 'q9' ? (

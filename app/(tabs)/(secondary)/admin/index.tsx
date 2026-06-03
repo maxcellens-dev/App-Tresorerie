@@ -85,6 +85,13 @@ export default function AdminHub() {
       desc: 'Idées utilisateurs',
       color: '#eab308',
     },
+    {
+      href: '/(tabs)/(secondary)/admin/assistance',
+      icon: 'headset-outline',
+      title: 'Assistance',
+      desc: 'Demandes de support',
+      color: '#22d3ee',
+    },
   ];
 
   return (
