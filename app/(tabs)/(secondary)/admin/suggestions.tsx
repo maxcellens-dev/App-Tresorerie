@@ -42,6 +42,10 @@ export default function AdminSuggestions() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { data: suggestions = [], isLoading } = useAllSuggestions();
+  const [filter, setFilter] = useState<'open' | 'closed' | 'all'>('open');
+  const filteredSuggestions = suggestions.filter((s) =>
+    filter === 'all' ? true : filter === 'closed' ? s.status === 'closed' : s.status !== 'closed'
+  );
 
   // ── Idées en cours de développement (roadmap) ──
   const { data: roadmapIdeas = [] } = useRoadmapIdeas();
@@ -178,16 +182,26 @@ export default function AdminSuggestions() {
             )}
           </View>
 
+          <View style={styles.filterRow}>
+            {(['open', 'closed', 'all'] as const).map((f) => (
+              <TouchableOpacity key={f} style={[styles.chip, filter === f && styles.chipActive]} onPress={() => setFilter(f)}>
+                <Text style={[styles.chipText, filter === f && styles.chipTextActive]}>
+                  {f === 'open' ? 'En cours' : f === 'closed' ? 'Clôturées' : 'Toutes'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           {isLoading && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />}
 
-          {!isLoading && suggestions.length === 0 && (
+          {!isLoading && filteredSuggestions.length === 0 && (
             <View style={styles.emptyCard}>
               <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textSecondary} />
-              <Text style={styles.emptyText}>Aucune suggestion pour le moment.</Text>
+              <Text style={styles.emptyText}>{filter === 'open' ? 'Aucune suggestion en cours.' : filter === 'closed' ? 'Aucune suggestion clôturée.' : 'Aucune suggestion pour le moment.'}</Text>
             </View>
           )}
 
-          {suggestions.map((s) => {
+          {filteredSuggestions.map((s) => {
             const name = s.profiles?.full_name || s.profiles?.email || 'Utilisateur';
             const date = new Date(s.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             const isClosed = s.status === 'closed';
@@ -256,7 +270,12 @@ function makeStyles(c: any) {
   },
   roadmapText: { flex: 1, fontSize: 14, color: c.text },
 
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
+  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  chipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
+  chipTextActive: { color: c.bg },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 4 },
   subtitle: { fontSize: 13, color: c.textSecondary },
   deleteAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.red + '18', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
