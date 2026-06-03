@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Dimensions, Alert, ActivityIndicator, TextInput,
+  Animated, Dimensions, Alert, ActivityIndicator, TextInput, Modal,
 } from 'react-native';
 import { useAppColors } from './hooks/useAppColors';
 import ScreenGradient from './components/ScreenGradient';
@@ -582,6 +582,19 @@ export default function QuestionnaireScreen() {
 
         </Animated.View>
       </SafeAreaView>
+
+      {/* Overlay de configuration (création des comptes/catégories/profil) */}
+      <Modal visible={saving} transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={COLORS.emerald} />
+            <Text style={styles.loadingTitle}>Création de votre espace…</Text>
+            <Text style={styles.loadingText}>
+              On configure vos comptes, vos catégories et vos premières recommandations. Encore quelques secondes.
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -773,5 +786,14 @@ function makeStyles(c: any) {
   },
   primaryBtnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   btnDisabled: { opacity: 0.5 },
+
+  // Overlay de configuration
+  loadingOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  loadingCard: {
+    width: '100%', maxWidth: 340, backgroundColor: c.cardSolid, borderRadius: 20,
+    borderWidth: 1, borderColor: c.cardBorder, padding: 28, alignItems: 'center', gap: 14,
+  },
+  loadingTitle: { fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center' },
+  loadingText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
 });
 }

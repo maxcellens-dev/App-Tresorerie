@@ -17,7 +17,7 @@ import { useReservations } from './useReservations';
 import { usePreSavings } from './usePreSavings';
 
 export type OnboardingStepKey =
-  | 'savings_account'
+  | 'account_initialized'
   | 'recurring_tx'
   | 'project'
   | 'objective'
@@ -43,7 +43,7 @@ interface OnboardingState {
 }
 
 const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: string }[] = [
-  { key: 'savings_account',   label: 'Créer un compte d\'épargne',          route: '/(tabs)/comptes',      hint: 'Onglet Comptes → bouton « Compte » → choisissez le type « Épargne ».' },
+  { key: 'account_initialized', label: 'Renseigner le solde de vos comptes', route: '/(tabs)/comptes',     hint: 'Ouvrez votre compte courant → « Nouveau Solde » et saisissez votre solde réel à ce jour.' },
   { key: 'recurring_tx',      label: 'Ajouter une transaction récurrente',  route: '/(tabs)/transactions', hint: 'Bouton « Dépense » ou « Recette » → activez « Récurrent » avant d\'enregistrer.' },
   { key: 'project',           label: 'Créer un projet',                     route: '/(tabs)/projects',     hint: 'Appuyez sur « + » pour définir un projet d\'épargne (voiture, voyage…).' },
   { key: 'objective',         label: 'Définir un objectif',                 route: '/(tabs)/objectives',   hint: 'Appuyez sur « + » pour fixer un objectif annuel d\'investissement.' },
@@ -91,7 +91,11 @@ export function useOnboarding(userId: string | undefined) {
   const questionnaireDone = Boolean((profile as any)?.initial_onboarding_completed);
 
   const steps: OnboardingStep[] = useMemo(() => {
-    const hasSavings = accounts.some((a: any) => a.type === 'savings');
+    // Compte « initialisé » = un compte courant a un solde non nul, ou une régularisation de solde a été saisie.
+    const hasBalance = accounts.some((a: any) => a.type === 'checking' && Number(a.balance) !== 0);
+    const hasRegul = (transactions as any[]).some(
+      (t) => typeof t.note === 'string' && (t.note.startsWith('Régularisation') || t.note === 'Ajustement de solde')
+    );
     const hasRecurring = (transactions as any[]).some((t) => t.is_recurring);
     const hasReco =
       (preSavings?.epargne?.total_cumule ?? 0) > 0 ||
@@ -100,7 +104,7 @@ export function useOnboarding(userId: string | undefined) {
       (transactions as any[]).some((t) => t.linked_account?.type === 'savings' || t.linked_account?.type === 'investment');
 
     const done: Record<OnboardingStepKey, boolean> = {
-      savings_account: hasSavings,
+      account_initialized: hasBalance || hasRegul,
       recurring_tx: hasRecurring,
       project: projects.length > 0,
       objective: objectives.length > 0,
@@ -116,9 +120,10 @@ export function useOnboarding(userId: string | undefined) {
   const allDone = doneCount === total;
   const dismissed = Boolean(state.dismissed);
 
-  // Badge visible : tour terminé, non refusé, pas tout fini.
-  const badgeVisible = appTourDone && !dismissed && !allDone;
-  // Auto-ouverture de la checklist : juste après le tour, une seule fois.
+  // Badge visible dès qu'il reste des étapes et que le guide n'est pas refusé.
+  // (Le badge vit dans l'en-tête des onglets, donc uniquement après l'onboarding.)
+  const badgeVisible = !dismissed && !allDone;
+  // Auto-ouverture de la checklist : une seule fois, juste après le tour de présentation.
   const shouldAutoOpenChecklist = appTourDone && !dismissed && !allDone && !state.checklist_intro_shown;
 
   return {

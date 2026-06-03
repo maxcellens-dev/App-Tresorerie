@@ -10,6 +10,8 @@ import AppTourModal from './AppTourModal';
 export default function OnboardingGate() {
   const { user } = useAuth();
   const ob = useOnboarding(user?.id);
-  const show = !!user && ob.questionnaireDone && !ob.appTourDone;
+  // Le gate vit dans le layout des onglets (donc après l'onboarding) : on affiche
+  // le tour de présentation tant qu'il n'a pas été terminé. On attend le profil chargé.
+  const show = !!user && !!ob.profile && !ob.appTourDone;
   return <AppTourModal visible={show} onFinish={ob.markTourDone} />;
 }
