@@ -309,17 +309,15 @@ export default function StyleEditor() {
                         <Text style={styles.accentLabel} numberOfLines={1}>
                           {native ? `${native.emoji} ${native.label}` : custom!.label}{hidden ? ' · masqué' : ''}
                         </Text>
-                        {native ? (
-                          <TextInput
-                            style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
-                            value={inputHex}
-                            onChangeText={v => setAccentInputs(prev => ({ ...prev, [id]: v }))}
-                            placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                            maxLength={7} autoCapitalize="characters"
-                          />
-                        ) : (
-                          <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginRight: 6 }}>{custom!.dark}</Text>
-                        )}
+                        <TextInput
+                          style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
+                          value={inputHex}
+                          onChangeText={v => native
+                            ? setAccentInputs(prev => ({ ...prev, [id]: v }))
+                            : setExtraPresets(prev => prev.map(x => x.id === id ? { ...x, dark: v.toUpperCase() } : x))}
+                          placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                          maxLength={7} autoCapitalize="characters"
+                        />
                         {native ? (
                           <TouchableOpacity
                             onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== id) : [...prev, id])}
