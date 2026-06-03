@@ -357,7 +357,7 @@ export default function QuestionnaireScreen() {
                   <View style={styles.infoBox}>
                     <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.blue} />
                     <Text style={styles.infoText}>
-                      Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.
+                      On fera attention à préserver cette somme, avant de calculer ce que vous pouvez dépenser ou investir.
                     </Text>
                   </View>
                   <TextInput
