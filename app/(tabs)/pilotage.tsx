@@ -463,7 +463,7 @@ export default function PilotageScreen() {
                       <Ionicons name="wallet-outline" size={17} color={restColor} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.suiviLabelBig}>Budget libre à allouer</Text>
+                      <Text style={styles.suiviLabelBig}>Budget libre</Text>
                       <Text style={styles.suiviHint}>{restHint}</Text>
                     </View>
                     <Text style={[styles.suiviValueBig, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>
