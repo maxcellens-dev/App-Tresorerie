@@ -433,7 +433,7 @@ export default function PilotageScreen() {
                           <Ionicons name="cart-outline" size={16} color={col} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.suiviLabel}>Dépenses variables prévues</Text>
+                          <Text style={styles.suiviLabel}>Dépenses variables prévues restantes</Text>
                           <Text style={styles.suiviHint}>{hint}</Text>
                         </View>
                         {editable && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}

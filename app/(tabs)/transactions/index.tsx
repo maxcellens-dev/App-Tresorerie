@@ -657,76 +657,62 @@ export default function TransactionsListScreen() {
 
                         if (isDraftQuickAction) {
                           return (
-                            <View key={`${item.id}-${item.displayDate || ''}`} style={rowBaseStyle}>
+                            <View key={`${item.id}-${item.displayDate || ''}`} style={[styles.row, styles.rowDraftColumn, index === items.length - 1 && styles.rowLast, isFuture && styles.rowFuture, isDraft && (isProjectDraft ? styles.rowDraftProject : styles.rowDraft)]}>
                               <View style={[styles.rowAccent, accentStyle]} />
-                              <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
-                                <View style={styles.rowLabelRow}>
-                                  {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
-                                  <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
-                                    {item.note || item.category?.name || 'Sans libellé'}
+                              {/* Ligne 1 : libellé + montant */}
+                              <View style={styles.draftTopRow}>
+                                <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
+                                  <View style={styles.rowLabelRow}>
+                                    {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
+                                    <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
+                                      {item.note || item.category?.name || 'Sans libellé'}
+                                    </Text>
+                                    {isReserved ? (
+                                      <View style={styles.reservedBadge}>
+                                        <Ionicons name="bookmark" size={9} color={COLORS.blue} />
+                                        <Text style={styles.reservedBadgeText}>Réservé</Text>
+                                      </View>
+                                    ) : (
+                                      <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
+                                        <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
+                                      </View>
+                                    )}
+                                    {isRecurring && (
+                                      <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
+                                    )}
+                                  </View>
+                                  <Text style={styles.rowMeta}>
+                                    {item.account?.name ?? ''} · {formatDate(effectiveDate)}
                                   </Text>
-                                  {isReserved ? (
-                                    <View style={styles.reservedBadge}>
-                                      <Ionicons name="bookmark" size={9} color={COLORS.blue} />
-                                      <Text style={styles.reservedBadgeText}>Réservé</Text>
-                                    </View>
-                                  ) : (
-                                    <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
-                                      <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
-                                    </View>
-                                  )}
-                                  {isRecurring && (
-                                    <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
-                                  )}
-                                </View>
-                                <Text style={styles.rowMeta}>
-                                  {item.account?.name ?? ''} · {formatDate(effectiveDate)}
-                                </Text>
-                              </TouchableOpacity>
-                              <View style={styles.rowRightDraft}>
-                                <View style={styles.draftActionRow}>
-                                  {isReserved ? (
-                                    <TouchableOpacity
-                                      style={styles.draftActionDelete}
-                                      onPress={() => confirmLiberateReserved(item)}
-                                      activeOpacity={0.7}
-                                    >
-                                      <Ionicons name="lock-open-outline" size={13} color={COLORS.danger} />
-                                      <Text style={[styles.draftActionValidateText, { color: COLORS.danger }]}>Libérer</Text>
-                                    </TouchableOpacity>
-                                  ) : (
-                                    <>
-                                      <TouchableOpacity
-                                        style={styles.draftActionValidate}
-                                        onPress={() => confirmValidateDraft(item)}
-                                        activeOpacity={0.7}
-                                      >
-                                        <Ionicons name="checkmark" size={13} color={COLORS.green} />
-                                        <Text style={styles.draftActionValidateText}>Valider</Text>
-                                      </TouchableOpacity>
-                                      {isProjectDraft && (
-                                        <TouchableOpacity
-                                          style={styles.draftActionConserve}
-                                          onPress={() => confirmConserveDraft(item)}
-                                          activeOpacity={0.7}
-                                        >
-                                          <Ionicons name="bookmark-outline" size={13} color={COLORS.blue} />
-                                          <Text style={styles.draftActionConserveText}>Conserver</Text>
-                                        </TouchableOpacity>
-                                      )}
-                                      <TouchableOpacity
-                                        style={styles.draftActionDelete}
-                                        onPress={() => confirmDeleteDraft(item)}
-                                        activeOpacity={0.7}
-                                      >
-                                        <Ionicons name="trash-outline" size={13} color={COLORS.danger} />
-                                      </TouchableOpacity>
-                                    </>
-                                  )}
-                                </View>
-                                <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right', marginTop: 4 }]}>
+                                </TouchableOpacity>
+                                <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
                                   {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
                                 </Text>
+                              </View>
+                              {/* Ligne 2 : actions */}
+                              <View style={styles.draftActionRow}>
+                                {isReserved ? (
+                                  <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmLiberateReserved(item)} activeOpacity={0.7}>
+                                    <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
+                                    <Text style={[styles.draftActionValidateText, { color: COLORS.danger }]}>Libérer</Text>
+                                  </TouchableOpacity>
+                                ) : (
+                                  <>
+                                    <TouchableOpacity style={styles.draftActionValidate} onPress={() => confirmValidateDraft(item)} activeOpacity={0.7}>
+                                      <Ionicons name="checkmark" size={14} color={COLORS.green} />
+                                      <Text style={styles.draftActionValidateText}>Valider</Text>
+                                    </TouchableOpacity>
+                                    {isProjectDraft && (
+                                      <TouchableOpacity style={styles.draftActionConserve} onPress={() => confirmConserveDraft(item)} activeOpacity={0.7}>
+                                        <Ionicons name="bookmark-outline" size={14} color={COLORS.blue} />
+                                        <Text style={styles.draftActionConserveText}>Conserver</Text>
+                                      </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmDeleteDraft(item)} activeOpacity={0.7}>
+                                      <Ionicons name="trash-outline" size={14} color={COLORS.danger} />
+                                    </TouchableOpacity>
+                                  </>
+                                )}
                               </View>
                             </View>
                           );
@@ -880,12 +866,14 @@ function makeStyles(c: any) {
   draftBadgeText: { fontSize: 10, fontWeight: '700', color: c.orange },
   draftBadgeTextProject: { color: c.blue },
   rowRightDraft: { alignItems: 'flex-end' },
-  draftActionRow: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' },
-  draftActionValidate: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: c.green + '18', borderWidth: 1, borderColor: c.green + '44' },
-  draftActionValidateText: { fontSize: 11, fontWeight: '700', color: c.green },
-  draftActionConserve: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: c.blue + '18', borderWidth: 1, borderColor: c.blue + '44' },
-  draftActionConserveText: { fontSize: 11, fontWeight: '700', color: c.blue },
-  draftActionDelete: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: c.danger + '18', borderWidth: 1, borderColor: c.danger + '44' },
+  rowDraftColumn: { flexDirection: 'column', alignItems: 'stretch', gap: 7 },
+  draftTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  draftActionRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  draftActionValidate: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, borderRadius: 8, backgroundColor: c.green + '18', borderWidth: 1, borderColor: c.green + '44' },
+  draftActionValidateText: { fontSize: 12, fontWeight: '700', color: c.green },
+  draftActionConserve: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, borderRadius: 8, backgroundColor: c.blue + '18', borderWidth: 1, borderColor: c.blue + '44' },
+  draftActionConserveText: { fontSize: 12, fontWeight: '700', color: c.blue },
+  draftActionDelete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4, paddingHorizontal: 14, borderRadius: 8, backgroundColor: c.danger + '18', borderWidth: 1, borderColor: c.danger + '44' },
   reservedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 8, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: c.blue + '22', borderWidth: 1, borderColor: c.blue },
   reservedBadgeText: { fontSize: 10, fontWeight: '700', color: c.blue },
   rowAccent: {
