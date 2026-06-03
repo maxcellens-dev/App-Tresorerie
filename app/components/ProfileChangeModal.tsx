@@ -163,7 +163,7 @@ function makeStyles(c: any) {
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,

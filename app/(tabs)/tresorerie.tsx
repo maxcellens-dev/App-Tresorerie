@@ -1401,7 +1401,7 @@ function makeStyles(c: any) {
     alignItems: 'center',
   },
   menuContainer: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: c.cardBorder,
@@ -1438,10 +1438,10 @@ function makeStyles(c: any) {
     color: c.text,
   },
   draftModalContainer: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#f59e0b44',
+    borderColor: c.orange + '44',
     width: '90%',
     maxWidth: 400,
     padding: 20,

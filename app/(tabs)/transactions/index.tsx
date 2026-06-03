@@ -985,7 +985,7 @@ function makeStyles(c: any) {
     marginTop: 2,
   },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  confirmBox: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
+  confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
   confirmTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
   confirmMessage: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
   confirmBtns: { flexDirection: 'row', gap: 10 },

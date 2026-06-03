@@ -1141,7 +1141,7 @@ function makeModalStyles(c: any) {
   container: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
@@ -1241,7 +1241,7 @@ function makeModalStyles(c: any) {
 function makeTxDetailStyles(c: any) {
   return {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
-    sheet: { backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
+    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
     handle: { width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
     amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? c.green : c.text, textAlign: 'center' as const, marginBottom: 4 }),
     labelText: { fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },

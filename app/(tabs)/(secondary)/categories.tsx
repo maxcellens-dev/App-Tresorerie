@@ -519,7 +519,7 @@ function makeStyles(c: any) {
     padding: 24,
   },
   modalBox: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,

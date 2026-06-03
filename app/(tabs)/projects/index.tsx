@@ -782,7 +782,7 @@ function makeStyles(c: any) {
     zIndex: 999,
   },
   confirmDialog: {
-    backgroundColor: c.surface,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.border,

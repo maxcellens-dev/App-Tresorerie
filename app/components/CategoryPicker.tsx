@@ -82,7 +82,7 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   block: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
-  listContainer: { maxHeight: 200, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.card },
+  listContainer: { maxHeight: 200, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.cardSolid },
   list: { flex: 1 },
   listContent: { paddingVertical: 4, paddingBottom: 12 },
   section: { marginTop: 8 },

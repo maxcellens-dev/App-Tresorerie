@@ -720,7 +720,7 @@ function makeStyles(c: any) {
   calendarContainer: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
@@ -734,7 +734,7 @@ function makeStyles(c: any) {
     padding: 12,
   },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  confirmBox: { backgroundColor: c.card, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
+  confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
   confirmTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 10 },
   confirmMessage: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   confirmBtns: { flexDirection: 'row', gap: 12 },

@@ -326,7 +326,7 @@ function makeStyles(c: any) {
     alignItems: 'center',
   },
   calendarContainer: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,

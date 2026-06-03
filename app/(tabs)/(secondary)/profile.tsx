@@ -499,7 +499,7 @@ function makeStyles(c: any) {
     justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   modalCard: {
-    width: '100%', maxWidth: 400, backgroundColor: c.card,
+    width: '100%', maxWidth: 400, backgroundColor: c.cardSolid,
     borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder,
     padding: 24, alignItems: 'center', gap: 12,
   },

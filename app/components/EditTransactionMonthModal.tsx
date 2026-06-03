@@ -200,7 +200,7 @@ function makeStyles(c: any) {
     padding: 16,
   },
   modal: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: c.cardBorder,

@@ -703,7 +703,7 @@ function makeStyles(c: any) {
     alignItems: 'center',
   },
   menuContainer: {
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: c.cardBorder,

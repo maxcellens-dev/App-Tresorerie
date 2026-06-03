@@ -445,7 +445,7 @@ function makeStyles(c: any) {
   calendarContainer: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
