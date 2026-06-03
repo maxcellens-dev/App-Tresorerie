@@ -45,7 +45,8 @@ function AppChrome() {
   const { user, loading } = useAuth();
   const root = segments[0] ?? 'index';
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register';
-  const hideChrome = isAuthPage;
+  // Pendant le questionnaire, on masque l'en-tête (profil) : l'utilisateur doit le terminer.
+  const hideChrome = isAuthPage || root === 'questionnaire';
   const isTabs = root === '(tabs)';
 
   // Auth guard: redirect via useEffect so the Stack always mounts first

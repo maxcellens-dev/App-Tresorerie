@@ -715,7 +715,7 @@ export default function PilotageScreen() {
           <View style={styles.varModalBox}>
             <Text style={styles.varModalTitle}>Dépenses variables</Text>
             <Text style={styles.varModalHint}>
-              Combien dépensez-vous environ par semaine pour vos courses, loisirs et dépenses variables ?
+              Combien dépensez-vous environ pour vos courses, loisirs et dépenses variables ?
             </Text>
             <View style={styles.varModalInputRow}>
               <TextInput

@@ -9,6 +9,7 @@ import {
   Animated, Dimensions, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useAppColors } from './hooks/useAppColors';
+import ScreenGradient from './components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -47,7 +48,7 @@ const QUESTIONS: Array<{
   { key: 'q2', label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
   { key: 'q3', label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
   // Q9 (dépenses variables hebdo) affichée en 4e position — rendu spécial (TextInput)
-  { key: 'q9', label: 'Combien dépensez-vous environ par semaine pour vos courses, loisirs et dépenses variables ?', options: [] },
+  { key: 'q9', label: 'Combien dépensez-vous environ pour vos courses, loisirs et dépenses variables ?', options: [] },
   { key: 'q4', label: 'Une fois toutes vos dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
   { key: 'q5', label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
   { key: 'q6', label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
@@ -120,6 +121,29 @@ export default function QuestionnaireScreen() {
     if (!inc || inc <= 0 || isNaN(sav) || sav < 0) return null;
     return Math.round((sav / inc) * 100);
   }, [q6Income, q6Savings]);
+
+  // Q9 — double saisie semaine / mois interdépendantes. La valeur stockée (q9) est le montant HEBDO.
+  const WEEKS_PER_MONTH = 4.33;
+  const [q9Week, setQ9Week] = useState(answers.q9 ?? '');
+  const [q9Month, setQ9Month] = useState(
+    answers.q9 ? String(Math.round((parseFloat(String(answers.q9).replace(',', '.')) || 0) * WEEKS_PER_MONTH)) : ''
+  );
+  const setQ9FromWeek = (v: string) => {
+    const clean = v.replace(/[^0-9.,]/g, '');
+    setQ9Week(clean);
+    const n = parseFloat(clean.replace(',', '.'));
+    setQ9Month(clean && !isNaN(n) ? String(Math.round(n * WEEKS_PER_MONTH)) : '');
+    handleSelect('q9', clean && !isNaN(n) ? String(n) : '');
+  };
+  const setQ9FromMonth = (v: string) => {
+    const clean = v.replace(/[^0-9.,]/g, '');
+    setQ9Month(clean);
+    const n = parseFloat(clean.replace(',', '.'));
+    const week = clean && !isNaN(n) ? Math.round((n / WEEKS_PER_MONTH) * 100) / 100 : '';
+    setQ9Week(week === '' ? '' : String(week));
+    handleSelect('q9', week === '' ? '' : String(week));
+  };
+  const clearQ9 = () => { setQ9Week(''); setQ9Month(''); handleSelect('q9', ''); };
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(step / (TOTAL_STEPS - 1))).current;
@@ -241,13 +265,14 @@ export default function QuestionnaireScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
 
         {/* Barre de progression */}
         {step > 0 && step < 10 && (
           <View style={styles.progressContainer}>
             <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={22} color="#94a3b8" />
+              <Ionicons name="arrow-back" size={22} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <View style={styles.progressTrack}>
               <Animated.View
@@ -269,7 +294,9 @@ export default function QuestionnaireScreen() {
           {/* ── Écran 0 : Welcome ────────────────────────── */}
           {step === 0 && (
             <ScrollView contentContainerStyle={styles.centeredScreen} showsVerticalScrollIndicator={false}>
-              <Text style={styles.welcomeEmoji}>📊</Text>
+              <View style={styles.welcomeIconCircle}>
+                <Ionicons name="stats-chart" size={40} color={COLORS.emerald} />
+              </View>
               <Text style={styles.welcomeTitle}>Bienvenue sur Trésorerie</Text>
               <Text style={styles.welcomeSub}>Votre coach financier personnel</Text>
               <View style={styles.welcomeDivider} />
@@ -291,7 +318,7 @@ export default function QuestionnaireScreen() {
 
               {savedProgress && savedProgress.currentStep > 0 && (
                 <View style={styles.resumeBanner}>
-                  <Ionicons name="refresh-circle-outline" size={18} color="#f59e0b" />
+                  <Ionicons name="refresh-circle-outline" size={18} color={COLORS.yellow} />
                   <Text style={styles.resumeText}>
                     Questionnaire non terminé — reprise à la question {savedProgress.currentStep}/7
                   </Text>
@@ -313,48 +340,88 @@ export default function QuestionnaireScreen() {
 
               {currentQ.key === 'q2' && isIrregular && (
                 <View style={styles.infoBox}>
-                  <Ionicons name="information-circle-outline" size={15} color="#60a5fa" />
+                  <Ionicons name="information-circle-outline" size={15} color={COLORS.blue} />
                   <Text style={styles.infoText}>
                     Revenus irréguliers détectés — calculs sur moyenne glissante.
                   </Text>
                 </View>
               )}
 
-              {/* ── Q8 / Q9 : saisie d'un montant (€) ── */}
-              {currentQ.key === 'q8' || currentQ.key === 'q9' ? (
+              {/* ── Q8 : montant unique (€) ── */}
+              {currentQ.key === 'q8' ? (
                 <ScrollView
                   style={styles.optionsScroll}
                   contentContainerStyle={styles.optionsContent}
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={styles.infoBox}>
-                    <Ionicons name={currentQ.key === 'q8' ? 'shield-checkmark-outline' : 'cart-outline'} size={15} color="#60a5fa" />
+                    <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.blue} />
                     <Text style={styles.infoText}>
-                      {currentQ.key === 'q8'
-                        ? 'Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.'
-                        : 'Sert à estimer votre enveloppe de dépenses variables (courses, loisirs, imprévus) au début, tant que l’historique est insuffisant. Montant par semaine.'}
+                      Ce montant est toujours conservé avant de calculer ce que vous pouvez dépenser ou investir.
                     </Text>
                   </View>
                   <TextInput
                     style={styles.q8Input}
-                    value={currentQ.key === 'q8' ? answers.q8 : answers.q9}
-                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect(currentQ.key === 'q8' ? 'q8' : 'q9', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
+                    value={answers.q8}
+                    onChangeText={(v) => { const clean = v.replace(/[^0-9.,]/g, ''); handleSelect('q8', clean ? String(parseFloat(clean.replace(',', '.')) || '') : ''); }}
                     keyboardType="decimal-pad"
-                    placeholder={currentQ.key === 'q8' ? 'Ex. 500' : 'Ex. 120'}
+                    placeholder="Ex. 500"
                     placeholderTextColor={COLORS.textSecondary}
                   />
-                  <Text style={styles.q8Currency}>{currentQ.key === 'q8' ? '€' : '€ / semaine'}</Text>
-                  {currentQ.key === 'q9' && answers.q9 ? (
-                    <Text style={[styles.q8DontKnowText, { textAlign: 'center', marginTop: 8 }]}>
-                      ≈ {Math.round(parseFloat(answers.q9.replace(',', '.') || '0') * 4.33).toLocaleString('fr-FR')} € / mois
-                    </Text>
-                  ) : null}
+                  <Text style={styles.q8Currency}>€</Text>
                   <TouchableOpacity
                     style={styles.q8DontKnow}
-                    onPress={() => {
-                      handleSelect(currentQ.key === 'q8' ? 'q8' : 'q9', '');
-                      handleNext();
-                    }}
+                    onPress={() => { handleSelect('q8', ''); handleNext(); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.q8DontKnowText}>Je ne sais pas → on l’estimera</Text>
+                  </TouchableOpacity>
+                  <View style={{ height: 100 }} />
+                </ScrollView>
+              ) : currentQ.key === 'q9' ? (
+                /* ── Q9 : dépenses variables — saisie semaine OU mois (interdépendantes) ── */
+                <ScrollView
+                  style={styles.optionsScroll}
+                  contentContainerStyle={styles.optionsContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <View style={styles.infoBox}>
+                    <Ionicons name="cart-outline" size={15} color={COLORS.blue} />
+                    <Text style={styles.infoText}>
+                      Estimez votre enveloppe de dépenses variables (courses, loisirs, imprévus). Après 2 mois d'utilisation, l’application se basera sur vos dépenses réelles.
+                    </Text>
+                  </View>
+                  <View style={styles.q9Row}>
+                    <View style={styles.q9Field}>
+                      <Text style={styles.q9FieldLabel}>Par semaine</Text>
+                      <TextInput
+                        style={styles.q9Input}
+                        value={q9Week}
+                        onChangeText={setQ9FromWeek}
+                        keyboardType="decimal-pad"
+                        placeholder="Ex. 40"
+                        placeholderTextColor={COLORS.textSecondary}
+                      />
+                      <Text style={styles.q9Unit}>€ / semaine</Text>
+                    </View>
+                    <View style={styles.q9Equals}><Ionicons name="swap-horizontal" size={18} color={COLORS.textSecondary} /></View>
+                    <View style={styles.q9Field}>
+                      <Text style={styles.q9FieldLabel}>Par mois</Text>
+                      <TextInput
+                        style={styles.q9Input}
+                        value={q9Month}
+                        onChangeText={setQ9FromMonth}
+                        keyboardType="decimal-pad"
+                        placeholder="Ex. 173"
+                        placeholderTextColor={COLORS.textSecondary}
+                      />
+                      <Text style={styles.q9Unit}>€ / mois</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.q8DontKnow}
+                    onPress={() => { clearQ9(); handleNext(); }}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.q8DontKnowText}>Je ne sais pas → on l’estimera</Text>
@@ -370,7 +437,7 @@ export default function QuestionnaireScreen() {
                 {/* Q1 : indication multi-select */}
                 {currentQ.key === 'q1' && (
                   <View style={styles.infoBox}>
-                    <Ionicons name="checkbox-outline" size={15} color="#60a5fa" />
+                    <Ionicons name="checkbox-outline" size={15} color={COLORS.blue} />
                     <Text style={styles.infoText}>Vous pouvez sélectionner plusieurs types de revenus.</Text>
                   </View>
                 )}
@@ -388,7 +455,7 @@ export default function QuestionnaireScreen() {
                           onChangeText={setQ6Income}
                           keyboardType="decimal-pad"
                           placeholder="ex. 2500"
-                          placeholderTextColor="#64748b"
+                          placeholderTextColor={COLORS.textSecondary}
                         />
                       </View>
                       <View style={styles.calcField}>
@@ -399,7 +466,7 @@ export default function QuestionnaireScreen() {
                           onChangeText={setQ6Savings}
                           keyboardType="decimal-pad"
                           placeholder="ex. 300"
-                          placeholderTextColor="#64748b"
+                          placeholderTextColor={COLORS.textSecondary}
                         />
                       </View>
                     </View>
@@ -458,7 +525,7 @@ export default function QuestionnaireScreen() {
 
               {isIrregular && (
                 <View style={styles.infoBox}>
-                  <Ionicons name="information-circle-outline" size={15} color="#60a5fa" />
+                  <Ionicons name="information-circle-outline" size={15} color={COLORS.blue} />
                   <Text style={styles.infoText}>
                     Revenus irréguliers pris en compte via une moyenne glissante.
                   </Text>
@@ -468,10 +535,10 @@ export default function QuestionnaireScreen() {
               <View style={styles.allocCard}>
                 <Text style={styles.allocTitle}>Votre allocation recommandée</Text>
                 {([
-                  { label: 'Épargner',        key: 'save'   as const, color: '#34d399' },
-                  { label: 'Investir',         key: 'invest' as const, color: '#a78bfa' },
-                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: '#f59e0b' },
-                  { label: 'Conserver',        key: 'keep'   as const, color: '#60a5fa' },
+                  { label: 'Épargner',        key: 'save'   as const, color: COLORS.green },
+                  { label: 'Investir',         key: 'invest' as const, color: COLORS.violet },
+                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: COLORS.orange },
+                  { label: 'Conserver',        key: 'keep'   as const, color: COLORS.blue },
                 ]).map(({ label, key, color }) => {
                   const pct = alloc[key];
                   return (
@@ -488,7 +555,7 @@ export default function QuestionnaireScreen() {
               </View>
 
               <View style={styles.freezeNote}>
-                <Ionicons name="lock-closed-outline" size={14} color="#94a3b8" />
+                <Ionicons name="lock-closed-outline" size={14} color={COLORS.textSecondary} />
                 <Text style={styles.freezeText}>
                   Ce profil reste actif 6 mois, puis évolue automatiquement selon vos données réelles.
                 </Text>
@@ -535,7 +602,7 @@ function makeStyles(c: any) {
     flex: 1, height: 4, backgroundColor: c.cardBorder, borderRadius: 2,
   },
   progressFill: { height: 4, backgroundColor: c.emerald, borderRadius: 2 },
-  progressLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600', minWidth: 24 },
+  progressLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', minWidth: 24 },
 
   // Welcome
   centeredScreen: {
@@ -545,24 +612,28 @@ function makeStyles(c: any) {
   welcomeCurrency: { width: '100%', marginTop: 24, gap: 8 },
   welcomeCurrencyLabel: { fontSize: 14, fontWeight: '700', color: c.text },
   welcomeCurrencyHint: { fontSize: 12, color: c.textSecondary },
-  welcomeEmoji: { fontSize: 72, marginBottom: 8 },
+  welcomeIconCircle: {
+    width: 84, height: 84, borderRadius: 42, marginBottom: 12,
+    backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '33',
+    alignItems: 'center', justifyContent: 'center',
+  },
   welcomeTitle: { fontSize: 28, fontWeight: '800', color: c.text, textAlign: 'center' },
   welcomeSub: { fontSize: 16, color: c.emerald, fontWeight: '600', marginBottom: 4 },
   welcomeDivider: { width: 40, height: 2, backgroundColor: c.cardBorder, marginVertical: 8 },
   welcomeBody: {
-    fontSize: 16, color: '#cbd5e1', textAlign: 'center', lineHeight: 24,
+    fontSize: 16, color: c.textSecondary, textAlign: 'center', lineHeight: 24,
   },
   welcomeTime: {
-    fontSize: 13, color: '#94a3b8',
-    backgroundColor: c.card, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 6,
+    fontSize: 13, color: c.textSecondary,
+    backgroundColor: c.card, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder,
+    paddingHorizontal: 14, paddingVertical: 6, overflow: 'hidden',
   },
   resumeBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#2a1f0a', borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: '#f59e0b40',
+    backgroundColor: c.yellow + '1A', borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: c.yellow + '40',
   },
-  resumeText: { flex: 1, fontSize: 13, color: '#fbbf24', lineHeight: 18 },
+  resumeText: { flex: 1, fontSize: 13, color: c.yellow, lineHeight: 18 },
 
   // Questions
   questionScreen: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
@@ -580,7 +651,7 @@ function makeStyles(c: any) {
   },
   radio: {
     width: 20, height: 20, borderRadius: 10,
-    borderWidth: 2, borderColor: '#475569',
+    borderWidth: 2, borderColor: c.cardBorder,
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, marginTop: 1,
   },
@@ -588,16 +659,16 @@ function makeStyles(c: any) {
   radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.emerald },
   checkbox: {
     width: 20, height: 20, borderRadius: 5,
-    borderWidth: 2, borderColor: '#475569',
+    borderWidth: 2, borderColor: c.cardBorder,
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, marginTop: 1,
   },
   checkboxActive: { borderColor: c.emerald, backgroundColor: c.emerald },
   calculatorBox: {
-    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: '#60a5fa40',
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.blue + '40',
     padding: 14, marginBottom: 14, gap: 10,
   },
-  calcTitle: { fontSize: 12, fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: 0.5 },
+  calcTitle: { fontSize: 12, fontWeight: '700', color: c.blue, textTransform: 'uppercase', letterSpacing: 0.5 },
   calcRow: { flexDirection: 'row', gap: 10 },
   calcField: { flex: 1, gap: 4 },
   calcLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
@@ -608,17 +679,17 @@ function makeStyles(c: any) {
   },
   calcResult: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#60a5fa18', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: '#60a5fa40',
+    backgroundColor: c.blue + '18', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: c.blue + '40',
   },
-  calcResultLabel: { fontSize: 13, color: '#93c5fd', fontWeight: '600' },
-  calcResultValue: { fontSize: 22, fontWeight: '800', color: '#60a5fa' },
-  optionLabel: { flex: 1, fontSize: 15, color: '#94a3b8', lineHeight: 22 },
+  calcResultLabel: { fontSize: 13, color: c.blue, fontWeight: '600' },
+  calcResultValue: { fontSize: 22, fontWeight: '800', color: c.blue },
+  optionLabel: { flex: 1, fontSize: 15, color: c.textSecondary, lineHeight: 22 },
   optionLabelActive: { color: c.text },
   questionFooter: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 24, backgroundColor: c.bg,
-    borderTopWidth: 1, borderTopColor: c.card,
+    paddingHorizontal: 24, paddingTop: 12, paddingBottom: 28,
+    backgroundColor: c.bg,
   },
 
   // Résultat
@@ -627,21 +698,21 @@ function makeStyles(c: any) {
     paddingTop: 32, gap: 16,
   },
   resultBadge: {
-    backgroundColor: '#1a3a2a', borderRadius: 20,
+    backgroundColor: c.emerald + '1A', borderRadius: 20,
     paddingHorizontal: 16, paddingVertical: 6,
     borderWidth: 1, borderColor: c.emerald + '40',
   },
   resultBadgeText: { fontSize: 12, color: c.emerald, fontWeight: '700' },
   resultEmoji: { fontSize: 72 },
   resultName: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  resultTier: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
-  resultDesc: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 22, paddingHorizontal: 12 },
+  resultTier: { fontSize: 13, color: c.textSecondary, fontWeight: '500' },
+  resultDesc: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: 12 },
 
   allocCard: {
     width: '100%', backgroundColor: c.card, borderRadius: 16,
     padding: 18, gap: 12, borderWidth: 1, borderColor: c.cardBorder,
   },
-  allocTitle: { fontSize: 13, fontWeight: '600', color: '#94a3b8', marginBottom: 4 },
+  allocTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 4 },
   allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   allocDot: { width: 8, height: 8, borderRadius: 4 },
   allocLabel: { width: 110, fontSize: 13, color: c.text },
@@ -654,13 +725,14 @@ function makeStyles(c: any) {
     backgroundColor: c.card, borderRadius: 12, padding: 12,
     borderWidth: 1, borderColor: c.cardBorder,
   },
-  freezeText: { flex: 1, fontSize: 12, color: '#94a3b8', lineHeight: 18 },
+  freezeText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 18 },
 
   infoBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: c.cardBorder, borderRadius: 10, padding: 10, width: '100%',
+    backgroundColor: c.blue + '18', borderRadius: 10, padding: 10, width: '100%',
+    borderWidth: 1, borderColor: c.blue + '33',
   },
-  infoText: { flex: 1, fontSize: 12, color: '#93c5fd', lineHeight: 18 },
+  infoText: { flex: 1, fontSize: 12, color: c.blue, lineHeight: 18 },
   q8Input: {
     backgroundColor: c.card, borderWidth: 2, borderColor: c.emerald,
     borderRadius: 16, paddingHorizontal: 24, paddingVertical: 20,
@@ -677,6 +749,20 @@ function makeStyles(c: any) {
     alignItems: 'center',
   },
   q8DontKnowText: { fontSize: 14, color: c.textSecondary, fontWeight: '500' },
+
+  // Q9 : double saisie semaine / mois
+  q9Row: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  q9Field: {
+    flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 14, alignItems: 'center', gap: 4,
+  },
+  q9FieldLabel: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+  q9Input: {
+    width: '100%', fontSize: 26, fontWeight: '700', color: c.text, textAlign: 'center',
+    paddingVertical: 4,
+  },
+  q9Unit: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  q9Equals: { width: 28, alignItems: 'center', justifyContent: 'center' },
 
   // Bouton principal
   primaryBtn: {

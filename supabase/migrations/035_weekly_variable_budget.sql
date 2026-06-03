@@ -2,7 +2,7 @@
 -- 035 — Budget variable hebdomadaire (onboarding)
 -- Sert de valeur de repli pour l'« Enveloppe des dépenses variables »
 -- quand l'historique (M-1..M-6) est insuffisant (< 2 mois de données).
--- Question q9 : "Combien dépensez-vous environ par semaine pour vos
+-- Question q9 : "Combien dépensez-vous environ pour vos
 -- courses, loisirs et dépenses variables ?" (× 4.33 → mensuel)
 -- ─────────────────────────────────────────────────────────────
 
