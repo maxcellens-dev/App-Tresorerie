@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
+import OnboardingChecklist from './OnboardingChecklist';
 
 
 interface HeaderWithProfileProps {
@@ -79,6 +80,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
         {leftContentToRender}
       </View>
       {!hideProfile && <View style={styles.right}>
+        <OnboardingChecklist />
         {isAdmin && (
           <TouchableOpacity
             style={styles.iconBtn}

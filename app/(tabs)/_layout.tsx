@@ -4,7 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import TabBarBackground from '../components/TabBarBackground';
 import HeaderWithProfile from '../components/HeaderWithProfile';
 import CustomTabBar from '../components/CustomTabBar';
+import OnboardingGate from '../components/OnboardingGate';
 import { useAppColors } from '../hooks/useAppColors';
+import { View } from 'react-native';
 
 function TabsHeader({ route }: { route: any }) {
   const COLORS = useAppColors();
@@ -56,6 +58,7 @@ export default function TabsLayout() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={({ route }) => ({
@@ -133,6 +136,8 @@ export default function TabsLayout() {
         options={{ href: null, title: 'Reporting' }}
       />
     </Tabs>
+    <OnboardingGate />
+    </View>
   );
 }
 

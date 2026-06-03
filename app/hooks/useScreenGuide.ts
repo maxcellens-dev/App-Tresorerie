@@ -104,14 +104,10 @@ export function useScreenGuide(screen: GuideScreen, userId: string | undefined) 
 
   const alreadySeen = seen?.[screen] ?? true; // par défaut "vu" tant qu'on ne sait pas
 
+  // Les anciens guides par écran sont désactivés : ils sont fusionnés dans le
+  // tour de présentation unique (AppTourModal) + le guide "Pour bien démarrer".
   useEffect(() => {
-    if (!userId || isLoading) return;
-    if (!alreadySeen) {
-      const t = setTimeout(() => setVisible(true), 700);
-      return () => clearTimeout(t);
-    } else {
-      setVisible(false);
-    }
+    setVisible(false);
   }, [userId, isLoading, alreadySeen]);
 
   const goNext = useCallback((totalSteps: number) => {

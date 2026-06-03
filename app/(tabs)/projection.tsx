@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../components/ScreenGradient';
+import OnboardingHintBanner from '../components/OnboardingHintBanner';
+import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -181,8 +183,17 @@ export default function ProjectionScreen() {
     if (loaded) saveHypos(user?.id, { hypos, years });
   }, [hypos, years, loaded, user?.id]);
 
+  const updateOnboarding = useUpdateOnboarding(user?.id);
+  const projEditedRef = React.useRef(false);
+  const markProjectionEdited = () => {
+    if (projEditedRef.current) return;
+    projEditedRef.current = true;
+    updateOnboarding.mutate({ flags: { projection_edited: true } });
+  };
+
   const updateHypo = (accId: string, patch: Partial<AccountHypo>) => {
     setHypos((prev) => ({ ...prev, [accId]: { ...prev[accId], ...patch } }));
+    markProjectionEdited();
   };
 
   const selectedAcc = investAccounts.find((a) => a.id === selectedAccId) ?? investAccounts[0];
@@ -280,6 +291,7 @@ export default function ProjectionScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -472,8 +484,8 @@ export default function ProjectionScreen() {
           {savingsSource === 'perso' && (
             <View style={styles.controlsCard}>
               <View style={styles.fieldRow}>
-                <NumField label="Épargne /mois" value={savingsMonthlyPerso} onChange={setSavingsMonthlyPerso} suffix={CURRENCY_SYMBOL} colors={COLORS} />
-                <NumField label="Déjà épargné" value={savingsInitial} onChange={setSavingsInitial} suffix={CURRENCY_SYMBOL} colors={COLORS} />
+                <NumField label="Épargne /mois" value={savingsMonthlyPerso} onChange={(v) => { setSavingsMonthlyPerso(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
+                <NumField label="Déjà épargné" value={savingsInitial} onChange={(v) => { setSavingsInitial(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
               </View>
             </View>
           )}

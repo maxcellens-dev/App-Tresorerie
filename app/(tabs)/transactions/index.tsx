@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -455,6 +456,7 @@ export default function TransactionsListScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {showPeriodNav && (
           <View style={styles.periodNav} ref={periodNavRef}>

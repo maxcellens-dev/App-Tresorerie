@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
+import OnboardingHintBanner from '../components/OnboardingHintBanner';
+import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import { supabase } from '../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -67,6 +69,8 @@ export default function PilotageScreen() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [showReservedModal, setShowReservedModal] = useState(false);
   const releaseReserved = useReleaseReservedByProject(user?.id);
+  const updateOnboarding = useUpdateOnboarding(user?.id);
+  const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
   // Modale de saisie de l'estimation hebdo des dépenses variables (alimente q9)
   const { data: profile } = useProfile(user?.id);
   const [showVariableModal, setShowVariableModal] = useState(false);
@@ -254,6 +258,7 @@ export default function PilotageScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
       <ScreenGradient />
+      <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {/* Bandeau marge de sécurité */}
         {(pilotageData.safety_margin_amount ?? 0) > 0 &&
@@ -372,7 +377,7 @@ export default function PilotageScreen() {
                       <RowWrap
                         key={it.label}
                         style={styles.suiviRow}
-                        {...(isReserveRow ? { onPress: () => setShowReservedModal(true), activeOpacity: 0.7 } : {})}
+                        {...(isReserveRow ? { onPress: openReservedModal, activeOpacity: 0.7 } : {})}
                       >
                         <View style={[styles.suiviIcon, { backgroundColor: it.color + '22' }]}>
                           <Ionicons name={it.icon as any} size={16} color={it.color} />

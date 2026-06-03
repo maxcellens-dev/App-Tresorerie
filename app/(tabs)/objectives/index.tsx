@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -319,6 +320,7 @@ export default function ObjectivesScreen() {
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
           <View style={styles.headerActions}>

@@ -1,6 +1,7 @@
 ﻿import { useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -102,6 +103,7 @@ export default function AccountsListScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <ScrollView
           style={styles.scroll}
