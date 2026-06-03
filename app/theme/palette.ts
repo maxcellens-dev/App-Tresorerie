@@ -55,7 +55,7 @@ export interface AppColors {
  * Surchargeables globalement depuis le Style Editor (admin) via `semantic_colors`.
  * Ces clés pilotent boutons, montants et textes partout dans l'app.
  */
-export const SEMANTIC_KEYS = ['danger', 'blue', 'violet', 'green', 'orange', 'teal', 'yellow'] as const;
+export const SEMANTIC_KEYS = ['danger', 'blue', 'violet', 'green', 'orange', 'teal', 'yellow', 'grey'] as const;
 export type SemanticKey = typeof SEMANTIC_KEYS[number];
 
 export const SEMANTIC_DEFAULTS: Record<SemanticKey, string> = {
@@ -66,6 +66,7 @@ export const SEMANTIC_DEFAULTS: Record<SemanticKey, string> = {
   orange: '#FF9500', // dépenses variables
   teal:   '#00C4CC', // projets
   yellow: '#fbbf24', // marge de sécurité
+  grey:   '#8E949A', // textes secondaires / libellés
 };
 
 export const SEMANTIC_LABELS: Record<SemanticKey, { label: string; emoji: string }> = {
@@ -76,6 +77,7 @@ export const SEMANTIC_LABELS: Record<SemanticKey, { label: string; emoji: string
   orange: { label: 'Orange (variables)',      emoji: '🟠' },
   teal:   { label: 'Teal (projets)',          emoji: '🩵' },
   yellow: { label: 'Jaune (marge)',           emoji: '🟡' },
+  grey:   { label: 'Gris (textes secondaires)', emoji: '🩶' },
 };
 
 /** Surfaces de base par mode (sans la transparence configurable). */
@@ -182,6 +184,10 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const orange = sem('orange');
   const teal   = sem('teal');
   const yellow = sem('yellow');
+  // Gris des textes secondaires : surchargé seulement s'il est explicitement défini
+  // (sinon on garde le gris par défaut propre à chaque mode).
+  const greyRaw = opts?.semanticColors?.grey;
+  const textSecondary = greyRaw && /^#[0-9A-Fa-f]{6}$/.test(greyRaw) ? greyRaw : base.textSecondary;
 
   return {
     bg,
@@ -189,7 +195,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     cardSolid: base.cardSolid,
     cardBorder,
     text: base.text,
-    textSecondary: base.textSecondary,
+    textSecondary,
     danger,
     emerald: accent,
     accent,
@@ -198,11 +204,11 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     border: cardBorder,
     background: bg,
     surface: card,
-    sub: base.textSecondary,
+    sub: textSecondary,
     red: danger,
     screenBg: bg,
     tabActive: accent,
-    tabInactive: base.textSecondary,
+    tabInactive: textSecondary,
     // sémantiques (overridables)
     checking: blue,
     savings:  green,
