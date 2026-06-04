@@ -127,6 +127,10 @@ export interface Account {
   fiscal_envelope?: 'pea' | 'av' | 'cto' | 'autre' | null;
   /** Date ISO (YYYY-MM-DD) à laquelle le solde initial a été constaté. */
   init_date?: string | null;
+  /** Investissement : total apporté à la création (capital injecté de départ). */
+  initial_contributed?: number | null;
+  /** Investissement : apport « actuel » (capital injecté net des retraits, modifiable). */
+  current_contributed?: number | null;
   created_at: string;
   updated_at: string;
 }

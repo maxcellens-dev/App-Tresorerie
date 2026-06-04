@@ -4,10 +4,17 @@
  */
 import { Platform } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { useAuth } from '../contexts/AuthContext';
+import { useOnboarding } from '../hooks/useOnboarding';
 
 export function useOnbHighlight(key: string): boolean {
   const params = useLocalSearchParams<{ onb?: string }>();
-  return params.onb === key;
+  const { user } = useAuth();
+  const ob = useOnboarding(user?.id);
+  if (params.onb !== key) return false;
+  // Dès que l'étape est accomplie (ex. on a cliqué la zone), on retire le cadre.
+  const step = ob.steps.find((s) => s.key === key);
+  return step ? !step.done : true;
 }
 
 /** Style de surbrillance (anneau + halo) à fusionner sur l'élément cible quand `on` est vrai. */

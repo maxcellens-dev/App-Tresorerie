@@ -18,7 +18,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAccounts } from '../../hooks/useAccounts';
+import { useAccounts, useUpdateAccount } from '../../hooks/useAccounts';
 import { useAddTransaction, useReleaseReservedByProject } from '../../hooks/useTransactions';
 import { useResetPreSaving } from '../../hooks/usePreSavings';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
@@ -42,6 +42,7 @@ export default function TransferScreen() {
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const updateAccount = useUpdateAccount(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
   const releaseReserved = useReleaseReservedByProject(user?.id);
 
@@ -124,6 +125,18 @@ export default function TransferScreen() {
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
       });
+      // Suivi de l'apport (capital injecté) — virements ponctuels uniquement.
+      if (!isRecurring) {
+        // Retrait d'un compte d'invest → réduction de l'apport au prorata.
+        if (isInvestWithdrawal && fromAcc && prorata) {
+          await updateAccount.mutateAsync({ id: fromAcc.id, current_contributed: prorata.remainingApport });
+        }
+        // Virement vers un compte d'invest → augmentation de l'apport.
+        if (toAcc?.type === 'investment') {
+          const base = toAcc.current_contributed != null ? toAcc.current_contributed : (toAcc.initial_contributed != null ? toAcc.initial_contributed : Number(toAcc.balance));
+          await updateAccount.mutateAsync({ id: toAcc.id, current_contributed: base + Math.abs(num) });
+        }
+      }
       // Virement validé depuis une reco → la marquer « traitée » (ne réapparaît pas)
       if (params.recoComplete) {
         await addCompleted(params.recoComplete as RecoType);
@@ -157,6 +170,25 @@ export default function TransferScreen() {
         </SafeAreaView>
       </View>
     );
+  }
+
+  // ── Retrait d'un compte d'investissement : règle du prorata (capital vs plus-value) ──
+  const fmtEur = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+  const fromAcc = accounts.find((a) => a.id === fromAccountId);
+  const toAcc = accounts.find((a) => a.id === toAccountId);
+  const withdrawalNum = parseFloat((amount || '').replace(',', '.'));
+  const isInvestWithdrawal = fromAcc?.type === 'investment' && fromAcc.current_contributed != null && !isRecurring;
+  let prorata: { capital: number; plus: number; remainingApport: number; remainingBalance: number; capitalPct: number } | null = null;
+  if (isInvestWithdrawal && fromAcc && fromAcc.balance > 0 && withdrawalNum > 0) {
+    const ratio = Math.min(1, (fromAcc.current_contributed as number) / fromAcc.balance);
+    const capital = withdrawalNum * ratio;
+    prorata = {
+      capital,
+      plus: withdrawalNum - capital,
+      remainingApport: Math.max(0, (fromAcc.current_contributed as number) - capital),
+      remainingBalance: fromAcc.balance - withdrawalNum,
+      capitalPct: Math.round(ratio * 100),
+    };
   }
 
   const canSubmit =
@@ -227,6 +259,26 @@ export default function TransferScreen() {
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
           />
+
+          {prorata && (
+            <View style={styles.withdrawCard}>
+              <View style={styles.withdrawHeader}>
+                <Ionicons name="trending-down-outline" size={18} color={COLORS.orange} />
+                <Text style={styles.withdrawTitle}>Retrait d'un compte d'investissement</Text>
+              </View>
+              <Text style={styles.withdrawText}>
+                Règle du prorata : ce retrait se compose de <Text style={styles.withdrawStrong}>{prorata.capitalPct}% de capital</Text> ({fmtEur(prorata.capital)}) et {100 - prorata.capitalPct}% de plus-value ({fmtEur(prorata.plus)}).
+              </Text>
+              <View style={styles.withdrawRow}>
+                <Text style={styles.withdrawLabel}>Apport restant</Text>
+                <Text style={styles.withdrawVal}>{fmtEur(prorata.remainingApport)}</Text>
+              </View>
+              <View style={styles.withdrawRow}>
+                <Text style={styles.withdrawLabel}>Solde restant</Text>
+                <Text style={styles.withdrawVal}>{fmtEur(prorata.remainingBalance)}</Text>
+              </View>
+            </View>
+          )}
 
           <Text style={styles.label}>Date</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
@@ -379,6 +431,14 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 20,
   },
+  withdrawCard: { backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '55', borderRadius: 12, padding: 14, marginBottom: 20 },
+  withdrawHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  withdrawTitle: { fontSize: 14, fontWeight: '800', color: c.text },
+  withdrawText: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
+  withdrawStrong: { fontWeight: '700', color: c.text },
+  withdrawRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  withdrawLabel: { fontSize: 13, color: c.textSecondary },
+  withdrawVal: { fontSize: 15, fontWeight: '800', color: c.text },
   chipScroll: { marginBottom: 16 },
   chip: {
     paddingHorizontal: 16,

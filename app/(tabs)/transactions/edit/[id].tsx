@@ -46,6 +46,7 @@ export default function EditTransactionScreen() {
   } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
+  const [showRecDelete, setShowRecDelete] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
@@ -267,7 +268,10 @@ export default function EditTransactionScreen() {
         account_id: accountId,
         category_id: categoryId ? categoryId : null,
         amount: finalAmount,
-        date,
+        // « Modifier la récurrence » : on met à jour la série EN PLACE (on garde la date
+        // d'ancrage d'origine) au lieu de déplacer le départ vers la date de l'échéance,
+        // ce qui faisait apparaître une nouvelle transaction récurrente.
+        date: (isInstanceEdit && editMode === 'future') ? tx.date : date,
         note: note || undefined,
         is_draft: isDraft,
         is_recurring: isRecurring,
@@ -284,6 +288,11 @@ export default function EditTransactionScreen() {
     if (!id) return;
     if (closureLockDate && tx && tx.date <= closureLockDate) {
       showConfirm({ title: 'Période clôturée', message: 'Cette transaction appartient à un mois clôturé et ne peut plus être supprimée.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+      return;
+    }
+    // Transaction récurrente → proposer le périmètre de suppression.
+    if (tx?.is_recurring) {
+      setShowRecDelete(true);
       return;
     }
     const message = isPast
@@ -303,6 +312,34 @@ export default function EditTransactionScreen() {
         }
       },
     });
+  }
+
+  // ── Suppression d'une récurrence : 3 périmètres possibles ──
+  async function deleteRecurringScope(scope: 'one' | 'future' | 'all') {
+    if (!id || !tx) return;
+    setShowRecDelete(false);
+    const occDate = instanceDate ?? tx.date;
+    try {
+      if (scope === 'all') {
+        await deleteTx.mutateAsync(id);
+      } else if (scope === 'future') {
+        // Celle-ci et les suivantes : on tronque la série à la veille de l'échéance.
+        if (occDate <= tx.date) {
+          await deleteTx.mutateAsync(id); // pas d'échéance antérieure → on supprime tout
+        } else {
+          const d = new Date(occDate + 'T00:00:00');
+          d.setDate(d.getDate() - 1);
+          await updateTx.mutateAsync({ id, recurrence_end_date: toIsoDate(d) });
+        }
+      } else {
+        // Cette échéance uniquement : on neutralise l'occurrence du mois (montant 0).
+        const [year, month] = occDate.split('-').map(Number);
+        await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: 0 });
+      }
+      closeEditor();
+    } catch (e: unknown) {
+      showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+    }
   }
 
   if (!user || !tx) {
@@ -651,6 +688,33 @@ export default function EditTransactionScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
+
+        {/* Suppression d'une récurrence : choix du périmètre */}
+        <Modal visible={showRecDelete} transparent animationType="fade" onRequestClose={() => setShowRecDelete(false)}>
+          <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setShowRecDelete(false)}>
+            <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
+              <Text style={styles.confirmTitle}>Supprimer la transaction récurrente</Text>
+              <Text style={styles.confirmMessage}>Que souhaitez-vous supprimer ?</Text>
+              {instanceDate && (
+                <TouchableOpacity style={styles.recScopeBtn} onPress={() => deleteRecurringScope('one')}>
+                  <Ionicons name="remove-circle-outline" size={18} color={COLORS.text} />
+                  <Text style={styles.recScopeText}>Cette échéance uniquement</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.recScopeBtn} onPress={() => deleteRecurringScope('future')}>
+                <Ionicons name="arrow-forward-circle-outline" size={18} color={COLORS.text} />
+                <Text style={styles.recScopeText}>Cette échéance et les suivantes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.recScopeBtn, { borderColor: COLORS.danger + '66' }]} onPress={() => deleteRecurringScope('all')}>
+                <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+                <Text style={[styles.recScopeText, { color: COLORS.danger }]}>Toute la série (passées et futures)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.recScopeCancel} onPress={() => setShowRecDelete(false)}>
+                <Text style={styles.confirmCancelText}>Annuler</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -761,5 +825,8 @@ function makeStyles(c: any) {
   confirmCancelText: { color: c.textSecondary, fontWeight: '600', fontSize: 15 },
   confirmOk: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   confirmOkText: { fontWeight: '700', fontSize: 15 },
+  recScopeBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 },
+  recScopeText: { fontSize: 14, fontWeight: '600', color: c.text, flex: 1 },
+  recScopeCancel: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
 });
 }

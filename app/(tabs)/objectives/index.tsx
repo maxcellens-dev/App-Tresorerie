@@ -359,17 +359,14 @@ export default function ObjectivesScreen() {
             data={objectives.filter((obj) => obj.status !== 'completed')}
             keyExtractor={(item) => item.id}
             renderItem={renderObjectiveItem}
-            ListHeaderComponent={savingsAdvice ? (
-              <View style={[styles.adviceCard, { borderLeftColor: savingsAdvice.color }]}>
-                <View style={styles.adviceHeader}>
-                  <Ionicons name={savingsAdvice.icon} size={22} color={savingsAdvice.color} />
-                  <Text style={[styles.adviceTitle, { color: savingsAdvice.color }]}>
-                    {savingsAdvice.title}
-                  </Text>
-                </View>
-                <Text style={styles.adviceMessage}>{savingsAdvice.message}</Text>
+            ListHeaderComponent={
+              <View style={styles.infoCard}>
+                <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} style={{ marginTop: 1 }} />
+                <Text style={styles.infoText}>
+                  Les objectifs sont un <Text style={{ fontWeight: '700', color: COLORS.text }}>suivi</Text> : ils ne déclenchent aucun virement ni transaction. L'app analyse <Text style={{ fontWeight: '700', color: COLORS.text }}>tous vos virements</Text> pour mesurer la progression. Par exemple, un virement (même récurrent) vers un compte d'<Text style={{ fontWeight: '700', color: COLORS.text }}>investissement</Text> fera automatiquement avancer vos objectifs d'investissement.
+                </Text>
               </View>
-            ) : null}
+            }
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -460,6 +457,17 @@ function makeStyles(c: any) {
     padding: 16,
     paddingBottom: 32,
   },
+  infoCard: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.primary + '40',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  infoText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
   adviceCard: {
     backgroundColor: c.surface,
     borderRadius: 12,

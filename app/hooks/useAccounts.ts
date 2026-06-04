@@ -16,7 +16,7 @@ export function useAccounts(profileId: string | undefined) {
         .eq('is_active', true)
         .order('name');
       if (error) throw error;
-      return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance) }));
+      return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance), initial_contributed: r.initial_contributed != null ? Number(r.initial_contributed) : null, current_contributed: r.current_contributed != null ? Number(r.current_contributed) : null }));
     },
     enabled: !!profileId,
   });
@@ -37,7 +37,7 @@ export function useArchivedAccounts(profileId: string | undefined) {
         .eq('is_active', false)
         .order('name');
       if (error) throw error;
-      return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance) }));
+      return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance), initial_contributed: r.initial_contributed != null ? Number(r.initial_contributed) : null, current_contributed: r.current_contributed != null ? Number(r.current_contributed) : null }));
     },
     enabled: !!profileId,
   });
@@ -112,7 +112,7 @@ export function useAddAccount(profileId: string | undefined) {
           currency: input.currency || 'EUR',
           balance: input.balance ?? 0,
           ...(input.type === 'investment' && input.fiscal_envelope ? { fiscal_envelope: input.fiscal_envelope } : {}),
-          ...(input.type === 'investment' && input.initial_contributed != null ? { initial_contributed: input.initial_contributed } : {}),
+          ...(input.type === 'investment' && input.initial_contributed != null ? { initial_contributed: input.initial_contributed, current_contributed: input.initial_contributed } : {}),
           ...(input.init_date ? { init_date: input.init_date } : {}),
         })
         .select()
@@ -169,7 +169,7 @@ export function useCloseAccount(profileId: string | undefined) {
 export function useUpdateAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; name?: string; type?: string; currency?: string; balance?: number; fiscal_envelope?: string | null }) => {
+    mutationFn: async (input: { id: string; name?: string; type?: string; currency?: string; balance?: number; fiscal_envelope?: string | null; current_contributed?: number | null }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       if (input.name !== undefined) {
         const nameNorm = normalizeName(input.name);
@@ -190,6 +190,7 @@ export function useUpdateAccount(profileId: string | undefined) {
       if (input.currency !== undefined) updates.currency = input.currency;
       if (input.balance !== undefined) updates.balance = input.balance;
       if (input.fiscal_envelope !== undefined) updates.fiscal_envelope = input.fiscal_envelope;
+      if (input.current_contributed !== undefined) updates.current_contributed = input.current_contributed;
       const { data, error } = await supabase
         .from('accounts')
         .update(updates)

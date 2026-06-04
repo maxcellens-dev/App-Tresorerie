@@ -9,7 +9,7 @@ import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from './AuthContext';
-import { useUpdateOnboarding } from '../hooks/useOnboarding';
+import { useUpdateOnboarding, useOnboarding } from '../hooks/useOnboarding';
 import { useAppColors } from '../hooks/useAppColors';
 
 export type TourKey = 'comptes' | 'transactions' | 'pilotage' | 'tresorerie' | 'projection' | 'profile' | 'parametres';
@@ -38,6 +38,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const COLORS = useAppColors();
   const updateOnboarding = useUpdateOnboarding(user?.id);
+  const ob = useOnboarding(user?.id);
   const [active, setActive] = useState(false);
   const [finished, setFinished] = useState(false);
   const [index, setIndex] = useState(0);
@@ -79,20 +80,28 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const currentKey = active ? (ORDER[index]?.key ?? null) : null;
   const styles = makeStyles(COLORS);
 
+  // Fin du guide de présentation → ouvre la 1re étape du guide d'utilisation (comme un clic sur la 1re ligne).
+  const finishTour = (goFirstStep: boolean) => {
+    setFinished(false);
+    if (!goFirstStep) return;
+    const first = ob.steps.find((s) => !s.done);
+    if (first) router.navigate((first.route + '?onb=' + first.key) as any);
+  };
+
   return (
     <Ctx.Provider value={{ active, finished, currentKey, start, completeScreen }}>
       {children}
-      <Modal visible={finished} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setFinished(false)}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setFinished(false)}>
+      <Modal visible={finished} transparent animationType="fade" statusBarTranslucent onRequestClose={() => finishTour(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => finishTour(false)}>
           <TouchableOpacity style={styles.card} activeOpacity={1} onPress={() => {}}>
             <Text style={styles.emoji}>🎉</Text>
             <Text style={styles.title}>Vous êtes prêt !</Text>
             <Text style={styles.text}>
-              Vous avez fait le tour de l'application. Pour vous lancer, suivez la checklist «&nbsp;Pour bien démarrer&nbsp;» accessible via la pastille en haut à droite.
+              Vous avez fait le tour de l'application. Lançons-nous : suivez les étapes «&nbsp;Pour bien démarrer&nbsp;» (badge en haut à droite).
             </Text>
-            <TouchableOpacity style={styles.btn} onPress={() => setFinished(false)} accessibilityRole="button">
-              <Ionicons name="checkmark" size={18} color={COLORS.bg} />
-              <Text style={styles.btnText}>Terminer</Text>
+            <TouchableOpacity style={styles.btn} onPress={() => finishTour(true)} accessibilityRole="button">
+              <Ionicons name="rocket" size={18} color={COLORS.bg} />
+              <Text style={styles.btnText}>Commencer</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>

@@ -23,15 +23,12 @@ export default function OnboardingChecklist() {
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
 
-  // Auto-ouverture unique après le tour de présentation, mais seulement une fois le
-  // message de fin fermé (sinon deux modales se chevauchent). Léger délai pour laisser
-  // la navigation revenir sur Comptes (sinon la modale s'ouvre sur un écran pas monté).
+  // Après le tour, on n'ouvre plus la checklist automatiquement : le bouton « Commencer »
+  // du message de fin envoie directement sur la 1re étape (coachmark). On marque juste l'intro.
   useEffect(() => {
     if (ob.shouldAutoOpenChecklist && !tour.finished && !autoOpened.current) {
       autoOpened.current = true;
       ob.markFlag('checklist_intro_shown');
-      const t = setTimeout(() => setOpen(true), 650);
-      return () => clearTimeout(t);
     }
   }, [ob.shouldAutoOpenChecklist, tour.finished]);
 

@@ -50,8 +50,10 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
   const balanceAtEndFor = (accId: string, accBalance: number) => {
     if (!targetKey) return accBalance;
     const cutoff = lastDayOfMonthKey(targetKey);
+    // Même logique que le « solde à date » du détail de compte : on exclut les brouillons
+    // et les lignes récurrentes (occurrences projetées) → solde réel à la fin du mois.
     const after = (allTx as any[])
-      .filter((t) => t.account_id === accId && t.date > cutoff)
+      .filter((t) => t.account_id === accId && !t.is_draft && !t.is_recurring && t.date > cutoff)
       .reduce((s, t) => s + Number(t.amount), 0);
     return accBalance - after;
   };
@@ -70,7 +72,8 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
           if (raw == null || raw.trim() === '') continue;
           const newBalance = parseFloat(raw.replace(',', '.'));
           if (Number.isNaN(newBalance)) continue;
-          const diff = newBalance - acc.balance;
+          // Écart vs le solde réel calculé à la fin du mois (0 si l'utilisateur confirme le même montant).
+          const diff = newBalance - balanceAtEndFor(acc.id, acc.balance);
           if (Math.abs(diff) <= 0.005) continue;
           await addTransaction.mutateAsync({
             account_id: acc.id, category_id: null, amount: diff,

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+﻿import { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAccounts } from '../../hooks/useAccounts';
+import { useAccounts, useUpdateAccount } from '../../hooks/useAccounts';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
 import type { TransactionWithDetails } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
@@ -75,6 +75,7 @@ export default function AccountDetailScreen() {
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: transactions = [], isLoading: txLoading } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const updateAccount = useUpdateAccount(user?.id);
 
   const account = accounts.find((a) => a.id === id);
 
@@ -85,6 +86,8 @@ export default function AccountDetailScreen() {
   const [apportDate, setApportDate] = useState(todayISO());
   const [apportDateDisplay, setApportDateDisplay] = useState(formatDateFrench(todayISO()));
   const [showApportCalendar, setShowApportCalendar] = useState(false);
+  const [apportActuel, setApportActuel] = useState('');
+  const [apportActuelDirty, setApportActuelDirty] = useState(false);
 
   const [showBalance, setShowBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
@@ -169,6 +172,11 @@ export default function AccountDetailScreen() {
         note: apportNote.trim() || 'Apport',
         is_recurring: false,
       });
+      // L'apport augmente le capital injecté (apport actuel).
+      if (account?.type === 'investment') {
+        const base = account.current_contributed != null ? account.current_contributed : (account.initial_contributed != null ? account.initial_contributed : Number(account.balance));
+        await updateAccount.mutateAsync({ id, current_contributed: base + num });
+      }
       setShowApport(false);
       setApportAmount('');
       setApportNote('Apport');
@@ -178,6 +186,26 @@ export default function AccountDetailScreen() {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     } finally {
       setApportLoading(false);
+    }
+  }
+
+  // Apport actuel (capital injecté) — éditable.
+  useEffect(() => {
+    if (account?.type === 'investment' && !apportActuelDirty) {
+      setApportActuel(account.current_contributed != null ? String(Math.round(account.current_contributed)) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account?.current_contributed, account?.type]);
+
+  async function saveApportActuel() {
+    if (!id) return;
+    const v = parseFloat(apportActuel.replace(',', '.'));
+    if (Number.isNaN(v)) { Alert.alert('Montant invalide', 'Saisissez un montant valide.'); return; }
+    try {
+      await updateAccount.mutateAsync({ id, current_contributed: v });
+      setApportActuelDirty(false);
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     }
   }
 
@@ -407,6 +435,37 @@ export default function AccountDetailScreen() {
           </Text>
           <Text style={styles.accountType}>{TYPE_LABELS[account.type] ?? account.type}</Text>
         </View>
+
+        {account.type === 'investment' && (
+          <View style={styles.apportCard}>
+            <View style={styles.apportRow}>
+              <Text style={styles.apportLabel}>Apport à la création</Text>
+              <Text style={styles.apportValueRO}>
+                {account.initial_contributed != null ? account.initial_contributed.toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL : '—'}
+              </Text>
+            </View>
+            <View style={styles.apportRow}>
+              <Text style={styles.apportLabel}>Apport actuel</Text>
+              <View style={styles.apportEditRow}>
+                <TextInput
+                  style={styles.apportInput}
+                  value={apportActuel}
+                  onChangeText={(v) => { setApportActuel(v.replace(/[^0-9.,-]/g, '')); setApportActuelDirty(true); }}
+                  keyboardType="decimal-pad"
+                  placeholder="—"
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+                <Text style={styles.apportCur}>{CURRENCY_SYMBOL}</Text>
+                {apportActuelDirty && (
+                  <TouchableOpacity style={styles.apportSave} onPress={saveApportActuel}>
+                    <Ionicons name="checkmark" size={16} color={COLORS.bg} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <Text style={styles.apportHint}>L'apport actuel est repris dans la Projection. Il augmente à chaque apport/virement entrant et diminue au prorata lors d'un retrait.</Text>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Historique des transactions</Text>
         {txLoading ? (
@@ -1088,6 +1147,15 @@ function makeStyles(c: any) {
   balanceLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
   balanceAmount: { fontSize: 26, fontWeight: '800', color: c.text },
   accountType: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
+  apportCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 24 },
+  apportRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  apportLabel: { fontSize: 13, color: c.textSecondary },
+  apportValueRO: { fontSize: 15, fontWeight: '700', color: c.text },
+  apportEditRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  apportInput: { minWidth: 90, textAlign: 'right', fontSize: 15, fontWeight: '700', color: c.text, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+  apportCur: { fontSize: 14, color: c.textSecondary },
+  apportSave: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
+  apportHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 2 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
   loader: { marginVertical: 20 },
   emptyCard: {

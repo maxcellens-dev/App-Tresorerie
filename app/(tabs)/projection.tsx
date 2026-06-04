@@ -179,23 +179,15 @@ export default function ProjectionScreen() {
   // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {
     const list = allAccounts.filter((a: any) => a.type === 'investment');
-    if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre', initialContributed: a.initial_contributed != null ? Number(a.initial_contributed) : null }));
-    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre', initialContributed: null as number | null }];
+    if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre', currentContributed: a.current_contributed != null ? Number(a.current_contributed) : null }));
+    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre', currentContributed: null as number | null }];
   }, [allAccounts]);
 
-  // Somme des apports/virements entrants vers un compte d'invest (hors plus-values/intérêts).
-  const sumContrib = React.useCallback((accId: string) => {
-    return (transactions as any[])
-      .filter((t) => t.account_id === accId && Number(t.amount) > 0 && (t.linked_account_id || /apport/i.test(t.note || '')))
-      .reduce((s, t) => s + Number(t.amount), 0);
-  }, [transactions]);
-
-  // Apport « auto » : si un total apporté a été saisi à la création → ce total + apports/virements ultérieurs ;
-  // sinon, valeur du compte (ancien comportement par défaut).
-  const autoContributedFor = React.useCallback((acc: { id: string; balance: number; initialContributed: number | null }) => {
-    if (acc.initialContributed != null) return acc.initialContributed + sumContrib(acc.id);
-    return acc.balance;
-  }, [sumContrib]);
+  // Apport repris dans l'hypothèse = « apport actuel » du compte (suivi : apports + virements − retraits au prorata).
+  // À défaut (non renseigné), on retombe sur la valeur du compte.
+  const autoContributedFor = React.useCallback((acc: { balance: number; currentContributed: number | null }) => {
+    return acc.currentContributed != null ? acc.currentContributed : acc.balance;
+  }, []);
 
   // ── État : hypothèses par compte + durée globale ──
   const [hypos, setHypos] = useState<Record<string, AccountHypo>>({});
@@ -231,6 +223,26 @@ export default function ProjectionScreen() {
     if (loaded) saveHypos(user?.id, { hypos, years });
   }, [hypos, years, loaded, user?.id]);
 
+  // Initialise automatiquement l'hypothèse des comptes d'invest qui n'en ont pas encore
+  // (ex. comptes créés après le 1er chargement) → le bloc s'affiche sans devoir « actualiser ».
+  useEffect(() => {
+    if (!loaded || fiscalRates.length === 0) return;
+    setHypos((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const acc of investAccounts) {
+        if (!next[acc.id]) {
+          const auto = autoContributedFor(acc);
+          next[acc.id] = { contributed: String(Math.round(auto)), contributedBase: auto, annual: '2400', rate: '7', tax: String(taxRateFor(fiscalRates, acc.envelope)) };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    if (!selectedAccId && investAccounts[0]) setSelectedAccId(investAccounts[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, investAccounts, fiscalRates]);
+
   // Accumulation auto : tout nouvel apport/virement s'ajoute à l'« Apport existant » courant
   // (uniquement pour les comptes avec un total apporté défini à la création). La valeur saisie
   // par l'utilisateur est conservée : seul le delta des nouveaux apports vient s'y ajouter.
@@ -240,11 +252,12 @@ export default function ProjectionScreen() {
       let changed = false;
       const next = { ...prev };
       for (const acc of investAccounts) {
-        if (acc.initialContributed == null || !next[acc.id]) continue;
+        if (acc.currentContributed == null || !next[acc.id]) continue;
         const auto = autoContributedFor(acc);
         const base = next[acc.id].contributedBase ?? auto;
         const delta = auto - base;
-        if (delta > 0.5) {
+        // Les apports/virements augmentent l'apport, les retraits le diminuent (prorata) → on suit dans les 2 sens.
+        if (Math.abs(delta) > 0.5) {
           next[acc.id] = {
             ...next[acc.id],
             contributed: String(Math.round(num(next[acc.id].contributed) + delta)),
@@ -272,7 +285,7 @@ export default function ProjectionScreen() {
   };
 
   // Réinitialise les hypothèses du compte : apport = total apporté à la création + apports/virements.
-  const resetHypo = (acc: { id: string; balance: number; envelope: string; initialContributed: number | null }) => {
+  const resetHypo = (acc: { id: string; balance: number; envelope: string; currentContributed: number | null }) => {
     const auto = autoContributedFor(acc);
     updateHypo(acc.id, {
       contributed: String(Math.round(auto)),

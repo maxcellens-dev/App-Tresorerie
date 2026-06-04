@@ -393,15 +393,25 @@ export default function ProjectsScreen() {
             keyExtractor={(item) => item.id}
             renderItem={renderProjectItem}
             ListHeaderComponent={
-              <TouchableOpacity
-                style={[styles.archivedToggle, showArchived && styles.archivedToggleActive]}
-                onPress={() => setShowArchived(!showArchived)}
-              >
-                <Ionicons name={showArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color={showArchived ? COLORS.primary : COLORS.textSecondary} />
-                <Text style={{ color: showArchived ? COLORS.primary : COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>
-                  {showArchived ? 'Voir projets actifs' : 'Voir projets archivés'}
-                </Text>
-              </TouchableOpacity>
+              <>
+                {!showArchived && (
+                  <View style={styles.infoCard}>
+                    <Ionicons name="bulb-outline" size={18} color={COLORS.primary} style={{ marginTop: 1 }} />
+                    <Text style={styles.infoText}>
+                      Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Vous y accumulez de l'argent par des virements : soit vers un autre compte dédié, soit en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place (même compte source et destination). Choisissez un <Text style={{ fontWeight: '700', color: COLORS.text }}>montant mensuel</Text>, laissez l'app calculer le montant nécessaire à partir d'une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou saisissez des <Text style={{ fontWeight: '700', color: COLORS.text }}>versements ponctuels</Text>.
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.archivedToggle, showArchived && styles.archivedToggleActive]}
+                  onPress={() => setShowArchived(!showArchived)}
+                >
+                  <Ionicons name={showArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color={showArchived ? COLORS.primary : COLORS.textSecondary} />
+                  <Text style={{ color: showArchived ? COLORS.primary : COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>
+                    {showArchived ? 'Voir projets actifs' : 'Voir projets archivés'}
+                  </Text>
+                </TouchableOpacity>
+              </>
             }
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
@@ -901,6 +911,17 @@ function makeStyles(c: any) {
     fontSize: 14,
     fontWeight: '500',
   },
+  infoCard: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.primary + '40',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  infoText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
   archivedToggle: {
     flexDirection: 'row',
     alignItems: 'center',

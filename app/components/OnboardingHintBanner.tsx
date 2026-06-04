@@ -1,11 +1,12 @@
 /**
  * OnboardingHintBanner — coachmark interactif du guide « Pour bien démarrer ».
- * Affiché en haut d'un écran quand on y arrive depuis une étape (param ?onb=<clé>).
+ * Affiché en bas d'un écran quand on y arrive depuis une étape (param ?onb=<clé>).
  * - Tant que l'étape n'est pas faite : explique quoi faire (fermable, non bloquant).
- * - Dès que l'étape est accomplie : confirme et propose d'enchaîner l'étape suivante.
+ * - Dès que l'étape est accomplie : confirme, puis disparaît au bout de 3 s (slide vers le bas)
+ *   ou si on touche ailleurs, et enchaîne sur l'étape suivante s'il en reste.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Animated, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,13 +22,36 @@ export default function OnboardingHintBanner() {
   const params = useLocalSearchParams<{ onb?: string }>();
   const key = params.onb as OnboardingStepKey | undefined;
   const [dismissed, setDismissed] = useState(false);
+  const slide = useRef(new Animated.Value(0)).current;
+
+  const idx = key ? ob.steps.findIndex((s) => s.key === key) : -1;
+  const step = idx >= 0 ? ob.steps[idx] : null;
+  const next = step
+    ? (ob.steps.slice(idx + 1).find((s) => !s.done) ?? ob.steps.find((s) => !s.done && s.key !== key) ?? null)
+    : null;
 
   // Fermer = masquer le coachmark ET retirer la surbrillance (on efface le param ?onb).
   const dismissRef = useRef(() => {});
   dismissRef.current = () => { setDismissed(true); router.setParams({ onb: '' as any }); };
   const dismiss = () => dismissRef.current();
 
-  // Swipe horizontal pour fermer la notification (comme la croix).
+  const goToNext = () => {
+    if (!next) { dismiss(); return; }
+    setDismissed(true);
+    if (next.route === step!.route) router.setParams({ onb: next.key });
+    else router.replace((next.route + '?onb=' + next.key) as any);
+  };
+
+  // Avance (slide vers le bas) : prochaine étape s'il en reste, sinon fermeture.
+  const advanceRef = useRef(() => {});
+  advanceRef.current = () => {
+    Animated.timing(slide, { toValue: 180, duration: 250, useNativeDriver: true }).start(() => {
+      slide.setValue(0);
+      if (next) goToNext(); else dismiss();
+    });
+  };
+
+  // Swipe horizontal pour fermer.
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy),
@@ -35,55 +59,52 @@ export default function OnboardingHintBanner() {
     })
   ).current;
 
-  useEffect(() => { setDismissed(false); }, [key]);
+  useEffect(() => { setDismissed(false); slide.setValue(0); }, [key]);
 
-  if (!key || dismissed || ob.dismissed) return null;
-  const idx = ob.steps.findIndex((s) => s.key === key);
-  if (idx === -1) return null;
-  const step = ob.steps[idx];
-  // Étape suivante non faite : d'abord après la courante, sinon la première restante.
-  const next =
-    ob.steps.slice(idx + 1).find((s) => !s.done) ??
-    ob.steps.find((s) => !s.done && s.key !== key) ??
-    null;
+  const stepDone = step?.done ?? false;
+  // Auto-disparition de l'encart de validation au bout de 3 s.
+  useEffect(() => {
+    if (!key || dismissed || ob.dismissed || !stepDone) return;
+    const t = setTimeout(() => advanceRef.current(), 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, dismissed, ob.dismissed, stepDone]);
 
-  const goToNext = () => {
-    if (!next) return;
-    setDismissed(true);
-    if (next.route === step.route) router.setParams({ onb: next.key });
-    else router.replace((next.route + '?onb=' + next.key) as any);
-  };
+  if (!key || dismissed || ob.dismissed || !step) return null;
 
-  // ── Étape accomplie : confirmation + enchaînement ──
+  // ── Étape accomplie : confirmation + enchaînement (overlay tactile pour fermer en touchant ailleurs) ──
   if (step.done) {
     return (
-      <View style={styles.wrap} pointerEvents="box-none">
-        <View style={[styles.card, { borderColor: COLORS.green + '66' }]} {...pan.panHandlers}>
-          <View style={[styles.iconCircle, { backgroundColor: COLORS.green }]}>
-            <Ionicons name="checkmark" size={18} color="#fff" />
+      <View style={StyleSheet.absoluteFill as any} pointerEvents="box-none">
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => advanceRef.current()} />
+        <Animated.View style={[styles.wrap, { transform: [{ translateY: slide }] }]}>
+          <View style={[styles.card, { borderColor: COLORS.green + '66' }]} {...pan.panHandlers}>
+            <View style={[styles.iconCircle, { backgroundColor: COLORS.green }]}>
+              <Ionicons name="checkmark" size={18} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>Étape validée : {step.label}</Text>
+              {next
+                ? <Text style={styles.hint}>Prochaine étape : {next.label}</Text>
+                : <Text style={styles.hint}>🎉 Bravo, vous avez terminé le guide !</Text>}
+            </View>
+            {next ? (
+              <TouchableOpacity style={styles.nextBtn} onPress={() => advanceRef.current()} activeOpacity={0.85}>
+                <Text style={styles.nextBtnText}>Suivant</Text>
+                <Ionicons name="arrow-forward" size={14} color={COLORS.bg} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
+                <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Étape validée : {step.label}</Text>
-            {next
-              ? <Text style={styles.hint}>Prochaine étape : {next.label}</Text>
-              : <Text style={styles.hint}>🎉 Bravo, vous avez terminé le guide !</Text>}
-          </View>
-          {next ? (
-            <TouchableOpacity style={styles.nextBtn} onPress={goToNext} activeOpacity={0.85}>
-              <Text style={styles.nextBtnText}>Suivant</Text>
-              <Ionicons name="arrow-forward" size={14} color={COLORS.bg} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
-              <Ionicons name="close" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
+        </Animated.View>
       </View>
     );
   }
 
-  // ── Étape à réaliser : indication ──
+  // ── Étape à réaliser : indication (non bloquant) ──
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       <View style={styles.card} {...pan.panHandlers}>
@@ -95,7 +116,7 @@ export default function OnboardingHintBanner() {
           <Text style={styles.title}>{step.label}</Text>
           <Text style={styles.hint}>{step.hint}</Text>
         </View>
-        <TouchableOpacity onPress={() => setDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
+        <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
           <Ionicons name="close" size={18} color={COLORS.textSecondary} />
         </TouchableOpacity>
       </View>
