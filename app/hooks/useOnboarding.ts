@@ -25,7 +25,7 @@ export type OnboardingStepKey =
   | 'reserved_consulted'
   | 'projection_edited';
 
-export type OnboardingFlag = 'dismissed' | 'checklist_intro_shown' | 'reserved_consulted' | 'projection_edited';
+export type OnboardingFlag = 'dismissed' | 'checklist_intro_shown' | 'reserved_consulted' | 'projection_edited' | 'reco_validated';
 
 export interface OnboardingStep {
   key: OnboardingStepKey;
@@ -40,6 +40,7 @@ interface OnboardingState {
   checklist_intro_shown?: boolean;
   reserved_consulted?: boolean;
   projection_edited?: boolean;
+  reco_validated?: boolean;
 }
 
 const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: string }[] = [
@@ -93,7 +94,7 @@ export function useOnboarding(userId: string | undefined) {
   // Étapes déduites des données (le reste vient de drapeaux explicites dans onboarding_state).
   // Clés « data » : une fois accomplies, on les fige (done_<clé>) pour qu'elles restent
   // validées même si l'utilisateur supprime ensuite l'élément créé.
-  const DATA_KEYS: OnboardingStepKey[] = ['account_initialized', 'recurring_tx', 'project', 'objective', 'reco_validated'];
+  const DATA_KEYS: OnboardingStepKey[] = ['account_initialized', 'recurring_tx', 'project', 'objective'];
   const persistedDone = (k: OnboardingStepKey) => Boolean((state as any)['done_' + k]);
 
   const { steps, pendingPersist } = useMemo(() => {
@@ -102,25 +103,21 @@ export function useOnboarding(userId: string | undefined) {
       (t) => typeof t.note === 'string' && (t.note.startsWith('Régularisation') || t.note === 'Ajustement de solde')
     );
     const hasRecurring = (transactions as any[]).some((t) => t.is_recurring);
-    const hasReco =
-      (preSavings?.epargne?.total_cumule ?? 0) > 0 ||
-      (preSavings?.invest?.total_cumule ?? 0) > 0 ||
-      reservations.length > 0 ||
-      (transactions as any[]).some((t) => t.linked_account?.type === 'savings' || t.linked_account?.type === 'investment');
 
     const dataDone: Record<string, boolean> = {
       account_initialized: hasBalance || hasRegul,
       recurring_tx: hasRecurring,
       project: projects.length > 0,
       objective: objectives.length > 0,
-      reco_validated: hasReco,
     };
     const done: Record<OnboardingStepKey, boolean> = {
       account_initialized: dataDone.account_initialized || persistedDone('account_initialized'),
       recurring_tx: dataDone.recurring_tx || persistedDone('recurring_tx'),
       project: dataDone.project || persistedDone('project'),
       objective: dataDone.objective || persistedDone('objective'),
-      reco_validated: dataDone.reco_validated || persistedDone('reco_validated'),
+      // « Suivre une recommandation » : validée UNIQUEMENT en passant par les boutons de reco
+      // (Épargner / Investir / Conserver / Cumuler), pas par un virement épargne quelconque.
+      reco_validated: Boolean(state.reco_validated),
       reserved_consulted: Boolean(state.reserved_consulted),
       projection_edited: Boolean(state.projection_edited),
     };

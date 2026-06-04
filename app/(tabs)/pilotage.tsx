@@ -226,8 +226,12 @@ export default function PilotageScreen() {
 
   const monthYearLabel = () => new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
+  // Étape « Suivre une recommandation » validée dès qu'on utilise un bouton de reco.
+  const markRecoUsed = () => updateOnboarding.mutate({ flags: { reco_validated: true } });
+
   // Ouvrir le virement pré-rempli pour une reco épargne/invest
   const openRecoTransfer = (reco: SmartRecommendation, dest: 'savings' | 'investment') => {
+    markRecoUsed();
     const label = dest === 'savings' ? 'Épargne' : 'Investissement';
     router.push(buildTransferUrl({ dest, amount: reco.amount, label: `${label} ${monthYearLabel()}`, recoComplete: reco.type }) as any);
   };
@@ -557,9 +561,10 @@ export default function PilotageScreen() {
               onCreateAccount={() => router.push('/(tabs)/comptes/add')}
               onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
               onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
-              onCumuler={(type, reco) => { setPreModalAmount(reco.amount); setPreModal(type); }}
+              onCumuler={(type, reco) => { markRecoUsed(); setPreModalAmount(reco.amount); setPreModal(type); }}
               reservedThisMonth={reservationsTotal}
               onReserver={(reco, amount) => {
+                markRecoUsed();
                 // `amount` = nouveau TOTAL conservé du mois (incluant cette reco) → on remplace.
                 const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
                 const newTotal = Math.round(amount ?? (reservationsTotal + reco.amount));
