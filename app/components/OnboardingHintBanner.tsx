@@ -22,11 +22,16 @@ export default function OnboardingHintBanner() {
   const key = params.onb as OnboardingStepKey | undefined;
   const [dismissed, setDismissed] = useState(false);
 
+  // Fermer = masquer le coachmark ET retirer la surbrillance (on efface le param ?onb).
+  const dismissRef = useRef(() => {});
+  dismissRef.current = () => { setDismissed(true); router.setParams({ onb: '' as any }); };
+  const dismiss = () => dismissRef.current();
+
   // Swipe horizontal pour fermer la notification (comme la croix).
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy),
-      onPanResponderRelease: (_e, g) => { if (Math.abs(g.dx) > 60) setDismissed(true); },
+      onPanResponderRelease: (_e, g) => { if (Math.abs(g.dx) > 60) dismissRef.current(); },
     })
   ).current;
 
@@ -69,7 +74,7 @@ export default function OnboardingHintBanner() {
               <Ionicons name="arrow-forward" size={14} color={COLORS.bg} />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={() => setDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
+            <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
               <Ionicons name="close" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}

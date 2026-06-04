@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  useWindowDimensions, Platform,
+  useWindowDimensions, Platform, findNodeHandle,
 } from 'react-native';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -153,6 +153,21 @@ export default function ProjectionScreen() {
   const tabsRef = React.useRef<View>(null);
   const chartRef = React.useRef<View>(null);
   const hypoRef = React.useRef<View>(null);
+
+  // Scroll vers la zone « Hypothèses » mise en évidence par le guide « Pour bien démarrer ».
+  React.useEffect(() => {
+    if (!onbHypo) return;
+    const t = setTimeout(() => {
+      const node = scrollRef.current ? findNodeHandle(scrollRef.current) : null;
+      if (node && hypoRef.current?.measureLayout) {
+        hypoRef.current.measureLayout(node, (_x: number, y: number) => {
+          scrollRef.current?.scrollTo({ y: Math.max(0, y - 90), animated: true });
+        }, () => {});
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [onbHypo]);
+
   const PROJECTION_GUIDE: BubbleStep[] = [
     { getRect: () => tabRect(4), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
     { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },

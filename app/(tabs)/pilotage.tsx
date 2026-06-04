@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import MonthlyClosure from '../components/MonthlyClosure';
@@ -104,10 +104,26 @@ export default function PilotageScreen() {
   // ── Guide "bulles" ──
   const guide = useScreenGuide('pilotage', user?.id);
   const scrollRef = React.useRef<ScrollView>(null);
+  const reservedRef = React.useRef<any>(null);
   const overviewRef = React.useRef<View>(null);
   const suiviRef = React.useRef<View>(null);
   const monthRef = React.useRef<View>(null);
   const projectsObjectivesRef = React.useRef<View>(null);
+
+  // Scroll vers la zone mise en évidence par le guide « Pour bien démarrer ».
+  React.useEffect(() => {
+    const target = onbReco ? monthRef : onbReserved ? reservedRef : null;
+    if (!target) return;
+    const t = setTimeout(() => {
+      const node = scrollRef.current ? findNodeHandle(scrollRef.current) : null;
+      if (node && target.current?.measureLayout) {
+        target.current.measureLayout(node, (_x: number, y: number) => {
+          scrollRef.current?.scrollTo({ y: Math.max(0, y - 90), animated: true });
+        }, () => {});
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [onbReco, onbReserved]);
 
   const PILOTAGE_GUIDE: BubbleStep[] = [
     {
@@ -392,6 +408,7 @@ export default function PilotageScreen() {
                     return (
                       <RowWrap
                         key={it.label}
+                        ref={isReserveRow ? reservedRef : undefined}
                         style={[styles.suiviRow, isReserveRow && onbReserved ? onbGlow(COLORS, true) : null]}
                         {...(isReserveRow ? { onPress: openReservedModal, activeOpacity: 0.7 } : {})}
                       >
