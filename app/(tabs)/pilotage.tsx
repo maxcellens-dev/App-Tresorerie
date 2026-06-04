@@ -300,8 +300,7 @@ export default function PilotageScreen() {
         >
           <MonthlyClosure
             surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
-            mainCheckingId={mainCheckingId}
-            mainCheckingBalance={accounts.find((a) => a.id === mainCheckingId)?.balance ?? pilotageData.total_checking}
+            checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
           />
 
           {/* ═══════════ SECTION 1 : Vue d'ensemble ═══════════ */}

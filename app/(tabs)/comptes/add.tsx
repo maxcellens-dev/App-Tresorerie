@@ -164,7 +164,7 @@ export default function AddAccountScreen() {
                 {fiscalRates.find((r) => r.envelope === fiscalEnvelope)?.note ?? 'Détermine la fiscalité utilisée dans la page Projection.'}
               </Text>
 
-              <Text style={styles.label}>Total déjà apporté (optionnel)</Text>
+              <Text style={styles.label}>Apport (Montant total des apports à date)</Text>
               <TextInput
                 style={styles.input}
                 value={initialContributed}

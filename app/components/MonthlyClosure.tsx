@@ -3,7 +3,7 @@
  * Activé seulement si le drapeau admin monthly_closure_enabled est vrai (sinon rien ne s'affiche).
  * Monté sur le Pilotage.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,11 +15,11 @@ import { CURRENCY_SYMBOL } from '../lib/currency';
 interface Props {
   /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
   surplusEstimate: number;
-  mainCheckingId?: string;
-  mainCheckingBalance?: number;
+  /** Tous les comptes courants (clôture du solde réel possible compte par compte). */
+  checkingAccounts?: { id: string; name: string; balance: number }[];
 }
 
-export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCheckingBalance = 0 }: Props) {
+export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] }: Props) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const { user } = useAuth();
@@ -30,7 +30,7 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'direct' | 'balance'>('direct');
   const [flash, setFlash] = useState(false);
-  const [balanceInput, setBalanceInput] = useState('');
+  const [balances, setBalances] = useState<Record<string, string>>({}); // par compte courant
   const [busy, setBusy] = useState(false);
   // Mois déjà clôturés dans cette session (avance immédiate au mois suivant, avant le refetch).
   const [closedLocally, setClosedLocally] = useState<string[]>([]);
@@ -39,54 +39,49 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
   const oldest = effectivePending[0];
   const multiple = effectivePending.length > 1;
   const monthsToClose = flash ? effectivePending : (oldest ? [oldest] : []);
+  const hasChecking = checkingAccounts.length > 0;
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 
-  const openModal = () => { setClosedLocally([]); setMode('direct'); setFlash(false); setBalanceInput(''); setOpen(true); };
-  const closeModal = () => { setOpen(false); setClosedLocally([]); setMode('direct'); setFlash(false); setBalanceInput(''); };
+  const openModal = () => { setClosedLocally([]); setMode('direct'); setFlash(false); setBalances({}); setOpen(true); };
+  const closeModal = () => { setOpen(false); setClosedLocally([]); setMode('direct'); setFlash(false); setBalances({}); };
 
-  // Solde du compte courant à la fin du mois concerné (pour savoir ce que l'on valide).
+  // Solde d'un compte à la fin du mois concerné (= solde actuel − transactions postérieures).
   const targetKey = monthsToClose[monthsToClose.length - 1] ?? oldest;
-  const balanceAtEnd = useMemo(() => {
-    if (!mainCheckingId || !targetKey) return mainCheckingBalance;
+  const balanceAtEndFor = (accId: string, accBalance: number) => {
+    if (!targetKey) return accBalance;
     const cutoff = lastDayOfMonthKey(targetKey);
     const after = (allTx as any[])
-      .filter((t) => t.account_id === mainCheckingId && t.date > cutoff)
+      .filter((t) => t.account_id === accId && t.date > cutoff)
       .reduce((s, t) => s + Number(t.amount), 0);
-    return mainCheckingBalance - after;
-  }, [allTx, mainCheckingId, targetKey, mainCheckingBalance]);
+    return accBalance - after;
+  };
 
   const confirm = async () => {
     if (!monthsToClose.length) return;
     setBusy(true);
     try {
-      if (mode === 'balance' && mainCheckingId) {
-        const newBalance = parseFloat(balanceInput.replace(',', '.'));
-        if (!Number.isNaN(newBalance)) {
-          const closeKey = monthsToClose[monthsToClose.length - 1];
-          const prevMonth = addMonthKey(ym(new Date()), -1);
-          const isLatest = closeKey >= prevMonth; // clôture qui atteint le mois précédent (solde réel = solde actuel)
-          const diff = newBalance - mainCheckingBalance;
-          if (Math.abs(diff) > 0.005) {
+      if (mode === 'balance' && hasChecking) {
+        const closeKey = monthsToClose[monthsToClose.length - 1];
+        const prevMonth = addMonthKey(ym(new Date()), -1);
+        const isLatest = closeKey >= prevMonth; // clôture qui atteint le mois précédent (solde réel = solde actuel)
+        // Un ajustement par compte courant renseigné.
+        for (const acc of checkingAccounts) {
+          const raw = balances[acc.id];
+          if (raw == null || raw.trim() === '') continue;
+          const newBalance = parseFloat(raw.replace(',', '.'));
+          if (Number.isNaN(newBalance)) continue;
+          const diff = newBalance - acc.balance;
+          if (Math.abs(diff) <= 0.005) continue;
+          await addTransaction.mutateAsync({
+            account_id: acc.id, category_id: null, amount: diff,
+            date: lastDayOfMonthKey(closeKey), note: 'Ajustement de solde', is_recurring: false,
+          } as any);
+          // Mois passé (≠ mois précédent) : compensation au mois suivant → solde actuel inchangé.
+          if (!isLatest) {
             await addTransaction.mutateAsync({
-              account_id: mainCheckingId,
-              category_id: null,
-              amount: diff,
-              date: lastDayOfMonthKey(closeKey),
-              note: 'Ajustement de solde',
-              is_recurring: false,
+              account_id: acc.id, category_id: null, amount: -diff,
+              date: addMonthKey(closeKey, 1) + '-01', note: 'Ajustement de clôture (compensation)', is_recurring: false,
             } as any);
-            // Mois passé (pas le mois précédent) : on compense au mois suivant pour ne pas
-            // modifier le solde actuel (seul le solde à fin de mois est ajusté).
-            if (!isLatest) {
-              await addTransaction.mutateAsync({
-                account_id: mainCheckingId,
-                category_id: null,
-                amount: -diff,
-                date: addMonthKey(closeKey, 1) + '-01',
-                note: 'Ajustement de clôture (compensation)',
-                is_recurring: false,
-              } as any);
-            }
           }
         }
       }
@@ -95,7 +90,7 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
       const remaining = effectivePending.filter((m) => !monthsToClose.includes(m));
       if (!flash && remaining.length > 0) {
         setClosedLocally((prev) => [...prev, ...monthsToClose]);
-        setBalanceInput('');
+        setBalances({});
         setMode('direct');
       } else {
         closeModal();
@@ -144,13 +139,6 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
               </Text>
             </View>
 
-            {mainCheckingId && targetKey && (
-              <View style={styles.balanceBox}>
-                <Text style={styles.balanceLabel}>Solde du compte courant à fin {monthLabel(targetKey)}</Text>
-                <Text style={styles.balanceValue}>{fmt(balanceAtEnd)}</Text>
-              </View>
-            )}
-
             {multiple && (
               <View style={styles.segRow}>
                 <TouchableOpacity style={[styles.seg, !flash && styles.segActive]} onPress={() => setFlash(false)}>
@@ -166,26 +154,44 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
               <TouchableOpacity style={[styles.seg, mode === 'direct' && styles.segActive]} onPress={() => setMode('direct')}>
                 <Text style={[styles.segText, mode === 'direct' && styles.segTextActive]}>Validation directe</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.seg, mode === 'balance' && styles.segActive]} onPress={() => setMode('balance')} disabled={!mainCheckingId}>
+              <TouchableOpacity style={[styles.seg, mode === 'balance' && styles.segActive]} onPress={() => setMode('balance')} disabled={!hasChecking}>
                 <Text style={[styles.segText, mode === 'balance' && styles.segTextActive]}>Ajuster le solde réel</Text>
               </TouchableOpacity>
             </View>
 
             {mode === 'direct' ? (
-              <Text style={styles.hint}>Vous avez saisi toutes vos transactions ? Validez simplement la clôture.</Text>
+              <>
+                <Text style={styles.hint}>Vous avez saisi toutes vos transactions ? Validez simplement la clôture.</Text>
+                {hasChecking && targetKey && (
+                  <View style={styles.balanceList}>
+                    {checkingAccounts.map((acc) => (
+                      <View key={acc.id} style={styles.balanceBox}>
+                        <Text style={styles.balanceLabel} numberOfLines={1}>{checkingAccounts.length > 1 ? acc.name : 'Solde du compte courant'} à fin {monthLabel(targetKey)}</Text>
+                        <Text style={styles.balanceValue}>{fmt(balanceAtEndFor(acc.id, acc.balance))}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
             ) : (
               <>
-                <Text style={styles.label}>Solde réel de votre compte courant</Text>
-                <TextInput
-                  style={styles.input}
-                  value={balanceInput}
-                  onChangeText={(v) => setBalanceInput(v.replace(/[^0-9.,-]/g, ''))}
-                  keyboardType="decimal-pad"
-                  placeholder={`Ex. ${Math.round(mainCheckingBalance)}`}
-                  placeholderTextColor={COLORS.textSecondary}
-                  autoFocus
-                />
-                <Text style={styles.hint}>Une transaction d'ajustement sera créée au {lastDayOfMonthKey(monthsToClose[monthsToClose.length - 1] ?? oldest ?? '')} pour refléter ce solde.</Text>
+                <Text style={styles.label}>
+                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de votre compte courant'} à fin {targetKey ? monthLabel(targetKey) : ''}
+                </Text>
+                {checkingAccounts.map((acc) => (
+                  <View key={acc.id} style={styles.acctInputRow}>
+                    {checkingAccounts.length > 1 && <Text style={styles.acctName} numberOfLines={1}>{acc.name}</Text>}
+                    <TextInput
+                      style={[styles.input, checkingAccounts.length > 1 && { flex: 1, marginBottom: 0 }]}
+                      value={balances[acc.id] ?? ''}
+                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: v.replace(/[^0-9.,-]/g, '') }))}
+                      keyboardType="decimal-pad"
+                      placeholder={`Ex. ${Math.round(balanceAtEndFor(acc.id, acc.balance))}`}
+                      placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                ))}
+                <Text style={styles.hint}>Une transaction d'ajustement sera créée au {lastDayOfMonthKey(targetKey ?? '')} pour chaque compte renseigné.</Text>
               </>
             )}
 
@@ -246,9 +252,12 @@ function makeStyles(c: any) {
     sub: { fontSize: 14, color: c.textSecondary },
     monthRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
     monthHighlight: { fontSize: 19, fontWeight: '800', color: c.emerald, textTransform: 'capitalize' },
-    balanceBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 14, marginTop: 4, marginBottom: 4 },
+    balanceList: { marginTop: 8, gap: 6 },
+    balanceBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 14 },
     balanceLabel: { fontSize: 13, color: c.textSecondary, flex: 1, marginRight: 8 },
     balanceValue: { fontSize: 17, fontWeight: '800', color: c.text },
+    acctInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+    acctName: { fontSize: 13, fontWeight: '600', color: c.text, width: 110 },
     segRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     seg: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     segActive: { backgroundColor: c.emerald, borderColor: c.emerald },
