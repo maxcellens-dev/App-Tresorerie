@@ -331,6 +331,22 @@ export default function EditTransactionScreen() {
     });
   }
 
+  // Étape 2 : confirmation finale du périmètre choisi.
+  function confirmDeleteScope(scope: 'one' | 'future' | 'all') {
+    setShowRecDelete(false);
+    const label =
+      scope === 'one' ? 'cette échéance uniquement'
+      : scope === 'future' ? 'cette échéance et les suivantes'
+      : 'toute la série (passées et futures)';
+    showConfirm({
+      title: 'Confirmer la suppression',
+      message: `Vous souhaitez supprimer ${label} ?`,
+      confirmLabel: 'Supprimer',
+      confirmColor: '#f87171',
+      onConfirm: () => { deleteRecurringScope(scope); },
+    });
+  }
+
   // ── Suppression d'une récurrence : 3 périmètres possibles ──
   async function deleteRecurringScope(scope: 'one' | 'future' | 'all') {
     if (!id || !tx) return;
@@ -713,16 +729,16 @@ export default function EditTransactionScreen() {
               <Text style={styles.confirmTitle}>Supprimer la transaction récurrente</Text>
               <Text style={styles.confirmMessage}>Que souhaitez-vous supprimer ?</Text>
               {instanceDate && (
-                <TouchableOpacity style={styles.recScopeBtn} onPress={() => deleteRecurringScope('one')}>
+                <TouchableOpacity style={styles.recScopeBtn} onPress={() => confirmDeleteScope('one')}>
                   <Ionicons name="remove-circle-outline" size={18} color={COLORS.text} />
                   <Text style={styles.recScopeText}>Cette échéance uniquement</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.recScopeBtn} onPress={() => deleteRecurringScope('future')}>
+              <TouchableOpacity style={styles.recScopeBtn} onPress={() => confirmDeleteScope('future')}>
                 <Ionicons name="arrow-forward-circle-outline" size={18} color={COLORS.text} />
                 <Text style={styles.recScopeText}>Cette échéance et les suivantes</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.recScopeBtn, { borderColor: COLORS.danger + '66' }]} onPress={() => deleteRecurringScope('all')}>
+              <TouchableOpacity style={[styles.recScopeBtn, { borderColor: COLORS.danger + '66' }]} onPress={() => confirmDeleteScope('all')}>
                 <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                 <Text style={[styles.recScopeText, { color: COLORS.danger }]}>Toute la série (passées et futures)</Text>
               </TouchableOpacity>
