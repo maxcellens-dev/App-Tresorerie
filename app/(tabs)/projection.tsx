@@ -14,6 +14,7 @@ import GuideOverlay, { type BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { tabRect } from '../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../lib/onbHighlight';
+import { computeContributed } from '../lib/contributed';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -179,15 +180,16 @@ export default function ProjectionScreen() {
   // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {
     const list = allAccounts.filter((a: any) => a.type === 'investment');
-    if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre', currentContributed: a.current_contributed != null ? Number(a.current_contributed) : null }));
-    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre', currentContributed: null as number | null }];
+    if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre', initialContributed: a.initial_contributed != null ? Number(a.initial_contributed) : null }));
+    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre', initialContributed: null as number | null }];
   }, [allAccounts]);
 
-  // Apport repris dans l'hypothèse = « apport actuel » du compte (suivi : apports + virements − retraits au prorata).
-  // À défaut (non renseigné), on retombe sur la valeur du compte.
-  const autoContributedFor = React.useCallback((acc: { balance: number; currentContributed: number | null }) => {
-    return acc.currentContributed != null ? acc.currentContributed : acc.balance;
-  }, []);
+  // Apport repris dans l'hypothèse = « apport actuel » dérivé des transactions (apports + virements − retraits au prorata).
+  // À défaut (aucun apport de base défini), on retombe sur la valeur du compte.
+  const autoContributedFor = React.useCallback((acc: { id: string; balance: number; initialContributed: number | null }) => {
+    const derived = computeContributed({ id: acc.id, type: 'investment', balance: acc.balance, initial_contributed: acc.initialContributed }, transactions as any);
+    return derived != null ? derived : acc.balance;
+  }, [transactions]);
 
   // ── État : hypothèses par compte + durée globale ──
   const [hypos, setHypos] = useState<Record<string, AccountHypo>>({});
@@ -252,7 +254,7 @@ export default function ProjectionScreen() {
       let changed = false;
       const next = { ...prev };
       for (const acc of investAccounts) {
-        if (acc.currentContributed == null || !next[acc.id]) continue;
+        if (acc.initialContributed == null || !next[acc.id]) continue;
         const auto = autoContributedFor(acc);
         const base = next[acc.id].contributedBase ?? auto;
         const delta = auto - base;
@@ -285,7 +287,7 @@ export default function ProjectionScreen() {
   };
 
   // Réinitialise les hypothèses du compte : apport = total apporté à la création + apports/virements.
-  const resetHypo = (acc: { id: string; balance: number; envelope: string; currentContributed: number | null }) => {
+  const resetHypo = (acc: { id: string; balance: number; envelope: string; initialContributed: number | null }) => {
     const auto = autoContributedFor(acc);
     updateHypo(acc.id, {
       contributed: String(Math.round(auto)),

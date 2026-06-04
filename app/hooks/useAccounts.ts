@@ -169,7 +169,7 @@ export function useCloseAccount(profileId: string | undefined) {
 export function useUpdateAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; name?: string; type?: string; currency?: string; balance?: number; fiscal_envelope?: string | null; current_contributed?: number | null }) => {
+    mutationFn: async (input: { id: string; name?: string; type?: string; currency?: string; balance?: number; fiscal_envelope?: string | null; current_contributed?: number | null; initial_contributed?: number | null }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       if (input.name !== undefined) {
         const nameNorm = normalizeName(input.name);
@@ -191,6 +191,7 @@ export function useUpdateAccount(profileId: string | undefined) {
       if (input.balance !== undefined) updates.balance = input.balance;
       if (input.fiscal_envelope !== undefined) updates.fiscal_envelope = input.fiscal_envelope;
       if (input.current_contributed !== undefined) updates.current_contributed = input.current_contributed;
+      if (input.initial_contributed !== undefined) updates.initial_contributed = input.initial_contributed;
       const { data, error } = await supabase
         .from('accounts')
         .update(updates)

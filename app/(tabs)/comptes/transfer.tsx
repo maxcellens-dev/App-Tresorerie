@@ -18,8 +18,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAccounts, useUpdateAccount } from '../../hooks/useAccounts';
-import { useAddTransaction, useReleaseReservedByProject } from '../../hooks/useTransactions';
+import { useAccounts } from '../../hooks/useAccounts';
+import { useAddTransaction, useReleaseReservedByProject, useTransactions } from '../../hooks/useTransactions';
+import { computeContributed } from '../../lib/contributed';
 import { useResetPreSaving } from '../../hooks/usePreSavings';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
@@ -41,8 +42,8 @@ export default function TransferScreen() {
   }>();
   const { user } = useAuth();
   const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: allTransactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
-  const updateAccount = useUpdateAccount(user?.id);
   const resetPreSaving = useResetPreSaving(user?.id);
   const releaseReserved = useReleaseReservedByProject(user?.id);
 
@@ -125,18 +126,9 @@ export default function TransferScreen() {
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
       });
-      // Suivi de l'apport (capital injecté) — virements ponctuels uniquement.
-      if (!isRecurring) {
-        // Retrait d'un compte d'invest → réduction de l'apport au prorata.
-        if (isInvestWithdrawal && fromAcc && prorata) {
-          await updateAccount.mutateAsync({ id: fromAcc.id, current_contributed: prorata.remainingApport });
-        }
-        // Virement vers un compte d'invest → augmentation de l'apport.
-        if (toAcc?.type === 'investment') {
-          const base = toAcc.current_contributed != null ? toAcc.current_contributed : (toAcc.initial_contributed != null ? toAcc.initial_contributed : Number(toAcc.balance));
-          await updateAccount.mutateAsync({ id: toAcc.id, current_contributed: base + Math.abs(num) });
-        }
-      }
+      // L'apport « actuel » est dérivé des transactions (cf. computeContributed) :
+      // l'ajout/suppression d'un virement est donc automatiquement répercuté, rien à mettre à jour ici.
+
       // Virement validé depuis une reco → la marquer « traitée » (ne réapparaît pas)
       if (params.recoComplete) {
         await addCompleted(params.recoComplete as RecoType);
@@ -177,15 +169,16 @@ export default function TransferScreen() {
   const fromAcc = accounts.find((a) => a.id === fromAccountId);
   const toAcc = accounts.find((a) => a.id === toAccountId);
   const withdrawalNum = parseFloat((amount || '').replace(',', '.'));
-  const isInvestWithdrawal = fromAcc?.type === 'investment' && fromAcc.current_contributed != null && !isRecurring;
+  const fromApport = fromAcc ? computeContributed(fromAcc, allTransactions as any) : null;
+  const isInvestWithdrawal = fromAcc?.type === 'investment' && fromApport != null && !isRecurring;
   let prorata: { capital: number; plus: number; remainingApport: number; remainingBalance: number; capitalPct: number } | null = null;
-  if (isInvestWithdrawal && fromAcc && fromAcc.balance > 0 && withdrawalNum > 0) {
-    const ratio = Math.min(1, (fromAcc.current_contributed as number) / fromAcc.balance);
+  if (isInvestWithdrawal && fromAcc && fromApport != null && fromAcc.balance > 0 && withdrawalNum > 0) {
+    const ratio = Math.min(1, fromApport / fromAcc.balance);
     const capital = withdrawalNum * ratio;
     prorata = {
       capital,
       plus: withdrawalNum - capital,
-      remainingApport: Math.max(0, (fromAcc.current_contributed as number) - capital),
+      remainingApport: Math.max(0, fromApport - capital),
       remainingBalance: fromAcc.balance - withdrawalNum,
       capitalPct: Math.round(ratio * 100),
     };

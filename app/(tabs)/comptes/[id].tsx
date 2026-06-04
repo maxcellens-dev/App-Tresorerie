@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useUpdateAccount } from '../../hooks/useAccounts';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
+import { computeContributed } from '../../lib/contributed';
 import type { TransactionWithDetails } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
@@ -86,8 +87,8 @@ export default function AccountDetailScreen() {
   const [apportDate, setApportDate] = useState(todayISO());
   const [apportDateDisplay, setApportDateDisplay] = useState(formatDateFrench(todayISO()));
   const [showApportCalendar, setShowApportCalendar] = useState(false);
-  const [apportActuel, setApportActuel] = useState('');
-  const [apportActuelDirty, setApportActuelDirty] = useState(false);
+  const [apportBase, setApportBase] = useState('');
+  const [apportBaseDirty, setApportBaseDirty] = useState(false);
 
   const [showBalance, setShowBalance] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
@@ -172,11 +173,7 @@ export default function AccountDetailScreen() {
         note: apportNote.trim() || 'Apport',
         is_recurring: false,
       });
-      // L'apport augmente le capital injecté (apport actuel).
-      if (account?.type === 'investment') {
-        const base = account.current_contributed != null ? account.current_contributed : (account.initial_contributed != null ? account.initial_contributed : Number(account.balance));
-        await updateAccount.mutateAsync({ id, current_contributed: base + num });
-      }
+      // L'apport « actuel » est dérivé des transactions (computeContributed) → rien à mettre à jour ici.
       setShowApport(false);
       setApportAmount('');
       setApportNote('Apport');
@@ -189,21 +186,24 @@ export default function AccountDetailScreen() {
     }
   }
 
-  // Apport actuel (capital injecté) — éditable.
+  // Apport à la création (capital de base) — éditable. L'apport actuel en est dérivé.
   useEffect(() => {
-    if (account?.type === 'investment' && !apportActuelDirty) {
-      setApportActuel(account.current_contributed != null ? String(Math.round(account.current_contributed)) : '');
+    if (account?.type === 'investment' && !apportBaseDirty) {
+      setApportBase(account.initial_contributed != null ? String(Math.round(account.initial_contributed)) : '');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account?.current_contributed, account?.type]);
+  }, [account?.initial_contributed, account?.type]);
 
-  async function saveApportActuel() {
+  // Apport actuel = dérivé des transactions (apports/virements − retraits au prorata).
+  const apportActuel = account ? computeContributed(account, transactions as any) : null;
+
+  async function saveApportBase() {
     if (!id) return;
-    const v = parseFloat(apportActuel.replace(',', '.'));
+    const v = parseFloat(apportBase.replace(',', '.'));
     if (Number.isNaN(v)) { Alert.alert('Montant invalide', 'Saisissez un montant valide.'); return; }
     try {
-      await updateAccount.mutateAsync({ id, current_contributed: v });
-      setApportActuelDirty(false);
+      await updateAccount.mutateAsync({ id, current_contributed: v, initial_contributed: v } as any);
+      setApportBaseDirty(false);
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     }
@@ -440,30 +440,30 @@ export default function AccountDetailScreen() {
           <View style={styles.apportCard}>
             <View style={styles.apportRow}>
               <Text style={styles.apportLabel}>Apport à la création</Text>
-              <Text style={styles.apportValueRO}>
-                {account.initial_contributed != null ? account.initial_contributed.toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL : '—'}
-              </Text>
-            </View>
-            <View style={styles.apportRow}>
-              <Text style={styles.apportLabel}>Apport actuel</Text>
               <View style={styles.apportEditRow}>
                 <TextInput
                   style={styles.apportInput}
-                  value={apportActuel}
-                  onChangeText={(v) => { setApportActuel(v.replace(/[^0-9.,-]/g, '')); setApportActuelDirty(true); }}
+                  value={apportBase}
+                  onChangeText={(v) => { setApportBase(v.replace(/[^0-9.,-]/g, '')); setApportBaseDirty(true); }}
                   keyboardType="decimal-pad"
                   placeholder="—"
                   placeholderTextColor={COLORS.textSecondary}
                 />
                 <Text style={styles.apportCur}>{CURRENCY_SYMBOL}</Text>
-                {apportActuelDirty && (
-                  <TouchableOpacity style={styles.apportSave} onPress={saveApportActuel}>
+                {apportBaseDirty && (
+                  <TouchableOpacity style={styles.apportSave} onPress={saveApportBase}>
                     <Ionicons name="checkmark" size={16} color={COLORS.bg} />
                   </TouchableOpacity>
                 )}
               </View>
             </View>
-            <Text style={styles.apportHint}>L'apport actuel est repris dans la Projection. Il augmente à chaque apport/virement entrant et diminue au prorata lors d'un retrait.</Text>
+            <View style={styles.apportRow}>
+              <Text style={styles.apportLabel}>Apport actuel</Text>
+              <Text style={styles.apportValueRO}>
+                {apportActuel != null ? apportActuel.toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL : '—'}
+              </Text>
+            </View>
+            <Text style={styles.apportHint}>L'apport actuel (repris dans la Projection) est calculé automatiquement : apport de création + apports/virements entrants − part de capital retirée au prorata lors des retraits.</Text>
           </View>
         )}
 

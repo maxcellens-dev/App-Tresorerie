@@ -73,16 +73,12 @@ export function useAddTransaction(profileId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
-      // Les brouillons n'affectent pas le solde du compte
+      // Les brouillons n'affectent pas le solde du compte.
+      // Solde = solde initial (création) + somme de toutes les transactions non-brouillon.
       if (!input.is_draft) {
-        const { data: acc } = await supabase.from('accounts').select('balance, init_date').eq('id', input.account_id).single();
+        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', input.account_id).single();
         if (acc) {
-          // Si la transaction est antérieure à init_date ET dans le même mois → déjà incluse dans le solde initial
-          const initDate: string | null = (acc as any).init_date ?? null;
-          const isPreInitSameMonth = initDate && input.date < initDate && input.date.slice(0, 7) === initDate.slice(0, 7);
-          if (!isPreInitSameMonth) {
-            await supabase.from('accounts').update({ balance: Number(acc.balance) + input.amount }).eq('id', input.account_id);
-          }
+          await supabase.from('accounts').update({ balance: Number(acc.balance) + input.amount }).eq('id', input.account_id);
         }
       }
       return data;
@@ -146,16 +142,9 @@ export function useUpdateTransaction(profileId: string | undefined) {
       const amountOrAccountChanged = input.amount !== undefined || input.account_id !== undefined;
       const shouldSubtractOld = !wasInDraft && amountOrAccountChanged && !isNowDraft;
       if (shouldSubtractOld) {
-        const { data: acc } = await supabase.from('accounts').select('balance, init_date').eq('id', oldAccId).single();
+        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', oldAccId).single();
         if (acc) {
-          // Récupérer la date originale de la transaction pour vérifier le cas pré-init
-          const { data: origTx } = await supabase.from('transactions').select('date').eq('id', input.id).single();
-          const origDate: string | null = (origTx as any)?.date ?? null;
-          const initDate: string | null = (acc as any).init_date ?? null;
-          const wasPreInitSameMonth = origDate && initDate && origDate < initDate && origDate.slice(0, 7) === initDate.slice(0, 7);
-          if (!wasPreInitSameMonth) {
-            await supabase.from('accounts').update({ balance: Number(acc.balance) - oldAmount }).eq('id', oldAccId);
-          }
+          await supabase.from('accounts').update({ balance: Number(acc.balance) - oldAmount }).eq('id', oldAccId);
         }
       }
 
@@ -181,14 +170,9 @@ export function useUpdateTransaction(profileId: string | undefined) {
       if (shouldAddNew) {
         const newAccId = (input.account_id !== undefined ? input.account_id : oldAccId) as string;
         const newAmount = input.amount !== undefined ? input.amount : oldAmount;
-        const newDate = input.date ?? (await supabase.from('transactions').select('date').eq('id', input.id).single().then(r => (r.data as any)?.date ?? null));
-        const { data: acc } = await supabase.from('accounts').select('balance, init_date').eq('id', newAccId).single();
+        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', newAccId).single();
         if (acc) {
-          const initDate: string | null = (acc as any).init_date ?? null;
-          const isPreInitSameMonth = newDate && initDate && newDate < initDate && newDate.slice(0, 7) === initDate.slice(0, 7);
-          if (!isPreInitSameMonth) {
-            await supabase.from('accounts').update({ balance: Number(acc.balance) + newAmount }).eq('id', newAccId);
-          }
+          await supabase.from('accounts').update({ balance: Number(acc.balance) + newAmount }).eq('id', newAccId);
         }
       }
       return data;
@@ -258,13 +242,9 @@ export function useDeleteTransaction(profileId: string | undefined) {
 
       // Les brouillons n'ont jamais affecté le solde → ne pas l'ajuster à la suppression
       if (!isDraft) {
-        const { data: acc } = await supabase.from('accounts').select('balance, init_date').eq('id', txAccountId).single();
+        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txAccountId).single();
         if (acc) {
-          const initDate: string | null = (acc as any).init_date ?? null;
-          const isPreInitSameMonth = initDate && txDate < initDate && txDate.slice(0, 7) === initDate.slice(0, 7);
-          if (!isPreInitSameMonth) {
-            await supabase.from('accounts').update({ balance: Number(acc.balance) - txAmount }).eq('id', txAccountId);
-          }
+          await supabase.from('accounts').update({ balance: Number(acc.balance) - txAmount }).eq('id', txAccountId);
         }
       }
 

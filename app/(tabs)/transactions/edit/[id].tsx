@@ -84,8 +84,10 @@ export default function EditTransactionScreen() {
     if (tx) {
       const initialAmount = currentInstanceOverride ? currentInstanceOverride.override_amount : Number(tx.amount);
       setAmount(Math.abs(initialAmount).toString());
-      setDate(instanceDate ?? tx.date);
-      setDateDisplay(formatDateFrench(instanceDate ?? tx.date));
+      // `instanceDate` peut être un mois (YYYY-MM) pour une occurrence récurrente → date complète.
+      const occ = instanceDate ? occurrenceFullDate() : tx.date;
+      setDate(occ);
+      setDateDisplay(formatDateFrench(occ));
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
@@ -107,12 +109,31 @@ export default function EditTransactionScreen() {
     setCategoryId('');
   };
 
+  // Date d'effet par défaut = date complète de l'échéance concernée (jj-mm-aaaa).
+  // `instanceDate` peut être un mois (YYYY-MM) → on complète avec le jour de la transaction.
+  function occurrenceFullDate(): string {
+    if (instanceDate && /^\d{4}-\d{2}-\d{2}$/.test(instanceDate)) return instanceDate;
+    if (instanceDate && /^\d{4}-\d{2}$/.test(instanceDate)) {
+      const day = (tx?.date || '').slice(8, 10) || '01';
+      // Borne le jour à la longueur du mois.
+      const [y, m] = instanceDate.split('-').map(Number);
+      const maxDay = new Date(y, m, 0).getDate();
+      const d = Math.min(Number(day), maxDay);
+      return `${instanceDate}-${String(d).padStart(2, '0')}`;
+    }
+    return tx?.date || '';
+  }
+
   useEffect(() => {
     if (instanceDate && editMode === 'future' && !futureAmountDate) {
-      setFutureAmountDate(instanceDate);
-      setFutureAmountDateDisplay(formatDateFrench(instanceDate));
+      const full = occurrenceFullDate();
+      if (full) {
+        setFutureAmountDate(full);
+        setFutureAmountDateDisplay(formatDateFrench(full));
+      }
     }
-  }, [instanceDate, editMode, futureAmountDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instanceDate, editMode, futureAmountDate, tx?.date]);
 
   function toIsoDate(date: Date) {
     const y = date.getFullYear();
@@ -167,17 +188,13 @@ export default function EditTransactionScreen() {
       : null;
 
     const futureAmountNum = futureAmount.trim() ? parseFloat(futureAmount.replace(',', '.')) : null;
-    const effectiveDateISO = futureAmountDate.trim()
-      ? (parseDateFromFrench(futureAmountDate.trim()) || futureAmountDate.trim())
-      : '';
+    // La section « Modifier le montant futur » n'est prise en compte QUE si un nouveau montant
+    // est saisi. `futureAmountDate` est stocké en ISO → on exige une date complète valide.
+    const useFutureSection = futureAmountNum !== null && !Number.isNaN(futureAmountNum) && futureAmountNum !== 0;
+    const effectiveDateISO = /^\d{4}-\d{2}-\d{2}$/.test(futureAmountDate.trim()) ? futureAmountDate.trim() : '';
 
-    if (futureAmount.trim() && !effectiveDateISO) {
-      showError("La date d'effet est obligatoire lorsqu'un nouveau montant futur est saisi.", ['futureDate']);
-      return;
-    }
-
-    if (effectiveDateISO && (!futureAmountNum || Number.isNaN(futureAmountNum))) {
-      showError('Le montant futur est invalide.', ['futureAmount']);
+    if (useFutureSection && !effectiveDateISO) {
+      showError("Renseignez une date d'effet valide (jj-mm-aaaa) pour appliquer le nouveau montant futur.", ['futureDate']);
       return;
     }
 
@@ -214,9 +231,9 @@ export default function EditTransactionScreen() {
       return;
     }
 
-    const shouldUpdateFutureAmount = isRecurring && editMode === 'future' && futureAmountNum !== null && !Number.isNaN(futureAmountNum);
+    const shouldUpdateFutureAmount = isRecurring && editMode === 'future' && useFutureSection;
     if (shouldUpdateFutureAmount) {
-      const newRecurringAmount = isExpense ? -Math.abs(futureAmountNum) : Math.abs(futureAmountNum);
+      const newRecurringAmount = isExpense ? -Math.abs(futureAmountNum!) : Math.abs(futureAmountNum!);
       try {
         if (effectiveDateISO && effectiveDateISO > tx.date) {
           // Tronquer la série originale à la veille de la date d'effet (pas de changement de montant = pas de mise à jour du solde)
