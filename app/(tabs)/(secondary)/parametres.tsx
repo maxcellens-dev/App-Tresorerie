@@ -13,6 +13,7 @@ import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemeP
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 import { headerProfileRect } from '../../lib/tourTargets';
 import { useTour } from '../../contexts/TourContext';
+import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
@@ -36,6 +37,8 @@ export default function SettingsScreen() {
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
   const isAdmin = profile?.is_admin ?? false;
   const tour = useTour();
+  const { data: featureFlags } = useFeatureFlags();
+  const closureEnabled = Boolean(featureFlags?.monthly_closure_enabled);
 
   // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
   const { data: styleConfig } = useStyleConfig();
@@ -86,13 +89,6 @@ export default function SettingsScreen() {
       iconColor: '#60a5fa',
       title: 'Marge de sécurité',
       description: 'Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
-    },
-    {
-      getRef: () => monProfilRowRef,
-      icon: 'person-circle-outline',
-      iconColor: COLORS.emerald,
-      title: 'Votre profil',
-      description: 'Pour ouvrir votre profil, touchez « Mon profil » ici.',
     },
   ];
 
@@ -169,7 +165,7 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.row, { borderBottomWidth: 0 }]}
+              style={[styles.row, closureEnabled ? {} : { borderBottomWidth: 0 }]}
               activeOpacity={0.7}
               onPress={() => router.push('/(tabs)/reporting')}
             >
@@ -177,6 +173,13 @@ export default function SettingsScreen() {
               <Text style={styles.rowLabel}>Reporting</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
+            {closureEnabled && (
+              <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/cloture')}>
+                <Ionicons name="lock-closed-outline" size={20} color="#60a5fa" />
+                <Text style={styles.rowLabel}>Clôture mensuelle</Text>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Gestion ── */}
@@ -302,8 +305,8 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => tour.start()}>
-              <Ionicons name="navigate-circle-outline" size={20} color={COLORS.emerald} />
-              <Text style={styles.rowLabel}>Revoir le guide de présentation</Text>
+              <Ionicons name="navigate-circle-outline" size={18} color={COLORS.textSecondary} />
+              <Text style={[styles.rowLabel, { fontStyle: 'italic', fontSize: 13, color: COLORS.textSecondary }]}>Revoir le guide de présentation</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>

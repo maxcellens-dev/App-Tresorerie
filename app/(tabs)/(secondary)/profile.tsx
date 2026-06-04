@@ -85,10 +85,12 @@ export default function ProfileScreen() {
     setAvatarLoading(true);
     try {
       const { data, mime } = await compressAvatarToWebP(source);
-      const url = await uploadAvatar(user.id, data, mime);
+      const rawUrl = await uploadAvatar(user.id, data, mime);
+      // Anti-cache : l'URL de stockage est identique à chaque upload → on force le rafraîchissement.
+      const url = rawUrl + (rawUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
       await updateProfile.mutateAsync({ avatar_url: url });
       setAvatarUrl(url);
-      refetch?.();
+      await refetch?.();
       Alert.alert('Photo', 'Photo de profil enregistrée (max 30 Ko, WebP).');
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : "Impossible d'importer l'image.");

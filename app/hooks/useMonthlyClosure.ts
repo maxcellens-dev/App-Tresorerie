@@ -83,10 +83,11 @@ export function useMonthlyClosure(userId: string | undefined) {
       if (error) throw error;
       const maxKey = monthKeys.reduce((a, b) => (a > b ? a : b));
       const lock = lastDayOfMonthKey(maxKey);
-      await supabase.from('profiles').update({
-        closure_lock_date: lock,
-        last_closure_bilan: { month_key: maxKey, surplus, seen: false },
-      }).eq('id', userId);
+      // Bilan affiché uniquement pour le mois qui vient de se terminer (mois précédent).
+      const prevMonth = addMonthKey(ym(new Date()), -1);
+      const patch: Record<string, any> = { closure_lock_date: lock };
+      patch.last_closure_bilan = maxKey === prevMonth ? { month_key: maxKey, surplus, seen: false } : null;
+      await supabase.from('profiles').update(patch).eq('id', userId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['month_closures', userId] });
@@ -102,5 +103,20 @@ export function useMonthlyClosure(userId: string | undefined) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['profile', userId] }); },
   });
 
-  return { enabled, pendingMonths, lockDate, bilan, closeMonths, markBilanSeen };
+  const reopenMonth = useMutation({
+    mutationFn: async (monthKey: string) => {
+      if (!supabase || !userId) return;
+      await supabase.from('month_closures').delete().eq('profile_id', userId).eq('month_key', monthKey);
+      // Recalcule le verrou = dernier jour du mois clôturé le plus récent restant (sinon null).
+      const remaining = closures.filter((c) => c.month_key !== monthKey).map((c) => c.month_key);
+      const newLock = remaining.length ? lastDayOfMonthKey(remaining.reduce((a, b) => (a > b ? a : b))) : null;
+      await supabase.from('profiles').update({ closure_lock_date: newLock }).eq('id', userId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['month_closures', userId] });
+      qc.invalidateQueries({ queryKey: ['profile', userId] });
+    },
+  });
+
+  return { enabled, pendingMonths, lockDate, bilan, closures, closeMonths, markBilanSeen, reopenMonth };
 }

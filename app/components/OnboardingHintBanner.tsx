@@ -100,7 +100,7 @@ export default function OnboardingHintBanner() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    wrap: { position: 'absolute', top: Platform.OS === 'web' ? 8 : 6, left: 12, right: 12, zIndex: 60 },
+    wrap: { position: 'absolute', bottom: Platform.OS === 'web' ? 90 : 86, left: 12, right: 12, zIndex: 60 },
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.emerald + '66',

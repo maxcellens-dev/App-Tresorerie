@@ -78,7 +78,6 @@ export default function EditTransactionScreen() {
   const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end' | 'future'>(false);
 
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
-  const prevIsExpense = useRef(isExpense);
 
   useEffect(() => {
     if (tx) {
@@ -89,9 +88,6 @@ export default function EditTransactionScreen() {
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
-      // Synchroniser la ref pour éviter que l'effet « changement de type » ne réinitialise
-      // la sous-catégorie au chargement (cas d'une recette : isExpense passe de true→false).
-      prevIsExpense.current = tx.amount < 0;
       setIsExpense(tx.amount < 0);
       setIsRecurring(tx.is_recurring ?? false);
       setRecurrenceRule((tx.recurrence_rule as RecurrenceRule) ?? 'monthly');
@@ -102,12 +98,13 @@ export default function EditTransactionScreen() {
     }
   }, [tx, instanceDate, currentInstanceOverride]);
 
-  useEffect(() => {
-    if (prevIsExpense.current !== isExpense) {
-      prevIsExpense.current = isExpense;
-      setCategoryId('');
-    }
-  }, [isExpense]);
+  // Bascule de type par l'utilisateur uniquement (réinitialise la sous-catégorie).
+  // On NE met PAS d'effet sur [isExpense] pour éviter d'effacer la catégorie au chargement d'une recette.
+  const switchType = (expense: boolean) => {
+    if (expense === isExpense) return;
+    setIsExpense(expense);
+    setCategoryId('');
+  };
 
   useEffect(() => {
     if (instanceDate && editMode === 'future' && !futureAmountDate) {
@@ -368,10 +365,10 @@ export default function EditTransactionScreen() {
             /* ── Dépense / Recette ── */
             <>
               <View style={styles.toggle}>
-                <TouchableOpacity style={[styles.toggleBtn, isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(true)}>
+                <TouchableOpacity style={[styles.toggleBtn, isExpense && styles.toggleBtnActive]} onPress={() => switchType(true)}>
                   <Text style={[styles.toggleLabel, isExpense && styles.toggleLabelActive]}>Dépense</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.toggleBtn, !isExpense && styles.toggleBtnActive]} onPress={() => setIsExpense(false)}>
+                <TouchableOpacity style={[styles.toggleBtn, !isExpense && styles.toggleBtnActive]} onPress={() => switchType(false)}>
                   <Text style={[styles.toggleLabel, !isExpense && styles.toggleLabelActive]}>Recette</Text>
                 </TouchableOpacity>
               </View>

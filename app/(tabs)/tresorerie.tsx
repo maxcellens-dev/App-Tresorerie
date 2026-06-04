@@ -915,6 +915,7 @@ export default function TreasuryPlanScreen() {
                         style={[
                           styles.cell,
                           styles.cellNum,
+                          m.key === highlightMonthKey && styles.cellNumCurrent,
                           { width: colWidth },
                         ]}
                         onPress={() => {
@@ -1370,7 +1371,8 @@ function makeStyles(c: any) {
   cell: { paddingHorizontal: 10, justifyContent: 'center' },
   cellLabel: {},
   cellLabelIndent: { paddingLeft: 24 },
-  cellNum: { alignItems: 'flex-end' },
+  cellNum: { alignItems: 'flex-end', paddingRight: 14 },
+  cellNumCurrent: { paddingRight: 18 },
   cellClickable: {
     backgroundColor: 'rgba(52, 211, 153, 0.08)',
     borderRadius: 4,

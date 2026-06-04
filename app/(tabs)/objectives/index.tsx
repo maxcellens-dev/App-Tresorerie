@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -34,6 +35,7 @@ import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 export default function ObjectivesScreen() {
   const COLORS = useAppColors();
+  const onbObjective = useOnbHighlight('objective');
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
@@ -335,7 +337,7 @@ export default function ObjectivesScreen() {
             </TouchableOpacity>
             <View style={{ flex: 1 }} />
             <TouchableOpacity
-              style={styles.addBtn}
+              style={[styles.addBtn, onbGlow(COLORS, onbObjective)]}
               activeOpacity={0.8}
               onPress={() => {
                 setEditingId(null);

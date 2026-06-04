@@ -4,6 +4,7 @@ import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import MonthlyClosure from '../components/MonthlyClosure';
 import { tabRect } from '../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../lib/onbHighlight';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import { supabase } from '../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -45,6 +46,8 @@ export default function PilotageScreen() {
   const { user } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
+  const onbReserved = useOnbHighlight('reserved_consulted');
+  const onbReco = useOnbHighlight('reco_validated');
   const [refreshing, setRefreshing] = useState(false);
 
   // Données principales
@@ -390,7 +393,7 @@ export default function PilotageScreen() {
                     return (
                       <RowWrap
                         key={it.label}
-                        style={styles.suiviRow}
+                        style={[styles.suiviRow, isReserveRow && onbReserved ? onbGlow(COLORS, true) : null]}
                         {...(isReserveRow ? { onPress: openReservedModal, activeOpacity: 0.7 } : {})}
                       >
                         <View style={[styles.suiviIcon, { backgroundColor: it.color + '22' }]}>
@@ -493,7 +496,7 @@ export default function PilotageScreen() {
           </View>
 
           {/* ═══════════ SECTION 2 : Recommandations ═══════════ */}
-          <View style={styles.section} ref={monthRef}>
+          <View style={[styles.section, onbReco ? onbGlow(COLORS, true) : null]} ref={monthRef}>
             <View style={styles.sectionHeader}>
               <Ionicons name="bulb-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.sectionTitle}>Recommandations</Text>

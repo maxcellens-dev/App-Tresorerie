@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStep } from '../hooks/useOnboarding';
+import { useTour } from '../contexts/TourContext';
 
 export default function OnboardingChecklist() {
   const COLORS = useAppColors();
@@ -18,20 +19,21 @@ export default function OnboardingChecklist() {
   const router = useRouter();
   const { user } = useAuth();
   const ob = useOnboarding(user?.id);
+  const tour = useTour();
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
 
-  // Auto-ouverture unique juste après le tour de présentation.
-  // Léger délai : laisse la navigation revenir sur Comptes (sinon la modale s'ouvre
-  // au-dessus d'un écran pas encore monté → fond noir).
+  // Auto-ouverture unique après le tour de présentation, mais seulement une fois le
+  // message de fin fermé (sinon deux modales se chevauchent). Léger délai pour laisser
+  // la navigation revenir sur Comptes (sinon la modale s'ouvre sur un écran pas monté).
   useEffect(() => {
-    if (ob.shouldAutoOpenChecklist && !autoOpened.current) {
+    if (ob.shouldAutoOpenChecklist && !tour.finished && !autoOpened.current) {
       autoOpened.current = true;
       ob.markFlag('checklist_intro_shown');
       const t = setTimeout(() => setOpen(true), 650);
       return () => clearTimeout(t);
     }
-  }, [ob.shouldAutoOpenChecklist]);
+  }, [ob.shouldAutoOpenChecklist, tour.finished]);
 
   // Fige les étapes accomplies (validées pour toujours, même si l'élément créé est supprimé).
   useEffect(() => {

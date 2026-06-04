@@ -3,13 +3,13 @@
  * Activé seulement si le drapeau admin monthly_closure_enabled est vrai (sinon rien ne s'affiche).
  * Monté sur le Pilotage.
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
-import { useAddTransaction } from '../hooks/useTransactions';
-import { useMonthlyClosure, monthLabel, lastDayOfMonthKey } from '../hooks/useMonthlyClosure';
+import { useAddTransaction, useTransactions } from '../hooks/useTransactions';
+import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../hooks/useMonthlyClosure';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 interface Props {
@@ -25,17 +25,35 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
   const { user } = useAuth();
   const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const { data: allTx = [] } = useTransactions(user?.id);
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'direct' | 'balance'>('direct');
   const [flash, setFlash] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
   const [busy, setBusy] = useState(false);
+  // Mois déjà clôturés dans cette session (avance immédiate au mois suivant, avant le refetch).
+  const [closedLocally, setClosedLocally] = useState<string[]>([]);
 
-  const oldest = pendingMonths[0];
-  const multiple = pendingMonths.length > 1;
-  const monthsToClose = flash ? pendingMonths : (oldest ? [oldest] : []);
+  const effectivePending = pendingMonths.filter((m) => !closedLocally.includes(m));
+  const oldest = effectivePending[0];
+  const multiple = effectivePending.length > 1;
+  const monthsToClose = flash ? effectivePending : (oldest ? [oldest] : []);
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+
+  const openModal = () => { setClosedLocally([]); setMode('direct'); setFlash(false); setBalanceInput(''); setOpen(true); };
+  const closeModal = () => { setOpen(false); setClosedLocally([]); setMode('direct'); setFlash(false); setBalanceInput(''); };
+
+  // Solde du compte courant à la fin du mois concerné (pour savoir ce que l'on valide).
+  const targetKey = monthsToClose[monthsToClose.length - 1] ?? oldest;
+  const balanceAtEnd = useMemo(() => {
+    if (!mainCheckingId || !targetKey) return mainCheckingBalance;
+    const cutoff = lastDayOfMonthKey(targetKey);
+    const after = (allTx as any[])
+      .filter((t) => t.account_id === mainCheckingId && t.date > cutoff)
+      .reduce((s, t) => s + Number(t.amount), 0);
+    return mainCheckingBalance - after;
+  }, [allTx, mainCheckingId, targetKey, mainCheckingBalance]);
 
   const confirm = async () => {
     if (!monthsToClose.length) return;
@@ -44,24 +62,44 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
       if (mode === 'balance' && mainCheckingId) {
         const newBalance = parseFloat(balanceInput.replace(',', '.'));
         if (!Number.isNaN(newBalance)) {
+          const closeKey = monthsToClose[monthsToClose.length - 1];
+          const prevMonth = addMonthKey(ym(new Date()), -1);
+          const isLatest = closeKey >= prevMonth; // clôture qui atteint le mois précédent (solde réel = solde actuel)
           const diff = newBalance - mainCheckingBalance;
           if (Math.abs(diff) > 0.005) {
             await addTransaction.mutateAsync({
               account_id: mainCheckingId,
               category_id: null,
               amount: diff,
-              date: lastDayOfMonthKey(monthsToClose[monthsToClose.length - 1]),
+              date: lastDayOfMonthKey(closeKey),
               note: 'Ajustement de solde',
               is_recurring: false,
             } as any);
+            // Mois passé (pas le mois précédent) : on compense au mois suivant pour ne pas
+            // modifier le solde actuel (seul le solde à fin de mois est ajusté).
+            if (!isLatest) {
+              await addTransaction.mutateAsync({
+                account_id: mainCheckingId,
+                category_id: null,
+                amount: -diff,
+                date: addMonthKey(closeKey, 1) + '-01',
+                note: 'Ajustement de clôture (compensation)',
+                is_recurring: false,
+              } as any);
+            }
           }
         }
       }
       await closeMonths.mutateAsync({ monthKeys: monthsToClose, surplus: Math.max(0, surplusEstimate) });
-      setOpen(false);
-      setBalanceInput('');
-      setMode('direct');
-      setFlash(false);
+      // Mois par mois : s'il reste des mois en attente, on enchaîne directement sur le suivant.
+      const remaining = effectivePending.filter((m) => !monthsToClose.includes(m));
+      if (!flash && remaining.length > 0) {
+        setClosedLocally((prev) => [...prev, ...monthsToClose]);
+        setBalanceInput('');
+        setMode('direct');
+      } else {
+        closeModal();
+      }
     } catch (e) {
       console.warn('[closure] échec clôture:', e);
     } finally {
@@ -78,7 +116,7 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
     <>
       {/* Bannière d'invitation */}
       {pendingMonths.length > 0 && (
-        <TouchableOpacity style={styles.banner} activeOpacity={0.85} onPress={() => setOpen(true)}>
+        <TouchableOpacity style={styles.banner} activeOpacity={0.85} onPress={openModal}>
           <Ionicons name="lock-closed-outline" size={18} color={COLORS.yellow} />
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>Clôturer {multiple ? `${pendingMonths.length} mois` : monthLabel(oldest)}</Text>
@@ -89,21 +127,29 @@ export default function MonthlyClosure({ surplusEstimate, mainCheckingId, mainCh
       )}
 
       {/* Modale de clôture */}
-      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeModal}>
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <View style={styles.header}>
               <Text style={styles.title}>Clôture mensuelle</Text>
-              <TouchableOpacity onPress={() => setOpen(false)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={closeModal} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sub}>
-              {flash
-                ? `Clôture de ${pendingMonths.length} mois en attente (jusqu'à ${monthLabel(pendingMonths[pendingMonths.length - 1])}).`
-                : `Mois à clôturer : ${oldest ? monthLabel(oldest) : '—'}.`}
-            </Text>
+            <View style={styles.monthRow}>
+              <Text style={styles.sub}>{flash ? `Clôture de ${effectivePending.length} mois, jusqu'à` : 'Mois à clôturer :'}</Text>
+              <Text style={styles.monthHighlight}>
+                {flash ? monthLabel(effectivePending[effectivePending.length - 1] ?? oldest ?? '') : (oldest ? monthLabel(oldest) : '—')}
+              </Text>
+            </View>
+
+            {mainCheckingId && targetKey && (
+              <View style={styles.balanceBox}>
+                <Text style={styles.balanceLabel}>Solde du compte courant à fin {monthLabel(targetKey)}</Text>
+                <Text style={styles.balanceValue}>{fmt(balanceAtEnd)}</Text>
+              </View>
+            )}
 
             {multiple && (
               <View style={styles.segRow}>
@@ -197,7 +243,12 @@ function makeStyles(c: any) {
     sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     title: { fontSize: 19, fontWeight: '800', color: c.text },
-    sub: { fontSize: 14, color: c.textSecondary, marginBottom: 8 },
+    sub: { fontSize: 14, color: c.textSecondary },
+    monthRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+    monthHighlight: { fontSize: 19, fontWeight: '800', color: c.emerald, textTransform: 'capitalize' },
+    balanceBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 14, marginTop: 4, marginBottom: 4 },
+    balanceLabel: { fontSize: 13, color: c.textSecondary, flex: 1, marginRight: 8 },
+    balanceValue: { fontSize: 17, fontWeight: '800', color: c.text },
     segRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     seg: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     segActive: { backgroundColor: c.emerald, borderColor: c.emerald },

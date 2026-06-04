@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { tabRect } from '../../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -88,6 +89,7 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
 export default function TransactionsListScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const onbRecurring = useOnbHighlight('recurring_tx');
   const router = useRouter();
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();
   const { user } = useAuth();
@@ -501,7 +503,7 @@ export default function TransactionsListScreen() {
             })}
           </ScrollView>
         )}
-        <View style={styles.header} ref={actionsRef}>
+        <View style={[styles.header, onbRecurring ? onbGlow(COLORS, true) : null]} ref={actionsRef}>
           <TouchableOpacity
             ref={transferBtnRef}
             style={styles.addBtn}

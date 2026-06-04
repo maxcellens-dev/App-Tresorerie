@@ -13,6 +13,7 @@ import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import GuideOverlay, { type BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { tabRect } from '../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../lib/onbHighlight';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -47,7 +48,7 @@ function saveHypos(uid: string | undefined, data: any) {
   try { if (typeof window !== 'undefined') window.localStorage.setItem(storageKey(uid), JSON.stringify(data)); } catch {}
 }
 
-interface AccountHypo { contributed: string; annual: string; rate: string; tax: string }
+interface AccountHypo { contributed: string; annual: string; rate: string; tax: string; contributedBase?: number }
 
 /* ── Graphique aire (valeur) + ligne (capital), 3 valeurs affichées ── */
 function GrowthChart({ points, width, color }: {
@@ -134,6 +135,7 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
 export default function ProjectionScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const onbHypo = useOnbHighlight('projection_edited');
   const { width } = useWindowDimensions();
   const { user } = useAuth();
   const { data: pilotage } = usePilotageData(user?.id);
@@ -154,7 +156,6 @@ export default function ProjectionScreen() {
   const PROJECTION_GUIDE: BubbleStep[] = [
     { getRect: () => tabRect(4), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
     { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },
-    { getRef: () => chartRef, icon: 'trending-up-outline', iconColor: '#a78bfa', title: 'Votre patrimoine dans le temps', description: 'Visualisez la croissance projetée année après année selon vos hypothèses.' },
     { getRef: () => hypoRef, icon: 'options-outline', iconColor: '#34d399', title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
   ];
 
@@ -163,9 +164,23 @@ export default function ProjectionScreen() {
   // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {
     const list = allAccounts.filter((a: any) => a.type === 'investment');
-    if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre' }));
-    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre' }];
+    if (list.length > 0) return list.map((a: any) => ({ id: a.id, name: a.name, balance: Number(a.balance), envelope: a.fiscal_envelope ?? 'autre', initialContributed: a.initial_contributed != null ? Number(a.initial_contributed) : null }));
+    return [{ id: 'manual', name: 'Simulation libre', balance: 0, envelope: 'autre', initialContributed: null as number | null }];
   }, [allAccounts]);
+
+  // Somme des apports/virements entrants vers un compte d'invest (hors plus-values/intérêts).
+  const sumContrib = React.useCallback((accId: string) => {
+    return (transactions as any[])
+      .filter((t) => t.account_id === accId && Number(t.amount) > 0 && (t.linked_account_id || /apport/i.test(t.note || '')))
+      .reduce((s, t) => s + Number(t.amount), 0);
+  }, [transactions]);
+
+  // Apport « auto » : si un total apporté a été saisi à la création → ce total + apports/virements ultérieurs ;
+  // sinon, valeur du compte (ancien comportement par défaut).
+  const autoContributedFor = React.useCallback((acc: { id: string; balance: number; initialContributed: number | null }) => {
+    if (acc.initialContributed != null) return acc.initialContributed + sumContrib(acc.id);
+    return acc.balance;
+  }, [sumContrib]);
 
   // ── État : hypothèses par compte + durée globale ──
   const [hypos, setHypos] = useState<Record<string, AccountHypo>>({});
@@ -180,8 +195,10 @@ export default function ProjectionScreen() {
     const initialHypos: Record<string, AccountHypo> = saved?.hypos ?? {};
     for (const acc of investAccounts) {
       if (!initialHypos[acc.id]) {
+        const auto = autoContributedFor(acc);
         initialHypos[acc.id] = {
-          contributed: String(Math.round(acc.balance)), // par défaut tout est "apporté"
+          contributed: String(Math.round(auto)),
+          contributedBase: auto,
           annual: '2400',
           rate: '7',
           tax: String(taxRateFor(fiscalRates, acc.envelope)),
@@ -199,6 +216,33 @@ export default function ProjectionScreen() {
     if (loaded) saveHypos(user?.id, { hypos, years });
   }, [hypos, years, loaded, user?.id]);
 
+  // Accumulation auto : tout nouvel apport/virement s'ajoute à l'« Apport existant » courant
+  // (uniquement pour les comptes avec un total apporté défini à la création). La valeur saisie
+  // par l'utilisateur est conservée : seul le delta des nouveaux apports vient s'y ajouter.
+  useEffect(() => {
+    if (!loaded) return;
+    setHypos((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const acc of investAccounts) {
+        if (acc.initialContributed == null || !next[acc.id]) continue;
+        const auto = autoContributedFor(acc);
+        const base = next[acc.id].contributedBase ?? auto;
+        const delta = auto - base;
+        if (delta > 0.5) {
+          next[acc.id] = {
+            ...next[acc.id],
+            contributed: String(Math.round(num(next[acc.id].contributed) + delta)),
+            contributedBase: auto,
+          };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, investAccounts, autoContributedFor]);
+
   const updateOnboarding = useUpdateOnboarding(user?.id);
   const projEditedRef = React.useRef(false);
   const markProjectionEdited = () => {
@@ -210,6 +254,18 @@ export default function ProjectionScreen() {
   const updateHypo = (accId: string, patch: Partial<AccountHypo>) => {
     setHypos((prev) => ({ ...prev, [accId]: { ...prev[accId], ...patch } }));
     markProjectionEdited();
+  };
+
+  // Réinitialise les hypothèses du compte : apport = total apporté à la création + apports/virements.
+  const resetHypo = (acc: { id: string; balance: number; envelope: string; initialContributed: number | null }) => {
+    const auto = autoContributedFor(acc);
+    updateHypo(acc.id, {
+      contributed: String(Math.round(auto)),
+      contributedBase: auto,
+      annual: '2400',
+      rate: '7',
+      tax: String(taxRateFor(fiscalRates, acc.envelope)),
+    });
   };
 
   const selectedAcc = investAccounts.find((a) => a.id === selectedAccId) ?? investAccounts[0];
@@ -363,8 +419,20 @@ export default function ProjectionScreen() {
           </View>
 
           {/* Hypothèses PAR COMPTE */}
-          <View style={styles.controlsCard} ref={hypoRef}>
-            <Text style={styles.controlsTitle}>Hypothèses par compte</Text>
+          <View style={[styles.controlsCard, onbHypo ? onbGlow(COLORS, true) : null]} ref={hypoRef}>
+            <View style={styles.controlsTitleRow}>
+              <Text style={[styles.controlsTitle, { marginBottom: 0 }]}>Hypothèses par compte</Text>
+              {selectedAcc && (
+                <TouchableOpacity
+                  onPress={() => resetHypo(selectedAcc)}
+                  style={styles.resetBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Réinitialiser les hypothèses"
+                >
+                  <Ionicons name="refresh-outline" size={18} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
             {/* Sélecteur de compte */}
             {investAccounts.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -2 }}>
@@ -389,7 +457,7 @@ export default function ProjectionScreen() {
                   <Text style={styles.valueBadgeValue}>{fmt(selectedAcc.balance)}</Text>
                 </View>
                 <View style={styles.fieldRow}>
-                  <NumField label="Apport existant" value={selHypo.contributed} onChange={(v) => updateHypo(selectedAcc.id, { contributed: v })} suffix={CURRENCY_SYMBOL} colors={COLORS} />
+                  <NumField label="Apport existant" value={selHypo.contributed} onChange={(v) => updateHypo(selectedAcc.id, { contributed: v, contributedBase: autoContributedFor(selectedAcc) })} suffix={CURRENCY_SYMBOL} colors={COLORS} />
                   <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: 10 }}>
                     <Text style={styles.miniHint}>Plus-value = valeur − apport.</Text>
                   </View>
@@ -581,6 +649,8 @@ function makeStyles(c: any) {
       padding: 14, marginBottom: 14, gap: 10,
     },
     controlsTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+    controlsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    resetBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     accChipRow: { flexDirection: 'row', gap: 8, paddingVertical: 2, paddingHorizontal: 2 },
     accChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
     accChipText: { fontSize: 12, color: c.text },

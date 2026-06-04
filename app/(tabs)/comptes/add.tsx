@@ -36,6 +36,7 @@ export default function AddAccountScreen() {
   const [initDateDisplay, setInitDateDisplay] = useState(formatDateFrench(todayISO()));
   const [showCalendar, setShowCalendar] = useState(false);
   const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('cto');
+  const [initialContributed, setInitialContributed] = useState('');
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export default function AddAccountScreen() {
         currency: currency || 'EUR',
         balance: num,
         fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
+        initial_contributed: type === 'investment' && initialContributed.trim() ? parseFloat(initialContributed.replace(',', '.')) : null,
         init_date: initDate,
       });
 
@@ -160,6 +162,19 @@ export default function AddAccountScreen() {
               </View>
               <Text style={styles.hintSmall}>
                 {fiscalRates.find((r) => r.envelope === fiscalEnvelope)?.note ?? 'Détermine la fiscalité utilisée dans la page Projection.'}
+              </Text>
+
+              <Text style={styles.label}>Total déjà apporté (optionnel)</Text>
+              <TextInput
+                style={styles.input}
+                value={initialContributed}
+                onChangeText={(v) => setInitialContributed(v.replace(/[^0-9.,]/g, ''))}
+                placeholder="Ex. 5000"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.hintSmall}>
+                Montant total que vous avez versé sur ce compte à ce jour (hors plus-values). Sert de base à l'« Apport » dans la page Projection.
               </Text>
             </>
           )}

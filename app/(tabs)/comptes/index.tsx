@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { tabRect } from '../../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -27,6 +28,7 @@ const TYPE_LABELS: Record<string, string> = {
 export default function AccountsListScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const onbAccount = useOnbHighlight('account_initialized');
   const router = useRouter();
   const { user } = useAuth();
   const { welcome } = useLocalSearchParams<{ welcome?: string }>();
@@ -188,7 +190,7 @@ export default function AccountsListScreen() {
             <Text style={styles.empty}>Aucun compte. Appuyez sur « Compte » pour commencer.</Text>
           ) : (
             /* ── Liste Revolut ── */
-            <View style={styles.accountList}>
+            <View style={[styles.accountList, onbAccount ? onbGlow(COLORS, true) : null]}>
               {sortedAccounts.map((acc, idx) => {
                 const color = accountColor(acc.type);
                 const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
