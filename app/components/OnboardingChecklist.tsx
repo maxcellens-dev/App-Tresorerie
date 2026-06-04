@@ -22,13 +22,22 @@ export default function OnboardingChecklist() {
   const autoOpened = useRef(false);
 
   // Auto-ouverture unique juste après le tour de présentation.
+  // Léger délai : laisse la navigation revenir sur Comptes (sinon la modale s'ouvre
+  // au-dessus d'un écran pas encore monté → fond noir).
   useEffect(() => {
     if (ob.shouldAutoOpenChecklist && !autoOpened.current) {
       autoOpened.current = true;
-      setOpen(true);
       ob.markFlag('checklist_intro_shown');
+      const t = setTimeout(() => setOpen(true), 650);
+      return () => clearTimeout(t);
     }
   }, [ob.shouldAutoOpenChecklist]);
+
+  // Fige les étapes accomplies (validées pour toujours, même si l'élément créé est supprimé).
+  useEffect(() => {
+    if (ob.pendingPersist.length) ob.persistDone();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ob.pendingPersist.join(',')]);
 
   if (!ob.badgeVisible) return null;
 

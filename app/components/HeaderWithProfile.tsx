@@ -77,7 +77,9 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
             <Text style={styles.backText}>Retour</Text>
           </TouchableOpacity>
         )}
-        {leftContentToRender}
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push('/(tabs)/pilotage')} style={{ flexShrink: 1 }} accessibilityRole="button" accessibilityLabel="Aller au tableau de bord">
+          {leftContentToRender}
+        </TouchableOpacity>
       </View>
       {!hideProfile && <View style={styles.right}>
         <OnboardingChecklist />

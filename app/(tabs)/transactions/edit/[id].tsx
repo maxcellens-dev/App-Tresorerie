@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useProfile } from '../../../hooks/useProfile';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useCategories } from '../../../hooks/useCategories';
 import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
@@ -33,6 +34,8 @@ export default function EditTransactionScreen() {
   const { data: transactions = [] } = useTransactions(user?.id);
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
+  const { data: editProfile } = useProfile(user?.id);
+  const closureLockDate: string | null = (editProfile as any)?.closure_lock_date ?? null;
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
   const setOverride = useSetTransactionMonthOverride(user?.id);
@@ -86,6 +89,9 @@ export default function EditTransactionScreen() {
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
+      // Synchroniser la ref pour éviter que l'effet « changement de type » ne réinitialise
+      // la sous-catégorie au chargement (cas d'une recette : isExpense passe de true→false).
+      prevIsExpense.current = tx.amount < 0;
       setIsExpense(tx.amount < 0);
       setIsRecurring(tx.is_recurring ?? false);
       setRecurrenceRule((tx.recurrence_rule as RecurrenceRule) ?? 'monthly');
@@ -142,6 +148,18 @@ export default function EditTransactionScreen() {
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
       showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
+      return;
+    }
+
+    // Verrou de clôture : pas de modification d'une transaction à une date clôturée (ni vers une telle date).
+    if (closureLockDate && ((tx.date && tx.date <= closureLockDate) || (date && date <= closureLockDate))) {
+      showError('Cette période est clôturée : la transaction ne peut plus être modifiée.', ['date']);
+      return;
+    }
+
+    // Sous-catégorie obligatoire pour une dépense / recette validée (pas les virements ni les brouillons).
+    if (!isVirement && !isDraft && !categoryId) {
+      showError('Veuillez choisir une sous-catégorie.', ['category']);
       return;
     }
 
@@ -267,6 +285,10 @@ export default function EditTransactionScreen() {
 
   function handleDelete() {
     if (!id) return;
+    if (closureLockDate && tx && tx.date <= closureLockDate) {
+      showConfirm({ title: 'Période clôturée', message: 'Cette transaction appartient à un mois clôturé et ne peut plus être supprimée.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
+      return;
+    }
     const message = isPast
       ? 'Cette transaction est passée. La supprimer mettra à jour le solde du compte.'
       : 'Supprimer cette transaction ?';
@@ -354,10 +376,10 @@ export default function EditTransactionScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Compte */}
+              {/* Compte — dépense/recette : comptes courants uniquement (comme à la création) */}
               <Text style={styles.label}>Compte</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                {accounts.map((acc) => {
+                {accounts.filter((a) => a.type === 'checking').map((acc) => {
                   const color = accountColor(acc.type);
                   const isActive = accountId === acc.id;
                   return (
@@ -530,8 +552,8 @@ export default function EditTransactionScreen() {
             key={isExpense ? 'expense' : 'income'}
             groups={categoryGroups}
             selectedCategoryId={categoryId}
-            onSelect={setCategoryId}
-            label="Sous-catégorie (optionnel)"
+            onSelect={(cid) => { setCategoryId(cid); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
+            label="Sous-catégorie *"
           />
 
           <View style={styles.submitRow}>

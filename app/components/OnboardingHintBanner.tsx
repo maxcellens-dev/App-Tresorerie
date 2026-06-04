@@ -4,8 +4,8 @@
  * - Tant que l'étape n'est pas faite : explique quoi faire (fermable, non bloquant).
  * - Dès que l'étape est accomplie : confirme et propose d'enchaîner l'étape suivante.
  */
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +21,14 @@ export default function OnboardingHintBanner() {
   const params = useLocalSearchParams<{ onb?: string }>();
   const key = params.onb as OnboardingStepKey | undefined;
   const [dismissed, setDismissed] = useState(false);
+
+  // Swipe horizontal pour fermer la notification (comme la croix).
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (_e, g) => { if (Math.abs(g.dx) > 60) setDismissed(true); },
+    })
+  ).current;
 
   useEffect(() => { setDismissed(false); }, [key]);
 
@@ -45,7 +53,7 @@ export default function OnboardingHintBanner() {
   if (step.done) {
     return (
       <View style={styles.wrap} pointerEvents="box-none">
-        <View style={[styles.card, { borderColor: COLORS.green + '66' }]}>
+        <View style={[styles.card, { borderColor: COLORS.green + '66' }]} {...pan.panHandlers}>
           <View style={[styles.iconCircle, { backgroundColor: COLORS.green }]}>
             <Ionicons name="checkmark" size={18} color="#fff" />
           </View>
@@ -73,7 +81,7 @@ export default function OnboardingHintBanner() {
   // ── Étape à réaliser : indication ──
   return (
     <View style={styles.wrap} pointerEvents="box-none">
-      <View style={styles.card}>
+      <View style={styles.card} {...pan.panHandlers}>
         <View style={[styles.iconCircle, { backgroundColor: COLORS.emerald }]}>
           <Ionicons name="bulb" size={16} color={COLORS.bg} />
         </View>

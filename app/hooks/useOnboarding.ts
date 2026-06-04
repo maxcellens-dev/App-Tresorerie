@@ -90,8 +90,13 @@ export function useOnboarding(userId: string | undefined) {
   const appTourDone = Boolean((profile as any)?.app_tour_done);
   const questionnaireDone = Boolean((profile as any)?.initial_onboarding_completed);
 
-  const steps: OnboardingStep[] = useMemo(() => {
-    // Compte « initialisé » = un compte courant a un solde non nul, ou une régularisation de solde a été saisie.
+  // Étapes déduites des données (le reste vient de drapeaux explicites dans onboarding_state).
+  // Clés « data » : une fois accomplies, on les fige (done_<clé>) pour qu'elles restent
+  // validées même si l'utilisateur supprime ensuite l'élément créé.
+  const DATA_KEYS: OnboardingStepKey[] = ['account_initialized', 'recurring_tx', 'project', 'objective', 'reco_validated'];
+  const persistedDone = (k: OnboardingStepKey) => Boolean((state as any)['done_' + k]);
+
+  const { steps, pendingPersist } = useMemo(() => {
     const hasBalance = accounts.some((a: any) => a.type === 'checking' && Number(a.balance) !== 0);
     const hasRegul = (transactions as any[]).some(
       (t) => typeof t.note === 'string' && (t.note.startsWith('Régularisation') || t.note === 'Ajustement de solde')
@@ -103,17 +108,34 @@ export function useOnboarding(userId: string | undefined) {
       reservations.length > 0 ||
       (transactions as any[]).some((t) => t.linked_account?.type === 'savings' || t.linked_account?.type === 'investment');
 
-    const done: Record<OnboardingStepKey, boolean> = {
+    const dataDone: Record<string, boolean> = {
       account_initialized: hasBalance || hasRegul,
       recurring_tx: hasRecurring,
       project: projects.length > 0,
       objective: objectives.length > 0,
       reco_validated: hasReco,
+    };
+    const done: Record<OnboardingStepKey, boolean> = {
+      account_initialized: dataDone.account_initialized || persistedDone('account_initialized'),
+      recurring_tx: dataDone.recurring_tx || persistedDone('recurring_tx'),
+      project: dataDone.project || persistedDone('project'),
+      objective: dataDone.objective || persistedDone('objective'),
+      reco_validated: dataDone.reco_validated || persistedDone('reco_validated'),
       reserved_consulted: Boolean(state.reserved_consulted),
       projection_edited: Boolean(state.projection_edited),
     };
-    return STEP_META.map((m) => ({ ...m, done: done[m.key] }));
-  }, [accounts, transactions, projects, objectives, reservations, preSavings, state.reserved_consulted, state.projection_edited]);
+    const pending = DATA_KEYS.filter((k) => dataDone[k] && !persistedDone(k));
+    return { steps: STEP_META.map((m) => ({ ...m, done: done[m.key] })), pendingPersist: pending };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, transactions, projects, objectives, reservations, preSavings, state]);
+
+  // Fige les étapes déduites accomplies (persistance « apprise une fois »).
+  const persistDone = () => {
+    if (!pendingPersist.length) return;
+    const flags: Record<string, boolean> = {};
+    pendingPersist.forEach((k) => { flags['done_' + k] = true; });
+    update.mutate({ flags: flags as any });
+  };
 
   const doneCount = steps.filter((s) => s.done).length;
   const total = steps.length;
@@ -137,6 +159,8 @@ export function useOnboarding(userId: string | undefined) {
     dismissed,
     badgeVisible,
     shouldAutoOpenChecklist,
+    pendingPersist,
+    persistDone,
     markTourDone: () => update.mutate({ app_tour_done: true }),
     markFlag: (flag: OnboardingFlag, value = true) => update.mutate({ flags: { [flag]: value } }),
     dismiss: () => update.mutate({ flags: { dismissed: true } }),

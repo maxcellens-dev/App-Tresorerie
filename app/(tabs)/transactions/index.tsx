@@ -99,6 +99,7 @@ export default function TransactionsListScreen() {
   const incomeBtnRef = useRef<any>(null);
   const transferBtnRef = useRef<any>(null);
   const periodNavRef = useRef<any>(null);
+  const actionsRef = useRef<any>(null);
 
   const TX_GUIDE_STEPS: BubbleStep[] = [
     {
@@ -109,32 +110,11 @@ export default function TransactionsListScreen() {
       description: 'Touchez « Transactions » dans la barre du bas pour saisir et consulter vos opérations.',
     },
     {
-      getRef: () => expenseBtnRef,
-      icon: 'arrow-down',
-      iconColor: '#f87171',
-      title: 'Dépense',
-      description: 'Enregistrez une sortie d\'argent : courses, factures, loisirs… Catégorisez-la pour des statistiques précises.',
-    },
-    {
-      getRef: () => incomeBtnRef,
-      icon: 'arrow-up',
+      getRef: () => actionsRef,
+      icon: 'swap-vertical',
       iconColor: '#34d399',
-      title: 'Recette',
-      description: 'Ajoutez un revenu : salaire, remboursement, vente… Il est ajouté au solde de votre compte.',
-    },
-    {
-      getRef: () => transferBtnRef,
-      icon: 'swap-horizontal',
-      iconColor: '#60a5fa',
-      title: 'Virement',
-      description: 'Transférez entre vos comptes. Le virement débite un compte et crédite l\'autre automatiquement.',
-    },
-    {
-      getRef: () => periodNavRef,
-      icon: 'calendar-outline',
-      iconColor: '#a78bfa',
-      title: 'Filtre & période',
-      description: 'Naviguez entre les mois avec les flèches, et filtrez par compte avec l\'icône à droite.',
+      title: 'Saisir une opération',
+      description: 'Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
     },
   ];
   // Multi-compte : ensemble des IDs sélectionnés ([] = tous)
@@ -521,7 +501,7 @@ export default function TransactionsListScreen() {
             })}
           </ScrollView>
         )}
-        <View style={styles.header}>
+        <View style={styles.header} ref={actionsRef}>
           <TouchableOpacity
             ref={transferBtnRef}
             style={styles.addBtn}

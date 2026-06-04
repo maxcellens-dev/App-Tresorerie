@@ -17,8 +17,8 @@ const ORDER: { key: TourKey; route: string }[] = [
   { key: 'pilotage',     route: '/(tabs)/pilotage' },
   { key: 'tresorerie',   route: '/(tabs)/tresorerie' },
   { key: 'projection',   route: '/(tabs)/projection' },
-  { key: 'profile',      route: '/(tabs)/(secondary)/profile' },
   { key: 'parametres',   route: '/(tabs)/(secondary)/parametres' },
+  { key: 'profile',      route: '/(tabs)/(secondary)/profile' },
 ];
 
 interface TourCtx {
@@ -38,11 +38,11 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   const [index, setIndex] = useState(0);
   const navTimer = useRef<any>(null);
 
-  // `replace` (et non `push`) pour ne pas empiler de doublon de l'écran (ex. comptes
-  // déjà affiché avec ?welcome=1) — sinon deux GuideOverlay se chevauchent.
+  // `navigate` : ne crée pas de doublon (réutilise l'écran s'il existe) et évite le
+  // « churn » de replace entre onglets/écrans secondaires (qui laissait un écran noir).
   const goTo = (route: string) => {
     if (navTimer.current) clearTimeout(navTimer.current);
-    navTimer.current = setTimeout(() => router.replace(route as any), 60);
+    navTimer.current = setTimeout(() => router.navigate(route as any), 80);
   };
 
   const start = useCallback(() => {

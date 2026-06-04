@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
 import { useAddTransaction, useTransactions } from '../../hooks/useTransactions';
@@ -30,6 +31,8 @@ export default function AddTransactionScreen() {
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
   const { data: transactions = [] } = useTransactions(user?.id);
+  const { data: addProfile } = useProfile(user?.id);
+  const closureLockDate: string | null = (addProfile as any)?.closure_lock_date ?? null;
   const addTransaction = useAddTransaction(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
@@ -107,6 +110,12 @@ export default function AddTransactionScreen() {
     }
     if (!accountId) {
       showError('Veuillez choisir un compte source.', ['account']);
+      return;
+    }
+
+    // Verrou de clôture : pas de saisie à une date déjà clôturée.
+    if (closureLockDate && date <= closureLockDate) {
+      showError(`Ce mois est clôturé : impossible de saisir une transaction au ${formatDateFrench(date)} ou avant.`, ['date']);
       return;
     }
 

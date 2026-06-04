@@ -15,7 +15,6 @@ import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
 import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
-import { headerProfileRect } from '../../lib/tourTargets';
 
 
 export default function ProfileScreen() {
@@ -46,7 +45,6 @@ export default function ProfileScreen() {
   const infoRef = useRef<View>(null);
   const pwdRef = useRef<View>(null);
   const PROFILE_GUIDE: BubbleStep[] = [
-    { getRect: () => headerProfileRect(), icon: 'person-circle', iconColor: '#34d399', title: 'Votre profil', description: 'Accessible en haut à droite via votre avatar → « Mon profil ».' },
     { getRef: () => avatarRef, icon: 'person-circle-outline', iconColor: '#34d399', title: 'Votre profil', description: 'Ajoutez une photo et personnalisez votre compte.' },
     { getRef: () => infoRef, icon: 'create-outline', iconColor: '#60a5fa', title: 'Vos informations', description: 'Modifiez votre nom puis enregistrez. L\'e-mail est géré par la connexion.' },
     { getRef: () => pwdRef, icon: 'lock-closed-outline', iconColor: '#a78bfa', title: 'Sécurité', description: 'Changez votre mot de passe quand vous le souhaitez.' },
@@ -228,7 +226,8 @@ export default function ProfileScreen() {
             ref={(el: any) => { fileInputRef.current = el; }}
             type="file"
             accept="image/*"
-            style={{ display: 'none' }}
+            // iOS Safari bloque .click() sur un input display:none → on le cache hors écran (présent dans le DOM).
+            style={{ position: 'absolute', width: 1, height: 1, opacity: 0, left: -9999, top: 0, overflow: 'hidden' }}
             onChange={handleFileChange as any}
           />
         )}

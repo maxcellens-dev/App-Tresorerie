@@ -92,6 +92,13 @@ export default function AdminHub() {
       desc: 'Demandes de support',
       color: '#22d3ee',
     },
+    {
+      href: '/(tabs)/(secondary)/admin/features',
+      icon: 'flask-outline',
+      title: 'Fonctionnalités',
+      desc: 'Clôture mensuelle…',
+      color: '#f97316',
+    },
   ];
 
   return (

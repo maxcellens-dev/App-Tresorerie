@@ -2,6 +2,7 @@
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
+import MonthlyClosure from '../components/MonthlyClosure';
 import { tabRect } from '../lib/tourTargets';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import { supabase } from '../lib/supabase';
@@ -294,6 +295,11 @@ export default function PilotageScreen() {
             />
           }
         >
+          <MonthlyClosure
+            surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
+            mainCheckingId={mainCheckingId}
+            mainCheckingBalance={accounts.find((a) => a.id === mainCheckingId)?.balance ?? pilotageData.total_checking}
+          />
 
           {/* ═══════════ SECTION 1 : Vue d'ensemble ═══════════ */}
           <View style={styles.section} ref={overviewRef}>

@@ -39,6 +39,7 @@ export default function AccountsListScreen() {
   const guide = useScreenGuide('comptes', user?.id);
   const addBtnRef = useRef<any>(null);
   const transferBtnRef = useRef<any>(null);
+  const actionsRef = useRef<any>(null);
 
   const GUIDE_STEPS: BubbleStep[] = [
     {
@@ -49,18 +50,11 @@ export default function AccountsListScreen() {
       description: 'Touchez « Comptes » dans la barre du bas pour gérer vos comptes et virements.',
     },
     {
-      getRef: () => addBtnRef,
+      getRef: () => actionsRef,
       icon: 'add-circle',
       iconColor: '#34d399',
-      title: '+ Compte',
-      description: 'Ajoutez tous vos comptes : courant, épargne (Livret A, LDDS…) et investissement. C\'est la base du pilotage.',
-    },
-    {
-      getRef: () => transferBtnRef,
-      icon: 'swap-horizontal',
-      iconColor: '#60a5fa',
-      title: 'Virement',
-      description: 'Transférez de l\'argent entre vos propres comptes. Le virement est tracé dans les deux comptes automatiquement.',
+      title: 'Comptes & virements',
+      description: '« Compte » ajoute un compte (courant, épargne, investissement). « Virement » transfère de l\'argent entre vos comptes, tracé automatiquement.',
     },
   ];
   
@@ -137,7 +131,7 @@ export default function AccountsListScreen() {
             </View>
 
             {/* Quick actions */}
-            <View style={styles.quickActions}>
+            <View style={styles.quickActions} ref={actionsRef}>
               <TouchableOpacity
                 ref={addBtnRef}
                 style={styles.quickBtn}

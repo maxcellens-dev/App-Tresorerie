@@ -12,6 +12,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 import { headerProfileRect } from '../../lib/tourTargets';
+import { useTour } from '../../contexts/TourContext';
 import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
@@ -34,6 +35,7 @@ export default function SettingsScreen() {
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
   const isAdmin = profile?.is_admin ?? false;
+  const tour = useTour();
 
   // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
   const { data: styleConfig } = useStyleConfig();
@@ -61,6 +63,7 @@ export default function SettingsScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const categoriesRowRef = useRef<any>(null);
   const marginRowRef = useRef<any>(null);
+  const monProfilRowRef = useRef<any>(null);
 
   const GUIDE_STEPS: BubbleStep[] = [
     {
@@ -83,6 +86,13 @@ export default function SettingsScreen() {
       iconColor: '#60a5fa',
       title: 'Marge de sécurité',
       description: 'Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
+    },
+    {
+      getRef: () => monProfilRowRef,
+      icon: 'person-circle-outline',
+      iconColor: COLORS.emerald,
+      title: 'Votre profil',
+      description: 'Pour ouvrir votre profil, touchez « Mon profil » ici.',
     },
   ];
 
@@ -134,7 +144,7 @@ export default function SettingsScreen() {
           {/* ── Mon compte ── */}
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <View style={styles.card}>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
+            <TouchableOpacity ref={monProfilRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
               <Ionicons name="person-circle-outline" size={20} color={COLORS.emerald} />
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Mon profil</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.emerald} />
@@ -286,9 +296,14 @@ export default function SettingsScreen() {
               <Text style={styles.rowLabel}>Confidentialité</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/legal')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/legal')}>
               <Ionicons name="document-text-outline" size={20} color="#a78bfa" />
               <Text style={styles.rowLabel}>Mentions légales</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => tour.start()}>
+              <Ionicons name="navigate-circle-outline" size={20} color={COLORS.emerald} />
+              <Text style={styles.rowLabel}>Revoir le guide de présentation</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>

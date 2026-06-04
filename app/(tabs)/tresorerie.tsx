@@ -19,6 +19,7 @@ import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
 import type { RecurrenceRule, TransactionWithDetails } from '../types/database';
 import type { Category } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 
@@ -107,6 +108,13 @@ export default function TreasuryPlanScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
+  // ── Vue simplifiée (masque les sous-catégories) — préférence persistée ──
+  const { data: tresoProfile } = useProfile(user?.id);
+  const updateProfileTreso = useUpdateProfile(user?.id);
+  const [simplified, setSimplified] = useState(false);
+  React.useEffect(() => { if (tresoProfile) setSimplified(Boolean((tresoProfile as any).treso_simplified)); }, [tresoProfile]);
+  const toggleSimplified = () => { const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }); };
+
   // ── Guide "bulles" ──
   const guide = useScreenGuide('tresorerie', user?.id);
   const navRowRef = React.useRef<any>(null);
@@ -122,18 +130,11 @@ export default function TreasuryPlanScreen() {
       description: 'Touchez « Tréso » dans la barre du bas pour votre plan de trésorerie sur 12 mois.',
     },
     {
-      getRef: () => navRowRef,
-      icon: 'calendar-outline',
-      iconColor: '#34d399',
-      title: 'Navigation par période',
-      description: 'Utilisez les flèches gauche/droite pour naviguer entre les mois et consulter vos flux passés ou futurs.',
-    },
-    {
       getRef: () => tableRef,
       icon: 'pencil',
       iconColor: '#a78bfa',
-      title: 'Saisie prévisionnelle',
-      description: 'Sur les mois futurs, appuyez sur un montant pour le modifier et simuler vos flux avant qu\'ils arrivent.',
+      title: 'Votre plan de trésorerie',
+      description: 'Vos recettes, dépenses et soldes anticipés, mois par mois. Naviguez entre les périodes avec les flèches, et sur les mois futurs appuyez sur un montant pour le modifier.',
     },
   ];
 
@@ -768,7 +769,13 @@ export default function TreasuryPlanScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <Text style={styles.subtitle}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
+        <View style={styles.subtitleRow}>
+          <Text style={[styles.subtitle, { flex: 1, marginBottom: 0 }]}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
+          <TouchableOpacity style={[styles.simpleToggle, simplified && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]} onPress={toggleSimplified} activeOpacity={0.7} accessibilityRole="button">
+            <Ionicons name={simplified ? 'contract-outline' : 'expand-outline'} size={14} color={simplified ? COLORS.bg : COLORS.emerald} />
+            <Text style={[styles.simpleToggleText, simplified && { color: COLORS.bg }]}>{simplified ? 'Simplifié' : 'Détaillé'}</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.controls}>
           <View style={styles.navRow} ref={navRowRef}>
@@ -849,7 +856,7 @@ export default function TreasuryPlanScreen() {
                   </View>
                 ))}
               </View>
-              {planData.rows.map((row, idx) => (
+              {(simplified ? planData.rows.filter((r: any) => !r.isChild) : planData.rows).map((row, idx) => (
                 <React.Fragment key={row.label + String(row.categoryId) + idx}>
                   <View
                     style={[
@@ -1276,6 +1283,9 @@ function makeStyles(c: any) {
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 12 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  simpleToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
+  simpleToggleText: { fontSize: 12, fontWeight: '700', color: c.emerald },
   controls: { marginBottom: 12 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   navArrow: { padding: 8 },
