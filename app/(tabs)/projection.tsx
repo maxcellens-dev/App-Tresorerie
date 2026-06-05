@@ -15,6 +15,7 @@ import { useScreenGuide } from '../hooks/useScreenGuide';
 import { tabRect } from '../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../lib/onbHighlight';
 import { computeContributed } from '../lib/contributed';
+import { useRouter } from 'expo-router';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { usePilotageData } from '../hooks/usePilotageData';
@@ -139,6 +140,7 @@ export default function ProjectionScreen() {
   const onbHypo = useOnbHighlight('projection_edited');
   const { width } = useWindowDimensions();
   const { user } = useAuth();
+  const router = useRouter();
   const { data: pilotage } = usePilotageData(user?.id);
   const { data: transactions = [] } = useTransactions(user?.id);
   const { data: answers } = useQuestionnaireAnswers(user?.id);
@@ -170,12 +172,12 @@ export default function ProjectionScreen() {
   }, [onbHypo]);
 
   const PROJECTION_GUIDE: BubbleStep[] = [
-    { getRect: () => tabRect(4), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
+    { getRect: () => tabRect(3), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
     { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },
     { getRef: () => hypoRef, icon: 'options-outline', iconColor: '#34d399', title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
   ];
 
-  const [activeTab, setActiveTab] = useState<'invest' | 'epargne'>('invest');
+  const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');
 
   // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {
@@ -357,6 +359,24 @@ export default function ProjectionScreen() {
 
   // ── Années passées : reconstruction du solde réel par année ──
   const currentYear = new Date().getFullYear();
+  // ── Suivi : montant réellement investi (apports + virements) cette année ──
+  const yearlyInvested = useMemo(() => {
+    const investAccountIds = new Set(investAccounts.map((a) => a.id).filter((id) => id !== 'manual'));
+    if (investAccountIds.size === 0) return 0;
+    const yearStart = `${currentYear}-01-01`;
+    return (transactions as any[])
+      .filter((t) => t.account_id && investAccountIds.has(t.account_id) && !t.is_draft && Number(t.amount) > 0 && t.date >= yearStart)
+      .reduce((s, t) => s + Number(t.amount), 0);
+  }, [investAccounts, transactions, currentYear]);
+
+  // ── Apport annuel par ligne de projection ──
+  // Année en cours : apports réels (virements/apports sur les comptes d'invest, hors apport de création).
+  // Années futures : apport annuel projeté (somme des hypothèses).
+  const yearlyApportForRow = useMemo(() => {
+    const totalAnnual = investAccounts.filter((a) => hypos[a.id]).reduce((s, a) => s + num(hypos[a.id]?.annual ?? '0'), 0);
+    return (year: number) => (year === currentYear ? yearlyInvested : totalAnnual);
+  }, [investAccounts, hypos, currentYear, yearlyInvested]);
+
   const pastInvestRows = useMemo(() => {
     const investAccountIds = new Set(investAccounts.map((a) => a.id).filter((id) => id !== 'manual'));
     if (investAccountIds.size === 0) return [];
@@ -399,19 +419,40 @@ export default function ProjectionScreen() {
 
           {/* Onglets */}
           <View style={styles.tabs} ref={tabsRef}>
+            <TouchableOpacity style={[styles.tab, activeTab === 'treso' && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]} onPress={() => setActiveTab('treso')}>
+              <Ionicons name="calendar-outline" size={15} color={activeTab === 'treso' ? '#fff' : COLORS.textSecondary} />
+              <Text style={[styles.tabText, activeTab === 'treso' && { color: '#fff' }]} numberOfLines={1}>Trésorerie</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.tab, activeTab === 'invest' && { backgroundColor: semanticText(INVEST_COLOR, COLORS), borderColor: semanticText(INVEST_COLOR, COLORS) }]} onPress={() => setActiveTab('invest')}>
-              <Ionicons name="trending-up" size={16} color={activeTab === 'invest' ? '#fff' : COLORS.textSecondary} />
-              <Text style={[styles.tabText, activeTab === 'invest' && { color: '#fff' }]}>Investissements</Text>
+              <Ionicons name="trending-up" size={15} color={activeTab === 'invest' ? '#fff' : COLORS.textSecondary} />
+              <Text style={[styles.tabText, activeTab === 'invest' && { color: '#fff' }]} numberOfLines={1}>Invest.</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.tab, activeTab === 'epargne' && { backgroundColor: semanticText(SAVINGS_COLOR, COLORS), borderColor: semanticText(SAVINGS_COLOR, COLORS) }]} onPress={() => setActiveTab('epargne')}>
-              <Ionicons name="shield-checkmark" size={16} color={activeTab === 'epargne' ? '#fff' : COLORS.textSecondary} />
-              <Text style={[styles.tabText, activeTab === 'epargne' && { color: '#fff' }]}>Épargne</Text>
+              <Ionicons name="shield-checkmark" size={15} color={activeTab === 'epargne' ? '#fff' : COLORS.textSecondary} />
+              <Text style={[styles.tabText, activeTab === 'epargne' && { color: '#fff' }]} numberOfLines={1}>Épargne</Text>
             </TouchableOpacity>
           </View>
 
           {/* ═══════ INVESTISSEMENTS ═══════ */}
+          {/* ═══════ TRÉSORERIE SIMPLIFIÉE ═══════ */}
+          {activeTab === 'treso' && (
+            <TresoSimplified transactions={transactions} accounts={allAccounts} pilotage={pilotage} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} />
+          )}
+
           {activeTab === 'invest' && (<>
           <Text style={styles.sectionHint}>Projection globale sur {years} ans (tous comptes)</Text>
+
+          {/* ── Suivi annuel ── */}
+          {yearlyInvested > 0 && (
+            <View style={[styles.kpiCard, { borderLeftColor: INVEST_COLOR, flexDirection: 'row', alignItems: 'center', marginBottom: 12 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.kpiLabel}>Investi en {currentYear}</Text>
+                <Text style={[styles.kpiValue, { color: semanticText(INVEST_COLOR, COLORS) }]}>{fmt(yearlyInvested)}</Text>
+                <Text style={styles.kpiSub}>apports et virements réels sur vos comptes invest</Text>
+              </View>
+              <Ionicons name="checkmark-circle" size={22} color={SAVINGS_COLOR} />
+            </View>
+          )}
 
           {/* KPIs globaux */}
           <View style={styles.kpiRow}>
@@ -538,7 +579,8 @@ export default function ProjectionScreen() {
               <View>
                 <View style={[styles.tr, styles.trHead]}>
                   <Text style={[styles.th, { width: 52 }]}>Année</Text>
-                  <Text style={[styles.th, { width: 80 }]}>Apport</Text>
+                  <Text style={[styles.th, { width: 80 }]}>Apport/an</Text>
+                  <Text style={[styles.th, { width: 88 }]}>Apport total</Text>
                   <Text style={[styles.th, { width: 88 }]}>Valeur</Text>
                   <Text style={[styles.th, { width: 92 }]}>Net après taxe</Text>
                   <Text style={[styles.th, { width: 92 }]}>+Value brute</Text>
@@ -550,6 +592,7 @@ export default function ProjectionScreen() {
                   <View key={`past-${r.year}`} style={[styles.tr, { opacity: 0.6 }, i % 2 === 1 && styles.trAlt]}>
                     <Text style={[styles.td, { width: 52, fontWeight: '700', color: COLORS.textSecondary }]}>{r.year}</Text>
                     <Text style={[styles.td, { width: 80, color: COLORS.textSecondary }]}>—</Text>
+                    <Text style={[styles.td, { width: 88, color: COLORS.textSecondary }]}>—</Text>
                     <Text style={[styles.td, { width: 88, color: COLORS.textSecondary, fontWeight: '600' }]}>{fmt(r.value)}</Text>
                     <Text style={[styles.td, { width: 92, color: COLORS.textSecondary }]}>—</Text>
                     <Text style={[styles.td, { width: 92, color: COLORS.textSecondary }]}>—</Text>
@@ -561,7 +604,8 @@ export default function ProjectionScreen() {
                 {investRowsGlobal.map((r, i) => (
                   <View key={r.year} style={[styles.tr, (pastInvestRows.length + i) % 2 === 1 && styles.trAlt]}>
                     <Text style={[styles.td, { width: 52, fontWeight: '700' }]}>{r.year}</Text>
-                    <Text style={[styles.td, { width: 80 }]}>{fmt(r.cumulativeContribution)}</Text>
+                    <Text style={[styles.td, { width: 80 }]}>{fmt(yearlyApportForRow(r.year))}</Text>
+                    <Text style={[styles.td, { width: 88 }]}>{fmt(r.cumulativeContribution)}</Text>
                     <Text style={[styles.td, { width: 88, color: INVEST_COLOR, fontWeight: '600' }]}>{fmt(r.value)}</Text>
                     <Text style={[styles.td, { width: 92 }]}>{fmt(r.valueAfterTax)}</Text>
                     <Text style={[styles.td, { width: 92, color: SAVINGS_COLOR }]}>+{fmt(r.gainLatent)}</Text>
@@ -638,6 +682,139 @@ export default function ProjectionScreen() {
   );
 }
 
+// ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
+function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onOpenDetail }: {
+  transactions: any[]; accounts: any[]; pilotage: any; COLORS: any; styles: any; onOpenDetail: () => void;
+}) {
+  const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const checkingIds = new Set(accounts.filter((a: any) => a.type === 'checking').map((a: any) => a.id));
+  const checkingBalance = accounts.filter((a: any) => a.type === 'checking').reduce((s: number, a: any) => s + Number(a.balance), 0);
+  const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
+  const variableRemaining = pilotage?.variable_envelope_remaining ?? variableMonthly;
+
+  // Filtres : on ne garde que les flux des comptes courants, hors virements internes et hors régularisations.
+  const onChecking = (t: any) => checkingIds.has(t.account_id);
+  const isTransfer = (t: any) => !!t.linked_account_id;
+  const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
+  const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft;
+
+  function recurrenceAmount(t: any, year: number, month: number): number {
+    const rule = t.recurrence_rule;
+    const start = new Date(t.date);
+    const end = t.recurrence_end_date ? new Date(t.recurrence_end_date) : new Date(year + 5, 0, 1);
+    const msStart = new Date(year, month - 1, 1);
+    const msEnd = new Date(year, month, 0);
+    if (start > msEnd || end < msStart) return 0;
+    if (rule === 'monthly') return Number(t.amount);
+    if (rule === 'quarterly') {
+      const sm = start.getFullYear() * 12 + start.getMonth();
+      const tm = year * 12 + (month - 1);
+      return (tm - sm) % 3 === 0 && tm >= sm ? Number(t.amount) : 0;
+    }
+    if (rule === 'yearly') return start.getMonth() === month - 1 ? Number(t.amount) : 0;
+    if (rule === 'weekly') {
+      let count = 0; let d = new Date(start);
+      while (d <= msEnd) { if (d >= msStart && d <= end) count++; d.setDate(d.getDate() + 7); }
+      return count * Number(t.amount);
+    }
+    return 0;
+  }
+
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(currentYear, currentMonth - 1 + i, 1);
+    return { year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) };
+  });
+
+  let runningBalance = checkingBalance;
+
+  const rows = months.map(({ year, month, label }, i) => {
+    const isCurrent = i === 0;
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    let income = 0;   // revenus (comptes courants, hors virements/régul)
+    let expense = 0;  // dépenses récurrentes + réelles (signe négatif)
+
+    for (const t of transactions) {
+      if (!usable(t)) continue;
+      const amt = Number(t.amount);
+      let monthAmt: number;
+      if (t.is_recurring && t.recurrence_rule) monthAmt = recurrenceAmount(t, year, month);
+      else if (t.date.startsWith(prefix)) monthAmt = amt;
+      else continue;
+      if (monthAmt === 0) continue;
+      if (monthAmt > 0) { if (!isRegul(t)) income += monthAmt; }
+      else { expense += monthAmt; }
+    }
+
+    // Dépenses variables : reste estimé pour le mois courant, estimation mensuelle ensuite.
+    const variable = isCurrent ? variableRemaining : variableMonthly;
+
+    // Solde prévu (fin de mois). Mois courant : on ne reprojette que ce qui est encore à venir
+    // (récurrences + ponctuels datés après aujourd'hui) pour ne pas double-compter le solde réel.
+    if (isCurrent) {
+      let upcoming = 0;
+      for (const t of transactions) {
+        if (!usable(t)) continue;
+        const amt = Number(t.amount);
+        if (t.is_recurring && t.recurrence_rule) {
+          const occ = recurrenceAmount(t, year, month);
+          // approximation : récurrence comptée si son jour n'est pas encore passé
+          const recDay = new Date(t.date).getDate();
+          if (occ !== 0 && recDay >= now.getDate()) upcoming += occ;
+        } else if (t.date.startsWith(prefix) && t.date > todayStr) {
+          if (!(amt > 0 && isRegul(t))) upcoming += amt;
+        }
+      }
+      runningBalance = checkingBalance + upcoming - variableRemaining;
+    } else {
+      runningBalance += income + expense - variable;
+    }
+
+    return { year, month, label, income, expense: Math.abs(expense), variable, balance: runningBalance, isCurrent };
+  });
+
+  return (
+    <View>
+      <TouchableOpacity style={[styles.tresoDetailBtn, { marginTop: 0, marginBottom: 14 }]} onPress={onOpenDetail} activeOpacity={0.8}>
+        <Ionicons name="grid-outline" size={16} color={COLORS.blue} />
+        <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]}>Voir le plan détaillé (tableau complet)</Text>
+        <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
+      </TouchableOpacity>
+      <Text style={styles.sectionHint}>Soldes et flux prévus sur les 6 prochains mois</Text>
+      {rows.map((r) => (
+        <View key={`${r.year}-${r.month}`} style={[styles.tresoMonthCard, r.isCurrent && { borderColor: COLORS.blue + '88' }]}>
+          <View style={styles.tresoMonthHeader}>
+            {r.isCurrent && <View style={[styles.tresoCurrentDot, { backgroundColor: COLORS.blue }]} />}
+            <Text style={[styles.tresoMonthLabel, r.isCurrent && { color: COLORS.blue }]}>{r.label}</Text>
+          </View>
+          <View style={styles.tresoMonthBody}>
+            <View style={styles.tresoMonthRow}>
+              <Text style={styles.tresoKey}>Revenus</Text>
+              <Text style={[styles.tresoVal, { color: COLORS.green }]}>+{fmt(r.income)} {CURRENCY_SYMBOL}</Text>
+            </View>
+            <View style={styles.tresoMonthRow}>
+              <Text style={styles.tresoKey}>Dépenses prévues</Text>
+              <Text style={[styles.tresoVal, { color: COLORS.danger }]}>−{fmt(r.expense)} {CURRENCY_SYMBOL}</Text>
+            </View>
+            <View style={styles.tresoMonthRow}>
+              <Text style={styles.tresoKey}>Dépenses variables (est.)</Text>
+              <Text style={[styles.tresoVal, { color: COLORS.orange }]}>−{fmt(r.variable)} {CURRENCY_SYMBOL}</Text>
+            </View>
+            <View style={[styles.tresoMonthRow, { borderTopWidth: 0.5, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 6 }]}>
+              <Text style={[styles.tresoKey, { fontWeight: '700' }]}>Solde prévu</Text>
+              <Text style={[styles.tresoVal, { fontWeight: '800', color: r.balance >= 0 ? COLORS.text : COLORS.danger }]}>{fmt(r.balance)} {CURRENCY_SYMBOL}</Text>
+            </View>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
@@ -646,12 +823,12 @@ function makeStyles(c: any) {
     pageTitle: { fontSize: 26, fontWeight: '800', color: c.text, marginBottom: 4 },
     pageSub: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 16 },
 
-    tabs: { flexDirection: 'row', gap: 8, marginBottom: 18 },
+    tabs: { flexDirection: 'row', gap: 6, marginBottom: 18 },
     tab: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      paddingVertical: 11, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      paddingVertical: 11, paddingHorizontal: 4, borderRadius: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
     },
-    tabText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    tabText: { fontSize: 12, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
 
     sectionHint: { fontSize: 12, color: c.textSecondary, marginBottom: 14 },
 
@@ -735,5 +912,16 @@ function makeStyles(c: any) {
     horizonSaved: { fontSize: 11, color: c.textSecondary },
     horizonLabel: { fontSize: 13, color: c.text, fontWeight: '700' },
     horizonValue: { fontSize: 22, fontWeight: '800', marginTop: 2 },
+
+    tresoMonthCard: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 14, marginBottom: 10 },
+    tresoMonthHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
+    tresoCurrentDot: { width: 7, height: 7, borderRadius: 3.5 },
+    tresoMonthLabel: { fontSize: 14, fontWeight: '800', color: c.text, textTransform: 'capitalize' },
+    tresoMonthBody: { gap: 3 },
+    tresoMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 },
+    tresoKey: { fontSize: 13, color: c.textSecondary },
+    tresoVal: { fontSize: 14, fontWeight: '600' },
+    tresoDetailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 8, marginBottom: 8 },
+    tresoDetailBtnText: { fontSize: 13, fontWeight: '700' },
   });
 }

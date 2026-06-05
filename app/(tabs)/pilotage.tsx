@@ -3,6 +3,8 @@ import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, Touch
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import MonthlyClosure from '../components/MonthlyClosure';
+import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
+import { useTransactions } from '../hooks/useTransactions';
 import { tabRect } from '../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../lib/onbHighlight';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
@@ -14,18 +16,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import { usePilotageData } from '../hooks/usePilotageData';
-import { useProjects } from '../hooks/useProjects';
-import { useObjectives } from '../hooks/useObjectives';
 import { useAccounts } from '../hooks/useAccounts';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../hooks/usePreSavings';
 import { useReservations, useSetMonthlyReservation } from '../hooks/useReservations';
 import { useReleaseReservedByProject } from '../hooks/useTransactions';
 import { useRecoThresholds } from '../hooks/useRecoThresholds';
 import RecommendationCard from '../components/RecommendationCard';
+import ConseilsBanner from '../components/ConseilsBanner';
+import { useProjects } from '../hooks/useProjects';
 import PreSavingsModal from '../components/PreSavingsModal';
 import CumulsPanel from '../components/CumulsPanel';
-import ProjectsListCard from '../components/ProjectsListCard';
-import ObjectivesListCard from '../components/ObjectivesListCard';
 import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 import type { PreSavingType } from '../types/database';
@@ -52,8 +52,10 @@ export default function PilotageScreen() {
 
   // Données principales
   const pilotageQuery = usePilotageData(user?.id);
-  const projectsQuery = useProjects(user?.id);
-  const objectivesQuery = useObjectives(user?.id);
+  const { data: projectsForConseils = [] } = useProjects(user?.id);
+  const { data: txForConseils = [] } = useTransactions(user?.id);
+  const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
+  const showClosure = closureEnabled && pendingMonths.length > 0;
   const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const autoEval = useAutoProfileEvaluation(user?.id);
@@ -105,7 +107,7 @@ export default function PilotageScreen() {
   const guide = useScreenGuide('pilotage', user?.id);
   const scrollRef = React.useRef<ScrollView>(null);
   const reservedRef = React.useRef<any>(null);
-  const overviewRef = React.useRef<View>(null);
+  const overviewRef = React.useRef<View>(null); // conservé pour compatibilité guide
   const suiviRef = React.useRef<View>(null);
   const monthRef = React.useRef<View>(null);
   const projectsObjectivesRef = React.useRef<View>(null);
@@ -134,13 +136,6 @@ export default function PilotageScreen() {
       description: 'Touchez « Pilotage » dans la barre du bas : c\'est votre tableau de bord.',
     },
     {
-      getRef: () => overviewRef,
-      icon: 'analytics-outline',
-      iconColor: '#34d399',
-      title: 'Vue d\'ensemble',
-      description: 'Vos soldes par catégorie : épargne, courant et investissements. Le repère de santé de votre épargne en un coup d\'œil.',
-    },
-    {
       getRef: () => suiviRef,
       icon: 'wallet-outline',
       iconColor: '#34d399',
@@ -154,13 +149,6 @@ export default function PilotageScreen() {
       title: 'Recommandations',
       description: 'Des conseils personnalisés selon votre profil financier pour optimiser votre mois : épargne, investissement, réserve…',
     },
-    {
-      getRef: () => projectsObjectivesRef,
-      icon: 'flag-outline',
-      iconColor: '#a78bfa',
-      title: 'Mes Projets & Objectifs',
-      description: 'Suivez vos projets d\'épargne (voiture, voyage…) et vos objectifs annuels d\'investissement, avec leur progression.',
-    },
   ];
 
   // Évaluation automatique mensuelle (silencieuse, 1er du mois)
@@ -169,10 +157,7 @@ export default function PilotageScreen() {
   }, [financialProfile?.last_auto_evaluation]);
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
-  const { data: projects = [], isLoading: projectsLoading } = projectsQuery;
-  const { data: objectives = [], isLoading: objectivesLoading } = objectivesQuery;
-
-  const isLoading = pilotageLoading || projectsLoading || objectivesLoading;
+  const isLoading = pilotageLoading;
 
   // ── Reste disponible = Courant − tout ce qui est affiché ──
   // Formule directe depuis les valeurs affichées pour cohérence avec l'UI.
@@ -193,6 +178,24 @@ export default function PilotageScreen() {
   );
   const baseADepenser = pilotageData?.safe_to_spend ?? 0;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
+
+  // ── Budget de recommandation ──
+  // = Solde courant − marge − dépensé ce mois − dépenses variables prévues restantes.
+  // (≠ budget libre : on ne déduit PAS l'épargne/invest/réservé déjà prévus, car on veut
+  //  ensuite déduire ces montants catégorie par catégorie.)
+  const recoBudget = Math.max(0,
+    (pilotageData?.current_checking_balance ?? 0)
+    - safetyMarginDisplay
+    - (pilotageData?.month_expenses_total ?? 0)
+    - variableEnvelopeRemaining
+  );
+  // Montants déjà alloués par catégorie ce mois (à déduire des % de reco).
+  // Épargne : hors projets. Conserver : réservations du mois + cumuls en attente.
+  const recoAlreadyAllocated = {
+    save: pilotageData?.real_savings_excl_projects ?? 0,
+    invest: pilotageData?.real_invest ?? 0,
+    keep: (pilotageData?.monthly_reserve_planned ?? 0) + reservationsTotal,
+  };
 
   // Synchroniser le statut des cumuls (actif / en_depassement)
   React.useEffect(() => {
@@ -247,11 +250,7 @@ export default function PilotageScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        pilotageQuery.refetch?.(),
-        projectsQuery.refetch?.(),
-        objectivesQuery.refetch?.(),
-      ]);
+      await pilotageQuery.refetch?.();
     } finally {
       setRefreshing(false);
     }
@@ -318,56 +317,105 @@ export default function PilotageScreen() {
             />
           }
         >
-          <MonthlyClosure
-            surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
-            checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
-          />
+          {/* Zone conseils / clôture (priorité à la clôture si mois en attente) */}
+          {showClosure ? (
+            <MonthlyClosure
+              surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
+              checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
+            />
+          ) : (
+            <ConseilsBanner
+              userId={user?.id}
+              pilotage={pilotageData}
+              transactions={txForConseils}
+              projects={projectsForConseils}
+            />
+          )}
 
-          {/* ═══════════ SECTION 1 : Vue d'ensemble ═══════════ */}
-          <View style={styles.section} ref={overviewRef}>
+          {/* ── HERO : budget libre ce mois ── */}
+          {(() => {
+            const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+            const restNeg = resteDisponible < 0;
+            const heroColor = restNeg ? COLORS.danger : COLORS.emerald;
+            const heroSub = restNeg
+              ? 'Votre budget est dépassé ce mois-ci — vérifiez vos dépenses.'
+              : resteDisponible < 200
+              ? 'Mois serré. Vérifiez vos dépenses et vos engagements.'
+              : 'Ce que vous pouvez dépenser librement jusqu\'à la fin du mois.';
+            const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+            return (
+              <View style={[styles.heroCard, { borderColor: heroColor + '44' }]}>
+                <Text style={styles.heroLabel}>Tu peux dépenser ce mois</Text>
+                <Text style={[styles.heroAmount, { color: heroColor }]}>{fmt(resteDisponible)}</Text>
+                <Text style={styles.heroSub}>{heroSub} — {monthLabel}.</Text>
+              </View>
+            );
+          })()}
+
+          {/* ═══════════ SECTION 2 : Action prioritaire ═══════════ */}
+          <View style={[styles.section, onbReco ? onbGlow(COLORS, true) : null]} ref={monthRef}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="analytics-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Vue d'ensemble</Text>
+              <Ionicons name="bulb-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.sectionTitle}>Action prioritaire</Text>
             </View>
             <View style={styles.sectionDivider} />
 
-            <View style={styles.accountSummary}>
-              <View style={styles.summaryGrid}>
-                {/* Courant — en premier */}
-                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: COLORS.checking }]}>
-                  <Ionicons name="wallet-outline" size={16} color={COLORS.checking} style={{ marginBottom: 2 }} />
-                  <Text style={styles.summaryLabel}>Courant</Text>
-                  <Text style={[styles.summaryAmount, { color: semanticText(COLORS.checking, COLORS) }]}>{pilotageData.total_checking.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
-                </View>
-
-                {/* Épargne — avec badge de santé, sans barre ni légende */}
-                {(() => {
-                  const s = pilotageData.total_savings;
-                  const col = s < 5000 ? COLORS.danger : s < 10000 ? COLORS.orange : COLORS.savings;
-                  const kw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
-                  const colT = semanticText(col, COLORS);
-                  return (
-                    <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: col }]}>
-                      <Ionicons name="leaf-outline" size={16} color={col} style={{ marginBottom: 2 }} />
-                      <Text style={styles.summaryLabel}>Épargne</Text>
-                      <Text style={[styles.summaryAmount, { color: colT }]}>
-                        {s.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}
-                      </Text>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: colT, marginTop: 2 }}>{kw}</Text>
-                    </View>
-                  );
-                })()}
-
-                {/* Investissements */}
-                <View style={[styles.summaryItem, { borderLeftWidth: 3, borderLeftColor: COLORS.investment }]}>
-                  <Ionicons name="trending-up-outline" size={16} color={COLORS.investment} style={{ marginBottom: 2 }} />
-                  <Text style={styles.summaryLabel}>Investissements</Text>
-                  <Text style={[styles.summaryAmount, { color: semanticText(COLORS.investment, COLORS) }]}>{pilotageData.total_invested.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}</Text>
-                </View>
+            {/* Alerte de dépassement (§8) */}
+            {enDepassement && (
+              <View style={styles.overspendBox}>
+                <Ionicons name="warning-outline" size={16} color={COLORS.danger} />
+                <Text style={styles.overspendText}>
+                  Vos réservations mentales dépassent votre reste disponible. Réduisez ou annulez un cumul.
+                </Text>
               </View>
-            </View>
-          </View>
+            )}
 
+            {/* Bandeau cumuls en attente (§12) */}
+            {(preEpargneTotal > 0 || preInvestTotal > 0) && (
+              <TouchableOpacity style={styles.cumulsBanner} onPress={() => setPanelOpen(true)} activeOpacity={0.8}>
+                {preEpargneTotal > 0 && (
+                  <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                )}
+                {preInvestTotal > 0 && (
+                  <Text style={styles.cumulsBannerItem}>📈 En attente d'invest : {Math.round(preInvestTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                )}
+                <Text style={styles.cumulsBannerLink}>Gérer</Text>
+              </TouchableOpacity>
+            )}
+
+            <RecommendationCard
+              hideTitle
+              recommendations={pilotageData ? computeRecommendations(pilotageData, {
+                customTierAllocations: customTiers,
+                financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
+                budget: recoBudget,
+                alreadyAllocated: recoAlreadyAllocated,
+                thresholds: recoThresholds,
+              }) : []}
+              tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
+              tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
+              hasSavingsAccount={hasSavingsAccount}
+              hasInvestmentAccount={hasInvestmentAccount}
+              onCreateAccount={() => router.push('/(tabs)/comptes/add')}
+              onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
+              onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
+              onCumuler={(type, reco) => { markRecoUsed(); setPreModalAmount(reco.amount); setPreModal(type); }}
+              reservedThisMonth={reservationsTotal}
+              onReserver={(reco, amount) => {
+                markRecoUsed();
+                // `amount` = nouveau TOTAL conservé du mois (incluant cette reco) → on remplace.
+                const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                const newTotal = Math.round(amount ?? (reservationsTotal + reco.amount));
+                setMonthlyReservation.mutate({ montant: newTotal, libelle: `Réservé ${monthYear}` });
+              }}
+            />
+
+            {/* Accès permanent aux cumuls (§12) */}
+            <TouchableOpacity style={styles.cumulsBtn} onPress={() => setPanelOpen(true)} activeOpacity={0.7}>
+              <Text style={styles.cumulsBtnLabel}>💰 Mes cumuls</Text>
+            </TouchableOpacity>
+          </View>
+          {/* ═══════════ SUIVI DU MOIS ═══════════ */}
           <View style={styles.section} ref={suiviRef}>
             <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -515,104 +563,6 @@ export default function PilotageScreen() {
             })()}
           </View>
 
-          {/* ═══════════ SECTION 2 : Recommandations ═══════════ */}
-          <View style={[styles.section, onbReco ? onbGlow(COLORS, true) : null]} ref={monthRef}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="bulb-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Recommandations</Text>
-            </View>
-            <View style={styles.sectionDivider} />
-
-            {/* Alerte de dépassement (§8) */}
-            {enDepassement && (
-              <View style={styles.overspendBox}>
-                <Ionicons name="warning-outline" size={16} color={COLORS.danger} />
-                <Text style={styles.overspendText}>
-                  Vos réservations mentales dépassent votre reste disponible. Réduisez ou annulez un cumul.
-                </Text>
-              </View>
-            )}
-
-            {/* Bandeau cumuls en attente (§12) */}
-            {(preEpargneTotal > 0 || preInvestTotal > 0) && (
-              <TouchableOpacity style={styles.cumulsBanner} onPress={() => setPanelOpen(true)} activeOpacity={0.8}>
-                {preEpargneTotal > 0 && (
-                  <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
-                )}
-                {preInvestTotal > 0 && (
-                  <Text style={styles.cumulsBannerItem}>📈 En attente d'invest : {Math.round(preInvestTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
-                )}
-                <Text style={styles.cumulsBannerLink}>Gérer</Text>
-              </TouchableOpacity>
-            )}
-
-            <RecommendationCard
-              hideTitle
-              recommendations={pilotageData ? computeRecommendations(pilotageData, {
-                customTierAllocations: customTiers,
-                financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
-                budget: resteDisponible,
-                thresholds: recoThresholds,
-              }) : []}
-              tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
-              tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
-              hasSavingsAccount={hasSavingsAccount}
-              hasInvestmentAccount={hasInvestmentAccount}
-              onCreateAccount={() => router.push('/(tabs)/comptes/add')}
-              onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
-              onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
-              onCumuler={(type, reco) => { markRecoUsed(); setPreModalAmount(reco.amount); setPreModal(type); }}
-              reservedThisMonth={reservationsTotal}
-              onReserver={(reco, amount) => {
-                markRecoUsed();
-                // `amount` = nouveau TOTAL conservé du mois (incluant cette reco) → on remplace.
-                const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                const newTotal = Math.round(amount ?? (reservationsTotal + reco.amount));
-                setMonthlyReservation.mutate({ montant: newTotal, libelle: `Réservé ${monthYear}` });
-              }}
-            />
-
-            {/* Accès permanent aux cumuls (§12) */}
-            <TouchableOpacity style={styles.cumulsBtn} onPress={() => setPanelOpen(true)} activeOpacity={0.7}>
-              <Text style={styles.cumulsBtnLabel}>💰 Mes cumuls</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* ═══════════ SECTION 3 : Objectifs et Projets ═══════════ */}
-          <View style={styles.section} ref={projectsObjectivesRef}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="flag-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Objectifs et Projets</Text>
-            </View>
-            <View style={styles.sectionDivider} />
-
-            <View style={styles.row2Col}>
-              <View style={styles.col}>
-                <ProjectsListCard
-                  projects={pilotageData.projects_with_progress as any}
-                  isLoading={projectsLoading}
-                  onCreate={() => {
-                    router.push('/(tabs)/projects');
-                  }}
-                  onViewAll={() => {
-                    router.push('/(tabs)/projects');
-                  }}
-                />
-              </View>
-              <View style={styles.col}>
-                <ObjectivesListCard
-                  objectives={pilotageData.objectives_with_progress as any}
-                  isLoading={objectivesLoading}
-                  onCreate={() => {
-                    router.push('/(tabs)/objectives');
-                  }}
-                  onViewAll={() => {
-                    router.push('/(tabs)/objectives');
-                  }}
-                />
-              </View>
-            </View>
-          </View>
 
         </ScrollView>
       </SafeAreaView>
@@ -1122,5 +1072,10 @@ function makeStyles(c: AppColors) {
   varModalCancelText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
   varModalSave: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center' },
   varModalSaveText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  heroCard: { backgroundColor: c.cardSolid, borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 14 },
+  heroLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 4 },
+  heroAmount: { fontSize: 38, fontWeight: '900', marginBottom: 4 },
+  heroSub: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
   });
 }

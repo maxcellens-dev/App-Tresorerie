@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,14 @@ import {
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import GuideOverlay from '../../components/GuideOverlay';
+import type { BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
+import { tabRect } from '../../lib/tourTargets';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   useProjects,
@@ -39,6 +42,13 @@ export default function ProjectsScreen() {
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
+  const guide = useScreenGuide('projets', user?.id);
+  const addBtnRef = useRef<any>(null);
+  const PROJETS_GUIDE: BubbleStep[] = [
+    { getRect: () => tabRect(4), icon: 'flag', iconColor: COLORS.primary, title: 'Onglet Projets', description: 'Touchez « Projets » pour gérer vos projets d\'épargne (voiture, voyage…).' },
+    { getRef: () => addBtnRef, icon: 'add-circle', iconColor: COLORS.primary, title: 'Créer un projet', description: 'Appuyez sur « + Projet » pour définir un objectif et son rythme d\'épargne.' },
+  ];
+
   const [refreshing, setRefreshing] = useState(false);
   const projectsQuery = useProjects(user?.id || '');
   const { data: projects = [], isLoading, refetch } = projectsQuery;
@@ -308,15 +318,10 @@ export default function ProjectsScreen() {
         <View style={styles.projectActions}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: COLORS.primary + '20' }]}
-            onPress={() => {
-              setEditingId(project.id);
-              setModalVisible(true);
-            }}
+            onPress={() => { setEditingId(project.id); setModalVisible(true); }}
           >
-            <Ionicons name="pencil" size={16} color={COLORS.primary} />
-            <Text style={[styles.actionButtonText, { color: COLORS.primary }]}>
-              Modifier
-            </Text>
+            <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.actionButtonText, { color: COLORS.primary }]}>Gérer</Text>
           </TouchableOpacity>
 
           {/* Bouton Archiver : visible si 100% atteint et pas encore archivé */}
@@ -364,21 +369,24 @@ export default function ProjectsScreen() {
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
-          <View style={styles.headerActions}>
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity
-              style={[styles.addBtn, onbGlow(COLORS, onbProject)]}
-              activeOpacity={0.8}
-              onPress={() => {
-                setEditingId(null);
-                setModalVisible(true);
-              }}
-              accessibilityRole="button"
-            >
-              <Ionicons name="add" size={22} color="#f59e0b" />
-              <Text style={[styles.addBtnLabel, { color: '#f59e0b' }]}>Projet</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            ref={addBtnRef}
+            style={[styles.addBtn, onbGlow(COLORS, onbProject)]}
+            activeOpacity={0.8}
+            onPress={() => { setEditingId(null); setModalVisible(true); }}
+            accessibilityRole="button"
+          >
+            <Ionicons name="add" size={20} color={COLORS.primary} />
+            <Text style={[styles.addBtnLabel, { color: COLORS.primary }]}>Projet</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.archiveToggleBtn}
+            activeOpacity={0.8}
+            onPress={() => setShowArchived(!showArchived)}
+          >
+            <Ionicons name={showArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color={showArchived ? COLORS.primary : COLORS.textSecondary} />
+            <Text style={[styles.archiveToggleBtnLabel, showArchived && { color: COLORS.primary }]}>Archives</Text>
+          </TouchableOpacity>
         </View>
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -393,25 +401,16 @@ export default function ProjectsScreen() {
             keyExtractor={(item) => item.id}
             renderItem={renderProjectItem}
             ListHeaderComponent={
-              <>
-                {!showArchived && (
-                  <View style={styles.infoCard}>
-                    <Ionicons name="bulb-outline" size={18} color={COLORS.primary} style={{ marginTop: 1 }} />
-                    <Text style={styles.infoText}>
-                      Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Vous y accumulez de l'argent par des virements : soit vers un autre compte dédié, soit en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place (même compte source et destination). Choisissez un <Text style={{ fontWeight: '700', color: COLORS.text }}>montant mensuel</Text>, laissez l'app calculer le montant nécessaire à partir d'une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou saisissez des <Text style={{ fontWeight: '700', color: COLORS.text }}>versements ponctuels</Text>.
-                    </Text>
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={[styles.archivedToggle, showArchived && styles.archivedToggleActive]}
-                  onPress={() => setShowArchived(!showArchived)}
-                >
-                  <Ionicons name={showArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color={showArchived ? COLORS.primary : COLORS.textSecondary} />
-                  <Text style={{ color: showArchived ? COLORS.primary : COLORS.textSecondary, fontSize: 13, fontWeight: '600' }}>
-                    {showArchived ? 'Voir projets actifs' : 'Voir projets archivés'}
+              !showArchived ? (
+                <View style={styles.infoCard}>
+                  <Ionicons name="bulb-outline" size={18} color={COLORS.primary} style={{ marginTop: 1 }} />
+                  <Text style={styles.infoText}>
+                    Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Accumulez de l'argent par des virements vers un compte dédié, ou en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place. Choisissez un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des versements <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuels</Text>.
                   </Text>
-                </TouchableOpacity>
-              </>
+                </View>
+              ) : (
+                <Text style={styles.archiveTitle}>Projets archivés</Text>
+              )
             }
             ListEmptyComponent={renderEmptyState}
             contentContainerStyle={styles.listContent}
@@ -427,6 +426,15 @@ export default function ProjectsScreen() {
           />
         )}
       </SafeAreaView>
+
+      <GuideOverlay
+        visible={guide.visible}
+        steps={PROJETS_GUIDE}
+        currentStep={guide.step}
+        onNext={() => guide.goNext(PROJETS_GUIDE.length)}
+        onSkip={guide.skip}
+        screenTitle="Projets"
+      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (
@@ -623,20 +631,32 @@ function makeStyles(c: any) {
   root: { flex: 1, backgroundColor: c.background },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, width: '100%' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: c.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: c.primary + '15',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: c.primary + '44',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  addBtnLabel: { fontSize: 14, fontWeight: '700', color: c.primary },
+  archiveToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: c.border,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  addBtnLabel: { fontSize: 13, fontWeight: '600', color: c.text },
+  archiveToggleBtnLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  archiveTitle: { fontSize: 14, fontWeight: '700', color: c.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   container: {
     flex: 1,
   },

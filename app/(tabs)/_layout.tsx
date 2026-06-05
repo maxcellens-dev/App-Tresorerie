@@ -12,16 +12,14 @@ function TabsHeader({ route }: { route: any }) {
   const COLORS = useAppColors();
   const segments = useSegments();
   const fullPath = segments.join('/');
-  
+
   const titleMap: Record<string, string> = {
     '(tabs)/pilotage': 'Tableau de bord',
     '(tabs)/projection': 'Projection',
     '(tabs)/transactions': 'Transactions',
-    '(tabs)/tresorerie': 'Plan de trésorerie',
     '(tabs)/comptes': 'Comptes',
-    '(tabs)/reporting': 'Reporting',
-    '(tabs)/objectives': 'Objectifs',
     '(tabs)/projects': 'Projets',
+    '(tabs)/reporting': 'Reporting',
     '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
     '(tabs)/(secondary)/about': 'À propos',
@@ -31,13 +29,12 @@ function TabsHeader({ route }: { route: any }) {
     '(tabs)/(secondary)/admin/stats-hub': 'Stats Hub',
     '(tabs)/(secondary)/admin/suggestions': 'Suggestions',
   };
-  
+
   const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
   const routeName = route.name;
   const displayTitle = titleMap[fullPath] || 'Trésorerie';
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
-  const showBack = false;
 
   return (
     <HeaderWithProfile
@@ -49,7 +46,7 @@ function TabsHeader({ route }: { route: any }) {
           </Text>
         ) : undefined
       }
-      showBack={showBack}
+      showBack={false}
     />
   );
 }
@@ -111,16 +108,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="tresorerie"
-        options={{
-          title: 'Plan de trésorerie',
-          tabBarLabel: 'Tréso',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} style={styles.icon} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="projection"
         options={{
           title: 'Projection',
@@ -130,11 +117,20 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Reporting reste accessible via Paramètres, masqué de la barre d'onglets */}
       <Tabs.Screen
-        name="reporting"
-        options={{ href: null, title: 'Reporting' }}
+        name="projects"
+        options={{
+          title: 'Projets',
+          tabBarLabel: 'Projets',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'flag' : 'flag-outline'} size={24} color={color} style={styles.icon} />
+          ),
+        }}
       />
+      {/* Pages cachées de la barre mais accessibles via routes */}
+      <Tabs.Screen name="tresorerie" options={{ href: null, title: 'Trésorerie' }} />
+      <Tabs.Screen name="objectives" options={{ href: null, title: 'Objectifs' }} />
+      <Tabs.Screen name="reporting" options={{ href: null, title: 'Reporting' }} />
     </Tabs>
     <OnboardingGate />
     </View>

@@ -18,6 +18,8 @@ export interface PilotageData {
   // Suivi des engagements du mois en cours
   monthly_savings_planned: number;       // virements récurrents épargne + projets
   monthly_invest_planned: number;        // virements récurrents invest + objectifs
+  real_savings_excl_projects: number;    // épargne réelle ce mois HORS projets (pour budget reco)
+  real_invest: number;                   // invest réel ce mois (pour budget reco)
   monthly_reserve_planned: number;       // total réservé (projets même compte + brouillons conservés)
   month_expenses_total: number;          // total dépenses du mois (passées + à venir, hors virements)
   committed_objective_monthly: number;   // engagements objectifs actifs (cible annuelle ÷ 12)
@@ -422,6 +424,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const monthly_savings_planned = transfer_savings + project_savings_monthly;
   const monthly_invest_planned = transfer_invest; // virements réels uniquement (objectifs exclus)
+  // Pour le budget de recommandation : épargne réelle HORS projets, et invest réel.
+  const real_savings_excl_projects = transfer_savings;
+  const real_invest = transfer_invest;
 
   // =====================================================================
   // RÉSERVÉ : montants mis de côté persistants (jusqu'à utilisation/libération)
@@ -549,6 +554,8 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     same_account_reserved,
     monthly_savings_planned,
     monthly_invest_planned,
+    real_savings_excl_projects,
+    real_invest,
     monthly_reserve_planned,
     month_expenses_total,
     committed_objective_monthly,

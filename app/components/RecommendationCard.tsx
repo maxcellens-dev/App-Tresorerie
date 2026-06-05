@@ -146,29 +146,6 @@ export default function RecommendationCard({
     </View>
   );
 
-  const bar = (
-    <View style={[styles.barContainer, { flex: 1 }]}>
-      {visible.map((r, i) => (
-        <TouchableOpacity
-          key={r.type}
-          style={[
-            styles.barSegment,
-            {
-              flex: r.percentage,
-              backgroundColor: r.type === currentReco.type ? r.color : r.color + '50',
-              borderTopLeftRadius: i === 0 ? 6 : 0,
-              borderBottomLeftRadius: i === 0 ? 6 : 0,
-              borderTopRightRadius: i === visible.length - 1 ? 6 : 0,
-              borderBottomRightRadius: i === visible.length - 1 ? 6 : 0,
-            },
-          ]}
-          onPress={() => setCurrentIndex(i)}
-          activeOpacity={0.8}
-        />
-      ))}
-    </View>
-  );
-
   return (
     <View style={[styles.container, { borderColor: currentReco.color + '40' }]} {...panResponder.panHandlers}>
       {/* ── Header (titre + nav) — masqué si la section porte déjà le titre ── */}
@@ -182,37 +159,7 @@ export default function RecommendationCard({
         </View>
       )}
 
-      {/* ── Barre d'allocation (+ nav à droite quand le titre est masqué) ── */}
-      {hideTitle ? (
-        <View style={styles.barRow}>
-          {bar}
-          {navControls}
-        </View>
-      ) : (
-        bar
-      )}
-
-      {/* ── Légende de la barre ── */}
-      <View style={styles.legendRow}>
-        {visible.map(r => (
-          <TouchableOpacity
-            key={r.type}
-            style={styles.legendItem}
-            activeOpacity={0.7}
-            onPress={() => setCurrentIndex(visible.indexOf(r))}
-          >
-            <View style={[styles.legendDot, { backgroundColor: r.color }]} />
-            <Text style={[
-              styles.legendText,
-              r.type === currentReco.type && { color: r.color, fontWeight: '700' },
-            ]}>
-              {r.shortTitle} {r.percentage}%
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* ── Slide courante ── */}
+      {/* ── Slide courante : icône + titre/montant + nav swipe (même hauteur) ── */}
       <View style={styles.slideRow}>
         <View style={[styles.recoIconCircle, { backgroundColor: currentReco.color + '18' }]}>
           <Ionicons name={currentReco.icon as any} size={18} color={currentReco.color} />
@@ -223,6 +170,7 @@ export default function RecommendationCard({
             {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
           </Text>
         </View>
+        {visible.length > 1 && navControls}
       </View>
       <Text style={styles.recoDescription}>{currentReco.description}</Text>
 

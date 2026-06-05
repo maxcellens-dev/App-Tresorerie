@@ -20,7 +20,6 @@ export type OnboardingStepKey =
   | 'account_initialized'
   | 'recurring_tx'
   | 'project'
-  | 'objective'
   | 'reco_validated'
   | 'reserved_consulted'
   | 'projection_edited';
@@ -46,8 +45,7 @@ interface OnboardingState {
 const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: string }[] = [
   { key: 'account_initialized', label: 'Renseigner le solde de vos comptes', route: '/(tabs)/comptes',     hint: 'Ouvrez votre compte courant → « Nouveau Solde » et saisissez votre solde réel à ce jour.' },
   { key: 'recurring_tx',      label: 'Ajouter une transaction récurrente',  route: '/(tabs)/transactions', hint: 'Bouton « Dépense » ou « Recette » → activez « Récurrent » avant d\'enregistrer.' },
-  { key: 'project',           label: 'Créer un projet',                     route: '/(tabs)/projects',     hint: 'Appuyez sur « + » pour définir un projet d\'épargne (voiture, voyage…).' },
-  { key: 'objective',         label: 'Définir un objectif',                 route: '/(tabs)/objectives',   hint: 'Appuyez sur « + » pour fixer un objectif annuel d\'investissement.' },
+  { key: 'project',           label: 'Créer un projet',                     route: '/(tabs)/projects',     hint: 'Appuyez sur « + Projet » pour définir un projet d\'épargne (voiture, voyage…).' },
   { key: 'reco_validated',    label: 'Suivre une recommandation',           route: '/(tabs)/pilotage',     hint: 'Section Recommandations → Épargner, Investir, Conserver ou Cumuler, puis enregistrez l\'action.' },
   { key: 'reserved_consulted',label: 'Consulter vos montants réservés',     route: '/(tabs)/pilotage',     hint: 'Suivi du mois → appuyez sur la ligne « Réservé » pour voir le détail.' },
   { key: 'projection_edited', label: 'Personnaliser une projection',        route: '/(tabs)/projection',   hint: 'Saisissez une valeur dans « Hypothèse » ou « Épargne personnalisée ».' },
@@ -94,7 +92,7 @@ export function useOnboarding(userId: string | undefined) {
   // Étapes déduites des données (le reste vient de drapeaux explicites dans onboarding_state).
   // Clés « data » : une fois accomplies, on les fige (done_<clé>) pour qu'elles restent
   // validées même si l'utilisateur supprime ensuite l'élément créé.
-  const DATA_KEYS: OnboardingStepKey[] = ['account_initialized', 'recurring_tx', 'project', 'objective'];
+  const DATA_KEYS: OnboardingStepKey[] = ['account_initialized', 'recurring_tx', 'project'];
   const persistedDone = (k: OnboardingStepKey) => Boolean((state as any)['done_' + k]);
 
   const { steps, pendingPersist } = useMemo(() => {
@@ -114,7 +112,6 @@ export function useOnboarding(userId: string | undefined) {
       account_initialized: dataDone.account_initialized || persistedDone('account_initialized'),
       recurring_tx: dataDone.recurring_tx || persistedDone('recurring_tx'),
       project: dataDone.project || persistedDone('project'),
-      objective: dataDone.objective || persistedDone('objective'),
       // « Suivre une recommandation » : validée UNIQUEMENT en passant par les boutons de reco
       // (Épargner / Investir / Conserver / Cumuler), pas par un virement épargne quelconque.
       reco_validated: Boolean(state.reco_validated),

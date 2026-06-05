@@ -43,6 +43,7 @@ export default function AdminHub() {
       items: [
         { href: '/(tabs)/(secondary)/admin/style-editor', icon: 'color-palette-outline', title: 'Style Editor', desc: 'Thème & couleurs', color: '#0ea5a8' },
         { href: '/(tabs)/(secondary)/admin/seo-center', icon: 'megaphone-outline', title: 'SEO Center', desc: 'Textes & métadonnées', color: '#7c3aed' },
+        { href: '/(tabs)/(secondary)/admin/conseils', icon: 'newspaper-outline', title: 'Conseils', desc: 'Conseils du jour (généraux + contextuels)', color: '#f59e0b' },
       ],
     },
     {

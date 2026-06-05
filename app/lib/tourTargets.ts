@@ -7,7 +7,7 @@ import { Dimensions } from 'react-native';
 
 export type GuideRect = { x: number; y: number; w: number; h: number };
 
-/** Rectangle d'un onglet de la barre du bas (5 onglets : comptes, transactions, pilotage, tréso, projection). */
+/** Rectangle d'un onglet de la barre du bas (5 onglets : comptes=0, transactions=1, pilotage=2, projection=3, projets=4). */
 export function tabRect(index: number, count = 5): GuideRect {
   const { width, height } = Dimensions.get('window');
   const tabW = width / count;

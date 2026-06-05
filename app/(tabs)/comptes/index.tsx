@@ -10,7 +10,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
+import { usePilotageData } from '../../hooks/usePilotageData';
 import { ACCOUNT_ICONS } from '../../theme/colors';
+import { semanticText } from '../../theme/palette';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
@@ -60,6 +62,7 @@ export default function AccountsListScreen() {
     },
   ];
   
+  const { data: pilotageData } = usePilotageData(user?.id);
   const { data: accounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
 
@@ -122,6 +125,34 @@ export default function AccountsListScreen() {
             />
           }
         >
+          {/* ── Vue d'ensemble patrimoine (avant le total) ── */}
+          {pilotageData && (
+            <View>
+            <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
+            <View style={styles.overviewRow}>
+              {(() => {
+                const s = pilotageData.total_savings;
+                const sCol = s < 5000 ? COLORS.danger : s < 10000 ? COLORS.orange : COLORS.savings;
+                const sKw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
+                return [
+                  { label: 'Courant', value: pilotageData.total_checking, color: COLORS.checking, icon: 'wallet-outline', sub: null },
+                  { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline', sub: sKw },
+                  { label: 'Investi', value: pilotageData.total_invested, color: COLORS.investment, icon: 'trending-up-outline', sub: null },
+                ].map((item) => (
+                  <View key={item.label} style={[styles.overviewCard, { borderLeftColor: item.color }]}>
+                    <Ionicons name={item.icon as any} size={14} color={item.color} style={{ marginBottom: 2 }} />
+                    <Text style={styles.overviewLabel}>{item.label}</Text>
+                    <Text style={[styles.overviewValue, { color: semanticText(item.color, COLORS) }]}>
+                      {item.value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}
+                    </Text>
+                    {item.sub && <Text style={[styles.overviewSub, { color: semanticText(item.color, COLORS) }]}>{item.sub}</Text>}
+                  </View>
+                ));
+              })()}
+            </View>
+            </View>
+          )}
+
           {/* ── Hero : solde total ── */}
           <View style={styles.hero}>
             <Text style={styles.heroLabel}>Total liquidités</Text>
@@ -270,11 +301,17 @@ function makeStyles(c: any) {
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
+  overviewTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, paddingHorizontal: 24, marginBottom: 8, marginTop: 4 },
+  overviewRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, marginBottom: 0 },
+  overviewCard: { flex: 1, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, borderLeftWidth: 3, padding: 10 },
+  overviewLabel: { fontSize: 10, fontWeight: '600', color: c.textSecondary, marginBottom: 2 },
+  overviewValue: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
+  overviewSub: { fontSize: 9, fontWeight: '700', marginTop: 1 },
 
   // ── Hero ──
   hero: {
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 18,
     paddingBottom: 28,
   },
   heroLabel: {

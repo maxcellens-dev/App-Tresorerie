@@ -116,7 +116,7 @@ export default function TreasuryPlanScreen() {
   const toggleSimplified = () => { const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }); };
 
   // ── Guide "bulles" ──
-  const guide = useScreenGuide('tresorerie', user?.id);
+  const guide = useScreenGuide('projection', user?.id);
   const navRowRef = React.useRef<any>(null);
   const tableRef = React.useRef<any>(null);
   const scrollOuterRef = React.useRef<ScrollView>(null);

@@ -153,6 +153,8 @@ export interface ComputeRecoOptions {
   budget?: number;
   /** Seuils min de reste pour afficher chaque reco (§9). */
   thresholds?: RecoThresholds;
+  /** Montants déjà alloués par catégorie (déduits du % théorique de chaque reco). */
+  alreadyAllocated?: Partial<Record<RecoType, number>>;
 }
 
 export function computeRecommendations(
@@ -169,7 +171,7 @@ export function computeRecommendations(
     data.total_checking < (data.safety_margin_amount ?? 0)
   ) {
     if (budget <= 0) return [];
-    return [buildRecommendation('keep', 100, budget, 'critical', data)];
+    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data)];
   }
 
   // Pas de budget → pas de recommandation
@@ -224,21 +226,26 @@ export function computeRecommendations(
     normalizeAllocations(alloc);
   }
 
-  // 6. Seuils §9 : retirer une reco si le reste disponible est sous son seuil
-  //    (keep n'a pas de seuil)
+  // 6. Montant net par catégorie = (% × budget) − déjà alloué réellement ce mois.
+  const alreadyAllocated = opts.alreadyAllocated ?? {};
   const th = thresholds ?? { seuil_reco_epargne: 50, seuil_reco_invest: 100, seuil_reco_plaisir: 50 };
   const thresholdByType: Partial<Record<RecoType, number>> = {
     save: th.seuil_reco_epargne,
     invest: th.seuil_reco_invest,
     enjoy: th.seuil_reco_plaisir,
   };
-  const allowed = filtered.filter((type) => {
-    const min = thresholdByType[type];
-    return min === undefined || budget >= min;
-  });
 
-  // 7. Construire les recommandations
-  return allowed.map(type => buildRecommendation(type, alloc[type], budget, tier, data));
+  // 7. Construire les recommandations (montant net ≥ seuil)
+  const result: SmartRecommendation[] = [];
+  for (const type of filtered) {
+    const raw = (alloc[type] / 100) * budget;
+    const net = Math.round(Math.max(0, raw - (alreadyAllocated[type] ?? 0)));
+    if (net <= 0) continue;
+    const min = thresholdByType[type] ?? 0;
+    if (net < min) continue;
+    result.push(buildRecommendation(type, alloc[type], net, tier, data));
+  }
+  return result;
 }
 
 /** Renvoie le palier d'épargne courant (utile pour l'affichage) */
@@ -350,12 +357,10 @@ function normalizeAllocations(alloc: Record<RecoType, number>) {
 function buildRecommendation(
   type: RecoType,
   percentage: number,
-  budget: number,
+  amount: number,
   tier: SavingsTier,
   data: PilotageData,
 ): SmartRecommendation {
-  const amount = Math.round((percentage / 100) * budget);
-
   switch (type) {
     case 'save':
       return {

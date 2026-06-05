@@ -12,14 +12,14 @@ import { useAuth } from './AuthContext';
 import { useUpdateOnboarding, useOnboarding } from '../hooks/useOnboarding';
 import { useAppColors } from '../hooks/useAppColors';
 
-export type TourKey = 'comptes' | 'transactions' | 'pilotage' | 'tresorerie' | 'projection' | 'profile' | 'parametres';
+export type TourKey = 'comptes' | 'transactions' | 'pilotage' | 'projection' | 'projets' | 'parametres';
 
 const ORDER: { key: TourKey; route: string }[] = [
   { key: 'comptes',      route: '/(tabs)/comptes' },
   { key: 'transactions', route: '/(tabs)/transactions' },
   { key: 'pilotage',     route: '/(tabs)/pilotage' },
-  { key: 'tresorerie',   route: '/(tabs)/tresorerie' },
   { key: 'projection',   route: '/(tabs)/projection' },
+  { key: 'projets',      route: '/(tabs)/projects' },
   { key: 'parametres',   route: '/(tabs)/(secondary)/parametres' },
 ];
 

@@ -39,7 +39,7 @@ export default function ProfileScreen() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ── Guide de présentation (bulles) ──
-  const guide = useScreenGuide('profile', user?.id);
+  const guide = useScreenGuide('parametres', user?.id);
   const scrollRef = useRef<ScrollView>(null);
   const avatarRef = useRef<View>(null);
   const infoRef = useRef<View>(null);

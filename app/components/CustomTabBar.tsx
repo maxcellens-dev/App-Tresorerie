@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 
-type TabName = 'comptes' | 'tresorerie' | 'pilotage' | 'transactions' | 'projection';
-type IconName = 'wallet' | 'calendar' | 'home' | 'list' | 'trending-up';
+type TabName = 'comptes' | 'projects' | 'pilotage' | 'transactions' | 'projection';
+type IconName = 'wallet' | 'flag' | 'home' | 'list' | 'trending-up';
 
 interface TabItem {
   name: TabName;
@@ -17,8 +17,8 @@ const ITEMS: TabItem[] = [
   { name: 'comptes', label: 'Comptes', icon: 'wallet' },
   { name: 'transactions', label: 'Transactions', icon: 'list' },
   { name: 'pilotage', label: 'Pilotage', icon: 'home' },
-  { name: 'tresorerie', label: 'Tréso', icon: 'calendar' },
   { name: 'projection', label: 'Projection', icon: 'trending-up' },
+  { name: 'projects', label: 'Projets', icon: 'flag' },
 ];
 
 export default function CustomTabBar({ state }: any) {
