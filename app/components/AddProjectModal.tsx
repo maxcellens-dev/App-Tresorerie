@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   TextInput,
   FlatList,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from './CalendarWithPicker';
 import { useAuth } from '../contexts/AuthContext';
-import { useAddProject, useUpdateProject } from '../hooks/useProjects';
+import { useAddProject, useUpdateProject, useDeleteProjectFull, useDeleteProjectKeepingLocked, useCheckProjectTransactions } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
+import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
@@ -110,6 +112,18 @@ export default function AddProjectModal({
   const [showCalendar, setShowCalendar] = useState<'target' | 'payment' | false>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
+  
+  // Deletion state
+  const deleteFullMutation = useDeleteProjectFull(user?.id || '');
+  const deleteKeepingLockedMutation = useDeleteProjectKeepingLocked(user?.id || '');
+  const { check: checkTransactions } = useCheckProjectTransactions(user?.id || '');
+  const { data: profile } = useProfile(user?.id);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmState, setDeleteConfirmState] = useState<{
+    title: string;
+    message: string;
+    options: Array<{ label: string; action: () => void; destructive?: boolean }>;
+  } | null>(null);
 
   // Load editing project data when modal opens
   useEffect(() => {
@@ -338,7 +352,121 @@ export default function AddProjectModal({
     setShowCalendar(false);
     setFormError(null);
     setErrorFields([]);
+    setShowDeleteConfirm(false);
     onClose();
+  };
+
+  const runDeleteFull = () => {
+    if (!editingProject) return;
+    setDeleteConfirmState(null);
+    deleteFullMutation.mutate(editingProject.id, {
+      onSuccess: () => { handleClose(); onSuccess?.(); },
+      onError: () => Alert.alert('Erreur', 'La suppression du projet a échoué.'),
+    });
+  };
+
+  const runDeleteKeepingLocked = (lockDate: string) => {
+    if (!editingProject) return;
+    setDeleteConfirmState(null);
+    deleteKeepingLockedMutation.mutate(
+      { projectId: editingProject.id, lockDate },
+      {
+        onSuccess: () => { handleClose(); onSuccess?.(); },
+        onError: () => Alert.alert('Erreur', 'La suppression du projet a échoué.'),
+      },
+    );
+  };
+
+  const buildDeleteSummary = (opts: {
+    projectName: string;
+    kept?: number;
+    removedPast?: number;
+    removedFuture?: number;
+  }) => {
+    const lines = [`Projet « ${opts.projectName} »`, ''];
+    if (opts.kept && opts.kept > 0) {
+      lines.push('✓ Conservé dans vos comptes :');
+      lines.push(`  • ${opts.kept} transaction(s) clôturée(s) (détachées du projet)`);
+      lines.push('');
+    }
+    lines.push('✗ Sera supprimé :');
+    lines.push('  • Le projet');
+    if (opts.removedPast && opts.removedPast > 0) {
+      lines.push(`  • ${opts.removedPast} transaction(s) passée(s)`);
+    }
+    if (opts.removedFuture && opts.removedFuture > 0) {
+      lines.push(`  • ${opts.removedFuture} virement(s) planifié(s) à venir`);
+    }
+    if (!opts.removedPast && !opts.removedFuture) {
+      lines.push('  • Aucune transaction liée');
+    }
+    lines.push('', 'Cette action est irréversible.');
+    return lines.join('\n');
+  };
+
+  const handleDelete = async () => {
+    if (!editingProject) return;
+    try {
+      const { past, future } = await checkTransactions(editingProject.id);
+      const closureLockDate = (profile as any)?.closure_lock_date as string | null;
+      const lockedTxns = closureLockDate ? past.filter((t: any) => t.date <= closureLockDate) : [];
+      const unlockedPastTxns = closureLockDate ? past.filter((t: any) => t.date > closureLockDate) : past;
+      const futureCount = future.length;
+
+      if (lockedTxns.length > 0 && unlockedPastTxns.length === 0 && futureCount === 0) {
+        setDeleteConfirmState({
+          title: 'Suppression impossible',
+          message: `Le projet « ${editingProject.name} » compte ${lockedTxns.length} transaction(s) dans une période clôturée.\n\nCes écritures ne peuvent pas être effacées. Rouvrez la période concernée dans le Pilotage si vous souhaitez tout supprimer.`,
+          options: [{ label: 'Compris', action: () => setDeleteConfirmState(null) }],
+        });
+        return;
+      }
+
+      if (lockedTxns.length > 0 && closureLockDate && (unlockedPastTxns.length > 0 || futureCount > 0)) {
+        setDeleteConfirmState({
+          title: 'Supprimer le projet ?',
+          message: buildDeleteSummary({
+            projectName: editingProject.name,
+            kept: lockedTxns.length,
+            removedPast: unlockedPastTxns.length,
+            removedFuture: futureCount,
+          }),
+          options: [
+            { label: 'Annuler', action: () => setDeleteConfirmState(null) },
+            {
+              label: 'Oui, supprimer',
+              destructive: true,
+              action: () => runDeleteKeepingLocked(closureLockDate),
+            },
+          ],
+        });
+        return;
+      }
+
+      setDeleteConfirmState({
+        title: 'Supprimer le projet ?',
+        message: buildDeleteSummary({
+          projectName: editingProject.name,
+          removedPast: past.length,
+          removedFuture: futureCount,
+        }),
+        options: [
+          { label: 'Annuler', action: () => setDeleteConfirmState(null) },
+          { label: 'Oui, supprimer', destructive: true, action: runDeleteFull },
+        ],
+      });
+    } catch (err) {
+      setDeleteConfirmState({
+        title: 'Erreur',
+        message: 'Impossible de vérifier les transactions du projet.',
+        options: [
+          {
+            label: 'Fermer',
+            action: () => setDeleteConfirmState(null),
+          },
+        ],
+      });
+    }
   };
 
   const formatDateFrench = (dateStr: string): string => {
@@ -753,6 +881,26 @@ export default function AddProjectModal({
                 </TouchableOpacity>
               </View>
             )}
+            
+            {/* Bouton Supprimer (seulement si édition) */}
+            {!showAccountPicker && editingProject && (
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: COLORS.danger + '20', marginTop: 12 }]}
+                onPress={() => {
+                  handleDelete();
+                }}
+                disabled={deleteFullMutation.isPending || deleteKeepingLockedMutation.isPending}
+              >
+                {deleteFullMutation.isPending ? (
+                  <ActivityIndicator color={COLORS.danger} />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <Ionicons name="trash" size={16} color={COLORS.danger} />
+                    <Text style={[styles.submitButtonText, { color: COLORS.danger }]}>Supprimer le projet</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -792,6 +940,38 @@ export default function AddProjectModal({
           </View>
         </View>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal visible={!!deleteConfirmState} transparent animationType="fade">
+        <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.7)', justifyContent: 'center', paddingHorizontal: 20 }]}>
+          <View style={[styles.confirmBox, { backgroundColor: COLORS.cardSolid }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Ionicons name="warning" size={20} color={COLORS.danger} />
+              <Text style={[styles.confirmTitle, { color: COLORS.text, marginBottom: 0, flex: 1 }]}>{deleteConfirmState?.title}</Text>
+            </View>
+            <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>{deleteConfirmState?.message}</Text>
+            <View style={styles.confirmButtonGroup}>
+              {deleteConfirmState?.options.map((opt, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.confirmButton,
+                    {
+                      backgroundColor: opt.destructive ? COLORS.danger + '20' : COLORS.primary + '10',
+                      borderColor: opt.destructive ? COLORS.danger : COLORS.primary,
+                    },
+                  ]}
+                  onPress={opt.action}
+                >
+                  <Text style={[styles.confirmButtonText, { color: opt.destructive ? COLORS.danger : COLORS.primary }]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -799,6 +979,23 @@ export default function AddProjectModal({
 function makeStyles(c: any) {
   return StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
+  confirmBox: {
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+  },
+  confirmTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  confirmMessage: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  confirmButtonGroup: { gap: 10 },
+  confirmButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  confirmButtonText: { fontSize: 14, fontWeight: '600' },
   container: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20, maxHeight: '90%', borderTopWidth: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 18, fontWeight: '600' },

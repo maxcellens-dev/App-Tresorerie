@@ -426,6 +426,49 @@ export function useDeleteProjectFull(profileId: string | undefined) {
   });
 }
 
+/**
+ * Supprime le projet en conservant les transactions d'une période clôturée.
+ * Les transactions clôturées sont détachées (project_id → null), les autres sont supprimées.
+ */
+export function useDeleteProjectKeepingLocked(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, lockDate }: { projectId: string; lockDate: string }) => {
+      if (!supabase || !profileId) throw new Error('Not authenticated');
+
+      const { error: unlinkErr } = await supabase
+        .from('transactions')
+        .update({ project_id: null })
+        .eq('project_id', projectId)
+        .eq('profile_id', profileId)
+        .lte('date', lockDate);
+      if (unlinkErr) throw unlinkErr;
+
+      const { error: delErr } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('project_id', projectId)
+        .eq('profile_id', profileId)
+        .gt('date', lockDate);
+      if (delErr) throw delErr;
+
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId)
+        .eq('profile_id', profileId);
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [PROJECTS_KEY, profileId] });
+      client.invalidateQueries({ queryKey: [TRANSACTIONS_KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
+}
+
 export function useArchiveProject(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({

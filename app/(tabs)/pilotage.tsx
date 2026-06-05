@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
@@ -165,10 +165,14 @@ export default function PilotageScreen() {
   const safetyMarginDisplay = pilotageData?.safety_margin_amount ?? 0;
   // Enveloppe variable restante (estimation des dépenses variables non encore engagées ce mois)
   const variableEnvelopeRemaining = pilotageData?.variable_envelope_remaining ?? 0;
+  // Budget libre : on déduit uniquement ce qui n'est pas encore sorti du solde courant
+  // (épargne/invest déjà validée est déjà reflétée dans current_checking_balance).
+  const savingsRemaining = pilotageData?.monthly_savings_remaining ?? pilotageData?.monthly_savings_planned ?? 0;
+  const investRemaining = pilotageData?.monthly_invest_remaining ?? pilotageData?.monthly_invest_planned ?? 0;
   const resteDisponible = Math.max(0,
     (pilotageData?.current_checking_balance ?? 0)
-    - (pilotageData?.monthly_savings_planned ?? 0)
-    - (pilotageData?.monthly_invest_planned ?? 0)
+    - savingsRemaining
+    - investRemaining
     - (pilotageData?.monthly_reserve_planned ?? 0)
     - (pilotageData?.month_expenses_total ?? 0)
     - variableEnvelopeRemaining
@@ -352,11 +356,11 @@ export default function PilotageScreen() {
             );
           })()}
 
-          {/* ═══════════ SECTION 2 : Action prioritaire ═══════════ */}
+          {/* ═══════════ SECTION 2 : Recommandations ═══════════ */}
           <View style={[styles.section, onbReco ? onbGlow(COLORS, true) : null]} ref={monthRef}>
             <View style={styles.sectionHeader}>
               <Ionicons name="bulb-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Action prioritaire</Text>
+              <Text style={styles.sectionTitle}>Recommandations</Text>
             </View>
             <View style={styles.sectionDivider} />
 

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -16,8 +17,10 @@ export interface PilotageData {
   monthly_commitments: number;
 
   // Suivi des engagements du mois en cours
-  monthly_savings_planned: number;       // virements récurrents épargne + projets
-  monthly_invest_planned: number;        // virements récurrents invest + objectifs
+  monthly_savings_planned: number;       // virements récurrents épargne + projets (total du mois, affichage)
+  monthly_savings_remaining: number;     // part non encore exécutée → pour le budget libre
+  monthly_invest_planned: number;        // virements récurrents invest (total du mois, affichage)
+  monthly_invest_remaining: number;      // part non encore exécutée → pour le budget libre
   real_savings_excl_projects: number;    // épargne réelle ce mois HORS projets (pour budget reco)
   real_invest: number;                   // invest réel ce mois (pour budget reco)
   monthly_reserve_planned: number;       // total réservé (projets même compte + brouillons conservés)
@@ -98,17 +101,19 @@ async function fetchPilotageData(profileId: string): Promise<{
   profile: Profile | null;
   accounts: Account[];
   transactions: TransactionWithCategory[];
+  questionnaireAnswers: any | null;
   projects: Project[];
   objectives: Objective[];
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
-  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes] = await Promise.all([
+  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
     supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
     supabase.from('projects').select('*').eq('profile_id', profileId),
     supabase.from('objectives').select('*').eq('profile_id', profileId),
+    supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
   ]);
 
   if (profileRes.error) throw profileRes.error;
@@ -116,6 +121,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   if (transactionsRes.error) throw transactionsRes.error;
   if (projectsRes.error) throw projectsRes.error;
   if (objectivesRes.error) throw objectivesRes.error;
+  if (qaRes.error) throw qaRes.error;
 
   return {
     profile: (profileRes.data as Profile) || null,
@@ -135,6 +141,7 @@ async function fetchPilotageData(profileId: string): Promise<{
       ...o,
       target_yearly_amount: Number(o.target_yearly_amount),
     })) as Objective[],
+    questionnaireAnswers: qaRes.data ?? null,
   };
 }
 
@@ -163,6 +170,55 @@ function addRecurrenceToMonth(year: number, month: number, amount: number, start
       if (d > end) break;
     }
     return count * amount;
+  }
+  return 0;
+}
+
+/** Montant récurrent déjà passé dans le mois courant (date ≤ todayStr). */
+function recurrencePastInMonth(
+  year: number, month: number, amount: number, startDate: string,
+  rule: RecurrenceRule, endDate: string | null, todayStr: string, currentDate: Date,
+): number {
+  const total = addRecurrenceToMonth(year, month, amount, startDate, rule, endDate, currentDate);
+  const start = new Date(startDate);
+  const thisMonthStart = new Date(year, month - 1, 1);
+  const thisMonthEnd = new Date(year, month, 0);
+  const maxEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 24, 1);
+  const end = endDate ? new Date(Math.min(new Date(endDate).getTime(), maxEndDate.getTime())) : maxEndDate;
+  if (start > thisMonthEnd || end < thisMonthStart) return 0;
+
+  if (rule === 'monthly') {
+    const day = Math.min(start.getDate(), thisMonthEnd.getDate());
+    const occ = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (occ < startDate.slice(0, 10)) return 0;
+    return occ <= todayStr ? total : 0;
+  }
+  if (rule === 'weekly') {
+    let past = 0;
+    let d = new Date(start);
+    while (d <= thisMonthEnd) {
+      if (d >= thisMonthStart) {
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (ds <= todayStr) past += amount;
+      }
+      d.setDate(d.getDate() + 7);
+      if (d > end) break;
+    }
+    return past;
+  }
+  if (rule === 'quarterly') {
+    const startMonth = start.getFullYear() * 12 + start.getMonth();
+    const thisMonth = year * 12 + (month - 1);
+    if ((thisMonth - startMonth) % 3 !== 0 || thisMonth < startMonth) return 0;
+    const day = Math.min(start.getDate(), thisMonthEnd.getDate());
+    const occ = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return occ <= todayStr ? amount : 0;
+  }
+  if (rule === 'yearly') {
+    if (start.getMonth() !== month - 1 || year < start.getFullYear()) return 0;
+    const day = Math.min(start.getDate(), thisMonthEnd.getDate());
+    const occ = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return occ <= todayStr ? amount : 0;
   }
   return 0;
 }
@@ -385,7 +441,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     .reduce((s, p) => s + Number(p.monthly_allocation || 0), 0);
 
   let transfer_savings = 0;   // virements vers comptes épargne (depuis courant)
+  let transfer_savings_past = 0;
   let transfer_invest = 0;    // virements vers comptes investissement (depuis courant/épargne)
+  let transfer_invest_past = 0;
   let month_expenses_total = 0;
 
   for (const t of transactions) {
@@ -394,12 +452,19 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     const [tY, tM] = t.date.split('-').map(Number);
     const isThisMonth = tY === currentYear && tM === currentMonth;
     const isRecurring = Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule);
+    const isDraft = Boolean((t as any).is_draft);
 
     // Montant projeté sur le mois courant (récurrent → projection, sinon ponctuel du mois)
     const monthlyAmt = isRecurring
       ? addRecurrenceToMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
       : (isThisMonth ? Math.abs(amt) : 0);
     if (monthlyAmt <= 0) continue;
+
+    const pastAmt = isDraft ? 0 : (
+      isRecurring
+        ? recurrencePastInMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
+        : (isThisMonth && t.date <= todayStr ? Math.abs(amt) : 0)
+    );
 
     const srcType = accountTypeById[t.account_id];
     const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
@@ -408,9 +473,11 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     if (linkedType === 'investment' && (srcType === 'checking' || srcType === 'savings') && !hasProject) {
       // Virement réel vers un compte d'investissement
       transfer_invest += monthlyAmt;
+      transfer_invest_past += pastAmt;
     } else if (linkedType === 'savings' && srcType === 'checking' && !hasProject) {
       // Virement réel vers un compte d'épargne
       transfer_savings += monthlyAmt;
+      transfer_savings_past += pastAmt;
     } else if (!t.linked_account_id && !hasProject && srcType === 'checking') {
       // Vraie dépense : depuis un compte courant, catégorie dépense, hors régularisation
       const cat = (t as TransactionWithCategory).category;
@@ -424,6 +491,23 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const monthly_savings_planned = transfer_savings + project_savings_monthly;
   const monthly_invest_planned = transfer_invest; // virements réels uniquement (objectifs exclus)
+
+  // Épargne/invest déjà exécutée ce mois (solde courant déjà impacté) → ne pas redéduire du budget libre
+  let project_savings_executed = 0;
+  for (const p of activeProjects.filter(ap => !isSameAccountProject(ap))) {
+    project_savings_executed += transactions
+      .filter(t => t.project_id === p.id && !(t as any).is_draft && Number(t.amount) < 0)
+      .filter(t => {
+        const [tY, tM] = t.date.split('-').map(Number);
+        return tY === currentYear && tM === currentMonth;
+      })
+      .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+  }
+  const project_savings_remaining = Math.max(0, project_savings_monthly - project_savings_executed);
+  const transfer_savings_remaining = Math.max(0, transfer_savings - transfer_savings_past);
+  const transfer_invest_remaining = Math.max(0, transfer_invest - transfer_invest_past);
+  const monthly_savings_remaining = project_savings_remaining + transfer_savings_remaining;
+  const monthly_invest_remaining = transfer_invest_remaining;
   // Pour le budget de recommandation : épargne réelle HORS projets, et invest réel.
   const real_savings_excl_projects = transfer_savings;
   const real_invest = transfer_invest;
@@ -469,14 +553,13 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   // =====================================================================
   // ENVELOPPE DES DÉPENSES VARIABLES (estimation dynamique)
-  //  Définition : dépenses NON récurrentes (depuis comptes courants, hors
-  //  virements/projets) + régularisations de solde (net signé).
+  //  Définition : dépenses variables NON récurrentes (catégorie is_variable)
+  //  depuis comptes courants, hors virements/projets + régularisations (net signé).
   //  Initiale :
-  //    - ≥ 2 mois d'historique (M-1..M-6) → moyenne sur les mois disponibles
-  //    - sinon → estimation onboarding (q9 hebdo × 4.33)
+  //    - ≥ 2 mois passés avec dépenses variables (M-1..M-6) → moyenne
+  //    - sinon → question 4 du questionnaire (champ q9, hebdo × 4,33 → mensuel)
   //  Restant = max(0, initiale − déjà dépensé ce mois) → déduit du Reste.
   // =====================================================================
-  const WEEKS_PER_MONTH = 4.33;
 
   const isNonRecurringTx = (t: TransactionWithCategory) =>
     !(Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule));
@@ -493,12 +576,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     if ((t as any).linked_account_id || (t as any).project_id) return 0; // pas un virement / projet
     const amt = Number(t.amount);
     if (isRegulTx(t)) return -amt; // régul : dépense (−) → +, recette (+) → −
-    if (amt < 0) {
-      const cat = t.category;
-      const isExpenseCat = !cat || cat.type === 'expense';
-      return isExpenseCat ? -amt : 0; // dépense → +abs
+    if (amt < 0 && t.category?.is_variable === true) {
+      return -amt; // uniquement les catégories marquées variables (Frais variables, etc.)
     }
-    return 0; // recette non-régul ignorée
+    return 0;
   };
 
   // Historique des 6 mois précédents
@@ -508,8 +589,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     pastMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1, key: `${d.getFullYear()}-${d.getMonth() + 1}` });
   }
   const variableByPastMonth: Record<string, number> = {};
-  const monthHasData: Record<string, boolean> = {};
-  pastMonths.forEach(m => { variableByPastMonth[m.key] = 0; monthHasData[m.key] = false; });
+  pastMonths.forEach(m => { variableByPastMonth[m.key] = 0; });
 
   let variable_envelope_spent = 0;
   for (const t of transactions) {
@@ -519,24 +599,27 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     if (ty === currentYear && tm === currentMonth) {
       variable_envelope_spent += variableContribution(t);
     } else if (key in variableByPastMonth) {
-      monthHasData[key] = true; // toute transaction non récurrente = mois suivi
       variableByPastMonth[key] += variableContribution(t);
     }
   }
   variable_envelope_spent = Math.max(0, variable_envelope_spent);
 
-  const monthsWithData = pastMonths.filter(m => monthHasData[m.key]);
+  // Historique = mois passés avec de vraies dépenses variables (> 0), pas toute transaction.
+  const monthsWithData = pastMonths.filter(m => variableByPastMonth[m.key] > 0);
   let variable_envelope_initial = 0;
   let variable_envelope_source: 'history' | 'onboarding' | 'none' = 'none';
   let variable_envelope_months_used = 0;
 
   if (monthsWithData.length >= 2) {
-    const sum = monthsWithData.reduce((s, m) => s + Math.max(0, variableByPastMonth[m.key]), 0);
+    const sum = monthsWithData.reduce((s, m) => s + variableByPastMonth[m.key], 0);
     variable_envelope_initial = sum / monthsWithData.length;
     variable_envelope_source = 'history';
     variable_envelope_months_used = monthsWithData.length;
   } else {
-    const weekly = Number(profile?.weekly_variable_budget ?? 0);
+    // Sans historique variable suffisant : question 4 du questionnaire (champ q9, hebdo → mensuel)
+    const weekly =
+      Number(profile?.weekly_variable_budget ?? 0) ||
+      weeklyVariableFromQ9(String(data.questionnaireAnswers?.q9 ?? ''));
     if (weekly > 0) {
       variable_envelope_initial = weekly * WEEKS_PER_MONTH;
       variable_envelope_source = 'onboarding';
@@ -553,7 +636,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     monthly_commitments,
     same_account_reserved,
     monthly_savings_planned,
+    monthly_savings_remaining,
     monthly_invest_planned,
+    monthly_invest_remaining,
     real_savings_excl_projects,
     real_invest,
     monthly_reserve_planned,

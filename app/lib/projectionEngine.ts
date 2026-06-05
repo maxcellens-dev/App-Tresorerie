@@ -191,10 +191,8 @@ function savingsContribution(t: SavedTx): number {
   if (t.amount < 0 && t.account_type === 'checking' && t.linked_account_type === 'savings') {
     return Math.abs(t.amount);
   }
-  // Apport externe direct sur un compte d'épargne (pas un virement interne déjà compté)
-  if (t.amount > 0 && t.account_type === 'savings' && !t.linked_account_type) {
-    return t.amount;
-  }
+  // NOTE: Do NOT count direct deposits on savings accounts (t.amount > 0 && account_type === 'savings')
+  // as these are typically account setup transfers or fund initializations, not actual savings contributions.
   return 0;
 }
 

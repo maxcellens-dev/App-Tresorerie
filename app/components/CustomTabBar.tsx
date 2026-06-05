@@ -17,8 +17,8 @@ const ITEMS: TabItem[] = [
   { name: 'comptes', label: 'Comptes', icon: 'wallet' },
   { name: 'transactions', label: 'Transactions', icon: 'list' },
   { name: 'pilotage', label: 'Pilotage', icon: 'home' },
-  { name: 'projection', label: 'Projection', icon: 'trending-up' },
   { name: 'projects', label: 'Projets', icon: 'flag' },
+  { name: 'projection', label: 'Projection', icon: 'trending-up' },
 ];
 
 export default function CustomTabBar({ state }: any) {

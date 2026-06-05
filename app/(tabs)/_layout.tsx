@@ -108,22 +108,22 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="projection"
-        options={{
-          title: 'Projection',
-          tabBarLabel: 'Projection',
-          tabBarIcon: ({ focused, color }) => (
-            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={24} color={color} style={styles.icon} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="projects"
         options={{
           title: 'Projets',
           tabBarLabel: 'Projets',
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'flag' : 'flag-outline'} size={24} color={color} style={styles.icon} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="projection"
+        options={{
+          title: 'Projection',
+          tabBarLabel: 'Projection',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={24} color={color} style={styles.icon} />
           ),
         }}
       />

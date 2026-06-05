@@ -72,7 +72,7 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
   // Rotation auto toutes les 5 s (seulement si 2 conseils).
   useEffect(() => {
     if (slidesLen < 2) return;
-    const t = setInterval(() => apiRef.current.doNext(), 5000);
+    const t = setInterval(() => apiRef.current.doNext(), 8000);
     return () => clearInterval(t);
   }, [slidesLen]);
 

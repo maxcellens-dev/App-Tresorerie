@@ -337,14 +337,6 @@ export default function ProjectsScreen() {
               </Text>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: COLORS.danger + '20' }]}
-            onPress={() => handleDelete(project.id)}
-          >
-            <Ionicons name="trash" size={16} color={COLORS.danger} />
-            <Text style={[styles.actionButtonText, { color: COLORS.danger }]}>Supprimer</Text>
-          </TouchableOpacity>
         </View>
       </View>
     );

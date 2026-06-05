@@ -154,7 +154,8 @@ export function safetyMarginFromQ8(q8: string): number {
   return isNaN(v) || v < 0 ? 0 : v;
 }
 
-/** Montant hebdomadaire variable (€/semaine) → € net numérique. '' → 0. */
+/** Montant hebdomadaire variable (€/semaine) → € net numérique. '' → 0.
+ *  Question 4 du questionnaire (« Dépenses variables hebdo »), stockée en base dans le champ `q9`. */
 export function weeklyVariableFromQ9(q9: string): number {
   if (!q9) return 0;
   const v = parseFloat(q9.replace(',', '.'));
