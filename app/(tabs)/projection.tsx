@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   useWindowDimensions, Platform, findNodeHandle,
@@ -693,6 +693,8 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
   const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const checkingIds = new Set(accounts.filter((a: any) => a.type === 'checking').map((a: any) => a.id));
+  const accountTypeById: Record<string, string> = {};
+  accounts.forEach((a: any) => { accountTypeById[a.id] = a.type; });
   const checkingBalance = accounts.filter((a: any) => a.type === 'checking').reduce((s: number, a: any) => s + Number(a.balance), 0);
   const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
   const variableRemaining = pilotage?.variable_envelope_remaining ?? variableMonthly;
@@ -702,6 +704,45 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
   const isTransfer = (t: any) => !!t.linked_account_id;
   const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
   const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft;
+
+  // Épargne, investissement et projets : sorties du compte courant (virements + brouillons projet)
+  const isOtherOutflow = (t: any) => {
+    const isChecking = onChecking(t);
+    const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
+    if (t.linked_account_id && !isChecking) return false;
+    const isProjectTx = !!t.project_id;
+    if (isChecking && linkedType === 'savings' && isProjectTx) return true;
+    if (isChecking && linkedType === 'savings') return true;
+    if (isChecking && linkedType === 'investment') return true;
+    if (isProjectTx && isChecking) return true;
+    return false;
+  };
+
+  const otherForMonth = (year: number, month: number, onlyRemaining: boolean) => {
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    let total = 0;
+    for (const t of transactions) {
+      if (!isOtherOutflow(t)) continue;
+      const raw = Number(t.amount);
+      if (raw >= 0) continue;
+      const absAmt = Math.abs(raw);
+      if (t.is_recurring && t.recurrence_rule) {
+        const occ = recurrenceAmount(t, year, month);
+        if (!occ) continue;
+        if (onlyRemaining) {
+          const recDay = new Date(t.date).getDate();
+          if (!t.is_draft && recDay < now.getDate()) continue;
+        }
+        total += Math.abs(occ);
+      } else if (t.date.startsWith(prefix)) {
+        if (onlyRemaining) {
+          if (!t.is_draft && t.date <= todayStr) continue;
+        }
+        total += absAmt;
+      }
+    }
+    return total;
+  };
 
   function recurrenceAmount(t: any, year: number, month: number): number {
     const rule = t.recurrence_rule;
@@ -752,6 +793,8 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
 
     // Dépenses variables : reste estimé pour le mois courant, estimation mensuelle ensuite.
     const variable = isCurrent ? variableRemaining : variableMonthly;
+    const other = otherForMonth(year, month, false);
+    const otherRemaining = isCurrent ? otherForMonth(year, month, true) : other;
 
     // Solde prévu (fin de mois). Mois courant : on ne reprojette que ce qui est encore à venir
     // (récurrences + ponctuels datés après aujourd'hui) pour ne pas double-compter le solde réel.
@@ -769,12 +812,15 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
           if (!(amt > 0 && isRegul(t))) upcoming += amt;
         }
       }
-      runningBalance = checkingBalance + upcoming - variableRemaining;
+      runningBalance = checkingBalance + upcoming - variableRemaining - otherRemaining;
     } else {
-      runningBalance += income + expense - variable;
+      runningBalance += income + expense - variable - other;
     }
 
-    return { year, month, label, income, expense: Math.abs(expense), variable, balance: runningBalance, isCurrent };
+    return {
+      year, month, label, income, expense: Math.abs(expense), variable, other, balance: runningBalance, isCurrent,
+      startBalance: isCurrent ? checkingBalance : null,
+    };
   });
 
   return (
@@ -787,9 +833,16 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
       <Text style={styles.sectionHint}>Soldes et flux prévus sur les 6 prochains mois</Text>
       {rows.map((r) => (
         <View key={`${r.year}-${r.month}`} style={[styles.tresoMonthCard, r.isCurrent && { borderColor: COLORS.blue + '88' }]}>
-          <View style={styles.tresoMonthHeader}>
-            {r.isCurrent && <View style={[styles.tresoCurrentDot, { backgroundColor: COLORS.blue }]} />}
-            <Text style={[styles.tresoMonthLabel, r.isCurrent && { color: COLORS.blue }]}>{r.label}</Text>
+          <View style={[styles.tresoMonthHeader, r.isCurrent && { justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 }}>
+              {r.isCurrent && <View style={[styles.tresoCurrentDot, { backgroundColor: COLORS.blue }]} />}
+              <Text style={[styles.tresoMonthLabel, r.isCurrent && { color: COLORS.blue }]}>{r.label}</Text>
+            </View>
+            {r.isCurrent && r.startBalance != null && (
+              <Text style={[styles.tresoStartBalance, { color: COLORS.textSecondary }]}>
+                Départ : {fmt(r.startBalance)} {CURRENCY_SYMBOL}
+              </Text>
+            )}
           </View>
           <View style={styles.tresoMonthBody}>
             <View style={styles.tresoMonthRow}>
@@ -803,6 +856,10 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
             <View style={styles.tresoMonthRow}>
               <Text style={styles.tresoKey}>Dépenses variables (est.)</Text>
               <Text style={[styles.tresoVal, { color: COLORS.orange }]}>−{fmt(r.variable)} {CURRENCY_SYMBOL}</Text>
+            </View>
+            <View style={styles.tresoMonthRow}>
+              <Text style={styles.tresoKey}>Autre (épargne, invest., projets)</Text>
+              <Text style={[styles.tresoVal, { color: COLORS.violet }]}>−{fmt(r.other)} {CURRENCY_SYMBOL}</Text>
             </View>
             <View style={[styles.tresoMonthRow, { borderTopWidth: 0.5, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 6 }]}>
               <Text style={[styles.tresoKey, { fontWeight: '700' }]}>Solde prévu</Text>
@@ -917,6 +974,7 @@ function makeStyles(c: any) {
     tresoMonthHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
     tresoCurrentDot: { width: 7, height: 7, borderRadius: 3.5 },
     tresoMonthLabel: { fontSize: 14, fontWeight: '800', color: c.text, textTransform: 'capitalize' },
+    tresoStartBalance: { fontSize: 12, fontWeight: '600' },
     tresoMonthBody: { gap: 3 },
     tresoMonthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 },
     tresoKey: { fontSize: 13, color: c.textSecondary },
