@@ -12,6 +12,7 @@ import { tabRect } from '../lib/tourTargets';
 import type { BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../hooks/useTransactions';
+import { usePilotageData } from '../hooks/usePilotageData';
 import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
 import { useAccounts } from '../hooks/useAccounts';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
@@ -142,6 +143,7 @@ export default function TreasuryPlanScreen() {
   const categoriesQuery = useCategories(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const accountsQuery = useAccounts(user?.id);
+  const { data: pilotage } = usePilotageData(user?.id);
 
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: categories = [], isLoading: categoriesLoading } = categoriesQuery;
@@ -613,6 +615,24 @@ export default function TreasuryPlanScreen() {
 
     rows.push({ label: 'Solde', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });
 
+    // Dépenses variables estimées (même logique que le Suivi du mois) :
+    //  - mois passés → 0 (les dépenses réelles sont déjà saisies)
+    //  - mois en cours → reste estimé (estimation − déjà dépensé ce mois)
+    //  - mois futurs → estimation mensuelle (historique calculé ou saisie onboarding)
+    const currentKey = getMonthKey(currentYear, currentMonth);
+    const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
+    const variableRemaining = pilotage?.variable_envelope_remaining ?? 0;
+    const variableByMonth: Record<string, number> = {};
+    const anticipeByMonth: Record<string, number> = {};
+    months.forEach((m) => {
+      const v = m.key < currentKey ? 0 : (m.key === currentKey ? variableRemaining : variableMonthly);
+      variableByMonth[m.key] = v;
+      anticipeByMonth[m.key] = (soldeByMonth[m.key] ?? 0) - v;
+    });
+    // Lignes non-enfant → visibles aussi en mode simplifié.
+    rows.push({ label: 'Dépenses variables', categoryId: null, type: 'expense', values: variableByMonth });
+    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipeByMonth });
+
     // DÉPENSES total header
     rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: expenseCatTotals, isSectionHeader: true, isBlockStart: true });
 
@@ -634,7 +654,7 @@ export default function TreasuryPlanScreen() {
     });
 
     return { rows, months, txByMonthCategory };
-  }, [transactions, months, incomeGrouped, expenseGrouped, overrides, checkingBalance]);
+  }, [transactions, months, incomeGrouped, expenseGrouped, overrides, checkingBalance, pilotage, currentYear, currentMonth]);
 
   const goToTransactions = (monthKey: string, categoryId: string | null) => {
     const url = categoryId
@@ -769,6 +789,15 @@ export default function TreasuryPlanScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* Retour vers Projection (page d'origine du plan de trésorerie) */}
+        <TouchableOpacity
+          style={styles.backRow}
+          onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/projection' as any); }}
+          accessibilityRole="button"
+        >
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          <Text style={styles.backText}>Retour</Text>
+        </TouchableOpacity>
         <View style={styles.subtitleRow}>
           <Text style={[styles.subtitle, { flex: 1, marginBottom: 0 }]}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
           <TouchableOpacity style={[styles.simpleToggle, simplified && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]} onPress={toggleSimplified} activeOpacity={0.7} accessibilityRole="button">
@@ -959,7 +988,7 @@ export default function TreasuryPlanScreen() {
                           style={[
                             styles.cellNumText,
                             isPastMonth && row.type === 'income' && styles.cellNumPositive,
-                            isPastMonth && row.type === 'expense' && styles.cellNumNegative,
+                            isPastMonth && row.type === 'expense' && row.label !== 'Dépenses variables' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
@@ -1282,6 +1311,8 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
+  backText: { fontSize: 14, fontWeight: '600', color: c.text },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 12 },
   subtitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
