@@ -8,7 +8,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
+import { supabase } from '../../../lib/supabase';
+import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
 import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../theme/palette';
 
@@ -61,6 +62,12 @@ export default function StyleEditor() {
   const [lightBg,          setLightBg]          = useState(DEFAULT_BG.light);
 
   const [fontFamily, setFontFamily] = useState('System');
+  const [fontImportUrl, setFontImportUrl] = useState('');
+  const [appNameFont, setAppNameFont] = useState('Arial Rounded MT Bold');
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [fontUploading, setFontUploading] = useState(false);
+  const [fontUploadMsg, setFontUploadMsg] = useState<string | null>(null);
+  const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [accentInputs, setAccentInputs] = useState<Record<string, string>>({});
   const [semanticInputs, setSemanticInputs] = useState<Record<string, string>>({});
   const [extraPresets, setExtraPresets] = useState<CustomPreset[]>([]);
@@ -94,6 +101,9 @@ export default function StyleEditor() {
       setLightCardAlpha(String(styleConfig.light.card_alpha));
       setLightBg(styleConfig.light.bg_color ?? DEFAULT_BG.light);
       setFontFamily(styleConfig.font_family ?? 'System');
+      setFontImportUrl(styleConfig.font_import_url ?? '');
+      setAppNameFont(styleConfig.app_name_font ?? 'Arial Rounded MT Bold');
+      setCustomFonts(styleConfig.custom_fonts ?? []);
       setExtraPresets(styleConfig.extra_presets ?? []);
       setHiddenPresets(styleConfig.hidden_presets ?? []);
       const allIds = [...THEME_PRESETS.map(p => p.id), ...(styleConfig.extra_presets ?? []).map(p => p.id)];
@@ -147,6 +157,59 @@ export default function StyleEditor() {
   const setAlpha   = (v: string)  => activeMode === 'dark' ? setDarkCardAlpha(v)   : setLightCardAlpha(v);
   const setBg      = (v: string)  => activeMode === 'dark' ? setDarkBg(v)          : setLightBg(v);
 
+  // Téléverse un fichier de police vers Supabase Storage (bucket public « fonts »).
+  // Web uniquement (ouverture du sélecteur de fichier natif du navigateur).
+  function uploadFont() {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      setFontUploadMsg('Le téléversement de police se fait depuis la version web.');
+      return;
+    }
+    if (!supabase) { setFontUploadMsg('Supabase non configuré.'); return; }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      setFontUploading(true); setFontUploadMsg(null);
+      try {
+        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `app/${Date.now()}_${safe}`;
+        const { error } = await supabase!.storage.from('fonts').upload(path, file, {
+          upsert: true, contentType: file.type || 'font/ttf', cacheControl: '31536000',
+        });
+        if (error) throw error;
+        const { data } = supabase!.storage.from('fonts').getPublicUrl(path);
+        // Nom de famille dérivé du fichier (unique).
+        const base = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Police importée';
+        let family = base;
+        let n = 2;
+        while (customFonts.some((f) => f.family === family)) { family = `${base} ${n++}`; }
+        setCustomFonts((prev) => [...prev, { family, url: data.publicUrl }]);
+        setAppNameFont(family); // sélectionne automatiquement la police importée
+        setFontUploadMsg(`Police « ${family} » importée et sélectionnée. Cliquez « Appliquer » pour valider.`);
+      } catch (e: unknown) {
+        setFontUploadMsg(e instanceof Error ? e.message : 'Échec du téléversement.');
+      } finally {
+        setFontUploading(false);
+      }
+    };
+    input.click();
+  }
+
+  function removeCustomFont(family: string) {
+    setCustomFonts((prev) => prev.filter((f) => f.family !== family));
+    if (appNameFont === family) setAppNameFont('Arial Rounded MT Bold');
+  }
+
+  // Options de la liste déroulante « police du titre » : système + intégrées + importées.
+  const titleFontOptions: { family: string; label: string; custom?: boolean }[] = [
+    { family: 'System', label: 'Système (défaut)' },
+    { family: 'Arial Rounded MT Bold', label: 'Arial Rounded MT Bold' },
+    ...FONTS.filter((f) => f.id !== 'System').map((f) => ({ family: f.id, label: f.label })),
+    ...customFonts.map((cf) => ({ family: cf.family, label: `${cf.family} · importée`, custom: true })),
+  ].filter((opt, i, arr) => arr.findIndex((o) => o.family === opt.family) === i);
+
   async function handleSave() {
     setSaving(true); setSaved(false);
     try {
@@ -160,6 +223,9 @@ export default function StyleEditor() {
         dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg) ? darkBg.toUpperCase() : DEFAULT_BG.dark },
         light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light },
         font_family: fontFamily,
+        font_import_url: fontImportUrl.trim(),
+        app_name_font: appNameFont.trim(),
+        custom_fonts: customFonts,
         custom_accents: validated,
         extra_presets: extraPresets,
         hidden_presets: hiddenPresets,
@@ -490,6 +556,7 @@ export default function StyleEditor() {
 
           {/* ══════════ ONGLET POLICE ══════════ */}
           {tab === 'font' && (
+            <>
             <Section label="Police de caractères" icon="text-outline" COLORS={COLORS}>
               <Text style={styles.hint}>Appliquée partout sur le web. Sur mobile, seules les polices système s'appliquent.</Text>
               <View style={styles.fontGrid}>
@@ -504,6 +571,74 @@ export default function StyleEditor() {
                 ))}
               </View>
             </Section>
+
+            <Section label="Police personnalisée (nom de l'app)" icon="cloud-upload-outline" COLORS={COLORS}>
+              <Text style={styles.hint}>
+                Téléversez un fichier de police (.ttf / .otf / .woff / .woff2) — il est stocké sur Supabase. Renseignez ensuite le nom EXACT de la famille, puis « Appliquer ». Le nom de l'app utilisera cette police partout. (Web ; sur mobile : police système.)
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.uploadBtn, { borderColor: COLORS.emerald }, fontUploading && { opacity: 0.6 }]}
+                onPress={uploadFont}
+                disabled={fontUploading}
+                activeOpacity={0.8}
+              >
+                {fontUploading ? <ActivityIndicator color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
+                <Text style={[styles.uploadBtnText, { color: COLORS.emerald }]}>{fontUploading ? 'Téléversement…' : 'Téléverser un fichier de police'}</Text>
+              </TouchableOpacity>
+              {fontUploadMsg && <Text style={[styles.hint, { marginTop: 8, color: fontUploadMsg.includes('Échec') || fontUploadMsg.includes('non') ? '#f43f5e' : COLORS.emerald }]}>{fontUploadMsg}</Text>}
+
+              {/* Liste déroulante : police du titre (système + intégrées + importées) */}
+              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Police du nom de l'app</Text>
+              <TouchableOpacity style={styles.dropdownHeader} onPress={() => setFontDropdownOpen((o) => !o)} activeOpacity={0.8}>
+                <Text style={{ flex: 1, color: COLORS.text, fontSize: 14, fontFamily: appNameFont === 'System' ? undefined : appNameFont }} numberOfLines={1}>
+                  {appNameFont || 'Système'}
+                </Text>
+                <Ionicons name={fontDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              {fontDropdownOpen && (
+                <View style={styles.dropdownList}>
+                  {titleFontOptions.map((opt) => {
+                    const selected = opt.family === appNameFont;
+                    return (
+                      <View key={opt.family} style={styles.dropdownRow}>
+                        <TouchableOpacity
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 11 }}
+                          onPress={() => { setAppNameFont(opt.family); setFontDropdownOpen(false); }}
+                          activeOpacity={0.7}
+                        >
+                          {selected ? <Ionicons name="checkmark" size={16} color={COLORS.emerald} /> : <View style={{ width: 16 }} />}
+                          <Text style={{ flex: 1, color: selected ? COLORS.emerald : COLORS.text, fontSize: 14, fontFamily: opt.family === 'System' ? undefined : opt.family }} numberOfLines={1}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                        {opt.custom && (
+                          <TouchableOpacity onPress={() => removeCustomFont(opt.family)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 6 }}>
+                            <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Aperçu</Text>
+              <Text style={{ fontSize: 30, color: COLORS.text, fontFamily: appNameFont === 'System' ? undefined : (appNameFont.trim() || undefined) }}>Relyka</Text>
+
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Avancé — importer via lien CSS (Google Fonts)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={fontImportUrl}
+                onChangeText={setFontImportUrl}
+                placeholder="https://fonts.googleapis.com/css2?family=Pacifico&display=swap"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.hint}>Optionnel : pour une police hébergée ailleurs. Ajoutez ensuite son nom de famille manuellement n'est pas nécessaire si vous téléversez le fichier.</Text>
+            </Section>
+            </>
           )}
 
           {/* Enregistrer */}
@@ -588,6 +723,13 @@ function makeStyles(c: any) {
   row2g: { flexDirection: 'row', gap: 8, alignItems: 'center' },
 
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 17 },
+  fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginBottom: 6 },
+  textInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+  uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, borderStyle: 'dashed' as any },
+  uploadBtnText: { fontSize: 13, fontWeight: '700' },
+  dropdownHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
+  dropdownList: { marginTop: 4, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10 },
+  dropdownRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
 
   accentItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 },
   moveCol: { width: 20, alignItems: 'center', justifyContent: 'center', marginRight: -2 },

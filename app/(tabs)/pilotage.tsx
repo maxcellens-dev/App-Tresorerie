@@ -478,7 +478,7 @@ export default function PilotageScreen() {
                       <Ionicons name="wallet-outline" size={16} color={COLORS.checking} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Solde courant</Text>
+                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Solde courant actuel</Text>
                       <Text style={styles.suiviHint} numberOfLines={1}>Comptes courants à date</Text>
                     </View>
                     <Text style={[styles.suiviValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>

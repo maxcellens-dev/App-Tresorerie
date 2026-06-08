@@ -9,6 +9,7 @@ import {
   Animated, Dimensions, Alert, ActivityIndicator, TextInput, Modal,
 } from 'react-native';
 import { useAppColors } from './hooks/useAppColors';
+import { useAppNameFont } from './hooks/useBrandFont';
 import ScreenGradient from './components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -91,6 +92,7 @@ function OptionCard({
 
 export default function QuestionnaireScreen() {
   const COLORS = useAppColors();
+  const appNameFont = useAppNameFont();
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
@@ -297,7 +299,7 @@ export default function QuestionnaireScreen() {
               <View style={styles.welcomeIconCircle}>
                 <Ionicons name="stats-chart" size={40} color={COLORS.emerald} />
               </View>
-              <Text style={styles.welcomeTitle}>Bienvenue sur Reliquat</Text>
+              <Text style={styles.welcomeTitle}>Bienvenue sur <Text style={{ fontFamily: appNameFont }}>Relyka</Text></Text>
               <Text style={styles.welcomeSub}>Votre coach financier personnel</Text>
               <View style={styles.welcomeDivider} />
               <Text style={styles.welcomeBody}>

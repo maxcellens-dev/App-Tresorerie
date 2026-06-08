@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Reliquat",
+    "name": "Relyka",
     "slug": "tresorerie",
     "version": "1.0.0",
     "scheme": "tresorerie",
@@ -14,8 +14,8 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./public/favicon.png",
-      "name": "Reliquat",
-      "shortName": "Reliquat",
+      "name": "Relyka",
+      "shortName": "Relyka",
       "description": "Laissez-vous guider pour faire des économies.",
       "themeColor": "#020617",
       "backgroundColor": "#020617"

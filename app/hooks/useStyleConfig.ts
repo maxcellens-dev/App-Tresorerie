@@ -33,11 +33,23 @@ export interface CustomPreset {
   light: string;
 }
 
+/** Police personnalisée téléversée : nom de famille + URL du fichier (Supabase Storage). */
+export interface CustomFont {
+  family: string;
+  url: string;
+}
+
 export interface StyleConfig {
   dark: ModeStyleConfig;
   light: ModeStyleConfig;
   /** Famille de police (CSS font-family). Ex: 'Inter', 'Georgia' */
   font_family: string;
+  /** URL CSS d'import d'une police personnalisée (ex. lien Google Fonts). Chargée sur le web. */
+  font_import_url: string;
+  /** Famille de police appliquée au NOM de l'app (titre/logo). Ex: 'Pacifico'. Vide = défaut. */
+  app_name_font: string;
+  /** Polices téléversées (fichiers sur Supabase Storage), proposées dans les listes de polices. */
+  custom_fonts: CustomFont[];
   /** Couleurs personnalisées par preset { emerald: '#00B67A', ocean: '#0075FF', ... } */
   custom_accents: Record<string, string>;
   /** Presets personnalisés créés dans le style editor */
@@ -69,6 +81,9 @@ export const STYLE_DEFAULTS: StyleConfig = {
   dark:  { ...MODE_DEFAULTS },
   light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 4, bg_color: '#FFFFFF' },
   font_family: 'System',
+  font_import_url: '',
+  app_name_font: 'Arial Rounded MT Bold',
+  custom_fonts: [],
   custom_accents: {},
   extra_presets: [],
   hidden_presets: [],
@@ -89,6 +104,9 @@ export function useStyleConfig() {
         dark:  { ...STYLE_DEFAULTS.dark,  ...(style?.dark  ?? {}) },
         light: { ...STYLE_DEFAULTS.light, ...(style?.light ?? {}) },
         font_family:    style?.font_family    ?? STYLE_DEFAULTS.font_family,
+        font_import_url: style?.font_import_url ?? STYLE_DEFAULTS.font_import_url,
+        app_name_font:  style?.app_name_font  ?? STYLE_DEFAULTS.app_name_font,
+        custom_fonts:   style?.custom_fonts   ?? STYLE_DEFAULTS.custom_fonts,
         custom_accents: style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
         hidden_presets: style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
@@ -111,6 +129,9 @@ export function useSaveStyleConfig() {
         dark:  { ...STYLE_DEFAULTS.dark,  ...(existing.style?.dark  ?? {}) },
         light: { ...STYLE_DEFAULTS.light, ...(existing.style?.light ?? {}) },
         font_family:    existing.style?.font_family    ?? STYLE_DEFAULTS.font_family,
+        font_import_url: existing.style?.font_import_url ?? STYLE_DEFAULTS.font_import_url,
+        app_name_font:  existing.style?.app_name_font  ?? STYLE_DEFAULTS.app_name_font,
+        custom_fonts:   existing.style?.custom_fonts   ?? STYLE_DEFAULTS.custom_fonts,
         custom_accents: existing.style?.custom_accents ?? STYLE_DEFAULTS.custom_accents,
         extra_presets:  existing.style?.extra_presets  ?? STYLE_DEFAULTS.extra_presets,
         hidden_presets: existing.style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
@@ -121,6 +142,9 @@ export function useSaveStyleConfig() {
         dark:  { ...prev.dark,  ...(config.dark  ?? {}) },
         light: { ...prev.light, ...(config.light ?? {}) },
         font_family:    config.font_family    ?? prev.font_family,
+        font_import_url: config.font_import_url ?? prev.font_import_url,
+        app_name_font:  config.app_name_font  ?? prev.app_name_font,
+        custom_fonts:   config.custom_fonts   ?? prev.custom_fonts,
         custom_accents: config.custom_accents ?? prev.custom_accents,
         extra_presets:  config.extra_presets  ?? prev.extra_presets,
         hidden_presets: config.hidden_presets ?? prev.hidden_presets,

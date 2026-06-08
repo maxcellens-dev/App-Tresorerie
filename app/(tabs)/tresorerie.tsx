@@ -554,11 +554,15 @@ export default function TreasuryPlanScreen() {
       }
 
       let after = 0;
+      const todayStr = getMonthKey(currentYear, currentMonth) + '-' + String(now.getDate()).padStart(2, '0');
       for (const t of transactions as TransactionWithDetails[]) {
         if (t.account?.type !== 'checking') continue;
         if ((t as any).is_draft) continue;
         if (t.is_recurring && t.recurrence_rule) continue; // modèles récurrents exclus (non matérialisés)
-        if (t.date > emd) after += Number(t.amount);
+        // Solde « à date » : on ne retire que ce qui est réellement dans le solde courant,
+        // c.-à-d. les transactions passées (≤ aujourd'hui). Les transactions futures ne sont
+        // pas (encore) dans le solde → ne pas les soustraire.
+        if (t.date > emd && t.date <= todayStr) after += Number(t.amount);
       }
       return checkingBalance - after;
     };
@@ -582,8 +586,12 @@ export default function TreasuryPlanScreen() {
     };
 
     if (currentIdx >= 0) {
-      // Mois courant dans la fenêtre = solde actuel
-      soldeByMonth[currentMonthKey] = checkingBalance;
+      // Mois courant = solde de FIN de mois projeté = solde de fin du mois précédent
+      // + toutes les transactions du mois courant (passées ET à venir). Ainsi le mois
+      // intègre l'ensemble de ses transactions (cohérent avec « Solde prévu » de Projection).
+      const prevDate = new Date(currentYear, currentMonth - 2, 1); // mois précédant le mois courant
+      const endOfPrev = realCheckingBalanceAtMonthEnd(prevDate.getFullYear(), prevDate.getMonth() + 1);
+      soldeByMonth[currentMonthKey] = endOfPrev + (checkingNetByMonth[currentMonthKey] ?? 0);
       // Passés : solde réel à fin de mois ancré sur les vraies transactions
       for (let i = currentIdx - 1; i >= 0; i--) {
         soldeByMonth[months[i].key] = realCheckingBalanceAtMonthEnd(months[i].year, months[i].month);
@@ -613,34 +621,55 @@ export default function TreasuryPlanScreen() {
       });
     }
 
-    rows.push({ label: 'Solde', categoryId: null, type: 'balance', values: soldeByMonth, isBlockStart: true });
+    // « Solde » affiché : mois passés = solde réel de fin de mois ; mois en cours = solde projeté
+    // de fin de mois. Pour les mois FUTURS, on n'affiche pas de « Solde » (seul le « Solde
+    // anticipé » est montré).
+    const currentKey = getMonthKey(currentYear, currentMonth);
+    const soldeDisplayByMonth: Record<string, number> = {};
+    months.forEach((m) => {
+      if (m.key <= currentKey) soldeDisplayByMonth[m.key] = soldeByMonth[m.key] ?? 0;
+      // m.key > currentKey (futur) → omis → affiché « – »
+    });
+    rows.push({ label: 'Solde fin de mois', categoryId: null, type: 'balance', values: soldeDisplayByMonth, isBlockStart: true });
 
-    // Dépenses variables estimées (même logique que le Suivi du mois) :
+    // Dépenses variables estimées (par mois) :
     //  - mois passés → 0 (les dépenses réelles sont déjà saisies)
     //  - mois en cours → reste estimé (estimation − déjà dépensé ce mois)
     //  - mois futurs → estimation mensuelle (historique calculé ou saisie onboarding)
-    const currentKey = getMonthKey(currentYear, currentMonth);
     const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
     const variableRemaining = pilotage?.variable_envelope_remaining ?? 0;
     const variableByMonth: Record<string, number> = {};
+    // « Solde anticipé » = solde de fin de mois (réel) − CUMUL des dépenses variables estimées
+    // depuis le mois en cours. Pour les mois futurs : anticipé[m] = anticipé[m-1] + recettes
+    // − dépenses − variables[m] (cohérent avec « Solde prévu » de la Projection).
     const anticipeByMonth: Record<string, number> = {};
+    let cumulVariable = 0;
     months.forEach((m) => {
       const v = m.key < currentKey ? 0 : (m.key === currentKey ? variableRemaining : variableMonthly);
       variableByMonth[m.key] = v;
-      anticipeByMonth[m.key] = (soldeByMonth[m.key] ?? 0) - v;
+      if (m.key < currentKey) {
+        anticipeByMonth[m.key] = soldeByMonth[m.key] ?? 0; // passé : pas d'estimation
+      } else {
+        cumulVariable += v;
+        anticipeByMonth[m.key] = (soldeByMonth[m.key] ?? 0) - cumulVariable;
+      }
     });
     // Lignes non-enfant → visibles aussi en mode simplifié.
     rows.push({ label: 'Dépenses variables', categoryId: null, type: 'expense', values: variableByMonth });
     rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipeByMonth });
 
-    // DÉPENSES total header
-    rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: expenseCatTotals, isSectionHeader: true, isBlockStart: true });
-
-    // MOUVEMENTS — entre le total et le détail des dépenses
+    // MOUVEMENTS (virements épargne / invest / projets) : comptés comme des sorties,
+    // donc INTÉGRÉS au total DÉPENSES (en valeur absolue).
     const mouvTotal: Record<string, number> = {};
     months.forEach((m) => {
       mouvTotal[m.key] = (mouvProjets[m.key] ?? 0) + (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
+      expenseCatTotals[m.key] += Math.abs(mouvTotal[m.key]);
     });
+
+    // DÉPENSES total header (inclut les mouvements)
+    rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: expenseCatTotals, isSectionHeader: true, isBlockStart: true });
+
+    // MOUVEMENTS — détail (affichés en positif, comme des dépenses)
     rows.push({ label: 'MOUVEMENTS', categoryId: null, type: 'mouvement', values: mouvTotal, isSectionHeader: true });
     rows.push({ label: 'Projets', categoryId: null, type: 'mouvement', values: mouvProjets, isChild: true, isProjectRow: true, hasForecast: hasDraftProjets });
     rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true, mouvementType: 'epargne', hasDraft: hasDraftEpargne });
@@ -792,7 +821,7 @@ export default function TreasuryPlanScreen() {
         {/* Retour vers Projection (page d'origine du plan de trésorerie) */}
         <TouchableOpacity
           style={styles.backRow}
-          onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/projection' as any); }}
+          onPress={() => router.navigate('/(tabs)/projection' as any)}
           accessibilityRole="button"
         >
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
@@ -932,8 +961,8 @@ export default function TreasuryPlanScreen() {
                     const val = row.values[m.key] ?? 0;
                     const isPos = val >= 0;
                     const isBalance = row.type === 'balance';
-                    // Dépenses toujours affichées en positif (sauf soldes et mouvements qui gardent le signe)
-                    const displayVal = row.type === 'expense' ? Math.abs(val) : val;
+                    // Dépenses ET mouvements affichés en positif (ce sont des sorties) ; soldes gardent le signe.
+                    const displayVal = (row.type === 'expense' || row.type === 'mouvement') ? Math.abs(val) : val;
                     // Mois antérieurs = réalisé → recettes vertes / dépenses rouges.
                     // Mois en cours + futurs = projection → neutre (blanc), sauf brouillon (orange) / prévisionnel (gris).
                     const isPastMonth = m.key < getMonthKey(currentYear, currentMonth);
@@ -990,7 +1019,7 @@ export default function TreasuryPlanScreen() {
                             isPastMonth && row.type === 'income' && styles.cellNumPositive,
                             isPastMonth && row.type === 'expense' && row.label !== 'Dépenses variables' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
-                            row.type === 'mouvement' && !row.isSectionHeader && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
+                            isPastMonth && row.type === 'mouvement' && !row.isSectionHeader && styles.cellNumNegative,
                             row.isParentCategory && styles.cellNumTextParentCategory,
                             row.isSectionHeader && styles.cellNumTextSectionTotal,
                             row.isSectionHeader && row.type === 'mouvement' && styles.cellNumSectionMouvements,

@@ -5,12 +5,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useAppNameFont } from '../../hooks/useBrandFont';
 
 
 const APP_VERSION = '1.0.0';
 
 export default function AboutScreen() {
   const COLORS = useAppColors();
+  const appNameFont = useAppNameFont();
   const styles = makeStyles(COLORS);
   const router = useRouter();
 
@@ -22,7 +24,7 @@ export default function AboutScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Version */}
           <View style={styles.versionCard}>
-            <Text style={styles.appName}>Reliquat</Text>
+            <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
             <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
             <View style={styles.versionBadge}>
               <Text style={styles.versionText}>Version {APP_VERSION}</Text>
@@ -66,7 +68,7 @@ export default function AboutScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.footer}>© 2026 Reliquat. Tous droits réservés.</Text>
+          <Text style={styles.footer}>© 2026 Relyka. Tous droits réservés.</Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -81,7 +83,7 @@ function makeStyles(c: any) {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 24, alignItems: 'center', gap: 8, marginBottom: 32,
   },
-  appName: { fontSize: 24, fontWeight: '800', color: c.text },
+  appName: { fontSize: 24, fontWeight: '800', color: c.text, fontFamily: 'Arial Rounded MT Bold' },
   tagline: { fontSize: 14, color: c.emerald, fontWeight: '500' },
   versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
   versionText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },

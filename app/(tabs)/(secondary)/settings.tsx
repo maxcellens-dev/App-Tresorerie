@@ -11,12 +11,14 @@ import { supabase } from '../../lib/supabase';
 import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useAppNameFont } from '../../hooks/useBrandFont';
 
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const COLORS = useAppColors();
+  const appNameFont = useAppNameFont();
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -318,7 +320,7 @@ export default function SettingsScreen() {
 
           {/* ── Version ── */}
           <View style={styles.versionCard}>
-            <Text style={styles.appName}>Reliquat</Text>
+            <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
             <Text style={{ fontSize: 12, color: COLORS.emerald, fontWeight: '500' }}>Laissez-vous guider pour faire des économies.</Text>
             <View style={styles.versionBadge}>
               <Text style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' }}>Version {APP_VERSION}</Text>
@@ -330,7 +332,7 @@ export default function SettingsScreen() {
             <Text style={styles.signOutLabel}>Se déconnecter</Text>
           </TouchableOpacity>
 
-          <Text style={styles.footer}>© 2026 Reliquat. Tous droits réservés.</Text>
+          <Text style={styles.footer}>© 2026 Relyka. Tous droits réservés.</Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -390,7 +392,7 @@ function makeStyles(c: any) {
 
   // Version
   versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
-  appName: { fontSize: 18, fontWeight: '800', color: c.text },
+  appName: { fontSize: 18, fontWeight: '800', color: c.text, fontFamily: 'Arial Rounded MT Bold' },
   versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
 
   // Sign out

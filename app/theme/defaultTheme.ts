@@ -1,5 +1,5 @@
 /**
- * Reliquat - Default Theme (Fallback when offline or no config)
+ * Relyka - Default Theme (Fallback when offline or no config)
  * Used when MMKV is empty and before any remote config is loaded.
  */
 
@@ -71,7 +71,7 @@ export const defaultNavigation: NavigationConfig = {
 };
 
 export const defaultTexts: AppTexts = {
-  appName: 'Reliquat',
+  appName: 'Relyka',
   tagline: 'Laissez-vous guider pour faire les meilleurs choix pour vos économies.',
   seo: {},
 };

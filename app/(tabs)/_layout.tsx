@@ -33,7 +33,7 @@ function TabsHeader({ route }: { route: any }) {
 
   const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
   const routeName = route.name;
-  const displayTitle = titleMap[fullPath] || 'Reliquat';
+  const displayTitle = titleMap[fullPath] || 'Relyka';
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
   return (

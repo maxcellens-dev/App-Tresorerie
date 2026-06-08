@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBrandColors } from './hooks/useBrandColors';
+import { useAppNameFont } from './hooks/useBrandFont';
 
 const { width } = Dimensions.get('window');
 
@@ -13,6 +14,7 @@ const { width } = Dimensions.get('window');
 export default function WelcomeScreen() {
   const COLORS = useBrandColors();
   const styles = makeStyles(COLORS);
+  const appNameFont = useAppNameFont();
   const router = useRouter();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -52,9 +54,9 @@ export default function WelcomeScreen() {
             <View style={styles.iconCircle}>
               <Ionicons name="wallet" size={48} color={COLORS.emerald} />
             </View>
-            <Text style={styles.appName}>Reliquat</Text>
+            <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
             <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
-            <Text style={styles.subtag}>Reliquat · Prévisions · Sérénité</Text>
+            <Text style={[styles.subtag, { fontFamily: appNameFont }]}>Relyka · Prévisions · Sérénité</Text>
           </Animated.View>
 
           <View style={styles.ctaContainer}>
@@ -175,6 +177,7 @@ function makeStyles(c: any) {
     color: c.text,
     letterSpacing: -1,
     textAlign: 'center',
+    fontFamily: 'Arial Rounded MT Bold',
   },
   tagline: {
     fontSize: 18,
@@ -190,6 +193,7 @@ function makeStyles(c: any) {
     fontWeight: '600',
     letterSpacing: 1,
     textTransform: 'uppercase',
+    fontFamily: 'Arial Rounded MT Bold',
   },
 
   ctaContainer: {

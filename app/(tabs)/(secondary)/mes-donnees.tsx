@@ -66,7 +66,7 @@ export default function MesDonneesScreen() {
   const buildRows = (): Row[] => {
     const now = new Date();
     const rows: Row[] = [];
-    rows.push({ type: 'title', cells: ['Mes données Reliquat'] });
+    rows.push({ type: 'title', cells: ['Mes données Relyka'] });
     rows.push({ type: 'subtitle', cells: ['Exporté le ' + now.toLocaleString('fr-FR')] });
     rows.push({ type: 'spacer', cells: [''] });
 
