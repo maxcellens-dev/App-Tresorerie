@@ -23,6 +23,7 @@ import { useReleaseReservedByProject } from '../hooks/useTransactions';
 import { useRecoThresholds } from '../hooks/useRecoThresholds';
 import RecommendationCard from '../components/RecommendationCard';
 import ConseilsBanner from '../components/ConseilsBanner';
+import AdSlot from '../components/AdSlot';
 import { useProjects } from '../hooks/useProjects';
 import PreSavingsModal from '../components/PreSavingsModal';
 import CumulsPanel from '../components/CumulsPanel';
@@ -345,6 +346,9 @@ export default function PilotageScreen() {
             />
           )}
 
+          {/* Zone publicité (maison) — activable en admin, masquée pour les Premium */}
+          <AdSlot />
+
           {/* ── HERO : budget libre ce mois ── */}
           {(() => {
             const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
@@ -573,7 +577,7 @@ export default function PilotageScreen() {
                       <Ionicons name="wallet-outline" size={17} color={restColor} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.suiviLabelBig}>Budget libre</Text>
+                      <Text style={styles.suiviLabelBig}>Ton Relyka <Text style={{ fontSize: 12, fontWeight: '600' }}>(Budget libre)</Text></Text>
                       <Text style={styles.suiviHint}>{restHint}</Text>
                     </View>
                     <Text style={[styles.suiviValueBig, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>

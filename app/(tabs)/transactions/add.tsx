@@ -7,10 +7,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
-import { useProfile } from '../../hooks/useProfile';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
 import { useAddTransaction, useTransactions } from '../../hooks/useTransactions';
+import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../types/database';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
@@ -31,8 +31,8 @@ export default function AddTransactionScreen() {
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
   const { data: transactions = [] } = useTransactions(user?.id);
-  const { data: addProfile } = useProfile(user?.id);
-  const closureLockDate: string | null = (addProfile as any)?.closure_lock_date ?? null;
+  // Verrou de clôture gaté par le flag de fonctionnalité (null si Clôture désactivée).
+  const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
@@ -50,6 +50,8 @@ export default function AddTransactionScreen() {
   const [targetAccountId, setTargetAccountId] = useState(''); // Pour les virements
   const [categoryId, setCategoryId] = useState('');
   const [transactionType, setTransactionType] = useState<TransactionType>(getInitialType());
+  // Remboursement : une dépense « à l'envers » (entrée d'argent) imputée sur une catégorie de dépense.
+  const [isRefund, setIsRefund] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState(''); // vide = sans fin
@@ -67,6 +69,7 @@ export default function AddTransactionScreen() {
 
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
   useEffect(() => setCategoryId(''), [isExpense, isIncome]);
+  useEffect(() => { if (!isExpense) setIsRefund(false); }, [isExpense]);
 
   // Dépense / Recette → forcer un compte courant si le compte sélectionné ne l'est pas
   useEffect(() => {
@@ -136,8 +139,13 @@ export default function AddTransactionScreen() {
       }
     }
 
-    // Pour un virement, le compte source est toujours débité (négatif)
-    const finalAmount = (isExpense || isTransfer) ? -Math.abs(num) : Math.abs(num);
+    // Virement → débit (négatif). Dépense → négatif, sauf remboursement (entrée d'argent) → positif.
+    // Recette → positif.
+    const finalAmount = isTransfer
+      ? -Math.abs(num)
+      : isExpense
+        ? (isRefund ? Math.abs(num) : -Math.abs(num))
+        : Math.abs(num);
     const endDateISO = isRecurring && recurrenceEndDateInput.trim()
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
@@ -232,6 +240,17 @@ export default function AddTransactionScreen() {
               <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Remboursement : entrée d'argent imputée sur une catégorie de dépense (net par catégorie) */}
+          {isExpense && (
+            <TouchableOpacity style={styles.refundToggle} onPress={() => setIsRefund((v) => !v)} activeOpacity={0.7} accessibilityRole="button">
+              <Ionicons name={isRefund ? 'checkbox' : 'square-outline'} size={20} color={isRefund ? COLORS.emerald : COLORS.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.refundLabel}>Remboursement (entrée d'argent)</Text>
+                <Text style={styles.refundHint}>S'impute en − sur la catégorie de dépense choisie</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* Compte */}
           <Text style={styles.label}>Compte {isTransfer ? 'source' : ''}</Text>
@@ -467,6 +486,9 @@ function makeStyles(c: any) {
   typeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   typeBtnLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
   typeBtnLabelActive: { color: c.bg },
+  refundToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 16 },
+  refundLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+  refundHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
   toggleBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },

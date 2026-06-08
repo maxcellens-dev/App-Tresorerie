@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import OnboardingChecklist from './OnboardingChecklist';
+import StreakChip from './StreakChip';
 
 
 interface HeaderWithProfileProps {
@@ -82,6 +83,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
         </TouchableOpacity>
       </View>
       {!hideProfile && <View style={styles.right}>
+        <StreakChip />
         <OnboardingChecklist />
         {isAdmin && (
           <TouchableOpacity

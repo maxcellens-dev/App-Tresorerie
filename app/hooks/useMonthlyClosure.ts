@@ -51,7 +51,10 @@ export function useMonthlyClosure(userId: string | undefined) {
   const { data: transactions = [] } = useTransactions(userId);
   const { data: closures = [] } = useMonthClosures(userId);
 
-  const lockDate: string | null = (profile as any)?.closure_lock_date ?? null;
+  // Verrou effectif : ignoré si la fonctionnalité Clôture est désactivée (tout reste éditable).
+  // La valeur stockée (closure_lock_date) est conservée → réactiver la fonctionnalité re-fige.
+  const rawLock: string | null = (profile as any)?.closure_lock_date ?? null;
+  const lockDate: string | null = enabled ? rawLock : null;
   const bilanRaw = (profile as any)?.last_closure_bilan as ClosureBilan | null | undefined;
   const bilan = bilanRaw && !bilanRaw.seen ? bilanRaw : null;
 

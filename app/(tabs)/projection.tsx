@@ -24,6 +24,7 @@ import { useAccounts } from '../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../hooks/useFinancialProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import { useFiscalEnvelopeRates, taxRateFor, noteFor } from '../hooks/useFiscalEnvelopes';
+import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../hooks/useProjectionAssumptions';
 import {
   projectInvestment, sumProjections, projectSavings, investCurve,
   estimateMonthlySavings, incomeFromQ3, savingsRateFromQ6,
@@ -40,15 +41,6 @@ const fmtK = (n: number) => {
   if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(n >= 100000 ? 0 : 1).replace('.0', '')}k`;
   return Math.round(n).toString();
 };
-
-// ── Persistance locale des hypothèses ─────────────────────────
-const storageKey = (uid?: string) => `projection_hypos_${uid ?? 'anon'}`;
-function loadHypos(uid?: string): any | null {
-  try { const r = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey(uid)) : null; return r ? JSON.parse(r) : null; } catch { return null; }
-}
-function saveHypos(uid: string | undefined, data: any) {
-  try { if (typeof window !== 'undefined') window.localStorage.setItem(storageKey(uid), JSON.stringify(data)); } catch {}
-}
 
 interface AccountHypo { contributed: string; annual: string; rate: string; tax: string; contributedBase?: number }
 
@@ -193,16 +185,20 @@ export default function ProjectionScreen() {
     return derived != null ? derived : acc.balance;
   }, [transactions]);
 
+  // Hypothèses persistées en base (remplace localStorage).
+  const assumptionsQuery = useProjectionAssumptions(user?.id);
+  const saveAssumptions = useSaveProjectionAssumptions(user?.id);
+
   // ── État : hypothèses par compte + durée globale ──
   const [hypos, setHypos] = useState<Record<string, AccountHypo>>({});
   const [years, setYears] = useState(20);
   const [selectedAccId, setSelectedAccId] = useState<string>('');
   const [loaded, setLoaded] = useState(false);
 
-  // Charger depuis le stockage + pré-remplir les comptes manquants
+  // Charger depuis la base + pré-remplir les comptes manquants
   useEffect(() => {
-    if (loaded || investAccounts.length === 0 || fiscalRates.length === 0) return;
-    const saved = loadHypos(user?.id);
+    if (loaded || investAccounts.length === 0 || fiscalRates.length === 0 || !assumptionsQuery.isFetched) return;
+    const saved = assumptionsQuery.data;
     const initialHypos: Record<string, AccountHypo> = saved?.hypos ?? {};
     for (const acc of investAccounts) {
       if (!initialHypos[acc.id]) {
@@ -222,10 +218,15 @@ export default function ProjectionScreen() {
     setLoaded(true);
   }, [investAccounts, loaded, user?.id, fiscalRates]);
 
-  // Sauvegarder à chaque changement
+  // Sauvegarder à chaque changement (en base, debounced pour éviter de spammer).
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (loaded) saveHypos(user?.id, { hypos, years });
-  }, [hypos, years, loaded, user?.id]);
+    if (!loaded) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { saveAssumptions.mutate({ hypos, years }); }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hypos, years, loaded]);
 
   // Initialise automatiquement l'hypothèse des comptes d'invest qui n'en ont pas encore
   // (ex. comptes créés après le 1er chargement) → le bloc s'affiche sans devoir « actualiser ».

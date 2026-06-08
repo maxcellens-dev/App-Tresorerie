@@ -443,20 +443,23 @@ export default function TreasuryPlanScreen() {
         const isFraisVariables = p.name === 'Frais variables';
         const parentValues: Record<string, number> = {};
         months.forEach((m) => {
-          // Frais variables: inclure les régularisations détectées par libellé
+          // Coût NET = dépenses − remboursements. byCategoryMonth est signé : une dépense est
+          // négative, un remboursement (montant positif sur une catégorie de dépense) est positif.
+          // Coût = −(somme signée). Les régularisations sont ajoutées en valeur absolue.
           const regulAbs = isFraisVariables ? Math.abs(regulByMonth[m.key] ?? 0) : 0;
-          parentValues[m.key] = Math.abs(byCategoryMonth[p.id]?.[m.key] ?? 0) +
-            children.reduce((sum, c) => sum + Math.abs(byCategoryMonth[c.id]?.[m.key] ?? 0), 0) +
-            regulAbs;
+          const signedSum = (byCategoryMonth[p.id]?.[m.key] ?? 0) +
+            children.reduce((sum, c) => sum + (byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
+          parentValues[m.key] = -signedSum + regulAbs;
           expenseCatTotals[m.key] += parentValues[m.key];
         });
 
         const childRows: Row[] = children
           .filter((c) => c.name !== 'Projets')
-          .map((c) => ({
-            label: c.name, categoryId: c.id, type: 'expense' as const,
-            values: byCategoryMonth[c.id] ?? {}, isChild: true, hasDraft: hasDraftByCategory[c.id],
-          }));
+          .map((c) => {
+            const netValues: Record<string, number> = {};
+            months.forEach((m) => { netValues[m.key] = -(byCategoryMonth[c.id]?.[m.key] ?? 0); });
+            return { label: c.name, categoryId: c.id, type: 'expense' as const, values: netValues, isChild: true, hasDraft: hasDraftByCategory[c.id] };
+          });
 
         let regulRow: Row | undefined;
         if (isFraisVariables) {
@@ -961,8 +964,9 @@ export default function TreasuryPlanScreen() {
                     const val = row.values[m.key] ?? 0;
                     const isPos = val >= 0;
                     const isBalance = row.type === 'balance';
-                    // Dépenses ET mouvements affichés en positif (ce sont des sorties) ; soldes gardent le signe.
-                    const displayVal = (row.type === 'expense' || row.type === 'mouvement') ? Math.abs(val) : val;
+                    // Mouvements en positif (valeur absolue). Dépenses = coût NET signé (un
+                    // remboursement > dépense affiche un crédit négatif). Soldes gardent leur signe.
+                    const displayVal = row.type === 'mouvement' ? Math.abs(val) : val;
                     // Mois antérieurs = réalisé → recettes vertes / dépenses rouges.
                     // Mois en cours + futurs = projection → neutre (blanc), sauf brouillon (orange) / prévisionnel (gris).
                     const isPastMonth = m.key < getMonthKey(currentYear, currentMonth);

@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAddProject, useUpdateProject, useDeleteProjectFull, useDeleteProjectKeepingLocked, useCheckProjectTransactions } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
 import { useProfile } from '../hooks/useProfile';
+import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
@@ -118,6 +119,7 @@ export default function AddProjectModal({
   const deleteKeepingLockedMutation = useDeleteProjectKeepingLocked(user?.id || '');
   const { check: checkTransactions } = useCheckProjectTransactions(user?.id || '');
   const { data: profile } = useProfile(user?.id);
+  const { lockDate: closureLock } = useMonthlyClosure(user?.id);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmState, setDeleteConfirmState] = useState<{
     title: string;
@@ -408,7 +410,7 @@ export default function AddProjectModal({
     if (!editingProject) return;
     try {
       const { past, future } = await checkTransactions(editingProject.id);
-      const closureLockDate = (profile as any)?.closure_lock_date as string | null;
+      const closureLockDate = closureLock;
       const lockedTxns = closureLockDate ? past.filter((t: any) => t.date <= closureLockDate) : [];
       const unlockedPastTxns = closureLockDate ? past.filter((t: any) => t.date > closureLockDate) : past;
       const futureCount = future.length;

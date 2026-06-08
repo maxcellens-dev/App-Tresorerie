@@ -13,6 +13,9 @@ export default function AdminLayout() {
       <Stack.Screen name="stats-hub" options={{ title: 'Stats Hub' }} />
       <Stack.Screen name="suggestions" options={{ title: 'Suggestions' }} />
       <Stack.Screen name="conseils" options={{ title: 'Conseils' }} />
+      <Stack.Screen name="gamification" options={{ title: 'Gamification' }} />
+      <Stack.Screen name="ads" options={{ title: 'Publicités' }} />
+      <Stack.Screen name="users" options={{ title: 'Utilisateurs' }} />
     </Stack>
   );
 }

@@ -8,6 +8,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../hooks/useFeatureFlags';
+import { useSetPremium } from '../../../hooks/usePlan';
 
 
 export default function AdminFeatures() {
@@ -19,6 +20,8 @@ export default function AdminFeatures() {
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
   const { data: flags, isLoading } = useFeatureFlags();
   const save = useSaveFeatureFlags();
+  const setPremium = useSetPremium(user?.id);
+  const myPremium = Boolean((profile as any)?.is_premium);
 
   if (!isAdmin) {
     return (
@@ -29,6 +32,8 @@ export default function AdminFeatures() {
   }
 
   const closureOn = Boolean(flags?.monthly_closure_enabled);
+  const premiumOn = Boolean(flags?.premium_enabled);
+  const adsOn = Boolean(flags?.ads_enabled);
 
   const Toggle = ({ label, desc, value, onToggle }: { label: string; desc: string; value: boolean; onToggle: () => void }) => (
     <View style={styles.card}>
@@ -57,12 +62,32 @@ export default function AdminFeatures() {
           {isLoading ? (
             <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 32 }} />
           ) : (
+            <>
             <Toggle
               label="Clôture mensuelle"
               desc="Bannière de clôture en fin de mois, verrou des transactions passées et bilan de fin de mois. Désactivé = aucun impact."
               value={closureOn}
               onToggle={() => save.mutate({ monthly_closure_enabled: !closureOn })}
             />
+            <Toggle
+              label="Offre Premium"
+              desc="Active l'abonnement Premium (zéro pub, remise boutique, conseiller). Désactivé = tout le monde en gratuit, aucune UI premium."
+              value={premiumOn}
+              onToggle={() => save.mutate({ premium_enabled: !premiumOn })}
+            />
+            <Toggle
+              label="Publicités"
+              desc="Affiche les zones de publicité (bannières maison gérées en admin) aux utilisateurs non-premium. Désactivé = aucune pub."
+              value={adsOn}
+              onToggle={() => save.mutate({ ads_enabled: !adsOn })}
+            />
+            <Toggle
+              label="Mon compte : Premium (test)"
+              desc="Active le droit Premium sur VOTRE compte pour tester (remise boutique, zéro pub). Sera normalement géré par le paiement."
+              value={myPremium}
+              onToggle={() => setPremium.mutate(!myPremium)}
+            />
+            </>
           )}
         </ScrollView>
       </SafeAreaView>

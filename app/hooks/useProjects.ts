@@ -572,51 +572,41 @@ export function useDeleteProjectFromDate(profileId: string | undefined) {
 }
 
 /**
- * Vérifie les projets actifs et archive automatiquement ceux qui sont à 100 %
- * et dont la dernière transaction liée est dans le passé (>= 72h / 3 jours).
+ * Archive automatiquement les projets actifs dont l'OBJECTIF est atteint (avancement ≥ 100 %),
+ * calculé à partir des transactions réelles (progressById issu du Pilotage), pas du champ
+ * current_accumulated (qui peut être obsolète). Appelé à l'ouverture de la page Projets.
+ * Les transactions futures du projet sont supprimées (plus de versement après l'objectif).
  */
 export function useAutoArchiveProjects(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (projects: Project[]) => {
+    mutationFn: async ({ projects, progressById }: { projects: Project[]; progressById: Record<string, number> }) => {
       if (!supabase || !profileId) return;
+      const today = new Date().toISOString().split('T')[0];
 
-      const today = new Date();
-      const cutoff = new Date(today);
-      cutoff.setDate(cutoff.getDate() - 3); // 72h
-      const cutoffStr = cutoff.toISOString().split('T')[0];
+      const toArchive = projects.filter((p) => {
+        if (p.status !== 'active' && p.status !== 'completed') return false;
+        const target = Number(p.target_amount);
+        if (target <= 0) return false;
+        const pct = progressById[p.id] ?? (Number(p.current_accumulated || 0) / target) * 100;
+        // Tolérance d'arrondi : 999,99/1000 = 99,999 % doit compter comme atteint.
+        return pct >= 99.5;
+      });
 
-      const activeProjects = projects.filter(
-        (p) => p.status === 'active' || p.status === 'completed'
-      );
-
-      for (const project of activeProjects) {
-        const target = Number(project.target_amount);
-        const accumulated = Number(project.current_accumulated || 0);
-        if (target <= 0 || accumulated < target) continue; // pas encore 100%
-
-        // Vérifier la dernière transaction
-        const { data: lastTxn } = await supabase
-          .from('transactions')
-          .select('date')
-          .eq('project_id', project.id)
-          .eq('profile_id', profileId)
-          .order('date', { ascending: false })
-          .limit(1);
-
-        const lastDate = lastTxn?.[0]?.date;
-        if (!lastDate || lastDate <= cutoffStr) {
-          // Archiver automatiquement
-          await supabase
-            .from('projects')
-            .update({ status: 'archived' })
-            .eq('id', project.id)
-            .eq('profile_id', profileId);
-        }
+      for (const project of toArchive) {
+        // Stopper les versements futurs
+        await supabase.from('transactions').delete()
+          .eq('project_id', project.id).eq('profile_id', profileId).gt('date', today);
+        await supabase.from('projects')
+          .update({ status: 'archived' })
+          .eq('id', project.id).eq('profile_id', profileId);
       }
+      return toArchive.length;
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [PROJECTS_KEY, profileId] });
+      client.invalidateQueries({ queryKey: [TRANSACTIONS_KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['accounts', profileId] });
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     },
   });

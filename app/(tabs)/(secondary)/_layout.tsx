@@ -13,6 +13,9 @@ export default function SecondaryLayout() {
       <Stack.Screen name="ideas" />
       <Stack.Screen name="confidentialite" />
       <Stack.Screen name="legal" />
+      <Stack.Screen name="succes" />
+      <Stack.Screen name="boutique" />
+      <Stack.Screen name="premium" />
       <Stack.Screen name="admin" />
     </Stack>
   );

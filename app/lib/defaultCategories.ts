@@ -26,7 +26,7 @@ export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   // DÉPENSES — ordre imposé par l'utilisateur
   // Mouvements : virements internes + régularisations (sort_order -10 = en premier)
   { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements', 'Régularisation solde'] },
-  { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Loisirs', 'Frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Autre, divers', 'Projets'] },
+  { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Restaurants', 'Loisirs', 'Frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Autre, divers', 'Projets'] },
   { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle, santé', 'Assurance'] },
   { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer/Copropriété', "Taxe d'habitation/Foncière", 'Assurance habitation', 'Electricité/Eau'] },
   { name: 'Abonnements, Forfaits', type: 'expense', is_variable: false, sort_order: 30, children: ['Autres abonnements', 'Internet mobile', 'Plateformes', 'Box internet', 'Sport'] },

@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import { tabRect } from '../../lib/tourTargets';
@@ -149,6 +149,18 @@ export default function TransactionsListScreen() {
   
   // -2 → fenêtre [m-2, m-1, m] ; l'affichage trié décroissant montre M, m-1, m-2 de haut en bas
   const [periodOffset, setPeriodOffset] = useState(-2);
+
+  // Swipe horizontal sur la liste → navigation de période (±1 mois). Ne capture que les
+  // gestes nettement horizontaux pour laisser le défilement vertical intact.
+  const periodPan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx <= -50) setPeriodOffset((o) => o + 1);
+        else if (g.dx >= 50) setPeriodOffset((o) => o - 1);
+      },
+    })
+  ).current;
   const [categoryFilterId, setCategoryFilterId] = useState<string | null>(params.categoryId ?? null);
   const [regulFilter, setRegulFilter] = useState(params.filterType === 'regul');
   const [mouvementsFilter, setMouvementsFilter] = useState(params.filterType === 'mouvements');
@@ -585,6 +597,7 @@ export default function TransactionsListScreen() {
             )}
           </View>
         )}
+        <View style={{ flex: 1 }} {...periodPan.panHandlers}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
@@ -758,6 +771,7 @@ export default function TransactionsListScreen() {
             </>
           )}
         </ScrollView>
+        </View>
         <Modal visible={!!confirmModal} transparent animationType="fade" onRequestClose={() => setConfirmModal(null)}>
           <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setConfirmModal(null)}>
             <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>

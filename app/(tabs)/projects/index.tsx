@@ -82,13 +82,17 @@ export default function ProjectsScreen() {
   const [selectedFromDate, setSelectedFromDate] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
 
-  // Auto-archive projects at 100% after 3 days (72h)
+  // Auto-archive : à l'ouverture, archive les projets actifs dont l'objectif est atteint
+  // (avancement réel ≥ 100 %, calculé sur les transactions via le Pilotage).
   useEffect(() => {
-    if (projects.length > 0 && !autoArchiveMutation.isPending) {
-      autoArchiveMutation.mutate(projects);
+    const hasProgress = !!pilotage?.projects_with_progress;
+    if (projects.length > 0 && hasProgress && !autoArchiveMutation.isPending) {
+      const progressById: Record<string, number> = {};
+      Object.entries(progressMap).forEach(([id, p]) => { progressById[id] = p.percentage; });
+      autoArchiveMutation.mutate({ projects, progressById });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects.length]);
+  }, [projects.length, pilotage?.projects_with_progress]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -310,7 +314,7 @@ export default function ProjectsScreen() {
           <View style={styles.completeBanner}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
             <Text style={styles.completeBannerText}>
-              Objectif atteint ! Archivage automatique sous 72h.
+              Objectif atteint ! Ce projet est archivé automatiquement.
             </Text>
           </View>
         )}

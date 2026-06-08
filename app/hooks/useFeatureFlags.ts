@@ -6,6 +6,10 @@ import { supabase } from '../lib/supabase';
 
 export interface FeatureFlags {
   monthly_closure_enabled?: boolean;
+  /** Offre Premium active (sinon : tout le monde gratuit, pas d'UI premium). */
+  premium_enabled?: boolean;
+  /** Zone de publicités active (sinon : aucune pub affichée). */
+  ads_enabled?: boolean;
 }
 
 const KEY = 'feature_flags';

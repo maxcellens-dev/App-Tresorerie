@@ -622,8 +622,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     if ((t as any).linked_account_id || (t as any).project_id) return 0; // pas un virement / projet
     const amt = Number(t.amount);
     if (isRegulTx(t)) return -amt; // régul : dépense (−) → +, recette (+) → −
-    if (amt < 0 && t.category?.is_variable === true) {
-      return -amt; // uniquement les catégories marquées variables (Frais variables, etc.)
+    if (t.category?.is_variable === true) {
+      // Catégorie variable : dépense (−) → + de dépensé ; remboursement (+) → − (net).
+      return -amt;
     }
     return 0;
   };

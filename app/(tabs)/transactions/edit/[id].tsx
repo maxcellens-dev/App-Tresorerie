@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
+import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useCategories } from '../../../hooks/useCategories';
 import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
@@ -34,8 +34,8 @@ export default function EditTransactionScreen() {
   const { data: transactions = [] } = useTransactions(user?.id);
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
-  const { data: editProfile } = useProfile(user?.id);
-  const closureLockDate: string | null = (editProfile as any)?.closure_lock_date ?? null;
+  // Verrou de clôture gaté par le flag (null si Clôture désactivée → édition libre).
+  const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
   const setOverride = useSetTransactionMonthOverride(user?.id);
@@ -70,6 +70,7 @@ export default function EditTransactionScreen() {
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [isExpense, setIsExpense] = useState(true);
+  const [isRefund, setIsRefund] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
@@ -91,7 +92,10 @@ export default function EditTransactionScreen() {
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
-      setIsExpense(tx.amount < 0);
+      // Remboursement = montant positif sur une catégorie de dépense.
+      const isRefundTx = tx.amount > 0 && (tx as any).category?.type === 'expense';
+      setIsExpense(tx.amount < 0 || isRefundTx);
+      setIsRefund(isRefundTx);
       setIsRecurring(tx.is_recurring ?? false);
       setRecurrenceRule((tx.recurrence_rule as RecurrenceRule) ?? 'monthly');
       setRecurrenceEndDateInput(tx.recurrence_end_date ? formatDateFrench(tx.recurrence_end_date) : '');
@@ -106,6 +110,7 @@ export default function EditTransactionScreen() {
   const switchType = (expense: boolean) => {
     if (expense === isExpense) return;
     setIsExpense(expense);
+    setIsRefund(false);
     setCategoryId('');
   };
 
@@ -182,7 +187,7 @@ export default function EditTransactionScreen() {
       return;
     }
 
-    const finalAmount = isExpense ? -Math.abs(num) : Math.abs(num);
+    const finalAmount = isExpense ? (isRefund ? Math.abs(num) : -Math.abs(num)) : Math.abs(num);
     const endDateISO = isRecurring && recurrenceEndDateInput.trim()
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
@@ -442,6 +447,16 @@ export default function EditTransactionScreen() {
                   <Text style={[styles.toggleLabel, !isExpense && styles.toggleLabelActive]}>Recette</Text>
                 </TouchableOpacity>
               </View>
+
+              {isExpense && (
+                <TouchableOpacity style={styles.refundToggle} onPress={() => setIsRefund((v) => !v)} activeOpacity={0.7}>
+                  <Ionicons name={isRefund ? 'checkbox' : 'square-outline'} size={20} color={isRefund ? COLORS.emerald : COLORS.textSecondary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.refundLabel}>Remboursement (entrée d'argent)</Text>
+                    <Text style={styles.refundHint}>S'impute en − sur la catégorie de dépense</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
 
               {/* Compte — dépense/recette : comptes courants uniquement (comme à la création) */}
               <Text style={styles.label}>Compte</Text>
@@ -772,6 +787,9 @@ function makeStyles(c: any) {
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   toggleLabel: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
   toggleLabelActive: { color: c.bg },
+  refundToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 16 },
+  refundLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+  refundHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20 },
   inputError: { borderColor: c.danger },

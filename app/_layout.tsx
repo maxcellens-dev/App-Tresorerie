@@ -12,6 +12,7 @@ import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
 import ProfileChangeModal from './components/ProfileChangeModal';
 import FontApplier from './components/FontApplier';
+import GamificationSync from './components/GamificationSync';
 import { useAppColors } from './hooks/useAppColors';
 import { useCurrency } from './hooks/useCurrency';
 import './global.css';
@@ -96,6 +97,7 @@ export default function RootLayout() {
           <ConfigSync />
           <FontApplier />
           <RecurringMaterializer />
+          <GamificationSync />
           <AppChrome />
         </AuthProvider>
       </ThemeProvider>

@@ -44,6 +44,8 @@ export default function AdminHub() {
         { href: '/(tabs)/(secondary)/admin/style-editor', icon: 'color-palette-outline', title: 'Style Editor', desc: 'Thème & couleurs', color: '#0ea5a8' },
         { href: '/(tabs)/(secondary)/admin/seo-center', icon: 'megaphone-outline', title: 'SEO Center', desc: 'Textes & métadonnées', color: '#7c3aed' },
         { href: '/(tabs)/(secondary)/admin/conseils', icon: 'newspaper-outline', title: 'Conseils', desc: 'Conseils du jour (généraux + contextuels)', color: '#f59e0b' },
+        { href: '/(tabs)/(secondary)/admin/gamification', icon: 'trophy-outline', title: 'Gamification', desc: 'Badges, série, gemmes, identité', color: '#f59e0b' },
+        { href: '/(tabs)/(secondary)/admin/ads', icon: 'megaphone-outline', title: 'Publicités', desc: 'Bannières maison (zones activables)', color: '#ec4899' },
       ],
     },
     {
@@ -52,12 +54,13 @@ export default function AdminHub() {
         { href: '/(tabs)/(secondary)/admin/assistance', icon: 'headset-outline', title: 'Assistance', desc: 'Demandes de support', color: '#22d3ee' },
         { href: '/(tabs)/(secondary)/admin/suggestions', icon: 'chatbubbles-outline', title: 'Suggestions', desc: 'Idées utilisateurs', color: '#eab308' },
         { href: '/(tabs)/(secondary)/admin/stats-hub', icon: 'bar-chart-outline', title: 'Stats Hub', desc: 'Métriques & activité', color: '#f97316' },
+        { href: '/(tabs)/(secondary)/admin/users', icon: 'people-outline', title: 'Utilisateurs', desc: 'Recherche + passage Premium', color: '#22c55e' },
       ],
     },
     {
       category: 'Système',
       items: [
-        { href: '/(tabs)/(secondary)/admin/features', icon: 'flask-outline', title: 'Fonctionnalités', desc: 'Clôture mensuelle…', color: '#f43f5e' },
+        { href: '/(tabs)/(secondary)/admin/features', icon: 'flask-outline', title: 'Fonctionnalités', desc: 'Clôture · Premium · Pubs', color: '#f43f5e' },
       ],
     },
   ];
