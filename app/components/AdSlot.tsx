@@ -1,45 +1,70 @@
 /**
- * AdSlot — zone de publicité « maison » activable. N'affiche rien si les pubs sont désactivées
- * (admin) ou si l'utilisateur est Premium. Sinon montre une bannière configurée (image/texte).
+ * AdSlot — zone de publicité « maison » par emplacement (1 par page principale).
+ * - N'affiche rien si pubs désactivées (admin), utilisateur Premium, ou aucune bannière
+ *   pour cet emplacement.
+ * - Plusieurs bannières sur le même emplacement → rotation en fondu enchaîné, durée
+ *   paramétrable en admin (rotation_seconds).
  */
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { usePlan } from '../hooks/usePlan';
-import { useAdsConfig } from '../hooks/useAdsConfig';
+import { useAdsConfig, type AdPlacement } from '../hooks/useAdsConfig';
 
-export default function AdSlot({ index = 0 }: { index?: number }) {
+export default function AdSlot({ placement }: { placement: AdPlacement }) {
   const COLORS = useAppColors();
   const { user } = useAuth();
   const { showAds } = usePlan(user?.id);
   const { data } = useAdsConfig();
 
-  if (!showAds) return null;
-  const banners = data?.banners ?? [];
-  if (banners.length === 0) return null;
-  const banner = banners[index % banners.length];
+  const banners = (data?.banners ?? []).filter((b) => (b.placement ?? 'pilotage') === placement);
+  const count = banners.length;
+  const rotationMs = Math.max(2, data?.rotation_seconds ?? 6) * 1000;
+
+  const [idx, setIdx] = useState(0);
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  // Rotation en fondu si plusieurs bannières au même emplacement.
+  useEffect(() => {
+    if (count < 2) return;
+    const t = setInterval(() => {
+      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+        setIdx((i) => (i + 1) % count);
+        Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      });
+    }, rotationMs);
+    return () => clearInterval(t);
+  }, [count, rotationMs, opacity]);
+
+  // Garder l'index dans les bornes si la liste change.
+  useEffect(() => { if (idx >= count && count > 0) setIdx(0); }, [count, idx]);
+
+  if (!showAds || count === 0) return null;
+  const banner = banners[Math.min(idx, count - 1)];
   const open = () => { if (banner.url) Linking.openURL(banner.url).catch(() => {}); };
 
   return (
-    <TouchableOpacity
-      style={[styles.slot, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder }]}
-      onPress={open}
-      activeOpacity={banner.url ? 0.85 : 1}
-      disabled={!banner.url}
-    >
-      <Text style={[styles.tag, { color: COLORS.textSecondary }]}>Sponsorisé</Text>
-      {banner.image ? (
-        <Image source={{ uri: banner.image }} style={styles.img} resizeMode="cover" />
-      ) : (
-        <View style={styles.textRow}>
-          <Ionicons name="megaphone-outline" size={18} color={COLORS.emerald} />
-          <Text style={[styles.text, { color: COLORS.text }]} numberOfLines={2}>{banner.text ?? banner.label ?? 'Découvrez nos partenaires'}</Text>
-          {banner.url ? <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} /> : null}
-        </View>
-      )}
-    </TouchableOpacity>
+    <Animated.View style={{ opacity }}>
+      <TouchableOpacity
+        style={[styles.slot, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder }]}
+        onPress={open}
+        activeOpacity={banner.url ? 0.85 : 1}
+        disabled={!banner.url}
+      >
+        <Text style={[styles.tag, { color: COLORS.textSecondary }]}>Sponsorisé</Text>
+        {banner.image ? (
+          <Image source={{ uri: banner.image }} style={styles.img} resizeMode="cover" />
+        ) : (
+          <Animated.View style={styles.textRow}>
+            <Ionicons name="megaphone-outline" size={18} color={COLORS.emerald} />
+            <Text style={[styles.text, { color: COLORS.text }]} numberOfLines={2}>{banner.text ?? banner.label ?? 'Découvrez nos partenaires'}</Text>
+            {banner.url ? <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} /> : null}
+          </Animated.View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

@@ -347,7 +347,7 @@ export default function PilotageScreen() {
           )}
 
           {/* Zone publicité (maison) — activable en admin, masquée pour les Premium */}
-          <AdSlot />
+          <AdSlot placement="pilotage" />
 
           {/* ── HERO : budget libre ce mois ── */}
           {(() => {
