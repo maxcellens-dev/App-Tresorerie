@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactions } from '../hooks/useTransactions';
+import { usePilotageData } from '../hooks/usePilotageData';
 import { useCategories } from '../hooks/useCategories';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
 import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
@@ -103,7 +104,8 @@ export default function TreasuryPlanScreen() {
   const transactionsQuery = useTransactions(user?.id);
   const categoriesQuery = useCategories(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
-  
+  const { data: pilotage } = usePilotageData(user?.id);
+
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: categories = [] } = categoriesQuery;
   const { data: overrides = [] } = overridesQuery;
@@ -266,7 +268,27 @@ export default function TreasuryPlanScreen() {
       c += balanceByMonth[m.key] ?? 0;
       cumulByMonth[m.key] = c;
     });
-    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: cumulByMonth });
+    rows.push({ label: 'Solde', categoryId: null, type: 'balance', values: cumulByMonth });
+
+    // Dépenses variables estimées (même logique que le Suivi du mois) :
+    //  - mois passés → 0 (les dépenses réelles sont déjà saisies)
+    //  - mois en cours → reste estimé (estimation − déjà dépensé ce mois)
+    //  - mois futurs → estimation mensuelle (historique calculé ou saisie onboarding)
+    const currentKey = getMonthKey(currentYear, currentMonth);
+    const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
+    const variableRemaining = pilotage?.variable_envelope_remaining ?? 0;
+    const variableByMonth: Record<string, number> = {};
+    months.forEach((m) => {
+      variableByMonth[m.key] = m.key < currentKey ? 0 : (m.key === currentKey ? variableRemaining : variableMonthly);
+    });
+    rows.push({ label: 'Dépenses variables', categoryId: null, type: 'expense', values: variableByMonth });
+
+    // Solde anticipé = Solde − dépenses variables estimées restantes.
+    const anticipeByMonth: Record<string, number> = {};
+    months.forEach((m) => {
+      anticipeByMonth[m.key] = (cumulByMonth[m.key] ?? 0) - (variableByMonth[m.key] ?? 0);
+    });
+    rows.push({ label: 'Solde anticipé', categoryId: null, type: 'balance', values: anticipeByMonth });
 
     // DÉPENSES : en-tête puis catégories (parent = somme des sous-catégories) puis TOTAL DÉPENSES
     rows.push({ label: 'DÉPENSES', categoryId: null, type: 'expense', values: {}, isSectionHeader: true, isBlockStart: true });
@@ -284,7 +306,7 @@ export default function TreasuryPlanScreen() {
     rows.push({ label: 'TOTAL DÉPENSES', categoryId: null, type: 'expense', values: expenseByMonth, isTotalLine: true });
 
     return { rows, months, txByMonthCategory };
-  }, [transactions, months, incomeGrouped, expenseGrouped, overrides]);
+  }, [transactions, months, incomeGrouped, expenseGrouped, overrides, pilotage, currentYear, currentMonth]);
 
   const goToTransactions = (monthKey: string, categoryId: string | null) => {
     const url = categoryId
@@ -498,7 +520,7 @@ export default function TreasuryPlanScreen() {
                           style={[
                             styles.cellNumText,
                             isPastMonth && row.type === 'income' && styles.cellNumPositive,
-                            isPastMonth && row.type === 'expense' && row.label !== 'Solde mensuel' && row.label !== 'Solde anticipé' && styles.cellNumNegative,
+                            isPastMonth && row.type === 'expense' && row.label !== 'Solde mensuel' && row.label !== 'Solde anticipé' && row.label !== 'Dépenses variables' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
                             row.isParentCategory && styles.cellNumTextParentCategory,
                           ]}

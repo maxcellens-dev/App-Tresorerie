@@ -73,8 +73,8 @@ function AppChrome() {
       <View style={styles.content}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="index" options={{ title: 'Trésorerie' }} />
-          <Stack.Screen name="welcome" options={{ title: 'Trésorerie' }} />
+          <Stack.Screen name="index" options={{ title: 'Reliquat' }} />
+          <Stack.Screen name="welcome" options={{ title: 'Reliquat' }} />
           <Stack.Screen name="login" options={{ title: 'Connexion' }} />
           <Stack.Screen name="register" options={{ title: 'Inscription' }} />
           <Stack.Screen name="questionnaire" options={{ title: 'Profil financier' }} />

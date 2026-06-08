@@ -20,7 +20,7 @@ export default function StyleEditor() {
   const [message, setMessage] = useState<string | null>(null);
 
   const [colors, setColors] = useState<Record<string, string>>({ primary: '#2563eb', background: '#ffffff', text: '#0f172a' });
-  const [appName, setAppName] = useState('Trésorerie');
+  const [appName, setAppName] = useState('Reliquat');
   const [tagline, setTagline] = useState("Laissez-vous guider pour faire les meilleurs choix pour vos économies.");
 
   useEffect(() => {

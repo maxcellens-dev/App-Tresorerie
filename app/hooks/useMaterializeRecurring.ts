@@ -28,6 +28,8 @@ export function useMaterializeRecurring(profileId: string | undefined) {
           ranFor.current = null;
           return;
         }
+        // Porter au solde les dépenses futures non récurrentes devenues échues (migration 044).
+        await supabase.rpc('reconcile_posted', { p_profile: profileId });
         client.invalidateQueries({ queryKey: ['transactions', profileId] });
         client.invalidateQueries({ queryKey: ['accounts', profileId] });
         client.invalidateQueries({ queryKey: ['transaction_month_overrides'] });

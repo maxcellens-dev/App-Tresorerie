@@ -26,7 +26,7 @@ export default function LegalScreen() {
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
 
           <Section title="Éditeur de l'application">
-            Trésorerie{'\n'}
+            Reliquat{'\n'}
             Application de gestion de trésorerie personnelle{'\n\n'}
             Contact : maxence.vi@gmail.com
           </Section>
@@ -41,18 +41,18 @@ export default function LegalScreen() {
           </Section>
 
           <Section title="Propriété intellectuelle">
-            L'ensemble des contenus de l'application Trésorerie (textes, graphismes, logiciels, images, icônes) est protégé par les lois relatives à la propriété intellectuelle.{'\n\n'}
+            L'ensemble des contenus de l'application Reliquat (textes, graphismes, logiciels, images, icônes) est protégé par les lois relatives à la propriété intellectuelle.{'\n\n'}
             Toute reproduction, représentation ou diffusion, en tout ou partie, du contenu de cette application est interdite sans autorisation préalable.
           </Section>
 
           <Section title="Responsabilité">
-            Trésorerie est un outil d'aide à la gestion financière personnelle. Les informations et calculs fournis ne constituent pas des conseils financiers professionnels.{'\n\n'}
+            Reliquat est un outil d'aide à la gestion financière personnelle. Les informations et calculs fournis ne constituent pas des conseils financiers professionnels.{'\n\n'}
             L'éditeur ne saurait être tenu responsable des décisions financières prises sur la base des données affichées dans l'application.{'\n\n'}
             L'exactitude des données dépend des informations saisies par l'utilisateur.
           </Section>
 
           <Section title="Conditions d'utilisation">
-            En utilisant Trésorerie, vous acceptez les présentes conditions :{'\n\n'}
+            En utilisant Reliquat, vous acceptez les présentes conditions :{'\n\n'}
             • L'application est destinée à un usage personnel uniquement{'\n'}
             • Vous êtes responsable de la confidentialité de vos identifiants{'\n'}
             • Toute utilisation abusive peut entraîner la suspension du compte{'\n'}

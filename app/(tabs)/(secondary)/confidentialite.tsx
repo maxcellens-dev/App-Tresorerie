@@ -26,7 +26,7 @@ export default function PrivacyScreen() {
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
 
           <Section title="1. Données collectées">
-            Trésorerie collecte uniquement les données nécessaires au fonctionnement de l'application :{'\n\n'}
+            Reliquat collecte uniquement les données nécessaires au fonctionnement de l'application :{'\n\n'}
             • <B>Identité</B> : adresse e-mail, prénom (optionnel){'\n'}
             • <B>Données financières</B> : comptes, transactions, catégories, projets et objectifs que vous saisissez{'\n'}
             • <B>Préférences</B> : paramètres de l'application, avatar{'\n\n'}
@@ -55,7 +55,7 @@ export default function PrivacyScreen() {
           </Section>
 
           <Section title="5. Cookies et trackers">
-            Trésorerie n'utilise aucun cookie publicitaire ni tracker tiers. Seuls des cookies techniques essentiels au fonctionnement sont utilisés.
+            Reliquat n'utilise aucun cookie publicitaire ni tracker tiers. Seuls des cookies techniques essentiels au fonctionnement sont utilisés.
           </Section>
 
           <Section title="6. Modifications">

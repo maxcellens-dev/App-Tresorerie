@@ -15,14 +15,15 @@ interface Props {
   pilotage?: PilotageData;
   transactions?: any[];
   projects?: any[];
+  accounts?: any[];
 }
 
 interface Slide { id: string; label: string; icon: string; iconColor: string; text: string }
 
-export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [] }: Props) {
+export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [], accounts = [] }: Props) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
-  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects);
+  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts);
 
   // Liste ordonnée : "Pour vous" puis général.
   const slides: Slide[] = [];
@@ -58,8 +59,9 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy),
       onPanResponderRelease: (_e, g) => {
-        if (g.dx < -60) apiRef.current.doDismiss();
-        else if (g.dx > 60 && apiRef.current.len > 1) apiRef.current.doNext();
+        // Swiper ne ferme JAMAIS : ça passe simplement à l'autre conseil du jour (en boucle).
+        // S'il n'en reste qu'un (l'autre a été fermé), doNext est sans effet → il revient seul.
+        if (Math.abs(g.dx) > 60) apiRef.current.doNext();
       },
     })
   ).current;

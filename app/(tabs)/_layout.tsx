@@ -1,4 +1,4 @@
-import { Tabs, useSegments } from 'expo-router';
+import { Tabs, useSegments, useRouter } from 'expo-router';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import TabBarBackground from '../components/TabBarBackground';
@@ -11,6 +11,7 @@ import { View } from 'react-native';
 function TabsHeader({ route }: { route: any }) {
   const COLORS = useAppColors();
   const segments = useSegments();
+  const router = useRouter();
   const fullPath = segments.join('/');
 
   const titleMap: Record<string, string> = {
@@ -20,6 +21,7 @@ function TabsHeader({ route }: { route: any }) {
     '(tabs)/comptes': 'Comptes',
     '(tabs)/projects': 'Projets',
     '(tabs)/reporting': 'Reporting',
+    '(tabs)/treasury-plan': 'Plan de trésorerie',
     '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
     '(tabs)/(secondary)/about': 'À propos',
@@ -32,9 +34,11 @@ function TabsHeader({ route }: { route: any }) {
 
   const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
   const routeName = route.name;
-  const displayTitle = titleMap[fullPath] || 'Trésorerie';
+  const displayTitle = titleMap[fullPath] || 'Reliquat';
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
+  // Pages "détail" sous les onglets : flèche retour vers la page d'origine.
+  const isTreasuryPlan = routeName === 'treasury-plan';
 
   return (
     <HeaderWithProfile
@@ -46,7 +50,11 @@ function TabsHeader({ route }: { route: any }) {
           </Text>
         ) : undefined
       }
-      showBack={false}
+      showBack={isTreasuryPlan}
+      onBack={isTreasuryPlan ? () => {
+        if (router.canGoBack()) router.back();
+        else router.replace('/(tabs)/projection' as any);
+      } : undefined}
     />
   );
 }

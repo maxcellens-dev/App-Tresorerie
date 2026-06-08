@@ -1,4 +1,4 @@
-# Trésorerie
+# Reliquat
 
 Application de gestion de trésorerie personnelle, **Offline-First** avec contrôle admin du thème via Supabase (Remote Config).
 

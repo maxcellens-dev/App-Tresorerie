@@ -8,6 +8,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { PilotageData } from './usePilotageData';
+import { computeMonthlyForecast } from '../lib/forecast';
 
 export interface Conseil {
   id: string;
@@ -32,12 +33,43 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // ── Évaluation des critères contextuels ──────────────────────────────────────
 
-export function evalCriteres(pilotage: PilotageData, transactions: any[], projects: any[]): {
+export function evalCriteres(pilotage: PilotageData, transactions: any[], projects: any[], accounts: any[] = []): {
   key: string;
   vars: Record<string, string | number>;
 }[] {
   const active: { key: string; vars: Record<string, string | number> }[] = [];
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
+
+  // ── Vague 2 : conseils basés sur la trésorerie FUTURE (projection 6 mois) ──
+  // Utile notamment pour les revenus irréguliers : on projette les soldes des prochains mois.
+  if (accounts.length > 0) {
+    const forecast = computeMonthlyForecast({
+      transactions,
+      accounts,
+      variableMonthly: pilotage.variable_envelope_initial ?? 0,
+      variableRemaining: pilotage.variable_envelope_remaining ?? 0,
+      monthsCount: 6,
+    });
+    const currentBalance = pilotage.total_checking;
+    const nextMonth = forecast[1];
+    const lastMonth = forecast[forecast.length - 1];
+    // Premier mois futur (hors mois courant) où le solde prévu devient négatif.
+    const firstNegative = forecast.slice(1).find((m) => m.balance < 0);
+
+    // 1. Mois prochain dans le rouge (priorité haute — revenus irréguliers, futur non saisi).
+    if (nextMonth && nextMonth.balance < 0) {
+      active.push({ key: 'treso_negatif_mois_prochain', vars: { mois: nextMonth.label, solde: fmt(nextMonth.balance) } });
+    }
+    // 2. Un des 6 prochains mois passe dans le rouge (si ce n'est pas déjà le mois prochain).
+    if (firstNegative && !(nextMonth && nextMonth.balance < 0)) {
+      active.push({ key: 'treso_negatif_6mois', vars: { mois: firstNegative.label, solde: fmt(firstNegative.balance) } });
+    }
+    // 3. Trésorerie qui s'érode : solde à 6 mois nettement plus bas qu'aujourd'hui (mais positif).
+    if (lastMonth && lastMonth.balance >= 0 && currentBalance > 0 && lastMonth.balance < currentBalance * 0.5) {
+      active.push({ key: 'treso_erosion_6mois', vars: { solde: fmt(lastMonth.balance), baisse: fmt(currentBalance - lastMonth.balance) } });
+    }
+    // 4. Trésorerie solide → poussé en fin de liste (priorité basse, voir plus bas).
+  }
 
   // argent_qui_dort : courant > optimal + 3 000 ET investissements < 20% du courant
   if (pilotage.total_checking > pilotage.safety_threshold_optimal + 3000 && pilotage.total_invested < pilotage.total_checking * 0.2) {
@@ -102,6 +134,22 @@ export function evalCriteres(pilotage: PilotageData, transactions: any[], projec
     }
   }
 
+  // treso_solide_6mois : priorité basse (réassurance / opportunité), poussé en dernier
+  // pour ne pas masquer un conseil plus actionnable.
+  if (accounts.length > 0) {
+    const forecast = computeMonthlyForecast({
+      transactions, accounts,
+      variableMonthly: pilotage.variable_envelope_initial ?? 0,
+      variableRemaining: pilotage.variable_envelope_remaining ?? 0,
+      monthsCount: 6,
+    });
+    const lastMonth = forecast[forecast.length - 1];
+    const currentBalance = pilotage.total_checking;
+    if (lastMonth && currentBalance > 0 && lastMonth.balance >= currentBalance && lastMonth.balance > 0) {
+      active.push({ key: 'treso_solide_6mois', vars: { solde: fmt(lastMonth.balance) } });
+    }
+  }
+
   return active;
 }
 
@@ -148,7 +196,7 @@ export function useMarkConseilSeen(userId: string | undefined) {
 }
 
 /** Hook principal : renvoie le conseil du jour (général + contextuel) + actions. */
-export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[]): {
+export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[], accounts: any[] = []): {
   general: (Conseil & { vars: Record<string, string | number> }) | null;
   contextuel: (Conseil & { vars: Record<string, string | number> }) | null;
   dismiss: (id: string) => void;
@@ -165,19 +213,26 @@ export function useConseilDuJour(userId: string | undefined, pilotage: PilotageD
   const today = new Date();
   const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
 
-  // Général : rotation par day of year, non fermé aujourd'hui
-  const generals = all.filter((c) => c.type === 'general' && !dismissedIds.has(c.id));
-  const general = generals.length > 0 ? generals[dayOfYear % generals.length] : null;
+  // Général : 1 SEUL conseil par jour, choisi de façon déterministe sur la liste complète
+  // (rotation par jour de l'année). On NE retire PAS les conseils fermés AVANT de choisir,
+  // sinon fermer le conseil du jour en ferait apparaître un autre. On choisit d'abord le
+  // conseil du jour, puis on le masque s'il a été fermé → plus rien jusqu'au lendemain.
+  const generalsAll = all.filter((c) => c.type === 'general');
+  const generalPick = generalsAll.length > 0 ? generalsAll[dayOfYear % generalsAll.length] : null;
+  const general = generalPick && !dismissedIds.has(generalPick.id) ? generalPick : null;
 
-  // Contextuel : 1er critère actif correspondant, non fermé aujourd'hui
+  // Contextuel : 1 SEUL conseil par jour = celui du 1er critère actif. Même principe :
+  // on fige le choix avant de tester la fermeture, donc fermer le conseil « Pour vous »
+  // ne le remplace pas par un autre — il disparaît jusqu'au lendemain.
   let contextuel: (Conseil & { vars: Record<string, string | number> }) | null = null;
   if (pilotage) {
-    const activeCriteres = evalCriteres(pilotage, transactions, projects);
-    const contextuels = all.filter((c) => c.type === 'contextuel' && !dismissedIds.has(c.id));
+    const activeCriteres = evalCriteres(pilotage, transactions, projects, accounts);
+    const contextuelsAll = all.filter((c) => c.type === 'contextuel');
     for (const { key, vars } of activeCriteres) {
-      const match = contextuels.find((c) => c.critere_key === key);
+      const match = contextuelsAll.find((c) => c.critere_key === key);
       if (match) {
-        contextuel = { ...match, vars };
+        // Premier critère actif trouvé = conseil contextuel du jour (fermé ⇒ masqué, pas remplacé).
+        contextuel = dismissedIds.has(match.id) ? null : { ...match, vars };
         break;
       }
     }

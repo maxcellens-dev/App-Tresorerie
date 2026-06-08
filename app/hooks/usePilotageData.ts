@@ -21,10 +21,17 @@ export interface PilotageData {
   monthly_savings_remaining: number;     // part non encore exécutée → pour le budget libre
   monthly_invest_planned: number;        // virements récurrents invest (total du mois, affichage)
   monthly_invest_remaining: number;      // part non encore exécutée → pour le budget libre
+  // Virements épargne/invest du mois (TOUS, via linked_account_id, projets inclus) — Suivi
+  month_savings_total: number;           // épargne : tous virements du mois (affichage)
+  month_savings_future: number;          // épargne : part future (déduite du budget)
+  month_invest_total: number;            // investissement : tous virements du mois (affichage)
+  month_invest_future: number;           // investissement : part future (déduite du budget)
   real_savings_excl_projects: number;    // épargne réelle ce mois HORS projets (pour budget reco)
   real_invest: number;                   // invest réel ce mois (pour budget reco)
   monthly_reserve_planned: number;       // total réservé (projets même compte + brouillons conservés)
-  month_expenses_total: number;          // total dépenses du mois (passées + à venir, hors virements)
+  month_expenses_total: number;          // total dépenses du mois (passées + à venir, hors virements) — info
+  month_expenses_past: number;           // dépenses validées déjà passées ce mois (déjà dans le solde) — info
+  month_expenses_remaining: number;      // dépenses à venir ce mois (date > aujourd'hui) → déduites du budget
   committed_objective_monthly: number;   // engagements objectifs actifs (cible annuelle ÷ 12)
   reserved_by_project: Array<{           // détail du Réservé par projet (pour le modal)
     id: string; name: string; total: number;
@@ -444,7 +451,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   let transfer_savings_past = 0;
   let transfer_invest = 0;    // virements vers comptes investissement (depuis courant/épargne)
   let transfer_invest_past = 0;
-  let month_expenses_total = 0;
+  let month_expenses_total = 0;       // dépenses du mois (passées + à venir) — affichage info
+  let month_expenses_past = 0;        // dépenses validées déjà passées (déjà dans le solde)
+  let month_expenses_remaining = 0;   // dépenses datées après aujourd'hui (encore à sortir → budget libre)
 
   for (const t of transactions) {
     const amt = Number(t.amount);
@@ -485,12 +494,49 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       const isRegul = !!(cat?.name && /r[ée]gularisation/i.test(cat.name));
       if (isExpenseCat && !isRegul) {
         month_expenses_total += monthlyAmt;
+        // Le passé est déjà reflété dans le solde courant → ne pas le redéduire du budget.
+        // Seules les dépenses à venir (non-brouillon) sont déduites du budget libre.
+        if (!isDraft) {
+          month_expenses_past += pastAmt;
+          month_expenses_remaining += Math.max(0, monthlyAmt - pastAmt);
+        }
       }
     }
   }
 
   const monthly_savings_planned = transfer_savings + project_savings_monthly;
   const monthly_invest_planned = transfer_invest; // virements réels uniquement (objectifs exclus)
+
+  // ── Virements épargne / investissement du mois (affichage Suivi) ──
+  // TOUS les virements du mois courant (passés + futurs), y compris ceux liés à un projet,
+  // détectés via linked_account_id. `_total` = affichage ; `_future` = part non encore sortie
+  // du solde (date > aujourd'hui) → seule part déduite du budget libre (pas de double comptage).
+  let month_savings_total = 0, month_savings_future = 0;
+  let month_invest_total = 0, month_invest_future = 0;
+  for (const t of transactions) {
+    if ((t as any).is_draft) continue;
+    const amt = Number(t.amount);
+    if (amt >= 0) continue; // sortie depuis le compte source
+    const srcType = accountTypeById[t.account_id];
+    const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
+    if (!linkedType) continue;
+    const isRecurring = Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule);
+    const [tY, tM] = t.date.split('-').map(Number);
+    const isThisMonth = tY === currentYear && tM === currentMonth;
+    const monthlyAmt = isRecurring
+      ? addRecurrenceToMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
+      : (isThisMonth ? Math.abs(amt) : 0);
+    if (monthlyAmt <= 0) continue;
+    const pastAmt = isRecurring
+      ? recurrencePastInMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
+      : (isThisMonth && t.date <= todayStr ? Math.abs(amt) : 0);
+    const futureAmt = Math.max(0, monthlyAmt - pastAmt);
+    if (linkedType === 'investment' && (srcType === 'checking' || srcType === 'savings')) {
+      month_invest_total += monthlyAmt; month_invest_future += futureAmt;
+    } else if (linkedType === 'savings' && srcType === 'checking') {
+      month_savings_total += monthlyAmt; month_savings_future += futureAmt;
+    }
+  }
 
   // Épargne/invest déjà exécutée ce mois (solde courant déjà impacté) → ne pas redéduire du budget libre
   let project_savings_executed = 0;
@@ -639,10 +685,16 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     monthly_savings_remaining,
     monthly_invest_planned,
     monthly_invest_remaining,
+    month_savings_total,
+    month_savings_future,
+    month_invest_total,
+    month_invest_future,
     real_savings_excl_projects,
     real_invest,
     monthly_reserve_planned,
     month_expenses_total,
+    month_expenses_past,
+    month_expenses_remaining,
     committed_objective_monthly,
     reserved_by_project,
     avg_variable_expenses_3m,

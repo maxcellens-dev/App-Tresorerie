@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Trésorerie",
+    "name": "Reliquat",
     "slug": "tresorerie",
     "version": "1.0.0",
     "scheme": "tresorerie",
@@ -14,8 +14,8 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./public/favicon.png",
-      "name": "Trésorerie",
-      "shortName": "Trésorerie",
+      "name": "Reliquat",
+      "shortName": "Reliquat",
       "description": "Laissez-vous guider pour faire des économies.",
       "themeColor": "#020617",
       "backgroundColor": "#020617"

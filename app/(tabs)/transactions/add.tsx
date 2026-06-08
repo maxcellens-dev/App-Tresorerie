@@ -149,6 +149,9 @@ export default function AddTransactionScreen() {
         amount: finalAmount,
         date,
         note: note || (isTransfer ? `Virement vers ${accounts.find(a => a.id === targetAccountId)?.name}` : undefined),
+        // Un virement relie les deux comptes : indispensable pour que le Suivi du mois
+        // classe correctement (épargne / investissement) et pour la détection de virement à l'édition.
+        linked_account_id: isTransfer ? targetAccountId : null,
         is_draft: isDraft,
         is_recurring: isRecurring,
         recurrence_rule: isRecurring ? recurrenceRule : null,
@@ -162,6 +165,7 @@ export default function AddTransactionScreen() {
           amount: num,
           date,
           note: note || `Virement depuis ${accounts.find(a => a.id === accountId)?.name}`,
+          linked_account_id: accountId,
           is_draft: isDraft,
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,

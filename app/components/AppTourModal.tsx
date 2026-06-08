@@ -22,7 +22,7 @@ export default function AppTourModal({ visible, onFinish }: Props) {
   const [step, setStep] = useState(0);
 
   const slides: { icon: string; color: string; title: string; text: string }[] = [
-    { icon: 'sparkles-outline', color: COLORS.emerald, title: 'Bienvenue sur Trésorerie 👋', text: 'Pas d\'inquiétude : tout est simple et rapide. Quelques infos à saisir une fois, et l\'app s\'occupe du reste — vos finances deviennent claires, sans prise de tête.' },
+    { icon: 'sparkles-outline', color: COLORS.emerald, title: 'Bienvenue sur Reliquat 👋', text: 'Pas d\'inquiétude : tout est simple et rapide. Quelques infos à saisir une fois, et l\'app s\'occupe du reste — vos finances deviennent claires, sans prise de tête.' },
     { icon: 'apps-outline', color: COLORS.emerald, title: 'Tout au même endroit', text: 'En bas : Comptes, Transactions, Pilotage, Tréso et Projection. Vous passez de l\'un à l\'autre en un geste. En haut à droite : votre profil et vos réglages.' },
     { icon: 'wallet-outline', color: COLORS.checking, title: 'Comptes', text: 'Ajoutez vos comptes en quelques secondes. Une fois faits, vos soldes se mettent à jour tout seuls — fini les calculs à la main.' },
     { icon: 'list-outline', color: COLORS.emerald, title: 'Transactions', text: 'Notez une dépense ou une recette en deux tapes. Les opérations récurrentes (loyer, salaire…) se répètent automatiquement : vous ne saisissez qu\'une fois.' },

@@ -297,7 +297,7 @@ export default function QuestionnaireScreen() {
               <View style={styles.welcomeIconCircle}>
                 <Ionicons name="stats-chart" size={40} color={COLORS.emerald} />
               </View>
-              <Text style={styles.welcomeTitle}>Bienvenue sur Trésorerie</Text>
+              <Text style={styles.welcomeTitle}>Bienvenue sur Reliquat</Text>
               <Text style={styles.welcomeSub}>Votre coach financier personnel</Text>
               <View style={styles.welcomeDivider} />
               <Text style={styles.welcomeBody}>

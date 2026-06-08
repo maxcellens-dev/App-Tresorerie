@@ -33,7 +33,7 @@ const defaultTheme: { colors: ThemeColors; fonts: { heading: string; body: strin
 };
 
 const defaultTexts = {
-  appName: 'Trésorerie',
+  appName: 'Reliquat',
   tagline: 'Laissez-vous guider pour faire les meilleurs choix pour vos économies.',
   seo: {} as Record<string, string>,
 };

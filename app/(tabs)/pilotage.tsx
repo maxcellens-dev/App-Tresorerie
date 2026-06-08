@@ -167,30 +167,38 @@ export default function PilotageScreen() {
   const variableEnvelopeRemaining = pilotageData?.variable_envelope_remaining ?? 0;
   // Budget libre : on déduit uniquement ce qui n'est pas encore sorti du solde courant
   // (épargne/invest déjà validée est déjà reflétée dans current_checking_balance).
-  const savingsRemaining = pilotageData?.monthly_savings_remaining ?? pilotageData?.monthly_savings_planned ?? 0;
-  const investRemaining = pilotageData?.monthly_invest_remaining ?? pilotageData?.monthly_invest_planned ?? 0;
+  // Épargne / Investissement : on déduit la part FUTURE (non encore sortie du solde) pour
+  // éviter de recompter les virements déjà passés (déjà reflétés dans le solde courant).
+  const savingsRemaining = pilotageData?.month_savings_future ?? 0;
+  const investRemaining = pilotageData?.month_invest_future ?? 0;
+  // Dépenses : seules les dépenses à venir (date > aujourd'hui) sont déduites.
+  // Les dépenses déjà passées sont déjà dans le solde courant → affichées en info uniquement.
+  const monthExpensesRemaining = pilotageData?.month_expenses_remaining ?? 0;
+  const monthExpensesPast = pilotageData?.month_expenses_past ?? 0;
+  // « Reste à vivre » (Option B) : on part du solde courant à date et on ne déduit
+  // QUE ce qui n'est pas encore sorti du compte (à venir / non exécuté) + la marge.
   const resteDisponible = Math.max(0,
     (pilotageData?.current_checking_balance ?? 0)
     - savingsRemaining
     - investRemaining
     - (pilotageData?.monthly_reserve_planned ?? 0)
-    - (pilotageData?.month_expenses_total ?? 0)
+    - reservationsTotal
+    - monthExpensesRemaining
     - variableEnvelopeRemaining
     - safetyMarginDisplay
-    - cumulsTotal
-    - reservationsTotal
   );
   const baseADepenser = pilotageData?.safe_to_spend ?? 0;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
   // ── Budget de recommandation ──
-  // = Solde courant − marge − dépensé ce mois − dépenses variables prévues restantes.
+  // = Solde courant − marge − dépenses à venir − dépenses variables prévues restantes.
+  // On ne déduit que ce qui n'est pas encore sorti du solde (pas de double comptage du passé).
   // (≠ budget libre : on ne déduit PAS l'épargne/invest/réservé déjà prévus, car on veut
   //  ensuite déduire ces montants catégorie par catégorie.)
   const recoBudget = Math.max(0,
     (pilotageData?.current_checking_balance ?? 0)
     - safetyMarginDisplay
-    - (pilotageData?.month_expenses_total ?? 0)
+    - monthExpensesRemaining
     - variableEnvelopeRemaining
   );
   // Montants déjà alloués par catégorie ce mois (à déduire des % de reco).
@@ -333,6 +341,7 @@ export default function PilotageScreen() {
               pilotage={pilotageData}
               transactions={txForConseils}
               projects={projectsForConseils}
+              accounts={accounts}
             />
           )}
 
@@ -436,17 +445,22 @@ export default function PilotageScreen() {
 
             {(() => {
               const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
-              const savings = pilotageData.monthly_savings_planned;
-              const invest = pilotageData.monthly_invest_planned;
+              // Épargne / Investissement : TOUS les virements du mois (passés + futurs), affichage.
+              const savings = pilotageData.month_savings_total ?? 0;
+              const invest = pilotageData.month_invest_total ?? 0;
               // Réservé = réservations projets (même compte) + montant conservé du mois (recos)
               const reserve = pilotageData.monthly_reserve_planned + reservationsTotal;
-              const expenses = pilotageData.month_expenses_total;
               const safetyMargin = pilotageData.safety_margin_amount ?? 0;
+              const checkingBalance = pilotageData.current_checking_balance ?? 0;
+              // Dépenses prévues = variables estimées restantes + dépenses récurrentes à venir.
+              const depVariable = pilotageData.variable_envelope_remaining;
+              const depRecurrentes = monthExpensesRemaining;
+              const depPrevuesTotal = depVariable + depRecurrentes;
 
               const items = [
-                { label: 'Épargne prévue',   value: savings,  icon: 'shield-outline',     color: COLORS.green,  hint: 'Virements vers épargne + projets' },
-                { label: 'Investissement',   value: invest,   icon: 'trending-up-outline', color: COLORS.violet, hint: 'Virements vers comptes d\'investissement' },
-                { label: 'Réservé',          value: reserve,  icon: 'lock-closed-outline', color: COLORS.blue,   hint: 'Conservé ce mois (projets + recos)' },
+                { label: 'Épargne',         value: savings,  icon: 'shield-outline',      color: COLORS.green,  hint: 'Virements d\'épargne' },
+                { label: 'Investissement',  value: invest,   icon: 'trending-up-outline', color: COLORS.violet, hint: 'Virements d\'investissement' },
+                { label: 'Réservé',         value: reserve,  icon: 'lock-closed-outline', color: COLORS.blue,   hint: 'Projets, cumuls et recommandations' },
               ];
 
               // Reste du mois = reste disponible (base − cumuls − réservations)
@@ -458,6 +472,20 @@ export default function PilotageScreen() {
 
               return (
                 <View style={styles.suiviCard}>
+                  {/* Point de départ : solde courant à date */}
+                  <View style={styles.suiviRow}>
+                    <View style={[styles.suiviIcon, { backgroundColor: COLORS.checking + '22' }]}>
+                      <Ionicons name="wallet-outline" size={16} color={COLORS.checking} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Solde courant</Text>
+                      <Text style={styles.suiviHint} numberOfLines={1}>Comptes courants à date</Text>
+                    </View>
+                    <Text style={[styles.suiviValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
+                  </View>
+
+                  <View style={styles.suiviDivider} />
+
                   {items.map((it) => {
                     const isReserveRow = it.label === 'Réservé';
                     const RowWrap: any = isReserveRow ? TouchableOpacity : View;
@@ -473,7 +501,7 @@ export default function PilotageScreen() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.suiviLabel}>{it.label}</Text>
-                          <Text style={styles.suiviHint}>{it.hint}</Text>
+                          <Text style={styles.suiviHint} numberOfLines={1}>{it.hint}</Text>
                         </View>
                         {isReserveRow && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}
                         <Text style={[styles.suiviValue, { color: semanticText(it.color, COLORS) }]}>{fmt(it.value)}</Text>
@@ -481,58 +509,46 @@ export default function PilotageScreen() {
                     );
                   })}
 
-                  <View style={styles.suiviDivider} />
-
-                  {/* Dépenses du mois */}
-                  <View style={styles.suiviRow}>
-                    <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
-                      <Ionicons name="card-outline" size={16} color={COLORS.danger} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Dépensé ce mois-ci</Text>
-                      <Text style={styles.suiviHint}>Transactions passées et récurrentes à venir</Text>
-                    </View>
-                    <Text style={[styles.suiviValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(expenses)}</Text>
-                  </View>
-
-                  {/* Enveloppe des dépenses variables (estimation restante) */}
+                  {/* Bloc dépenses (1 icône) : Dépensé ce mois (rouge, info) + Dépenses prévues restantes (orange) */}
                   {(() => {
-                    const env = pilotageData.variable_envelope_remaining;
-                    const src = pilotageData.variable_envelope_source;
-                    const nMonths = pilotageData.variable_envelope_months_used;
-                    // La saisie manuelle (repli onboarding) ne sert que sans historique suffisant.
-                    // Avec un historique utilisé, la ligne n'est ni cliquable ni fléchée.
-                    const editable = src !== 'history';
-                    const hint = src === 'history'
-                      ? `Estimées sur les ${nMonths} derniers mois`
-                      : src === 'onboarding'
-                        ? 'Estimation hebdo'
-                        : 'À renseigner — appuyez pour estimer';
-                    const col = COLORS.orange;
-                    const RowWrap: any = editable ? TouchableOpacity : View;
+                    const variableEditable = pilotageData.variable_envelope_source !== 'history';
+                    const VariableRow: any = variableEditable ? TouchableOpacity : View;
                     return (
-                      <RowWrap
-                        style={styles.suiviRow}
-                        {...(editable ? {
-                          activeOpacity: 0.7,
-                          onPress: () => {
-                            setWeeklyVariableInput(
-                              profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : ''
-                            );
-                            setShowVariableModal(true);
-                          },
-                        } : {})}
-                      >
-                        <View style={[styles.suiviIcon, { backgroundColor: col + '22' }]}>
-                          <Ionicons name="cart-outline" size={16} color={col} />
+                      <View style={styles.suiviRow}>
+                        <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
+                          <Ionicons name="card-outline" size={16} color={COLORS.danger} />
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.suiviLabel}>Dépenses variables prévues restantes</Text>
-                          <Text style={styles.suiviHint}>{hint}</Text>
+                        <View style={{ flex: 1, gap: 4 }}>
+                          {/* Dépensé ce mois (rouge) — déjà passé, déjà dans le solde (info) */}
+                          <View style={styles.depLine}>
+                            <Text style={[styles.suiviLabel, { fontWeight: '700', flex: 1 }]}>Dépensé ce mois</Text>
+                            <Text style={[styles.suiviValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(monthExpensesPast)}</Text>
+                          </View>
+                          {/* Dépenses prévues restantes (orange) = variables + récurrentes à venir */}
+                          <View style={styles.depLine}>
+                            <Text style={[styles.suiviLabel, { fontWeight: '700', flex: 1 }]}>Dépenses prévues restantes</Text>
+                            <Text style={[styles.suiviValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(depPrevuesTotal)}</Text>
+                          </View>
+                          <VariableRow
+                            style={styles.depLine}
+                            {...(variableEditable ? {
+                              activeOpacity: 0.7,
+                              onPress: () => {
+                                setWeeklyVariableInput(profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : '');
+                                setShowVariableModal(true);
+                              },
+                            } : {})}
+                          >
+                            <Text style={[styles.depSubLabel, { flex: 1 }]}>- dont variables</Text>
+                            {variableEditable && <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} style={{ marginRight: 4 }} />}
+                            <Text style={[styles.depSubValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(depVariable)}</Text>
+                          </VariableRow>
+                          <View style={styles.depLine}>
+                            <Text style={[styles.depSubLabel, { flex: 1 }]}>- dont récurrentes</Text>
+                            <Text style={styles.depSubValue}>{fmt(depRecurrentes)}</Text>
+                          </View>
                         </View>
-                        {editable && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}
-                        <Text style={[styles.suiviValue, { color: semanticText(col, COLORS) }]}>{fmt(env)}</Text>
-                      </RowWrap>
+                      </View>
                     );
                   })()}
 
@@ -927,6 +943,9 @@ function makeStyles(c: AppColors) {
   suiviLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   suiviHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
   suiviValue: { fontSize: 16, fontWeight: '700' },
+  depLine: { flexDirection: 'row', alignItems: 'center' },
+  depSubLabel: { fontSize: 11, color: c.textSecondary },
+  depSubValue: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
   suiviLabelBig: { fontSize: 16, color: c.text, fontWeight: '700' },
   suiviValueBig: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5 },
 

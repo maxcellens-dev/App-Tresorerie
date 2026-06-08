@@ -144,6 +144,7 @@ export interface RecoThresholds {
   seuil_reco_epargne: number;
   seuil_reco_invest: number;
   seuil_reco_plaisir: number;
+  seuil_reco_conserver: number;
 }
 
 export interface ComputeRecoOptions {
@@ -228,11 +229,12 @@ export function computeRecommendations(
 
   // 6. Montant net par catégorie = (% × budget) − déjà alloué réellement ce mois.
   const alreadyAllocated = opts.alreadyAllocated ?? {};
-  const th = thresholds ?? { seuil_reco_epargne: 50, seuil_reco_invest: 100, seuil_reco_plaisir: 50 };
+  const th = thresholds ?? { seuil_reco_epargne: 50, seuil_reco_invest: 100, seuil_reco_plaisir: 50, seuil_reco_conserver: 50 };
   const thresholdByType: Partial<Record<RecoType, number>> = {
     save: th.seuil_reco_epargne,
     invest: th.seuil_reco_invest,
     enjoy: th.seuil_reco_plaisir,
+    keep: th.seuil_reco_conserver,
   };
 
   // 7. Construire les recommandations (montant net ≥ seuil)

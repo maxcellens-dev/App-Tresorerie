@@ -7,42 +7,48 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/useAppColors';
 
 
-const STEP_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#22d3ee', '#34d399'];
+const STEP_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#22d3ee', '#fb7185', '#34d399'];
 
 const STEPS = [
   {
-    label: 'Étape 1 — Sorties futures du mois',
-    formula: 'Σ transactions futures ce mois avec montant < 0 (dépenses, virements sortants)',
-    explanation: 'Uniquement les sorties planifiées après aujourd\'hui. Les recettes futures ne sont PAS incluses : le calcul part de ce qu\'on a maintenant.',
+    label: 'Point de départ — Solde courant à date',
+    formula: 'Σ accounts(checking).balance',
+    explanation: 'Le solde réel de tous les comptes courants, aujourd\'hui. Il reflète déjà tout ce qui est passé (recettes encaissées, dépenses payées, virements exécutés). On ne redéduit donc jamais le passé.',
   },
   {
-    label: 'Étape 2 — Engagements mensuels',
-    formula: 'Σ projets actifs (alloc. mensuelle) + Σ objectifs actifs (cible annuelle ÷ 12)',
-    explanation: 'Montants réservés chaque mois pour projets et objectifs en cours.',
+    label: '− Épargne à venir',
+    formula: 'virements épargne planifiés ce mois − déjà exécutés (+ projets non exécutés)',
+    explanation: 'Seule la part d\'épargne pas encore sortie du compte est déduite (le passé est déjà dans le solde).',
   },
   {
-    label: 'Étape 3 — Réservations même compte',
-    formula: 'Σ (transactions passées × allocation) par projet source = destination',
-    explanation: 'Quand un projet épargne sur le même compte, l\'argent reste mais est déjà "réservé".',
+    label: '− Investissement à venir',
+    formula: 'virements vers comptes d\'investissement planifiés ce mois − déjà exécutés',
+    explanation: 'Idem : uniquement les virements d\'investissement encore à venir.',
   },
   {
-    label: 'Étape 4 — Base à dépenser',
-    formula: 'solde courant + sorties futures − engagements − réservations',
-    explanation: 'Solde réel moins toutes les sorties prévues et engagements.',
+    label: '− Réservé',
+    formula: 'projets même-compte + montant conservé du mois (recos)',
+    explanation: 'Argent qui reste sur le compte courant mais déjà mis de côté mentalement.',
   },
   {
-    label: 'Étape 5 — Marge de sécurité (montant fixe)',
-    formula: 'max(0, base − marge_de_sécurité_€)',
-    explanation: 'Montant minimum conservé sur les comptes courants quoi qu\'il arrive. Saisi par l\'utilisateur en Q8 du questionnaire. Si solde courant < marge → seule la reco "Conserver" est active.',
+    label: '− Dépenses prévues à venir + variables estimées',
+    formula: 'dépenses datées après aujourd\'hui + max(0, estimation − variable déjà dépensé du mois)',
+    explanation: 'Les dépenses futures déjà saisies + l\'estimation de ce qui sera encore dépensé en variable ce mois. Quand une dépense variable réelle a lieu, le solde baisse mais l\'estimation restante baisse d\'autant : le budget libre ne bouge pas.',
+  },
+  {
+    label: '− Marge de sécurité (montant fixe)',
+    formula: 'max(0, … − marge_de_sécurité_€)',
+    explanation: 'Montant minimum conservé sur les comptes courants quoi qu\'il arrive. Saisi en Q8 du questionnaire. Si solde courant < marge → seule la reco "Conserver" est active.',
   },
 ];
 
 const VARIABLES = [
-  ['solde_courant', 'Σ accounts(checking).balance'],
-  ['future_outflows', 'transactions futures ce mois avec amount < 0'],
-  ['committed_projects', 'Σ projects(active).monthly_allocation'],
-  ['committed_objectives', 'Σ objectives(active).target_yearly / 12'],
-  ['same_account_reserved', 'transactions passées × allocation'],
+  ['solde_courant', 'Σ accounts(checking).balance (à date, futur exclu)'],
+  ['épargne_à_venir', 'virements épargne du mois non encore exécutés + projets'],
+  ['invest_à_venir', 'virements investissement du mois non encore exécutés'],
+  ['réservé', 'projets même-compte + conservé du mois (recos)'],
+  ['dépenses_à_venir', 'transactions dépenses datées après aujourd\'hui'],
+  ['variable_restant', 'max(0, estimation_mensuelle − variable dépensé du mois)'],
   ['marge_sécurité', 'profiles.safety_margin_amount (Q8, défaut 0 €)'],
 ];
 
@@ -61,23 +67,24 @@ export default function SafeToSpendAdmin() {
         </TouchableOpacity>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Formule « À dépenser »</Text>
+          <Text style={styles.title}>Formule « Budget libre »</Text>
           <Text style={styles.subtitle}>
-            Explication complète du calcul du montant affiché sur le Tableau de bord.
+            Explication complète du « Tu peux dépenser ce mois » affiché sur le Tableau de bord.
+            Principe : on part du solde réel à date et on ne déduit QUE ce qui n'est pas encore
+            sorti du compte (le passé est déjà dans le solde → jamais redéduit).
           </Text>
 
           {/* ── Formule résumée ── */}
           <View style={styles.formulaCard}>
-            <Text style={styles.formulaLine}>  Solde courant</Text>
-            <Text style={styles.formulaLine}>+ Sorties futures du mois (dépenses uniquement)</Text>
-            <Text style={styles.formulaLine}>− Engagements projets (alloc. mensuelle)</Text>
-            <Text style={styles.formulaLine}>− Engagements objectifs (cible ÷ 12)</Text>
-            <Text style={styles.formulaLine}>− Réservations même-compte (passées)</Text>
-            <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
-            <Text style={styles.formulaLine}>= Base à dépenser</Text>
+            <Text style={styles.formulaLine}>  Solde courant (à date)</Text>
+            <Text style={styles.formulaLine}>− Épargne à venir</Text>
+            <Text style={styles.formulaLine}>− Investissement à venir</Text>
+            <Text style={styles.formulaLine}>− Réservé (projets + conservé du mois)</Text>
+            <Text style={styles.formulaLine}>− Dépenses prévues à venir</Text>
+            <Text style={styles.formulaLine}>− Dépenses variables estimées restantes</Text>
             <Text style={styles.formulaLine}>− Marge de sécurité (montant fixe €)</Text>
             <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
-            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Ce qu'il te reste ce mois-ci</Text>
+            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Budget libre</Text>
           </View>
 
           {/* ── Étapes ── */}

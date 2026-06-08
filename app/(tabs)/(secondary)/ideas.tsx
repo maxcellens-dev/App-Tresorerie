@@ -83,7 +83,7 @@ export default function IdeasScreen() {
             <Text style={styles.title}>Boîte à idées</Text>
           </View>
           <Text style={styles.subtitle}>
-            Aidez-nous à améliorer Trésorerie ! Partagez vos suggestions, idées de fonctionnalités ou améliorations.
+            Aidez-nous à améliorer Reliquat ! Partagez vos suggestions, idées de fonctionnalités ou améliorations.
           </Text>
 
           {submitted ? (

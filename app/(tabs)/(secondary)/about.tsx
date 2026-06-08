@@ -22,7 +22,7 @@ export default function AboutScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Version */}
           <View style={styles.versionCard}>
-            <Text style={styles.appName}>Trésorerie</Text>
+            <Text style={styles.appName}>Reliquat</Text>
             <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
             <View style={styles.versionBadge}>
               <Text style={styles.versionText}>Version {APP_VERSION}</Text>
@@ -66,7 +66,7 @@ export default function AboutScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.footer}>© 2026 Trésorerie. Tous droits réservés.</Text>
+          <Text style={styles.footer}>© 2026 Reliquat. Tous droits réservés.</Text>
         </ScrollView>
       </SafeAreaView>
     </View>

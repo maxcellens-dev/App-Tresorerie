@@ -4,6 +4,27 @@ import type { Transaction, TransactionWithDetails, RecurrenceRule } from '../typ
 
 const KEY = 'transactions';
 
+/** Date du jour (locale) au format YYYY-MM-DD. */
+function localTodayISO(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Contribution d'une transaction au solde « à date » du compte.
+ * - Un brouillon ne compte jamais.
+ * - Une transaction NON récurrente datée dans le futur ne compte pas encore
+ *   (l'argent n'est pas encore sorti du compte → ne doit pas baisser le solde du jour).
+ * - Les modèles récurrents gardent le comportement historique (gérés séparément par
+ *   la matérialisation des occurrences échues), sinon le delta de matérialisation
+ *   deviendrait incohérent.
+ */
+function balanceContribution(opts: { amount: number; date: string; is_draft?: boolean | null; is_recurring?: boolean | null }): number {
+  if (opts.is_draft) return 0;
+  if (!opts.is_recurring && opts.date > localTodayISO()) return 0;
+  return Number(opts.amount);
+}
+
 export function useTransactions(profileId: string | undefined) {
   const query = useQuery({
     queryKey: [KEY, profileId],
@@ -53,6 +74,9 @@ export function useAddTransaction(profileId: string | undefined) {
       linked_account_id?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
+      // Solde « à date » : on n'ajoute au solde que ce qui est effectivement sorti/entré
+      // (non-brouillon ET pas une dépense future non récurrente).
+      const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
       const { data, error } = await supabase
         .from('transactions')
         .insert({
@@ -69,16 +93,17 @@ export function useAddTransaction(profileId: string | undefined) {
           recurrence_end_date: input.recurrence_end_date ?? null,
           project_id: input.project_id ?? null,
           linked_account_id: input.linked_account_id ?? null,
+          // posted = false pour une dépense future non récurrente (portée au solde plus tard
+          // par reconcile_posted une fois échue).
+          posted: contribution !== 0,
         })
         .select()
         .single();
       if (error) throw error;
-      // Les brouillons n'affectent pas le solde du compte.
-      // Solde = solde initial (création) + somme de toutes les transactions non-brouillon.
-      if (!input.is_draft) {
+      if (contribution !== 0) {
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', input.account_id).single();
         if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) + input.amount }).eq('id', input.account_id);
+          await supabase.from('accounts').update({ balance: Number(acc.balance) + contribution }).eq('id', input.account_id);
         }
       }
       return data;
@@ -131,22 +156,15 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date').eq('id', input.id).eq('profile_id', profileId).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       const oldAccId = (existing as { account_id: string }).account_id;
       const oldAmount = Number((existing as { amount: number }).amount);
       const wasInDraft = Boolean((existing as { is_draft?: boolean }).is_draft);
+      const wasRecurring = Boolean((existing as { is_recurring?: boolean }).is_recurring);
       const isNowDraft = input.is_draft !== undefined ? input.is_draft : wasInDraft;
-
-      // Soustraire l'ancienne valeur du solde seulement si la transaction n'était pas un brouillon
-      const amountOrAccountChanged = input.amount !== undefined || input.account_id !== undefined;
-      const shouldSubtractOld = !wasInDraft && amountOrAccountChanged && !isNowDraft;
-      if (shouldSubtractOld) {
-        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', oldAccId).single();
-        if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) - oldAmount }).eq('id', oldAccId);
-        }
-      }
+      const oldLinkedAccId = (existing as { linked_account_id?: string | null }).linked_account_id ?? null;
+      const oldDate = (existing as { date?: string }).date as string | undefined;
 
       const updates: Record<string, unknown> = {};
       if (input.account_id !== undefined) updates.account_id = input.account_id;
@@ -159,20 +177,78 @@ export function useUpdateTransaction(profileId: string | undefined) {
       if (input.is_recurring !== undefined) updates.is_recurring = input.is_recurring;
       if (input.recurrence_rule !== undefined) updates.recurrence_rule = input.recurrence_rule;
       if (input.recurrence_end_date !== undefined) updates.recurrence_end_date = input.recurrence_end_date;
+
+      // ── Contributions au solde « à date » (avant / après) ──
+      // brouillon, date future non récurrente et changement de compte sont gérés par
+      // balanceContribution. Couvre tous les cas : montant, date (passé⇄futur),
+      // validation d'un brouillon, déplacement de compte.
+      const newAccId = (input.account_id !== undefined ? input.account_id : oldAccId) as string;
+      const newAmount = input.amount !== undefined ? input.amount : oldAmount;
+      const newDate = (input.date !== undefined ? input.date : oldDate) ?? '';
+      const newRecurring = input.is_recurring !== undefined ? input.is_recurring : wasRecurring;
+      const oldContribution = balanceContribution({ amount: oldAmount, date: oldDate ?? '', is_draft: wasInDraft, is_recurring: wasRecurring });
+      const newContribution = balanceContribution({ amount: newAmount, date: newDate, is_draft: isNowDraft, is_recurring: newRecurring });
+      updates.posted = newContribution !== 0;
+
       const { data, error } = await supabase.from('transactions').update(updates).eq('id', input.id).eq('profile_id', profileId).select().single();
       if (error) throw error;
 
-      // Ajouter le nouveau montant au solde si :
-      // - Mise à jour normale (non-brouillon → non-brouillon, montant/compte changé)
-      // - OU validation d'un brouillon (brouillon → réel)
-      const draftValidated = wasInDraft && !isNowDraft;
-      const shouldAddNew = (!wasInDraft && !isNowDraft && amountOrAccountChanged) || draftValidated;
-      if (shouldAddNew) {
-        const newAccId = (input.account_id !== undefined ? input.account_id : oldAccId) as string;
-        const newAmount = input.amount !== undefined ? input.amount : oldAmount;
-        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', newAccId).single();
-        if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) + newAmount }).eq('id', newAccId);
+      const adjustBalance = async (accId: string, delta: number) => {
+        if (delta === 0) return;
+        const { data: acc } = await supabase!.from('accounts').select('balance').eq('id', accId).single();
+        if (acc) await supabase!.from('accounts').update({ balance: Number(acc.balance) + delta }).eq('id', accId);
+      };
+      if (newAccId === oldAccId) {
+        await adjustBalance(oldAccId, newContribution - oldContribution);
+      } else {
+        await adjustBalance(oldAccId, -oldContribution);
+        await adjustBalance(newAccId, newContribution);
+      }
+
+      // ── Synchronisation de l'autre jambe d'un virement ──
+      // Un virement est composé de deux transactions reliées par linked_account_id.
+      // Si on modifie le montant / la date / le libellé d'une jambe, l'autre doit suivre,
+      // sinon le couple se désynchronise (et les soldes deviennent faux).
+      if (oldLinkedAccId && (input.amount !== undefined || input.date !== undefined || input.note !== undefined)) {
+        const { data: paired } = await supabase
+          .from('transactions')
+          .select('id, account_id, amount, is_draft, is_recurring, date')
+          .eq('profile_id', profileId)
+          .eq('account_id', oldLinkedAccId)
+          .eq('linked_account_id', oldAccId)
+          .eq('date', oldDate ?? '')
+          .eq('amount', -oldAmount)
+          .maybeSingle();
+        if (paired) {
+          const pairedOldAmt = Number((paired as any).amount);
+          const pairedWasDraft = Boolean((paired as any).is_draft);
+          const pairedRecurring = Boolean((paired as any).is_recurring);
+          const pairedOldDate = (paired as any).date as string;
+          const pairedAccId = (paired as any).account_id as string;
+          // La jambe opposée porte le montant de signe inverse.
+          const newMainAmount = input.amount !== undefined ? input.amount : oldAmount;
+          const pairedNewAmt = -newMainAmount;
+          const pairedNewDate = input.date !== undefined ? input.date : pairedOldDate;
+          const pairedNewDraft = input.is_draft !== undefined ? input.is_draft : pairedWasDraft;
+          const pairedOldContribution = balanceContribution({ amount: pairedOldAmt, date: pairedOldDate, is_draft: pairedWasDraft, is_recurring: pairedRecurring });
+          const pairedNewContribution = balanceContribution({ amount: pairedNewAmt, date: pairedNewDate, is_draft: pairedNewDraft, is_recurring: pairedRecurring });
+          const pairedUpdates: Record<string, unknown> = {};
+          if (input.amount !== undefined) pairedUpdates.amount = pairedNewAmt;
+          if (input.date !== undefined) pairedUpdates.date = input.date;
+          if (input.note !== undefined) pairedUpdates.note = input.note;
+          if (input.is_draft !== undefined) pairedUpdates.is_draft = input.is_draft;
+          pairedUpdates.posted = pairedNewContribution !== 0;
+          if (Object.keys(pairedUpdates).length > 0) {
+            await supabase.from('transactions').update(pairedUpdates).eq('id', (paired as any).id).eq('profile_id', profileId);
+          }
+          // Réajuster le solde du compte opposé via la contribution « à date ».
+          const pairedDelta = pairedNewContribution - pairedOldContribution;
+          if (pairedDelta !== 0) {
+            const { data: pacc } = await supabase.from('accounts').select('balance').eq('id', pairedAccId).single();
+            if (pacc) {
+              await supabase.from('accounts').update({ balance: Number(pacc.balance) + pairedDelta }).eq('id', pairedAccId);
+            }
+          }
         }
       }
       return data;
@@ -192,13 +268,14 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data: row, error: fetchErr } = await supabase
         .from('transactions')
-        .select('account_id, amount, is_draft, project_id, date, linked_account_id, note, category_id')
+        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id')
         .eq('id', id)
         .eq('profile_id', profileId)
         .single();
       if (fetchErr) throw fetchErr;
 
       const isDraft = !!(row as any).is_draft;
+      const isRecurringRow = !!(row as any).is_recurring;
       const projectId = (row as any).project_id as string | null;
       const txDate = (row as any).date as string;
       const txAmount = Number((row as any).amount);
@@ -240,11 +317,13 @@ export function useDeleteTransaction(profileId: string | undefined) {
       const { error: delErr } = await supabase.from('transactions').delete().eq('id', id).eq('profile_id', profileId);
       if (delErr) throw delErr;
 
-      // Les brouillons n'ont jamais affecté le solde → ne pas l'ajuster à la suppression
-      if (!isDraft) {
+      // On ne retire du solde que ce qui y avait effectivement été ajouté
+      // (contribution « à date » : ni brouillon, ni dépense future non récurrente).
+      const txContribution = balanceContribution({ amount: txAmount, date: txDate, is_draft: isDraft, is_recurring: isRecurringRow });
+      if (txContribution !== 0) {
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txAccountId).single();
         if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) - txAmount }).eq('id', txAccountId);
+          await supabase.from('accounts').update({ balance: Number(acc.balance) - txContribution }).eq('id', txAccountId);
         }
       }
 
@@ -252,17 +331,20 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (pairedId) {
         const { data: pairedRow } = await supabase
           .from('transactions')
-          .select('account_id, amount, is_draft')
+          .select('account_id, amount, is_draft, is_recurring, date')
           .eq('id', pairedId)
           .eq('profile_id', profileId)
           .maybeSingle();
         if (pairedRow) {
           await supabase.from('transactions').delete().eq('id', pairedId).eq('profile_id', profileId);
-          if (!(pairedRow as any).is_draft) {
-            const pairedAmt = Number((pairedRow as any).amount);
+          const pairedContribution = balanceContribution({
+            amount: Number((pairedRow as any).amount), date: (pairedRow as any).date,
+            is_draft: (pairedRow as any).is_draft, is_recurring: (pairedRow as any).is_recurring,
+          });
+          if (pairedContribution !== 0) {
             const pairedAccId = (pairedRow as any).account_id as string;
             const { data: pairedAcc } = await supabase.from('accounts').select('balance').eq('id', pairedAccId).single();
-            if (pairedAcc) await supabase.from('accounts').update({ balance: Number(pairedAcc.balance) - pairedAmt }).eq('id', pairedAccId);
+            if (pairedAcc) await supabase.from('accounts').update({ balance: Number(pairedAcc.balance) - pairedContribution }).eq('id', pairedAccId);
           }
         }
       }

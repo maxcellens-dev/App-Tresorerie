@@ -64,13 +64,14 @@ export default function RecommendationsAdmin() {
   const [editMode, setEditMode] = useState(false);
 
   // Seuils de reste min pour afficher chaque reco (§9)
-  const [seuils, setSeuils] = useState<{ epargne: string; invest: string; plaisir: string }>({ epargne: '', invest: '', plaisir: '' });
+  const [seuils, setSeuils] = useState<{ epargne: string; invest: string; plaisir: string; conserver: string }>({ epargne: '', invest: '', plaisir: '', conserver: '' });
   useEffect(() => {
     if (thresholds) {
       setSeuils({
         epargne: String(thresholds.seuil_reco_epargne),
         invest: String(thresholds.seuil_reco_invest),
         plaisir: String(thresholds.seuil_reco_plaisir),
+        conserver: String(thresholds.seuil_reco_conserver ?? 50),
       });
     }
   }, [thresholds]);
@@ -79,12 +80,13 @@ export default function RecommendationsAdmin() {
     const e = parseFloat(seuils.epargne.replace(',', '.'));
     const i = parseFloat(seuils.invest.replace(',', '.'));
     const p = parseFloat(seuils.plaisir.replace(',', '.'));
-    if ([e, i, p].some((v) => Number.isNaN(v) || v < 0)) {
+    const c = parseFloat(seuils.conserver.replace(',', '.'));
+    if ([e, i, p, c].some((v) => Number.isNaN(v) || v < 0)) {
       Alert.alert('Valeur invalide', 'Saisissez des montants positifs.');
       return;
     }
     try {
-      await updateThresholds.mutateAsync({ seuil_reco_epargne: e, seuil_reco_invest: i, seuil_reco_plaisir: p });
+      await updateThresholds.mutateAsync({ seuil_reco_epargne: e, seuil_reco_invest: i, seuil_reco_plaisir: p, seuil_reco_conserver: c });
       Alert.alert('Enregistré', 'Les seuils ont été mis à jour.');
     } catch (err: unknown) {
       Alert.alert('Erreur', err instanceof Error ? err.message : 'Impossible de sauvegarder.');
@@ -268,12 +270,13 @@ export default function RecommendationsAdmin() {
           {/* ── Seuils d'affichage ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Seuils d'affichage</Text>
           <Text style={styles.typeDesc}>
-            Une reco n'est affichée que si le « Budget libre à allouer » atteint son seuil. Conserver n'a pas de seuil.
+            Une reco n'est affichée que si le « Budget libre à allouer » atteint son seuil.
           </Text>
           {([
             { key: 'epargne' as const, label: 'Épargne', color: RECO_COLORS.save },
             { key: 'invest' as const, label: 'Investissement', color: RECO_COLORS.invest },
             { key: 'plaisir' as const, label: 'Se faire plaisir', color: RECO_COLORS.enjoy },
+            { key: 'conserver' as const, label: 'Conserver', color: RECO_COLORS.keep },
           ]).map((s) => (
             <View key={s.key} style={[styles.typeCard, { borderLeftColor: s.color }]}>
               <View style={styles.seuilRow}>

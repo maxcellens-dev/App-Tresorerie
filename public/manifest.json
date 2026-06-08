@@ -1,6 +1,6 @@
 {
-  "name": "Trésorerie",
-  "short_name": "Trésorerie",
+  "name": "Reliquat",
+  "short_name": "Reliquat",
   "description": "Laissez-vous guider pour faire des économies.",
   "start_url": "/",
   "display": "standalone",

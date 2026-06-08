@@ -171,6 +171,8 @@ export interface Transaction {
   recurrence_end_date?: string | null;
   /** Modèle récurrent d'origine si cette ligne est une occurrence matérialisée. */
   materialized_from?: string | null;
+  /** Portée au solde du compte ? false pour une dépense future non récurrente en attente d'échéance. */
+  posted?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -229,6 +231,7 @@ export interface RecommendationSettings {
   seuil_reco_epargne: number;
   seuil_reco_invest: number;
   seuil_reco_plaisir: number;
+  seuil_reco_conserver: number;
   updated_at?: string;
 }
 

@@ -313,7 +313,7 @@ export default function SettingsScreen() {
 
           {/* ── Version ── */}
           <View style={styles.versionCard}>
-            <Text style={styles.appName}>Trésorerie</Text>
+            <Text style={styles.appName}>Reliquat</Text>
             <Text style={{ fontSize: 12, color: COLORS.emerald, fontWeight: '500' }}>Laissez-vous guider pour faire des économies.</Text>
             <View style={styles.versionBadge}>
               <Text style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' }}>Version {APP_VERSION}</Text>
@@ -325,7 +325,7 @@ export default function SettingsScreen() {
             <Text style={styles.signOutLabel}>Se déconnecter</Text>
           </TouchableOpacity>
 
-          <Text style={styles.footer}>© 2026 Trésorerie. Tous droits réservés.</Text>
+          <Text style={styles.footer}>© 2026 Reliquat. Tous droits réservés.</Text>
         </ScrollView>
       </SafeAreaView>
 

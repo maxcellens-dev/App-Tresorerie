@@ -10,6 +10,7 @@ export const DEFAULT_RECO_THRESHOLDS: RecommendationSettings = {
   seuil_reco_epargne: 50,
   seuil_reco_invest: 100,
   seuil_reco_plaisir: 50,
+  seuil_reco_conserver: 50,
 };
 
 export function useRecoThresholds() {
@@ -32,7 +33,7 @@ export function useRecoThresholds() {
 export function useUpdateRecoThresholds(userId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<Pick<RecommendationSettings, 'seuil_reco_epargne' | 'seuil_reco_invest' | 'seuil_reco_plaisir'>>) => {
+    mutationFn: async (patch: Partial<Pick<RecommendationSettings, 'seuil_reco_epargne' | 'seuil_reco_invest' | 'seuil_reco_plaisir' | 'seuil_reco_conserver'>>) => {
       if (!supabase || !userId) throw new Error('Non connecté');
       const { error } = await supabase
         .from('recommendation_settings')
