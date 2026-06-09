@@ -49,7 +49,6 @@ export default function SuccesScreen() {
           )}
         </View>
         <Text style={styles.badgeLabel} numberOfLines={2}>{def.label}</Text>
-        <Text style={[styles.badgeLevel, { color: tint }]}>{unlocked ? 'Débloqué' : 'Verrouillé'}</Text>
         <Text style={styles.badgeDesc} numberOfLines={3}>{def.description}</Text>
         {def.gems > 0 && (
           <View style={[styles.rewardPill, unlocked && { backgroundColor: tint + '22' }]}>
