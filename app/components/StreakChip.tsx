@@ -35,9 +35,6 @@ export default function StreakChip() {
           ? <Text style={[styles.emoji, !isActive && { opacity: 0.4 }]}>{streakIcon}</Text>
           : <Ionicons name={streakIcon as any} size={14} color={isActive ? COLORS.orange : COLORS.textSecondary} />}
       <Text style={[styles.streakText, { color: isActive ? COLORS.text : COLORS.textSecondary }]}>{state.streak}</Text>
-      <View style={styles.sep} />
-      <Ionicons name="diamond" size={12} color={COLORS.blue} />
-      <Text style={[styles.gemText, { color: COLORS.text }]}>{state.gems}</Text>
     </TouchableOpacity>
   );
 }
@@ -51,6 +48,4 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 13 },
   iconImg: { width: 14, height: 14, borderRadius: 3 },
   streakText: { fontSize: 12, fontWeight: '800' },
-  gemText: { fontSize: 12, fontWeight: '700' },
-  sep: { width: 1, height: 12, backgroundColor: 'rgba(128,128,128,0.3)', marginHorizontal: 3 },
 });

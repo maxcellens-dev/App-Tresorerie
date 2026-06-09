@@ -12,6 +12,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { usePlan } from '../hooks/usePlan';
 import { useAdsConfig, bannerPlacements, type AdPlacement } from '../hooks/useAdsConfig';
+import { logEvent } from '../lib/analytics';
+
+// Impressions déjà comptées dans la session (1 par bannière × emplacement) → évite le flood.
+const seenImpressions = new Set<string>();
 
 export default function AdSlot({ placement }: { placement: AdPlacement }) {
   const COLORS = useAppColors();
@@ -41,9 +45,24 @@ export default function AdSlot({ placement }: { placement: AdPlacement }) {
   // Garder l'index dans les bornes si la liste change.
   useEffect(() => { if (idx >= count && count > 0) setIdx(0); }, [count, idx]);
 
+  // Impression publicitaire (1 fois par bannière et par emplacement dans la session).
+  useEffect(() => {
+    if (!showAds || count === 0) return;
+    const b = banners[Math.min(idx, count - 1)];
+    if (!b) return;
+    const key = `${placement}:${b.id}`;
+    if (seenImpressions.has(key)) return;
+    seenImpressions.add(key);
+    logEvent('ad_impression', placement, { bannerId: b.id, label: b.label });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, count, showAds, placement]);
+
   if (!showAds || count === 0) return null;
   const banner = banners[Math.min(idx, count - 1)];
-  const open = () => { if (banner.url) Linking.openURL(banner.url).catch(() => {}); };
+  const open = () => {
+    logEvent('ad_click', placement, { bannerId: banner.id, label: banner.label });
+    if (banner.url) Linking.openURL(banner.url).catch(() => {});
+  };
 
   return (
     <Animated.View style={{ opacity }}>

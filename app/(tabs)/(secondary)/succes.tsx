@@ -14,9 +14,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import { usePlan } from '../../hooks/usePlan';
-import { BADGE_LEVELS, LEVEL_COLORS, levelIndex, isImageIcon, type BadgeLevel } from '../../lib/gamification';
-
-const LEVEL_LABEL: Record<BadgeLevel, string> = { bronze: 'Bronze', silver: 'Argent', gold: 'Or' };
+import { UNLOCK_COLOR, isImageIcon } from '../../lib/gamification';
 
 export default function SuccesScreen() {
   const COLORS = useAppColors();
@@ -27,12 +25,41 @@ export default function SuccesScreen() {
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
   const { premiumEnabled } = usePlan(user?.id);
 
-  const levelByKey: Record<string, BadgeLevel> = {};
-  badges.forEach((b) => { levelByKey[b.badge_key] = b.level; });
+  const unlockedKeys = new Set(badges.map((b) => b.badge_key));
 
   // Masque les badges liés à la clôture si la fonctionnalité est désactivée.
   const visibleBadges = (config?.badges ?? []).filter((d) => d.metric !== 'closures_count' || closureEnabled);
-  const unlockedCount = visibleBadges.filter((d) => levelByKey[d.key]).length;
+  const unlockedBadges = visibleBadges.filter((d) => unlockedKeys.has(d.key));
+  const lockedBadges = visibleBadges.filter((d) => !unlockedKeys.has(d.key));
+  const unlockedCount = unlockedBadges.length;
+
+  const renderBadge = (def: typeof visibleBadges[number]) => {
+    const unlocked = unlockedKeys.has(def.key);
+    const tint = unlocked ? UNLOCK_COLOR : COLORS.textSecondary;
+    return (
+      <View key={def.key} style={[styles.card, unlocked && { borderColor: tint + '88' }]}>
+        <View style={[styles.badgeIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.5 }]}>
+          {isImageIcon(def.icon)
+            ? <Image source={{ uri: def.icon }} style={styles.badgeImg} />
+            : <Ionicons name={(def.icon || 'trophy') as any} size={26} color={tint} />}
+          {!unlocked && (
+            <View style={styles.lockOverlay}>
+              <Ionicons name="lock-closed" size={12} color={COLORS.textSecondary} />
+            </View>
+          )}
+        </View>
+        <Text style={styles.badgeLabel} numberOfLines={2}>{def.label}</Text>
+        <Text style={[styles.badgeLevel, { color: tint }]}>{unlocked ? 'Débloqué' : 'Verrouillé'}</Text>
+        <Text style={styles.badgeDesc} numberOfLines={3}>{def.description}</Text>
+        {def.gems > 0 && (
+          <View style={[styles.rewardPill, unlocked && { backgroundColor: tint + '22' }]}>
+            <Ionicons name="diamond" size={11} color={unlocked ? tint : COLORS.textSecondary} />
+            <Text style={[styles.rewardText, { color: unlocked ? tint : COLORS.textSecondary }]}>+{def.gems}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -81,38 +108,21 @@ export default function SuccesScreen() {
             )}
           </View>
 
-          {/* Grille de badges */}
-          <View style={styles.grid}>
-            {visibleBadges.map((def) => {
-              const lvl = levelByKey[def.key] ?? null;
-              const unlocked = !!lvl;
-              const tint = lvl ? LEVEL_COLORS[lvl] : COLORS.textSecondary;
-              return (
-                <View key={def.key} style={[styles.card, unlocked && { borderColor: tint + '88' }]}>
-                  <View style={[styles.badgeIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.5 }]}>
-                    {isImageIcon(def.icon)
-                      ? <Image source={{ uri: def.icon }} style={styles.badgeImg} />
-                      : <Ionicons name={(def.icon || 'trophy') as any} size={26} color={tint} />}
-                    {!unlocked && (
-                      <View style={styles.lockOverlay}>
-                        <Ionicons name="lock-closed" size={12} color={COLORS.textSecondary} />
-                      </View>
-                    )}
-                  </View>
-                  <Text style={styles.badgeLabel} numberOfLines={2}>{def.label}</Text>
-                  <Text style={[styles.badgeLevel, { color: tint }]}>{lvl ? LEVEL_LABEL[lvl] : 'Verrouillé'}</Text>
-                  <Text style={styles.badgeDesc} numberOfLines={3}>{def.description}</Text>
-                  {/* Paliers */}
-                  <View style={styles.dots}>
-                    {BADGE_LEVELS.filter((l) => def.levels[l]).map((l) => {
-                      const reached = levelIndex(lvl) >= levelIndex(l);
-                      return <View key={l} style={[styles.dot, { backgroundColor: reached ? LEVEL_COLORS[l] : COLORS.cardBorder }]} />;
-                    })}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
+          {/* Succès débloqués */}
+          {unlockedBadges.length > 0 && (
+            <>
+              <Text style={styles.groupTitle}>Débloqués ({unlockedBadges.length})</Text>
+              <View style={styles.grid}>{unlockedBadges.map(renderBadge)}</View>
+            </>
+          )}
+
+          {/* Succès à débloquer */}
+          {lockedBadges.length > 0 && (
+            <>
+              <Text style={styles.groupTitle}>À débloquer ({lockedBadges.length})</Text>
+              <View style={styles.grid}>{lockedBadges.map(renderBadge)}</View>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -137,7 +147,8 @@ function makeStyles(c: any) {
     actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 12 },
     actionText: { fontSize: 13, fontWeight: '700', color: c.text },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
+    groupTitle: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', marginBottom: 16 },
     card: { width: '47%', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, alignItems: 'center', gap: 4 },
     badgeIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
     badgeImg: { width: 40, height: 40, borderRadius: 8 },
@@ -145,7 +156,7 @@ function makeStyles(c: any) {
     badgeLabel: { fontSize: 13, fontWeight: '700', color: c.text, textAlign: 'center' },
     badgeLevel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     badgeDesc: { fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 15 },
-    dots: { flexDirection: 'row', gap: 4, marginTop: 4 },
-    dot: { width: 7, height: 7, borderRadius: 4 },
+    rewardPill: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: c.cardBorder + '55', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+    rewardText: { fontSize: 11, fontWeight: '800' },
   });
 }

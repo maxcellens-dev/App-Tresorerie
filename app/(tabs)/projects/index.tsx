@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
@@ -29,7 +30,6 @@ import {
   useArchiveProject,
   useCheckProjectTransactions,
   useDeleteProjectFromDate,
-  useAutoArchiveProjects,
 } from '../../hooks/useProjects';
 import AddProjectModal from '../../components/AddProjectModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
@@ -56,7 +56,6 @@ export default function ProjectsScreen() {
   const deleteFullMutation = useDeleteProjectFull(user?.id || '');
   const archiveMutation = useArchiveProject(user?.id || '');
   const deleteFromDateMutation = useDeleteProjectFromDate(user?.id || '');
-  const autoArchiveMutation = useAutoArchiveProjects(user?.id || '');
   const { check: checkTransactions } = useCheckProjectTransactions(user?.id || '');
   const { data: pilotage } = usePilotageData(user?.id);
 
@@ -83,17 +82,7 @@ export default function ProjectsScreen() {
   const [selectedFromDate, setSelectedFromDate] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
 
-  // Auto-archive : à l'ouverture, archive les projets actifs dont l'objectif est atteint
-  // (avancement réel ≥ 100 %, calculé sur les transactions via le Pilotage).
-  useEffect(() => {
-    const hasProgress = !!pilotage?.projects_with_progress;
-    if (projects.length > 0 && hasProgress && !autoArchiveMutation.isPending) {
-      const progressById: Record<string, number> = {};
-      Object.entries(progressMap).forEach(([id, p]) => { progressById[id] = p.percentage; });
-      autoArchiveMutation.mutate({ projects, progressById });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects.length, pilotage?.projects_with_progress]);
+  // Archivage manuel uniquement (bouton « Archiver »). Plus d'archivage automatique.
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -151,6 +140,11 @@ export default function ProjectsScreen() {
   const handleManualArchive = (projectId: string) => {
     archiveMutation.mutate(projectId, {
       onSuccess: () => refetch(),
+      onError: (e: any) => {
+        const msg = e?.message || 'Archivage impossible.';
+        if (Platform.OS === 'web') window.alert(`Archivage impossible\n${msg}`);
+        else Alert.alert('Archivage impossible', msg);
+      },
     });
   };
 
@@ -168,7 +162,10 @@ export default function ProjectsScreen() {
     const pm = progressMap[project.id];
     const currentAccumulated = pm ? pm.accumulated : parseFloat(project.current_accumulated || '0');
     const progress = pm ? Math.min(100, Math.round(pm.percentage)) : (targetAmount > 0 ? Math.min(100, Math.round((currentAccumulated / targetAmount) * 100)) : 0);
-    const isComplete = progress >= 100;
+    // Objectif atteint dès qu'il reste moins d'1 centime (évite le blocage à 999,99 / 1000).
+    const isComplete = progress >= 100 || (targetAmount > 0 && targetAmount - currentAccumulated < 0.01);
+    // À l'affichage, on cale le cumul sur la cible quand l'objectif est atteint (pas de « 999,99 »).
+    const displayAccumulated = isComplete ? targetAmount : currentAccumulated;
 
     const monthsToComplete = (() => {
       if (project.target_date && (project.allocation_type === 'date' || !project.allocation_type)) {
@@ -305,7 +302,7 @@ export default function ProjectsScreen() {
               />
             </View>
             <Text style={[styles.progressAmount, { color: COLORS.textSecondary }]}>
-              {CURRENCY_SYMBOL}{currentAccumulated.toFixed(2)} / {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
+              {CURRENCY_SYMBOL}{displayAccumulated.toFixed(2)} / {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -315,7 +312,7 @@ export default function ProjectsScreen() {
           <View style={styles.completeBanner}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
             <Text style={styles.completeBannerText}>
-              Objectif atteint ! Ce projet est archivé automatiquement.
+              Objectif atteint ! Vous pouvez archiver ce projet.
             </Text>
           </View>
         )}
@@ -329,8 +326,8 @@ export default function ProjectsScreen() {
             <Text style={[styles.actionButtonText, { color: COLORS.primary }]}>Gérer</Text>
           </TouchableOpacity>
 
-          {/* Bouton Archiver : visible si 100% atteint et pas encore archivé */}
-          {isComplete && project.status !== 'archived' && (
+          {/* Bouton Archiver : manuel, disponible pour tout projet non archivé */}
+          {project.status !== 'archived' && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#f59e0b20' }]}
               onPress={() => handleManualArchive(project.id)}

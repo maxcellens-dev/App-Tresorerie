@@ -14,7 +14,7 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { supabase } from '../../../lib/supabase';
 import { useGamificationConfig, useSaveGamificationConfig } from '../../../hooks/useGamificationConfig';
-import { isImageIcon, type GamificationConfig, type BadgeDef, type BadgeLevel, type BadgeMetric } from '../../../lib/gamification';
+import { isImageIcon, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../lib/gamification';
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Série (semaines)' },
@@ -29,8 +29,6 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'profile_photo', label: 'Photo de profil (1/0)' },
   { value: 'manual', label: 'Manuel (code dédié)' },
 ];
-const LEVELS: BadgeLevel[] = ['bronze', 'silver', 'gold'];
-const LEVEL_LABEL: Record<BadgeLevel, string> = { bronze: 'Bronze', silver: 'Argent', gold: 'Or' };
 
 export default function AdminGamification() {
   const COLORS = useAppColors();
@@ -58,11 +56,9 @@ export default function AdminGamification() {
   const setIdentity = (patch: Partial<GamificationConfig['identity']>) => setCfg({ ...cfg, identity: { ...cfg.identity, ...patch } });
   const setStreak = (patch: Partial<GamificationConfig['streak']>) => setCfg({ ...cfg, streak: { ...cfg.streak, ...patch } });
   const updateBadge = (i: number, patch: Partial<BadgeDef>) => setCfg({ ...cfg, badges: cfg.badges.map((b, idx) => idx === i ? { ...b, ...patch } : b) });
-  const updateLevel = (i: number, lvl: BadgeLevel, patch: { threshold?: number; gems?: number }) =>
-    setCfg({ ...cfg, badges: cfg.badges.map((b, idx) => idx === i ? { ...b, levels: { ...b.levels, [lvl]: { threshold: 0, gems: 0, ...b.levels[lvl], ...patch } } } : b) });
   const addBadge = () => {
     const category = catFilter !== '__all__' ? catFilter : 'Divers';
-    setCfg({ ...cfg, badges: [...cfg.badges, { key: `badge_${Date.now()}`, category, metric: 'manual', label: 'Nouveau succès', description: '', icon: 'trophy', levels: { bronze: { threshold: 1, gems: 20 } } }] });
+    setCfg({ ...cfg, badges: [...cfg.badges, { key: `badge_${Date.now()}`, category, metric: 'manual', label: 'Nouveau succès', description: '', icon: 'trophy', threshold: 1, gems: 20 }] });
   };
   const removeBadge = (i: number) => setCfg({ ...cfg, badges: cfg.badges.filter((_, idx) => idx !== i) });
 
@@ -208,23 +204,14 @@ export default function AdminGamification() {
                   {uploadingKey === b.key ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
                 </TouchableOpacity>
               </View>
-              {/* Niveaux */}
-              <Text style={styles.fieldLabel}>Niveaux (seuil → gemmes)</Text>
-              {LEVELS.map((lvl) => {
-                const ld = b.levels[lvl];
-                const active = !!ld;
-                return (
-                  <View key={lvl} style={styles.levelRow}>
-                    <TouchableOpacity onPress={() => updateBadge(i, { levels: active ? Object.fromEntries(Object.entries(b.levels).filter(([k]) => k !== lvl)) : { ...b.levels, [lvl]: { threshold: 1, gems: 10 } } })}>
-                      <Ionicons name={active ? 'checkbox' : 'square-outline'} size={18} color={active ? COLORS.emerald : COLORS.textSecondary} />
-                    </TouchableOpacity>
-                    <Text style={[styles.levelName, { color: COLORS.text }]}>{LEVEL_LABEL[lvl]}</Text>
-                    <TextInput style={styles.miniInput} editable={active} value={active ? String(ld!.threshold) : ''} onChangeText={(v) => updateLevel(i, lvl, { threshold: Number(v) || 0 })} keyboardType="numeric" placeholder="seuil" placeholderTextColor={COLORS.textSecondary} />
-                    <Ionicons name="diamond" size={12} color={COLORS.blue} />
-                    <TextInput style={styles.miniInput} editable={active} value={active ? String(ld!.gems) : ''} onChangeText={(v) => updateLevel(i, lvl, { gems: Number(v) || 0 })} keyboardType="numeric" placeholder="gemmes" placeholderTextColor={COLORS.textSecondary} />
-                  </View>
-                );
-              })}
+              {/* Déblocage : seuil unique + récompense */}
+              <Text style={styles.fieldLabel}>Déblocage (seuil → récompense)</Text>
+              <View style={styles.levelRow}>
+                <Text style={[styles.levelName, { color: COLORS.textSecondary }]}>Seuil</Text>
+                <TextInput style={styles.miniInput} value={String(b.threshold ?? 0)} onChangeText={(v) => updateBadge(i, { threshold: Number(v) || 0 })} keyboardType="numeric" placeholder="seuil" placeholderTextColor={COLORS.textSecondary} />
+                <Ionicons name="diamond" size={12} color={COLORS.blue} />
+                <TextInput style={styles.miniInput} value={String(b.gems ?? 0)} onChangeText={(v) => updateBadge(i, { gems: Number(v) || 0 })} keyboardType="numeric" placeholder="récompense" placeholderTextColor={COLORS.textSecondary} />
+              </View>
             </View>
           ))}
           </>

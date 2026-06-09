@@ -5,13 +5,9 @@
  * « data-driven » : libellés, icônes (nom Ionicons OU URL d'image), seuils, récompenses.
  */
 
-export type BadgeLevel = 'bronze' | 'silver' | 'gold';
-export const BADGE_LEVELS: BadgeLevel[] = ['bronze', 'silver', 'gold'];
-export const LEVEL_COLORS: Record<BadgeLevel, string> = {
-  bronze: '#e08544',  // bronze plus chaud/lumineux
-  silver: '#9fb2d6',  // argent « acier » froid, plus lisible que le gris pâle
-  gold: '#facc15',
-};
+/** Couleur unique de déverrouillage des succès (orangé). Plus de niveaux bronze/argent/or :
+ *  chaque succès est dissocié et soit verrouillé, soit débloqué. */
+export const UNLOCK_COLOR = '#f59e0b';
 
 /** Métriques calculables qui pilotent le déblocage automatique des badges. */
 export type BadgeMetric =
@@ -27,8 +23,6 @@ export type BadgeMetric =
   | 'profile_photo'          // 1 si une photo de profil est définie
   | 'manual';                // attribué manuellement (code dédié)
 
-export interface BadgeLevelDef { threshold: number; gems: number }
-
 export interface BadgeDef {
   key: string;
   category: string;
@@ -37,7 +31,10 @@ export interface BadgeDef {
   description: string;
   /** Nom d'icône Ionicons (ex. 'trophy') OU URL d'image (https://…). */
   icon: string;
-  levels: Partial<Record<BadgeLevel, BadgeLevelDef>>;
+  /** Seuil de déverrouillage (sur la métrique). */
+  threshold: number;
+  /** Récompense (gemmes/relyks) au déverrouillage. */
+  gems: number;
 }
 
 export interface GamificationIdentity {
@@ -84,68 +81,43 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
   streak: { weeklyGems: 20, freezeCost: 50 },
   premium_discount_pct: 20,
   relyka_tab_enabled: true,
+  // Succès DISSOCIÉS : chacun est un palier distinct (1 seuil, 1 récompense), pas de niveaux.
   badges: [
-    {
-      key: 'regularite', category: 'Régularité', metric: 'streak_weeks',
-      label: 'La Régularité', description: 'Maintiens ta série de suivi semaine après semaine.',
-      icon: 'flame',
-      levels: { bronze: { threshold: 4, gems: 30 }, silver: { threshold: 12, gems: 80 }, gold: { threshold: 52, gems: 300 } },
-    },
-    {
-      key: 'econome', category: 'Économie', metric: 'surplus_months_streak',
-      label: "L'Économe Prévoyant", description: 'Termine tes mois avec un excédent variable positif.',
-      icon: 'leaf',
-      levels: { bronze: { threshold: 1, gems: 30 }, silver: { threshold: 3, gems: 80 }, gold: { threshold: 6, gems: 200 } },
-    },
-    {
-      key: 'sniper', category: 'Économie', metric: 'variable_savings_pct',
-      label: 'Le Sniper du Budget', description: 'Dépense moins que ton enveloppe variable estimée.',
-      icon: 'locate',
-      levels: { bronze: { threshold: 10, gems: 30 }, silver: { threshold: 25, gems: 80 }, gold: { threshold: 50, gems: 200 } },
-    },
-    {
-      key: 'maitre_temps', category: 'Rigueur', metric: 'closures_count',
-      label: 'Le Maître du Temps', description: 'Effectue tes clôtures mensuelles avec rigueur.',
-      icon: 'time',
-      levels: { bronze: { threshold: 1, gems: 20 }, silver: { threshold: 3, gems: 60 }, gold: { threshold: 12, gems: 250 } },
-    },
-    {
-      key: 'investisseur', category: 'Action', metric: 'invest_followed',
-      label: "Graine d'Investisseur", description: "Suis la recommandation d'investir ton excédent.",
-      icon: 'trending-up',
-      levels: { bronze: { threshold: 1, gems: 40 }, gold: { threshold: 5, gems: 200 } },
-    },
-    {
-      key: 'collectionneur', category: 'Méta', metric: 'gems_earned',
-      label: 'Le Collectionneur', description: 'Accumule des gemmes au fil de ta progression.',
-      icon: 'diamond',
-      levels: { bronze: { threshold: 100, gems: 0 }, silver: { threshold: 500, gems: 0 }, gold: { threshold: 2000, gems: 0 } },
-    },
-    // ── Succès « classiques » (fidélité, assiduité, profil, découverte) ──
-    {
-      key: 'fidelite', category: 'Fidélité', metric: 'account_age_days',
-      label: 'Fidèle à Relyka', description: 'Première connexion, puis 1 mois, puis 6 mois à nos côtés.',
-      icon: 'heart',
-      levels: { bronze: { threshold: 0, gems: 15 }, silver: { threshold: 30, gems: 60 }, gold: { threshold: 180, gems: 200 } },
-    },
-    {
-      key: 'assidu', category: 'Assiduité', metric: 'login_streak_days',
-      label: "L'Assidu", description: 'Connecte-toi plusieurs jours d’affilée.',
-      icon: 'calendar',
-      levels: { bronze: { threshold: 7, gems: 40 }, silver: { threshold: 30, gems: 120 }, gold: { threshold: 100, gems: 400 } },
-    },
-    {
-      key: 'profil_photo', category: 'Profil', metric: 'profile_photo',
-      label: 'Mon plus beau profil', description: 'Ajoute une photo de profil.',
-      icon: 'camera',
-      levels: { bronze: { threshold: 1, gems: 20 } },
-    },
-    {
-      key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done',
-      label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».',
-      icon: 'compass',
-      levels: { bronze: { threshold: 1, gems: 50 } },
-    },
+    // ── Fidélité (ancienneté) ──
+    { key: 'premiere_connexion', category: 'Fidélité', metric: 'account_age_days', label: 'Bienvenue !', description: 'Ta toute première connexion à Relyka.', icon: 'happy', threshold: 0, gems: 15 },
+    { key: 'anciennete_1mois', category: 'Fidélité', metric: 'account_age_days', label: '1 mois ensemble', description: '1 mois d’ancienneté sur Relyka.', icon: 'calendar', threshold: 30, gems: 40 },
+    { key: 'anciennete_6mois', category: 'Fidélité', metric: 'account_age_days', label: '6 mois de fidélité', description: '6 mois d’ancienneté sur Relyka.', icon: 'ribbon', threshold: 180, gems: 120 },
+    { key: 'anciennete_1an', category: 'Fidélité', metric: 'account_age_days', label: '1 an avec Relyka', description: '1 an d’ancienneté — merci de ta fidélité !', icon: 'trophy', threshold: 365, gems: 300 },
+    // ── Assiduité (jours consécutifs) ──
+    { key: 'assidu_7', category: 'Assiduité', metric: 'login_streak_days', label: 'Sur une lancée', description: '7 jours de connexion consécutifs.', icon: 'flame', threshold: 7, gems: 40 },
+    { key: 'assidu_30', category: 'Assiduité', metric: 'login_streak_days', label: 'Routine en or', description: '30 jours de connexion consécutifs.', icon: 'flame', threshold: 30, gems: 120 },
+    { key: 'assidu_100', category: 'Assiduité', metric: 'login_streak_days', label: 'Increvable', description: '100 jours de connexion consécutifs.', icon: 'flash', threshold: 100, gems: 400 },
+    // ── Régularité (série hebdo de suivi) ──
+    { key: 'serie_4', category: 'Régularité', metric: 'streak_weeks', label: 'Un mois de suivi', description: '4 semaines de suivi d’affilée.', icon: 'pulse', threshold: 4, gems: 30 },
+    { key: 'serie_12', category: 'Régularité', metric: 'streak_weeks', label: 'Trimestre suivi', description: '12 semaines de suivi d’affilée.', icon: 'pulse', threshold: 12, gems: 80 },
+    { key: 'serie_52', category: 'Régularité', metric: 'streak_weeks', label: 'Année complète', description: '52 semaines de suivi d’affilée.', icon: 'medal', threshold: 52, gems: 300 },
+    // ── Économie (mois en excédent) ──
+    { key: 'econome_1', category: 'Économie', metric: 'surplus_months_streak', label: 'Premier excédent', description: 'Termine un mois avec un excédent positif.', icon: 'leaf', threshold: 1, gems: 30 },
+    { key: 'econome_3', category: 'Économie', metric: 'surplus_months_streak', label: 'Économe régulier', description: '3 mois consécutifs en excédent.', icon: 'leaf', threshold: 3, gems: 80 },
+    { key: 'econome_6', category: 'Économie', metric: 'surplus_months_streak', label: 'Fourmi prévoyante', description: '6 mois consécutifs en excédent.', icon: 'leaf', threshold: 6, gems: 200 },
+    // ── Budget (éco. vs enveloppe) ──
+    { key: 'sniper_10', category: 'Budget', metric: 'variable_savings_pct', label: 'Bonne visée', description: 'Dépense 10 % de moins que ton enveloppe.', icon: 'locate', threshold: 10, gems: 30 },
+    { key: 'sniper_25', category: 'Budget', metric: 'variable_savings_pct', label: 'Tireur d’élite', description: 'Dépense 25 % de moins que ton enveloppe.', icon: 'locate', threshold: 25, gems: 80 },
+    { key: 'sniper_50', category: 'Budget', metric: 'variable_savings_pct', label: 'Maître du budget', description: 'Dépense 50 % de moins que ton enveloppe.', icon: 'locate', threshold: 50, gems: 200 },
+    // ── Rigueur (clôtures) ──
+    { key: 'cloture_1', category: 'Rigueur', metric: 'closures_count', label: 'Première clôture', description: 'Effectue ta première clôture mensuelle.', icon: 'time', threshold: 1, gems: 20 },
+    { key: 'cloture_3', category: 'Rigueur', metric: 'closures_count', label: 'Rigueur', description: '3 clôtures mensuelles effectuées.', icon: 'time', threshold: 3, gems: 60 },
+    { key: 'cloture_12', category: 'Rigueur', metric: 'closures_count', label: 'Horloger', description: '12 clôtures mensuelles effectuées.', icon: 'time', threshold: 12, gems: 250 },
+    // ── Action (investissement) ──
+    { key: 'invest_1', category: 'Action', metric: 'invest_followed', label: 'Première graine', description: 'Suis une recommandation d’investir.', icon: 'trending-up', threshold: 1, gems: 40 },
+    { key: 'invest_5', category: 'Action', metric: 'invest_followed', label: 'Investisseur', description: 'Suis 5 recommandations d’investir.', icon: 'trending-up', threshold: 5, gems: 200 },
+    // ── Collection (relyks cumulés) ──
+    { key: 'collect_100', category: 'Collection', metric: 'gems_earned', label: 'Premier magot', description: 'Accumule 100 Relyks.', icon: 'diamond', threshold: 100, gems: 0 },
+    { key: 'collect_500', category: 'Collection', metric: 'gems_earned', label: 'Petit trésor', description: 'Accumule 500 Relyks.', icon: 'diamond', threshold: 500, gems: 0 },
+    { key: 'collect_2000', category: 'Collection', metric: 'gems_earned', label: 'Fortune', description: 'Accumule 2000 Relyks.', icon: 'diamond', threshold: 2000, gems: 0 },
+    // ── Profil & Découverte ──
+    { key: 'profil_photo', category: 'Profil', metric: 'profile_photo', label: 'Mon plus beau profil', description: 'Ajoute une photo de profil.', icon: 'camera', threshold: 1, gems: 20 },
+    { key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done', label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».', icon: 'compass', threshold: 1, gems: 50 },
   ],
   shop: [
     { key: 'freeze', type: 'freeze', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi.', price: 50, icon: 'snow' },
@@ -167,11 +139,15 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
 
 /**
  * Conserve les badges stockés (édités en admin) et ajoute les badges par défaut
- * dont la clé n'est pas encore présente — pour que les nouveaux succès « classiques »
- * apparaissent automatiquement sur les configs déjà enregistrées.
+ * dont la clé n'est pas encore présente.
+ *
+ * Migration : si la config stockée utilise l'ANCIEN format à niveaux (`levels`),
+ * on repart des succès dissociés par défaut (le modèle a changé : 1 succès = 1 palier).
  */
 function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
   if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.badges;
+  const oldFormat = stored.some((b) => (b as any).levels !== undefined || (b as any).threshold === undefined);
+  if (oldFormat) return DEFAULT_GAMIFICATION.badges;
   const keys = new Set(stored.map((b) => b.key));
   const missing = DEFAULT_GAMIFICATION.badges.filter((b) => !keys.has(b.key));
   return [...stored, ...missing];
@@ -203,17 +179,7 @@ export function weeksBetween(mondayA: string, mondayB: string): number {
 
 export type BadgeContext = Partial<Record<BadgeMetric, number>>;
 
-/** Niveau le plus haut atteint pour un badge selon la métrique du contexte. */
-export function levelReached(def: BadgeDef, ctx: BadgeContext): BadgeLevel | null {
-  const value = ctx[def.metric] ?? 0;
-  let reached: BadgeLevel | null = null;
-  for (const lvl of BADGE_LEVELS) {
-    const ld = def.levels[lvl];
-    if (ld && value >= ld.threshold) reached = lvl;
-  }
-  return reached;
-}
-
-export function levelIndex(level: BadgeLevel | null): number {
-  return level ? BADGE_LEVELS.indexOf(level) : -1;
+/** true si le succès est débloqué : la valeur de la métrique atteint le seuil. */
+export function isUnlocked(def: BadgeDef, ctx: BadgeContext): boolean {
+  return (ctx[def.metric] ?? 0) >= def.threshold;
 }

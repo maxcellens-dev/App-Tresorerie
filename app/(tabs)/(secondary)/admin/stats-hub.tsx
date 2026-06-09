@@ -44,6 +44,7 @@ export default function StatsHub() {
   const [days, setDays] = useState(30);
   const [events, setEvents] = useState<RawEvent[]>([]);
   const [counts, setCounts] = useState<{ users: number; accounts: number; transactions: number; newUsers: number }>({ users: 0, accounts: 0, transactions: 0, newUsers: 0 });
+  const [monthly, setMonthly] = useState<MonthAgg[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string>('');
 
   useEffect(() => { if (isAdmin) loadStats(days); /* eslint-disable-next-line */ }, [isAdmin, days]);
@@ -83,6 +84,16 @@ export default function StatsHub() {
       } else {
         setEvents((data ?? []) as RawEvent[]);
       }
+
+      // Stats mensuelles : fenêtre fixe de 6 mois (indépendante de la période).
+      const sinceMonthly = new Date(Date.now() - 190 * DAY_MS).toISOString();
+      const { data: mdata, error: mErr } = await supabase
+        .from('analytics_events')
+        .select('event, profile_id, session_id, created_at')
+        .gte('created_at', sinceMonthly)
+        .limit(50000);
+      if (!mErr) setMonthly(computeMonthly((mdata ?? []) as RawEvent[]));
+
       setUpdatedAt(new Date().toLocaleString('fr-FR'));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Erreur de chargement.');
@@ -148,26 +159,76 @@ export default function StatsHub() {
                 <Kpi icon="repeat" color="#f97316" value={agg.avgSessions} label="Sessions / actif" styles={styles} />
               </View>
 
+              {/* Moyennes & engagement */}
+              <Section title="Moyennes & engagement" hint={`Sur ${days} jours`} styles={styles}>
+                <RefRow label="Vues de page / session" value={agg.viewsPerSession} styles={styles} />
+                <RefRow label="Vues de page / utilisateur actif" value={agg.viewsPerUser} styles={styles} />
+                <RefRow label="Ouvertures d'app / utilisateur actif" value={agg.opensPerUser} styles={styles} />
+                <RefRow label="Utilisateurs actifs / jour (moy.)" value={agg.avgDailyUsers} styles={styles} />
+                <RefRow label="Évènements / jour (moy.)" value={agg.avgDailyViews} styles={styles} />
+              </Section>
+
+              {/* Régie publicitaire — argumentaire pour vendre les espaces */}
+              <Section title="Régie publicitaire (espaces pubs)" hint="Performance des bannières" styles={styles}>
+                <View style={styles.adKpiRow}>
+                  <AdKpi value={agg.adImpressions} label="Impressions" color={COLORS.emerald} styles={styles} />
+                  <AdKpi value={agg.adClicks} label="Clics" color="#60a5fa" styles={styles} />
+                  <AdKpi value={`${agg.ctr}%`} label="CTR" color="#f59e0b" styles={styles} />
+                  <AdKpi value={agg.adReach} label="Reach (uniques)" color="#a78bfa" styles={styles} />
+                </View>
+                {agg.adPlacements.length > 0 && (
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={styles.sectionHint}>Par emplacement (impressions · clics · CTR)</Text>
+                    <View style={{ marginTop: 8 }}>
+                      {agg.adPlacements.map((p) => (
+                        <HBar key={p.placement} label={prettyScreen(p.placement)} value={p.impr} sub={`${p.clk} clics · ${p.ctr}%`} max={agg.maxImpr} color={COLORS.emerald} styles={styles} c={COLORS} />
+                      ))}
+                    </View>
+                  </View>
+                )}
+                {agg.adImpressions === 0 && <Text style={styles.empty}>Aucune impression sur cette période (activez les pubs et ajoutez des bannières).</Text>}
+              </Section>
+
               {/* Activité quotidienne (utilisateurs actifs / jour) */}
               <Section title="Activité quotidienne" hint="Utilisateurs actifs par jour" styles={styles}>
-                <VBars data={agg.daily.map((d, i) => ({ value: d.users, label: i % Math.max(1, Math.ceil(days / 8)) === 0 ? d.short : '' }))} color={COLORS.emerald} styles={styles} c={COLORS} maxLabels={999} />
+                <VBars data={agg.daily.map((d, i) => ({ value: d.users, label: i % Math.max(1, Math.ceil(days / 8)) === 0 ? d.short : '' }))} color={COLORS.emerald} styles={styles} c={COLORS} maxLabels={999} showValues={days <= 31} />
+              </Section>
+
+              {/* Stats par mois (6 derniers mois) */}
+              <Section title="Par mois (6 mois)" hint="Actifs · sessions · vues · vues/session" styles={styles}>
+                <View style={styles.monthHead}>
+                  <Text style={[styles.monthCell, styles.monthCellFirst, styles.monthHeadText]}>Mois</Text>
+                  <Text style={[styles.monthCell, styles.monthHeadText]}>Actifs</Text>
+                  <Text style={[styles.monthCell, styles.monthHeadText]}>Sess.</Text>
+                  <Text style={[styles.monthCell, styles.monthHeadText]}>Vues</Text>
+                  <Text style={[styles.monthCell, styles.monthHeadText]}>V/sess</Text>
+                </View>
+                {monthly.map((m) => (
+                  <View key={m.key} style={styles.monthRow}>
+                    <Text style={[styles.monthCell, styles.monthCellFirst, styles.monthLabel]}>{m.label}</Text>
+                    <Text style={styles.monthCell}>{m.users}</Text>
+                    <Text style={styles.monthCell}>{m.sessions}</Text>
+                    <Text style={styles.monthCell}>{m.views}</Text>
+                    <Text style={styles.monthCell}>{m.viewsPerSession}</Text>
+                  </View>
+                ))}
               </Section>
 
               {/* Pages les plus vues */}
-              <Section title="Pages les plus vues" hint="Vues · visiteurs uniques" styles={styles}>
+              <Section title="Pages les plus vues" hint="Vues · visiteurs uniques · moy./session" styles={styles}>
                 {agg.topScreens.length === 0 ? <Empty styles={styles} /> : agg.topScreens.slice(0, 12).map((s) => (
-                  <HBar key={s.screen} label={prettyScreen(s.screen)} value={s.views} sub={`${s.users} util.`} max={agg.maxScreenViews} color={COLORS.blue} styles={styles} c={COLORS} />
+                  <HBar key={s.screen} label={prettyScreen(s.screen)} value={s.views} sub={`${s.users} util · ${(s.views / Math.max(1, s.users)).toFixed(1)}/util`} max={agg.maxScreenViews} color={COLORS.blue} styles={styles} c={COLORS} />
                 ))}
               </Section>
 
               {/* Répartition par heure */}
               <Section title="Activité par heure" hint="Évènements selon l'heure (locale)" styles={styles}>
-                <VBars data={agg.byHour.map((v, h) => ({ value: v, label: h % 6 === 0 ? `${h}h` : '' }))} color="#a78bfa" styles={styles} c={COLORS} maxLabels={999} />
+                <VBars data={agg.byHour.map((v, h) => ({ value: v, label: h % 3 === 0 ? `${h}h` : '' }))} color="#a78bfa" styles={styles} c={COLORS} maxLabels={999} showValues={true} />
               </Section>
 
               {/* Répartition par jour de semaine */}
               <Section title="Activité par jour de semaine" styles={styles}>
-                <VBars data={agg.byWeekday.map((v, i) => ({ value: v, label: WEEKDAYS[i] }))} color="#f59e0b" styles={styles} c={COLORS} maxLabels={999} />
+                <VBars data={agg.byWeekday.map((v, i) => ({ value: v, label: WEEKDAYS[i] }))} color="#f59e0b" styles={styles} c={COLORS} maxLabels={999} showValues={true} />
               </Section>
 
               {/* Types d'évènements */}
@@ -273,11 +334,67 @@ function computeAggregates(events: RawEvent[], days: number) {
   const platforms = Object.entries(platMap).map(([name, set]) => ({ name, users: set.size })).sort((a, b) => b.users - a.users);
   const maxPlatform = Math.max(1, ...platforms.map((p) => p.users));
 
+  // ── Moyennes / engagement ──
+  const sv = screenViewEvents.length;
+  const viewsPerSession = sessions ? (sv / sessions).toFixed(1) : '0';
+  const viewsPerUser = activeUsers ? (sv / activeUsers).toFixed(1) : '0';
+  const opensPerUser = activeUsers ? (appOpens / activeUsers).toFixed(1) : '0';
+  const avgDailyUsers = daily.length ? Math.round(daily.reduce((s, d) => s + d.users, 0) / daily.length) : 0;
+  const avgDailyViews = daily.length ? Math.round(daily.reduce((s, d) => s + d.events, 0) / daily.length) : 0;
+
+  // ── Régie publicitaire (espaces pubs) — le champ `screen` porte l'emplacement ──
+  const adImpr = events.filter((e) => e.event === 'ad_impression');
+  const adClk = events.filter((e) => e.event === 'ad_click');
+  const adImpressions = adImpr.length;
+  const adClicks = adClk.length;
+  const adReach = new Set(adImpr.map((e) => e.profile_id).filter(Boolean)).size;
+  const ctr = adImpressions ? ((adClicks / adImpressions) * 100).toFixed(1) : '0';
+  const placeMap: Record<string, { impr: number; clk: number }> = {};
+  adImpr.forEach((e) => { const p = e.screen || '—'; (placeMap[p] ??= { impr: 0, clk: 0 }).impr++; });
+  adClk.forEach((e) => { const p = e.screen || '—'; (placeMap[p] ??= { impr: 0, clk: 0 }).clk++; });
+  const adPlacements = Object.entries(placeMap)
+    .map(([placement, v]) => ({ placement, impr: v.impr, clk: v.clk, ctr: v.impr ? ((v.clk / v.impr) * 100).toFixed(1) : '0' }))
+    .sort((a, b) => b.impr - a.impr);
+  const maxImpr = Math.max(1, ...adPlacements.map((p) => p.impr));
+
   return {
-    dau, wau, mau, sessions, screenViews: screenViewEvents.length, avgSessions, appOpens,
+    dau, wau, mau, sessions, screenViews: sv, avgSessions, appOpens,
     totalEvents: events.length, topScreens, maxScreenViews, eventsByType, maxEventType,
     byHour, byWeekday, daily, platforms, maxPlatform,
+    viewsPerSession, viewsPerUser, opensPerUser, avgDailyUsers, avgDailyViews,
+    adImpressions, adClicks, adReach, ctr, adPlacements, maxImpr,
   };
+}
+
+// ── Agrégation mensuelle (6 derniers mois) ───────────────────────────────────
+interface MonthAgg { key: string; label: string; users: number; sessions: number; views: number; opens: number; viewsPerSession: string }
+
+function computeMonthly(events: RawEvent[]): MonthAgg[] {
+  const map: Record<string, { users: Set<string>; sessions: Set<string>; views: number; opens: number }> = {};
+  events.forEach((e) => {
+    const d = new Date(e.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    (map[key] ??= { users: new Set(), sessions: new Set(), views: 0, opens: 0 });
+    if (e.profile_id) map[key].users.add(e.profile_id);
+    if (e.session_id) map[key].sessions.add(e.session_id);
+    if (e.event === 'screen_view') map[key].views++;
+    if (e.event === 'app_open') map[key].opens++;
+  });
+  const out: MonthAgg[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const v = map[key];
+    const sessions = v ? v.sessions.size : 0;
+    const views = v ? v.views : 0;
+    out.push({
+      key, label: d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
+      users: v ? v.users.size : 0, sessions, views, opens: v ? v.opens : 0,
+      viewsPerSession: sessions ? (views / sessions).toFixed(1) : '0',
+    });
+  }
+  return out;
 }
 
 // ── Sous-composants ──────────────────────────────────────────────────────────
@@ -316,13 +433,14 @@ function HBar({ label, value, sub, max, color, styles, c }: any) {
   );
 }
 
-function VBars({ data, color, styles, c, maxLabels }: any) {
+function VBars({ data, color, styles, c, maxLabels, showValues }: any) {
   const max = Math.max(1, ...data.map((d: any) => d.value));
   return (
     <View>
       <View style={styles.vbarsRow}>
         {data.map((d: any, i: number) => (
           <View key={i} style={styles.vbarCol}>
+            {showValues ? <Text style={styles.vbarValue} numberOfLines={1}>{d.value > 0 ? d.value : ''}</Text> : null}
             <View style={styles.vbarTrack}>
               <View style={[styles.vbarFill, { height: `${Math.max(2, (d.value / max) * 100)}%`, backgroundColor: d.value > 0 ? color : c.cardBorder }]} />
             </View>
@@ -330,6 +448,15 @@ function VBars({ data, color, styles, c, maxLabels }: any) {
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+function AdKpi({ value, label, color, styles }: any) {
+  return (
+    <View style={styles.adKpi}>
+      <Text style={[styles.adKpiValue, { color }]}>{value}</Text>
+      <Text style={styles.adKpiLabel}>{label}</Text>
     </View>
   );
 }
@@ -378,11 +505,22 @@ function makeStyles(c: any) {
     hbarSub: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
     hbarTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
     hbarFill: { height: '100%', borderRadius: 4 },
-    vbarsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 110 },
+    vbarsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 124 },
     vbarCol: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
+    vbarValue: { fontSize: 8, fontWeight: '700', color: c.text, marginBottom: 2 },
     vbarTrack: { width: '100%', flex: 1, justifyContent: 'flex-end' },
     vbarFill: { width: '100%', borderRadius: 3, minHeight: 2 },
     vbarLabel: { fontSize: 8.5, color: c.textSecondary, marginTop: 4 },
+    adKpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    adKpi: { flexGrow: 1, flexBasis: '22%', minWidth: 70, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+    adKpiValue: { fontSize: 18, fontWeight: '800' },
+    adKpiLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '600', marginTop: 2, textAlign: 'center' },
+    monthHead: { flexDirection: 'row', paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+    monthRow: { flexDirection: 'row', paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
+    monthCell: { flex: 1, fontSize: 13, color: c.text, textAlign: 'center', fontWeight: '700' },
+    monthCellFirst: { flex: 1.2, textAlign: 'left' },
+    monthHeadText: { fontSize: 11, color: c.textSecondary, fontWeight: '700', textTransform: 'uppercase' },
+    monthLabel: { color: c.textSecondary, fontWeight: '600' },
     refRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
     refLabel: { fontSize: 13, color: c.textSecondary },
     refValue: { fontSize: 14, fontWeight: '800', color: c.text },

@@ -9,8 +9,8 @@ import { supabase } from '../lib/supabase';
 import { useGamificationConfig } from './useGamificationConfig';
 import { usePlan } from './usePlan';
 import {
-  mondayOf, weeksBetween, levelReached, levelIndex, BADGE_LEVELS,
-  type BadgeContext, type BadgeLevel, type GamificationConfig,
+  mondayOf, weeksBetween, isUnlocked,
+  type BadgeContext, type GamificationConfig,
 } from '../lib/gamification';
 
 export interface GamificationState {
@@ -32,7 +32,7 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export interface UserBadge { badge_key: string; level: BadgeLevel; unlocked_at: string }
+export interface UserBadge { badge_key: string; unlocked_at: string }
 export interface InventoryItem { item_key: string; qty: number }
 
 async function fetchOrCreateState(userId: string): Promise<GamificationState> {
@@ -59,7 +59,7 @@ export function useGamification(userId: string | undefined) {
   const badgesQuery = useQuery({
     queryKey: ['user_badges', userId],
     queryFn: async (): Promise<UserBadge[]> => {
-      const { data } = await supabase!.from('user_badges').select('badge_key, level, unlocked_at').eq('profile_id', userId!);
+      const { data } = await supabase!.from('user_badges').select('badge_key, unlocked_at').eq('profile_id', userId!);
       return (data ?? []) as UserBadge[];
     },
     enabled: !!userId && !!supabase,
@@ -89,9 +89,8 @@ export function useGamification(userId: string | undefined) {
     const closureEnabled = opts?.closureEnabled ?? true;
     const { data: stateRow } = await supabase.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
     const state = (stateRow ?? await fetchOrCreateState(userId)) as GamificationState;
-    const { data: badgeRows } = await supabase.from('user_badges').select('badge_key, level').eq('profile_id', userId);
-    const currentLevels: Record<string, BadgeLevel> = {};
-    (badgeRows ?? []).forEach((b: any) => { currentLevels[b.badge_key] = b.level; });
+    const { data: badgeRows } = await supabase.from('user_badges').select('badge_key').eq('profile_id', userId);
+    const unlocked = new Set<string>((badgeRows ?? []).map((b: any) => b.badge_key));
 
     const fullCtx: BadgeContext = {
       streak_weeks: state.best_streak,
@@ -101,20 +100,14 @@ export function useGamification(userId: string | undefined) {
     };
 
     let gemsToAdd = 0;
-    const upserts: { profile_id: string; badge_key: string; level: BadgeLevel; unlocked_at: string }[] = [];
+    const upserts: { profile_id: string; badge_key: string; unlocked_at: string }[] = [];
     for (const def of conf.badges) {
-      // Badge lié à la clôture désactivé si la fonctionnalité Clôture est off.
+      // Succès lié à la clôture désactivé si la fonctionnalité Clôture est off.
       if (def.metric === 'closures_count' && !closureEnabled) continue;
-      const target = levelReached(def, fullCtx);
-      if (!target) continue;
-      const stored = currentLevels[def.key] ?? null;
-      if (levelIndex(target) <= levelIndex(stored)) continue;
-      // Crédite les gemmes des niveaux nouvellement franchis.
-      for (let i = levelIndex(stored) + 1; i <= levelIndex(target); i++) {
-        const lvl = BADGE_LEVELS[i];
-        gemsToAdd += def.levels[lvl]?.gems ?? 0;
-      }
-      upserts.push({ profile_id: userId, badge_key: def.key, level: target, unlocked_at: new Date().toISOString() });
+      if (unlocked.has(def.key)) continue;          // déjà débloqué
+      if (!isUnlocked(def, fullCtx)) continue;       // seuil non atteint
+      gemsToAdd += def.gems ?? 0;
+      upserts.push({ profile_id: userId, badge_key: def.key, unlocked_at: new Date().toISOString() });
     }
 
     if (upserts.length > 0) {

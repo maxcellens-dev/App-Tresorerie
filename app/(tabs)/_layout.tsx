@@ -24,7 +24,7 @@ function TabsHeader({ route }: { route: any }) {
     '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
     '(tabs)/(secondary)/about': 'À propos',
-    '(tabs)/(secondary)/admin': 'Panneau Admin',
+    '(tabs)/(secondary)/admin': 'Admin',
     '(tabs)/(secondary)/admin/style-editor': 'Style Editor',
     '(tabs)/(secondary)/admin/seo-center': 'SEO Center',
     '(tabs)/(secondary)/admin/stats-hub': 'Stats Hub',
