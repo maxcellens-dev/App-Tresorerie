@@ -5,8 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useWindowDimensions } from 'react-native';
 import { useBrandColors } from './hooks/useBrandColors';
 import { useAppNameFont } from './hooks/useBrandFont';
+import { useLandingConfig } from './hooks/useLandingConfig';
+import LandingPage from './components/LandingPage';
 
 const { width } = Dimensions.get('window');
 
@@ -16,8 +19,13 @@ export default function WelcomeScreen() {
   const styles = makeStyles(COLORS);
   const appNameFont = useAppNameFont();
   const router = useRouter();
+  const { width: winWidth } = useWindowDimensions();
+  const { data: landing } = useLandingConfig();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
+
+  // Sur web large (bureau) : page d'accueil marketing dédiée (≠ mobile), si activée en admin.
+  const showLanding = Platform.OS === 'web' && winWidth >= 980 && (landing?.enabled ?? true);
 
   useEffect(() => {
     Animated.parallel([
@@ -33,6 +41,8 @@ export default function WelcomeScreen() {
       }),
     ]).start();
   }, []);
+
+  if (showLanding) return <LandingPage />;
 
   return (
     <View style={styles.root}>

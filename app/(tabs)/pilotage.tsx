@@ -346,9 +346,6 @@ export default function PilotageScreen() {
             />
           )}
 
-          {/* Zone publicité (maison) — activable en admin, masquée pour les Premium */}
-          <AdSlot placement="pilotage" />
-
           {/* ── HERO : budget libre ce mois ── */}
           {(() => {
             const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
@@ -587,6 +584,8 @@ export default function PilotageScreen() {
             })()}
           </View>
 
+          {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
+          <AdSlot placement="pilotage" />
 
         </ScrollView>
       </SafeAreaView>

@@ -22,6 +22,14 @@ export interface GamificationState {
   gems: number;
   gems_earned_total: number;
   tier: string;
+  last_login_day: string | null;
+  login_streak: number;
+  best_login_streak: number;
+}
+
+/** Clé du jour (YYYY-MM-DD, heure locale). */
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export interface UserBadge { badge_key: string; level: BadgeLevel; unlocked_at: string }
@@ -30,7 +38,7 @@ export interface InventoryItem { item_key: string; qty: number }
 async function fetchOrCreateState(userId: string): Promise<GamificationState> {
   const { data } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
   if (data) return data as GamificationState;
-  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, freezes: 0, gems: 0, gems_earned_total: 0, tier: 'bronze' };
+  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, freezes: 0, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0 };
   // Idempotent : évite un conflit de clé si deux composants initialisent en même temps.
   await supabase!.from('user_gamification').upsert(seed, { onConflict: 'profile_id', ignoreDuplicates: true });
   const { data: after } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
@@ -88,6 +96,7 @@ export function useGamification(userId: string | undefined) {
     const fullCtx: BadgeContext = {
       streak_weeks: state.best_streak,
       gems_earned: state.gems_earned_total,
+      login_streak_days: state.login_streak ?? 0,
       ...ctx,
     };
 
@@ -120,6 +129,24 @@ export function useGamification(userId: string | undefined) {
     }
     if (upserts.length > 0 || gemsToAdd > 0) invalidate();
     return { newBadges: upserts.length, gemsAwarded: gemsToAdd };
+  }
+
+  /** Enregistre la connexion du jour et met à jour la série quotidienne. À appeler une fois
+   *  par ouverture d'app. Renvoie la série quotidienne en cours (jours consécutifs). */
+  async function recordLogin(): Promise<number> {
+    if (!userId || !supabase) return 0;
+    const state = await fetchOrCreateState(userId);
+    const today = dayKey(new Date());
+    if (state.last_login_day === today) return state.login_streak ?? 0;
+    const yesterday = dayKey(new Date(Date.now() - 86400000));
+    const newStreak = state.last_login_day === yesterday ? (state.login_streak ?? 0) + 1 : 1;
+    const best = Math.max(state.best_login_streak ?? 0, newStreak);
+    await supabase.from('user_gamification').update({
+      last_login_day: today, login_streak: newStreak, best_login_streak: best,
+      updated_at: new Date().toISOString(),
+    }).eq('profile_id', userId);
+    invalidate();
+    return newStreak;
   }
 
   /** Valide la semaine en cours (incrémente le streak) — à appeler lors d'une activité. */
@@ -187,6 +214,7 @@ export function useGamification(userId: string | undefined) {
     config,
     isLoading: stateQuery.isLoading,
     validateWeek,
+    recordLogin,
     evaluate,
     buyItem,
   };

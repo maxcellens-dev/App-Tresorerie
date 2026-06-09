@@ -42,6 +42,7 @@ export default function AdminHub() {
       category: 'Apparence & contenu',
       items: [
         { href: '/(tabs)/(secondary)/admin/style-editor', icon: 'color-palette-outline', title: 'Style Editor', desc: 'Thème & couleurs', color: '#0ea5a8' },
+        { href: '/(tabs)/(secondary)/admin/landing', icon: 'desktop-outline', title: "Page d'accueil", desc: 'Landing desktop (textes, images, menu)', color: '#38bdf8' },
         { href: '/(tabs)/(secondary)/admin/seo-center', icon: 'megaphone-outline', title: 'SEO Center', desc: 'Textes & métadonnées', color: '#7c3aed' },
         { href: '/(tabs)/(secondary)/admin/conseils', icon: 'newspaper-outline', title: 'Conseils', desc: 'Conseils du jour (généraux + contextuels)', color: '#f59e0b' },
         { href: '/(tabs)/(secondary)/admin/gamification', icon: 'trophy-outline', title: 'Gamification', desc: 'Badges, série, gemmes, identité', color: '#f59e0b' },

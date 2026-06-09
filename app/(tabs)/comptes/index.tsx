@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import AdSlot from '../../components/AdSlot';
 import { tabRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -279,6 +280,11 @@ export default function AccountsListScreen() {
             </View>
           )}
           <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
+
+          {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
+          <View style={{ paddingHorizontal: 16 }}>
+            <AdSlot placement="comptes" />
+          </View>
         </ScrollView>
       </SafeAreaView>
 

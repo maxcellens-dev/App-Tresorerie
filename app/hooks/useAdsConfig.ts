@@ -21,7 +21,16 @@ export interface AdBanner {
   text?: string;    // texte affiché (si pas d'image)
   image?: string;   // URL image bannière
   url?: string;     // lien au clic (optionnel)
-  placement?: AdPlacement; // page où afficher (défaut : pilotage)
+  /** Pages où afficher la bannière (une même bannière peut viser plusieurs pages). */
+  placements?: AdPlacement[];
+  /** @deprecated Ancien champ mono-page — conservé pour rétrocompat (lu via bannerPlacements). */
+  placement?: AdPlacement;
+}
+
+/** Pages ciblées par une bannière (gère la rétrocompat mono-page → liste). */
+export function bannerPlacements(b: AdBanner): AdPlacement[] {
+  if (b.placements && b.placements.length > 0) return b.placements;
+  return [b.placement ?? 'pilotage'];
 }
 export interface AdsConfig {
   banners: AdBanner[];

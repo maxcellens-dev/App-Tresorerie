@@ -18,11 +18,15 @@ import { isImageIcon, type GamificationConfig, type BadgeDef, type BadgeLevel, t
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Série (semaines)' },
+  { value: 'login_streak_days', label: 'Jours consécutifs connecté' },
+  { value: 'account_age_days', label: 'Ancienneté (jours)' },
   { value: 'gems_earned', label: 'Gemmes gagnées (cumul)' },
   { value: 'closures_count', label: 'Clôtures effectuées' },
   { value: 'surplus_months_streak', label: 'Mois consécutifs en excédent' },
   { value: 'variable_savings_pct', label: 'Éco. vs enveloppe (%)' },
   { value: 'invest_followed', label: 'Recos investir suivies' },
+  { value: 'onboarding_done', label: 'Guide terminé (1/0)' },
+  { value: 'profile_photo', label: 'Photo de profil (1/0)' },
   { value: 'manual', label: 'Manuel (code dédié)' },
 ];
 const LEVELS: BadgeLevel[] = ['bronze', 'silver', 'gold'];
@@ -38,6 +42,8 @@ export default function AdminGamification() {
   const [cfg, setCfg] = useState<GamificationConfig | null>(null);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<'identite' | 'streak' | 'badges'>('identite');
+  const [catFilter, setCatFilter] = useState<string>('__all__');
 
   useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
 
@@ -54,7 +60,10 @@ export default function AdminGamification() {
   const updateBadge = (i: number, patch: Partial<BadgeDef>) => setCfg({ ...cfg, badges: cfg.badges.map((b, idx) => idx === i ? { ...b, ...patch } : b) });
   const updateLevel = (i: number, lvl: BadgeLevel, patch: { threshold?: number; gems?: number }) =>
     setCfg({ ...cfg, badges: cfg.badges.map((b, idx) => idx === i ? { ...b, levels: { ...b.levels, [lvl]: { threshold: 0, gems: 0, ...b.levels[lvl], ...patch } } } : b) });
-  const addBadge = () => setCfg({ ...cfg, badges: [...cfg.badges, { key: `badge_${Date.now()}`, category: 'Divers', metric: 'manual', label: 'Nouveau succès', description: '', icon: 'trophy', levels: { bronze: { threshold: 1, gems: 20 } } }] });
+  const addBadge = () => {
+    const category = catFilter !== '__all__' ? catFilter : 'Divers';
+    setCfg({ ...cfg, badges: [...cfg.badges, { key: `badge_${Date.now()}`, category, metric: 'manual', label: 'Nouveau succès', description: '', icon: 'trophy', levels: { bronze: { threshold: 1, gems: 20 } } }] });
+  };
   const removeBadge = (i: number) => setCfg({ ...cfg, badges: cfg.badges.filter((_, idx) => idx !== i) });
 
   /** Sélecteur d'image générique → téléverse dans le bucket « gamification » et renvoie l'URL. */
@@ -101,8 +110,18 @@ export default function AdminGamification() {
         </TouchableOpacity>
         <Text style={styles.title}>Gamification & Identité</Text>
 
+        {/* Onglets par catégorie de réglages */}
+        <View style={styles.tabsRow}>
+          {([['identite', 'Identité'], ['streak', 'Série & boutique'], ['badges', 'Succès']] as const).map(([key, label]) => (
+            <TouchableOpacity key={key} style={[styles.tabBtn, tab === key && styles.tabBtnActive]} onPress={() => setTab(key)} activeOpacity={0.85}>
+              <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Identité */}
+          {tab === 'identite' && (
           <View style={styles.card}>
             <View style={styles.rowBetween}>
               <Text style={styles.section}>Identité</Text>
@@ -117,22 +136,50 @@ export default function AdminGamification() {
               onChange={(v) => setIdentity({ streakIcon: v })} onUpload={() => pickImage('streakIcon', (url) => setIdentity({ streakIcon: url }))}
               uploading={uploadingKey === 'streakIcon'} styles={styles} c={COLORS} />
           </View>
+          )}
 
           {/* Série + premium */}
+          {tab === 'streak' && (
           <View style={styles.card}>
             <Text style={styles.section}>Série & boutique</Text>
             <Field label="Gemmes par semaine validée" value={String(cfg.streak.weeklyGems)} keyboard onChange={(v) => setStreak({ weeklyGems: Number(v) || 0 })} styles={styles} c={COLORS} />
             <Field label="Coût d'un gel de série (gemmes)" value={String(cfg.streak.freezeCost)} keyboard onChange={(v) => setStreak({ freezeCost: Number(v) || 0 })} styles={styles} c={COLORS} />
             <Field label="Remise premium boutique (%)" value={String(cfg.premium_discount_pct)} keyboard onChange={(v) => setCfg({ ...cfg, premium_discount_pct: Number(v) || 0 })} styles={styles} c={COLORS} />
+            <View style={[styles.rowBetween, { marginTop: 12 }]}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.fieldLabel}>Onglet « Relyka » dans la boutique</Text>
+                <Text style={styles.hint}>Masqué → seul l'onglet « App » s'affiche, sans barre d'onglets.</Text>
+              </View>
+              <Switch value={cfg.relyka_tab_enabled} onValueChange={(v) => setCfg({ ...cfg, relyka_tab_enabled: v })} />
+            </View>
           </View>
+          )}
 
           {/* Badges */}
+          {tab === 'badges' && (() => {
+            const categories = Array.from(new Set(cfg.badges.map((b) => b.category || 'Divers')));
+            const filtered = cfg.badges
+              .map((b, i) => ({ b, i }))
+              .filter(({ b }) => catFilter === '__all__' || (b.category || 'Divers') === catFilter);
+            return (
+          <>
+          {/* Filtre par catégorie */}
+          <View style={styles.catRow}>
+            <TouchableOpacity onPress={() => setCatFilter('__all__')} style={[styles.catChip, catFilter === '__all__' && styles.catChipActive]}>
+              <Text style={[styles.catChipText, catFilter === '__all__' && styles.catChipTextActive]}>Toutes</Text>
+            </TouchableOpacity>
+            {categories.map((cat) => (
+              <TouchableOpacity key={cat} onPress={() => setCatFilter(cat)} style={[styles.catChip, catFilter === cat && styles.catChipActive]}>
+                <Text style={[styles.catChipText, catFilter === cat && styles.catChipTextActive]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <View style={styles.rowBetween}>
-            <Text style={[styles.section, { marginLeft: 4 }]}>Succès ({cfg.badges.length})</Text>
+            <Text style={[styles.section, { marginLeft: 4 }]}>Succès ({filtered.length})</Text>
             <TouchableOpacity onPress={addBadge} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addBtnText}>Ajouter</Text></TouchableOpacity>
           </View>
 
-          {cfg.badges.map((b, i) => (
+          {filtered.map(({ b, i }) => (
             <View key={b.key} style={styles.card}>
               <View style={styles.rowBetween}>
                 <View style={[styles.badgePreview, { backgroundColor: COLORS.emerald + '22' }]}>
@@ -180,6 +227,9 @@ export default function AdminGamification() {
               })}
             </View>
           ))}
+          </>
+            );
+          })()}
 
           <TouchableOpacity style={[styles.saveBtn, saveConfig.isPending && { opacity: 0.6 }]} onPress={save} disabled={saveConfig.isPending}>
             {saveConfig.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveLabel}>Enregistrer la gamification</Text>}
@@ -221,12 +271,23 @@ function makeStyles(c: any) {
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
     title: { fontSize: 22, fontWeight: '800', color: c.text, marginBottom: 12 },
+    tabsRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+    tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 9, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+    tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
+    tabText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    tabTextActive: { color: c.emerald },
+    catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10, marginLeft: 4 },
+    catChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+    catChipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+    catChipText: { fontSize: 12, color: c.text, fontWeight: '600' },
+    catChipTextActive: { color: c.bg },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 80 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12, gap: 4 },
     section: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginTop: 8, marginBottom: 4 },
+    hint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic', marginTop: 2 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     metricChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },

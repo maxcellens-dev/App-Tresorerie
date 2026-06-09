@@ -50,7 +50,7 @@ export default function AboutScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/confidentialite' as any)}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/confidentialite' as any)}>
               <Ionicons name="shield-checkmark-outline" size={22} color="#60a5fa" />
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>Politique de confidentialité</Text>
@@ -58,7 +58,7 @@ export default function AboutScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.row, styles.rowLast]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/legal' as any)}>
+            <TouchableOpacity style={[styles.row, styles.rowLast]} activeOpacity={0.7} onPress={() => router.push('/legal' as any)}>
               <Ionicons name="document-text-outline" size={22} color="#a78bfa" />
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>Mentions légales</Text>

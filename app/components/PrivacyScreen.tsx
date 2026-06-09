@@ -1,12 +1,15 @@
-﻿import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import { LinearGradient } from 'expo-linear-gradient';
+/**
+ * PrivacyScreen — contenu de la politique de confidentialité.
+ * Rendu par la route publique /confidentialite (accessible sans connexion).
+ * Retour intelligent : revient en arrière s'il y a un historique, sinon vers l'accueil.
+ */
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import ScreenGradient from './ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-
+import { useAppColors } from '../hooks/useAppColors';
 
 export default function PrivacyScreen() {
   const COLORS = useAppColors();
@@ -15,10 +18,11 @@ export default function PrivacyScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <ScreenGradient />
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)} style={styles.backBtn}>
+            <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.title}>Politique de confidentialité</Text>

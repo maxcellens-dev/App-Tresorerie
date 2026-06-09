@@ -48,7 +48,7 @@ function AppChrome() {
   const root = segments[0] ?? 'index';
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register';
   // Pendant le questionnaire, on masque l'en-tête (profil) : l'utilisateur doit le terminer.
-  const hideChrome = isAuthPage || root === 'questionnaire';
+  const hideChrome = isAuthPage || root === 'questionnaire' || root === 'confidentialite' || root === 'legal';
   const isTabs = root === '(tabs)';
 
   // Auth guard: redirect via useEffect so the Stack always mounts first
@@ -80,6 +80,8 @@ function AppChrome() {
           <Stack.Screen name="register" options={{ title: 'Inscription' }} />
           <Stack.Screen name="questionnaire" options={{ title: 'Profil financier' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+          <Stack.Screen name="confidentialite" options={{ title: 'Confidentialité' }} />
+          <Stack.Screen name="legal" options={{ title: 'Mentions légales' }} />
         </Stack>
       </View>
       {/* Modale de changement de profil — affichée au-dessus de tout */}

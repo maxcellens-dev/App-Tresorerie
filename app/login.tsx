@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') {
@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './lib/supabase';
 import { useBrandColors } from './hooks/useBrandColors';
+import SocialAuthButtons from './components/SocialAuthButtons';
 
 
 export default function LoginScreen() {
@@ -57,12 +58,24 @@ export default function LoginScreen() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
-          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
           <Text style={styles.title}>Connexion</Text>
           <Text style={styles.subtitle}>Accédez à votre trésorerie sur tous vos appareils.</Text>
+
+          {/* Connexion sociale (mise en avant) */}
+          <SocialAuthButtons mode="login" />
+
+          {/* Séparateur */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou avec une adresse e-mail</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           <View style={styles.form}>
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -95,12 +108,17 @@ export default function LoginScreen() {
               onPress={handleLogin}
               disabled={loading}
             >
-              <Text style={styles.btnLabel}>{loading ? 'Connexion…' : 'Se connecter'}</Text>
+              <Text style={styles.btnLabel}>{loading ? 'Connexion…' : 'Se connecter par e-mail'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.link} onPress={() => router.push('/register')}>
+            <Text style={styles.emailNote}>
+              ℹ️ L'adresse e-mail n'est reliée à aucune messagerie : pas de récupération
+              automatique du mot de passe. En cas d'oubli, contactez un administrateur.
+            </Text>
+            <TouchableOpacity style={styles.link} onPress={() => router.replace('/register')}>
               <Text style={styles.linkText}>Pas de compte ? S’inscrire</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -112,7 +130,7 @@ function makeStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1 },
-  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  back: { flexDirection: 'row', alignItems: 'center', marginTop: 20, marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 15, color: c.textSecondary, marginBottom: 32 },
   form: {},
@@ -129,14 +147,20 @@ function makeStyles(c: any) {
     marginBottom: 20,
   },
   btn: {
-    backgroundColor: c.emerald,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: c.cardBorder,
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   btnDisabled: { opacity: 0.6 },
-  btnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
+  btnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
+  emailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 12 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 22 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: c.cardBorder },
+  dividerText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
   link: { alignItems: 'center', marginTop: 20 },
   linkText: { fontSize: 14, color: c.emerald, fontWeight: '500' },
 });

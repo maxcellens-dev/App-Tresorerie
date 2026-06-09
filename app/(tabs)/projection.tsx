@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
+import AdSlot from '../components/AdSlot';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import GuideOverlay, { type BubbleStep } from '../components/GuideOverlay';
 import { useScreenGuide } from '../hooks/useScreenGuide';
@@ -665,6 +666,9 @@ export default function ProjectionScreen() {
             ))}
           </View>
           </>)}
+
+          {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
+          <AdSlot placement="projection" />
 
           <View style={{ height: 40 }} />
         </ScrollView>

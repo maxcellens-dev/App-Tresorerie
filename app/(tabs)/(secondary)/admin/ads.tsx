@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { supabase } from '../../../lib/supabase';
-import { useAdsConfig, useSaveAdsConfig, AD_PLACEMENTS, type AdBanner } from '../../../hooks/useAdsConfig';
+import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, type AdBanner } from '../../../hooks/useAdsConfig';
 
 export default function AdminAds() {
   const COLORS = useAppColors();
@@ -37,7 +37,7 @@ export default function AdminAds() {
   }
 
   const update = (i: number, patch: Partial<AdBanner>) => setBanners(banners.map((b, idx) => idx === i ? { ...b, ...patch } : b));
-  const add = () => setBanners([...banners, { id: `ad_${Date.now()}`, label: 'Nouvelle bannière', text: '', url: '', placement: 'pilotage' }]);
+  const add = () => setBanners([...banners, { id: `ad_${Date.now()}`, label: 'Nouvelle bannière', text: '', url: '', placements: ['pilotage'] }]);
   const remove = (i: number) => setBanners(banners.filter((_, idx) => idx !== i));
 
   function uploadImage(i: number) {
@@ -95,18 +95,26 @@ export default function AdminAds() {
                 <Text style={styles.cardTitle}>Bannière {i + 1}</Text>
                 <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
-              <Text style={styles.label}>Emplacement (page)</Text>
+              <Text style={styles.label}>Pages d'affichage (plusieurs possibles)</Text>
               <View style={styles.placementRow}>
                 {AD_PLACEMENTS.map((p) => {
-                  const active = (b.placement ?? 'pilotage') === p.value;
+                  const current = bannerPlacements(b);
+                  const active = current.includes(p.value);
+                  const toggle = () => {
+                    const next = active ? current.filter((x) => x !== p.value) : [...current, p.value];
+                    // On garde toujours au moins une page ciblée.
+                    update(i, { placements: next.length ? next : [p.value], placement: undefined });
+                  };
                   return (
-                    <TouchableOpacity key={p.value} onPress={() => update(i, { placement: p.value })}
+                    <TouchableOpacity key={p.value} onPress={toggle}
                       style={[styles.placementChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}>
+                      <Ionicons name={active ? 'checkbox' : 'square-outline'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
                       <Text style={[styles.placementChipText, active && { color: COLORS.bg }]}>{p.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
+              <Text style={styles.hintInline}>Plusieurs bannières sur une même page défilent en fondu (rotation).</Text>
               <Text style={styles.label}>Texte (si pas d'image)</Text>
               <TextInput style={styles.input} value={b.text ?? ''} onChangeText={(v) => update(i, { text: v })} placeholder="Découvrez notre partenaire…" placeholderTextColor={COLORS.textSecondary} />
               <Text style={styles.label}>Lien au clic (optionnel)</Text>
@@ -146,8 +154,9 @@ function makeStyles(c: any) {
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     placementRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
-    placementChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+    placementChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
     placementChipText: { fontSize: 11, color: c.text, fontWeight: '600' },
+    hintInline: { fontSize: 11, color: c.textSecondary, marginTop: 6, fontStyle: 'italic' },
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginBottom: 8 },
     addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },

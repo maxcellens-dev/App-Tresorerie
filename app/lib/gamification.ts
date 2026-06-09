@@ -8,8 +8,8 @@
 export type BadgeLevel = 'bronze' | 'silver' | 'gold';
 export const BADGE_LEVELS: BadgeLevel[] = ['bronze', 'silver', 'gold'];
 export const LEVEL_COLORS: Record<BadgeLevel, string> = {
-  bronze: '#cd7f32',
-  silver: '#c0c0c0',
+  bronze: '#e08544',  // bronze plus chaud/lumineux
+  silver: '#9fb2d6',  // argent « acier » froid, plus lisible que le gris pâle
   gold: '#facc15',
 };
 
@@ -21,6 +21,10 @@ export type BadgeMetric =
   | 'surplus_months_streak'  // mois consécutifs terminés avec excédent variable > 0
   | 'variable_savings_pct'   // meilleure éco. vs enveloppe sur un mois (%)
   | 'invest_followed'        // nb de fois où la reco d'investir a été suivie
+  | 'account_age_days'       // ancienneté du compte (jours depuis l'inscription)
+  | 'login_streak_days'      // jours consécutifs de connexion (série quotidienne)
+  | 'onboarding_done'        // 1 si toutes les étapes du guide « Pour bien démarrer » sont faites
+  | 'profile_photo'          // 1 si une photo de profil est définie
   | 'manual';                // attribué manuellement (code dédié)
 
 export interface BadgeLevelDef { threshold: number; gems: number }
@@ -65,6 +69,8 @@ export interface GamificationConfig {
   streak: StreakConfig;
   shop: ShopItem[];
   premium_discount_pct: number; // remise globale boutique pour les abonnés Premium
+  /** Affiche l'onglet « Relyka » (services) dans la boutique. Si false : seul l'onglet App, sans barre d'onglets. */
+  relyka_tab_enabled: boolean;
 }
 
 export const DEFAULT_GAMIFICATION: GamificationConfig = {
@@ -77,6 +83,7 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
   },
   streak: { weeklyGems: 20, freezeCost: 50 },
   premium_discount_pct: 20,
+  relyka_tab_enabled: true,
   badges: [
     {
       key: 'regularite', category: 'Régularité', metric: 'streak_weeks',
@@ -114,6 +121,31 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
       icon: 'diamond',
       levels: { bronze: { threshold: 100, gems: 0 }, silver: { threshold: 500, gems: 0 }, gold: { threshold: 2000, gems: 0 } },
     },
+    // ── Succès « classiques » (fidélité, assiduité, profil, découverte) ──
+    {
+      key: 'fidelite', category: 'Fidélité', metric: 'account_age_days',
+      label: 'Fidèle à Relyka', description: 'Première connexion, puis 1 mois, puis 6 mois à nos côtés.',
+      icon: 'heart',
+      levels: { bronze: { threshold: 0, gems: 15 }, silver: { threshold: 30, gems: 60 }, gold: { threshold: 180, gems: 200 } },
+    },
+    {
+      key: 'assidu', category: 'Assiduité', metric: 'login_streak_days',
+      label: "L'Assidu", description: 'Connecte-toi plusieurs jours d’affilée.',
+      icon: 'calendar',
+      levels: { bronze: { threshold: 7, gems: 40 }, silver: { threshold: 30, gems: 120 }, gold: { threshold: 100, gems: 400 } },
+    },
+    {
+      key: 'profil_photo', category: 'Profil', metric: 'profile_photo',
+      label: 'Mon plus beau profil', description: 'Ajoute une photo de profil.',
+      icon: 'camera',
+      levels: { bronze: { threshold: 1, gems: 20 } },
+    },
+    {
+      key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done',
+      label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».',
+      icon: 'compass',
+      levels: { bronze: { threshold: 1, gems: 50 } },
+    },
   ],
   shop: [
     { key: 'freeze', type: 'freeze', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi.', price: 50, icon: 'snow' },
@@ -127,9 +159,22 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
     identity: { ...DEFAULT_GAMIFICATION.identity, ...(stored.identity ?? {}) },
     streak: { ...DEFAULT_GAMIFICATION.streak, ...(stored.streak ?? {}) },
     premium_discount_pct: stored.premium_discount_pct ?? DEFAULT_GAMIFICATION.premium_discount_pct,
-    badges: stored.badges && stored.badges.length > 0 ? stored.badges : DEFAULT_GAMIFICATION.badges,
+    relyka_tab_enabled: stored.relyka_tab_enabled ?? DEFAULT_GAMIFICATION.relyka_tab_enabled,
+    badges: mergeBadges(stored.badges),
     shop: stored.shop ?? DEFAULT_GAMIFICATION.shop,
   };
+}
+
+/**
+ * Conserve les badges stockés (édités en admin) et ajoute les badges par défaut
+ * dont la clé n'est pas encore présente — pour que les nouveaux succès « classiques »
+ * apparaissent automatiquement sur les configs déjà enregistrées.
+ */
+function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
+  if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.badges;
+  const keys = new Set(stored.map((b) => b.key));
+  const missing = DEFAULT_GAMIFICATION.badges.filter((b) => !keys.has(b.key));
+  return [...stored, ...missing];
 }
 
 /** true si la valeur d'icône est une URL d'image (vs un nom Ionicons). */

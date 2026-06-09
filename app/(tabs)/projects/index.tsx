@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import AdSlot from '../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -409,6 +410,7 @@ export default function ProjectsScreen() {
               )
             }
             ListEmptyComponent={renderEmptyState}
+            ListFooterComponent={<AdSlot placement="projets" />}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={

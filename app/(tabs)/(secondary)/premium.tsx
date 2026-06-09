@@ -19,7 +19,6 @@ const BENEFITS = [
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
   { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en gemmes.' },
   { icon: 'sparkles', title: 'Conseiller personnalisé', desc: 'Des conseils sur-mesure selon ton profil (bientôt).' },
-  { icon: 'people', title: 'Plan famille', desc: 'Lie deux comptes pour un foyer (bientôt).' },
 ];
 
 export default function PremiumScreen() {

@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import AdSlot from '../../components/AdSlot';
 import { tabRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -770,6 +771,9 @@ export default function TransactionsListScreen() {
               <Text style={styles.hint}>Appuyez sur une ligne pour modifier ou supprimer.</Text>
             </>
           )}
+
+          {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
+          <AdSlot placement="transactions" />
         </ScrollView>
         </View>
         <Modal visible={!!confirmModal} transparent animationType="fade" onRequestClose={() => setConfirmModal(null)}>

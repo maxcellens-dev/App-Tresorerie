@@ -296,12 +296,12 @@ export default function SettingsScreen() {
               <Text style={styles.rowLabel}>Boîte à idées</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/confidentialite')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/confidentialite')}>
               <Ionicons name="shield-checkmark-outline" size={20} color="#60a5fa" />
               <Text style={styles.rowLabel}>Confidentialité</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/legal')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/legal')}>
               <Ionicons name="document-text-outline" size={20} color="#a78bfa" />
               <Text style={styles.rowLabel}>Mentions légales</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
