@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Stack, useSegments, useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
+import { setAnalyticsUser, logEvent, trackScreen } from './lib/analytics';
 import ProfileChangeModal from './components/ProfileChangeModal';
 import FontApplier from './components/FontApplier';
 import GamificationSync from './components/GamificationSync';
@@ -35,6 +36,30 @@ function ConfigSync() {
 function RecurringMaterializer() {
   const { user } = useAuth();
   useMaterializeRecurring(user?.id);
+  return null;
+}
+
+/** Suivi d'usage : app_open (1×/session) + screen_view à chaque changement de page. */
+function AnalyticsTracker() {
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const openedFor = useRef<string | null>(null);
+
+  useEffect(() => { setAnalyticsUser(user?.id ?? null); }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (openedFor.current !== user.id) {
+      openedFor.current = user.id;
+      logEvent('app_open');
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !pathname) return;
+    trackScreen(pathname);
+  }, [pathname, user?.id]);
+
   return null;
 }
 
@@ -86,6 +111,7 @@ function AppChrome() {
       </View>
       {/* Modale de changement de profil — affichée au-dessus de tout */}
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
+      <AnalyticsTracker />
     </View>
     </TourProvider>
   );
