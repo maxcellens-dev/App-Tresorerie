@@ -18,6 +18,7 @@ export interface PilotageData {
 
   // Revenu attendu + creux + garde-fou projection (modèle « trésorerie adaptative »)
   month_income_remaining: number;        // recettes à venir d'ici la prochaine rentrée (affichage)
+  cashflow_trough: number;               // point bas du solde courant simulé (revenus + dépenses réelles)
   expected_monthly_income: number;       // revenu mensuel détecté (explicite ou inféré)
   expected_income_source: 'explicit' | 'inferred' | 'none';
   expected_income_confidence: number;    // 0..1
@@ -412,10 +413,11 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   if (horizonEnd < addDaysIso(todayStr, 7)) horizonEnd = addDaysIso(todayStr, 7);
   if (horizonEnd > addDaysIso(todayStr, 45)) horizonEnd = addDaysIso(todayStr, 45);
 
-  // Événements futurs sur comptes courants (hors projets/réservés/brouillons), revenus ET dépenses.
+  // Événements futurs sur comptes courants : revenus + dépenses RÉELLES (hors virements internes,
+  // projets, réservés, brouillons). Les virements épargne/invest sont déduits séparément (affichage).
   const events: { date: string; amount: number }[] = [];
   for (const t of transactions) {
-    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id) continue;
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id || t.linked_account_id) continue;
     const amt = Number(t.amount);
     if (t.is_recurring && t.recurrence_rule) {
       for (const occ of recurrenceOccurrencesBetween(t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null, todayStr, horizonEnd)) events.push({ date: occ, amount: amt });
@@ -833,6 +835,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     monthly_commitments,
     same_account_reserved,
     month_income_remaining,
+    cashflow_trough: trough,
     expected_monthly_income: expectedIncome.monthlyAmount,
     expected_income_source: expectedIncome.source,
     expected_income_confidence: expectedIncome.confidence,

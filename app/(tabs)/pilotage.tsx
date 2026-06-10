@@ -179,14 +179,17 @@ export default function PilotageScreen() {
   // « Reste à vivre » (Option B) : on part du solde courant à date et on ne déduit
   // QUE ce qui n'est pas encore sorti du compte (à venir / non exécuté) + la marge.
   const monthIncomeRemaining = pilotageData?.month_income_remaining ?? 0;
+  // Budget libre = POINT BAS de trésorerie d'ici la prochaine rentrée (revenus + dépenses réelles,
+  // dans l'ordre des dates → on ne libère JAMAIS un revenu pas encore reçu). On en retire ensuite
+  // les engagements volontaires (virements épargne/invest prévus, réservations), la marge et
+  // l'enveloppe de dépenses variables estimée (qui, elle, n'est pas une transaction).
+  const cashflowTrough = pilotageData?.cashflow_trough ?? (pilotageData?.current_checking_balance ?? 0);
   const resteDisponible = Math.max(0,
-    (pilotageData?.current_checking_balance ?? 0)
-    + monthIncomeRemaining            // recettes à venir d'ici la prochaine rentrée (modèle adaptatif)
+    cashflowTrough
     - savingsRemaining
     - investRemaining
     - (pilotageData?.monthly_reserve_planned ?? 0)
     - reservationsTotal
-    - monthExpensesRemaining
     - variableEnvelopeRemaining
     - safetyMarginDisplay
   );
@@ -194,24 +197,10 @@ export default function PilotageScreen() {
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
   // ── Budget de recommandation ──
-  // = Solde courant − marge − dépenses à venir − dépenses variables prévues restantes.
-  // On ne déduit que ce qui n'est pas encore sorti du solde (pas de double comptage du passé).
-  // (≠ budget libre : on ne déduit PAS l'épargne/invest/réservé déjà prévus, car on veut
-  //  ensuite déduire ces montants catégorie par catégorie.)
-  const recoBudget = Math.max(0,
-    (pilotageData?.current_checking_balance ?? 0)
-    + monthIncomeRemaining            // recettes à venir comptées (cohérent avec le budget libre)
-    - safetyMarginDisplay
-    - monthExpensesRemaining
-    - variableEnvelopeRemaining
-  );
-  // Montants déjà alloués par catégorie ce mois (à déduire des % de reco).
-  // Épargne : hors projets. Conserver : réservations du mois + cumuls en attente.
-  const recoAlreadyAllocated = {
-    save: pilotageData?.real_savings_excl_projects ?? 0,
-    invest: pilotageData?.real_invest ?? 0,
-    keep: (pilotageData?.monthly_reserve_planned ?? 0) + reservationsTotal,
-  };
+  // Les recommandations se basent sur « Ton Relyka » (budget libre) : on répartit ce qui est
+  // RÉELLEMENT libre selon le profil P1-P5 + seuils. L'épargne/réservé déjà prévus sont déjà
+  // retirés du budget libre → on ne les redéduit pas par catégorie (pas de double comptage).
+  const recoBudget = resteDisponible;
 
   // Synchroniser le statut des cumuls (actif / en_depassement)
   React.useEffect(() => {
@@ -406,7 +395,6 @@ export default function PilotageScreen() {
                 customTierAllocations: customTiers,
                 financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
                 budget: recoBudget,
-                alreadyAllocated: recoAlreadyAllocated,
                 thresholds: recoThresholds,
               }) : []}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
