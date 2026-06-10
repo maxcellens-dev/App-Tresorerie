@@ -35,8 +35,10 @@ function ConfigSync() {
 }
 
 function RecurringMaterializer() {
-  const { user } = useAuth();
-  useMaterializeRecurring(user?.id);
+  const { user, isImpersonating } = useAuth();
+  // En mode « connecté en tant que », on NE matérialise/reconcilie PAS : consulter un compte
+  // ne doit pas écrire dans les données de l'utilisateur (avancer ses récurrences, etc.).
+  useMaterializeRecurring(isImpersonating ? undefined : user?.id);
   return null;
 }
 

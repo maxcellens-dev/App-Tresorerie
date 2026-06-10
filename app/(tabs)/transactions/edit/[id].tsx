@@ -212,8 +212,11 @@ export default function EditTransactionScreen() {
         (currentOverrideAmount !== undefined && Math.abs(finalAmount - currentOverrideAmount) < 0.01) ||
         (currentOverrideAmount === undefined && Math.abs(finalAmount - originalAmount) < 0.01);
       const categoryChanged = categoryId !== (tx.category_id ?? '');
+      // Le libellé est une propriété de la SÉRIE (pas d'override par occurrence) → un renommage
+      // s'applique à toutes les occurrences (on met à jour le modèle récurrent).
+      const noteChanged = (note || '') !== ((tx as any).note ?? '');
 
-      if (amountUnchanged && !categoryChanged) {
+      if (amountUnchanged && !categoryChanged && !noteChanged) {
         closeEditor();
         return;
       }
@@ -226,8 +229,12 @@ export default function EditTransactionScreen() {
             await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: finalAmount });
           }
         }
-        if (categoryChanged) {
-          await updateTx.mutateAsync({ id, category_id: categoryId ? categoryId : null });
+        if (categoryChanged || noteChanged) {
+          await updateTx.mutateAsync({
+            id,
+            ...(categoryChanged ? { category_id: categoryId ? categoryId : null } : {}),
+            ...(noteChanged ? { note: note || null } : {}),
+          });
         }
         closeEditor();
       } catch (e: unknown) {

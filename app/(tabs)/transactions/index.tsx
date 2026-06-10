@@ -123,7 +123,7 @@ export default function TransactionsListScreen() {
   // Multi-compte : ensemble des IDs sélectionnés ([] = tous)
   const [accountFilterIds, setAccountFilterIds] = useState<string[]>([]);
   const [defaultCheckingIds, setDefaultCheckingIds] = useState<string[]>([]);
-  const [filterInitialized, setFilterInitialized] = useState(false);
+  const initializedAccountsSig = useRef<string | null>(null);
   const [showAccountFilter, setShowAccountFilter] = useState(false);
 
   const transactionsQuery = useTransactions(user?.id);
@@ -135,18 +135,18 @@ export default function TransactionsListScreen() {
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAccounts(user?.id);
 
-  // Par défaut, sélectionner tous les comptes courants.
-  // Si aucun compte courant, pas de filtre (= Tous).
+  // Par défaut, sélectionner tous les comptes courants. On RÉINITIALISE quand l'ensemble des
+  // comptes change (ex. mode admin « connecté en tant que » → comptes d'un autre utilisateur),
+  // sinon le filtre garderait les comptes du 1er chargement et masquerait toutes les transactions.
+  const accountsSig = useMemo(() => accounts.map((a: any) => a.id).sort().join(','), [accounts]);
   useEffect(() => {
-    if (!filterInitialized && accounts.length > 0) {
-      const checkingIds = accounts
-        .filter((a: any) => a.type === 'checking')
-        .map((a: any) => a.id);
-      setDefaultCheckingIds(checkingIds);
-      setAccountFilterIds(checkingIds);
-      setFilterInitialized(true);
-    }
-  }, [accounts, filterInitialized]);
+    if (accounts.length === 0) return;
+    if (initializedAccountsSig.current === accountsSig) return;
+    initializedAccountsSig.current = accountsSig;
+    const checkingIds = accounts.filter((a: any) => a.type === 'checking').map((a: any) => a.id);
+    setDefaultCheckingIds(checkingIds);
+    setAccountFilterIds(checkingIds);
+  }, [accountsSig, accounts]);
   
   // -2 → fenêtre [m-2, m-1, m] ; l'affichage trié décroissant montre M, m-1, m-2 de haut en bas
   const [periodOffset, setPeriodOffset] = useState(-2);

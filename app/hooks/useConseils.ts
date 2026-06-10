@@ -76,9 +76,11 @@ export function evalCriteres(pilotage: PilotageData, transactions: any[], projec
     active.push({ key: 'argent_qui_dort', vars: { checking: fmt(pilotage.total_checking) } });
   }
 
-  // epargne_confortable : savings ≥ 6 mois de charges fixes
-  const monthlyFixed = (pilotage.remaining_fixed_expenses + pilotage.committed_allocations) || 1000;
-  const savingsMonths = Math.floor(pilotage.total_savings / monthlyFixed);
+  // epargne_confortable : savings ≥ 6 mois de charges. Charges mensuelles = dépenses du mois
+  // (récurrentes + ponctuelles) + enveloppe VARIABLE estimée + engagements (projets).
+  const monthlyCharges = ((pilotage.month_expenses_total || pilotage.remaining_fixed_expenses)
+    + pilotage.variable_envelope_initial + pilotage.committed_allocations) || 1000;
+  const savingsMonths = Math.floor(pilotage.total_savings / monthlyCharges);
   if (savingsMonths >= 6) {
     active.push({ key: 'epargne_confortable', vars: { savings_months: savingsMonths } });
   }
