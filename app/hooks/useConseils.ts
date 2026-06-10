@@ -76,18 +76,19 @@ export function evalCriteres(pilotage: PilotageData, transactions: any[], projec
     active.push({ key: 'argent_qui_dort', vars: { checking: fmt(pilotage.total_checking) } });
   }
 
-  // epargne_confortable : savings ≥ 6 mois de charges. Charges mensuelles = dépenses du mois
-  // (récurrentes + ponctuelles) + enveloppe VARIABLE estimée + engagements (projets).
-  const monthlyCharges = ((pilotage.month_expenses_total || pilotage.remaining_fixed_expenses)
-    + pilotage.variable_envelope_initial + pilotage.committed_allocations) || 1000;
-  const savingsMonths = Math.floor(pilotage.total_savings / monthlyCharges);
-  if (savingsMonths >= 6) {
-    active.push({ key: 'epargne_confortable', vars: { savings_months: savingsMonths } });
-  }
-
-  // epargne_insuffisante : savings < 2 mois de charges
-  if (savingsMonths < 2) {
-    active.push({ key: 'epargne_insuffisante', vars: {} });
+  // Mois de réserve = combien de temps l'épargne tient si les REVENUS s'arrêtent.
+  // → on divise par le REVENU mensuel estimé (même base que le Relyka : récurrent explicite,
+  //   sinon inféré de l'historique, sinon moyenne du/des mois renseignés). Si le revenu n'est
+  //   pas estimable (aucune recette saisie), on n'affiche ni « confortable » ni « insuffisante ».
+  const monthlyIncome = pilotage.expected_monthly_income;
+  if (monthlyIncome > 0) {
+    const savingsMonths = Math.floor(pilotage.total_savings / monthlyIncome);
+    if (savingsMonths >= 6) {
+      active.push({ key: 'epargne_confortable', vars: { savings_months: savingsMonths } });
+    }
+    if (savingsMonths < 2) {
+      active.push({ key: 'epargne_insuffisante', vars: {} });
+    }
   }
 
   // budget_libre_inexploite : budget libre > 400 ET aucun virement récurrent vers épargne

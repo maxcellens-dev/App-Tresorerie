@@ -256,7 +256,7 @@ export default function SettingsScreen() {
                 })}
               </View>
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
-                Plus prudent = on compte moins sur les revenus pas encore reçus et on regarde plus loin avant de conseiller d'investir. « Auto » s'adapte à votre profil.
+                Détermine si vos revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de votre Relyka — le montant que vous pouvez allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur les recettes déjà reçues.
               </Text>
             </View>
           </View>

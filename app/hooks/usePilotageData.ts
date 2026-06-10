@@ -319,7 +319,25 @@ function detectExpectedIncome(transactions: any[], checkingIds: Set<string>, tod
     if (occ <= todayStr) occ = isoDay(new Date(now.getFullYear(), now.getMonth() + 1, Math.min(day, 28)));
     best = { monthlyAmount: median, nextDate: occ, day, confidence, source: 'inferred' };
   }
-  return best;
+  if (best.source !== 'none') return best;
+
+  // 3) Repli : moyenne mensuelle des recettes sur l'historique disponible (gère le 1er mois sans
+  //    pattern détecté). Pas de `nextDate` → ne crée pas de revenu fantôme dans le creux (budget libre),
+  //    sert seulement de base de revenu mensuel (ex. « mois de réserve »).
+  const incomeByMonth: Record<string, number> = {};
+  for (const t of transactions) {
+    if (!checkingIds.has(t.account_id) || t.is_draft || t.is_reserved || t.linked_account_id) continue;
+    if (Number(t.amount) <= 0 || t.date < fourMonthsAgo || t.date > todayStr) continue;
+    if (/r[ée]gul/i.test(t.note ?? '')) continue; // exclure les régularisations de solde
+    const mk = t.date.slice(0, 7);
+    incomeByMonth[mk] = (incomeByMonth[mk] ?? 0) + Number(t.amount);
+  }
+  const incomeMonths = Object.keys(incomeByMonth);
+  if (incomeMonths.length > 0) {
+    const avg = Object.values(incomeByMonth).reduce((s, v) => s + v, 0) / incomeMonths.length;
+    return { monthlyAmount: avg, nextDate: null, day: 1, confidence: Math.min(1, incomeMonths.length / 3), source: 'inferred' };
+  }
+  return none;
 }
 
 /** Prudence (0..1, 1 = très prudent). Override profiles.prudence_level (0..100), sinon dérivée des allocations. */
