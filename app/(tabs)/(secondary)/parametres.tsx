@@ -139,54 +139,31 @@ export default function SettingsScreen() {
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* ── Mon compte ── */}
-          <Text style={styles.sectionTitle}>Mon compte</Text>
-          <View style={styles.card}>
-            <TouchableOpacity ref={monProfilRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profile')}>
-              <Ionicons name="person-circle-outline" size={20} color={COLORS.emerald} />
-              <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Mon profil</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.emerald} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/mes-donnees')}>
-              <Ionicons name="download-outline" size={20} color={COLORS.emerald} />
-              <Text style={styles.rowLabel}>Mes données</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/change-password')}>
-              <Ionicons name="key-outline" size={20} color={COLORS.emerald} />
-              <Text style={styles.rowLabel}>Changer de mot de passe</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
+          {/* Header */}
+          <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>Paramètres</Text>
 
-          {/* ── Profil Financier ── */}
-          <Text style={styles.sectionTitle}>Profil Financier</Text>
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.row}
-              activeOpacity={0.7}
-              onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}
-            >
-              <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
-              <Text style={styles.rowLabel}>Mon profil financier</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.row, closureEnabled ? {} : { borderBottomWidth: 0 }]}
-              activeOpacity={0.7}
-              onPress={() => router.push('/(tabs)/reporting')}
-            >
-              <Ionicons name="bar-chart-outline" size={20} color="#f59e0b" />
-              <Text style={styles.rowLabel}>Reporting</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            {closureEnabled && (
+          {/* Clôture mensuelle (si activée) */}
+          {closureEnabled && (
+            <View style={styles.card}>
               <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/cloture')}>
                 <Ionicons name="lock-closed-outline" size={20} color="#60a5fa" />
                 <Text style={styles.rowLabel}>Clôture mensuelle</Text>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
-            )}
+            </View>
+          )}
+
+          {/* ── Profil financier ── */}
+          <Text style={styles.sectionTitle}>Profil financier</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}>
+              <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
+              <Text style={styles.rowLabel}>Mon profil financier</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
           </View>
 
           {/* ── Gestion ── */}
@@ -261,56 +238,11 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* ── Apparence ── */}
-          <Text style={styles.sectionTitle}>Apparence</Text>
+          {/* ── Devise ── */}
+          <Text style={styles.sectionTitle}>Devise</Text>
           <View style={styles.card}>
-            {/* Mode clair / sombre — réservé à l'admin (par défaut : sombre pour tous) */}
-            {isAdmin && (
-              <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-                <Text style={styles.rowLabel}>Mode d'affichage</Text>
-                <View style={styles.segmentRow}>
-                  {THEME_MODES.map((m) => {
-                    const active = currentMode === m.id;
-                    return (
-                      <TouchableOpacity
-                        key={m.id}
-                        style={[styles.segment, active && styles.segmentActive]}
-                        onPress={() => setMode(m.id)}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name={m.icon as any} size={16} color={active ? COLORS.bg : COLORS.textSecondary} />
-                        <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{m.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-
-            {/* Preset de couleur */}
-            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-              <Text style={styles.rowLabel}>Couleur d'accent</Text>
-              <View style={styles.presetRow}>
-                {allPresets.map((p) => {
-                  const active = currentPreset === p.id;
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[styles.presetDot, { backgroundColor: p.swatch }, active && styles.presetDotActive]}
-                      onPress={() => setPreset(p.id as ThemePreset)}
-                      activeOpacity={0.8}
-                      accessibilityLabel={p.label}
-                    >
-                      {active && <Ionicons name="checkmark" size={18} color="#ffffff" />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Devise d'affichage */}
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
-              <Text style={styles.rowLabel}>Devise</Text>
+              <Text style={styles.rowLabel}>Devise d'affichage</Text>
               <CurrencyPicker
                 value={profile?.currency_code ?? 'EUR'}
                 onChange={(code) => updateProfile.mutate({ currency_code: code })}
@@ -318,52 +250,6 @@ export default function SettingsScreen() {
               <Text style={styles.currencyHint}>Change le symbole des montants partout. Aucune conversion n'est appliquée.</Text>
             </View>
           </View>
-
-          {/* ── Support & Infos ── */}
-          <Text style={styles.sectionTitle}>Support</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/assistance')}>
-              <Ionicons name="headset-outline" size={20} color={COLORS.emerald} />
-              <Text style={styles.rowLabel}>Assistance</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/ideas')}>
-              <Ionicons name="bulb-outline" size={20} color="#f59e0b" />
-              <Text style={styles.rowLabel}>Boîte à idées</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/confidentialite')}>
-              <Ionicons name="shield-checkmark-outline" size={20} color="#60a5fa" />
-              <Text style={styles.rowLabel}>Confidentialité</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/legal')}>
-              <Ionicons name="document-text-outline" size={20} color="#a78bfa" />
-              <Text style={styles.rowLabel}>Mentions légales</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => tour.start()}>
-              <Ionicons name="navigate-circle-outline" size={18} color={COLORS.textSecondary} />
-              <Text style={[styles.rowLabel, { fontStyle: 'italic', fontSize: 13, color: COLORS.textSecondary }]}>Revoir le guide de présentation</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* ── Version ── */}
-          <View style={styles.versionCard}>
-            <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
-            <Text style={{ fontSize: 12, color: COLORS.emerald, fontWeight: '500' }}>Laissez-vous guider pour faire des économies.</Text>
-            <View style={styles.versionBadge}>
-              <Text style={{ fontSize: 11, color: COLORS.textSecondary, fontWeight: '600' }}>Version {APP_VERSION}</Text>
-            </View>
-          </View>
-
-          {/* ── Déconnexion ── */}
-          <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
-            <Text style={styles.signOutLabel}>Se déconnecter</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.footer}>© 2026 Relyka. Tous droits réservés.</Text>
         </ScrollView>
       </SafeAreaView>
 
@@ -396,6 +282,9 @@ function makeStyles(c: AppColors) {
     saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
     saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
 
+    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    backText: { fontSize: 14, fontWeight: '600', color: c.text },
+    pageTitle: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
     sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
     card: {
       backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder,

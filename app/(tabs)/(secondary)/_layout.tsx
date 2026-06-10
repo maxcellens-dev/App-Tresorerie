@@ -5,6 +5,8 @@ export default function SecondaryLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="profile" />
       <Stack.Screen name="parametres" />
+      <Stack.Screen name="apparence" />
+      <Stack.Screen name="support" />
       <Stack.Screen name="change-password" />
       <Stack.Screen name="mes-donnees" />
       <Stack.Screen name="cloture" />

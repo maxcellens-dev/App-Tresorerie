@@ -9,7 +9,15 @@ export default function Index() {
   const profileQuery = useProfile(user?.id);
   const fpQuery = useFinancialProfile(user?.id);
 
-  if (loading || (user && (profileQuery.isLoading || fpQuery.isLoading))) return null;
+  // On attend que les DEUX requêtes soient réellement résolues avant de décider de la redirection.
+  // `isPending` (≥ isLoading) couvre la fenêtre où une requête fraîchement activée n'a pas encore
+  // renvoyé de données → évite d'envoyer vers le questionnaire alors que le profil financier existe.
+  if (
+    loading ||
+    (user && (profileQuery.isPending || fpQuery.isPending || profileQuery.isFetching || fpQuery.isFetching))
+  ) {
+    return null;
+  }
 
   if (user) {
     const profile = profileQuery.data;

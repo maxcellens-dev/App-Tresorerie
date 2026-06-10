@@ -311,35 +311,17 @@ export default function ProfileScreen() {
             {updateProfile.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer le profil</Text>}
           </TouchableOpacity>
 
-          <View style={styles.section} ref={pwdRef}>
-            <Text style={styles.sectionTitle}>Changer le mot de passe</Text>
-            <Text style={styles.label}>Nouveau mot de passe</Text>
-            <TextInput
-              style={styles.input}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              placeholder="Min. 6 caractères"
-              placeholderTextColor={COLORS.textSecondary}
-              secureTextEntry
-            />
-            <Text style={styles.label}>Confirmer le mot de passe</Text>
-            <TextInput
-              style={styles.input}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirmer"
-              placeholderTextColor={COLORS.textSecondary}
-              secureTextEntry
-              returnKeyType="done"
-              onSubmitEditing={handleChangePassword}
-            />
-            <TouchableOpacity
-              style={[styles.passwordBtn, passwordLoading && styles.submitBtnDisabled]}
-              onPress={handleChangePassword}
-              disabled={passwordLoading}
-              accessibilityRole="button"
-            >
-              {passwordLoading ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Mettre à jour le mot de passe</Text>}
+          {/* Accès rapides : mes données + changement de mot de passe */}
+          <View style={styles.linksCard} ref={pwdRef}>
+            <TouchableOpacity style={styles.linkRow} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/mes-donnees')}>
+              <Ionicons name="download-outline" size={20} color={COLORS.emerald} />
+              <Text style={styles.linkLabel}>Mes données</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.linkRow, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/change-password')}>
+              <Ionicons name="key-outline" size={20} color={COLORS.emerald} />
+              <Text style={styles.linkLabel}>Changer le mot de passe</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -502,6 +484,9 @@ function makeStyles(c: any) {
   submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
   section: { marginTop: 8 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 16 },
+  linksCard: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden', marginTop: 4 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
+  linkLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
   passwordBtn: { backgroundColor: c.cardBorder, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   text: { color: c.text },
   loginActions: { marginTop: 16, gap: 12 },

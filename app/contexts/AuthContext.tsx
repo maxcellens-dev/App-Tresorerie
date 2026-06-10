@@ -3,6 +3,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Mode admin « connecté en tant que » : on substitue l'identifiant de données, sans toucher à l'auth réelle.
   const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
   const [impersonatedEmail, setImpersonatedEmail] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const updateState = useCallback((session: Session | null) => {
     setState({
@@ -67,7 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setImpersonatedEmail(null);
     if (supabase) await supabase.auth.signOut();
     setState({ user: null, session: null, loading: false });
-  }, []);
+    // Vide le cache des requêtes : évite qu'une donnée périmée d'une session précédente
+    // (ex. profil financier null) ne fausse la redirection de la session suivante.
+    queryClient.clear();
+  }, [queryClient]);
 
   const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);
 

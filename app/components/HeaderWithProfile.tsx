@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { useRouter, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +7,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
+import ProfileMenuModal from './ProfileMenuModal';
 
 
 interface HeaderWithProfileProps {
@@ -49,10 +51,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   const currentPage = segments[segments.length - 1] ?? '';
   const isOnSettings = currentPage === 'parametres';
   const isAdmin = (profile as any)?.is_admin === true;
-
-  function openSettings() {
-    router.push('/(tabs)/(secondary)/parametres');
-  }
+  const [menuOpen, setMenuOpen] = useState(false);
 
   function openAdmin() {
     router.push('/(tabs)/(secondary)/admin');
@@ -98,10 +97,10 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
         )}
         <TouchableOpacity
           style={styles.avatarWrap}
-          onPress={openSettings}
+          onPress={() => setMenuOpen(true)}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Paramètres"
+          accessibilityLabel="Menu du compte"
         >
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.avatar} {...({ pointerEvents: 'none' } as any)} />
@@ -112,6 +111,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
           )}
         </TouchableOpacity>
       </View>}
+      <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
   );
 }
