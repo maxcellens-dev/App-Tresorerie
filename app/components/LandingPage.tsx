@@ -67,7 +67,10 @@ export default function LandingPage() {
       {/* ── En-tête / menu ── */}
       <View style={styles.header}>
         <View style={styles.headerInner}>
-          <Text style={[styles.brand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
+          <View style={styles.brandRow}>
+            <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
+            <Text style={[styles.brand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
+          </View>
           <View style={styles.headerBtns}>
             <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.ghostBtn}>
               <Text style={styles.ghostBtnText}>{cfg.ctaSecondaryLabel}</Text>
@@ -205,6 +208,8 @@ function makeStyles(c: any, wide: boolean) {
     root: { flex: 1, backgroundColor: c.bg },
     header: { borderBottomWidth: 1, borderBottomColor: c.cardBorder, backgroundColor: c.bg + 'F2', zIndex: 10, ...(Platform.OS === 'web' ? { position: 'sticky', top: 0 } as any : {}) },
     headerInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: PAD, paddingVertical: 14, maxWidth: 1200, width: '100%', alignSelf: 'center', gap: 12 },
+    brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    brandLogo: { width: 34, height: 34, borderRadius: 8 },
     brand: { fontSize: 24, fontWeight: '800', color: c.text, letterSpacing: -0.5 },
     nav: { flexDirection: 'row', gap: 28, flex: 1, justifyContent: 'center' },
     navLink: { fontSize: 15, fontWeight: '600', color: c.textSecondary, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },

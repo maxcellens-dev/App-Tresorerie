@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -61,9 +61,8 @@ export default function WelcomeScreen() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           
           <Animated.View style={[styles.hero, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="wallet" size={48} color={COLORS.emerald} />
-            </View>
+            <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+
             <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
             <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
             <Text style={[styles.subtag, { fontFamily: appNameFont }]}>Relyka · Prévisions · Sérénité</Text>
@@ -180,6 +179,12 @@ function makeStyles(c: any) {
     marginBottom: 24,
     borderWidth: 1,
     borderColor: c.emerald + '33',
+  },
+  logo: {
+    width: 104,
+    height: 104,
+    marginBottom: 20,
+    borderRadius: 22,
   },
   appName: {
     fontSize: 36,

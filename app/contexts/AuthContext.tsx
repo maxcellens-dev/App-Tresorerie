@@ -12,7 +12,7 @@ type AuthState = {
   loading: boolean;
 };
 
-const AuthContext = createContext<AuthState & { signOut: () => Promise<void> } | null>(null);
+const AuthContext = createContext<AuthState & { signOut: () => Promise<void>; passwordRecovery: boolean; clearPasswordRecovery: () => void } | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -20,6 +20,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session: null,
     loading: true,
   });
+  // true quand l'utilisateur arrive via un lien de réinitialisation de mot de passe.
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   const updateState = useCallback((session: Session | null) => {
     setState({
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
       updateState(session);
     });
 
@@ -52,7 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, session: null, loading: false });
   }, []);
 
-  const value = { ...state, signOut };
+  const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);
+
+  const value = { ...state, signOut, passwordRecovery, clearPasswordRecovery };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

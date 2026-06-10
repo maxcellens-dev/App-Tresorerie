@@ -13,15 +13,15 @@ function localTodayISO(): string {
 /**
  * Contribution d'une transaction au solde « à date » du compte.
  * - Un brouillon ne compte jamais.
- * - Une transaction NON récurrente datée dans le futur ne compte pas encore
- *   (l'argent n'est pas encore sorti du compte → ne doit pas baisser le solde du jour).
- * - Les modèles récurrents gardent le comportement historique (gérés séparément par
- *   la matérialisation des occurrences échues), sinon le delta de matérialisation
- *   deviendrait incohérent.
+ * - Toute transaction (récurrente OU non) datée dans le futur ne compte pas encore
+ *   (l'argent n'est pas encore sorti/entré → ne doit pas modifier le solde du jour).
+ *   Pour un modèle récurrent, seule sa PREMIÈRE échéance (sa date) est considérée ici ;
+ *   les occurrences échues sont portées au solde par la matérialisation (migration 030/057),
+ *   qui s'appuie sur le drapeau `posted` pour savoir si la base a déjà été comptée.
  */
 function balanceContribution(opts: { amount: number; date: string; is_draft?: boolean | null; is_recurring?: boolean | null }): number {
   if (opts.is_draft) return 0;
-  if (!opts.is_recurring && opts.date > localTodayISO()) return 0;
+  if (opts.date > localTodayISO()) return 0;
   return Number(opts.amount);
 }
 

@@ -58,11 +58,32 @@ export default function AddTransactionScreen() {
   const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end'>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
+  // Saisie en 2 étapes (style banque) : étape 1 = qui/quoi, étape 2 = quand/récurrence.
+  const [step, setStep] = useState<1 | 2>(1);
   const scrollRef = useRef<ScrollView>(null);
 
   const isExpense = transactionType === 'expense';
   const isIncome = transactionType === 'income';
   const isTransfer = transactionType === 'transfer';
+
+  // Changer de type → revenir à l'étape 1.
+  const changeType = (t: TransactionType) => { setTransactionType(t); setStep(1); setFormError(null); setErrorFields([]); };
+
+  // Validation de l'étape 1 avant de passer à l'étape 2.
+  function goNext() {
+    setFormError(null); setErrorFields([]);
+    if (isTransfer) {
+      if (!accountId) return showError('Veuillez choisir un compte source.', ['account']);
+      if (!targetAccountId) return showError('Veuillez choisir un compte de destination.', ['targetAccount']);
+      if (accountId === targetAccountId) return showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
+    } else {
+      const num = parseFloat(amount.replace(',', '.'));
+      if (Number.isNaN(num) || num === 0) return showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
+      if (!accountId) return showError('Veuillez choisir un compte.', ['account']);
+    }
+    setStep(2);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }
 
   // Dépense / Recette → comptes courants uniquement. Virement → tous les comptes.
   const selectableAccounts = isTransfer ? accounts : accounts.filter(a => a.type === 'checking');
@@ -214,220 +235,198 @@ export default function AddTransactionScreen() {
               <Text style={styles.errorBannerText}>{formError}</Text>
             </View>
           )}
-          <View style={styles.typeSelector}>
-            <TouchableOpacity
-              style={[styles.typeBtn, isExpense && styles.typeBtnActive]}
-              onPress={() => setTransactionType('expense')}
-              accessibilityRole="button"
-            >
-              <Ionicons name="arrow-down" size={18} color={isExpense ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-              <Text style={[styles.typeBtnLabel, isExpense && styles.typeBtnLabelActive]}>Dépense</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.typeBtn, isIncome && styles.typeBtnActive]}
-              onPress={() => setTransactionType('income')}
-              accessibilityRole="button"
-            >
-              <Ionicons name="arrow-up" size={18} color={isIncome ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-              <Text style={[styles.typeBtnLabel, isIncome && styles.typeBtnLabelActive]}>Recette</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.typeBtn, isTransfer && styles.typeBtnActive]}
-              onPress={() => setTransactionType('transfer')}
-              accessibilityRole="button"
-            >
-              <Ionicons name="swap-horizontal" size={18} color={isTransfer ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-              <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
-            </TouchableOpacity>
+          {/* Sélecteur de type — étape 1 uniquement */}
+          {step === 1 && (
+            <View style={styles.typeSelector}>
+              <TouchableOpacity style={[styles.typeBtn, isExpense && styles.typeBtnActive]} onPress={() => changeType('expense')} accessibilityRole="button">
+                <Ionicons name="arrow-down" size={18} color={isExpense ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.typeBtnLabel, isExpense && styles.typeBtnLabelActive]}>Dépense</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.typeBtn, isIncome && styles.typeBtnActive]} onPress={() => changeType('income')} accessibilityRole="button">
+                <Ionicons name="arrow-up" size={18} color={isIncome ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.typeBtnLabel, isIncome && styles.typeBtnLabelActive]}>Recette</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.typeBtn, isTransfer && styles.typeBtnActive]} onPress={() => changeType('transfer')} accessibilityRole="button">
+                <Ionicons name="swap-horizontal" size={18} color={isTransfer ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Fil d'étapes */}
+          <View style={styles.stepsRow}>
+            <View style={[styles.stepDot, styles.stepDotActive]}><Text style={styles.stepDotText}>1</Text></View>
+            <View style={[styles.stepBar, step >= 2 && styles.stepBarActive]} />
+            <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]}><Text style={[styles.stepDotText, step < 2 && { color: COLORS.textSecondary }]}>2</Text></View>
           </View>
+          <Text style={styles.stepTitle}>
+            {step === 1
+              ? (isTransfer ? 'De quel compte vers quel compte ?' : 'Détails de la ' + (isExpense ? 'dépense' : 'recette'))
+              : (isTransfer ? 'Montant, libellé et date' : 'Quand ?')}
+          </Text>
 
-          {/* Remboursement : entrée d'argent imputée sur une catégorie de dépense (net par catégorie) */}
-          {isExpense && (
-            <TouchableOpacity style={styles.refundToggle} onPress={() => setIsRefund((v) => !v)} activeOpacity={0.7} accessibilityRole="button">
-              <Ionicons name={isRefund ? 'checkbox' : 'square-outline'} size={20} color={isRefund ? COLORS.emerald : COLORS.textSecondary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.refundLabel}>Remboursement (entrée d'argent)</Text>
-                <Text style={styles.refundHint}>S'impute en − sur la catégorie de dépense choisie</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+          {step === 1 ? (
+            isTransfer ? (
+              <>
+                {/* Compte source */}
+                <Text style={styles.label}>Depuis quel compte ?</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                  {accounts.map((acc) => {
+                    const color = accountColor(acc.type);
+                    const isActive = accountId === acc.id;
+                    return (
+                      <TouchableOpacity key={acc.id} style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]} onPress={() => setAccountId(acc.id)}>
+                        <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {/* Compte cible */}
+                <Text style={styles.label}>Vers quel compte ?</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                  {accounts.map((acc) => {
+                    const color = accountColor(acc.type);
+                    const isActive = targetAccountId === acc.id;
+                    const isDisabled = acc.id === accountId;
+                    return (
+                      <TouchableOpacity key={acc.id} style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent', opacity: isDisabled ? 0.35 : 1 }]} onPress={() => setTargetAccountId(acc.id)} disabled={isDisabled}>
+                        <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {accounts.length < 2 && <Text style={styles.hint}>Il faut au moins deux comptes pour faire un virement.</Text>}
+              </>
+            ) : (
+              <>
+                {/* Compte (si plusieurs comptes courants) */}
+                {selectableAccounts.length > 1 && (
+                  <>
+                    <Text style={styles.label}>Compte</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                      {selectableAccounts.map((acc) => {
+                        const color = accountColor(acc.type);
+                        const isActive = accountId === acc.id;
+                        return (
+                          <TouchableOpacity key={acc.id} style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]} onPress={() => setAccountId(acc.id)}>
+                            <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </>
+                )}
+                {selectableAccounts.length === 0 && <Text style={styles.hint}>Aucun compte courant. Ajoutez-en un dans l'onglet Comptes.</Text>}
 
-          {/* Compte */}
-          <Text style={styles.label}>Compte {isTransfer ? 'source' : ''}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-            {selectableAccounts.map((acc) => {
-              const color = accountColor(acc.type);
-              const isActive = accountId === acc.id;
-              return (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]}
-                  onPress={() => setAccountId(acc.id)}
-                >
-                  <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          {selectableAccounts.length === 0 && (
-            <Text style={styles.hint}>
-              {isTransfer ? 'Aucun compte.' : 'Aucun compte courant.'} Ajoutez-en un dans l'onglet Comptes.
-            </Text>
-          )}
-          {!isTransfer && (
-            <Text style={styles.hint}>Les dépenses et recettes se font depuis un compte courant.</Text>
-          )}
+                {/* Remboursement (dépense) */}
+                {isExpense && (
+                  <TouchableOpacity style={styles.refundToggle} onPress={() => setIsRefund((v) => !v)} activeOpacity={0.7} accessibilityRole="button">
+                    <Ionicons name={isRefund ? 'checkbox' : 'square-outline'} size={20} color={isRefund ? COLORS.emerald : COLORS.textSecondary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.refundLabel}>Remboursement (entrée d'argent)</Text>
+                      <Text style={styles.refundHint}>S'impute en − sur la catégorie de dépense choisie</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
 
-          {isTransfer && (
+                {/* Libellé */}
+                <Text style={styles.label}>Libellé (optionnel)</Text>
+                <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Ex. Courses, Salaire..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+
+                {/* Sous-catégorie */}
+                <CategoryPicker
+                  key={isExpense ? 'expense' : 'income'}
+                  groups={categoryGroups}
+                  selectedCategoryId={categoryId}
+                  onSelect={(id) => { setCategoryId(id); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
+                  label="Sous-catégorie *"
+                />
+
+                {/* Montant */}
+                <Text style={styles.label}>Montant ({CURRENCY_SYMBOL}) *</Text>
+                <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={goNext} />
+              </>
+            )
+          ) : (
             <>
-              <Text style={styles.label}>Compte cible</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                {accounts.map((acc) => {
-                  const color = accountColor(acc.type);
-                  const isActive = targetAccountId === acc.id;
-                  const isDisabled = acc.id === accountId;
-                  return (
-                    <TouchableOpacity
-                      key={acc.id}
-                      style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent', opacity: isDisabled ? 0.35 : 1 }]}
-                      onPress={() => setTargetAccountId(acc.id)}
-                      disabled={isDisabled}
-                    >
-                      <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              {/* Précédent */}
+              <TouchableOpacity style={styles.prevLink} onPress={() => setStep(1)} accessibilityRole="button">
+                <Ionicons name="chevron-back" size={16} color={COLORS.emerald} />
+                <Text style={styles.prevLinkText}>Étape précédente</Text>
+              </TouchableOpacity>
+
+              {/* Virement : libellé + montant à l'étape 2 */}
+              {isTransfer && (
+                <>
+                  <Text style={styles.label}>Libellé (optionnel)</Text>
+                  <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Ex. Virement épargne..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+                  <Text style={styles.label}>Montant ({CURRENCY_SYMBOL}) *</Text>
+                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
+                </>
+              )}
+
+              {/* Date */}
+              <Text style={styles.label}>Date</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  value={dateDisplay}
+                  onChangeText={(text) => { setDateDisplay(text); const parsed = parseDateFromFrench(text); if (parsed) setDate(parsed); }}
+                  onBlur={() => { if (date) setDateDisplay(formatDateFrench(date)); }}
+                  placeholder="jj-mm-aaaa"
+                  placeholderTextColor={COLORS.textSecondary}
+                />
+                <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('date')}>
+                  <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Récurrence */}
+              <View style={styles.recurringSection}>
+                <TouchableOpacity style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]} onPress={() => setIsRecurring(!isRecurring)}>
+                  <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
+                  <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>{isTransfer ? 'Virement récurrent' : 'Récurrent (ex. salaire mensuel)'}</Text>
+                </TouchableOpacity>
+                {isRecurring && (
+                  <>
+                    <Text style={styles.label}>Période</Text>
+                    <View style={styles.chipRow}>
+                      {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
+                        <TouchableOpacity key={rule} style={[styles.chip, recurrenceRule === rule && styles.chipActive]} onPress={() => setRecurrenceRule(rule)}>
+                          <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>
+                            {rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <Text style={styles.label}>Fin (optionnel, vide = sans fin)</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                      <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={recurrenceEndDateInput} onChangeText={setRecurrenceEndDateInput} placeholder="jj-mm-aaaa ou vide" placeholderTextColor={COLORS.textSecondary} returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
+                      <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
+                        <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
             </>
           )}
 
-          {/* Libellé */}
-          <Text style={styles.label}>Libellé {isTransfer ? '' : '(optionnel)'}</Text>
-          <TextInput
-            style={styles.input}
-            value={note}
-            onChangeText={setNote}
-            placeholder={isTransfer ? "Ex. Virement épargne..." : "Ex. Courses, Salaire..."}
-            placeholderTextColor={COLORS.textSecondary}
-            returnKeyType="next"
-          />
-
-          {/* Montant */}
-          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL}) *</Text>
-          <TextInput
-            style={[styles.input, errorFields.includes('amount') && styles.inputError]}
-            value={amount}
-            onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }}
-            placeholder="0,00"
-            placeholderTextColor={COLORS.textSecondary}
-            keyboardType="decimal-pad"
-            returnKeyType="done"
-            onSubmitEditing={() => handleSubmit()}
-          />
-
-          {/* Date */}
-          <Text style={styles.label}>Date</Text>
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
-            <TextInput
-              style={[styles.input, { flex: 1, marginBottom: 0 }]}
-              value={dateDisplay}
-              onChangeText={(text) => {
-                setDateDisplay(text);
-                const parsed = parseDateFromFrench(text);
-                if (parsed) setDate(parsed);
-              }}
-              onBlur={() => {
-                if (date) setDateDisplay(formatDateFrench(date));
-              }}
-              placeholder="jj-mm-aaaa"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-            <TouchableOpacity
-              style={styles.calendarBtn}
-              onPress={() => setShowCalendar('date')}
-            >
-              <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
+          {/* Actions : Suivant (étape 1) ou Enregistrer/Brouillon (étape 2) */}
+          {step === 1 ? (
+            <TouchableOpacity style={[styles.submitBtn, styles.submitBtnPrimary, { marginTop: 8 }]} onPress={goNext} accessibilityRole="button">
+              <Text style={styles.submitLabel}>Suivant</Text>
             </TouchableOpacity>
-          </View>
-
-          {!isTransfer && (
-            <CategoryPicker
-              key={isExpense ? 'expense' : 'income'}
-              groups={categoryGroups}
-              selectedCategoryId={categoryId}
-              onSelect={(id) => { setCategoryId(id); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
-              label="Sous-catégorie *"
-            />
+          ) : (
+            <View style={styles.submitRow}>
+              <TouchableOpacity style={[styles.submitBtn, styles.submitBtnPrimary, addTransaction.isPending && styles.submitBtnDisabled]} onPress={() => handleSubmit(false)} disabled={addTransaction.isPending} accessibilityRole="button">
+                {addTransaction.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.submitBtn, styles.submitBtnDraft, addTransaction.isPending && styles.submitBtnDisabled]} onPress={() => handleSubmit(true)} disabled={addTransaction.isPending} accessibilityRole="button">
+                <Text style={styles.submitLabelDraft}>Brouillon</Text>
+              </TouchableOpacity>
+            </View>
           )}
-
-          <View style={styles.recurringSection}>
-            <TouchableOpacity
-              style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]}
-              onPress={() => setIsRecurring(!isRecurring)}
-            >
-              <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
-              <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>{isTransfer ? 'Virement récurrent' : 'Récurrent (ex. salaire mensuel)'}</Text>
-            </TouchableOpacity>
-            {isRecurring && (
-              <>
-                <Text style={styles.label}>Période</Text>
-                <View style={styles.chipRow}>
-                  {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
-                    <TouchableOpacity
-                      key={rule}
-                      style={[styles.chip, recurrenceRule === rule && styles.chipActive]}
-                      onPress={() => setRecurrenceRule(rule)}
-                    >
-                      <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>
-                        {rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={styles.label}>Fin (optionnel, vide = sans fin)</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                    value={recurrenceEndDateInput}
-                    onChangeText={setRecurrenceEndDateInput}
-                    placeholder="jj-mm-aaaa ou vide"
-                    placeholderTextColor={COLORS.textSecondary}
-                    returnKeyType="done"
-                    onSubmitEditing={() => handleSubmit()}
-                  />
-                  <TouchableOpacity
-                    style={styles.calendarBtn}
-                    onPress={() => setShowCalendar('end')}
-                  >
-                    <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-
-          <View style={styles.submitRow}>
-            <TouchableOpacity
-              style={[styles.submitBtn, styles.submitBtnPrimary, addTransaction.isPending && styles.submitBtnDisabled]}
-              onPress={() => handleSubmit(false)}
-              disabled={addTransaction.isPending}
-              accessibilityRole="button"
-            >
-              {addTransaction.isPending ? (
-                <ActivityIndicator color={COLORS.bg} />
-              ) : (
-                <Text style={styles.submitLabel}>Enregistrer</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitBtn, styles.submitBtnDraft, addTransaction.isPending && styles.submitBtnDisabled]}
-              onPress={() => handleSubmit(true)}
-              disabled={addTransaction.isPending}
-              accessibilityRole="button"
-            >
-              <Text style={styles.submitLabelDraft}>Brouillon</Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
 
         {/* Calendar Modal */}
@@ -482,6 +481,15 @@ function makeStyles(c: any) {
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   typeSelector: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
+  stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
+  stepDotActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  stepDotText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  stepBar: { width: 60, height: 2, backgroundColor: c.cardBorder },
+  stepBarActive: { backgroundColor: c.emerald },
+  stepTitle: { fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 },
+  prevLink: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 14 },
+  prevLinkText: { fontSize: 14, fontWeight: '700', color: c.emerald },
   typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
   typeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   typeBtnLabel: { fontSize: 14, fontWeight: '600', color: c.textSecondary },

@@ -77,7 +77,7 @@ export default function SuccesScreen() {
             <View style={styles.summaryItem}>
               <Text style={styles.summaryEmoji}>{config?.identity.streakIcon || '🔥'}</Text>
               <Text style={styles.summaryValue}>{state?.streak ?? 0}</Text>
-              <Text style={styles.summaryLabel}>{config?.identity.streakLabel || 'Série'} (record {state?.best_streak ?? 0})</Text>
+              <Text style={styles.summaryLabel}>{(state?.streak ?? 0) > 1 ? 'semaines' : 'semaine'} d'affilée{'\n'}(record {state?.best_streak ?? 0})</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>

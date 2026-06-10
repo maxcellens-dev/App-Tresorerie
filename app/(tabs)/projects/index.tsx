@@ -81,6 +81,8 @@ export default function ProjectsScreen() {
   const [futureDates, setFutureDates] = useState<string[]>([]);
   const [selectedFromDate, setSelectedFromDate] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
+  const [archiveConfirmId, setArchiveConfirmId] = useState<string | null>(null);
+  const [archiveFutureCount, setArchiveFutureCount] = useState(0);
 
   // Archivage manuel uniquement (bouton « Archiver »). Plus d'archivage automatique.
 
@@ -137,10 +139,25 @@ export default function ProjectsScreen() {
     );
   };
 
-  const handleManualArchive = (projectId: string) => {
+  // Archivage : on conserve les transactions passées ; s'il reste des versements futurs,
+  // on demande confirmation (ils seront supprimés), à l'image de la suppression de projet.
+  const handleArchiveClick = async (projectId: string) => {
+    try {
+      const { future } = await checkTransactions(projectId);
+      if (future.length > 0) {
+        setArchiveConfirmId(projectId);
+        setArchiveFutureCount(future.length);
+        return;
+      }
+    } catch { /* en cas d'échec du check, on archive directement */ }
+    doArchive(projectId);
+  };
+
+  const doArchive = (projectId: string) => {
     archiveMutation.mutate(projectId, {
-      onSuccess: () => refetch(),
+      onSuccess: () => { setArchiveConfirmId(null); refetch(); },
       onError: (e: any) => {
+        setArchiveConfirmId(null);
         const msg = e?.message || 'Archivage impossible.';
         if (Platform.OS === 'web') window.alert(`Archivage impossible\n${msg}`);
         else Alert.alert('Archivage impossible', msg);
@@ -330,7 +347,7 @@ export default function ProjectsScreen() {
           {project.status !== 'archived' && (
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: '#f59e0b20' }]}
-              onPress={() => handleManualArchive(project.id)}
+              onPress={() => handleArchiveClick(project.id)}
               disabled={archiveMutation.isPending}
             >
               <Ionicons name="archive" size={16} color="#f59e0b" />
@@ -604,6 +621,39 @@ export default function ProjectsScreen() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      )}
+
+      {/* Archive Confirmation Modal */}
+      {archiveConfirmId && (
+        <View style={styles.confirmDialogOverlay}>
+          <View style={styles.confirmDialog}>
+            <Text style={[styles.confirmTitle, { color: COLORS.text }]}>
+              <Ionicons name="archive" size={18} color="#f59e0b" />{'  '}Archiver le projet
+            </Text>
+            <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
+              Les transactions passées sont <Text style={{ fontWeight: '700', color: COLORS.text }}>conservées</Text>.{'\n'}
+              {archiveFutureCount} versement{archiveFutureCount > 1 ? 's' : ''} futur{archiveFutureCount > 1 ? 's' : ''} sera{archiveFutureCount > 1 ? 'ont' : ''} <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimé{archiveFutureCount > 1 ? 's' : ''}</Text> (plus de versement après l'archivage).
+            </Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={[styles.confirmCancelBtn, { borderColor: COLORS.border }]}
+                onPress={() => setArchiveConfirmId(null)}
+              >
+                <Text style={[styles.confirmCancelBtnText, { color: COLORS.textSecondary }]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmActionBtn, { backgroundColor: '#f59e0b' }]}
+                onPress={() => doArchive(archiveConfirmId)}
+                disabled={archiveMutation.isPending}
+              >
+                <Ionicons name="archive" size={16} color="#fff" />
+                <Text style={styles.confirmActionBtnText}>
+                  {archiveMutation.isPending ? 'Archivage...' : 'Archiver'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}

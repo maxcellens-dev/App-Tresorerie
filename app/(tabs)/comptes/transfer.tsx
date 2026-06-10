@@ -62,6 +62,15 @@ export default function TransferScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>('monthly');
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
+  // Saisie en 2 étapes (style banque). Si les comptes sont préremplis (depuis une reco), on va direct à l'étape 2.
+  const [step, setStep] = useState<1 | 2>(params.from && params.to ? 2 : 1);
+
+  function goNext() {
+    if (!fromAccountId) { Alert.alert('Compte source requis', 'Choisissez un compte source.'); return; }
+    if (!toAccountId) { Alert.alert('Compte cible requis', 'Choisissez un compte cible.'); return; }
+    if (fromAccountId === toAccountId) { Alert.alert('Comptes différents', 'Le compte source et le compte cible doivent être différents.'); return; }
+    setStep(2);
+  }
 
   // Re-synchroniser depuis les params à chaque navigation (l'écran peut être réutilisé
   // entre onglets, auquel cas les valeurs initiales de useState ne se réappliquent pas).
@@ -201,6 +210,16 @@ export default function TransferScreen() {
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Fil d'étapes */}
+          <View style={styles.stepsRow}>
+            <View style={[styles.stepDot, styles.stepDotActive]}><Text style={styles.stepDotText}>1</Text></View>
+            <View style={[styles.stepBar, step >= 2 && styles.stepBarActive]} />
+            <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]}><Text style={[styles.stepDotText, step < 2 && { color: COLORS.textSecondary }]}>2</Text></View>
+          </View>
+          <Text style={styles.stepTitle}>{step === 1 ? 'De quel compte vers quel compte ?' : 'Montant, date et libellé'}</Text>
+
+          {step === 1 ? (
+          <>
           <Text style={styles.label}>Compte source (débit)</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
             {accounts.map((acc) => (
@@ -242,6 +261,17 @@ export default function TransferScreen() {
               Aucun compte {params.destType === 'savings' ? 'épargne' : params.destType === 'investment' ? 'investissement' : ''}. Créez-en un depuis l’onglet Comptes.
             </Text>
           )}
+
+          <TouchableOpacity style={[styles.submitBtn, { marginTop: 8 }]} onPress={goNext} accessibilityRole="button">
+            <Text style={styles.submitLabel}>Suivant</Text>
+          </TouchableOpacity>
+          </>
+          ) : (
+          <>
+          <TouchableOpacity style={styles.prevLink} onPress={() => setStep(1)} accessibilityRole="button">
+            <Ionicons name="chevron-back" size={16} color={COLORS.emerald} />
+            <Text style={styles.prevLinkText}>Étape précédente</Text>
+          </TouchableOpacity>
 
           <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
           <TextInput
@@ -358,6 +388,8 @@ export default function TransferScreen() {
               <Text style={styles.submitLabel}>Effectuer le virement</Text>
             )}
           </TouchableOpacity>
+          </>
+          )}
         </ScrollView>
 
         {/* Calendar Modal */}
@@ -410,6 +442,15 @@ function makeStyles(c: any) {
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
+  stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
+  stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
+  stepDotActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  stepDotText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  stepBar: { width: 60, height: 2, backgroundColor: c.cardBorder },
+  stepBarActive: { backgroundColor: c.emerald },
+  stepTitle: { fontSize: 17, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 20 },
+  prevLink: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 14 },
+  prevLinkText: { fontSize: 14, fontWeight: '700', color: c.emerald },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },

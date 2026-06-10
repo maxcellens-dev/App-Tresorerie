@@ -704,33 +704,33 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
   const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
   const variableRemaining = pilotage?.variable_envelope_remaining ?? variableMonthly;
 
-  // Filtres : on ne garde que les flux des comptes courants, hors virements internes et hors régularisations.
+  // Filtres : on ne garde que les flux des comptes courants, hors virements internes,
+  // hors régularisations et hors montants RÉSERVÉS (qui restent sur le compte → font partie du solde).
   const onChecking = (t: any) => checkingIds.has(t.account_id);
   const isTransfer = (t: any) => !!t.linked_account_id;
   const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
-  const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft;
+  const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft && !t.is_reserved;
 
-  // Épargne, investissement et projets : sorties du compte courant (virements + brouillons projet)
-  const isOtherOutflow = (t: any) => {
-    const isChecking = onChecking(t);
-    const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
-    if (t.linked_account_id && !isChecking) return false;
-    const isProjectTx = !!t.project_id;
-    if (isChecking && linkedType === 'savings' && isProjectTx) return true;
-    if (isChecking && linkedType === 'savings') return true;
-    if (isChecking && linkedType === 'investment') return true;
-    if (isProjectTx && isChecking) return true;
-    return false;
+  // « Autre » = virements VALIDÉS entre le compte courant et l'épargne/investissement,
+  // DANS LES 2 SENS (courant→épargne = sortie négative ; épargne→courant = entrée positive).
+  // Les projets comptent via leurs virements d'épargne classiques. Les RÉSERVATIONS (is_reserved)
+  // et les brouillons ne comptent pas (l'argent reste sur le compte / n'est pas validé).
+  const isOtherFlow = (t: any) => {
+    if (t.is_reserved || t.is_draft) return false;
+    if (!onChecking(t)) return false; // on ne garde que la jambe côté compte courant
+    if (!t.linked_account_id) return false; // doit être un virement (pas une réservation)
+    const linkedType = accountTypeById[t.linked_account_id] ?? null;
+    return linkedType === 'savings' || linkedType === 'investment';
   };
 
+  // Renvoie le flux NET signé du mois (négatif = sortie d'épargne, positif = retour vers le courant).
   const otherForMonth = (year: number, month: number, onlyRemaining: boolean) => {
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
     let total = 0;
     for (const t of transactions) {
-      if (!isOtherOutflow(t)) continue;
+      if (!isOtherFlow(t)) continue;
       const raw = Number(t.amount);
-      if (raw >= 0) continue;
-      const absAmt = Math.abs(raw);
+      if (raw === 0) continue;
       if (t.is_recurring && t.recurrence_rule) {
         const occ = recurrenceAmount(t, year, month);
         if (!occ) continue;
@@ -738,12 +738,12 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
           const recDay = new Date(t.date).getDate();
           if (!t.is_draft && recDay < now.getDate()) continue;
         }
-        total += Math.abs(occ);
+        total += occ; // signé
       } else if (t.date.startsWith(prefix)) {
         if (onlyRemaining) {
           if (!t.is_draft && t.date <= todayStr) continue;
         }
-        total += absAmt;
+        total += raw; // signé
       }
     }
     return total;
@@ -817,9 +817,10 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
           if (!(amt > 0 && isRegul(t))) upcoming += amt;
         }
       }
-      runningBalance = checkingBalance + upcoming - variableRemaining - otherRemaining;
+      // `otherRemaining` est signé (sortie négative / entrée positive) → on l'AJOUTE.
+      runningBalance = checkingBalance + upcoming - variableRemaining + otherRemaining;
     } else {
-      runningBalance += income + expense - variable - other;
+      runningBalance += income + expense - variable + other;
     }
 
     return {
@@ -864,7 +865,9 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
             </View>
             <View style={styles.tresoMonthRow}>
               <Text style={styles.tresoKey}>Autre (épargne, invest., projets)</Text>
-              <Text style={[styles.tresoVal, { color: COLORS.violet }]}>−{fmt(r.other)} {CURRENCY_SYMBOL}</Text>
+              <Text style={[styles.tresoVal, { color: r.other > 0 ? COLORS.green : COLORS.violet }]}>
+                {r.other > 0 ? '+' : '−'}{fmt(Math.abs(r.other))} {CURRENCY_SYMBOL}
+              </Text>
             </View>
             <View style={[styles.tresoMonthRow, { borderTopWidth: 0.5, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 6 }]}>
               <Text style={[styles.tresoKey, { fontWeight: '700' }]}>Solde prévu</Text>

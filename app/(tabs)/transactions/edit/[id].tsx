@@ -489,6 +489,17 @@ export default function EditTransactionScreen() {
             returnKeyType="next"
           />
 
+          {/* Sous-catégorie (dépense / recette uniquement, juste après le libellé) */}
+          {!isVirement && (
+            <CategoryPicker
+              key={isExpense ? 'expense' : 'income'}
+              groups={categoryGroups}
+              selectedCategoryId={categoryId}
+              onSelect={(cid) => { setCategoryId(cid); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
+              label="Sous-catégorie *"
+            />
+          )}
+
           {/* Montant */}
           <Text style={styles.label}>{isRecurring ? 'Montant actuel' : 'Montant (' + CURRENCY_SYMBOL + ')'} *</Text>
           <TextInput
@@ -628,15 +639,6 @@ export default function EditTransactionScreen() {
               </>
             )}
           </View>
-
-          {/* Sous-catégorie */}
-          <CategoryPicker
-            key={isExpense ? 'expense' : 'income'}
-            groups={categoryGroups}
-            selectedCategoryId={categoryId}
-            onSelect={(cid) => { setCategoryId(cid); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
-            label="Sous-catégorie *"
-          />
 
           <View style={styles.submitRow}>
             <TouchableOpacity

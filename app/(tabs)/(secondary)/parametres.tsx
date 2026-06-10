@@ -147,9 +147,14 @@ export default function SettingsScreen() {
               <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Mon profil</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.emerald} />
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/mes-donnees')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/mes-donnees')}>
               <Ionicons name="download-outline" size={20} color={COLORS.emerald} />
               <Text style={styles.rowLabel}>Mes données</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/change-password')}>
+              <Ionicons name="key-outline" size={20} color={COLORS.emerald} />
+              <Text style={styles.rowLabel}>Changer de mot de passe</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>

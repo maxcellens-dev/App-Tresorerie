@@ -4,6 +4,7 @@
     "slug": "tresorerie",
     "version": "1.0.0",
     "scheme": "tresorerie",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "plugins": ["expo-router"],

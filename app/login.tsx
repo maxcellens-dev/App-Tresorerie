@@ -114,6 +114,9 @@ export default function LoginScreen() {
               ℹ️ L'adresse e-mail n'est reliée à aucune messagerie : pas de récupération
               automatique du mot de passe. En cas d'oubli, contactez un administrateur.
             </Text>
+            <TouchableOpacity style={styles.link} onPress={() => router.push('/reset-password')}>
+              <Text style={[styles.linkText, { color: COLORS.textSecondary }]}>Mot de passe oublié ?</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.link} onPress={() => router.replace('/register')}>
               <Text style={styles.linkText}>Pas de compte ? S’inscrire</Text>
             </TouchableOpacity>
