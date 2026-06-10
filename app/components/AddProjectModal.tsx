@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,14 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import ScreenGradient from './ScreenGradient';
+import HeaderWithProfile from './HeaderWithProfile';
 import CalendarWithPicker from './CalendarWithPicker';
 import { useAuth } from '../contexts/AuthContext';
-import { useAddProject, useUpdateProject, useDeleteProjectFull, useDeleteProjectKeepingLocked, useCheckProjectTransactions } from '../hooks/useProjects';
+import { useProjects, useAddProject, useUpdateProject, useDeleteProjectFull, useDeleteProjectKeepingLocked, useCheckProjectTransactions } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
 import { useProfile } from '../hooks/useProfile';
 import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
@@ -23,13 +28,6 @@ import type { Project } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
-
-interface AddProjectModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSuccess?: () => void;
-  editingProject?: Project | null;
-}
 
 type AllocationType = 'monthly' | 'date' | 'ponctuel';
 
@@ -64,15 +62,18 @@ function getNext12Months(): { key: string; label: string; dayOne: string }[] {
   return result;
 }
 
-export default function AddProjectModal({
-  visible,
-  onClose,
-  onSuccess,
-  editingProject,
-}: AddProjectModalProps) {
+export default function AddProjectModal() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuth();
+  const { data: projects = [] } = useProjects(user?.id || '');
+  const isEdit = !!params.id;
+  const editingProject: Project | null = useMemo(
+    () => (params.id ? projects.find((p) => p.id === params.id) ?? null : null),
+    [projects, params.id]
+  );
   const addProjectMutation = useAddProject(user?.id || '');
   const updateProjectMutation = useUpdateProject(user?.id || '');
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts(user?.id || '');
@@ -113,7 +114,11 @@ export default function AddProjectModal({
   const [showCalendar, setShowCalendar] = useState<'target' | 'payment' | false>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
-  
+  // Assistant en étapes (création uniquement) : 1) infos 2) planification/dates 3) comptes.
+  // En modification, tout reste sur un seul écran.
+  const [step, setStep] = useState(1);
+  const wizard = !isEdit;
+
   // Deletion state
   const deleteFullMutation = useDeleteProjectFull(user?.id || '');
   const deleteKeepingLockedMutation = useDeleteProjectKeepingLocked(user?.id || '');
@@ -127,9 +132,13 @@ export default function AddProjectModal({
     options: Array<{ label: string; action: () => void; destructive?: boolean }>;
   } | null>(null);
 
-  // Load editing project data when modal opens
+  // Initialisation : en édition, on attend que le projet soit chargé pour pré-remplir (1 seule fois).
+  const initializedRef = useRef(false);
   useEffect(() => {
-    if (visible && editingProject) {
+    if (initializedRef.current) return;
+    if (isEdit) {
+      if (!editingProject) return; // attendre le chargement de la liste
+      initializedRef.current = true;
       const allocType: AllocationType = (editingProject.allocation_type as AllocationType) || (editingProject.target_date ? 'date' : 'monthly');
       setForm({
         name: editingProject.name || '',
@@ -167,23 +176,13 @@ export default function AddProjectModal({
         setPonctuelEntries({});
       setPonctuelDay('1');
       }
-    } else if (visible) {
-      setForm({
-        name: '',
-        description: '',
-        target_amount: '',
-        allocation_type: 'monthly',
-        monthly_allocation: '',
-        target_date: '',
-        source_account_id: null,
-        linked_account_id: null,
-        first_payment_date: '',
-        current_accumulated: 0,
-      });
-      setPonctuelEntries({});
-      setPonctuelDay('1');
+    } else {
+      initializedRef.current = true;
+      setStep(1);
+      setFormError(null);
+      setErrorFields([]);
     }
-  }, [visible, editingProject]);
+  }, [isEdit, editingProject]);
 
   const calculatedAllocation = useMemo(() => {
     if (form.allocation_type !== 'date' || !form.target_date || !form.target_amount) return null;
@@ -243,6 +242,32 @@ export default function AddProjectModal({
     }));
   };
 
+  // Validation d'une étape de l'assistant. Renvoie true si l'étape est valide.
+  const validateStep = (s: number): boolean => {
+    setFormError(null);
+    setErrorFields([]);
+    if (s === 1) {
+      if (!form.name.trim()) { setFormError('Le nom du projet est obligatoire.'); setErrorFields(['name']); return false; }
+      if (!form.target_amount.trim() || isNaN(parseFloat(form.target_amount))) { setFormError('Le montant cible est obligatoire.'); setErrorFields(['target_amount']); return false; }
+      return true;
+    }
+    if (s === 2) {
+      if (form.allocation_type === 'monthly') {
+        if (!form.monthly_allocation.trim()) { setFormError("L'allocation mensuelle est obligatoire."); setErrorFields(['monthly_allocation']); return false; }
+      } else if (form.allocation_type === 'date') {
+        if (!form.target_date || !calculatedAllocation) { setFormError('Veuillez entrer une date cible valide.'); setErrorFields(['target_date']); return false; }
+      } else {
+        const anyEnabled = Object.values(ponctuelEntries).some((e) => e?.enabled && parseFloat(e.amount || '0') > 0);
+        if (!anyEnabled) { setFormError('Veuillez activer au moins un mois avec un montant.'); return false; }
+      }
+      return true;
+    }
+    return true;
+  };
+
+  const goNext = () => { if (validateStep(step)) setStep((s) => Math.min(3, s + 1)); };
+  const goPrev = () => { setFormError(null); setErrorFields([]); setStep((s) => Math.max(1, s - 1)); };
+
   const handleSubmit = async () => {
     setFormError(null);
     setErrorFields([]);
@@ -300,11 +325,8 @@ export default function AddProjectModal({
     }
 
     const resetForm = () => {
-      setForm({ name: '', description: '', target_amount: '', allocation_type: 'monthly', monthly_allocation: '', target_date: '', source_account_id: null, linked_account_id: null, first_payment_date: '', current_accumulated: 0 });
-      setPonctuelEntries({});
-      setPonctuelDay('1');
-      onSuccess?.();
-      onClose();
+      // Succès : la liste se rafraîchit via l'invalidation des requêtes, on revient à l'écran précédent.
+      router.back();
     };
 
     if (editingProject) {
@@ -354,15 +376,16 @@ export default function AddProjectModal({
     setShowCalendar(false);
     setFormError(null);
     setErrorFields([]);
+    setStep(1);
     setShowDeleteConfirm(false);
-    onClose();
+    router.back();
   };
 
   const runDeleteFull = () => {
     if (!editingProject) return;
     setDeleteConfirmState(null);
     deleteFullMutation.mutate(editingProject.id, {
-      onSuccess: () => { handleClose(); onSuccess?.(); },
+      onSuccess: () => { handleClose(); },
       onError: () => Alert.alert('Erreur', 'La suppression du projet a échoué.'),
     });
   };
@@ -373,7 +396,7 @@ export default function AddProjectModal({
     deleteKeepingLockedMutation.mutate(
       { projectId: editingProject.id, lockDate },
       {
-        onSuccess: () => { handleClose(); onSuccess?.(); },
+        onSuccess: () => { handleClose(); },
         onError: () => Alert.alert('Erreur', 'La suppression du projet a échoué.'),
       },
     );
@@ -507,20 +530,20 @@ export default function AddProjectModal({
   const isPending = addProjectMutation.isPending || updateProjectMutation.isPending;
 
   return (
-    <>
-      <Modal visible={visible && !showCalendar} transparent animationType="slide" onRequestClose={handleClose}>
-        <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-          <View style={[styles.container, { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border }]}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: COLORS.text }]}>
-                {editingProject ? 'Modifier Projet' : 'Nouveau Projet'}
-              </Text>
-              <TouchableOpacity onPress={handleClose} disabled={isPending || !!showAccountPicker}>
-                <Text style={[styles.closeButton, { color: COLORS.primary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <ScreenGradient />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <HeaderWithProfile
+          title={isEdit ? 'Modifier le projet' : 'Nouveau projet'}
+          showBack
+          hideProfile
+          onBack={handleClose}
+        />
+        {isEdit && !editingProject ? (
+          <View style={styles.loadingContainer}><ActivityIndicator color={COLORS.primary} /></View>
+        ) : (
+          <View style={styles.pageBody}>
             {!showAccountPicker ? (
               <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
                 {/* Bandeau erreur */}
@@ -529,6 +552,25 @@ export default function AddProjectModal({
                     <Text style={styles.errorBannerText}>{formError}</Text>
                   </View>
                 )}
+                {wizard && (
+                  <View style={styles.stepIndicator}>
+                    {[1, 2, 3].map((n, i) => (
+                      <React.Fragment key={n}>
+                        <View style={[styles.stepDot, step >= n && styles.stepDotActive]}>
+                          <Text style={[styles.stepDotText, step >= n && styles.stepDotTextActive]}>{n}</Text>
+                        </View>
+                        {i < 2 && <View style={[styles.stepLine, step > n && styles.stepLineActive]} />}
+                      </React.Fragment>
+                    ))}
+                  </View>
+                )}
+                {wizard && (
+                  <Text style={styles.stepTitle}>
+                    {step === 1 ? 'Informations du projet' : step === 2 ? 'Planification & dates' : 'Comptes des mouvements'}
+                  </Text>
+                )}
+
+                {(!wizard || step === 1) && (<>
                 {/* Nom */}
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: COLORS.text }]}>Nom du projet *</Text>
@@ -571,6 +613,9 @@ export default function AddProjectModal({
                   />
                 </View>
 
+                </>)}
+
+                {(!wizard || step === 2) && (<>
                 {/* Planification — 3 onglets */}
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: COLORS.text }]}>Planification</Text>
@@ -732,6 +777,9 @@ export default function AddProjectModal({
                   </View>
                 )}
 
+                </>)}
+
+                {(!wizard || step === 3) && (<>
                 {/* Message d'information sur les brouillons générés */}
                 {!editingProject && (
                   <View style={[styles.infoBox, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40' }]}>
@@ -786,6 +834,9 @@ export default function AddProjectModal({
                   )}
                 </View>
 
+                </>)}
+
+                {(!wizard || step === 2) && (<>
                 {/* Date premier virement (pas pour ponctuel) */}
                 {form.allocation_type !== 'ponctuel' && (
                   <View style={styles.field}>
@@ -813,6 +864,7 @@ export default function AddProjectModal({
                     </View>
                   </View>
                 )}
+                </>)}
               </ScrollView>
             ) : (
               /* Account Picker */
@@ -865,22 +917,32 @@ export default function AddProjectModal({
               <View style={styles.actions}>
                 <TouchableOpacity
                   style={[styles.button, styles.cancelButton, { borderColor: COLORS.border }]}
-                  onPress={handleClose}
+                  onPress={wizard && step > 1 ? goPrev : handleClose}
                   disabled={isPending}
                 >
-                  <Text style={[styles.buttonText, { color: COLORS.text }]}>Annuler</Text>
+                  <Text style={[styles.buttonText, { color: COLORS.text }]}>{wizard && step > 1 ? 'Précédent' : 'Annuler'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.button, { backgroundColor: COLORS.primary }]}
-                  onPress={handleSubmit}
-                  disabled={isPending}
-                >
-                  {isPending ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>{editingProject ? 'Mettre à jour' : 'Créer'}</Text>
-                  )}
-                </TouchableOpacity>
+                {wizard && step < 3 ? (
+                  <TouchableOpacity
+                    style={[styles.button, { backgroundColor: COLORS.primary }]}
+                    onPress={goNext}
+                    disabled={isPending}
+                  >
+                    <Text style={styles.submitButtonText}>Suivant</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.button, { backgroundColor: COLORS.primary }]}
+                    onPress={handleSubmit}
+                    disabled={isPending}
+                  >
+                    {isPending ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>{editingProject ? 'Mettre à jour' : 'Créer'}</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             )}
             
@@ -904,11 +966,11 @@ export default function AddProjectModal({
               </TouchableOpacity>
             )}
           </View>
-        </View>
-      </Modal>
+        )}
+      </SafeAreaView>
 
       {/* Calendar modal */}
-      <Modal visible={!!showCalendar && visible} transparent animationType="slide" onRequestClose={() => setShowCalendar(false)}>
+      <Modal visible={!!showCalendar} transparent animationType="slide" onRequestClose={() => setShowCalendar(false)}>
         <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
           <View style={[styles.calendarContainer, { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border }]}>
             <View style={styles.calendarHeader}>
@@ -974,7 +1036,7 @@ export default function AddProjectModal({
           </View>
         </View>
       </Modal>
-    </>
+    </View>
   );
 }
 
@@ -1002,8 +1064,19 @@ function makeStyles(c: any) {
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 18, fontWeight: '600' },
   closeButton: { fontSize: 24, fontWeight: '300' },
-  form: { marginBottom: 16 },
+  root: { flex: 1, backgroundColor: c.background },
+  safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  pageBody: { flex: 1 },
+  form: { flex: 1, marginBottom: 12 },
   field: { marginBottom: 12 },
+  stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, gap: 0 },
+  stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background, borderWidth: 1, borderColor: c.border },
+  stepDotActive: { backgroundColor: c.primary, borderColor: c.primary },
+  stepDotText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+  stepDotTextActive: { color: '#fff' },
+  stepLine: { width: 40, height: 2, backgroundColor: c.border, marginHorizontal: 4 },
+  stepLineActive: { backgroundColor: c.primary },
+  stepTitle: { fontSize: 16, fontWeight: '700', color: c.text, textAlign: 'center', marginBottom: 14 },
   label: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
   textarea: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, textAlignVertical: 'top' },

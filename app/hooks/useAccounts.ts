@@ -49,8 +49,9 @@ function normalizeName(name: string): string {
 }
 
 /**
- * Crée les comptes par défaut à la fin de l'onboarding si l'utilisateur n'en a aucun :
- * un compte courant, un Livret A et un LDDS (épargne). Idempotent.
+ * Crée le compte par défaut à la fin de l'onboarding si l'utilisateur n'en a aucun :
+ * un seul compte courant. (Plus de Livret A / LDDS auto — l'utilisateur les crée au besoin.)
+ * Idempotent.
  */
 export function useSeedDefaultAccounts(profileId: string | undefined) {
   const client = useQueryClient();
@@ -64,20 +65,13 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
         .limit(1);
       if (existing && existing.length > 0) return; // déjà des comptes → ne rien faire
 
-      const defaults = [
-        { name: 'Compte courant', type: 'checking' },
-        { name: 'Livret A', type: 'savings' },
-        { name: 'LDDS', type: 'savings' },
-      ];
-      const { error } = await supabase.from('accounts').insert(
-        defaults.map((d) => ({
-          profile_id: profileId,
-          name: d.name,
-          type: d.type,
-          currency: 'EUR',
-          balance: 0,
-        }))
-      );
+      const { error } = await supabase.from('accounts').insert({
+        profile_id: profileId,
+        name: 'Compte courant',
+        type: 'checking',
+        currency: 'EUR',
+        balance: 0,
+      });
       if (error) throw error;
     },
     onSuccess: () => {

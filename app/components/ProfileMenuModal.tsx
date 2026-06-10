@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { usePlan } from '../hooks/usePlan';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppNameFont } from '../hooks/useBrandFont';
 
@@ -22,6 +23,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const { user, signOut } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { isPremium } = usePlan(user?.id);
+  const { data: featureFlags } = useFeatureFlags();
 
   const avatarUrl = profile?.avatar_url ?? user?.user_metadata?.avatar_url;
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
@@ -30,10 +32,13 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const go = (route: string) => { onClose(); router.push(route as any); };
   const logout = async () => { onClose(); await signOut(); router.replace('/welcome'); };
 
-  const items: { icon: string; label: string; route: string; color?: string }[] = [
+  // Reporting masqué aux utilisateurs tant que le flag n'est pas activé (les admins y accèdent toujours).
+  const reportingVisible = Boolean(featureFlags?.reporting_enabled) || isAdmin;
+
+  const items: ({ icon: string; label: string; route: string; color?: string } | false)[] = [
     { icon: 'person-circle-outline', label: 'Mon Profil', route: '/(tabs)/(secondary)/profile' },
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
-    { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b' },
+    reportingVisible && { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b' },
     { icon: 'bag-handle-outline', label: 'Boutique', route: '/(tabs)/(secondary)/boutique', color: '#22d3ee' },
     { icon: 'star-outline', label: 'Plan', route: '/(tabs)/(secondary)/premium', color: '#fbbf24' },
     { icon: 'options-outline', label: 'Paramètres', route: '/(tabs)/(secondary)/parametres' },
@@ -74,12 +79,15 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
           </View>
 
           <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
-            {items.map((it) => (
-              <Pressable key={it.label} style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]} onPress={() => go(it.route)}>
-                <Ionicons name={it.icon as any} size={20} color={it.color ?? COLORS.emerald} />
-                <Text style={styles.rowLabel}>{it.label}</Text>
-              </Pressable>
-            ))}
+            {items.filter(Boolean).map((it) => {
+              const item = it as { icon: string; label: string; route: string; color?: string };
+              return (
+                <Pressable key={item.label} style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]} onPress={() => go(item.route)}>
+                  <Ionicons name={item.icon as any} size={20} color={item.color ?? COLORS.emerald} />
+                  <Text style={styles.rowLabel}>{item.label}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
           <View style={styles.divider} />

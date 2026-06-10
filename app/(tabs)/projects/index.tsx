@@ -31,7 +31,6 @@ import {
   useCheckProjectTransactions,
   useDeleteProjectFromDate,
 } from '../../hooks/useProjects';
-import AddProjectModal from '../../components/AddProjectModal';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
@@ -73,8 +72,6 @@ export default function ProjectsScreen() {
     return map;
   }, [pilotage?.projects_with_progress]);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteMode, setDeleteMode] = useState<'full' | 'from-date'>('full');
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
@@ -337,7 +334,7 @@ export default function ProjectsScreen() {
         <View style={styles.projectActions}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: COLORS.primary + '20' }]}
-            onPress={() => { setEditingId(project.id); setModalVisible(true); }}
+            onPress={() => router.push(`/(tabs)/projects/add?id=${project.id}` as any)}
           >
             <Ionicons name="settings-outline" size={16} color={COLORS.primary} />
             <Text style={[styles.actionButtonText, { color: COLORS.primary }]}>Gérer</Text>
@@ -384,7 +381,7 @@ export default function ProjectsScreen() {
             ref={addBtnRef}
             style={[styles.addBtn, onbGlow(COLORS, onbProject)]}
             activeOpacity={0.8}
-            onPress={() => { setEditingId(null); setModalVisible(true); }}
+            onPress={() => router.push('/(tabs)/projects/add' as any)}
             accessibilityRole="button"
           >
             <Ionicons name="add" size={20} color={COLORS.primary} />
@@ -658,15 +655,6 @@ export default function ProjectsScreen() {
         </View>
       )}
 
-      <AddProjectModal
-        visible={modalVisible}
-        onClose={() => {
-          setModalVisible(false);
-          setEditingId(null);
-        }}
-        onSuccess={() => refetch()}
-        editingProject={editingId ? projects.find(p => p.id === editingId) || null : null}
-      />
     </View>
   );
 }

@@ -34,6 +34,7 @@ export default function AdminFeatures() {
   const closureOn = Boolean(flags?.monthly_closure_enabled);
   const premiumOn = Boolean(flags?.premium_enabled);
   const adsOn = Boolean(flags?.ads_enabled);
+  const reportingOn = Boolean(flags?.reporting_enabled);
 
   const Toggle = ({ label, desc, value, onToggle }: { label: string; desc: string; value: boolean; onToggle: () => void }) => (
     <View style={styles.card}>
@@ -80,6 +81,12 @@ export default function AdminFeatures() {
               desc="Affiche les zones de publicité (bannières maison gérées en admin) aux utilisateurs non-premium. Désactivé = aucune pub."
               value={adsOn}
               onToggle={() => save.mutate({ ads_enabled: !adsOn })}
+            />
+            <Toggle
+              label="Reporting"
+              desc="Donne accès à la page Reporting (statistiques utilisateur) depuis le menu. Désactivé = page masquée pour les utilisateurs (les admins y accèdent toujours)."
+              value={reportingOn}
+              onToggle={() => save.mutate({ reporting_enabled: !reportingOn })}
             />
             <Toggle
               label="Mon compte : Premium (test)"

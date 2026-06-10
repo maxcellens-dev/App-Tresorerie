@@ -10,6 +10,8 @@ export interface FeatureFlags {
   premium_enabled?: boolean;
   /** Zone de publicités active (sinon : aucune pub affichée). */
   ads_enabled?: boolean;
+  /** Page Reporting accessible aux utilisateurs (sinon : masquée du menu). */
+  reporting_enabled?: boolean;
 }
 
 const KEY = 'feature_flags';

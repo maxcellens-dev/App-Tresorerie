@@ -3,30 +3,29 @@
  * Rendu par la route publique /legal (accessible sans connexion).
  * Retour intelligent : revient en arrière s'il y a un historique, sinon vers l'accueil.
  */
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import ScreenGradient from './ScreenGradient';
+import HeaderWithProfile from './HeaderWithProfile';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 
 export default function LegalScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const { user } = useAuth();
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/welcome'));
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.title}>Mentions légales</Text>
-          </View>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <HeaderWithProfile title="Mentions légales" showBack onBack={goBack} hideProfile={!user} />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.contentWrap}>
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
 
           <Section title="Éditeur de l'application">
@@ -68,6 +67,7 @@ export default function LegalScreen() {
           </Section>
 
           <View style={{ height: 40 }} />
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -93,10 +93,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
-  backBtn: { padding: 4, marginRight: 12 },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
-  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 6 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 12 },
+  contentWrap: { width: '100%', maxWidth: 860, alignSelf: 'center' },
   updated: { fontSize: 12, color: c.textSecondary, marginBottom: 24 },
   card: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,

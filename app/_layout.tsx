@@ -77,11 +77,14 @@ function AppChrome() {
   const root = segments[0] ?? 'index';
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register' || root === 'reset-password';
   // Pendant le questionnaire, on masque l'en-tête (profil) : l'utilisateur doit le terminer.
-  const hideChrome = isAuthPage || root === 'questionnaire' || root === 'confidentialite' || root === 'legal';
+  // Les pages légales gardent l'en-tête de l'app quand l'utilisateur est connecté (sinon : en-tête « site »).
+  const hideChrome = isAuthPage || root === 'questionnaire';
   const isTabs = root === '(tabs)';
   // Sur web bureau : on limite la largeur de l'app (colonne centrée ~840 px), comme une app mobile.
-  // Exception : la page d'accueil marketing (welcome/index) reste pleine largeur.
-  const limitWidth = Platform.OS === 'web' && root !== 'welcome' && root !== 'index';
+  // Exceptions pleine largeur : page d'accueil marketing (welcome/index) + pages publiques légales.
+  const limitWidth = Platform.OS === 'web'
+    && root !== 'welcome' && root !== 'index'
+    && root !== 'confidentialite' && root !== 'legal';
 
   // Lien de réinitialisation de mot de passe → écran dédié (prioritaire sur le reste).
   useEffect(() => {

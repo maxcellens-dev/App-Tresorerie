@@ -8,6 +8,7 @@ export default function ProjectsLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="add" options={{ title: 'Projet' }} />
     </Stack>
   );
 }

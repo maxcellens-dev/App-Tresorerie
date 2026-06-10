@@ -442,6 +442,23 @@ export default function AccountDetailScreen() {
           <Text style={styles.accountType}>{TYPE_LABELS[account.type] ?? account.type}</Text>
         </View>
 
+        {/* Première ouverture d'un compte courant vierge → inviter à renseigner le solde à date */}
+        {account.type === 'checking' && Number(account.balance) === 0 && accountTransactions.length === 0 && (
+          <TouchableOpacity
+            style={styles.setupBanner}
+            onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); const today = todayISO(); setBalanceDate(today); setBalanceDateDisplay(formatDateFrench(today)); }}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+          >
+            <Ionicons name="information-circle" size={22} color={COLORS.blue} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.setupBannerTitle}>Renseignez votre solde pour bien démarrer</Text>
+              <Text style={styles.setupBannerText}>Appuyez ici pour saisir le solde réel de ce compte à aujourd'hui.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
+
         {account.type === 'investment' && (
           <View style={styles.apportCard}>
             <View style={styles.apportRow}>
@@ -1153,6 +1170,9 @@ function makeStyles(c: any) {
   balanceLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
   balanceAmount: { fontSize: 26, fontWeight: '800', color: c.text },
   accountType: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
+  setupBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.blue + '14', borderWidth: 1, borderColor: c.blue + '55', borderRadius: 14, padding: 14, marginBottom: 24, marginTop: -8 },
+  setupBannerTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+  setupBannerText: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
   apportCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 24 },
   apportRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   apportLabel: { fontSize: 13, color: c.textSecondary },
