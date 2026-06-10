@@ -228,6 +228,37 @@ export default function SettingsScreen() {
                 Montant que vous souhaitez avoir au minimum sur vos comptes courants à la fin du mois, par sécurité.
               </Text>
             </View>
+
+            {/* Prudence : pilote la confiance dans les revenus à venir et l'horizon de projection */}
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0, marginTop: 4 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' }}>
+                <Ionicons name="speedometer-outline" size={20} color={COLORS.textSecondary} />
+                <Text numberOfLines={1} style={[styles.rowLabel, { flex: 1 }]}>Prudence du budget</Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingLeft: 30 }}>
+                {([
+                  { label: 'Auto', value: null as number | null },
+                  { label: 'Dynamique', value: 25 },
+                  { label: 'Équilibré', value: 50 },
+                  { label: 'Prudent', value: 75 },
+                ]).map((opt) => {
+                  const active = (((profile as any)?.prudence_level ?? null) as number | null) === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.label}
+                      onPress={() => updateProfile.mutate({ prudence_level: opt.value })}
+                      style={{ borderWidth: 1, borderColor: active ? COLORS.emerald : COLORS.cardBorder, backgroundColor: active ? COLORS.emerald + '1A' : 'transparent', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: active ? COLORS.emerald : COLORS.textSecondary }}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
+                Plus prudent = on compte moins sur les revenus pas encore reçus et on regarde plus loin avant de conseiller d'investir. « Auto » s'adapte à votre profil.
+              </Text>
+            </View>
           </View>
 
           {/* ── Apparence ── */}

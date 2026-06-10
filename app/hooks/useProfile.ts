@@ -78,6 +78,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       theme_preset?: string;
       currency_code?: string;
       treso_simplified?: boolean;
+      prudence_level?: number | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
 
@@ -97,6 +98,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.weekly_variable_budget !== undefined) updates.weekly_variable_budget = payload.weekly_variable_budget;
       if (payload.currency_code !== undefined) updates.currency_code = payload.currency_code;
       if (payload.treso_simplified !== undefined) updates.treso_simplified = payload.treso_simplified;
+      if (payload.prudence_level !== undefined) updates.prudence_level = payload.prudence_level;
 
       // Séparer safety_margin_amount pour éviter qu'un échec (colonne manquante avant
       // migration 031) ne bloque les autres mises à jour.

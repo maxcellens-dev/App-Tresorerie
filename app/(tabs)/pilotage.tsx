@@ -178,8 +178,10 @@ export default function PilotageScreen() {
   const monthExpensesPast = pilotageData?.month_expenses_past ?? 0;
   // « Reste à vivre » (Option B) : on part du solde courant à date et on ne déduit
   // QUE ce qui n'est pas encore sorti du compte (à venir / non exécuté) + la marge.
+  const monthIncomeRemaining = pilotageData?.month_income_remaining ?? 0;
   const resteDisponible = Math.max(0,
     (pilotageData?.current_checking_balance ?? 0)
+    + monthIncomeRemaining            // recettes à venir d'ici la prochaine rentrée (modèle adaptatif)
     - savingsRemaining
     - investRemaining
     - (pilotageData?.monthly_reserve_planned ?? 0)
@@ -198,6 +200,7 @@ export default function PilotageScreen() {
   //  ensuite déduire ces montants catégorie par catégorie.)
   const recoBudget = Math.max(0,
     (pilotageData?.current_checking_balance ?? 0)
+    + monthIncomeRemaining            // recettes à venir comptées (cohérent avec le budget libre)
     - safetyMarginDisplay
     - monthExpensesRemaining
     - variableEnvelopeRemaining
@@ -484,6 +487,22 @@ export default function PilotageScreen() {
                     </View>
                     <Text style={[styles.suiviValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
                   </View>
+
+                  {/* Recettes prévues restantes (vert) — revenus à venir d'ici la prochaine rentrée */}
+                  {(pilotageData.month_income_remaining ?? 0) > 0 && (
+                    <View style={styles.suiviRow}>
+                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.emerald + '22' }]}>
+                        <Ionicons name="arrow-up-circle-outline" size={16} color={COLORS.emerald} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Recettes prévues restantes</Text>
+                        <Text style={styles.suiviHint} numberOfLines={1}>
+                          {pilotageData.expected_income_source === 'inferred' ? 'Estimé d’après votre historique' : 'Revenus à venir d’ici la prochaine rentrée'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.suiviValue, { color: COLORS.emerald }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                    </View>
+                  )}
 
                   <View style={styles.suiviDivider} />
 

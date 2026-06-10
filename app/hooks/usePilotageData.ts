@@ -16,6 +16,15 @@ export interface PilotageData {
   same_account_reserved: number;
   monthly_commitments: number;
 
+  // Revenu attendu + creux + garde-fou projection (modèle « trésorerie adaptative »)
+  month_income_remaining: number;        // recettes à venir d'ici la prochaine rentrée (affichage)
+  expected_monthly_income: number;       // revenu mensuel détecté (explicite ou inféré)
+  expected_income_source: 'explicit' | 'inferred' | 'none';
+  expected_income_confidence: number;    // 0..1
+  projection_min_buffer: number;         // plus bas du solde courant projeté sur N mois
+  projection_in_danger: boolean;         // true → frein « Conserver »
+  prudence: number;                      // 0..1 (1 = très prudent)
+
   // Suivi des engagements du mois en cours
   monthly_savings_planned: number;       // virements récurrents épargne + projets (total du mois, affichage)
   monthly_savings_remaining: number;     // part non encore exécutée → pour le budget libre
@@ -230,6 +239,95 @@ function recurrencePastInMonth(
   return 0;
 }
 
+// ── Horizon glissant / creux de trésorerie ──────────────────────────────────
+function isoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + days); return isoDay(d);
+}
+function clamp01(v: number): number { return Math.max(0, Math.min(1, v)); }
+
+/** Occurrences (ISO) d'un modèle récurrent, strictement après `afterStr` et ≤ `untilStr`. */
+function recurrenceOccurrencesBetween(startDate: string, rule: RecurrenceRule, endDate: string | null, afterStr: string, untilStr: string): string[] {
+  const out: string[] = [];
+  const start = new Date(startDate.slice(0, 10) + 'T00:00:00');
+  const until = new Date(untilStr + 'T00:00:00');
+  const end = endDate ? new Date(endDate.slice(0, 10) + 'T00:00:00') : null;
+  if (rule === 'weekly') {
+    const d = new Date(start);
+    while (isoDay(d) <= afterStr) d.setDate(d.getDate() + 7);
+    let guard = 0;
+    while (d <= until && (!end || d <= end) && guard++ < 200) { out.push(isoDay(d)); d.setDate(d.getDate() + 7); }
+    return out;
+  }
+  const step = rule === 'monthly' ? 1 : rule === 'quarterly' ? 3 : rule === 'yearly' ? 12 : 0;
+  if (step === 0) return out;
+  const baseDay = start.getDate();
+  const startTotal = start.getFullYear() * 12 + start.getMonth();
+  for (let i = 0; i < 240; i++) {
+    const total = startTotal + i * step;
+    const yy = Math.floor(total / 12), mm = total % 12;
+    const dim = new Date(yy, mm + 1, 0).getDate();
+    const occ = new Date(yy, mm, Math.min(baseDay, dim));
+    if (end && occ > end) break;
+    const occStr = isoDay(occ);
+    if (occStr > untilStr) break;
+    if (occStr > afterStr) out.push(occStr);
+  }
+  return out;
+}
+
+export interface ExpectedIncome { monthlyAmount: number; nextDate: string | null; day: number; confidence: number; source: 'explicit' | 'inferred' | 'none' }
+
+/** Détecte le revenu attendu : récurrent explicite, sinon inféré de l'historique (4 mois). */
+function detectExpectedIncome(transactions: any[], checkingIds: Set<string>, todayStr: string): ExpectedIncome {
+  const none: ExpectedIncome = { monthlyAmount: 0, nextDate: null, day: 1, confidence: 0, source: 'none' };
+  // 1) Explicite : virement/recette récurrent(e) mensuel(le) entrant(e) sur un compte courant.
+  const explicit = transactions.filter((t) =>
+    checkingIds.has(t.account_id) && t.is_recurring && t.recurrence_rule === 'monthly'
+    && Number(t.amount) > 0 && !t.is_draft && !t.linked_account_id);
+  if (explicit.length > 0) {
+    const top = explicit.slice().sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+    const occ = recurrenceOccurrencesBetween(top.date, 'monthly', top.recurrence_end_date ?? null, todayStr, addDaysIso(todayStr, 40))[0] ?? null;
+    return { monthlyAmount: Number(top.amount), nextDate: occ, day: new Date(top.date).getDate(), confidence: 1, source: 'explicit' };
+  }
+  // 2) Inféré : recettes ponctuelles régulières (même libellé, ≥ 2 mois distincts) sur 4 mois.
+  const now = new Date(todayStr + 'T00:00:00');
+  const fourMonthsAgo = isoDay(new Date(now.getFullYear(), now.getMonth() - 4, 1));
+  const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const groups: Record<string, { amounts: number[]; days: number[]; months: Set<string> }> = {};
+  for (const t of transactions) {
+    if (!checkingIds.has(t.account_id) || t.is_draft || t.is_reserved || t.linked_account_id) continue;
+    if (Number(t.amount) <= 0 || t.date < fourMonthsAgo || t.date > todayStr) continue;
+    const key = norm(t.note ?? '') || 'revenu';
+    (groups[key] ??= { amounts: [], days: [], months: new Set() });
+    groups[key].amounts.push(Number(t.amount));
+    groups[key].days.push(new Date(t.date).getDate());
+    groups[key].months.add(t.date.slice(0, 7));
+  }
+  let best: ExpectedIncome = none;
+  for (const g of Object.values(groups)) {
+    if (g.months.size < 2) continue;
+    const amounts = g.amounts.slice().sort((a, b) => a - b);
+    const median = amounts[Math.floor(amounts.length / 2)];
+    if (median <= best.monthlyAmount) continue;
+    const day = Math.round(g.days.reduce((s, d) => s + d, 0) / g.days.length);
+    const confidence = Math.min(1, g.months.size / 3);
+    let occ = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(Math.min(day, 28)).padStart(2, '0')}`;
+    if (occ <= todayStr) occ = isoDay(new Date(now.getFullYear(), now.getMonth() + 1, Math.min(day, 28)));
+    best = { monthlyAmount: median, nextDate: occ, day, confidence, source: 'inferred' };
+  }
+  return best;
+}
+
+/** Prudence (0..1, 1 = très prudent). Override profiles.prudence_level (0..100), sinon dérivée des allocations. */
+function profilePrudence(profile: any): number {
+  if (typeof profile?.prudence_level === 'number') return clamp01(profile.prudence_level / 100);
+  const invest = Number(profile?.allocation_invest_percent ?? 25);
+  return clamp01(0.7 - invest / 100); // plus on investit, moins on est prudent
+}
+
 // Compute Pilotage Dashboard Data
 function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>): PilotageData {
   const now = new Date();
@@ -265,51 +363,103 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const safety_margin_percent = profile?.safety_margin_percent ?? 10; // conservé pour rétrocompatibilité
   const safety_margin_amount = profile?.safety_margin_amount ?? 0;
   const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const checkingIds = new Set(accounts.filter(a => a.type === 'checking').map(a => a.id));
+  const prudence = profilePrudence(profile);
 
-  // Sorties futures ce mois (après aujourd'hui, montants négatifs uniquement).
-  // On n'inclut PAS les recettes futures : le safe_to_spend est basé sur ce qu'on a
-  // maintenant, pas sur ce qu'on va recevoir.
-  const remaining_future_outflows = transactions
-    .filter(t => {
-      const [tYear, tMonth] = t.date.split('-').map(Number);
-      return tYear === currentYear && tMonth === currentMonth && t.date > todayStr && Number(t.amount) < 0;
-    })
-    .reduce((sum, t) => sum + Number(t.amount), 0); // négatif
-
-  // Dépenses futures (valeur absolue) — pour indicateurs
-  const remaining_fixed_expenses = Math.abs(remaining_future_outflows);
-
-  // Committed allocations: active projects monthly + active objectives monthly
+  // Engagements (projets actifs) + objectifs (info, non déduits du budget)
   const committed_project_allocations = projects
     .filter(p => p.status === 'active')
     .reduce((sum, p) => sum + Number(p.monthly_allocation), 0);
-
   const committed_objective_monthly = objectives
     .filter(o => o.status === 'active')
     .reduce((sum, o) => sum + (Number(o.target_yearly_amount) / 12), 0);
-
-  // Les objectifs ne sont pas déduits du safe_to_spend (ils sont informatifs, pas une vraie sortie planifiée)
   const committed_allocations = committed_project_allocations;
   const monthly_commitments = committed_allocations;
 
-  // Same-account project reservations: money is "reserved" but still sits
-  // on the checking account. Only count PAST reservations (date ≤ today)
-  // so the user isn't told they can spend money already earmarked.
+  // Réservations même compte : l'argent est « réservé » mais reste sur le courant (passées uniquement).
   const same_account_reserved = projects
-    .filter(p => p.status === 'active'
-      && p.source_account_id && p.linked_account_id
-      && p.source_account_id === p.linked_account_id)
+    .filter(p => p.status === 'active' && p.source_account_id && p.linked_account_id && p.source_account_id === p.linked_account_id)
     .reduce((sum, p) => {
       const monthlyAlloc = Number(p.monthly_allocation) || 0;
       const pastTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr && !(t as any).is_draft);
       return sum + pastTxns.length * monthlyAlloc;
     }, 0);
 
-  // Base à dépenser = solde courant + sorties futures - engagements - réservations
-  const base_to_spend = current_checking_balance + remaining_future_outflows - committed_allocations - same_account_reserved;
+  // ── Revenu attendu + CREUX de trésorerie (horizon glissant jusqu'à la prochaine rentrée) ──
+  // Le budget libre = point le plus bas du solde courant simulé d'ici la prochaine rentrée d'argent
+  // (revenus ET dépenses comptés dans l'ordre). On ne libère jamais plus que ce creux → robuste
+  // au décalage de date de paie (le montant du creux ne bouge presque pas). Le revenu non saisi
+  // est INFÉRÉ de l'historique et pondéré par la prudence (profil).
+  const expectedIncome = detectExpectedIncome(transactions, checkingIds, todayStr);
 
-  // Safe to spend = base - marge de sécurité fixe (montant conservé quoi qu'il arrive)
+  let nextIncomeDate: string | null = null;
+  for (const t of transactions) {
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || t.linked_account_id || (t as any).project_id) continue;
+    if (Number(t.amount) <= 0) continue;
+    if (t.is_recurring && t.recurrence_rule) {
+      const occ = recurrenceOccurrencesBetween(t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null, todayStr, addDaysIso(todayStr, 40))[0];
+      if (occ && (!nextIncomeDate || occ < nextIncomeDate)) nextIncomeDate = occ;
+    } else if (t.date > todayStr && (!nextIncomeDate || t.date < nextIncomeDate)) {
+      nextIncomeDate = t.date;
+    }
+  }
+  if (expectedIncome.source === 'inferred' && expectedIncome.nextDate && (!nextIncomeDate || expectedIncome.nextDate < nextIncomeDate)) {
+    nextIncomeDate = expectedIncome.nextDate;
+  }
+
+  // Horizon : jusqu'à la prochaine rentrée (+2 j), borné à [7 j, 45 j] ; 30 j si aucune rentrée.
+  let horizonEnd = nextIncomeDate ? addDaysIso(nextIncomeDate, 2) : addDaysIso(todayStr, 30);
+  if (horizonEnd < addDaysIso(todayStr, 7)) horizonEnd = addDaysIso(todayStr, 7);
+  if (horizonEnd > addDaysIso(todayStr, 45)) horizonEnd = addDaysIso(todayStr, 45);
+
+  // Événements futurs sur comptes courants (hors projets/réservés/brouillons), revenus ET dépenses.
+  const events: { date: string; amount: number }[] = [];
+  for (const t of transactions) {
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id) continue;
+    const amt = Number(t.amount);
+    if (t.is_recurring && t.recurrence_rule) {
+      for (const occ of recurrenceOccurrencesBetween(t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null, todayStr, horizonEnd)) events.push({ date: occ, amount: amt });
+    } else if (t.date > todayStr && t.date <= horizonEnd) {
+      events.push({ date: t.date, amount: amt });
+    }
+  }
+  // Revenu INFÉRÉ (non saisi) : ajouté à sa date, pondéré par confiance × (1 − prudence).
+  const inferredTrust = clamp01(1 - prudence) * expectedIncome.confidence;
+  if (expectedIncome.source === 'inferred' && expectedIncome.nextDate && expectedIncome.nextDate <= horizonEnd && inferredTrust > 0) {
+    events.push({ date: expectedIncome.nextDate, amount: expectedIncome.monthlyAmount * inferredTrust });
+  }
+
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  let running = current_checking_balance;
+  let trough = current_checking_balance;
+  let month_income_remaining = 0;   // recettes à venir (info / affichage)
+  let outflow_remaining = 0;
+  for (const e of events) {
+    running += e.amount;
+    if (e.amount > 0) month_income_remaining += e.amount; else outflow_remaining += -e.amount;
+    if (running < trough) trough = running;
+  }
+  const remaining_fixed_expenses = outflow_remaining;
+
+  // Base à dépenser = creux − engagements − réservations.
+  const base_to_spend = trough - committed_allocations - same_account_reserved;
   const safe_to_spend = Math.max(0, base_to_spend - safety_margin_amount);
+
+  // ── Garde-fou PROJECTION (moyen terme) : le solde courant projeté tient-il N mois ? ──
+  // N dépend de la prudence (3 → 12 mois). Net mensuel = moyenne 3 mois passés (courant, hors virements/régul).
+  const projHorizonMonths = Math.round(3 + prudence * 9);
+  const past3Keys = [1, 2, 3].map((k) => { const d = new Date(currentYear, currentMonth - 1 - k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+  const netByMonth: Record<string, number> = {};
+  for (const t of transactions) {
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || t.linked_account_id) continue;
+    if (/r[ée]gul/i.test((t as any).note ?? '')) continue;
+    const mk = t.date.slice(0, 7);
+    if (past3Keys.includes(mk)) netByMonth[mk] = (netByMonth[mk] ?? 0) + Number(t.amount);
+  }
+  const netVals = Object.values(netByMonth);
+  const monthly_net_3m = netVals.length ? netVals.reduce((s, v) => s + v, 0) / netVals.length : 0;
+  const projection_min_buffer = current_checking_balance + projHorizonMonths * Math.min(0, monthly_net_3m);
+  const projection_in_danger = projection_min_buffer < Math.max(0, safety_margin_amount);
 
   // =====================================================================
   // STEP 2: Variable Expense Trend (using is_variable flag)
@@ -682,6 +832,13 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     committed_allocations,
     monthly_commitments,
     same_account_reserved,
+    month_income_remaining,
+    expected_monthly_income: expectedIncome.monthlyAmount,
+    expected_income_source: expectedIncome.source,
+    expected_income_confidence: expectedIncome.confidence,
+    projection_min_buffer,
+    projection_in_danger,
+    prudence,
     monthly_savings_planned,
     monthly_savings_remaining,
     monthly_invest_planned,

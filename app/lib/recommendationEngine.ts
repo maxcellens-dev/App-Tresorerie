@@ -175,6 +175,15 @@ export function computeRecommendations(
     return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data)];
   }
 
+  // Garde-fou PROJECTION (moyen terme) : si la trajectoire de trésorerie plonge sous le coussin
+  // dans les N prochains mois, on FREINE → on ne recommande que "Conserver" (renforcer le coussin),
+  // quel que soit le profil. La répartition du profil n'est PAS modifiée : c'est un frein de sécurité,
+  // comme le garde-fou marge ci-dessus (n'agit qu'en situation de danger projeté).
+  if (data.projection_in_danger) {
+    if (budget <= 0) return [];
+    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data)];
+  }
+
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
 
