@@ -175,7 +175,7 @@ export default function AccountsListScreen() {
                 <View style={styles.quickIcon}>
                   <Ionicons name="add" size={22} color={COLORS.emerald} />
                 </View>
-                <Text style={styles.quickLabel}>Compte</Text>
+                <Text style={styles.quickLabel}>Créer Compte</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 ref={transferBtnRef}
