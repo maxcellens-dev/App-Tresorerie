@@ -12,7 +12,16 @@ type AuthState = {
   loading: boolean;
 };
 
-const AuthContext = createContext<AuthState & { signOut: () => Promise<void>; passwordRecovery: boolean; clearPasswordRecovery: () => void } | null>(null);
+type ImpersonationApi = {
+  /** Admin réel (toujours la vraie session, même en mode consultation). */
+  realUser: User | null;
+  isImpersonating: boolean;
+  impersonatedEmail: string | null;
+  impersonate: (userId: string, email: string | null) => void;
+  stopImpersonating: () => void;
+};
+
+const AuthContext = createContext<AuthState & { signOut: () => Promise<void>; passwordRecovery: boolean; clearPasswordRecovery: () => void } & ImpersonationApi | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -22,6 +31,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   // true quand l'utilisateur arrive via un lien de réinitialisation de mot de passe.
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  // Mode admin « connecté en tant que » : on substitue l'identifiant de données, sans toucher à l'auth réelle.
+  const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
+  const [impersonatedEmail, setImpersonatedEmail] = useState<string | null>(null);
 
   const updateState = useCallback((session: Session | null) => {
     setState({
@@ -51,13 +63,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [updateState]);
 
   const signOut = useCallback(async () => {
+    setImpersonatedUserId(null);
+    setImpersonatedEmail(null);
     if (supabase) await supabase.auth.signOut();
     setState({ user: null, session: null, loading: false });
   }, []);
 
   const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);
 
-  const value = { ...state, signOut, passwordRecovery, clearPasswordRecovery };
+  const impersonate = useCallback((userId: string, email: string | null) => {
+    setImpersonatedUserId(userId);
+    setImpersonatedEmail(email);
+  }, []);
+  const stopImpersonating = useCallback(() => {
+    setImpersonatedUserId(null);
+    setImpersonatedEmail(null);
+  }, []);
+
+  const realUser = state.user;
+  const isImpersonating = !!impersonatedUserId && !!realUser;
+  // En mode consultation : tout l'app lit/écrit les données du compte cible (id substitué),
+  // mais l'authentification (token, Google…) reste celle de l'admin réel.
+  const effectiveUser: User | null = isImpersonating
+    ? ({ ...(realUser as User), id: impersonatedUserId!, email: impersonatedEmail ?? (realUser as User).email })
+    : realUser;
+
+  const value = {
+    user: effectiveUser,
+    session: state.session,
+    loading: state.loading,
+    signOut,
+    passwordRecovery,
+    clearPasswordRecovery,
+    realUser,
+    isImpersonating,
+    impersonatedEmail,
+    impersonate,
+    stopImpersonating,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

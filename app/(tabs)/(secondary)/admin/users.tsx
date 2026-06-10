@@ -21,8 +21,13 @@ export default function AdminUsers() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, impersonate } = useAuth();
   const qc = useQueryClient();
+
+  function consult(u: AdminUser) {
+    impersonate(u.id, u.email);
+    router.replace('/(tabs)/home');
+  }
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
 
@@ -102,18 +107,28 @@ export default function AdminUsers() {
                   <Text style={styles.email} numberOfLines={1}>{u.email || u.id}</Text>
                   {u.is_premium && <Text style={styles.premiumTag}>★ Premium</Text>}
                 </View>
-                <TouchableOpacity
-                  style={[styles.toggleBtn, { backgroundColor: u.is_premium ? COLORS.danger + '18' : COLORS.emerald + '18', borderColor: u.is_premium ? COLORS.danger : COLORS.emerald }]}
-                  onPress={() => togglePremium(u)}
-                  disabled={busyId === u.id}
-                  activeOpacity={0.85}
-                >
-                  {busyId === u.id ? <ActivityIndicator size="small" color={COLORS.emerald} /> : (
-                    <Text style={[styles.toggleText, { color: u.is_premium ? COLORS.danger : COLORS.emerald }]}>
-                      {u.is_premium ? 'Retirer Premium' : 'Passer Premium'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                <View style={styles.actionsCol}>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, { backgroundColor: '#f59e0b18', borderColor: '#f59e0b', flexDirection: 'row', alignItems: 'center', gap: 5 }]}
+                    onPress={() => consult(u)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="eye-outline" size={14} color="#f59e0b" />
+                    <Text style={[styles.toggleText, { color: '#f59e0b' }]}>Consulter</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, { backgroundColor: u.is_premium ? COLORS.danger + '18' : COLORS.emerald + '18', borderColor: u.is_premium ? COLORS.danger : COLORS.emerald }]}
+                    onPress={() => togglePremium(u)}
+                    disabled={busyId === u.id}
+                    activeOpacity={0.85}
+                  >
+                    {busyId === u.id ? <ActivityIndicator size="small" color={COLORS.emerald} /> : (
+                      <Text style={[styles.toggleText, { color: u.is_premium ? COLORS.danger : COLORS.emerald }]}>
+                        {u.is_premium ? 'Retirer Premium' : 'Passer Premium'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             ))
           )}
@@ -137,7 +152,8 @@ function makeStyles(c: any) {
     name: { fontSize: 14, fontWeight: '700', color: c.text },
     email: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
     premiumTag: { fontSize: 11, color: c.yellow, fontWeight: '700', marginTop: 3 },
-    toggleBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+    actionsCol: { gap: 6, alignItems: 'stretch' },
+    toggleBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, alignItems: 'center', justifyContent: 'center' },
     toggleText: { fontSize: 12, fontWeight: '700' },
     text: { color: c.text, padding: 20 },
   });

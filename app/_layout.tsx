@@ -10,6 +10,7 @@ import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
+import ImpersonationBanner from './components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from './lib/analytics';
 import ProfileChangeModal from './components/ProfileChangeModal';
 import FontApplier from './components/FontApplier';
@@ -39,26 +40,27 @@ function RecurringMaterializer() {
   return null;
 }
 
-/** Suivi d'usage : app_open (1×/session) + screen_view à chaque changement de page. */
+/** Suivi d'usage : app_open (1×/session) + screen_view à chaque changement de page.
+ *  Désactivé en mode « connecté en tant que » pour ne pas polluer les stats du compte cible. */
 function AnalyticsTracker() {
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const pathname = usePathname();
   const openedFor = useRef<string | null>(null);
 
-  useEffect(() => { setAnalyticsUser(user?.id ?? null); }, [user?.id]);
+  useEffect(() => { setAnalyticsUser(isImpersonating ? null : (user?.id ?? null)); }, [user?.id, isImpersonating]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || isImpersonating) return;
     if (openedFor.current !== user.id) {
       openedFor.current = user.id;
       logEvent('app_open');
     }
-  }, [user?.id]);
+  }, [user?.id, isImpersonating]);
 
   useEffect(() => {
-    if (!user?.id || !pathname) return;
+    if (!user?.id || !pathname || isImpersonating) return;
     trackScreen(pathname);
-  }, [pathname, user?.id]);
+  }, [pathname, user?.id, isImpersonating]);
 
   return null;
 }
@@ -101,6 +103,7 @@ function AppChrome() {
     <TourProvider>
     <View style={styles.root}>
       <View style={limitWidth ? styles.webColumn : styles.fullColumn}>
+      <ImpersonationBanner />
       {!hideChrome && user && !isTabs && (
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
           <HeaderWithProfile height={80} />

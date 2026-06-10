@@ -42,7 +42,7 @@ function buildContext(transactions: any[]): BadgeContext {
 }
 
 export default function GamificationSync() {
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { data: config } = useGamificationConfig();
   const { data: transactions = [], isLoading: txLoading } = useTransactions(user?.id);
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
@@ -52,6 +52,7 @@ export default function GamificationSync() {
   const ranFor = useRef<string | null>(null);
 
   useEffect(() => {
+    if (isImpersonating) return; // pas d'effet de bord gamification en mode consultation admin
     if (!user?.id || !config?.identity.enabled) return;
     if (ranFor.current === user.id) return;
     if (txLoading) return; // attendre la fin du chargement des transactions (vide = OK)
