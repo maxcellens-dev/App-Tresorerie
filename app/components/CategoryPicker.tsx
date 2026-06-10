@@ -48,6 +48,15 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
   const childIds = useMemo(() => new Set(groups.flatMap((g) => g.children.map((c) => c.id))), [groups]);
   const isNoneSelected = !selectedCategoryId || !childIds.has(selectedCategoryId);
 
+  // Sous-catégorie sélectionnée (pour l'afficher directement dans le champ, sans avoir à scroller).
+  const selectedCat = useMemo(() => {
+    for (const g of groups) {
+      const c = g.children.find((c) => c.id === selectedCategoryId);
+      if (c) return { name: c.name, parentName: g.parentName };
+    }
+    return null;
+  }, [groups, selectedCategoryId]);
+
   // Filtrage par recherche (insensible casse/accents). Un parent reste affiché
   // si son nom matche OU s'il a au moins un enfant qui matche.
   const filteredGroups = useMemo(() => {
@@ -61,6 +70,25 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
       })
       .filter((g) => g.children.length > 0);
   }, [groups, query]);
+
+  // Une sous-catégorie est choisie → on l'affiche dans le champ avec une croix (pas de liste à scroller).
+  if (selectedCat) {
+    return (
+      <View style={styles.block}>
+        <Text style={styles.label}>{label}</Text>
+        <View style={styles.selectedChip}>
+          <Ionicons name="pricetag" size={16} color={COLORS.emerald} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.selectedText} numberOfLines={1}>{selectedCat.name}</Text>
+            <Text style={styles.selectedParent} numberOfLines={1}>{selectedCat.parentName}</Text>
+          </View>
+          <TouchableOpacity onPress={() => { onSelect(''); setQuery(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Retirer la sous-catégorie">
+            <Ionicons name="close-circle" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.block}>
@@ -127,6 +155,13 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   block: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
+  selectedChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderColor: c.emerald, borderRadius: 12,
+    backgroundColor: c.emerald + '14', paddingHorizontal: 14, paddingVertical: 12,
+  },
+  selectedText: { fontSize: 15, fontWeight: '700', color: c.text },
+  selectedParent: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
