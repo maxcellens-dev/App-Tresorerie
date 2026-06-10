@@ -3,7 +3,7 @@
  * Regroupe l'accès aux pages « compte » (profil, financier, reporting, boutique, plan,
  * paramètres, apparence, support) + déconnexion + pied de page. Affiche le tag Premium.
  */
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Image, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Modal, Image, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -75,11 +75,10 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
 
           <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
             {items.map((it) => (
-              <TouchableOpacity key={it.label} style={styles.row} onPress={() => go(it.route)} activeOpacity={0.7}>
+              <Pressable key={it.label} style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]} onPress={() => go(it.route)}>
                 <Ionicons name={it.icon as any} size={20} color={it.color ?? COLORS.emerald} />
                 <Text style={styles.rowLabel}>{it.label}</Text>
-                <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </ScrollView>
 
@@ -116,7 +115,8 @@ function makeStyles(c: any) {
     tagsRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
     tag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     tagText: { fontSize: 10, fontWeight: '800' },
-    row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 6, borderRadius: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+    rowHover: { backgroundColor: c.text + '14' },
     rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: c.text },
     divider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 8 },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13 },
