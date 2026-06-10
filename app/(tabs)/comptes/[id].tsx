@@ -314,8 +314,14 @@ export default function AccountDetailScreen() {
 
   const balanceAtDate = useMemo(() => {
     if (!id) return account ? Number(account.balance) : 0;
+    // Le solde du compte ne reflète QUE le passé (transactions échues ≤ aujourd'hui).
+    // Pour remonter à la date de référence, on ne retire donc que les transactions
+    // réellement portées au solde, c.-à-d. comprises entre la date de réf. et aujourd'hui.
+    // (Les transactions FUTURES ne sont pas dans le solde → ne pas les réintégrer.)
+    const today = new Date().toISOString().slice(0, 10);
     const afterDate = (transactions as TransactionWithDetails[]).filter(
-      (t) => t.account_id === id && !(t as any).is_draft && !(t as any).is_recurring && t.date > balanceDate
+      (t) => t.account_id === id && !(t as any).is_draft && !(t as any).is_recurring
+        && t.date > balanceDate && t.date <= today
     );
     const sumAfter = afterDate.reduce((s, t) => s + Number(t.amount), 0);
     return (account ? Number(account.balance) : 0) - sumAfter;
