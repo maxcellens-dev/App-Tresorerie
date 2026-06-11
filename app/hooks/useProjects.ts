@@ -43,12 +43,14 @@ function buildProjectTransactions(opts: {
       is_reserved: true,
     });
   } else {
-    // Seul le débit est créé ; le crédit est généré à la validation dans l'écran Transactions
+    // Virement vers un autre compte (épargne / investissement) : le brouillon est un VIREMENT
+    // (linked_account_id renseigné), pas une dépense. Le crédit de destination est créé à la validation.
     if (sourceAccountId) {
       txns.push({
         profile_id: profileId,
         account_id: sourceAccountId,
-        category_id: projetsCategoryId,
+        category_id: null,                 // un virement n'a pas de catégorie de dépense
+        linked_account_id: linkedAccountId, // ← en fait un virement (et non une dépense)
         amount: -monthlyAllocation,
         date,
         note: projectName,

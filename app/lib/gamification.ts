@@ -50,16 +50,33 @@ export interface StreakConfig {
   freezeCost: number;     // coût d'un gel de série (gemmes)
 }
 
+export type ShopCategory = 'gratuit' | 'series' | 'apparence' | 'cosmetiques' | 'gems';
+
+export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
+  gratuit: 'Gratuit',
+  series: 'Séries',
+  apparence: 'Apparence',
+  cosmetiques: 'Cosmétiques',
+  gems: 'Recharger en gemmes',
+};
+/** Ordre d'affichage des catégories dans la boutique. */
+export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'series', 'apparence', 'cosmetiques', 'gems'];
+
+/** Les 7 couleurs d'accent premium débloquées par l'achat « accent_pack » (ou Premium). */
+export const ACCENT_PACK_COLORS = ['#FF2D55', '#FF6B6B', '#FFCC00', '#06D6A0', '#00C7BE', '#5856D6', '#C77DFF'];
+
 export interface ShopItem {
   key: string;
-  // freeze : +1 (ou payload.qty) gel · streak_restore : restaure la série · accent : applique une couleur (payload.hex)
-  // theme/cosmetic/external : ajoutés à l'inventaire (effet cosmétique / hors-app)
-  type: 'freeze' | 'streak_restore' | 'accent' | 'theme' | 'cosmetic' | 'external';
+  // freeze : +1 (ou payload.qty) gel · streak_restore : restaure la série · daily_gems : 5 gemmes/jour gratuit
+  // accent_pack : débloque les couleurs premium · gems_iap : achat de gemmes en argent réel (RevenueCat)
+  // cosmetic/theme/external : ajoutés à l'inventaire (effet cosmétique / hors-app)
+  type: 'freeze' | 'streak_restore' | 'daily_gems' | 'accent_pack' | 'gems_iap' | 'theme' | 'cosmetic' | 'external';
+  category?: ShopCategory;
   label: string;
   description?: string;
-  price: number;          // en gemmes
+  price: number;          // en gemmes (0 pour gratuit / payant en argent réel)
   icon?: string;          // Ionicons ou URL
-  payload?: Record<string, unknown>; // ex. { hex } pour un accent, { qty } pour un pack
+  payload?: Record<string, unknown>; // ex. { qty } pour un pack, { gems, productId } pour un gems_iap
 }
 
 export interface GamificationConfig {
@@ -122,22 +139,22 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done', label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».', icon: 'compass', threshold: 1, gems: 50 },
   ],
   shop: [
+    // ── Gratuit ──
+    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 gemmes offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
     // ── Séries ──
-    { key: 'freeze', type: 'freeze', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi.', price: 50, icon: 'snow' },
-    { key: 'streak_restore', type: 'streak_restore', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
-    { key: 'freeze_pack3', type: 'freeze', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
-    // ── Couleurs d'accent (7) ──
-    { key: 'accent_rose', type: 'accent', label: 'Accent Rose flash', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#FF2D55' } },
-    { key: 'accent_corail', type: 'accent', label: 'Accent Corail', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#FF6B6B' } },
-    { key: 'accent_or', type: 'accent', label: 'Accent Or', description: 'Débloque et applique cette teinte d’accent.', price: 80, icon: 'color-palette', payload: { hex: '#FFCC00' } },
-    { key: 'accent_emeraude', type: 'accent', label: 'Accent Émeraude vif', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#06D6A0' } },
-    { key: 'accent_turquoise', type: 'accent', label: 'Accent Turquoise', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#00C7BE' } },
-    { key: 'accent_indigo', type: 'accent', label: 'Accent Indigo', description: 'Débloque et applique cette teinte d’accent.', price: 70, icon: 'color-palette', payload: { hex: '#5856D6' } },
-    { key: 'accent_magenta', type: 'accent', label: 'Accent Magenta', description: 'Débloque et applique cette teinte d’accent.', price: 70, icon: 'color-palette', payload: { hex: '#C77DFF' } },
+    { key: 'freeze', type: 'freeze', category: 'series', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi (cumulable).', price: 50, icon: 'snow' },
+    { key: 'freeze_pack3', type: 'freeze', category: 'series', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
+    { key: 'streak_restore', type: 'streak_restore', category: 'series', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
+    // ── Apparence ──
+    { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Couleurs personnalisées', description: 'Débloque les couleurs d’accent personnalisées + 7 teintes premium dans Apparence.', price: 200, icon: 'color-palette' },
     // ── Cosmétiques ──
-    { key: 'cosmetic_gold_flame', type: 'cosmetic', label: 'Flamme dorée', description: 'Une flamme de série dorée affichée sur ton profil.', price: 90, icon: 'flame' },
-    { key: 'cosmetic_avatar_frame', type: 'cosmetic', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
-    { key: 'cosmetic_title_legend', type: 'cosmetic', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
+    { key: 'cosmetic_gold_flame', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme dorée', description: 'Une flamme de série dorée affichée sur ton profil.', price: 90, icon: 'flame' },
+    { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
+    { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'cosmetiques', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
+    // ── Recharger en gemmes (argent réel via le store) ──
+    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 gemmes', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: 'relyka_gems_100' } },
+    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 gemmes', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: 'relyka_gems_500' } },
+    { key: 'gems_1200', type: 'gems_iap', category: 'gems', label: '1200 gemmes', description: 'Le meilleur rapport.', price: 0, icon: 'diamond', payload: { gems: 1200, productId: 'relyka_gems_1200' } },
   ],
 };
 
@@ -150,8 +167,23 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
     premium_discount_pct: stored.premium_discount_pct ?? DEFAULT_GAMIFICATION.premium_discount_pct,
     relyka_tab_enabled: stored.relyka_tab_enabled ?? DEFAULT_GAMIFICATION.relyka_tab_enabled,
     badges: mergeBadges(stored.badges),
-    shop: stored.shop ?? DEFAULT_GAMIFICATION.shop,
+    shop: mergeShop(stored.shop),
   };
+}
+
+/** Conserve les articles boutique stockés (édités en admin) et ajoute les articles
+ *  par défaut dont la clé n'est pas encore présente (ex. nouveaux articles d'une mise à jour). */
+function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
+  if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.shop;
+  const defByKey = new Map(DEFAULT_GAMIFICATION.shop.map((s) => [s.key, s]));
+  const keys = new Set(stored.map((s) => s.key));
+  // Pour les articles existants, complète les champs manquants (ex. category, type) depuis le défaut.
+  const merged = stored.map((s) => {
+    const def = defByKey.get(s.key);
+    return def ? { ...def, ...s } : s;
+  });
+  const missing = DEFAULT_GAMIFICATION.shop.filter((s) => !keys.has(s.key));
+  return [...merged, ...missing];
 }
 
 /**

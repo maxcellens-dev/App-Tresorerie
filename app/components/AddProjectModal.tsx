@@ -131,6 +131,8 @@ export default function AddProjectModal() {
     message: string;
     options: Array<{ label: string; action: () => void; destructive?: boolean }>;
   } | null>(null);
+  // Allocation mensuelle : auto-calculée depuis le montant cible tant que l'utilisateur ne l'a pas modifiée.
+  const [monthlyAllocEdited, setMonthlyAllocEdited] = useState(false);
 
   // Initialisation : en édition, on attend que le projet soit chargé pour pré-remplir (1 seule fois).
   const initializedRef = useRef(false);
@@ -139,6 +141,7 @@ export default function AddProjectModal() {
     if (isEdit) {
       if (!editingProject) return; // attendre le chargement de la liste
       initializedRef.current = true;
+      setMonthlyAllocEdited(true); // en édition, on ne réécrase pas l'allocation existante
       const allocType: AllocationType = (editingProject.allocation_type as AllocationType) || (editingProject.target_date ? 'date' : 'monthly');
       setForm({
         name: editingProject.name || '',
@@ -183,6 +186,17 @@ export default function AddProjectModal() {
       setErrorFields([]);
     }
   }, [isEdit, editingProject]);
+
+  // Mode « mensuel » : suggère automatiquement l'allocation = montant cible / 12 mois,
+  // tant que l'utilisateur n'a pas saisi sa propre valeur (il peut toujours la modifier).
+  const DEFAULT_PROJECT_MONTHS = 12;
+  useEffect(() => {
+    if (monthlyAllocEdited || form.allocation_type !== 'monthly') return;
+    const target = parseFloat(form.target_amount);
+    if (!(target > 0)) return;
+    const suggested = String(Math.max(1, Math.ceil(target / DEFAULT_PROJECT_MONTHS)));
+    if (suggested !== form.monthly_allocation) setForm((f) => ({ ...f, monthly_allocation: suggested }));
+  }, [form.target_amount, form.allocation_type, monthlyAllocEdited]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const calculatedAllocation = useMemo(() => {
     if (form.allocation_type !== 'date' || !form.target_date || !form.target_amount) return null;
@@ -647,10 +661,15 @@ export default function AddProjectModal() {
                       placeholder="500"
                       placeholderTextColor={COLORS.textSecondary}
                       value={form.monthly_allocation}
-                      onChangeText={(t) => setForm({ ...form, monthly_allocation: t.replace(/[^0-9.]/g, '') })}
+                      onChangeText={(t) => { setMonthlyAllocEdited(true); setForm({ ...form, monthly_allocation: t.replace(/[^0-9.]/g, '') }); }}
                       keyboardType="decimal-pad"
                       editable={!isPending}
                     />
+                    <Text style={[styles.label, { color: COLORS.textSecondary, fontSize: 12, marginTop: 6, fontWeight: '400' }]}>
+                      {monthlyAllocEdited
+                        ? 'Vous fixez vous-même le montant mensuel.'
+                        : `Calculé automatiquement (objectif sur ${DEFAULT_PROJECT_MONTHS} mois) — modifiable.`}
+                    </Text>
                   </View>
                 )}
 

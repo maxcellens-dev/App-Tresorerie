@@ -684,7 +684,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   let month_savings_total = 0, month_savings_future = 0;
   let month_invest_total = 0, month_invest_future = 0;
   for (const t of transactions) {
-    if ((t as any).is_draft) continue;
+    const isProjectDraft = Boolean((t as any).is_draft) && Boolean((t as any).project_id);
+    // On ignore les brouillons SAUF ceux issus d'un projet (virements planifiés à compter comme manuels).
+    if ((t as any).is_draft && !isProjectDraft) continue;
+    if ((t as any).is_reserved) continue; // une transaction réservée (« conservée ») n'est pas de l'épargne/invest
     const amt = Number(t.amount);
     if (amt >= 0) continue; // sortie depuis le compte source
     const srcType = accountTypeById[t.account_id];
@@ -700,6 +703,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     const pastAmt = isRecurring
       ? recurrencePastInMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
       : (isThisMonth && t.date <= todayStr ? Math.abs(amt) : 0);
+    // Part « à venir » (non encore sortie du solde) → déduite du budget libre (resteDisponible),
+    // donc des recommandations. Les virements de projet en brouillon comptent ici comme s'ils
+    // étaient saisis manuellement : la reco s'adapte sans attendre la validation.
     const futureAmt = Math.max(0, monthlyAmt - pastAmt);
     if (linkedType === 'investment' && (srcType === 'checking' || srcType === 'savings')) {
       month_invest_total += monthlyAmt; month_invest_future += futureAmt;

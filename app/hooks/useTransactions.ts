@@ -418,9 +418,11 @@ export function useDeleteTransaction(profileId: string | undefined) {
                 project_id: projectId, is_draft: true,
               });
             } else if (project!.source_account_id) {
+              // Virement vers un autre compte → brouillon de VIREMENT (linked_account_id), pas une dépense.
               txnsToInsert.push({
                 profile_id: profileId, account_id: project!.source_account_id,
-                category_id: projetsCategoryId, amount: -newMonthly, date: d,
+                category_id: null, linked_account_id: project!.linked_account_id ?? null,
+                amount: -newMonthly, date: d,
                 note: project!.name ?? null, is_forecast: false, is_recurring: false,
                 recurrence_rule: null, recurrence_end_date: null,
                 project_id: projectId, is_draft: true,

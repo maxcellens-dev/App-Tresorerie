@@ -306,11 +306,13 @@ export default function TreasuryPlanScreen() {
       const isProjectTx = !!(t as any).project_id;
 
       if (isExcluded) continue;
-      // Validated project transfers go to Projets, not Épargne
-      if (isSavingsMove && isProjectTx) { addToMouv(mouvProjets, t, amount); continue; }
+      // Une transaction de projet « conservée » (réservée) → Réservé, pas Épargne/Invest.
+      if (isProjectTx && (t as any).is_reserved) { addToMouv(mouvProjets, t, amount); continue; }
+      // Les virements de projet vers épargne / investissement comptent comme de l'épargne / de l'invest
+      // (comme un virement manuel) — qu'ils soient validés ou en brouillon.
       if (isSavingsMove) { addToMouv(mouvEpargne, t, amount); continue; }
       if (isInvestMove) { addToMouv(mouvInvest, t, amount); continue; }
-      // Draft project transactions: route to Projets, not expense categories
+      // Réservations même-compte (projet) → Réservé.
       if (isProjectTx && isChecking) { addToMouv(mouvProjets, t, amount); continue; }
 
       // Régularisation dépense (montant négatif): row grise sous Frais variables

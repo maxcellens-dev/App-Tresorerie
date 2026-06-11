@@ -119,6 +119,20 @@ export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> {
   } catch { return null; }
 }
 
+/** Achat d'un pack de gemmes (produit consommable). ok=true → créditer les gemmes côté app. */
+export async function purchaseGemsPack(productId: string): Promise<PurchaseResult> {
+  if (!PURCHASES_SUPPORTED || !configured) return { ok: false, reason: 'not_supported' };
+  try {
+    const products = await Purchases.getProducts([productId]);
+    if (!products.length) return { ok: false, reason: 'not_configured', message: 'Produit indisponible (à créer dans le store).' };
+    await Purchases.purchaseStoreProduct(products[0]);
+    return { ok: true };
+  } catch (e: any) {
+    if (e?.userCancelled) return { ok: false, reason: 'cancelled' };
+    return { ok: false, reason: 'error', message: e?.message ?? "Échec de l'achat." };
+  }
+}
+
 export function addProListener(cb: (active: boolean) => void): () => void {
   if (!PURCHASES_SUPPORTED || !configured) return () => {};
   const handler = (ci: CustomerInfo) => cb(entitlementActive(ci));

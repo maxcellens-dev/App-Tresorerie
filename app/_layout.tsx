@@ -13,6 +13,7 @@ import HeaderWithProfile from './components/HeaderWithProfile';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from './lib/analytics';
 import ProfileChangeModal from './components/ProfileChangeModal';
+import StreakRecoveryModal from './components/StreakRecoveryModal';
 import FontApplier from './components/FontApplier';
 import GamificationSync from './components/GamificationSync';
 import { useAppColors } from './hooks/useAppColors';
@@ -166,6 +167,8 @@ function AppChrome() {
       </View>
       {/* Modale de changement de profil — affichée au-dessus de tout */}
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
+      {/* Récupération de série perdue — proposée à l'arrivée sur l'app */}
+      {isTabs && user && <StreakRecoveryModal />}
       <AnalyticsTracker />
     </View>
     </TourProvider>

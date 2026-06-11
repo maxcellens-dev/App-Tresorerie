@@ -711,12 +711,13 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
   const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
   const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft && !t.is_reserved;
 
-  // « Autre » = virements VALIDÉS entre le compte courant et l'épargne/investissement,
-  // DANS LES 2 SENS (courant→épargne = sortie négative ; épargne→courant = entrée positive).
-  // Les projets comptent via leurs virements d'épargne classiques. Les RÉSERVATIONS (is_reserved)
-  // et les brouillons ne comptent pas (l'argent reste sur le compte / n'est pas validé).
+  // « Autre » = virements entre le compte courant et l'épargne/investissement, DANS LES 2 SENS
+  // (courant→épargne = sortie négative ; épargne→courant = entrée positive).
+  // Les virements de PROJET comptent comme des virements planifiés, MÊME en brouillon (comme si on
+  // les avait saisis manuellement). Les RÉSERVATIONS (is_reserved) et les autres brouillons ne comptent pas.
   const isOtherFlow = (t: any) => {
-    if (t.is_reserved || t.is_draft) return false;
+    if (t.is_reserved) return false;
+    if (t.is_draft && !t.project_id) return false; // brouillons hors projet : exclus
     if (!onChecking(t)) return false; // on ne garde que la jambe côté compte courant
     if (!t.linked_account_id) return false; // doit être un virement (pas une réservation)
     const linkedType = accountTypeById[t.linked_account_id] ?? null;

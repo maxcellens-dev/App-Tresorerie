@@ -25,6 +25,7 @@ export interface GamificationState {
   last_login_day: string | null;
   login_streak: number;
   best_login_streak: number;
+  last_free_gems_day: string | null;
 }
 
 /** Clé du jour (YYYY-MM-DD, heure locale). */
@@ -38,7 +39,7 @@ export interface InventoryItem { item_key: string; qty: number }
 async function fetchOrCreateState(userId: string): Promise<GamificationState> {
   const { data } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
   if (data) return data as GamificationState;
-  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, freezes: 0, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0 };
+  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, freezes: 0, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
   // Idempotent : évite un conflit de clé si deux composants initialisent en même temps.
   await supabase!.from('user_gamification').upsert(seed, { onConflict: 'profile_id', ignoreDuplicates: true });
   const { data: after } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
@@ -177,12 +178,31 @@ export function useGamification(userId: string | undefined) {
     await evaluate(extraCtx, opts);
   }
 
-  /** Achat boutique : débite les gemmes, crédite l'inventaire (gel → +1 freeze). */
+  /** Achat boutique en gemmes : débite les gemmes, applique l'effet, crédite l'inventaire si besoin. */
   async function buyItem(itemKey: string): Promise<{ ok: boolean; reason?: string }> {
     if (!userId || !supabase || !config) return { ok: false, reason: 'non disponible' };
     const item = config.shop.find((s) => s.key === itemKey);
     if (!item) return { ok: false, reason: 'article introuvable' };
     const state = await fetchOrCreateState(userId);
+
+    // Cadeau du jour : 5 gemmes gratuites, 1×/jour.
+    if (item.type === 'daily_gems') {
+      const today = dayKey(new Date());
+      if (state.last_free_gems_day === today) return { ok: false, reason: 'déjà réclamé aujourd’hui' };
+      const reward = Number((item.payload as any)?.gems) || 5;
+      await supabase.from('user_gamification').update({
+        gems: state.gems + reward,
+        gems_earned_total: state.gems_earned_total + reward,
+        last_free_gems_day: today,
+        updated_at: new Date().toISOString(),
+      }).eq('profile_id', userId);
+      invalidate();
+      return { ok: true };
+    }
+
+    // Les packs de gemmes (gems_iap) se paient en argent réel → gérés via purchaseGemsPack, pas ici.
+    if (item.type === 'gems_iap') return { ok: false, reason: 'achat en argent réel' };
+
     const price = isPremium ? Math.round(item.price * (1 - config.premium_discount_pct / 100)) : item.price;
     if (state.gems < price) return { ok: false, reason: 'gemmes insuffisantes' };
 
@@ -190,15 +210,6 @@ export function useGamification(userId: string | undefined) {
     if (item.type === 'freeze') patch.freezes = state.freezes + (Number((item.payload as any)?.qty) || 1);
     if (item.type === 'streak_restore') patch.streak = Math.max(state.streak, state.best_streak);
     await supabase.from('user_gamification').update(patch).eq('profile_id', userId);
-
-    // Accent acheté → applique immédiatement la couleur (theme_preset = hex) + rafraîchit le profil.
-    if (item.type === 'accent') {
-      const hex = (item.payload as any)?.hex;
-      if (typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex)) {
-        await supabase.from('profiles').update({ theme_preset: hex }).eq('id', userId);
-        qc.invalidateQueries({ queryKey: ['profile', userId] });
-      }
-    }
 
     // Les consommables (gel, récupération de série) ne sont pas stockés en inventaire.
     const consumable = item.type === 'freeze' || item.type === 'streak_restore';
@@ -213,6 +224,62 @@ export function useGamification(userId: string | undefined) {
     return { ok: true };
   }
 
+  /** Crédite des gemmes (après un achat en argent réel validé par le store / RevenueCat). */
+  async function creditGems(amount: number): Promise<{ ok: boolean }> {
+    if (!userId || !supabase || amount <= 0) return { ok: false };
+    const state = await fetchOrCreateState(userId);
+    await supabase.from('user_gamification').update({
+      gems: state.gems + amount,
+      gems_earned_total: state.gems_earned_total + amount,
+      updated_at: new Date().toISOString(),
+    }).eq('profile_id', userId);
+    invalidate();
+    return { ok: true };
+  }
+
+  /** true si le cadeau du jour est encore réclamable aujourd'hui. */
+  const canClaimDailyGems = (stateQuery.data?.last_free_gems_day ?? null) !== dayKey(new Date());
+
+  /** Série perdue : l'utilisateur a manqué des semaines au-delà de ses gels → proposition de récupération.
+   *  null si aucune perte (ou couverte par les gels). Le prix = prix de récup × semaines non couvertes. */
+  const streakLoss = (() => {
+    const st = stateQuery.data;
+    if (!st || !st.last_validated_week || !config) return null;
+    const gap = weeksBetween(st.last_validated_week, mondayOf(new Date()));
+    const missed = gap - 1;
+    if (missed < 1 || st.streak < 1) return null;
+    const freezesUsed = Math.min(st.freezes, missed);
+    const weeksMissed = missed - freezesUsed;
+    if (weeksMissed < 1) return null; // entièrement couvert par les gels
+    const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
+    return { weeksMissed, missed, freezesUsed, previousStreak: st.streak, newStreak: st.streak + missed, price: perWeek * weeksMissed };
+  })();
+
+  /** Restaure la série perdue (paye en gemmes les semaines non couvertes + consomme les gels). */
+  async function restoreLostStreak(): Promise<{ ok: boolean; reason?: string }> {
+    if (!userId || !supabase || !config) return { ok: false, reason: 'indisponible' };
+    const st = await fetchOrCreateState(userId);
+    if (!st.last_validated_week) return { ok: false, reason: 'rien à restaurer' };
+    const gap = weeksBetween(st.last_validated_week, mondayOf(new Date()));
+    const missed = gap - 1;
+    if (missed < 1) return { ok: false, reason: 'rien à restaurer' };
+    const freezesUsed = Math.min(st.freezes, missed);
+    const weeksMissed = missed - freezesUsed;
+    const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
+    const cost = perWeek * weeksMissed;
+    if (st.gems < cost) return { ok: false, reason: 'gemmes insuffisantes' };
+    await supabase.from('user_gamification').update({
+      gems: st.gems - cost,
+      freezes: st.freezes - freezesUsed,
+      streak: st.streak + missed,
+      best_streak: Math.max(st.best_streak, st.streak + missed),
+      last_validated_week: mondayOf(new Date()),
+      updated_at: new Date().toISOString(),
+    }).eq('profile_id', userId);
+    invalidate();
+    return { ok: true };
+  }
+
   return {
     state: stateQuery.data,
     badges: badgesQuery.data ?? [],
@@ -223,5 +290,9 @@ export function useGamification(userId: string | undefined) {
     recordLogin,
     evaluate,
     buyItem,
+    creditGems,
+    canClaimDailyGems,
+    streakLoss,
+    restoreLostStreak,
   };
 }
