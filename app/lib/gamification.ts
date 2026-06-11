@@ -57,7 +57,7 @@ export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   series: 'Séries',
   apparence: 'Apparence',
   cosmetiques: 'Cosmétiques',
-  gems: 'Recharger en gemmes',
+  gems: 'Recharger en relyks',
 };
 /** Ordre d'affichage des catégories dans la boutique. */
 export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'series', 'apparence', 'cosmetiques', 'gems'];
@@ -92,7 +92,7 @@ export interface GamificationConfig {
 export const DEFAULT_GAMIFICATION: GamificationConfig = {
   identity: {
     enabled: true,
-    currencyName: 'Gemmes',
+    currencyName: 'Relyk', // forme SINGULIÈRE — le « s » du pluriel est ajouté à l'affichage
     currencyIcon: 'diamond',
     streakIcon: '🔥',
     streakLabel: 'Série',
@@ -140,7 +140,7 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
   ],
   shop: [
     // ── Gratuit ──
-    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 gemmes offertes, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
+    { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 relyks offerts, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
     // ── Séries ──
     { key: 'freeze', type: 'freeze', category: 'series', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi (cumulable).', price: 50, icon: 'snow' },
     { key: 'freeze_pack3', type: 'freeze', category: 'series', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
@@ -152,9 +152,9 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
     { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'cosmetiques', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
     // ── Recharger en gemmes (argent réel via le store) ──
-    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 gemmes', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: 'relyka_gems_100' } },
-    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 gemmes', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: 'relyka_gems_500' } },
-    { key: 'gems_1200', type: 'gems_iap', category: 'gems', label: '1200 gemmes', description: 'Le meilleur rapport.', price: 0, icon: 'diamond', payload: { gems: 1200, productId: 'relyka_gems_1200' } },
+    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: 'relyka_gems_100' } },
+    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: 'relyka_gems_500' } },
+    { key: 'gems_1200', type: 'gems_iap', category: 'gems', label: '1200 relyks', description: 'Le meilleur rapport.', price: 0, icon: 'diamond', payload: { gems: 1200, productId: 'relyka_gems_1200' } },
   ],
 };
 
@@ -175,15 +175,17 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
  *  par défaut dont la clé n'est pas encore présente (ex. nouveaux articles d'une mise à jour). */
 function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
   if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.shop;
-  const defByKey = new Map(DEFAULT_GAMIFICATION.shop.map((s) => [s.key, s]));
-  const keys = new Set(stored.map((s) => s.key));
-  // Pour les articles existants, complète les champs manquants (ex. category, type) depuis le défaut.
-  const merged = stored.map((s) => {
-    const def = defByKey.get(s.key);
-    return def ? { ...def, ...s } : s;
+  const storedByKey = new Map(stored.map((s) => [s.key, s]));
+  // Le LIBELLÉ / la description / le type viennent du code (toujours à jour, ex. nom de la monnaie),
+  // seuls le PRIX et le payload (quantités) sont pilotés par l'admin (config stockée).
+  const merged = DEFAULT_GAMIFICATION.shop.map((def) => {
+    const s = storedByKey.get(def.key);
+    if (!s) return def;
+    return { ...def, price: s.price ?? def.price, payload: { ...(def.payload ?? {}), ...(s.payload ?? {}) } };
   });
-  const missing = DEFAULT_GAMIFICATION.shop.filter((s) => !keys.has(s.key));
-  return [...merged, ...missing];
+  // Articles 100 % personnalisés (clés absentes du défaut) → conservés tels quels.
+  const extra = stored.filter((s) => !DEFAULT_GAMIFICATION.shop.some((d) => d.key === s.key));
+  return [...merged, ...extra];
 }
 
 /**
@@ -200,6 +202,19 @@ function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
   const keys = new Set(stored.map((b) => b.key));
   const missing = DEFAULT_GAMIFICATION.badges.filter((b) => !keys.has(b.key));
   return [...stored, ...missing];
+}
+
+/** Forme plurielle du nom de la monnaie (« Relyk » → « Relyks »). */
+export function currencyPlural(currencyName: string): string {
+  const name = currencyName || 'Relyk';
+  return /s$/i.test(name) ? name : `${name}s`;
+}
+
+/** « 1 Relyk », « 50 Relyks », « 0 Relyks » — ajoute le « s » du pluriel. */
+export function formatCurrency(n: number, currencyName: string): string {
+  const name = currencyName || 'Relyk';
+  const singular = /s$/i.test(name) ? name.replace(/s$/i, '') : name;
+  return `${n} ${Math.abs(n) === 1 ? singular : currencyPlural(name)}`;
 }
 
 /** true si la valeur d'icône est une URL d'image (vs un nom Ionicons). */

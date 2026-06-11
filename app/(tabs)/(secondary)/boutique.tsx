@@ -13,7 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
-import { isImageIcon, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, type ShopItem, type ShopCategory } from '../../lib/gamification';
+import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, type ShopItem, type ShopCategory } from '../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
@@ -40,7 +40,13 @@ export default function BoutiqueScreen() {
   const freezes = state?.freezes ?? 0;
   const discountPct = config?.premium_discount_pct ?? 0;
   const priceOf = (base: number) => (isPremium ? Math.round(base * (1 - discountPct / 100)) : base);
-  const currencyName = config?.identity.currencyName ?? 'gemmes';
+  const currencyName = config?.identity.currencyName ?? 'Relyk';
+  // Libellé / description calculés pour les articles « monnaie » (toujours au nom courant + pluriel).
+  const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
+  const itemLabel = (item: ShopItem) => (item.type === 'gems_iap' ? formatCurrency(gemsOf(item), currencyName) : item.label);
+  const itemDesc = (item: ShopItem) => (item.type === 'daily_gems'
+    ? `${formatCurrency(gemsOf(item) || 5, currencyName)} offert${(gemsOf(item) || 5) > 1 ? 's' : ''}, une fois par jour.`
+    : item.description);
 
   // L'onglet « Relyka » est masquable en admin : si masqué, pas de barre d'onglets (seulement « App »).
   const relykaTabEnabled = config?.relyka_tab_enabled ?? true;
@@ -66,7 +72,7 @@ export default function BoutiqueScreen() {
     const gemsAmount = Number((item.payload as any)?.gems) || 0;
     setBusyKey(item.key); setMsg(null);
     const res = await purchaseGemsPack(productId);
-    if (res.ok) { await creditGems(gemsAmount); setMsg(`+${gemsAmount} ${currencyName} ✓`); }
+    if (res.ok) { await creditGems(gemsAmount); setMsg(`+${formatCurrency(gemsAmount, currencyName)} ✓`); }
     else if (res.reason === 'cancelled') setMsg('Achat annulé.');
     else setMsg(res.message ?? 'Achat indisponible.');
     setBusyKey(null);
@@ -170,7 +176,7 @@ export default function BoutiqueScreen() {
                                   <View style={styles.countBadge}><Text style={styles.countBadgeText}>{freezes}</Text></View>
                                 )}
                               </View>
-                              <Text style={styles.compactLabel} numberOfLines={2}>{item.label}</Text>
+                              <Text style={styles.compactLabel} numberOfLines={2}>{itemLabel(item)}</Text>
                               {item.type === 'freeze' && <Text style={styles.ownedText}>{freezes} en stock</Text>}
                               {renderBuyButton(item)}
                             </View>
@@ -187,8 +193,8 @@ export default function BoutiqueScreen() {
                               {isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.itemLabel}>{item.label}{owned > 0 && item.type !== 'daily_gems' ? ' · acquis' : ''}</Text>
-                              {!!item.description && <Text style={styles.itemDesc}>{item.description}</Text>}
+                              <Text style={styles.itemLabel}>{itemLabel(item)}{owned > 0 && item.type !== 'daily_gems' ? ' · acquis' : ''}</Text>
+                              {!!itemDesc(item) && <Text style={styles.itemDesc}>{itemDesc(item)}</Text>}
                             </View>
                             {renderBuyButton(item)}
                           </View>
@@ -196,7 +202,7 @@ export default function BoutiqueScreen() {
                       })
                     )}
                     {cat === 'gems' && !PURCHASES_SUPPORTED && (
-                      <Text style={styles.gemsNote}>Les achats de gemmes se font depuis l'application mobile Relyka.</Text>
+                      <Text style={styles.gemsNote}>Les achats de relyks se font depuis l'application mobile Relyka.</Text>
                     )}
                   </View>
                 );
@@ -238,9 +244,9 @@ export default function BoutiqueScreen() {
             <Text style={styles.modalTitle}>Confirmer l'achat</Text>
             <Text style={styles.modalText}>
               Acheter « {confirmItem?.label} » pour{' '}
-              <Text style={{ fontWeight: '800', color: COLORS.text }}>{confirmItem?.price} {currencyName}</Text> ?
+              <Text style={{ fontWeight: '800', color: COLORS.text }}>{formatCurrency(confirmItem?.price ?? 0, currencyName)}</Text> ?
             </Text>
-            <Text style={styles.modalBalance}>Solde après achat : {Math.max(0, gems - (confirmItem?.price ?? 0))} {currencyName}</Text>
+            <Text style={styles.modalBalance}>Solde après achat : {formatCurrency(Math.max(0, gems - (confirmItem?.price ?? 0)), currencyName)}</Text>
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setConfirmItem(null)} activeOpacity={0.85}>
                 <Text style={styles.modalCancelText}>Annuler</Text>

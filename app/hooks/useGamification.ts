@@ -204,7 +204,7 @@ export function useGamification(userId: string | undefined) {
     if (item.type === 'gems_iap') return { ok: false, reason: 'achat en argent réel' };
 
     const price = isPremium ? Math.round(item.price * (1 - config.premium_discount_pct / 100)) : item.price;
-    if (state.gems < price) return { ok: false, reason: 'gemmes insuffisantes' };
+    if (state.gems < price) return { ok: false, reason: 'relyks insuffisants' };
 
     const patch: Record<string, unknown> = { gems: state.gems - price, updated_at: new Date().toISOString() };
     if (item.type === 'freeze') patch.freezes = state.freezes + (Number((item.payload as any)?.qty) || 1);
@@ -267,7 +267,7 @@ export function useGamification(userId: string | undefined) {
     const weeksMissed = missed - freezesUsed;
     const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
     const cost = perWeek * weeksMissed;
-    if (st.gems < cost) return { ok: false, reason: 'gemmes insuffisantes' };
+    if (st.gems < cost) return { ok: false, reason: 'relyks insuffisants' };
     await supabase.from('user_gamification').update({
       gems: st.gems - cost,
       freezes: st.freezes - freezesUsed,

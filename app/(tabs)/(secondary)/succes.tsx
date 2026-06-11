@@ -13,7 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
-import { UNLOCK_COLOR, isImageIcon } from '../../lib/gamification';
+import { UNLOCK_COLOR, isImageIcon, currencyPlural } from '../../lib/gamification';
 
 export default function SuccesScreen() {
   const COLORS = useAppColors();
@@ -81,7 +81,7 @@ export default function SuccesScreen() {
             <View style={styles.summaryItem}>
               <Ionicons name="diamond" size={22} color={COLORS.blue} />
               <Text style={styles.summaryValue}>{state?.gems ?? 0}</Text>
-              <Text style={styles.summaryLabel}>{config?.identity.currencyName || 'Gemmes'}</Text>
+              <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>

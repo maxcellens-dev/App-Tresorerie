@@ -14,13 +14,13 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { supabase } from '../../../lib/supabase';
 import { useGamificationConfig, useSaveGamificationConfig } from '../../../hooks/useGamificationConfig';
-import { isImageIcon, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../lib/gamification';
+import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../lib/gamification';
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Série (semaines)' },
   { value: 'login_streak_days', label: 'Jours consécutifs connecté' },
   { value: 'account_age_days', label: 'Ancienneté (jours)' },
-  { value: 'gems_earned', label: 'Gemmes gagnées (cumul)' },
+  { value: 'gems_earned', label: 'Relyks gagnés (cumul)' },
   { value: 'closures_count', label: 'Clôtures effectuées' },
   { value: 'surplus_months_streak', label: 'Mois consécutifs en excédent' },
   { value: 'variable_savings_pct', label: 'Éco. vs enveloppe (%)' },
@@ -135,21 +135,54 @@ export default function AdminGamification() {
           )}
 
           {/* Série + premium */}
-          {tab === 'streak' && (
-          <View style={styles.card}>
-            <Text style={styles.section}>Série & boutique</Text>
-            <Field label="Gemmes par semaine validée" value={String(cfg.streak.weeklyGems)} keyboard onChange={(v) => setStreak({ weeklyGems: Number(v) || 0 })} styles={styles} c={COLORS} />
-            <Field label="Coût d'un gel de série (gemmes)" value={String(cfg.streak.freezeCost)} keyboard onChange={(v) => setStreak({ freezeCost: Number(v) || 0 })} styles={styles} c={COLORS} />
-            <Field label="Remise premium boutique (%)" value={String(cfg.premium_discount_pct)} keyboard onChange={(v) => setCfg({ ...cfg, premium_discount_pct: Number(v) || 0 })} styles={styles} c={COLORS} />
-            <View style={[styles.rowBetween, { marginTop: 12 }]}>
-              <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.fieldLabel}>Onglet « Relyka » dans la boutique</Text>
-                <Text style={styles.hint}>Masqué → seul l'onglet « App » s'affiche, sans barre d'onglets.</Text>
+          {tab === 'streak' && (() => {
+            const cur = currencyPlural(cfg.identity.currencyName);
+            const updateItem = (key: string, patch: Partial<GamificationConfig['shop'][number]>) =>
+              setCfg({ ...cfg, shop: cfg.shop.map((s) => (s.key === key ? { ...s, ...patch } : s)) });
+            const setItemGems = (item: GamificationConfig['shop'][number], v: string) =>
+              updateItem(item.key, { payload: { ...(item.payload ?? {}), gems: Number(v) || 0 } });
+            return (
+            <>
+            <View style={styles.card}>
+              <Text style={styles.section}>Série & boutique</Text>
+              <Field label={`${cur} par semaine validée`} value={String(cfg.streak.weeklyGems)} keyboard onChange={(v) => setStreak({ weeklyGems: Number(v) || 0 })} styles={styles} c={COLORS} />
+              <Field label="Remise premium boutique (%)" value={String(cfg.premium_discount_pct)} keyboard onChange={(v) => setCfg({ ...cfg, premium_discount_pct: Number(v) || 0 })} styles={styles} c={COLORS} />
+              <View style={[styles.rowBetween, { marginTop: 12 }]}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.fieldLabel}>Onglet « Relyka » dans la boutique</Text>
+                  <Text style={styles.hint}>Masqué → seul l'onglet « App » s'affiche, sans barre d'onglets.</Text>
+                </View>
+                <Switch value={cfg.relyka_tab_enabled} onValueChange={(v) => setCfg({ ...cfg, relyka_tab_enabled: v })} />
               </View>
-              <Switch value={cfg.relyka_tab_enabled} onValueChange={(v) => setCfg({ ...cfg, relyka_tab_enabled: v })} />
             </View>
-          </View>
-          )}
+
+            <View style={styles.card}>
+              <Text style={styles.section}>Prix des articles</Text>
+              <Text style={styles.hint}>Prix en {cur} de chaque article. Pour les recharges (argent réel) et le cadeau du jour, définissez la quantité de {cur} accordée.</Text>
+              {cfg.shop.map((item) => {
+                const isQty = item.type === 'gems_iap' || item.type === 'daily_gems';
+                return (
+                  <View key={item.key} style={styles.rowBetween}>
+                    <Text style={[styles.fieldLabel, { flex: 1, marginTop: 0 }]} numberOfLines={1}>
+                      {item.label}{item.type === 'streak_restore' ? ' (par semaine)' : ''}
+                    </Text>
+                    <View style={{ width: 110, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.hint}>{isQty ? 'Qté' : cur}</Text>
+                      <TextInput
+                        style={styles.miniInput}
+                        value={String(isQty ? (Number((item.payload as any)?.gems) || 0) : item.price)}
+                        onChangeText={(v) => (isQty ? setItemGems(item, v) : updateItem(item.key, { price: Number(v) || 0 }))}
+                        keyboardType="numeric"
+                        placeholderTextColor={COLORS.textSecondary}
+                      />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            </>
+            );
+          })()}
 
           {/* Badges */}
           {tab === 'badges' && (() => {

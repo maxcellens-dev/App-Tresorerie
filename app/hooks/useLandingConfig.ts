@@ -65,7 +65,7 @@ export const DEFAULT_LANDING: LandingConfig = {
     { icon: 'rocket', title: 'Projets d’épargne', text: 'Définissez vos objectifs et suivez votre progression mois après mois.' },
     { icon: 'bulb', title: 'Recommandations', text: 'Des conseils personnalisés selon votre profil pour épargner, investir ou conserver.' },
     { icon: 'shield-checkmark', title: 'Sécurisé', text: 'Vos données sont chiffrées et protégées. Votre vie privée d’abord.' },
-    { icon: 'trophy', title: 'Motivant', text: 'Séries, succès et gemmes : gardez le cap avec plaisir.' },
+    { icon: 'trophy', title: 'Motivant', text: 'Séries, succès et relyks : gardez le cap avec plaisir.' },
   ],
   stats: [
     { value: '100%', label: 'Gratuit pour démarrer' },

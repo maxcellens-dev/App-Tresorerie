@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator } fr
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
+import { formatCurrency } from '../lib/gamification';
 import { useAppColors } from '../hooks/useAppColors';
 
 export default function StreakRecoveryModal() {
@@ -20,7 +21,7 @@ export default function StreakRecoveryModal() {
   const [error, setError] = useState<string | null>(null);
 
   const gems = state?.gems ?? 0;
-  const currency = config?.identity.currencyName ?? 'gemmes';
+  const currency = config?.identity.currencyName ?? 'Relyk';
   const visible = !!streakLoss && !dismissed;
   if (!visible) return null;
 
@@ -32,7 +33,7 @@ export default function StreakRecoveryModal() {
     const res = await restoreLostStreak();
     setBusy(false);
     if (res.ok) setDismissed(true);
-    else setError(res.reason === 'gemmes insuffisantes' ? `Il te manque ${price - gems} ${currency}.` : 'Restauration impossible.');
+    else setError(res.reason === 'relyks insuffisants' ? `Il te manque ${formatCurrency(price - gems, currency)}.` : 'Restauration impossible.');
   };
 
   return (
@@ -48,7 +49,7 @@ export default function StreakRecoveryModal() {
 
           <View style={styles.priceRow}>
             <Ionicons name="diamond" size={16} color={COLORS.blue} />
-            <Text style={styles.priceText}>{price} {currency}</Text>
+            <Text style={styles.priceText}>{formatCurrency(price, currency)}</Text>
             <Text style={styles.balance}>· solde : {gems}</Text>
           </View>
           {!!error && <Text style={styles.error}>{error}</Text>}

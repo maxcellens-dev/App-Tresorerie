@@ -42,9 +42,12 @@ export default function AppearanceScreen() {
   // ── Couleur personnalisée (theme_preset = hex direct) ──
   const isHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
   const customActive = isHex(currentPreset);
-  const [customHex, setCustomHex] = useState(customActive ? currentPreset.toUpperCase() : '#3B82F6');
+  const [customHex, setCustomHex] = useState(customActive ? currentPreset.toUpperCase() : '#000000');
   const customValid = isHex(customHex);
-  const applyCustom = (hex: string) => { const v = hex.toUpperCase(); setCustomHex(v); if (isHex(v)) setPreset(v as ThemePreset); };
+  // Saisie au clavier OU sélecteur de couleur → met seulement à jour l'aperçu.
+  // L'application se fait UNIQUEMENT via le bouton « Appliquer ».
+  const onHexChange = (v: string) => setCustomHex(v.toUpperCase());
+  const applyHex = () => { if (isHex(customHex)) setPreset(customHex as ThemePreset); };
 
   // Couleurs personnalisées : débloquées UNIQUEMENT par l'achat « accent_pack » en boutique
   // (y compris pour les abonnés Premium, qui doivent aussi l'acheter).
@@ -111,14 +114,12 @@ export default function AppearanceScreen() {
                   <Text style={styles.hint}>Choisissez votre propre teinte d'accent.</Text>
 
                   <View style={styles.customRow}>
-                    <View style={[styles.customPreview, { backgroundColor: customValid ? customHex : COLORS.cardBorder }, customActive && { borderColor: COLORS.text, borderWidth: 2 }]}>
-                      {customActive && <Ionicons name="checkmark" size={18} color="#ffffff" />}
-                    </View>
                     {Platform.OS === 'web' ? (
+                      // Palette (sélecteur natif) → applique directement la couleur.
                       React.createElement('input', {
                         type: 'color',
-                        value: customValid ? customHex : '#3B82F6',
-                        onChange: (e: any) => applyCustom(e.target.value),
+                        value: customValid ? customHex : '#000000',
+                        onChange: (e: any) => onHexChange(e.target.value),
                         style: { width: 44, height: 44, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' },
                         'aria-label': 'Choisir une couleur',
                       })
@@ -126,15 +127,19 @@ export default function AppearanceScreen() {
                     <TextInput
                       style={[styles.hexInput, !customValid && { borderColor: COLORS.danger }]}
                       value={customHex}
-                      onChangeText={applyCustom}
+                      onChangeText={onHexChange}
                       placeholder="#RRGGBB"
                       placeholderTextColor={COLORS.textSecondary}
                       autoCapitalize="characters"
                       maxLength={7}
                     />
+                    {/* Aperçu de la couleur — à droite du champ, à gauche de « Appliquer ». */}
+                    <View style={[styles.customPreview, { backgroundColor: customValid ? customHex : COLORS.cardBorder }, customActive && { borderColor: COLORS.text, borderWidth: 2 }]}>
+                      {customActive && <Ionicons name="checkmark" size={18} color="#ffffff" />}
+                    </View>
                     <TouchableOpacity
                       style={[styles.applyBtn, !customValid && { opacity: 0.5 }]}
-                      onPress={() => customValid && setPreset(customHex as ThemePreset)}
+                      onPress={applyHex}
                       disabled={!customValid}
                       activeOpacity={0.85}
                     >
