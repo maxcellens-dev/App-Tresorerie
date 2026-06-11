@@ -365,7 +365,7 @@ export default function PilotageScreen() {
                   <View style={styles.heroEstimate}>
                     <Ionicons name="information-circle-outline" size={16} color={COLORS.orange} />
                     <Text style={styles.heroEstimateText}>
-                      D'après l'estimation, il reste encore ~{fmt(varRemaining)} de dépenses variables prévues d'ici la fin du mois.
+                      D'après l'estimation, il te reste ~{fmt(varRemaining)} de dépenses variables d'ici la fin du mois.
                     </Text>
                   </View>
                 )}
