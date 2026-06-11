@@ -352,7 +352,7 @@ export default function PilotageScreen() {
               ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
               : exhausted
               ? (varRemaining > 0
-                  ? 'Ton Relyka est épuisé. Reste prudent : des dépenses variables sont encore attendues.'
+                  ? 'Ton Relyka est épuisé, mais reste prudent.'
                   : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
               : 'C\'est ton Relyka du mois 💚 À utiliser avec intelligence, idéalement en suivant tes recommandations.';
             return (
