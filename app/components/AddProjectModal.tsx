@@ -865,6 +865,57 @@ export default function AddProjectModal() {
                   </View>
                 )}
                 </>)}
+
+                {/* Actions — placées sous les champs (comme les écrans Dépense/Recette/Virement) */}
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.cancelButton, { borderColor: COLORS.border }]}
+                    onPress={wizard && step > 1 ? goPrev : handleClose}
+                    disabled={isPending}
+                  >
+                    <Text style={[styles.buttonText, { color: COLORS.text }]}>{wizard && step > 1 ? 'Précédent' : 'Annuler'}</Text>
+                  </TouchableOpacity>
+                  {wizard && step < 3 ? (
+                    <TouchableOpacity
+                      style={[styles.button, { backgroundColor: COLORS.primary }]}
+                      onPress={goNext}
+                      disabled={isPending}
+                    >
+                      <Text style={styles.submitButtonText}>Suivant</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.button, { backgroundColor: COLORS.primary }]}
+                      onPress={handleSubmit}
+                      disabled={isPending}
+                    >
+                      {isPending ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.submitButtonText}>{editingProject ? 'Mettre à jour' : 'Créer'}</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Bouton Supprimer (seulement en édition) */}
+                {editingProject && (
+                  <TouchableOpacity
+                    style={[styles.button, { backgroundColor: COLORS.danger + '20', marginTop: 12 }]}
+                    onPress={() => { handleDelete(); }}
+                    disabled={deleteFullMutation.isPending || deleteKeepingLockedMutation.isPending}
+                  >
+                    {deleteFullMutation.isPending ? (
+                      <ActivityIndicator color={COLORS.danger} />
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <Ionicons name="trash" size={16} color={COLORS.danger} />
+                        <Text style={[styles.submitButtonText, { color: COLORS.danger }]}>Supprimer le projet</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
+                <View style={{ height: 24 }} />
               </ScrollView>
             ) : (
               /* Account Picker */
@@ -910,60 +961,6 @@ export default function AddProjectModal() {
                   />
                 )}
               </View>
-            )}
-
-            {/* Actions */}
-            {!showAccountPicker && (
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  style={[styles.button, styles.cancelButton, { borderColor: COLORS.border }]}
-                  onPress={wizard && step > 1 ? goPrev : handleClose}
-                  disabled={isPending}
-                >
-                  <Text style={[styles.buttonText, { color: COLORS.text }]}>{wizard && step > 1 ? 'Précédent' : 'Annuler'}</Text>
-                </TouchableOpacity>
-                {wizard && step < 3 ? (
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: COLORS.primary }]}
-                    onPress={goNext}
-                    disabled={isPending}
-                  >
-                    <Text style={styles.submitButtonText}>Suivant</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: COLORS.primary }]}
-                    onPress={handleSubmit}
-                    disabled={isPending}
-                  >
-                    {isPending ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.submitButtonText}>{editingProject ? 'Mettre à jour' : 'Créer'}</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-            
-            {/* Bouton Supprimer (seulement si édition) */}
-            {!showAccountPicker && editingProject && (
-              <TouchableOpacity
-                style={[styles.button, { backgroundColor: COLORS.danger + '20', marginTop: 12 }]}
-                onPress={() => {
-                  handleDelete();
-                }}
-                disabled={deleteFullMutation.isPending || deleteKeepingLockedMutation.isPending}
-              >
-                {deleteFullMutation.isPending ? (
-                  <ActivityIndicator color={COLORS.danger} />
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    <Ionicons name="trash" size={16} color={COLORS.danger} />
-                    <Text style={[styles.submitButtonText, { color: COLORS.danger }]}>Supprimer le projet</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
             )}
           </View>
         )}

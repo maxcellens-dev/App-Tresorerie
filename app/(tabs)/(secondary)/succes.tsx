@@ -13,7 +13,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
-import { usePlan } from '../../hooks/usePlan';
 import { UNLOCK_COLOR, isImageIcon } from '../../lib/gamification';
 
 export default function SuccesScreen() {
@@ -23,7 +22,6 @@ export default function SuccesScreen() {
   const { user } = useAuth();
   const { state, badges, config } = useGamification(user?.id);
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
-  const { premiumEnabled } = usePlan(user?.id);
 
   const unlockedKeys = new Set(badges.map((b) => b.badge_key));
 
@@ -93,18 +91,12 @@ export default function SuccesScreen() {
             </View>
           </View>
 
-          {/* Accès Boutique / Premium */}
+          {/* Accès Boutique */}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
               <Ionicons name="bag-handle-outline" size={16} color={COLORS.emerald} />
               <Text style={styles.actionText}>Boutique</Text>
             </TouchableOpacity>
-            {premiumEnabled && (
-              <TouchableOpacity style={styles.actionBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
-                <Ionicons name="star-outline" size={16} color={COLORS.yellow} />
-                <Text style={styles.actionText}>Premium</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {/* Succès débloqués */}

@@ -3,7 +3,7 @@
  * ensuite ; ici on présente les avantages. Si l'offre est désactivée en admin, écran neutre.
  */
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -11,9 +11,9 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../components/ScreenGradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
-import { usePlan } from '../../hooks/usePlan';
+import { usePlan, useSetPremium } from '../../hooks/usePlan';
 import { useGamificationConfig } from '../../hooks/useGamificationConfig';
-import { purchasePremium } from '../../lib/purchases';
+import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../lib/purchases';
 
 const BENEFITS = [
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
@@ -27,13 +27,57 @@ export default function PremiumScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { isPremium, premiumEnabled } = usePlan(user?.id);
+  const setPremium = useSetPremium(user?.id);
   const { data: gam } = useGamificationConfig();
   const discount = gam?.premium_discount_pct ?? 0;
   const [purchaseMsg, setPurchaseMsg] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState<null | 'buy' | 'restore'>(null);
+  const [sub, setSub] = React.useState<SubscriptionInfo | null>(null);
+
+  const refreshSub = React.useCallback(async () => {
+    if (!PURCHASES_SUPPORTED) return;
+    setSub(await getSubscriptionInfo());
+  }, []);
+  React.useEffect(() => { refreshSub(); }, [refreshSub, isPremium]);
+
   const onSubscribe = async () => {
+    setPurchaseMsg(null);
+    setBusy('buy');
     const res = await purchasePremium(user?.id);
-    if (!res.ok) setPurchaseMsg(res.message ?? 'Souscription bientôt disponible.');
+    setBusy(null);
+    if (res.ok) {
+      // Achat confirmé → on bascule en Premium immédiatement (RevenueCat reste la source de vérité).
+      setPremium.mutate(true);
+      setPurchaseMsg('🎉 Bienvenue dans Premium ! Ton abonnement est actif.');
+      refreshSub();
+    } else if (res.reason === 'cancelled') {
+      setPurchaseMsg('Souscription annulée. Tu peux réessayer quand tu veux.');
+    } else {
+      setPurchaseMsg(res.message ?? 'Souscription indisponible pour le moment.');
+    }
   };
+
+  const onRestore = async () => {
+    setPurchaseMsg(null);
+    setBusy('restore');
+    const res = await restorePurchases();
+    setBusy(null);
+    if (res.ok) {
+      setPremium.mutate(true);
+      setPurchaseMsg('Achats restaurés. Ton abonnement Premium est de nouveau actif.');
+      refreshSub();
+    } else {
+      setPurchaseMsg(res.message ?? 'Aucun abonnement à restaurer.');
+    }
+  };
+
+  const onManage = () => {
+    const url = sub?.managementURL
+      ?? (Platform.OS === 'ios' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions');
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '');
 
   return (
     <View style={styles.root}>
@@ -70,11 +114,69 @@ export default function PremiumScreen() {
             </View>
           ))}
 
+          {/* Offres */}
           {premiumEnabled && !isPremium && (
             <>
-              <TouchableOpacity style={[styles.cta, { backgroundColor: COLORS.emerald }]} activeOpacity={0.85} onPress={onSubscribe}>
-                <Text style={[styles.ctaText, { color: '#fff' }]}>Devenir Premium</Text>
+              <View style={styles.offersRow}>
+                <View style={styles.offerCard}>
+                  <Text style={styles.offerName}>Mensuel</Text>
+                  <Text style={styles.offerDesc}>Sans engagement, résiliable à tout moment.</Text>
+                </View>
+                <View style={[styles.offerCard, { borderColor: COLORS.emerald }]}>
+                  <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>Avantageux</Text></View>
+                  <Text style={styles.offerName}>Annuel</Text>
+                  <Text style={styles.offerDesc}>Le meilleur prix sur l'année.</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity style={[styles.cta, { backgroundColor: COLORS.emerald }]} activeOpacity={0.85} onPress={onSubscribe} disabled={busy !== null}>
+                {busy === 'buy' ? <ActivityIndicator color="#fff" /> : <Text style={[styles.ctaText, { color: '#fff' }]}>Choisir une formule</Text>}
               </TouchableOpacity>
+
+              {PURCHASES_SUPPORTED && (
+                <TouchableOpacity style={styles.restoreBtn} activeOpacity={0.7} onPress={onRestore} disabled={busy !== null}>
+                  {busy === 'restore' ? <ActivityIndicator color={COLORS.textSecondary} size="small" /> : <Text style={styles.restoreText}>Restaurer mes achats</Text>}
+                </TouchableOpacity>
+              )}
+
+              <Text style={styles.legal}>
+                L'abonnement se renouvelle automatiquement sauf annulation au moins 24 h avant l'échéance, depuis les réglages de ton compte {Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. Le paiement est prélevé à la confirmation.
+              </Text>
+              {purchaseMsg && <Text style={styles.purchaseMsg}>{purchaseMsg}</Text>}
+            </>
+          )}
+
+          {/* Abonné : statut + gestion / annulation */}
+          {isPremium && (
+            <>
+              {sub?.active && (
+                <View style={styles.statusCard}>
+                  <View style={styles.statusRow}>
+                    <Text style={styles.statusLabel}>Statut</Text>
+                    <Text style={[styles.statusValue, { color: COLORS.emerald }]}>Actif{sub.periodType === 'trial' ? ' (essai)' : ''}</Text>
+                  </View>
+                  {sub.expirationDate && (
+                    <View style={styles.statusRow}>
+                      <Text style={styles.statusLabel}>{sub.willRenew ? 'Prochain renouvellement' : 'Actif jusqu’au'}</Text>
+                      <Text style={styles.statusValue}>{fmtDate(sub.expirationDate)}</Text>
+                    </View>
+                  )}
+                  {!sub.willRenew && (
+                    <Text style={styles.cancelNote}>Renouvellement automatique désactivé : tu garderas Premium jusqu'à cette date, puis l'abonnement prendra fin.</Text>
+                  )}
+                </View>
+              )}
+
+              {PURCHASES_SUPPORTED ? (
+                <>
+                  <TouchableOpacity style={[styles.cta, { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder }]} activeOpacity={0.85} onPress={onManage}>
+                    <Text style={[styles.ctaText, { color: COLORS.text }]}>{sub && !sub.willRenew ? 'Gérer l’abonnement' : 'Gérer / annuler l’abonnement'}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.legal}>L'annulation se fait depuis les réglages d'abonnement de ton store. L'accès Premium reste actif jusqu'à la fin de la période déjà payée.</Text>
+                </>
+              ) : (
+                <Text style={styles.legal}>Gère ou annule ton abonnement depuis l'application mobile Relyka (réglages d'abonnement {Platform.OS === 'ios' ? 'App Store' : 'Google Play'}).</Text>
+              )}
               {purchaseMsg && <Text style={styles.purchaseMsg}>{purchaseMsg}</Text>}
             </>
           )}
@@ -99,8 +201,22 @@ function makeStyles(c: any) {
     benefitIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     benefitTitle: { fontSize: 15, fontWeight: '700', color: c.text },
     benefitDesc: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
-    cta: { backgroundColor: c.cardBorder, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+    cta: { backgroundColor: c.cardBorder, borderRadius: 14, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
     ctaText: { fontSize: 15, fontWeight: '700', color: c.textSecondary },
-    purchaseMsg: { fontSize: 12, color: c.textSecondary, textAlign: 'center', marginTop: 10 },
+    purchaseMsg: { fontSize: 13, color: c.text, textAlign: 'center', marginTop: 12, lineHeight: 18 },
+    offersRow: { flexDirection: 'row', gap: 12, marginTop: 6, marginBottom: 4 },
+    offerCard: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, gap: 4 },
+    offerName: { fontSize: 15, fontWeight: '800', color: c.text },
+    offerDesc: { fontSize: 11.5, color: c.textSecondary, lineHeight: 15 },
+    bestBadge: { position: 'absolute', top: -9, right: 10, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+    bestBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+    restoreBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginTop: 4 },
+    restoreText: { fontSize: 13, fontWeight: '600', color: c.textSecondary, textDecorationLine: 'underline' },
+    legal: { fontSize: 11, color: c.textSecondary, textAlign: 'center', marginTop: 10, lineHeight: 15 },
+    statusCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginTop: 8, gap: 10 },
+    statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    statusLabel: { fontSize: 13, color: c.textSecondary },
+    statusValue: { fontSize: 14, fontWeight: '700', color: c.text },
+    cancelNote: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
   });
 }

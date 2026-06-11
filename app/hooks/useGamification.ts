@@ -187,9 +187,22 @@ export function useGamification(userId: string | undefined) {
     if (state.gems < price) return { ok: false, reason: 'gemmes insuffisantes' };
 
     const patch: Record<string, unknown> = { gems: state.gems - price, updated_at: new Date().toISOString() };
-    if (item.type === 'freeze') patch.freezes = state.freezes + 1;
+    if (item.type === 'freeze') patch.freezes = state.freezes + (Number((item.payload as any)?.qty) || 1);
+    if (item.type === 'streak_restore') patch.streak = Math.max(state.streak, state.best_streak);
     await supabase.from('user_gamification').update(patch).eq('profile_id', userId);
-    if (item.type !== 'freeze') {
+
+    // Accent acheté → applique immédiatement la couleur (theme_preset = hex) + rafraîchit le profil.
+    if (item.type === 'accent') {
+      const hex = (item.payload as any)?.hex;
+      if (typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex)) {
+        await supabase.from('profiles').update({ theme_preset: hex }).eq('id', userId);
+        qc.invalidateQueries({ queryKey: ['profile', userId] });
+      }
+    }
+
+    // Les consommables (gel, récupération de série) ne sont pas stockés en inventaire.
+    const consumable = item.type === 'freeze' || item.type === 'streak_restore';
+    if (!consumable) {
       const { data: existing } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
       await supabase.from('user_inventory').upsert(
         { profile_id: userId, item_key: itemKey, qty: (existing?.qty ?? 0) + 1 },

@@ -1,40 +1,58 @@
 /**
- * Couche d'abstraction des paiements Premium — POINT D'INTÉGRATION UNIQUE.
+ * Couche d'abstraction des paiements Premium — version WEB / fallback.
  *
- * À brancher selon la plateforme :
- *  - Web (déploiement Vercel)  : Stripe Checkout (clé publishable + endpoint serveur / Edge Function
- *    qui crée la session, puis webhook Stripe → met profiles.is_premium = true).
- *  - iOS / Android (Expo natif) : RevenueCat (react-native-purchases) + produits App Store / Play ;
- *    le webhook RevenueCat met profiles.is_premium à jour.
- *
- * Tant que ce n'est pas configuré, on renvoie `not_configured` (l'UI affiche « bientôt »).
- * L'entitlement réel reste profiles.is_premium (lu par usePlan), alimenté par le webhook.
+ * Metro charge automatiquement `purchases.native.ts` sur iOS/Android (RevenueCat),
+ * et CE fichier sur le web (où les achats in-app natifs n'existent pas).
+ * L'entitlement réel reste `profiles.is_premium` (lu par usePlan), mis à jour :
+ *  - sur natif : par la synchronisation RevenueCat (PurchasesSync) + après un achat,
+ *  - sur web : par un futur Stripe Checkout (non branché ici).
  */
-import { Platform } from 'react-native';
 
-export type PurchaseReason = 'not_configured' | 'cancelled' | 'error';
+export type PurchaseReason = 'not_configured' | 'not_supported' | 'cancelled' | 'error';
 export interface PurchaseResult { ok: boolean; reason?: PurchaseReason; message?: string }
 
-/** true si un fournisseur de paiement est configuré pour la plateforme courante. */
-export function isPurchaseConfigured(): boolean {
-  // À passer à true une fois Stripe (web) / RevenueCat (natif) branchés.
-  return false;
+export interface SubscriptionInfo {
+  active: boolean;
+  /** true tant que l'abonnement se renouvellera ; false si annulé (actif jusqu'à l'échéance). */
+  willRenew: boolean;
+  periodType: string | null;   // 'normal' | 'trial' | 'intro'
+  expirationDate: string | null;
+  productId: string | null;
+  /** URL de gestion (App Store / Play Store) pour annuler/changer d'offre. */
+  managementURL: string | null;
 }
 
-export async function purchasePremium(_userId: string | undefined): Promise<PurchaseResult> {
-  if (!isPurchaseConfigured()) {
-    return { ok: false, reason: 'not_configured', message: 'Le paiement sera bientôt disponible.' };
-  }
-  // eslint-disable-next-line no-constant-condition
-  if (Platform.OS === 'web') {
-    // TODO Stripe Checkout : créer la session côté serveur puis rediriger.
-    return { ok: false, reason: 'not_configured' };
-  }
-  // TODO RevenueCat : Purchases.purchasePackage(...)
-  return { ok: false, reason: 'not_configured' };
+/** Identifiant d'entitlement configuré dans le tableau de bord RevenueCat. */
+export const RC_ENTITLEMENT_ID = 'Relyka Pro';
+
+/** Les achats in-app natifs ne sont pas disponibles sur cette plateforme (web). */
+export const PURCHASES_SUPPORTED = false;
+
+export function isPurchaseConfigured(): boolean { return false; }
+
+export async function configurePurchases(_userId?: string): Promise<void> { /* no-op web */ }
+export async function logInPurchases(_userId: string): Promise<void> { /* no-op web */ }
+export async function logOutPurchases(): Promise<void> { /* no-op web */ }
+
+export async function isProActive(): Promise<boolean> { return false; }
+
+export async function purchasePremium(_userId?: string): Promise<PurchaseResult> {
+  return {
+    ok: false,
+    reason: 'not_supported',
+    message: "L'abonnement Premium se souscrit depuis l'application mobile Relyka (iOS / Android).",
+  };
 }
 
 export async function restorePurchases(): Promise<PurchaseResult> {
-  if (!isPurchaseConfigured()) return { ok: false, reason: 'not_configured' };
-  return { ok: false, reason: 'not_configured' };
+  return {
+    ok: false,
+    reason: 'not_supported',
+    message: "La restauration des achats est disponible depuis l'application mobile.",
+  };
 }
+
+export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> { return null; }
+
+/** S'abonne aux changements d'entitlement (achat, renouvellement, expiration). No-op sur web. */
+export function addProListener(_cb: (active: boolean) => void): () => void { return () => {}; }

@@ -52,12 +52,14 @@ export interface StreakConfig {
 
 export interface ShopItem {
   key: string;
-  type: 'freeze' | 'theme' | 'external';
+  // freeze : +1 (ou payload.qty) gel · streak_restore : restaure la série · accent : applique une couleur (payload.hex)
+  // theme/cosmetic/external : ajoutés à l'inventaire (effet cosmétique / hors-app)
+  type: 'freeze' | 'streak_restore' | 'accent' | 'theme' | 'cosmetic' | 'external';
   label: string;
   description?: string;
   price: number;          // en gemmes
   icon?: string;          // Ionicons ou URL
-  payload?: Record<string, unknown>; // ex. { presetId } pour un thème
+  payload?: Record<string, unknown>; // ex. { hex } pour un accent, { qty } pour un pack
 }
 
 export interface GamificationConfig {
@@ -120,7 +122,22 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'bien_guide', category: 'Découverte', metric: 'onboarding_done', label: 'Bien guidé', description: 'Termine toutes les étapes du guide « Pour bien démarrer ».', icon: 'compass', threshold: 1, gems: 50 },
   ],
   shop: [
+    // ── Séries ──
     { key: 'freeze', type: 'freeze', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi.', price: 50, icon: 'snow' },
+    { key: 'streak_restore', type: 'streak_restore', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
+    { key: 'freeze_pack3', type: 'freeze', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
+    // ── Couleurs d'accent (7) ──
+    { key: 'accent_rose', type: 'accent', label: 'Accent Rose flash', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#FF2D55' } },
+    { key: 'accent_corail', type: 'accent', label: 'Accent Corail', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#FF6B6B' } },
+    { key: 'accent_or', type: 'accent', label: 'Accent Or', description: 'Débloque et applique cette teinte d’accent.', price: 80, icon: 'color-palette', payload: { hex: '#FFCC00' } },
+    { key: 'accent_emeraude', type: 'accent', label: 'Accent Émeraude vif', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#06D6A0' } },
+    { key: 'accent_turquoise', type: 'accent', label: 'Accent Turquoise', description: 'Débloque et applique cette teinte d’accent.', price: 60, icon: 'color-palette', payload: { hex: '#00C7BE' } },
+    { key: 'accent_indigo', type: 'accent', label: 'Accent Indigo', description: 'Débloque et applique cette teinte d’accent.', price: 70, icon: 'color-palette', payload: { hex: '#5856D6' } },
+    { key: 'accent_magenta', type: 'accent', label: 'Accent Magenta', description: 'Débloque et applique cette teinte d’accent.', price: 70, icon: 'color-palette', payload: { hex: '#C77DFF' } },
+    // ── Cosmétiques ──
+    { key: 'cosmetic_gold_flame', type: 'cosmetic', label: 'Flamme dorée', description: 'Une flamme de série dorée affichée sur ton profil.', price: 90, icon: 'flame' },
+    { key: 'cosmetic_avatar_frame', type: 'cosmetic', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
+    { key: 'cosmetic_title_legend', type: 'cosmetic', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
   ],
 };
 

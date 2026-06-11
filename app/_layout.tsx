@@ -17,6 +17,9 @@ import FontApplier from './components/FontApplier';
 import GamificationSync from './components/GamificationSync';
 import { useAppColors } from './hooks/useAppColors';
 import { useCurrency } from './hooks/useCurrency';
+import { useProfile } from './hooks/useProfile';
+import { useSetPremium } from './hooks/usePlan';
+import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from './lib/purchases';
 import './global.css';
 
 const queryClient = new QueryClient({
@@ -31,6 +34,38 @@ const queryClient = new QueryClient({
 
 function ConfigSync() {
   useConfigSync(supabase);
+  return null;
+}
+
+/** Synchronise l'abonnement RevenueCat (natif) avec le droit Premium (profiles.is_premium).
+ *  Sur mobile, RevenueCat fait foi : achat confirmé → Premium ; expiration/annulation effective → retrait.
+ *  Aucun effet sur le web (PURCHASES_SUPPORTED = false). */
+function PurchasesSync() {
+  const { user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const setPremium = useSetPremium(user?.id);
+  const isPremiumDb = !!(profile as any)?.is_premium;
+  const isPremiumRef = useRef(isPremiumDb);
+  useEffect(() => { isPremiumRef.current = isPremiumDb; }, [isPremiumDb]);
+
+  useEffect(() => {
+    if (!PURCHASES_SUPPORTED || !user?.id) return;
+    let unsub = () => {};
+    let cancelled = false;
+    const apply = (active: boolean) => {
+      if (active && !isPremiumRef.current) setPremium.mutate(true);
+      else if (!active && isPremiumRef.current) setPremium.mutate(false);
+    };
+    (async () => {
+      await configurePurchases(user.id);
+      await logInPurchases(user.id);
+      if (cancelled) return;
+      apply(await isProActive());
+      unsub = addProListener(apply);
+    })();
+    return () => { cancelled = true; unsub(); };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return null;
 }
 
@@ -146,6 +181,7 @@ export default function RootLayout() {
           <FontApplier />
           <RecurringMaterializer />
           <GamificationSync />
+          <PurchasesSync />
           <AppChrome />
         </AuthProvider>
       </ThemeProvider>

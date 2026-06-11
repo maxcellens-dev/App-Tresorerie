@@ -3,6 +3,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useProfile } from './hooks/useProfile';
 import { useFinancialProfile } from './hooks/useFinancialProfile';
 import WelcomeScreen from './welcome';
+import AppLoading from './components/AppLoading';
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -16,7 +17,7 @@ export default function Index() {
     loading ||
     (user && (profileQuery.isPending || fpQuery.isPending || profileQuery.isFetching || fpQuery.isFetching))
   ) {
-    return null;
+    return <AppLoading />;
   }
 
   if (user) {

@@ -23,8 +23,18 @@ export default function Root({ children }: PropsWithChildren) {
 
         <ScrollViewStyleReset />
         <style dangerouslySetInnerHTML={{ __html: LOCK_VIEWPORT_CSS }} />
+        <style dangerouslySetInnerHTML={{ __html: BOOT_LOADER_CSS }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* Écran de chargement instantané (avant le montage de React) — évite l'écran blanc */}
+        <div id="app-boot">
+          <div className="boot-logo" />
+          <div className="boot-brand">Relyka</div>
+          <div className="boot-ring" />
+        </div>
+        {children}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_HIDE_JS }} />
+      </body>
     </html>
   );
 }
@@ -46,4 +56,54 @@ html, body, #root {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+`;
+
+// Loader affiché immédiatement (HTML statique) le temps que le bundle JS charge et que React monte.
+// Visuellement identique au composant AppLoading → transition invisible.
+const BOOT_LOADER_CSS = `
+#app-boot {
+  position: fixed; inset: 0; z-index: 99999; background: #020617;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: opacity .4s ease;
+}
+#app-boot .boot-logo {
+  width: 84px; height: 84px; border-radius: 18px;
+  background: url('/favicon.png') center / contain no-repeat;
+  animation: bootPulse 1.7s ease-in-out infinite;
+}
+#app-boot .boot-brand {
+  margin-top: 22px; color: #fff; font-weight: 800; letter-spacing: .5px; font-size: 22px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+#app-boot .boot-ring {
+  margin-top: 26px; width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid rgba(0,182,122,.2); border-top-color: #00B67A;
+  animation: bootSpin 1s linear infinite;
+}
+@keyframes bootPulse { 0%,100% { transform: scale(.92); opacity: .65 } 50% { transform: scale(1.06); opacity: 1 } }
+@keyframes bootSpin { to { transform: rotate(360deg) } }
+`;
+
+// Retire le loader dès que React a injecté du contenu dans #root (avec un léger fondu).
+const BOOT_HIDE_JS = `
+(function () {
+  function hide() {
+    var el = document.getElementById('app-boot');
+    if (!el) return;
+    el.style.opacity = '0';
+    setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 400);
+  }
+  function start() {
+    var root = document.getElementById('root');
+    if (!root) { window.addEventListener('load', function () { setTimeout(hide, 300); }); return; }
+    if (root.childNodes.length > 0) { setTimeout(hide, 150); return; }
+    var obs = new MutationObserver(function () {
+      if (root.childNodes.length > 0) { obs.disconnect(); setTimeout(hide, 150); }
+    });
+    obs.observe(root, { childList: true });
+    setTimeout(hide, 8000); // filet de sécurité
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
 `;

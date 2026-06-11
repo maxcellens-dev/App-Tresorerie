@@ -1,8 +1,8 @@
 /**
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
-import { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -37,6 +37,19 @@ export default function AppearanceScreen() {
 
   const setMode = (mode: ThemeMode) => updateProfile.mutate({ theme_mode: mode });
   const setPreset = (preset: ThemePreset) => updateProfile.mutate({ theme_preset: preset });
+
+  // ── Couleur personnalisée (theme_preset = hex direct) ──
+  const isHex = (v: string) => /^#[0-9A-Fa-f]{6}$/.test(v);
+  const customActive = isHex(currentPreset);
+  const [customHex, setCustomHex] = useState(customActive ? currentPreset.toUpperCase() : '#3B82F6');
+  const customValid = isHex(customHex);
+  const applyCustom = (hex: string) => { const v = hex.toUpperCase(); setCustomHex(v); if (isHex(v)) setPreset(v as ThemePreset); };
+  // Palette rapide de teintes pour la saisie au doigt.
+  const CUSTOM_SWATCHES = [
+    '#FF3B30', '#FF6B6B', '#FF9500', '#FFCC00', '#34C759', '#00C7BE',
+    '#30B0C7', '#007AFF', '#5856D6', '#AF52DE', '#FF2D55', '#FF6B9D',
+    '#A2845E', '#06D6A0', '#118AB2', '#8E8E93',
+  ];
 
   return (
     <View style={styles.root}>
@@ -80,6 +93,56 @@ export default function AppearanceScreen() {
                 })}
               </View>
             </View>
+
+            {/* Couleur personnalisée */}
+            <View style={[styles.block, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, paddingTop: 16, marginTop: 16 }]}>
+              <Text style={styles.label}>Couleur personnalisée</Text>
+              <Text style={styles.hint}>Choisissez votre propre teinte d'accent (code hexadécimal ou sélection rapide).</Text>
+
+              <View style={styles.customRow}>
+                <View style={[styles.customPreview, { backgroundColor: customValid ? customHex : COLORS.cardBorder }, customActive && { borderColor: COLORS.text, borderWidth: 2 }]}>
+                  {customActive && <Ionicons name="checkmark" size={18} color="#ffffff" />}
+                </View>
+                {Platform.OS === 'web' ? (
+                  // Sélecteur de couleur natif du navigateur (web bureau).
+                  React.createElement('input', {
+                    type: 'color',
+                    value: customValid ? customHex : '#3B82F6',
+                    onChange: (e: any) => applyCustom(e.target.value),
+                    style: { width: 44, height: 44, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' },
+                    'aria-label': 'Choisir une couleur',
+                  })
+                ) : null}
+                <TextInput
+                  style={[styles.hexInput, !customValid && { borderColor: COLORS.danger }]}
+                  value={customHex}
+                  onChangeText={applyCustom}
+                  placeholder="#RRGGBB"
+                  placeholderTextColor={COLORS.textSecondary}
+                  autoCapitalize="characters"
+                  maxLength={7}
+                />
+                <TouchableOpacity
+                  style={[styles.applyBtn, !customValid && { opacity: 0.5 }]}
+                  onPress={() => customValid && setPreset(customHex as ThemePreset)}
+                  disabled={!customValid}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.applyBtnText}>Appliquer</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.spectrumRow}>
+                {CUSTOM_SWATCHES.map((s) => {
+                  const active = customActive && currentPreset.toUpperCase() === s;
+                  return (
+                    <TouchableOpacity key={s} style={[styles.spectrumDot, { backgroundColor: s }, active && styles.presetDotActive]} onPress={() => applyCustom(s)} activeOpacity={0.8} accessibilityLabel={`Couleur ${s}`}>
+                      {active && <Ionicons name="checkmark" size={14} color="#ffffff" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -105,5 +168,13 @@ function makeStyles(c: any) {
     presetRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
     presetDot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     presetDotActive: { borderWidth: 2, borderColor: c.text },
+    hint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginTop: -2 },
+    customRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+    customPreview: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
+    hexInput: { width: 110, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, color: c.text, backgroundColor: c.bg, fontSize: 14, letterSpacing: 1 },
+    applyBtn: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 10, backgroundColor: c.emerald },
+    applyBtnText: { fontSize: 14, fontWeight: '700', color: c.bg },
+    spectrumRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+    spectrumDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
   });
 }
