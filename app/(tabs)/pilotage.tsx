@@ -354,7 +354,7 @@ export default function PilotageScreen() {
               ? (varRemaining > 0
                   ? 'Ton Relyka est épuisé, mais reste prudent.'
                   : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
-              : 'C\'est ton Relyka du mois 💚 À utiliser avec intelligence, idéalement en suivant tes recommandations.';
+              : 'Voici la somme qu\'il devrait te rester après tes dépenses habituelles et opérations d\'épargne, investissement et de conservation.\nÀ utiliser avec intelligence, idéalement en suivant tes recommandations.';
             return (
               <View style={[styles.heroCard, { borderColor: heroColor + '44' }]}>
                 <Text style={styles.heroLabel}>Ton Relyka · {monthLabel}</Text>
