@@ -338,22 +338,37 @@ export default function PilotageScreen() {
             />
           )}
 
-          {/* ── HERO : budget libre ce mois ── */}
+          {/* ── HERO : « Ton Relyka » du mois ── */}
           {(() => {
             const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+            const reste = Math.round(resteDisponible);
+            const varRemaining = Math.round(Math.max(0, variableEnvelopeRemaining));
             const restNeg = resteDisponible < 0;
-            const heroColor = restNeg ? COLORS.danger : COLORS.emerald;
-            const heroSub = restNeg
-              ? 'Votre budget est dépassé ce mois-ci — vérifiez vos dépenses.'
-              : resteDisponible < 200
-              ? 'Mois serré. Vérifiez vos dépenses et vos engagements.'
-              : 'Ce que vous pouvez dépenser librement jusqu\'à la fin du mois.';
+            const exhausted = !restNeg && reste <= 0;          // tombé à 0 €
+            const heroColor = restNeg ? COLORS.danger : exhausted ? COLORS.orange : COLORS.emerald;
             const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+            // Message : encourageant si du budget reste, prudent une fois épuisé.
+            const heroSub = restNeg
+              ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
+              : exhausted
+              ? (varRemaining > 0
+                  ? 'Ton Relyka est épuisé. Reste prudent : des dépenses variables sont encore attendues.'
+                  : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
+              : 'C\'est ton Relyka du mois 💚 À utiliser avec intelligence, idéalement en suivant tes recommandations.';
             return (
               <View style={[styles.heroCard, { borderColor: heroColor + '44' }]}>
-                <Text style={styles.heroLabel}>Tu peux dépenser ce mois</Text>
+                <Text style={styles.heroLabel}>Ton Relyka · {monthLabel}</Text>
                 <Text style={[styles.heroAmount, { color: heroColor }]}>{fmt(resteDisponible)}</Text>
-                <Text style={styles.heroSub}>{heroSub} — {monthLabel}.</Text>
+                <Text style={styles.heroSub}>{heroSub}</Text>
+                {/* Affichage intermédiaire : avant d'afficher 0 €, on explique les dépenses variables encore attendues. */}
+                {exhausted && varRemaining > 0 && (
+                  <View style={styles.heroEstimate}>
+                    <Ionicons name="information-circle-outline" size={16} color={COLORS.orange} />
+                    <Text style={styles.heroEstimateText}>
+                      D'après l'estimation, il reste encore ~{fmt(varRemaining)} de dépenses variables prévues d'ici la fin du mois.
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           })()}
@@ -1110,5 +1125,7 @@ function makeStyles(c: AppColors) {
   heroLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 4 },
   heroAmount: { fontSize: 38, fontWeight: '900', marginBottom: 4 },
   heroSub: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+  heroEstimate: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.cardBorder },
+  heroEstimateText: { flex: 1, fontSize: 12, color: c.text, lineHeight: 16 },
   });
 }

@@ -162,20 +162,18 @@ export default function AdminGamification() {
               {cfg.shop.map((item) => {
                 const isQty = item.type === 'gems_iap' || item.type === 'daily_gems';
                 return (
-                  <View key={item.key} style={styles.rowBetween}>
-                    <Text style={[styles.fieldLabel, { flex: 1, marginTop: 0 }]} numberOfLines={1}>
-                      {item.label}{item.type === 'streak_restore' ? ' (par semaine)' : ''}
+                  <View key={item.key} style={styles.shopPriceRow}>
+                    <Text style={styles.shopPriceLabel} numberOfLines={1}>
+                      {item.label}{item.type === 'streak_restore' ? ' (/sem.)' : ''}
                     </Text>
-                    <View style={{ width: 110, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.hint}>{isQty ? 'Qté' : cur}</Text>
-                      <TextInput
-                        style={styles.miniInput}
-                        value={String(isQty ? (Number((item.payload as any)?.gems) || 0) : item.price)}
-                        onChangeText={(v) => (isQty ? setItemGems(item, v) : updateItem(item.key, { price: Number(v) || 0 }))}
-                        keyboardType="numeric"
-                        placeholderTextColor={COLORS.textSecondary}
-                      />
-                    </View>
+                    <Text style={styles.shopPriceUnit}>{isQty ? 'Qté' : cur}</Text>
+                    <TextInput
+                      style={styles.shopPriceInput}
+                      value={String(isQty ? (Number((item.payload as any)?.gems) || 0) : item.price)}
+                      onChangeText={(v) => (isQty ? setItemGems(item, v) : updateItem(item.key, { price: Number(v) || 0 }))}
+                      keyboardType="numeric"
+                      placeholderTextColor={COLORS.textSecondary}
+                    />
                   </View>
                 );
               })}
@@ -317,6 +315,10 @@ function makeStyles(c: any) {
     levelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 3 },
     levelName: { width: 54, fontSize: 12, fontWeight: '600' },
     miniInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, color: c.text, fontSize: 12, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+    shopPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+    shopPriceLabel: { flex: 1, fontSize: 12.5, color: c.text, fontWeight: '600' },
+    shopPriceUnit: { fontSize: 11, color: c.textSecondary },
+    shopPriceInput: { width: 72, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, color: c.text, fontSize: 12, textAlign: 'right', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10 },
     addBtnText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
