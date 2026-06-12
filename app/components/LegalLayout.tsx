@@ -81,7 +81,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
-      <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.appScroll}>
           <View style={styles.contentWrap}>
             <TouchableOpacity style={styles.backRow} onPress={goBack} activeOpacity={0.7}>

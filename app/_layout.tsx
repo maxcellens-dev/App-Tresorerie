@@ -171,7 +171,7 @@ function AppChrome() {
     <View style={styles.root}>
       <View style={limitWidth ? styles.webColumn : styles.fullColumn}>
       <ImpersonationBanner />
-      {!hideChrome && user && !isTabs && (
+      {!hideChrome && user && !isTabs && root !== 'legal' && root !== 'confidentialite' && (
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
           <HeaderWithProfile height={80} />
         </SafeAreaView>

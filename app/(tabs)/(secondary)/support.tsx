@@ -10,15 +10,19 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useTour } from '../../contexts/TourContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useUserUnreadCount } from '../../hooks/useUnreadBadges';
 
 export default function SupportScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const tour = useTour();
+  const { user } = useAuth();
+  const assistanceUnread = useUserUnreadCount(user?.id);
 
-  const items: { icon: string; label: string; color: string; onPress: () => void; italic?: boolean }[] = [
-    { icon: 'headset-outline', label: 'Assistance', color: COLORS.emerald, onPress: () => router.push('/(tabs)/(secondary)/assistance') },
+  const items: { icon: string; label: string; color: string; onPress: () => void; italic?: boolean; badge?: number }[] = [
+    { icon: 'headset-outline', label: 'Assistance', color: COLORS.emerald, onPress: () => router.push('/(tabs)/(secondary)/assistance'), badge: assistanceUnread },
     { icon: 'bulb-outline', label: 'Boîte à idées', color: '#f59e0b', onPress: () => router.push('/(tabs)/(secondary)/ideas') },
     { icon: 'shield-checkmark-outline', label: 'Confidentialité', color: '#60a5fa', onPress: () => router.push('/confidentialite') },
     { icon: 'document-text-outline', label: 'Mentions légales', color: '#a78bfa', onPress: () => router.push('/legal') },
@@ -41,6 +45,11 @@ export default function SupportScreen() {
               <TouchableOpacity key={it.label} style={[styles.row, i === items.length - 1 && { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={it.onPress}>
                 <Ionicons name={it.icon as any} size={20} color={it.color} />
                 <Text style={[styles.rowLabel, it.italic && { fontStyle: 'italic', fontSize: 13, color: COLORS.textSecondary }]}>{it.label}</Text>
+                {!!it.badge && it.badge > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{it.badge > 99 ? '99+' : it.badge}</Text>
+                  </View>
+                )}
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             ))}
@@ -61,5 +70,7 @@ function makeStyles(c: any) {
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden' },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
+    unreadBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+    unreadBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
   });
 }
