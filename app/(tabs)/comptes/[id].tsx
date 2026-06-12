@@ -342,6 +342,7 @@ export default function AccountDetailScreen() {
         <SafeAreaView style={styles.safe}>
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
         </SafeAreaView>

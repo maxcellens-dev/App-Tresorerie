@@ -65,6 +65,28 @@ export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'series', 'appare
 /** Les 7 couleurs d'accent premium débloquées par l'achat « accent_pack » (ou Premium). */
 export const ACCENT_PACK_COLORS = ['#FF2D55', '#FF6B6B', '#FFCC00', '#06D6A0', '#00C7BE', '#5856D6', '#C77DFF'];
 
+// ── Cosmétiques équipables ──────────────────────────────────────────────────
+// Chaque cosmétique acheté (type 'cosmetic', stocké en inventaire) occupe UN emplacement.
+// Un seul cosmétique par emplacement peut être équipé à la fois.
+export type CosmeticSlot = 'avatar_frame' | 'title' | 'streak_flame';
+
+export interface CosmeticDef {
+  slot: CosmeticSlot;
+  /** Libellé de l'emplacement (affiché dans Apparence). */
+  slotLabel: string;
+  /** Valeur de l'effet : couleur (cadre / flamme) ou texte (titre). */
+  value: string;
+}
+
+/** Mappe la clé d'article cosmétique → emplacement + effet. */
+export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
+  cosmetic_avatar_frame: { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#FFD700' },
+  cosmetic_title_legend: { slot: 'title', slotLabel: 'Titre de profil', value: 'Légende' },
+  cosmetic_gold_flame: { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#FFD700' },
+};
+
+export type EquippedCosmetics = Partial<Record<CosmeticSlot, string>>;
+
 export interface ShopItem {
   key: string;
   // freeze : +1 (ou payload.qty) gel · streak_restore : restaure la série · daily_gems : 5 gemmes/jour gratuit

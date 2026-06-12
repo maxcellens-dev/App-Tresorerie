@@ -203,7 +203,7 @@ export default function ProfilFinancierScreen() {
       <StatusBar style="light" />
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

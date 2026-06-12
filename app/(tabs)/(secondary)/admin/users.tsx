@@ -72,7 +72,7 @@ export default function AdminUsers() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Admin</Text>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Utilisateurs</Text>
 

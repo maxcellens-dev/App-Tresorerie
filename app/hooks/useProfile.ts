@@ -54,6 +54,7 @@ export function useProfile(profileId: string | undefined) {
         theme_preset: ((data as { theme_preset?: string }).theme_preset ?? 'emerald') as any,
         currency_code: (data as { currency_code?: string }).currency_code ?? 'EUR',
         notifications_enabled: (data as { notifications_enabled?: boolean }).notifications_enabled ?? true,
+        equipped_cosmetics: (data as { equipped_cosmetics?: Record<string, string> }).equipped_cosmetics ?? {},
       } as Profile;
     },
     enabled: !!profileId,
@@ -81,6 +82,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       treso_simplified?: boolean;
       prudence_level?: number | null;
       notifications_enabled?: boolean;
+      equipped_cosmetics?: Record<string, string>;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
 
@@ -102,6 +104,7 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.treso_simplified !== undefined) updates.treso_simplified = payload.treso_simplified;
       if (payload.prudence_level !== undefined) updates.prudence_level = payload.prudence_level;
       if (payload.notifications_enabled !== undefined) updates.notifications_enabled = payload.notifications_enabled;
+      if (payload.equipped_cosmetics !== undefined) updates.equipped_cosmetics = payload.equipped_cosmetics;
 
       // Séparer safety_margin_amount pour éviter qu'un échec (colonne manquante avant
       // migration 031) ne bloque les autres mises à jour.

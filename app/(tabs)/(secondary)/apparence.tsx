@@ -13,6 +13,8 @@ import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
+import { useCosmetics } from '../../hooks/useCosmetics';
+import { COSMETIC_DEFS } from '../../lib/gamification';
 import { THEME_MODES, THEME_PRESETS, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 
@@ -52,10 +54,27 @@ export default function AppearanceScreen() {
 
   // Couleur personnalisée (champ hex sous les presets) : réservée aux abonnés Premium.
   // Les acheteurs historiques du pack « accent_pack » en boutique restent débloqués.
-  const { inventory } = useGamification(user?.id);
+  const { inventory, config: gamiConfig } = useGamification(user?.id);
   const { isPremium } = usePlan(user?.id);
   const hasAccentPack = inventory.some((i) => i.item_key === 'accent_pack');
   const colorsUnlocked = isPremium || hasAccentPack;
+
+  // ── Cosmétiques débloqués (inventaire) + équipés ──
+  const cosmetics = useCosmetics(user?.id);
+  const ownedCosmetics = useMemo(() => {
+    return cosmetics.ownedKeys.map((key) => {
+      const shopItem = gamiConfig?.shop.find((s) => s.key === key);
+      const def = COSMETIC_DEFS[key];
+      return {
+        key,
+        label: shopItem?.label ?? key,
+        description: shopItem?.description ?? '',
+        icon: shopItem?.icon ?? 'sparkles',
+        slotLabel: def?.slotLabel ?? '',
+        equipped: cosmetics.isEquipped(key),
+      };
+    });
+  }, [cosmetics.ownedKeys, cosmetics.equipped, gamiConfig]);
   // Les 7 dernières couleurs d'accent sont « premium » : masquées tant que le pack n'est pas acheté.
   const PREMIUM_PRESET_COUNT = 7;
   const shownPresets = (hasAccentPack || allPresets.length <= PREMIUM_PRESET_COUNT)
@@ -160,6 +179,43 @@ export default function AppearanceScreen() {
                 </>
               )}
             </View>
+
+            {/* ── Cosmétique : équiper les cosmétiques débloqués en boutique ── */}
+            <View style={[styles.block, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, paddingTop: 16, marginTop: 16 }]}>
+              <Text style={styles.label}>Cosmétique</Text>
+              {ownedCosmetics.length === 0 ? (
+                <>
+                  <Text style={styles.hint}>Aucun cosmétique débloqué pour le moment. Procurez-vous-en en boutique pour personnaliser votre profil.</Text>
+                  <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
+                    <Ionicons name="bag-handle-outline" size={16} color={COLORS.bg} />
+                    <Text style={styles.unlockBtnText}>Voir la boutique</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.hint}>Cochez un cosmétique pour l'équiper. Il s'affichera sur votre profil et dans l'app.</Text>
+                  {ownedCosmetics.map((cos) => (
+                    <TouchableOpacity
+                      key={cos.key}
+                      style={[styles.cosmeticRow, cos.equipped && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '14' }]}
+                      onPress={() => cosmetics.toggle(cos.key)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.cosmeticIcon, { backgroundColor: '#FFD70022' }]}>
+                        <Ionicons name={cos.icon as any} size={20} color="#FFD700" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cosmeticLabel}>{cos.label}</Text>
+                        {!!cos.slotLabel && <Text style={styles.cosmeticSlot}>{cos.slotLabel}</Text>}
+                      </View>
+                      <View style={[styles.checkBox, cos.equipped && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}>
+                        {cos.equipped && <Ionicons name="checkmark" size={15} color={COLORS.bg} />}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -194,5 +250,10 @@ function makeStyles(c: any) {
     lockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     unlockBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, marginTop: 4 },
     unlockBtnText: { fontSize: 14, fontWeight: '700', color: c.bg },
+    cosmeticRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginTop: 4 },
+    cosmeticIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    cosmeticLabel: { fontSize: 14, fontWeight: '700', color: c.text },
+    cosmeticSlot: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    checkBox: { width: 24, height: 24, borderRadius: 7, borderWidth: 1.5, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
   });
 }

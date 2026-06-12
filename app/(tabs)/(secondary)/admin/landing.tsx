@@ -71,7 +71,7 @@ export default function AdminLanding() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Admin</Text>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Page d'accueil (bureau)</Text>
         <Text style={styles.sub}>Affichée sur le web en grand écran. Sur mobile, l'accueil classique reste utilisé. Les boutons mènent aux pages de connexion / inscription.</Text>

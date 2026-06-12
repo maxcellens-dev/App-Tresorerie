@@ -46,9 +46,9 @@ export default function FiscalRatesAdmin() {
     <View style={styles.root}>
       <StatusBar style={COLORS.bg === '#020617' ? 'light' : 'dark'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.navigate('/(tabs)/(secondary)/admin' as any)}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
-          <Text style={styles.backLabel}>Admin</Text>
+          <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>
 
         <Text style={styles.title}>Fiscalité des investissements</Text>

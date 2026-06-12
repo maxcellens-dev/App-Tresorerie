@@ -368,9 +368,9 @@ export default function FinancialProfilesAdmin() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.navigate('/(tabs)/(secondary)/admin' as any)}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
-          <Text style={styles.backLabel}>Admin</Text>
+          <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>
 
         <Text style={styles.title}>Profils financiers</Text>

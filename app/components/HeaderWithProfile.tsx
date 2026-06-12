@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import { useUserUnreadCount, useAdminUnreadCount } from '../hooks/useUnreadBadges';
+import { useCosmetics } from '../hooks/useCosmetics';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
 import ProfileMenuModal from './ProfileMenuModal';
@@ -84,6 +85,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   // Badges « non lu » : réponses assistance pour l'utilisateur, assistance + idées pour l'admin.
   const userUnread = useUserUnreadCount(user?.id);
   const adminUnread = useAdminUnreadCount(isAdmin);
+  const { avatarFrameColor } = useCosmetics(user?.id);
 
   function openAdmin() {
     router.push('/(tabs)/(secondary)/admin');
@@ -135,13 +137,15 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
           accessibilityRole="button"
           accessibilityLabel="Menu du compte"
         >
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} {...({ pointerEvents: 'none' } as any)} />
-          ) : (
-            <View style={styles.avatarPlaceholder} pointerEvents="none">
-              <Ionicons name="person" size={22} color={COLORS.textSecondary} />
-            </View>
-          )}
+          <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} {...({ pointerEvents: 'none' } as any)} />
+            ) : (
+              <View style={styles.avatarPlaceholder} pointerEvents="none">
+                <Ionicons name="person" size={22} color={COLORS.textSecondary} />
+              </View>
+            )}
+          </View>
           <UnreadBadge count={userUnread} style={{ top: -2, right: -4 }} />
         </TouchableOpacity>
       </View>}
@@ -172,6 +176,7 @@ function makeStyles(c: any) {
   right: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn: { padding: 8 },
   avatarWrap: { padding: 4 },
+  avatarFrame: { borderWidth: 2, borderRadius: 20, padding: 2 },
   avatar: { width: 34, height: 34, borderRadius: 17 },
   avatarPlaceholder: {
     width: 34,

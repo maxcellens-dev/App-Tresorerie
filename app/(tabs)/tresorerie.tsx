@@ -823,10 +823,10 @@ export default function TreasuryPlanScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        {/* Retour vers Projection (page d'origine du plan de trésorerie) */}
+        {/* Retour vers la page précédente */}
         <TouchableOpacity
           style={styles.backRow}
-          onPress={() => router.navigate('/(tabs)/projection' as any)}
+          onPress={() => router.back()}
           accessibilityRole="button"
         >
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />

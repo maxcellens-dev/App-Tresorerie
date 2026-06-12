@@ -710,7 +710,7 @@ export default function ReportingScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)}
+                onPress={() => router.back()}
               >
                 <Ionicons name="chevron-back" size={20} color={C.textSecondary} />
                 <Text style={{ fontSize: 14, fontWeight: '600', color: C.textSecondary }}>Retour</Text>

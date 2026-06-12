@@ -12,6 +12,7 @@ import { usePlan } from '../hooks/usePlan';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useAppColors } from '../hooks/useAppColors';
 import { useUserUnreadCount } from '../hooks/useUnreadBadges';
+import { useCosmetics } from '../hooks/useCosmetics';
 import { useAppNameFont } from '../hooks/useBrandFont';
 
 const APP_VERSION = '1.0.0';
@@ -30,6 +31,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
   const isAdmin = (profile as any)?.is_admin === true;
   const supportUnread = useUserUnreadCount(user?.id);
+  const { avatarFrameColor, profileTitle } = useCosmetics(user?.id);
 
   const go = (route: string) => { onClose(); router.push(route as any); };
   const logout = async () => { onClose(); await signOut(); router.replace('/welcome'); };
@@ -53,13 +55,21 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
         <TouchableOpacity activeOpacity={1} style={styles.panel} onPress={() => {}}>
           {/* En-tête : avatar + nom + tag premium */}
           <View style={styles.header}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}><Ionicons name="person" size={22} color={COLORS.textSecondary} /></View>
-            )}
+            <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}><Ionicons name="person" size={22} color={COLORS.textSecondary} /></View>
+              )}
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+              {!!profileTitle && (
+                <View style={styles.titleBadge}>
+                  <Ionicons name="ribbon" size={10} color="#FFD700" />
+                  <Text style={styles.titleBadgeText}>{profileTitle}</Text>
+                </View>
+              )}
               <View style={styles.tagsRow}>
                 {isPremium && (
                   <View style={[styles.tag, { backgroundColor: COLORS.yellow + '22', borderColor: COLORS.yellow }]}>
@@ -127,7 +137,10 @@ function makeStyles(c: any) {
     header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: c.cardBorder, marginBottom: 6 },
     avatar: { width: 44, height: 44, borderRadius: 22 },
     avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
+    avatarFrame: { borderWidth: 2.5, borderRadius: 26, padding: 2 },
     name: { fontSize: 16, fontWeight: '800', color: c.text },
+    titleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 3, marginTop: 3, borderWidth: 1, borderColor: '#FFD70066', backgroundColor: '#FFD7001A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+    titleBadgeText: { fontSize: 10, fontWeight: '800', color: '#FFD700' },
     tagsRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
     tag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     tagText: { fontSize: 10, fontWeight: '800' },

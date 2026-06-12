@@ -114,6 +114,8 @@ export interface Profile {
   currency_code?: string;
   /** Notifications (push + annonces) activées — toggle dans Paramètres. */
   notifications_enabled?: boolean;
+  /** Cosmétiques équipés par emplacement (cadre d'avatar, titre, flamme de série). */
+  equipped_cosmetics?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }

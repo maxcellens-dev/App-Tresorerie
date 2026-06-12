@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../components/ScreenGradient';
 import { useAuth } from '../../contexts/AuthContext';
+import { useProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
@@ -29,6 +30,8 @@ export default function BoutiqueScreen() {
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const isAdmin = (profile as any)?.is_admin === true;
   const { state, config, inventory, buyItem, creditGems, canClaimDailyGems } = useGamification(user?.id);
   const { isPremium, premiumEnabled } = usePlan(user?.id);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -120,9 +123,23 @@ export default function BoutiqueScreen() {
         </TouchableOpacity>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Boutique</Text>
-          <View style={styles.gemPill}>
-            <Ionicons name="diamond" size={14} color={COLORS.blue} />
-            <Text style={styles.gemText}>{gems}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Admin uniquement : crédite 100 relyks pour tester les achats facilement. */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.adminGemBtn}
+                onPress={async () => { await creditGems(100); setMsg('+100 relyks (admin)'); }}
+                activeOpacity={0.85}
+                accessibilityLabel="Ajouter 100 relyks (admin)"
+              >
+                <Ionicons name="add" size={14} color="#fff" />
+                <Text style={styles.adminGemBtnText}>100</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.gemPill}>
+              <Ionicons name="diamond" size={14} color={COLORS.blue} />
+              <Text style={styles.gemText}>{gems}</Text>
+            </View>
           </View>
         </View>
 
@@ -280,6 +297,8 @@ function makeStyles(c: any) {
     title: { fontSize: 26, fontWeight: '800', color: c.text },
     gemPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
     gemText: { fontSize: 14, fontWeight: '800', color: c.text },
+    adminGemBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+    adminGemBtnText: { fontSize: 13, fontWeight: '800', color: '#fff' },
     tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },

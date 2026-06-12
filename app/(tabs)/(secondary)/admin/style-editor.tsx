@@ -266,8 +266,9 @@ export default function StyleEditor() {
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/(tabs)/(secondary)/admin' as any)}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={22} color={COLORS.text} />
+            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <View>
             <Text style={styles.headerTitle}>Design System</Text>

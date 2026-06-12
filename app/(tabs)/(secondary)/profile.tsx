@@ -13,6 +13,7 @@ import { supabase } from '../../lib/supabase';
 import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useCosmetics } from '../../hooks/useCosmetics';
 import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 
@@ -24,6 +25,7 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { data: profile, refetch } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
+  const { avatarFrameColor, profileTitle } = useCosmetics(user?.id);
   const fileInputRef = useRef<any>(null);
 
   const [fullName, setFullName] = useState('');
@@ -193,7 +195,7 @@ export default function ProfileScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={[]}>
-          <TouchableOpacity style={styles.back} onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)}>
+          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
@@ -235,7 +237,7 @@ export default function ProfileScreen() {
         )}
 
         <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/parametres' as any)} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
@@ -243,11 +245,19 @@ export default function ProfileScreen() {
         </View>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection} ref={avatarRef}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={48} color={COLORS.textSecondary} />
+            <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={48} color={COLORS.textSecondary} />
+                </View>
+              )}
+            </View>
+            {!!profileTitle && (
+              <View style={styles.titleBadge}>
+                <Ionicons name="ribbon" size={12} color="#FFD700" />
+                <Text style={styles.titleBadgeText}>{profileTitle}</Text>
               </View>
             )}
             <View style={styles.avatarActions}>
@@ -429,6 +439,9 @@ function makeStyles(c: any) {
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
+  avatarFrame: { borderWidth: 3, borderRadius: 54, padding: 3 },
+  titleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10, borderWidth: 1, borderColor: '#FFD70066', backgroundColor: '#FFD7001A', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  titleBadgeText: { fontSize: 12, fontWeight: '800', color: '#FFD700' },
   avatar: { width: 96, height: 96, borderRadius: 48 },
   avatarPlaceholder: {
     width: 96,

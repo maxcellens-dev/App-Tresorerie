@@ -252,7 +252,7 @@ export default function SettingsScreen() {
               />
             </View>
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Recevez les réponses à vos demandes d'assistance et les annonces Relyka.
+              Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka). Les badges de notification dans l'app restent affichés même si vous les désactivez.
             </Text>
           </View>
 

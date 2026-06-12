@@ -1,13 +1,14 @@
 /**
  * LegalLayout — habillage commun des pages publiques (Confidentialité, Mentions légales).
  *
- * Deux présentations :
- *  • Visiteur déconnecté (depuis la landing) → en-tête + pied de page « site » (web bureau pleine largeur).
- *  • Utilisateur connecté (dans l'app) → l'en-tête de l'app est déjà fourni par AppChrome ;
- *    la page ajoute simplement une flèche « Retour » + un titre, comme les autres pages.
+ * Deux présentations, selon la LARGEUR (bureau vs mobile), pas la plateforme :
+ *  • Bureau (web large ≥ 900 px) → en-tête + pied de page « site web » (logo, Connexion/
+ *    Inscription) : ces pages sont aussi accessibles publiquement depuis la page d'accueil.
+ *  • Mobile / app (largeur < 900 px ou natif) → en-tête D'APP identique aux autres pages
+ *    (barre « Relyka » + série/gemmes/avatar, puis flèche « Retour » + titre).
  */
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, useWindowDimensions } from 'react-native';
 import ScreenGradient from './ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -16,6 +17,10 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppNameFont } from '../hooks/useBrandFont';
+import HeaderWithProfile from './HeaderWithProfile';
+
+/** Seuil « bureau » : au-delà, on affiche l'habillage site web ; en-dessous, l'app. */
+export const LEGAL_DESKTOP_MIN_WIDTH = 900;
 
 export default function LegalLayout({ title, children }: { title: string; children: React.ReactNode }) {
   const COLORS = useAppColors();
@@ -23,10 +28,12 @@ export default function LegalLayout({ title, children }: { title: string; childr
   const appNameFont = useAppNameFont();
   const router = useRouter();
   const { user } = useAuth();
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/welcome'));
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= LEGAL_DESKTOP_MIN_WIDTH;
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace(user ? '/(tabs)/pilotage' : '/welcome'));
 
-  // ───────── Mode « site » (visiteur déconnecté) ─────────
-  if (!user) {
+  // ───────── Mode « site web » (bureau) ─────────
+  if (isDesktopWeb) {
     return (
       <View style={styles.root}>
         <StatusBar style="light" />
@@ -34,17 +41,25 @@ export default function LegalLayout({ title, children }: { title: string; childr
           {/* En-tête site */}
           <View style={styles.siteHeader}>
             <View style={styles.siteHeaderInner}>
-              <TouchableOpacity style={styles.brandRow} onPress={() => router.replace('/welcome')} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.brandRow} onPress={() => router.replace(user ? '/(tabs)/pilotage' : '/welcome')} activeOpacity={0.8}>
                 <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
                 <Text style={[styles.brand, { fontFamily: appNameFont }]}>Relyka</Text>
               </TouchableOpacity>
               <View style={styles.siteHeaderBtns}>
-                <TouchableOpacity onPress={() => router.push('/login')}>
-                  <Text style={styles.siteNavLink}>Se connecter</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.siteCta} onPress={() => router.push('/register')} activeOpacity={0.85}>
-                  <Text style={styles.siteCtaText}>S'inscrire</Text>
-                </TouchableOpacity>
+                {user ? (
+                  <TouchableOpacity style={styles.siteCta} onPress={() => router.replace('/(tabs)/pilotage')} activeOpacity={0.85}>
+                    <Text style={styles.siteCtaText}>Mon espace</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <TouchableOpacity onPress={() => router.push('/login')}>
+                      <Text style={styles.siteNavLink}>Se connecter</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.siteCta} onPress={() => router.push('/register')} activeOpacity={0.85}>
+                      <Text style={styles.siteCtaText}>S'inscrire</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </View>
           </View>
@@ -76,22 +91,25 @@ export default function LegalLayout({ title, children }: { title: string; childr
     );
   }
 
-  // ───────── Mode « app » (utilisateur connecté) ─────────
+  // ───────── Mode « app » (mobile / natif) : en-tête identique aux autres pages ─────────
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+      <SafeAreaView edges={['top']}>
+        <HeaderWithProfile title="Relyka" height={80} />
+      </SafeAreaView>
+      <View style={styles.appBackRow}>
+        <TouchableOpacity style={styles.appBackBtn} onPress={goBack} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          <Text style={styles.appBackText}>Retour</Text>
+        </TouchableOpacity>
+      </View>
+      <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.appScroll}>
-          <View style={styles.contentWrap}>
-            <TouchableOpacity style={styles.backRow} onPress={goBack} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-              <Text style={[styles.backText, { color: COLORS.text }]}>Retour</Text>
-            </TouchableOpacity>
-            <Text style={styles.pageTitle}>{title}</Text>
-            {children}
-            <View style={{ height: 40 }} />
-          </View>
+          <Text style={styles.pageTitle}>{title}</Text>
+          {children}
+          <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -128,7 +146,10 @@ function makeStyles(c: any) {
     footerLink: { fontSize: 14, fontWeight: '600', color: c.emerald, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     footerCopy: { fontSize: 12, color: c.textSecondary, marginTop: 12 },
 
-    // App mode
-    appScroll: { paddingHorizontal: 24, paddingTop: 8 },
+    // App mode (mobile/natif) — identique aux autres pages
+    appBackRow: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 2 },
+    appBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+    appBackText: { fontSize: 14, fontWeight: '600', color: c.text },
+    appScroll: { paddingHorizontal: 24, paddingTop: 6, paddingBottom: 24 },
   });
 }

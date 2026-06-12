@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useGamification } from '../hooks/useGamification';
+import { useCosmetics } from '../hooks/useCosmetics';
 import { isImageIcon } from '../lib/gamification';
 
 export default function StreakChip() {
@@ -16,14 +17,17 @@ export default function StreakChip() {
   const router = useRouter();
   const { user } = useAuth();
   const { state, config } = useGamification(user?.id);
+  const { flameColor } = useCosmetics(user?.id);
 
   if (!user || !config?.identity.enabled || !state) return null;
   const streakIcon = config.identity.streakIcon || '🔥';
   const isActive = state.streak > 0;
+  // Cosmétique « flamme dorée » équipé → teinte dorée (sur l'icône emoji ET Ionicons).
+  const goldFlame = isActive && !!flameColor;
 
   return (
     <TouchableOpacity
-      style={[styles.chip, { borderColor: COLORS.cardBorder, backgroundColor: COLORS.card }]}
+      style={[styles.chip, { borderColor: goldFlame ? '#FFD700' : COLORS.cardBorder, backgroundColor: goldFlame ? '#FFD7001A' : COLORS.card }]}
       onPress={() => router.push('/(tabs)/(secondary)/succes' as any)}
       activeOpacity={0.8}
       accessibilityRole="button"
@@ -32,9 +36,9 @@ export default function StreakChip() {
       {isImageIcon(streakIcon)
         ? <Image source={{ uri: streakIcon }} style={styles.iconImg} />
         : streakIcon.length <= 2
-          ? <Text style={[styles.emoji, !isActive && { opacity: 0.4 }]}>{streakIcon}</Text>
-          : <Ionicons name={streakIcon as any} size={14} color={isActive ? COLORS.orange : COLORS.textSecondary} />}
-      <Text style={[styles.streakText, { color: isActive ? COLORS.text : COLORS.textSecondary }]}>{state.streak}</Text>
+          ? <Text style={[styles.emoji, !isActive && { opacity: 0.4 }, goldFlame && styles.goldEmoji]}>{streakIcon}</Text>
+          : <Ionicons name={streakIcon as any} size={14} color={goldFlame ? '#FFD700' : isActive ? COLORS.orange : COLORS.textSecondary} />}
+      <Text style={[styles.streakText, { color: goldFlame ? '#FFD700' : isActive ? COLORS.text : COLORS.textSecondary }]}>{state.streak}</Text>
     </TouchableOpacity>
   );
 }
@@ -46,6 +50,8 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
   emoji: { fontSize: 13 },
+  // Halo doré (cosmétique « flamme dorée ») — léger glow + teinte chaude sur l'emoji.
+  goldEmoji: { textShadowColor: '#FFD700', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
   iconImg: { width: 14, height: 14, borderRadius: 3 },
   streakText: { fontSize: 12, fontWeight: '800' },
 });

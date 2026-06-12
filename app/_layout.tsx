@@ -144,9 +144,12 @@ function AppChrome() {
   const isTabs = root === '(tabs)';
   // Sur web bureau : on limite la largeur de l'app (colonne centrée ~840 px), comme une app mobile.
   // Exceptions pleine largeur : page d'accueil marketing (welcome/index) + pages publiques légales.
+  // Pages légales : pleine largeur (mode « site ») UNIQUEMENT pour un visiteur déconnecté.
+  // Connecté, elles s'affichent dans la colonne d'app comme les autres pages.
+  const isPublicLegal = (root === 'confidentialite' || root === 'legal') && !user;
   const limitWidth = Platform.OS === 'web'
     && root !== 'welcome' && root !== 'index'
-    && root !== 'confidentialite' && root !== 'legal';
+    && !isPublicLegal;
 
   // Lien de réinitialisation de mot de passe → écran dédié (prioritaire sur le reste).
   useEffect(() => {
