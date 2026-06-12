@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useRoadmapIdeas, useAddRoadmapIdea, useDeleteRoadmapIdea } from '../../../hooks/useRoadmapIdeas';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useMarkSuggestionsRead } from '../../../hooks/useUnreadBadges';
 
 
 interface Suggestion {
@@ -43,6 +44,10 @@ export default function AdminSuggestions() {
   const { user } = useAuth();
   const { data: suggestions = [], isLoading } = useAllSuggestions();
   const [filter, setFilter] = useState<'open' | 'closed' | 'all'>('open');
+
+  // Ouvrir la page = lire les idées → le badge admin (assistance + idées) se décrémente.
+  const markIdeasRead = useMarkSuggestionsRead();
+  useEffect(() => { markIdeasRead.mutate(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const filteredSuggestions = suggestions.filter((s) =>
     filter === 'all' ? true : filter === 'closed' ? s.status === 'closed' : s.status !== 'closed'
   );

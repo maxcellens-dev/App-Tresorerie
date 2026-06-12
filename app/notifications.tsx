@@ -1,15 +1,21 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from './hooks/useAppColors';
+import { useAuth } from './contexts/AuthContext';
+import { useProfile, useUpdateProfile } from './hooks/useProfile';
 
 
 export default function NotificationsScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const { user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const updateProfile = useUpdateProfile(user?.id);
+  const enabled = (profile as any)?.notifications_enabled ?? true;
 
   return (
     <View style={styles.root}>
@@ -21,9 +27,19 @@ export default function NotificationsScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>Notifications</Text>
         <View style={styles.card}>
-          <Ionicons name="notifications-outline" size={48} color={COLORS.textSecondary} style={styles.icon} />
-          <Text style={styles.message}>La gestion des notifications sera disponible prochainement.</Text>
-          <Text style={styles.hint}>Vous pourrez choisir les alertes (tréso, rappels, etc.) et les préférences d’envoi.</Text>
+          <View style={styles.row}>
+            <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
+            <Text style={styles.rowLabel}>Activer les notifications</Text>
+            <Switch
+              value={enabled}
+              onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
+              trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+              thumbColor="#ffffff"
+            />
+          </View>
+          <Text style={styles.hint}>
+            Recevez les réponses à vos demandes d'assistance et les annonces Relyka.
+          </Text>
         </View>
       </SafeAreaView>
     </View>
@@ -41,11 +57,10 @@ function makeStyles(c: any) {
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
-    padding: 24,
-    alignItems: 'center',
+    padding: 16,
   },
-  icon: { marginBottom: 16 },
-  message: { fontSize: 16, color: c.text, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
-  hint: { fontSize: 14, color: c.textSecondary, textAlign: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: c.text },
+  hint: { fontSize: 12, color: c.textSecondary, marginTop: 10, lineHeight: 16 },
 });
 }

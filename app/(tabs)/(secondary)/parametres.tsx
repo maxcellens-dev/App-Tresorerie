@@ -1,5 +1,5 @@
 ﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -236,6 +236,24 @@ export default function SettingsScreen() {
                 Détermine si vos revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de votre Relyka — le montant que vous pouvez allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur l'argent déja encaissé.
               </Text>
             </View>
+          </View>
+
+          {/* ── Notifications ── */}
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          <View style={styles.card}>
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
+              <Text style={styles.rowLabel}>Activer les notifications</Text>
+              <Switch
+                value={(profile as any)?.notifications_enabled ?? true}
+                onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
+                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              Recevez les réponses à vos demandes d'assistance et les annonces Relyka.
+            </Text>
           </View>
 
           {/* ── Devise ── */}

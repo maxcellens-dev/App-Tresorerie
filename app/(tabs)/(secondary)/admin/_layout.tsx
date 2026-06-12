@@ -17,6 +17,7 @@ export default function AdminLayout() {
       <Stack.Screen name="ads" options={{ title: 'Publicités' }} />
       <Stack.Screen name="landing" options={{ title: "Page d'accueil" }} />
       <Stack.Screen name="users" options={{ title: 'Utilisateurs' }} />
+      <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
     </Stack>
   );
 }

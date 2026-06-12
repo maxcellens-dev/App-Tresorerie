@@ -16,6 +16,8 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { usePilotageData } from '../hooks/usePilotageData';
+import { useProfile } from '../hooks/useProfile';
+import { usePlan } from '../hooks/usePlan';
 import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../theme/colors';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -471,6 +473,12 @@ export default function ReportingScreen() {
   const { width: screenW } = useWindowDimensions();
   const chartWidth = Math.min(screenW - 48, 500);
 
+  // Reporting réservé aux abonnés Premium (les admins y accèdent toujours).
+  const { data: profile } = useProfile(user?.id);
+  const { isPremium } = usePlan(user?.id);
+  const isAdmin = (profile as any)?.is_admin === true;
+  const reportingAllowed = isPremium || isAdmin;
+
   const { data: transactions, refetch: rTx } = useTransactions(user?.id);
   const { data: accounts, refetch: rAcc } = useAccounts(user?.id);
   const { data: categories } = useCategories(user?.id);
@@ -649,6 +657,35 @@ export default function ReportingScreen() {
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="lock-closed-outline" size={48} color={C.textSecondary} />
             <Text style={{ color: C.textSecondary, marginTop: 12, fontSize: 15 }}>Connectez-vous pour accéder au reporting.</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (!reportingAllowed) {
+    return (
+      <View style={s.root}>
+        <StatusBar style="light" />
+        <ScreenGradient />
+        <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
+            <Ionicons name="star-outline" size={48} color={C.amber} />
+            <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>Reporting réservé aux abonnés Premium</Text>
+            <Text style={{ color: C.textSecondary, marginTop: 8, fontSize: 13.5, textAlign: 'center', lineHeight: 19 }}>
+              Graphiques détaillés, répartition par catégorie et évolution de votre patrimoine : passez Premium pour y accéder.
+            </Text>
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.amber, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 13, marginTop: 20 }}
+              onPress={() => router.push('/(tabs)/(secondary)/premium' as any)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="star" size={16} color="#0f172a" />
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop: 16, padding: 8 }} onPress={() => router.back()} activeOpacity={0.7}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.textSecondary }}>Retour</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </View>

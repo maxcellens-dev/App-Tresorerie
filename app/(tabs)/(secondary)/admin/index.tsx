@@ -54,6 +54,7 @@ export default function AdminHub() {
       items: [
         { href: '/(tabs)/(secondary)/admin/assistance', icon: 'headset-outline', title: 'Assistance', desc: 'Demandes de support', color: '#22d3ee' },
         { href: '/(tabs)/(secondary)/admin/suggestions', icon: 'chatbubbles-outline', title: 'Suggestions', desc: 'Idées utilisateurs', color: '#eab308' },
+        { href: '/(tabs)/(secondary)/admin/notifications', icon: 'notifications-outline', title: 'Notifications', desc: 'Envoi manuel à tous les utilisateurs', color: '#ef4444' },
         { href: '/(tabs)/(secondary)/admin/stats-hub', icon: 'bar-chart-outline', title: 'Stats Hub', desc: 'Métriques & activité', color: '#f97316' },
         { href: '/(tabs)/(secondary)/admin/users', icon: 'people-outline', title: 'Utilisateurs', desc: 'Recherche + passage Premium', color: '#22c55e' },
       ],

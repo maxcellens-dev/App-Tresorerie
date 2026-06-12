@@ -207,7 +207,7 @@ export default function ProjectionScreen() {
         initialHypos[acc.id] = {
           contributed: String(Math.round(auto)),
           contributedBase: auto,
-          annual: '2400',
+          annual: '0',
           rate: '7',
           tax: String(taxRateFor(fiscalRates, acc.envelope)),
         };
@@ -239,7 +239,7 @@ export default function ProjectionScreen() {
       for (const acc of investAccounts) {
         if (!next[acc.id]) {
           const auto = autoContributedFor(acc);
-          next[acc.id] = { contributed: String(Math.round(auto)), contributedBase: auto, annual: '2400', rate: '7', tax: String(taxRateFor(fiscalRates, acc.envelope)) };
+          next[acc.id] = { contributed: String(Math.round(auto)), contributedBase: auto, annual: '0', rate: '7', tax: String(taxRateFor(fiscalRates, acc.envelope)) };
           changed = true;
         }
       }
@@ -290,13 +290,15 @@ export default function ProjectionScreen() {
     markProjectionEdited();
   };
 
-  // Réinitialise les hypothèses du compte : apport = total apporté à la création + apports/virements.
+  // Réinitialise les hypothèses du compte aux valeurs par défaut :
+  // apport = total apporté à la création + apports/virements, 0 € d'apport mensuel/annuel,
+  // 7 % de rendement et fiscalité de l'enveloppe.
   const resetHypo = (acc: { id: string; balance: number; envelope: string; initialContributed: number | null }) => {
     const auto = autoContributedFor(acc);
     updateHypo(acc.id, {
       contributed: String(Math.round(auto)),
       contributedBase: auto,
-      annual: '2400',
+      annual: '0',
       rate: '7',
       tax: String(taxRateFor(fiscalRates, acc.envelope)),
     });

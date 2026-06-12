@@ -21,6 +21,7 @@ import { useCurrency } from './hooks/useCurrency';
 import { useProfile } from './hooks/useProfile';
 import { useSetPremium } from './hooks/usePlan';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from './lib/purchases';
+import { PUSH_SUPPORTED, getDevicePushTokenAsync } from './lib/pushNotifications';
 import './global.css';
 
 const queryClient = new QueryClient({
@@ -66,6 +67,31 @@ function PurchasesSync() {
     })();
     return () => { cancelled = true; unsub(); };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null;
+}
+
+/** Enregistre le jeton push Expo de l'appareil (natif uniquement) quand l'utilisateur
+ *  est connecté et que les notifications sont activées dans ses Paramètres. */
+function PushRegistrar() {
+  const { user, isImpersonating } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const notifEnabled = (profile as any)?.notifications_enabled ?? true;
+
+  useEffect(() => {
+    if (!PUSH_SUPPORTED || !user?.id || !profile || isImpersonating) return;
+    if (!notifEnabled) return;
+    let cancelled = false;
+    (async () => {
+      const device = await getDevicePushTokenAsync();
+      if (cancelled || !device || !supabase) return;
+      await supabase.from('push_tokens').upsert(
+        { profile_id: user.id, token: device.token, platform: device.platform, updated_at: new Date().toISOString() },
+        { onConflict: 'profile_id,token' },
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, !!profile, notifEnabled, isImpersonating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }
@@ -185,6 +211,7 @@ export default function RootLayout() {
           <RecurringMaterializer />
           <GamificationSync />
           <PurchasesSync />
+          <PushRegistrar />
           <AppChrome />
         </AuthProvider>
       </ThemeProvider>

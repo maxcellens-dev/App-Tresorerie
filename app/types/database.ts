@@ -112,6 +112,8 @@ export interface Profile {
   theme_mode?: 'dark' | 'light';
   theme_preset?: 'emerald' | 'ocean' | 'violet' | 'coral' | 'amber';
   currency_code?: string;
+  /** Notifications (push + annonces) activées — toggle dans Paramètres. */
+  notifications_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }

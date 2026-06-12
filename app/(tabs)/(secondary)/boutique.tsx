@@ -193,7 +193,10 @@ export default function BoutiqueScreen() {
                               {isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.itemLabel}>{itemLabel(item)}{owned > 0 && item.type !== 'daily_gems' ? ' · acquis' : ''}</Text>
+                              <Text style={styles.itemLabel}>
+                                {itemLabel(item)}
+                                {owned > 0 && item.type !== 'daily_gems' && <Text style={{ color: COLORS.green }}> · acquis</Text>}
+                              </Text>
                               {!!itemDesc(item) && <Text style={styles.itemDesc}>{itemDesc(item)}</Text>}
                             </View>
                             {renderBuyButton(item)}

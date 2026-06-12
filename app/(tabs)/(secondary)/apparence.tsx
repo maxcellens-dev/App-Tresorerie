@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
+import { usePlan } from '../../hooks/usePlan';
 import { THEME_MODES, THEME_PRESETS, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 
@@ -49,13 +50,15 @@ export default function AppearanceScreen() {
   const onHexChange = (v: string) => setCustomHex(v.toUpperCase());
   const applyHex = () => { if (isHex(customHex)) setPreset(customHex as ThemePreset); };
 
-  // Couleurs personnalisées : débloquées UNIQUEMENT par l'achat « accent_pack » en boutique
-  // (y compris pour les abonnés Premium, qui doivent aussi l'acheter).
+  // Couleur personnalisée (champ hex sous les presets) : réservée aux abonnés Premium.
+  // Les acheteurs historiques du pack « accent_pack » en boutique restent débloqués.
   const { inventory } = useGamification(user?.id);
-  const colorsUnlocked = inventory.some((i) => i.item_key === 'accent_pack');
+  const { isPremium } = usePlan(user?.id);
+  const hasAccentPack = inventory.some((i) => i.item_key === 'accent_pack');
+  const colorsUnlocked = isPremium || hasAccentPack;
   // Les 7 dernières couleurs d'accent sont « premium » : masquées tant que le pack n'est pas acheté.
   const PREMIUM_PRESET_COUNT = 7;
-  const shownPresets = (colorsUnlocked || allPresets.length <= PREMIUM_PRESET_COUNT)
+  const shownPresets = (hasAccentPack || allPresets.length <= PREMIUM_PRESET_COUNT)
     ? allPresets
     : allPresets.slice(0, allPresets.length - PREMIUM_PRESET_COUNT);
 
@@ -149,10 +152,10 @@ export default function AppearanceScreen() {
                 </>
               ) : (
                 <>
-                  <Text style={styles.hint}>Débloquez les couleurs d'accent personnalisées avec Premium ou en boutique.</Text>
-                  <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
-                    <Ionicons name="lock-open-outline" size={16} color={COLORS.bg} />
-                    <Text style={styles.unlockBtnText}>Débloquer en boutique</Text>
+                  <Text style={styles.hint}>La personnalisation de la couleur d'accent est réservée aux abonnés Premium.</Text>
+                  <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+                    <Ionicons name="star-outline" size={16} color={COLORS.bg} />
+                    <Text style={styles.unlockBtnText}>Passer Premium</Text>
                   </TouchableOpacity>
                 </>
               )}

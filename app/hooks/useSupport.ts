@@ -5,6 +5,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { sendPushToProfile } from '../lib/pushSend';
 
 export interface SupportRequest {
   id: string;
@@ -141,11 +142,22 @@ export function useAddSupportMessage() {
         ...(role === 'user' ? { admin_unread: true } : { user_unread: true }),
       };
       await supabase.from('support_requests').update(patch).eq('id', requestId);
+
+      // Réponse admin → notification push à l'utilisateur (s'il a activé les notifications).
+      if (role === 'admin') {
+        const { data: req } = await supabase.from('support_requests').select('profile_id, subject').eq('id', requestId).maybeSingle();
+        if (req?.profile_id) {
+          const excerpt = body.trim().length > 120 ? body.trim().slice(0, 117) + '…' : body.trim();
+          sendPushToProfile(req.profile_id, `Assistance — ${req.subject || 'votre demande'}`, excerpt)
+            .catch((e) => console.warn('[useSupport] push réponse assistance échoué:', e));
+        }
+      }
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['support_messages', vars.requestId] });
       qc.invalidateQueries({ queryKey: ['support_requests'] });
       qc.invalidateQueries({ queryKey: ['support_request', vars.requestId] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
     },
   });
 }
@@ -200,6 +212,9 @@ export function useMarkSupportRead() {
       const patch = side === 'user' ? { user_unread: false } : { admin_unread: false };
       await supabase.from('support_requests').update(patch).eq('id', requestId);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['support_requests'] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['support_requests'] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
+    },
   });
 }

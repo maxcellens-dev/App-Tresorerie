@@ -11,6 +11,7 @@ import { useProfile } from '../hooks/useProfile';
 import { usePlan } from '../hooks/usePlan';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useAppColors } from '../hooks/useAppColors';
+import { useUserUnreadCount } from '../hooks/useUnreadBadges';
 import { useAppNameFont } from '../hooks/useBrandFont';
 
 const APP_VERSION = '1.0.0';
@@ -28,6 +29,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const avatarUrl = profile?.avatar_url ?? user?.user_metadata?.avatar_url;
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
   const isAdmin = (profile as any)?.is_admin === true;
+  const supportUnread = useUserUnreadCount(user?.id);
 
   const go = (route: string) => { onClose(); router.push(route as any); };
   const logout = async () => { onClose(); await signOut(); router.replace('/welcome'); };
@@ -81,10 +83,16 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
           <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
             {items.filter(Boolean).map((it) => {
               const item = it as { icon: string; label: string; route: string; color?: string };
+              const badgeCount = item.label === 'Support' ? supportUnread : 0;
               return (
                 <Pressable key={item.label} style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]} onPress={() => go(item.route)}>
                   <Ionicons name={item.icon as any} size={20} color={item.color ?? COLORS.emerald} />
                   <Text style={styles.rowLabel}>{item.label}</Text>
+                  {badgeCount > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
@@ -125,6 +133,8 @@ function makeStyles(c: any) {
     tagText: { fontSize: 10, fontWeight: '800' },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     rowHover: { backgroundColor: c.text + '14' },
+    unreadBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+    unreadBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
     rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: c.text },
     divider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 8 },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13 },

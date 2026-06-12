@@ -5,9 +5,37 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
+import { useUserUnreadCount, useAdminUnreadCount } from '../hooks/useUnreadBadges';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
 import ProfileMenuModal from './ProfileMenuModal';
+
+/** Pastille rouge avec compteur (badge « non lu »). */
+export function UnreadBadge({ count, style }: { count: number; style?: any }) {
+  if (count <= 0) return null;
+  return (
+    <View style={[badgeStyles.badge, style]} pointerEvents="none">
+      <Text style={badgeStyles.badgeText}>{count > 99 ? '99+' : count}</Text>
+    </View>
+  );
+}
+
+const badgeStyles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    zIndex: 2,
+  },
+  badgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
+});
 
 
 interface HeaderWithProfileProps {
@@ -53,6 +81,10 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   const isAdmin = (profile as any)?.is_admin === true;
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Badges « non lu » : réponses assistance pour l'utilisateur, assistance + idées pour l'admin.
+  const userUnread = useUserUnreadCount(user?.id);
+  const adminUnread = useAdminUnreadCount(isAdmin);
+
   function openAdmin() {
     router.push('/(tabs)/(secondary)/admin');
   }
@@ -93,6 +125,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
             accessibilityLabel="Admin"
           >
             <Ionicons name="shield-checkmark" size={22} color="#34d399" />
+            <UnreadBadge count={adminUnread} style={{ top: -1, right: -3 }} />
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -109,6 +142,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
               <Ionicons name="person" size={22} color={COLORS.textSecondary} />
             </View>
           )}
+          <UnreadBadge count={userUnread} style={{ top: -2, right: -4 }} />
         </TouchableOpacity>
       </View>}
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
