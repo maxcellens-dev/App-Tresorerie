@@ -13,6 +13,7 @@ import HeaderWithProfile from './components/HeaderWithProfile';
 import { LEGAL_DESKTOP_MIN_WIDTH } from './components/LegalLayout';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from './lib/analytics';
+import { recordRoute } from './lib/navHistory';
 import ProfileChangeModal from './components/ProfileChangeModal';
 import StreakRecoveryModal from './components/StreakRecoveryModal';
 import FontApplier from './components/FontApplier';
@@ -94,6 +95,14 @@ function PushRegistrar() {
     return () => { cancelled = true; };
   }, [user?.id, !!profile, notifEnabled, isImpersonating]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  return null;
+}
+
+/** Suit le chemin courant pour permettre un « Retour » fiable vers la vraie page précédente
+ *  (cf. useNavBack), indépendamment de la pile de navigation imbriquée. Toujours monté. */
+function RouteHistoryTracker() {
+  const pathname = usePathname();
+  useEffect(() => { recordRoute(pathname); }, [pathname]);
   return null;
 }
 
@@ -202,6 +211,7 @@ function AppChrome() {
       {/* Récupération de série perdue — proposée à l'arrivée sur l'app */}
       {isTabs && user && <StreakRecoveryModal />}
       <AnalyticsTracker />
+      <RouteHistoryTracker />
     </View>
     </TourProvider>
   );

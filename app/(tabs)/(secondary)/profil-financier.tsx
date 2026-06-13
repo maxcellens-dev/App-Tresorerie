@@ -25,6 +25,7 @@ import {
 import type { QuestionnaireAnswers } from '../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 
 
 const QUESTIONS = [
@@ -100,6 +101,7 @@ export default function ProfilFinancierScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: fp, isLoading: fpLoading } = useFinancialProfile(user?.id);
   const { data: savedAnswers, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
@@ -203,7 +205,7 @@ export default function ProfilFinancierScreen() {
       <StatusBar style="light" />
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

@@ -14,6 +14,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { supabase } from '../../../lib/supabase';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
 
@@ -35,6 +36,7 @@ export default function StatsHub() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
@@ -118,7 +120,7 @@ export default function StatsHub() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

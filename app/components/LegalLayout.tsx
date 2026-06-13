@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppNameFont } from '../hooks/useBrandFont';
+import { useNavBack } from '../hooks/useNavBack';
 import HeaderWithProfile from './HeaderWithProfile';
 
 /** Seuil « bureau » : au-delà, on affiche l'habillage site web ; en-dessous, l'app. */
@@ -30,7 +31,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
   const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= LEGAL_DESKTOP_MIN_WIDTH;
-  const goBack = () => router.back();
+  const goBack = useNavBack();
 
   // ───────── Mode « site web » (bureau) ─────────
   if (isDesktopWeb) {

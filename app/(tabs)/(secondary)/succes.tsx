@@ -13,12 +13,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
+import { useNavBack } from '../../hooks/useNavBack';
 import { UNLOCK_COLOR, isImageIcon, currencyPlural } from '../../lib/gamification';
 
 export default function SuccesScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { state, badges, config } = useGamification(user?.id);
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
@@ -63,7 +65,7 @@ export default function SuccesScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()} accessibilityRole="button">
+        <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>

@@ -6,12 +6,14 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../hooks/useFiscalEnvelopes';
 
 export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: rates = [], isLoading } = useFiscalEnvelopeRates();
   const updateRate = useUpdateFiscalRate(user?.id);
@@ -46,7 +48,7 @@ export default function FiscalRatesAdmin() {
     <View style={styles.root}>
       <StatusBar style={COLORS.bg === '#020617' ? 'light' : 'dark'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

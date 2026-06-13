@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useRoadmapIdeas, useAddRoadmapIdea, useDeleteRoadmapIdea } from '../../../hooks/useRoadmapIdeas';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { useMarkSuggestionsRead } from '../../../hooks/useUnreadBadges';
 
 
@@ -40,6 +41,7 @@ export default function AdminSuggestions() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const qc = useQueryClient();
   const { user } = useAuth();
   const { data: suggestions = [], isLoading } = useAllSuggestions();
@@ -124,7 +126,7 @@ export default function AdminSuggestions() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

@@ -19,12 +19,14 @@ import CurrencyPicker from '../../components/CurrencyPicker';
 import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
+import { useNavBack } from '../../hooks/useNavBack';
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const appNameFont = useAppNameFont();
   const router = useRouter();
+  const goBack = useNavBack();
   const { user, signOut } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
@@ -140,7 +142,7 @@ export default function SettingsScreen() {
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
-          <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backRow} onPress={goBack}>
             <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Paramètres</Text>

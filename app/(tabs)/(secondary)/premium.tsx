@@ -12,6 +12,7 @@ import ScreenGradient from '../../components/ScreenGradient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { usePlan, useSetPremium } from '../../hooks/usePlan';
+import { useNavBack } from '../../hooks/useNavBack';
 import { useGamificationConfig } from '../../hooks/useGamificationConfig';
 import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../lib/purchases';
 
@@ -25,6 +26,7 @@ export default function PremiumScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { isPremium, premiumEnabled } = usePlan(user?.id);
   const setPremium = useSetPremium(user?.id);
@@ -84,7 +86,7 @@ export default function PremiumScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>

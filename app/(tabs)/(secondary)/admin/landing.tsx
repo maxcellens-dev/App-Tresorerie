@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { supabase } from '../../../lib/supabase';
 import { useLandingConfig, useSaveLandingConfig, type LandingConfig, type LandingFeature, type LandingStat, type LandingLink } from '../../../hooks/useLandingConfig';
 
@@ -18,6 +19,7 @@ export default function AdminLanding() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { data: loaded } = useLandingConfig();
   const save = useSaveLandingConfig();
 
@@ -70,7 +72,7 @@ export default function AdminLanding() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Page d'accueil (bureau)</Text>

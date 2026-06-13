@@ -12,11 +12,13 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useTour } from '../../contexts/TourContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserUnreadCount } from '../../hooks/useUnreadBadges';
+import { useNavBack } from '../../hooks/useNavBack';
 
 export default function SupportScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const tour = useTour();
   const { user } = useAuth();
   const assistanceUnread = useUserUnreadCount(user?.id);
@@ -34,7 +36,7 @@ export default function SupportScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Support</Text>

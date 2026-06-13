@@ -30,6 +30,7 @@ import {
 } from '../../hooks/useCategories';
 import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 
 
 function groupCategories(categories: Category[]) {
@@ -48,6 +49,7 @@ export default function CategoriesScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
@@ -175,7 +177,7 @@ export default function CategoriesScreen() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>

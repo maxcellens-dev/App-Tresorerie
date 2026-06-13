@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { supabase } from '../../../lib/supabase';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
 import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
@@ -37,6 +38,7 @@ type Tab = 'colors' | 'background' | 'font';
 
 export default function StyleEditor() {
   const router = useRouter();
+  const goBack = useNavBack();
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const { user } = useAuth();
@@ -266,7 +268,7 @@ export default function StyleEditor() {
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
             <Ionicons name="chevron-back" size={22} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>

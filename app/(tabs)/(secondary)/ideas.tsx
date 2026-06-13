@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoadmapIdeas } from '../../hooks/useRoadmapIdeas';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 
 
 function useSuggestions(profileId: string | undefined) {
@@ -46,6 +47,7 @@ export default function IdeasScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const [idea, setIdea] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -77,7 +79,7 @@ export default function IdeasScreen() {
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity onPress={goBack} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.title}>Boîte à idées</Text>

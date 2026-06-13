@@ -14,6 +14,7 @@ import { useProfile } from '../../hooks/useProfile';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
+import { useNavBack } from '../../hooks/useNavBack';
 import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, type ShopItem, type ShopCategory } from '../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../lib/purchases';
 
@@ -29,6 +30,7 @@ export default function BoutiqueScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = (profile as any)?.is_admin === true;
@@ -57,7 +59,8 @@ export default function BoutiqueScreen() {
 
   // Articles regroupés par catégorie (dans l'ordre défini).
   // « Récupération de série » (streak_restore) n'est PAS en boutique : proposé à la connexion si la série est perdue.
-  const shopItems = (config?.shop ?? []).filter((s) => s.type !== 'streak_restore');
+  // 'accent_pack' retiré : la personnalisation de la couleur d'accent est désormais réservée au Premium.
+  const shopItems = (config?.shop ?? []).filter((s) => s.type !== 'streak_restore' && s.type !== 'accent_pack');
   const shopByCategory = SHOP_CATEGORY_ORDER
     .map((cat) => ({ cat, items: shopItems.filter((s) => (s.category ?? 'series') === cat) }))
     .filter((g) => g.items.length > 0);
@@ -117,7 +120,7 @@ export default function BoutiqueScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>

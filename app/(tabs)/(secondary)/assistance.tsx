@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
 import { useMySupportRequests, useCreateSupportRequest, type SupportRequest } from '../../hooks/useSupport';
@@ -20,6 +21,7 @@ export default function AssistanceScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { data: requests = [], isLoading } = useMySupportRequests(user?.id);
@@ -53,7 +55,7 @@ export default function AssistanceScreen() {
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity onPress={goBack} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.title}>Assistance</Text>

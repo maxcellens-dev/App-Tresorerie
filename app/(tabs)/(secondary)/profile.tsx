@@ -14,6 +14,7 @@ import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useCosmetics } from '../../hooks/useCosmetics';
+import { useNavBack } from '../../hooks/useNavBack';
 import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 
@@ -23,6 +24,7 @@ export default function ProfileScreen() {
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const goBack = useNavBack();
   const { data: profile, refetch } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
   const { avatarFrameColor, profileTitle } = useCosmetics(user?.id);
@@ -195,7 +197,7 @@ export default function ProfileScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={[]}>
-          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.back} onPress={goBack}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
@@ -237,7 +239,7 @@ export default function ProfileScreen() {
         )}
 
         <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>

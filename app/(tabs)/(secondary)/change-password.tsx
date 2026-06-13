@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../components/ScreenGradient';
 import { supabase } from '../../lib/supabase';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') window.alert(`${title}\n${message}`);
@@ -20,6 +21,7 @@ export default function ChangePasswordScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export default function ChangePasswordScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>

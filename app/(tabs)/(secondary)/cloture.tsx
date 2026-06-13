@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMonthlyClosure, monthLabel } from '../../hooks/useMonthlyClosure';
 
@@ -13,6 +14,7 @@ export default function ClotureScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { enabled, closures, pendingMonths, closeMonths, reopenMonth } = useMonthlyClosure(user?.id);
 
@@ -28,7 +30,7 @@ export default function ClotureScreen() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>

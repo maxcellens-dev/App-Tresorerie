@@ -14,6 +14,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
 import { useCosmetics } from '../../hooks/useCosmetics';
+import { useNavBack } from '../../hooks/useNavBack';
 import { COSMETIC_DEFS } from '../../lib/gamification';
 import { THEME_MODES, THEME_PRESETS, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
@@ -23,6 +24,7 @@ export default function AppearanceScreen() {
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
+  const goBack = useNavBack();
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
   const isAdmin = profile?.is_admin ?? false;
@@ -52,22 +54,21 @@ export default function AppearanceScreen() {
   const onHexChange = (v: string) => setCustomHex(v.toUpperCase());
   const applyHex = () => { if (isHex(customHex)) setPreset(customHex as ThemePreset); };
 
-  // Couleur personnalisée (champ hex sous les presets) : réservée aux abonnés Premium.
-  // Les acheteurs historiques du pack « accent_pack » en boutique restent débloqués.
-  const { inventory, config: gamiConfig, isLoading: gamiLoading } = useGamification(user?.id);
+  // Les 14 pastilles de couleur d'accent sont GRATUITES pour tout le monde.
+  // SEUL le sélecteur de couleur personnalisée (saisie du code hex, sous les pastilles)
+  // est réservé aux abonnés Premium.
+  const { config: gamiConfig } = useGamification(user?.id);
   const { isPremium } = usePlan(user?.id);
-  const hasAccentPack = inventory.some((i) => i.item_key === 'accent_pack');
-  const colorsUnlocked = isPremium || hasAccentPack;
+  const colorsUnlocked = isPremium;
 
-  // Perte d'accès (fin du Premium sans pack acheté) : si une couleur d'accent personnalisée
-  // (hex) est appliquée, on revient au thème par défaut → l'avantage premium disparaît.
-  // Garde-fou : seulement une fois les données (profil + gamification) chargées.
+  // Perte du Premium : si une couleur d'accent personnalisée (hex) est appliquée, on revient
+  // au thème par défaut → l'avantage premium disparaît. Garde-fou : profil chargé.
   useEffect(() => {
-    if (!profile || gamiLoading) return;
+    if (!profile) return;
     if (colorsUnlocked) return;
     if (isHex(currentPreset)) setPreset('emerald');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, gamiLoading, colorsUnlocked, currentPreset]);
+  }, [profile, colorsUnlocked, currentPreset]);
 
   // ── Cosmétiques débloqués (inventaire) + équipés ──
   const cosmetics = useCosmetics(user?.id);
@@ -85,18 +86,15 @@ export default function AppearanceScreen() {
       };
     });
   }, [cosmetics.ownedKeys, cosmetics.equipped, gamiConfig]);
-  // Les 7 dernières couleurs d'accent sont « premium » : masquées tant que le pack n'est pas acheté.
-  const PREMIUM_PRESET_COUNT = 7;
-  const shownPresets = (hasAccentPack || allPresets.length <= PREMIUM_PRESET_COUNT)
-    ? allPresets
-    : allPresets.slice(0, allPresets.length - PREMIUM_PRESET_COUNT);
+  // Toutes les pastilles de couleur d'accent sont gratuites (aucune masquée).
+  const shownPresets = allPresets;
 
   return (
     <View style={styles.root}>
       <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Apparence</Text>

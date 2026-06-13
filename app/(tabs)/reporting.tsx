@@ -18,6 +18,7 @@ import { useCategories } from '../hooks/useCategories';
 import { usePilotageData } from '../hooks/usePilotageData';
 import { useProfile } from '../hooks/useProfile';
 import { usePlan } from '../hooks/usePlan';
+import { useNavBack } from '../hooks/useNavBack';
 import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../theme/colors';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -468,6 +469,7 @@ export default function ReportingScreen() {
   const THEME = useAppColors(); // accent réel — C.emerald est écrasé par CHART
   const s = makeStyles(C);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const { width: screenW } = useWindowDimensions();
@@ -683,7 +685,7 @@ export default function ReportingScreen() {
               <Ionicons name="star" size={16} color="#0f172a" />
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 16, padding: 8 }} onPress={() => router.back()} activeOpacity={0.7}>
+            <TouchableOpacity style={{ marginTop: 16, padding: 8 }} onPress={goBack} activeOpacity={0.7}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: C.textSecondary }}>Retour</Text>
             </TouchableOpacity>
           </View>
@@ -710,7 +712,7 @@ export default function ReportingScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                onPress={() => router.back()}
+                onPress={goBack}
               >
                 <Ionicons name="chevron-back" size={20} color={C.textSecondary} />
                 <Text style={{ fontSize: 14, fontWeight: '600', color: C.textSecondary }}>Retour</Text>

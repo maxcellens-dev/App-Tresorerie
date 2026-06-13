@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { supabase } from '../../../lib/supabase';
 import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, type AdBanner } from '../../../hooks/useAdsConfig';
 
@@ -17,6 +18,7 @@ export default function AdminAds() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { data: loaded } = useAdsConfig();
   const save = useSaveAdsConfig();
 
@@ -76,7 +78,7 @@ export default function AdminAds() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Publicités (bannières maison)</Text>

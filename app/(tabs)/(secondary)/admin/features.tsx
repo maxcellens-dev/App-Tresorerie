@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../hooks/useFeatureFlags';
 import { useSetPremium } from '../../../hooks/usePlan';
 
@@ -15,6 +16,7 @@ export default function AdminFeatures() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
@@ -52,7 +54,7 @@ export default function AdminFeatures() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

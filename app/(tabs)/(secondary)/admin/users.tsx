@@ -13,6 +13,7 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { supabase } from '../../../lib/supabase';
 
 interface AdminUser { id: string; full_name: string | null; email: string | null; is_premium: boolean }
@@ -21,6 +22,7 @@ export default function AdminUsers() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user, impersonate } = useAuth();
   const qc = useQueryClient();
 
@@ -71,7 +73,7 @@ export default function AdminUsers() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Utilisateurs</Text>
