@@ -17,6 +17,7 @@ import {
 import { PROFILE_INFO } from '../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 
 
 type Tab = 'messages' | 'matrix' | 'global';
@@ -358,6 +359,7 @@ export default function FinancialProfilesAdmin() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('messages');
 
@@ -368,7 +370,7 @@ export default function FinancialProfilesAdmin() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>

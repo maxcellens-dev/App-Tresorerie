@@ -50,7 +50,7 @@ export interface StyleConfig {
   app_name_font: string;
   /** Polices téléversées (fichiers sur Supabase Storage), proposées dans les listes de polices. */
   custom_fonts: CustomFont[];
-  /** Couleurs personnalisées par preset { emerald: '#00B67A', ocean: '#0075FF', ... } */
+  /** Couleur personnalisée par preset { emerald: '#00B67A', ocean: '#0075FF', ... } */
   custom_accents: Record<string, string>;
   /** Presets personnalisés créés dans le style editor */
   extra_presets: CustomPreset[];

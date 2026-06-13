@@ -29,7 +29,14 @@ export default function SuccesScreen() {
 
   // Masque les badges liés à la clôture si la fonctionnalité est désactivée.
   const visibleBadges = (config?.badges ?? []).filter((d) => d.metric !== 'closures_count' || closureEnabled);
-  const unlockedBadges = visibleBadges.filter((d) => unlockedKeys.has(d.key));
+  // Succès débloqués triés du plus récent au plus ancien (date de déverrouillage)
+  const unlockedBadges = visibleBadges
+    .filter((d) => unlockedKeys.has(d.key))
+    .sort((a, b) => {
+      const aDate = badges.find((ub) => ub.badge_key === a.key)?.unlocked_at ?? '';
+      const bDate = badges.find((ub) => ub.badge_key === b.key)?.unlocked_at ?? '';
+      return bDate.localeCompare(aDate);
+    });
   const lockedBadges = visibleBadges.filter((d) => !unlockedKeys.has(d.key));
   const unlockedCount = unlockedBadges.length;
 

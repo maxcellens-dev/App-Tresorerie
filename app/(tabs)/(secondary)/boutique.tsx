@@ -59,8 +59,7 @@ export default function BoutiqueScreen() {
 
   // Articles regroupés par catégorie (dans l'ordre défini).
   // « Récupération de série » (streak_restore) n'est PAS en boutique : proposé à la connexion si la série est perdue.
-  // 'accent_pack' retiré : la personnalisation de la couleur d'accent est désormais réservée au Premium.
-  const shopItems = (config?.shop ?? []).filter((s) => s.type !== 'streak_restore' && s.type !== 'accent_pack');
+  const shopItems = (config?.shop ?? []).filter((s) => s.type !== 'streak_restore');
   const shopByCategory = SHOP_CATEGORY_ORDER
     .map((cat) => ({ cat, items: shopItems.filter((s) => (s.category ?? 'series') === cat) }))
     .filter((g) => g.items.length > 0);

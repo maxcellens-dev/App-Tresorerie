@@ -6,7 +6,6 @@
     "scheme": "tresorerie",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "icon": "./assets/icon.png"
     },
@@ -14,9 +13,13 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0D2E2A"
-      }
+      },
+      "package": "com.relyka.myapp"
     },
-    "plugins": ["expo-router", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
     "experiments": {
       "typedRoutes": true
     },
@@ -29,6 +32,14 @@
       "description": "Laissez-vous guider pour faire des économies.",
       "themeColor": "#020617",
       "backgroundColor": "#020617"
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "204995de-9231-49da-a21d-68c4505ac85b"
+      }
     }
   }
 }

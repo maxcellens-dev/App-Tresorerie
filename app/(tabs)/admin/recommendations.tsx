@@ -16,6 +16,7 @@ import type { TierAllocations } from '../../hooks/useRecommendationTiers';
 import { useRecoThresholds, useUpdateRecoThresholds } from '../../hooks/useRecoThresholds';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useNavBack } from '../../hooks/useNavBack';
 
 
 const RECO_ICONS: Record<RecoType, string> = {
@@ -53,6 +54,7 @@ export default function RecommendationsAdmin() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const { data: dbTiers, isLoading } = useRecommendationTiers();
   const updateTiers = useUpdateRecommendationTiers();
   const { user } = useAuth();
@@ -160,7 +162,7 @@ export default function RecommendationsAdmin() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
             <Text style={styles.backLabel}>Retour</Text>
           </TouchableOpacity>

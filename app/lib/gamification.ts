@@ -167,6 +167,8 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'freeze', type: 'freeze', category: 'series', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi (cumulable).', price: 50, icon: 'snow' },
     { key: 'freeze_pack3', type: 'freeze', category: 'series', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
     { key: 'streak_restore', type: 'streak_restore', category: 'series', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
+    // ── Apparence ──
+    { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent exclusives pour personnaliser votre espace.', price: 200, icon: 'color-palette' },
     // ── Cosmétiques ──
     { key: 'cosmetic_gold_flame', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme dorée', description: 'Une flamme de série dorée affichée sur ton profil.', price: 90, icon: 'flame' },
     { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },

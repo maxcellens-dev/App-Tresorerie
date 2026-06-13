@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { useAllConseils } from '../../../hooks/useConseils';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '../../../lib/supabase';
@@ -18,6 +19,7 @@ export default function AdminConseils() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
+  const goBack = useNavBack();
   const qc = useQueryClient();
   const { data: all = [], isLoading } = useAllConseils();
   const [filter, setFilter] = useState<'all' | 'general' | 'contextuel'>('all');
@@ -57,7 +59,7 @@ export default function AdminConseils() {
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+          <TouchableOpacity onPress={goBack} style={{ padding: 4 }}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.title}>Conseils</Text>

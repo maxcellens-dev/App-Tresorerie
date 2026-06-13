@@ -16,7 +16,7 @@ import { usePlan } from '../../hooks/usePlan';
 import { useCosmetics } from '../../hooks/useCosmetics';
 import { useNavBack } from '../../hooks/useNavBack';
 import { COSMETIC_DEFS } from '../../lib/gamification';
-import { THEME_MODES, THEME_PRESETS, type ThemeMode, type ThemePreset } from '../../theme/palette';
+import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 
 export default function AppearanceScreen() {
@@ -57,9 +57,10 @@ export default function AppearanceScreen() {
   // Les 14 pastilles de couleur d'accent sont GRATUITES pour tout le monde.
   // SEUL le sélecteur de couleur personnalisée (saisie du code hex, sous les pastilles)
   // est réservé aux abonnés Premium.
-  const { config: gamiConfig } = useGamification(user?.id);
+  const { config: gamiConfig, inventory } = useGamification(user?.id);
   const { isPremium } = usePlan(user?.id);
   const colorsUnlocked = isPremium;
+  const hasAccentPack = isPremium || inventory.some((i) => i.item_key === 'accent_pack' && i.qty > 0);
 
   // Perte du Premium : si une couleur d'accent personnalisée (hex) est appliquée, on revient
   // au thème par défaut → l'avantage premium disparaît. Garde-fou : profil chargé.
@@ -86,8 +87,10 @@ export default function AppearanceScreen() {
       };
     });
   }, [cosmetics.ownedKeys, cosmetics.equipped, gamiConfig]);
-  // Toutes les pastilles de couleur d'accent sont gratuites (aucune masquée).
-  const shownPresets = allPresets;
+  // Les presets natifs (7 couleurs de base) sont gratuits pour tous.
+  // Les presets supplémentaires créés dans le Style Editor forment le "Pack couleurs".
+  const nativePresets = allPresets.filter((p) => NATIVE_PRESET_IDS.includes(p.id));
+  const packPresets = allPresets.filter((p) => !NATIVE_PRESET_IDS.includes(p.id));
 
   return (
     <View style={styles.root}>
@@ -121,7 +124,8 @@ export default function AppearanceScreen() {
             <View style={styles.block}>
               <Text style={styles.label}>Couleur d'accent</Text>
               <View style={styles.presetRow}>
-                {shownPresets.map((p) => {
+                {/* Presets natifs (toujours libres) + presets du pack si débloqué */}
+                {(hasAccentPack ? allPresets : nativePresets).map((p) => {
                   const active = currentPreset === p.id;
                   return (
                     <TouchableOpacity key={p.id} style={[styles.presetDot, { backgroundColor: p.swatch }, active && styles.presetDotActive]} onPress={() => setPreset(p.id as ThemePreset)} activeOpacity={0.8} accessibilityLabel={p.label}>
@@ -132,10 +136,30 @@ export default function AppearanceScreen() {
               </View>
             </View>
 
-            {/* Couleurs personnalisées — réservées aux abonnés Premium ou aux acheteurs du pack */}
+            {/* Pack couleurs — extra presets créés dans le Style Editor, achetables en boutique */}
+            {packPresets.length > 0 && !hasAccentPack && (
+              <View style={[styles.block, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, paddingTop: 16, marginTop: 16 }]}>
+                <View style={styles.lockRow}>
+                  <Text style={styles.label}>Pack couleurs</Text>
+                  <Ionicons name="lock-closed" size={15} color={COLORS.textSecondary} />
+                </View>
+                <Text style={styles.hint}>Couleurs supplémentaires disponibles à la boutique.</Text>
+                <View style={styles.presetRow}>
+                  {packPresets.map((p) => (
+                    <View key={p.id} style={[styles.presetDot, { backgroundColor: p.swatch, opacity: 0.35 }]} />
+                  ))}
+                </View>
+                <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
+                  <Ionicons name="bag-handle-outline" size={16} color={COLORS.bg} />
+                  <Text style={styles.unlockBtnText}>Voir en boutique</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Couleur personnalisée — réservée aux abonnés Premium */}
             <View style={[styles.block, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, paddingTop: 16, marginTop: 16 }]}>
               <View style={styles.lockRow}>
-                <Text style={styles.label}>Couleurs personnalisées</Text>
+                <Text style={styles.label}>Couleur personnalisée</Text>
                 {!colorsUnlocked && <Ionicons name="lock-closed" size={15} color={COLORS.textSecondary} />}
               </View>
 

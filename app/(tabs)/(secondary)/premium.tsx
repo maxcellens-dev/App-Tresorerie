@@ -19,7 +19,8 @@ import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPO
 const BENEFITS = [
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
   { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.' },
-  { icon: 'sparkles', title: 'Conseiller personnalisé', desc: 'Des conseils sur-mesure selon ton profil (bientôt).' },
+  { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.' },
+  { icon: 'sparkles', title: 'Conseiller personnalisé (bientôt)', desc: 'Des conseils sur-mesure selon ton profil.' },
 ];
 
 export default function PremiumScreen() {
