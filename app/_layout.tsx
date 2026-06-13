@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -10,6 +10,7 @@ import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
 import HeaderWithProfile from './components/HeaderWithProfile';
+import { LEGAL_DESKTOP_MIN_WIDTH } from './components/LegalLayout';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from './lib/analytics';
 import ProfileChangeModal from './components/ProfileChangeModal';
@@ -135,6 +136,7 @@ function AppChrome() {
   useCurrency(); // synchronise le symbole de devise global avec le profil
   const segments = useSegments();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const { user, loading, passwordRecovery } = useAuth();
   const root = segments[0] ?? 'index';
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register' || root === 'reset-password';
@@ -143,13 +145,14 @@ function AppChrome() {
   const hideChrome = isAuthPage || root === 'questionnaire';
   const isTabs = root === '(tabs)';
   // Sur web bureau : on limite la largeur de l'app (colonne centrée ~840 px), comme une app mobile.
-  // Exceptions pleine largeur : page d'accueil marketing (welcome/index) + pages publiques légales.
-  // Pages légales : pleine largeur (mode « site ») UNIQUEMENT pour un visiteur déconnecté.
-  // Connecté, elles s'affichent dans la colonne d'app comme les autres pages.
-  const isPublicLegal = (root === 'confidentialite' || root === 'legal') && !user;
+  // Exceptions pleine largeur : page d'accueil marketing (welcome/index).
+  // Pages légales : pleine largeur (habillage « site web ») UNIQUEMENT en bureau (web large).
+  // En mobile/app (largeur < 900 px), elles s'affichent dans la colonne d'app comme les autres pages.
+  const isLegalRoot = root === 'confidentialite' || root === 'legal';
+  const isDesktopLegal = Platform.OS === 'web' && isLegalRoot && windowWidth >= LEGAL_DESKTOP_MIN_WIDTH;
   const limitWidth = Platform.OS === 'web'
     && root !== 'welcome' && root !== 'index'
-    && !isPublicLegal;
+    && !isDesktopLegal;
 
   // Lien de réinitialisation de mot de passe → écran dédié (prioritaire sur le reste).
   useEffect(() => {

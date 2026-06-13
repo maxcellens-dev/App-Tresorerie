@@ -1,7 +1,7 @@
 /**
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -54,10 +54,20 @@ export default function AppearanceScreen() {
 
   // Couleur personnalisée (champ hex sous les presets) : réservée aux abonnés Premium.
   // Les acheteurs historiques du pack « accent_pack » en boutique restent débloqués.
-  const { inventory, config: gamiConfig } = useGamification(user?.id);
+  const { inventory, config: gamiConfig, isLoading: gamiLoading } = useGamification(user?.id);
   const { isPremium } = usePlan(user?.id);
   const hasAccentPack = inventory.some((i) => i.item_key === 'accent_pack');
   const colorsUnlocked = isPremium || hasAccentPack;
+
+  // Perte d'accès (fin du Premium sans pack acheté) : si une couleur d'accent personnalisée
+  // (hex) est appliquée, on revient au thème par défaut → l'avantage premium disparaît.
+  // Garde-fou : seulement une fois les données (profil + gamification) chargées.
+  useEffect(() => {
+    if (!profile || gamiLoading) return;
+    if (colorsUnlocked) return;
+    if (isHex(currentPreset)) setPreset('emerald');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, gamiLoading, colorsUnlocked, currentPreset]);
 
   // ── Cosmétiques débloqués (inventaire) + équipés ──
   const cosmetics = useCosmetics(user?.id);

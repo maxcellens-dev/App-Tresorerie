@@ -5,16 +5,25 @@
  * dans Apparence pour qu'il s'affiche (cadre d'avatar, titre de profil, flamme de série).
  * Un seul cosmétique par emplacement peut être équipé à la fois.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { useProfile, useUpdateProfile } from './useProfile';
 import { useGamification } from './useGamification';
 import { COSMETIC_DEFS, type CosmeticSlot, type EquippedCosmetics } from '../lib/gamification';
 
 export function useCosmetics(userId: string | undefined) {
+  const qc = useQueryClient();
   const { data: profile } = useProfile(userId);
   const updateProfile = useUpdateProfile(userId);
   const { inventory } = useGamification(userId);
 
   const equipped = ((profile as any)?.equipped_cosmetics ?? {}) as EquippedCosmetics;
+
+  /** Applique immédiatement la nouvelle config au cache profil (effet visuel temps réel),
+   *  puis persiste en base. Le cache écrasé évite tout délai réseau à l'affichage. */
+  const applyEquipped = (next: EquippedCosmetics) => {
+    qc.setQueryData(['profile', userId], (prev: any) => (prev ? { ...prev, equipped_cosmetics: next } : prev));
+    updateProfile.mutate({ equipped_cosmetics: next });
+  };
 
   // Cosmétiques réellement possédés (inventaire qty > 0 ET reconnus comme cosmétiques).
   const ownedKeys = inventory
@@ -29,13 +38,13 @@ export function useCosmetics(userId: string | undefined) {
   const equip = (itemKey: string) => {
     const def = COSMETIC_DEFS[itemKey];
     if (!def) return;
-    updateProfile.mutate({ equipped_cosmetics: { ...equipped, [def.slot]: itemKey } });
+    applyEquipped({ ...equipped, [def.slot]: itemKey });
   };
 
   const unequipSlot = (slot: CosmeticSlot) => {
     const next = { ...equipped };
     delete next[slot];
-    updateProfile.mutate({ equipped_cosmetics: next });
+    applyEquipped(next);
   };
 
   /** Coche/décoche : équipe l'article, ou le retire s'il est déjà équipé. */

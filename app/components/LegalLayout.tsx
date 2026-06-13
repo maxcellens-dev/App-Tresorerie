@@ -30,7 +30,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
   const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= LEGAL_DESKTOP_MIN_WIDTH;
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace(user ? '/(tabs)/pilotage' : '/welcome'));
+  const goBack = () => router.back();
 
   // ───────── Mode « site web » (bureau) ─────────
   if (isDesktopWeb) {
@@ -97,17 +97,15 @@ export default function LegalLayout({ title, children }: { title: string; childr
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView edges={['top']}>
-        <HeaderWithProfile title="Relyka" height={80} />
+        <HeaderWithProfile title="Relyka" />
       </SafeAreaView>
-      <View style={styles.appBackRow}>
-        <TouchableOpacity style={styles.appBackBtn} onPress={goBack} activeOpacity={0.7}>
+      <SafeAreaView style={styles.appSafe} edges={['left', 'right', 'bottom']}>
+        <TouchableOpacity style={styles.appBackRow} onPress={goBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.appBackText}>Retour</Text>
         </TouchableOpacity>
-      </View>
-      <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.appScroll}>
-          <Text style={styles.pageTitle}>{title}</Text>
+        <Text style={styles.appTitle}>{title}</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {children}
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -146,10 +144,10 @@ function makeStyles(c: any) {
     footerLink: { fontSize: 14, fontWeight: '600', color: c.emerald, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     footerCopy: { fontSize: 12, color: c.textSecondary, marginTop: 12 },
 
-    // App mode (mobile/natif) — identique aux autres pages
-    appBackRow: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 2 },
-    appBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+    // App mode (mobile/natif) — calé sur les autres pages (ex. Apparence)
+    appSafe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+    appBackRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, alignSelf: 'flex-start' },
     appBackText: { fontSize: 14, fontWeight: '600', color: c.text },
-    appScroll: { paddingHorizontal: 24, paddingTop: 6, paddingBottom: 24 },
+    appTitle: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
   });
 }

@@ -32,6 +32,8 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const isAdmin = (profile as any)?.is_admin === true;
   const supportUnread = useUserUnreadCount(user?.id);
   const { avatarFrameColor, profileTitle } = useCosmetics(user?.id);
+  // Titres cosmétiques équipés, triés par ordre alphabétique (un seul emplacement pour l'instant).
+  const cosmeticTitles = (profileTitle ? [profileTitle] : []).sort((a, b) => a.localeCompare(b, 'fr'));
 
   const go = (route: string) => { onClose(); router.push(route as any); };
   const logout = async () => { onClose(); await signOut(); router.replace('/welcome'); };
@@ -64,25 +66,26 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
-              {!!profileTitle && (
-                <View style={styles.titleBadge}>
-                  <Ionicons name="ribbon" size={10} color="#FFD700" />
-                  <Text style={styles.titleBadgeText}>{profileTitle}</Text>
-                </View>
-              )}
+              {/* Étiquettes côte à côte (retour à la ligne si besoin) — ordre : Admin, Premium, titres cosmétiques. */}
               <View style={styles.tagsRow}>
-                {isPremium && (
-                  <View style={[styles.tag, { backgroundColor: COLORS.yellow + '22', borderColor: COLORS.yellow }]}>
-                    <Ionicons name="star" size={10} color={COLORS.yellow} />
-                    <Text style={[styles.tagText, { color: COLORS.yellow }]}>Premium</Text>
-                  </View>
-                )}
                 {isAdmin && (
                   <View style={[styles.tag, { backgroundColor: '#34d39922', borderColor: '#34d399' }]}>
                     <Ionicons name="shield-checkmark" size={10} color="#34d399" />
                     <Text style={[styles.tagText, { color: '#34d399' }]}>Admin</Text>
                   </View>
                 )}
+                {isPremium && (
+                  <View style={[styles.tag, { backgroundColor: COLORS.yellow + '22', borderColor: COLORS.yellow }]}>
+                    <Ionicons name="star" size={10} color={COLORS.yellow} />
+                    <Text style={[styles.tagText, { color: COLORS.yellow }]}>Premium</Text>
+                  </View>
+                )}
+                {cosmeticTitles.map((t) => (
+                  <View key={t} style={[styles.tag, { backgroundColor: '#FFD7001A', borderColor: '#FFD70066' }]}>
+                    <Ionicons name="ribbon" size={10} color="#FFD700" />
+                    <Text style={[styles.tagText, { color: '#FFD700' }]}>{t}</Text>
+                  </View>
+                ))}
               </View>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -141,7 +144,7 @@ function makeStyles(c: any) {
     name: { fontSize: 16, fontWeight: '800', color: c.text },
     titleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 3, marginTop: 3, borderWidth: 1, borderColor: '#FFD70066', backgroundColor: '#FFD7001A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     titleBadgeText: { fontSize: 10, fontWeight: '800', color: '#FFD700' },
-    tagsRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+    tagsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
     tag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     tagText: { fontSize: 10, fontWeight: '800' },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },

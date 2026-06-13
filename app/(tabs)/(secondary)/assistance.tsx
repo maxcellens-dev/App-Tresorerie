@@ -53,7 +53,7 @@ export default function AssistanceScreen() {
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.push('/(tabs)/(secondary)/support' as any))} style={styles.backBtn}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.title}>Assistance</Text>
