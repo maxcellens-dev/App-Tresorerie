@@ -25,6 +25,24 @@ function balanceContribution(opts: { amount: number; date: string; is_draft?: bo
   return Number(opts.amount);
 }
 
+/**
+ * §P12 — Impact RÉEL sur le solde d'une transaction, en tenant compte de la dernière
+ * « régularisation de solde » du compte : une transaction datée AVANT cette régularisation
+ * n'impacte pas le solde (la régul a déjà capturé l'état à sa date). La régularisation
+ * elle-même compte toujours. (Le « Dépensé ce mois » du Pilotage n'est PAS affecté.)
+ */
+async function effectiveBalanceDelta(accountId: string, txDate: string, note: string | null | undefined, rawContribution: number): Promise<number> {
+  if (rawContribution === 0 || !supabase) return rawContribution;
+  const noteLc = (note ?? '').toLowerCase();
+  if (noteLc.includes('gul') || note === 'Ajustement de solde') return rawContribution; // la régul compte
+  const { data } = await supabase.from('transactions').select('date')
+    .eq('account_id', accountId).is('category_id', null)
+    .or('note.ilike.%gul%,note.eq.Ajustement de solde')
+    .order('date', { ascending: false }).limit(1).maybeSingle();
+  const baselineDate = (data as any)?.date as string | undefined;
+  return (baselineDate && txDate < baselineDate) ? 0 : rawContribution;
+}
+
 export function useTransactions(profileId: string | undefined) {
   const query = useQuery({
     queryKey: [KEY, profileId],
@@ -77,6 +95,12 @@ export function useAddTransaction(profileId: string | undefined) {
       // Solde « à date » : on n'ajoute au solde que ce qui est effectivement sorti/entré
       // (non-brouillon ET pas une dépense future non récurrente).
       const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
+
+      // §P12 : transaction datée AVANT la dernière régularisation → n'impacte pas le solde
+      // (déjà capturée). Marquée `posted: true` pour que reconcile_posted ne la reporte pas.
+      const effectiveContribution = await effectiveBalanceDelta(input.account_id, input.date, input.note, contribution);
+      const preBaseline = contribution !== 0 && effectiveContribution === 0;
+
       const { data, error } = await supabase
         .from('transactions')
         .insert({
@@ -94,16 +118,16 @@ export function useAddTransaction(profileId: string | undefined) {
           project_id: input.project_id ?? null,
           linked_account_id: input.linked_account_id ?? null,
           // posted = false pour une dépense future non récurrente (portée au solde plus tard
-          // par reconcile_posted une fois échue).
-          posted: contribution !== 0,
+          // par reconcile_posted une fois échue). Pré-régularisation → posted true (déjà capturée).
+          posted: preBaseline ? true : contribution !== 0,
         })
         .select()
         .single();
       if (error) throw error;
-      if (contribution !== 0) {
+      if (effectiveContribution !== 0) {
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', input.account_id).single();
         if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) + contribution }).eq('id', input.account_id);
+          await supabase.from('accounts').update({ balance: Number(acc.balance) + effectiveContribution }).eq('id', input.account_id);
         }
       }
       return data;
@@ -156,7 +180,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note').eq('id', input.id).eq('profile_id', profileId).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       const oldAccId = (existing as { account_id: string }).account_id;
       const oldAmount = Number((existing as { amount: number }).amount);
@@ -189,6 +213,11 @@ export function useUpdateTransaction(profileId: string | undefined) {
       const oldContribution = balanceContribution({ amount: oldAmount, date: oldDate ?? '', is_draft: wasInDraft, is_recurring: wasRecurring });
       const newContribution = balanceContribution({ amount: newAmount, date: newDate, is_draft: isNowDraft, is_recurring: newRecurring });
       updates.posted = newContribution !== 0;
+      // §P12 : neutralise l'impact solde des transactions pré-régularisation (sans dérive).
+      const oldNote = (existing as any).note as string | null;
+      const newNote = input.note !== undefined ? input.note : oldNote;
+      const oldDelta = await effectiveBalanceDelta(oldAccId, oldDate ?? '', oldNote, oldContribution);
+      const newDelta = await effectiveBalanceDelta(newAccId, newDate, newNote, newContribution);
 
       const { data, error } = await supabase.from('transactions').update(updates).eq('id', input.id).eq('profile_id', profileId).select().single();
       if (error) throw error;
@@ -199,10 +228,10 @@ export function useUpdateTransaction(profileId: string | undefined) {
         if (acc) await supabase!.from('accounts').update({ balance: Number(acc.balance) + delta }).eq('id', accId);
       };
       if (newAccId === oldAccId) {
-        await adjustBalance(oldAccId, newContribution - oldContribution);
+        await adjustBalance(oldAccId, newDelta - oldDelta);
       } else {
-        await adjustBalance(oldAccId, -oldContribution);
-        await adjustBalance(newAccId, newContribution);
+        await adjustBalance(oldAccId, -oldDelta);
+        await adjustBalance(newAccId, newDelta);
       }
 
       // ── Synchronisation de l'autre jambe d'un virement ──
@@ -318,12 +347,14 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (delErr) throw delErr;
 
       // On ne retire du solde que ce qui y avait effectivement été ajouté
-      // (contribution « à date » : ni brouillon, ni dépense future non récurrente).
+      // (contribution « à date » : ni brouillon, ni dépense future non récurrente ;
+      //  §P12 : ni une transaction pré-régularisation, qui n'avait pas impacté le solde).
       const txContribution = balanceContribution({ amount: txAmount, date: txDate, is_draft: isDraft, is_recurring: isRecurringRow });
-      if (txContribution !== 0) {
+      const txDelta = await effectiveBalanceDelta(txAccountId, txDate, txNote, txContribution);
+      if (txDelta !== 0) {
         const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txAccountId).single();
         if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) - txContribution }).eq('id', txAccountId);
+          await supabase.from('accounts').update({ balance: Number(acc.balance) - txDelta }).eq('id', txAccountId);
         }
       }
 

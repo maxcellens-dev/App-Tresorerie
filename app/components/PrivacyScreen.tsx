@@ -6,22 +6,35 @@
 import { View, Text, StyleSheet } from 'react-native';
 import LegalLayout from './LegalLayout';
 import { useAppColors } from '../hooks/useAppColors';
-import { useLegalContent } from '../hooks/useLegalContent';
+import EditableLegalContent from './EditableLegalContent';
+
+// Texte par défaut pré-rempli quand un admin clique « Modifier » (§P9).
+const DEFAULT_PRIVACY_TEXT = `Politique de confidentialité — dernière mise à jour : juin 2025.
+
+1. Données collectées
+Relyka collecte uniquement les données nécessaires au fonctionnement : identité (e-mail, prénom optionnel), données financières que vous saisissez (comptes, transactions, catégories, projets, objectifs), préférences (paramètres, avatar). Aucune donnée bancaire réelle (IBAN, identifiants bancaires) n'est collectée.
+
+2. Utilisation des données
+Vos données servent exclusivement à : fournir la gestion de trésorerie, calculer vos indicateurs, synchroniser vos appareils. Nous ne vendons jamais vos données à des tiers.
+
+3. Stockage et sécurité
+Données hébergées via Supabase (AWS, région EU). Communications chiffrées (TLS) et au repos. Authentification par jetons sécurisés (JWT).
+
+4. Droits de l'utilisateur (RGPD)
+Accès, rectification, suppression (compte + données), portabilité. Contact : relyka.dev@gmail.com
+
+5. Cookies et trackers
+Aucun cookie publicitaire ni tracker tiers. Seuls des cookies techniques essentiels sont utilisés.
+
+6. Modifications
+Cette politique peut être mise à jour ; vous serez informé(e) de tout changement significatif via une notification dans l'application.`;
 
 export default function PrivacyScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
-  const override = useLegalContent().data?.privacy;
-  // Contenu personnalisé en admin (§P9) → remplace le contenu par défaut.
-  if (override) {
-    return (
-      <LegalLayout title="Politique de confidentialité">
-        <View style={styles.card}><Text style={styles.sectionBody}>{override}</Text></View>
-      </LegalLayout>
-    );
-  }
   return (
     <LegalLayout title="Politique de confidentialité">
+      <EditableLegalContent which="privacy" seedText={DEFAULT_PRIVACY_TEXT}>
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
 
           <Section title="1. Données collectées">
@@ -60,7 +73,7 @@ export default function PrivacyScreen() {
           <Section title="6. Modifications">
             Cette politique peut être mise à jour. Vous serez informé(e) de tout changement significatif via une notification dans l'application.
           </Section>
-
+      </EditableLegalContent>
     </LegalLayout>
   );
 }

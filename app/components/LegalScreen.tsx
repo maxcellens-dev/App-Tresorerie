@@ -8,23 +8,39 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import LegalLayout from './LegalLayout';
 import { useAppColors } from '../hooks/useAppColors';
-import { useLegalContent } from '../hooks/useLegalContent';
+import EditableLegalContent from './EditableLegalContent';
+
+// Texte par défaut pré-rempli quand un admin clique « Modifier » (§P9).
+const DEFAULT_LEGAL_TEXT = `Mentions légales — dernière mise à jour : juin 2025.
+
+Éditeur de l'application
+Relyka — application de gestion de trésorerie personnelle. Contact : relyka.dev@gmail.com
+
+Hébergement
+Supabase Inc. (Singapour) — infrastructure AWS, région Union Européenne (eu-west).
+
+Propriété intellectuelle
+L'ensemble des contenus de Relyka est protégé. Toute reproduction, représentation ou diffusion sans autorisation est interdite.
+
+Responsabilité
+Relyka est un outil d'aide à la gestion financière personnelle. Les informations ne constituent pas des conseils financiers professionnels. L'exactitude des données dépend des informations saisies.
+
+Conditions d'utilisation
+Usage personnel uniquement. Vous êtes responsable de la confidentialité de vos identifiants. Le service peut être modifié ou interrompu à tout moment.
+
+Suppression de votre compte et de vos données
+Éditeur / développeur : Relyka (fiche Google Play). Pour supprimer votre compte : connectez-vous, ouvrez votre Profil, appuyez sur « Supprimer mon compte » et confirmez (ou demande par e-mail à relyka.dev@gmail.com). Données supprimées : compte et toutes les données associées, immédiatement. Données conservées : aucune donnée personnelle après suppression ; sauvegardes techniques purgées sous 30 jours.
+
+Droit applicable
+Droit français. Tout litige sera soumis aux tribunaux compétents.`;
 
 export default function LegalScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
-  const override = useLegalContent().data?.legal;
-  // Contenu personnalisé en admin (§P9) → remplace le contenu par défaut.
-  if (override) {
-    return (
-      <LegalLayout title="Mentions légales">
-        <View style={styles.card}><Text style={styles.sectionBody}>{override}</Text></View>
-      </LegalLayout>
-    );
-  }
   return (
     <LegalLayout title="Mentions légales">
+      <EditableLegalContent which="legal" seedText={DEFAULT_LEGAL_TEXT}>
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
 
           <Section title="Éditeur de l'application">
@@ -72,17 +88,17 @@ export default function LegalScreen() {
             <B>Données conservées :</B> aucune donnée personnelle n'est conservée après la suppression. Les sauvegardes techniques chiffrées sont purgées sous 30 jours. Le cas échéant, seules les données strictement exigées par la loi (ex. obligations comptables) peuvent être conservées le temps légal requis.
           </Section>
 
-          {/* Lien direct vers la suppression (depuis le profil) */}
-          <TouchableOpacity style={styles.deleteLink} activeOpacity={0.8} onPress={() => router.push('/(tabs)/profile' as any)}>
-            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
-            <Text style={styles.deleteLinkText}>Aller à mon profil pour supprimer mon compte</Text>
-            <Ionicons name="chevron-forward" size={15} color={COLORS.danger} />
-          </TouchableOpacity>
-
           <Section title="Droit applicable">
             Les présentes mentions légales sont régies par le droit français. Tout litige sera soumis aux tribunaux compétents.
           </Section>
+      </EditableLegalContent>
 
+      {/* Lien direct vers la suppression — toujours visible (conformité Google) */}
+      <TouchableOpacity style={styles.deleteLink} activeOpacity={0.8} onPress={() => router.push('/(tabs)/profile' as any)}>
+        <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+        <Text style={styles.deleteLinkText}>Aller à mon profil pour supprimer mon compte</Text>
+        <Ionicons name="chevron-forward" size={15} color={COLORS.danger} />
+      </TouchableOpacity>
     </LegalLayout>
   );
 }
