@@ -174,9 +174,9 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
     { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'cosmetiques', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
     // ── Recharger en gemmes (argent réel via le store) ──
-    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: 'relyka_gems_100' } },
-    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: 'relyka_gems_500' } },
-    { key: 'gems_1200', type: 'gems_iap', category: 'gems', label: '1200 relyks', description: 'Le meilleur rapport.', price: 0, icon: 'diamond', payload: { gems: 1200, productId: 'relyka_gems_1200' } },
+    { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: '100_relyks' } },
+    { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: '500_relyks' } },
+    { key: 'gems_1000', type: 'gems_iap', category: 'gems', label: '1000 relyks', description: 'Le meilleur rapport.', price: 0, icon: 'diamond', payload: { gems: 1000, productId: '1000_relyks' } },
   ],
 };
 
@@ -193,6 +193,10 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
   };
 }
 
+/** Clés d'articles retirés du catalogue : toujours filtrées, même si une ancienne
+ *  config stockée en base les contient encore (ex. pack renommé gems_1200 → gems_1000). */
+const DEPRECATED_SHOP_KEYS = new Set<string>(['gems_1200']);
+
 /** Conserve les articles boutique stockés (édités en admin) et ajoute les articles
  *  par défaut dont la clé n'est pas encore présente (ex. nouveaux articles d'une mise à jour). */
 function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
@@ -207,7 +211,7 @@ function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
   });
   // Articles 100 % personnalisés (clés absentes du défaut) → conservés tels quels.
   const extra = stored.filter((s) => !DEFAULT_GAMIFICATION.shop.some((d) => d.key === s.key));
-  return [...merged, ...extra];
+  return [...merged, ...extra].filter((s) => !DEPRECATED_SHOP_KEYS.has(s.key));
 }
 
 /**

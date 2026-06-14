@@ -29,11 +29,12 @@ export interface SubscriptionInfo {
 export const RC_ENTITLEMENT_ID = 'Relyka Pro';
 export const PURCHASES_SUPPORTED = Platform.OS === 'ios' || Platform.OS === 'android';
 
-// TODO : clés de production par plateforme (appl_… pour iOS, goog_… pour Android).
+// Clés publiques RevenueCat par plateforme.
+// Android = clé de prod (goog_…). iOS = encore en test tant qu'App Store Connect n'est pas configuré (TODO : appl_…).
 const API_KEY =
   Platform.select({
     ios: 'test_SUKUHHzOlMzZcirNqYJCEbRgEsT',
-    android: 'test_SUKUHHzOlMzZcirNqYJCEbRgEsT',
+    android: 'goog_XMLzcfBAvumphLKmuzyNkhXeGWg',
     default: '',
   }) || '';
 
