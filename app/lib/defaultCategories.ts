@@ -18,18 +18,18 @@ export interface DefaultCategoryItem {
 
 export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
   // RECETTES — ordre : Revenu, Autres recettes, Aides & Subventions, Prêts & Finance
-  { name: 'Revenu', type: 'income', sort_order: 0, children: ['Gérant Société', 'Salaire'] },
+  { name: 'Revenu', type: 'income', sort_order: 0, children: ['Gérant Société', 'Salaire, Traitement', 'Dividendes'] },
   { name: 'Autres recettes', type: 'income', sort_order: 10, children: ['Autres produits', 'Remboursements', 'Régularisation Solde'] },
-  { name: 'Aides & Subventions', type: 'income', sort_order: 20, children: ['CAF', 'CPF'] },
+  { name: 'Aides & Subventions', type: 'income', sort_order: 20, children: ['CAF', 'CPF', 'Dons'] },
   { name: 'Prêts & Finance', type: 'income', sort_order: 30, children: ['Apport personnels', 'Intérêts bancaires'] },
 
   // DÉPENSES — ordre imposé par l'utilisateur
   // Mouvements : virements internes + régularisations (sort_order -10 = en premier)
   { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements', 'Régularisation solde'] },
-  { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Restaurants', 'Loisirs', 'Frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Autre, divers', 'Projets'] },
-  { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle, santé', 'Assurance'] },
-  { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer/Copropriété', "Taxe d'habitation/Foncière", 'Assurance habitation', 'Electricité/Eau'] },
-  { name: 'Abonnements, Forfaits', type: 'expense', is_variable: false, sort_order: 30, children: ['Autres abonnements', 'Internet mobile', 'Plateformes', 'Box internet', 'Sport'] },
+  { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Restaurants', 'Loisirs', 'Autres frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Projets', 'Animaux', 'Vêtements', 'Vacances'] },
+  { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle', 'Assurance Santé'] },
+  { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer', 'Copropriété', "Taxe d'habitation", 'Taxe foncière', 'Assurance habitation', 'Electricité, Eau, Gaz'] },
+  { name: 'Abonnements, Forfaits', type: 'expense', is_variable: false, sort_order: 30, children: ['Autres abonnements', 'Internet mobile', 'Plateformes Streaming', 'Box internet', 'Sport'] },
   { name: 'Frais bancaires et financiers', type: 'expense', is_variable: false, sort_order: 40, children: ['Assurance Crédit', 'Frais bancaires', 'Autres frais', 'Crédits'] },
   { name: 'Impôts et taxes', type: 'expense', is_variable: false, sort_order: 50, children: ['Impôt sur le revenu', 'Autres Impôts'] },
   { name: 'Autres dépenses', type: 'expense', is_variable: true, sort_order: 60, children: ['Divers', 'Autres charges'] },

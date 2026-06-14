@@ -649,6 +649,17 @@ export default function ProjectionScreen() {
                 <NumField label="Épargne /mois" value={savingsMonthlyPerso} onChange={(v) => { setSavingsMonthlyPerso(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
                 <NumField label="Déjà épargné" value={savingsInitial} onChange={(v) => { setSavingsInitial(v); markProjectionEdited(); }} suffix={CURRENCY_SYMBOL} colors={COLORS} />
               </View>
+              {/* Réinitialisation au solde actuel des comptes épargne (§N9) */}
+              {Math.round(num(savingsInitial)) !== Math.round(realSavings) && (
+                <TouchableOpacity
+                  style={styles.savingsResetLink}
+                  activeOpacity={0.7}
+                  onPress={() => { setSavingsInitial(String(Math.round(realSavings))); markProjectionEdited(); }}
+                >
+                  <Ionicons name="refresh" size={13} color={COLORS.emerald} />
+                  <Text style={styles.savingsResetText}>Réinitialiser au solde actuel de vos comptes épargne ({fmt(realSavings)})</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
           {savingsSource === 'reel' && realMonthlySavings > 0 && (
@@ -690,10 +701,11 @@ export default function ProjectionScreen() {
 }
 
 /* ── Courbe des soldes prévus (ligne + points marqués) sur 6 mois ── */
-function BalanceCurve({ rows, width, COLORS }: {
+function BalanceCurve({ rows, width, COLORS, marginAmount = 0 }: {
   rows: { label: string; balance: number; isCurrent: boolean }[];
   width: number;
   COLORS: any;
+  marginAmount?: number;
 }) {
   if (rows.length < 2 || width <= 0) return null;
   const h = 188;
@@ -701,8 +713,9 @@ function BalanceCurve({ rows, width, COLORS }: {
   const usableW = width - padL - padR;
   const usableH = h - padT - padB;
   const vals = rows.map((r) => r.balance);
-  let minV = Math.min(...vals, 0);
-  let maxV = Math.max(...vals);
+  const hasMargin = marginAmount > 0;
+  let minV = Math.min(...vals, 0, hasMargin ? marginAmount : Infinity);
+  let maxV = Math.max(...vals, hasMargin ? marginAmount : -Infinity);
   if (maxV === minV) maxV = minV + 1;
   const pad = (maxV - minV) * 0.12;
   minV -= pad; maxV += pad;
@@ -722,6 +735,13 @@ function BalanceCurve({ rows, width, COLORS }: {
       </Defs>
       {zeroVisible && (
         <Line x1={padL} y1={y(0)} x2={width - padR} y2={y(0)} stroke={COLORS.cardBorder} strokeWidth={1} strokeDasharray="3 3" />
+      )}
+      {/* Trait « marge de sécurité » (§N7) */}
+      {hasMargin && (
+        <>
+          <Line x1={padL} y1={y(marginAmount)} x2={width - padR} y2={y(marginAmount)} stroke={COLORS.yellow} strokeWidth={1.5} strokeDasharray="5 3" opacity={0.9} />
+          <SvgText x={padL + 2} y={y(marginAmount) - 4} fill={COLORS.yellow} fontSize="9" fontWeight="400" textAnchor="start" opacity={0.9}>{`Marge de sécurité (${fmt(marginAmount)})`}</SvgText>
+        </>
       )}
       <Path d={area} fill="url(#balGrad)" />
       <Path d={line} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
@@ -897,7 +917,7 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
       <View style={[styles.chartCard, { marginTop: 0, alignItems: 'stretch' }]}>
         <Text style={styles.chartTitle}>Prévision des soldes de trésorerie</Text>
         <View style={{ alignItems: 'center' }}>
-          <BalanceCurve rows={rows} width={chartWidth} COLORS={COLORS} />
+          <BalanceCurve rows={rows} width={chartWidth} COLORS={COLORS} marginAmount={pilotage?.safety_margin_amount ?? 0} />
         </View>
       </View>
       {rows.map((r) => (
@@ -960,6 +980,8 @@ function makeStyles(c: any) {
 
     sectionHint: { fontSize: 12, color: c.textSecondary, marginBottom: 14 },
     chartTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 8 },
+    savingsResetLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+    savingsResetText: { fontSize: 12, color: c.emerald, fontWeight: '600', flexShrink: 1 },
 
     kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
     kpiCard: {

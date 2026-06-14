@@ -156,8 +156,7 @@ export default function ProjectsScreen() {
       onError: (e: any) => {
         setArchiveConfirmId(null);
         const msg = e?.message || 'Archivage impossible.';
-        if (Platform.OS === 'web') window.alert(`Archivage impossible\n${msg}`);
-        else Alert.alert('Archivage impossible', msg);
+        Alert.alert('Archivage impossible', msg); // in-app global (§7)
       },
     });
   };

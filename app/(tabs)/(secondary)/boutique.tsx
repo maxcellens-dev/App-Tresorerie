@@ -182,7 +182,16 @@ export default function BoutiqueScreen() {
                 const compact = cat === 'gems' || cat === 'series';
                 return (
                   <View key={cat}>
-                    <Text style={styles.catHeader}>{SHOP_CATEGORY_LABELS[cat as ShopCategory]}</Text>
+                    <View style={styles.catHeaderRow}>
+                      <Text style={styles.catHeader}>{SHOP_CATEGORY_LABELS[cat as ShopCategory]}</Text>
+                      {/* Lien « Consulter mes achats » → Apparence (§N4) */}
+                      {cat === 'apparence' && (
+                        <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence' as any)} activeOpacity={0.7}>
+                          <Ionicons name="color-palette-outline" size={13} color={COLORS.emerald} />
+                          <Text style={styles.apparenceLinkText}>Consulter mes achats</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                     {compact ? (
                       <View style={styles.compactGrid}>
                         {items.map((item) => {
@@ -296,6 +305,8 @@ function makeStyles(c: any) {
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
     headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    apparenceLink: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8, marginTop: 6 },
+    apparenceLinkText: { fontSize: 11.5, fontWeight: '700', color: c.emerald },
     title: { fontSize: 26, fontWeight: '800', color: c.text },
     gemPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
     gemText: { fontSize: 14, fontWeight: '800', color: c.text },
@@ -307,6 +318,7 @@ function makeStyles(c: any) {
     tabText: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
     tabTextActive: { color: c.emerald },
     sectionIntro: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },
+    catHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     catHeader: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6 },
     gemsNote: { fontSize: 11.5, color: c.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 15 },
     soonPill: { backgroundColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },

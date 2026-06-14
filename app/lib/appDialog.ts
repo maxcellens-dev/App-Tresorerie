@@ -1,0 +1,53 @@
+/**
+ * Dialogue in-app global (§7) — remplace TOUTES les pop-ups du navigateur.
+ *  - `Alert.alert(...)` est rerouté vers ce système (voir AppDialogHost) → aucun appel à modifier.
+ *  - `appConfirm()` / `appAlert()` remplacent les `window.confirm` / `window.alert` synchrones
+ *    (qui ne peuvent pas être interceptés sans changer leur appel).
+ * Un seul dialogue à la fois ; suffisant pour des confirmations.
+ */
+export type DialogButtonStyle = 'default' | 'cancel' | 'destructive';
+export interface DialogButton { text: string; style?: DialogButtonStyle; onPress?: () => void }
+export interface DialogRequest { title?: string; message?: string; buttons: DialogButton[] }
+
+let controller: ((req: DialogRequest) => void) | null = null;
+
+/** Enregistre l'hôte de rendu (appelé par AppDialogHost). */
+export function registerDialogHost(fn: ((req: DialogRequest) => void) | null) {
+  controller = fn;
+}
+
+/** Confirmation in-app (remplace `if (window.confirm(...)) …`). Résout `true` si confirmé. */
+export function appConfirm(opts: {
+  title?: string; message?: string; confirmText?: string; cancelText?: string; destructive?: boolean;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req: DialogRequest = {
+      title: opts.title,
+      message: opts.message,
+      buttons: [
+        { text: opts.cancelText ?? 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+        { text: opts.confirmText ?? 'Confirmer', style: opts.destructive ? 'destructive' : 'default', onPress: () => resolve(true) },
+      ],
+    };
+    if (controller) controller(req); else resolve(false);
+  });
+}
+
+/** Notification in-app (remplace `window.alert(...)`). */
+export function appAlert(opts: { title?: string; message?: string; okText?: string }): Promise<void> {
+  return new Promise((resolve) => {
+    const req: DialogRequest = {
+      title: opts.title,
+      message: opts.message,
+      buttons: [{ text: opts.okText ?? 'OK', style: 'default', onPress: () => resolve() }],
+    };
+    if (controller) controller(req); else resolve();
+  });
+}
+
+/** Adaptateur compatible `Alert.alert(title, message, buttons, options)` → dialogue in-app. */
+export function alertCompat(title?: string, message?: string, buttons?: DialogButton[]) {
+  const btns: DialogButton[] = buttons && buttons.length > 0 ? buttons : [{ text: 'OK', style: 'default' }];
+  const req: DialogRequest = { title, message, buttons: btns };
+  if (controller) controller(req);
+}

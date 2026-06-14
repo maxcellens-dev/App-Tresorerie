@@ -351,8 +351,8 @@ export default function AddTransactionScreen() {
                   onSelect={(id) => { setCategoryId(id); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
                   label="Sous-catégorie *"
                   parents={subcatParents}
-                  onCreateSubcategory={async (name, parentId) => {
-                    const created = await addCategory.mutateAsync({ name, type: isExpense ? 'expense' : 'income', parent_id: parentId });
+                  onCreateSubcategory={async (name, parentId, icon) => {
+                    const created = await addCategory.mutateAsync({ name, type: isExpense ? 'expense' : 'income', parent_id: parentId, icon });
                     return (created as any)?.id ?? '';
                   }}
                 />

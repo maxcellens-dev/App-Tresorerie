@@ -13,8 +13,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useNavBack } from '../../hooks/useNavBack';
 
 function showAlert(title: string, message: string) {
-  if (Platform.OS === 'web') window.alert(`${title}\n${message}`);
-  else Alert.alert(title, message);
+  Alert.alert(title, message); // in-app global (§7)
 }
 
 export default function ChangePasswordScreen() {

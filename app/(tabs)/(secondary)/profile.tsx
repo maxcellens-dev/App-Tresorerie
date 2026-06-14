@@ -118,10 +118,6 @@ export default function ProfileScreen() {
         setAvatarLoading(false);
       }
     };
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm('Supprimer la photo\n\nSupprimer la photo de profil ?')) doRemove();
-      return;
-    }
     Alert.alert('Supprimer la photo', 'Supprimer la photo de profil ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: () => doRemove() },

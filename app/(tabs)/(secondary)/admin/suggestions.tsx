@@ -70,7 +70,6 @@ export default function AdminSuggestions() {
 
   const handleDeleteRoadmap = (id: string) => {
     const doIt = () => deleteRoadmapIdea.mutate(id);
-    if (Platform.OS === 'web') { if (window.confirm('Retirer cette idée de la roadmap ?')) doIt(); return; }
     Alert.alert('Supprimer', 'Retirer cette idée de la roadmap ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: doIt },
@@ -106,7 +105,6 @@ export default function AdminSuggestions() {
 
   const handleDelete = (id: string) => {
     const doIt = () => deleteMutation.mutate(id);
-    if (Platform.OS === 'web') { if (window.confirm('Supprimer cette suggestion ?')) doIt(); return; }
     Alert.alert('Supprimer', 'Supprimer cette suggestion ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: doIt },
@@ -115,7 +113,6 @@ export default function AdminSuggestions() {
 
   const handleDeleteAll = () => {
     const doIt = () => deleteAllMutation.mutate();
-    if (Platform.OS === 'web') { if (window.confirm(`Supprimer les ${suggestions.length} suggestions ?`)) doIt(); return; }
     Alert.alert('Tout supprimer', `Supprimer les ${suggestions.length} suggestions ?`, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer tout', style: 'destructive', onPress: doIt },

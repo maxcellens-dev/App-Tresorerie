@@ -149,10 +149,6 @@ export default function CategoriesScreen() {
         Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
       });
     };
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm(`Supprimer\n\n${message}`)) doDelete();
-      return;
-    }
     Alert.alert('Supprimer', message, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: doDelete },

@@ -60,7 +60,9 @@ export default function AppearanceScreen() {
   const { config: gamiConfig, inventory } = useGamification(user?.id);
   const { isPremium } = usePlan(user?.id);
   const colorsUnlocked = isPremium;
-  const hasAccentPack = isPremium || inventory.some((i) => i.item_key === 'accent_pack' && i.qty > 0);
+  // Le « Pack couleurs » (7 teintes secondaires) s'obtient UNIQUEMENT via un achat en boutique,
+  // pas avec le Premium (§N10).
+  const hasAccentPack = inventory.some((i) => i.item_key === 'accent_pack' && i.qty > 0);
 
   // Perte du Premium : si une couleur d'accent personnalisée (hex) est appliquée, on revient
   // au thème par défaut → l'avantage premium disparaît. Garde-fou : profil chargé.

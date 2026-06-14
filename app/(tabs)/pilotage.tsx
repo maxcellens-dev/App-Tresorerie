@@ -27,6 +27,8 @@ import AdSlot from '../components/AdSlot';
 import { useProjects } from '../hooks/useProjects';
 import PreSavingsModal from '../components/PreSavingsModal';
 import CumulsPanel from '../components/CumulsPanel';
+import CategoryDonut from '../components/CategoryDonut';
+import { iconForTransaction, iconForCategory } from '../lib/categoryIcons';
 import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../lib/recommendationEngine';
 import type { SmartRecommendation } from '../lib/recommendationEngine';
 import type { PreSavingType } from '../types/database';
@@ -79,6 +81,8 @@ export default function PilotageScreen() {
   // Modaux détail du « Suivi du mois » (toutes les zones sont cliquables, §3)
   const [detailKey, setDetailKey] = useState<'checking' | 'savings' | 'invest' | 'spent' | 'planned' | 'relyka' | null>(null);
   const [plannedTab, setPlannedTab] = useState<'recurrentes' | 'variables'>('recurrentes');
+  const [showTroughInfo, setShowTroughInfo] = useState(false); // popup « point bas de trésorerie » (§N8)
+  const [spentFilter, setSpentFilter] = useState<string | null>(null); // filtre sous-catégorie du camembert (§N2)
   const releaseReserved = useReleaseReservedByProject(user?.id);
   const updateOnboarding = useUpdateOnboarding(user?.id);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
@@ -246,12 +250,58 @@ export default function PilotageScreen() {
       }
     }
     const byDateDesc = (a: any, b: any) => (b.date ?? '').localeCompare(a.date ?? '');
+
+    // Récurrentes du mois : total projeté + part déjà passée (pour le curseur passé/total, §N5).
+    const y = now.getFullYear(), mo = now.getMonth() + 1, dToday = now.getDate();
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    const monthStart = new Date(y, mo - 1, 1), monthEnd = new Date(y, mo, 0);
+    // NB : la matérialisation (migration 030) avance la date du template après chaque occurrence
+    // passée. On compte donc aussi le total quand le template a été avancé d'une période (= déjà
+    // passé ce mois), pour que « total » = passées + futures.
+    const thisIdx = y * 12 + (mo - 1);
+    const recurForMonth = (t: any): { total: number; passed: number } => {
+      const amt = Math.abs(Number(t.amount));
+      const start = new Date((t.date ?? '').slice(0, 10) + 'T00:00:00');
+      const end = t.recurrence_end_date ? new Date(String(t.recurrence_end_date).slice(0, 10) + 'T00:00:00') : null;
+      if (end && end < monthStart) return { total: 0, passed: 0 };
+      const rule = t.recurrence_rule;
+      const startIdx = start.getFullYear() * 12 + start.getMonth();
+      const day = Math.min(start.getDate(), daysInMonth);
+      const single = (periodMonths: number) => {
+        // Démarre trop loin dans le futur (au-delà d'une période = pas une avance de matérialisation).
+        if (startIdx > thisIdx + periodMonths) return { total: 0, passed: 0 };
+        const advanced = startIdx > thisIdx; // template avancé → occurrence de ce mois déjà passée
+        return { total: amt, passed: advanced || day <= dToday ? amt : 0 };
+      };
+      if (rule === 'monthly') return single(1);
+      if (rule === 'yearly') {
+        if (start.getMonth() !== mo - 1) return { total: 0, passed: 0 };
+        return single(12);
+      }
+      if (rule === 'quarterly') {
+        if ((((thisIdx - startIdx) % 3) + 3) % 3 !== 0) return { total: 0, passed: 0 };
+        return single(3);
+      }
+      if (rule === 'weekly') {
+        let total = 0, passed = 0; const d = new Date(start);
+        while (d < monthStart) d.setDate(d.getDate() + 7);
+        while (d <= monthEnd && (!end || d <= end)) { total += amt; if (d.getDate() <= dToday) passed += amt; d.setDate(d.getDate() + 7); }
+        if (total === 0 && startIdx > thisIdx) { total = amt * 4; passed = amt * 4; } // avancé hors du mois → ~4 passées
+        return { total, passed };
+      }
+      return { total: 0, passed: 0 };
+    };
+    let recurringTotal = 0, recurringPassed = 0;
+    for (const t of recurrentes) { const r = recurForMonth(t); recurringTotal += r.total; recurringPassed += r.passed; }
+
     return {
       checking: accounts.filter((a) => a.type === 'checking'),
       savings: savings.sort(byDateDesc),
       invest: invest.sort(byDateDesc),
       spent: spent.sort(byDateDesc),
       recurrentes: recurrentes.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount))),
+      recurringTotal,
+      recurringPassed,
     };
   }, [txForConseils, accounts]);
 
@@ -443,25 +493,17 @@ export default function PilotageScreen() {
               }}
             />
 
-            {/* Accès aux cumuls — SOUS le bloc Ton Relyka.
-                - Montant en attente → bandeau « Gérer » (ouvre le panneau).
-                - Sinon → bouton « Mes cumuls » à droite. */}
-            {(preEpargneTotal > 0 || preInvestTotal > 0) ? (
-              <TouchableOpacity style={[styles.cumulsBanner, { marginTop: 12, marginBottom: 0 }]} onPress={() => setPanelOpen(true)} activeOpacity={0.8}>
+            {/* Cumuls en attente — bandeau (ouvre « Réservé » où on gère/saisit les cumuls, §N).
+                Plus de bouton « Gérer » : tout le bandeau est cliquable. */}
+            {(preEpargneTotal > 0 || preInvestTotal > 0) && (
+              <TouchableOpacity style={[styles.cumulsBanner, { marginTop: 12, marginBottom: 0 }]} onPress={openReservedModal} activeOpacity={0.8}>
                 {preEpargneTotal > 0 && (
                   <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
                 )}
                 {preInvestTotal > 0 && (
                   <Text style={styles.cumulsBannerItem}>📈 En attente d'invest : {Math.round(preInvestTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
                 )}
-                <Text style={styles.cumulsBannerLink}>Gérer</Text>
               </TouchableOpacity>
-            ) : (
-              <View style={styles.cumulsTopRow}>
-                <TouchableOpacity style={styles.cumulsBtnHeader} onPress={() => setPanelOpen(true)} activeOpacity={0.7}>
-                  <Text style={styles.cumulsBtnLabel}>💰 Mes cumuls</Text>
-                </TouchableOpacity>
-              </View>
             )}
           </View>
           {/* ═══════════ SUIVI DU MOIS ═══════════ */}
@@ -473,7 +515,7 @@ export default function PilotageScreen() {
               </View>
               <View style={styles.monthPill}>
                 <Text style={styles.monthPillText}>
-                  {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                  {`${String(new Date().getMonth() + 1).padStart(2, '0')}-${new Date().getFullYear()}`}
                 </Text>
               </View>
             </View>
@@ -487,11 +529,17 @@ export default function PilotageScreen() {
               const reserve = pilotageData.monthly_reserve_planned + reservationsTotal + cumulsTotal;
               const safetyMargin = pilotageData.safety_margin_amount ?? 0;
               const checkingBalance = pilotageData.current_checking_balance ?? 0;
-              const depVariable = pilotageData.variable_envelope_remaining;
-              const depRecurrentes = monthExpensesRemaining;
-              const depPrevuesTotal = depVariable + depRecurrentes;
-              const depPast = monthExpensesPast;
-              const depTotal = Math.max(1, depPast + depPrevuesTotal);
+              // Dépenses (§N5) : 3 indicateurs.
+              const depPast = monthExpensesPast; // dépensé ce mois (déjà passé)
+              // Variables : reste estimé sur l'enveloppe (curseur inversé = restant / total estimé).
+              const varRemaining = pilotageData.variable_envelope_remaining ?? 0;
+              const varInitial = Math.max(varRemaining, pilotageData.variable_envelope_initial ?? 0);
+              // Récurrentes : total projeté du mois + part déjà passée (curseur passé / total).
+              const recurTotal = suiviDetail.recurringTotal ?? 0;
+              const recurPassed = suiviDetail.recurringPassed ?? 0;
+              const recurRemaining = Math.max(0, recurTotal - recurPassed);
+              // Curseur « Dépensé ce mois » : vide = ce qui reste (récurrent à venir + variable restant).
+              const spentDenom = Math.max(1, depPast + recurRemaining + varRemaining);
 
               const rest = resteDisponible;
               const restNeg = rest < 0;
@@ -546,7 +594,8 @@ export default function PilotageScreen() {
                       </View>
                       <Text style={styles.suiviBlockTitle}>Dépenses</Text>
                     </View>
-                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => setDetailKey('spent')}>
+                    {/* Dépensé ce mois — vide = ce qui reste à dépenser (récurrent + variable) */}
+                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
                       <View style={styles.depBarTop}>
                         <View style={styles.depBarLabelRow}>
                           <Text style={styles.depBarLabel}>Dépensé ce mois</Text>
@@ -554,17 +603,29 @@ export default function PilotageScreen() {
                         </View>
                         <Text style={[styles.depBarValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPast / depTotal) * 100)}%`, backgroundColor: COLORS.danger }]} /></View>
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: COLORS.danger }]} /></View>
                     </TouchableOpacity>
+                    {/* Dépenses récurrentes restantes — curseur = restant / total (décroît, §N5) */}
                     <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
                       <View style={styles.depBarTop}>
                         <View style={styles.depBarLabelRow}>
-                          <Text style={styles.depBarLabel}>Dépenses prévues restantes</Text>
+                          <Text style={styles.depBarLabel}>Dépenses récurrentes restantes</Text>
                           <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
                         </View>
-                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(depPrevuesTotal)}</Text>
+                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)} <Text style={styles.depBarTotal}>/ {fmt(recurTotal)}</Text></Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPrevuesTotal / depTotal) * 100)}%`, backgroundColor: COLORS.orange }]} /></View>
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange }]} /></View>
+                    </TouchableOpacity>
+                    {/* Dépenses variables prévues restantes — curseur = restant / estimé (décroît, §N5) */}
+                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
+                      <View style={styles.depBarTop}>
+                        <View style={styles.depBarLabelRow}>
+                          <Text style={styles.depBarLabel}>Dépenses variables prévues restantes</Text>
+                          <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
+                        </View>
+                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varRemaining)} <Text style={styles.depBarTotal}>/ {fmt(varInitial)}</Text></Text>
+                      </View>
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: COLORS.yellow }]} /></View>
                     </TouchableOpacity>
                   </View>
 
@@ -687,41 +748,31 @@ export default function PilotageScreen() {
                 </View>
               )}
 
-              {/* Cumuls manuels (pré-épargne / pré-invest) — réservés mentalement, déduits du Relyka */}
+              {/* Cumuls manuels (pré-épargne / pré-invest) — TOUJOURS visibles (même à 0) pour
+                  permettre la saisie manuelle. Tap → modale du cumul (ajout / reset / virement). */}
+              <Text style={styles.reservedSectionLabel}>Cumuls (saisie manuelle)</Text>
               {([
                 { type: 'epargne' as PreSavingType, label: 'Pré-épargne', total: preEpargneTotal, icon: 'shield-outline', color: COLORS.green },
                 { type: 'invest' as PreSavingType, label: 'Pré-invest', total: preInvestTotal, icon: 'trending-up-outline', color: COLORS.violet },
-              ]).filter((c) => c.total > 0).map((c) => (
-                <View key={c.type} style={styles.reservedProjectBlock}>
-                  <View style={styles.reservedItem}>
-                    <View style={[styles.reservedItemIcon, { backgroundColor: c.color + '22' }]}>
-                      <Ionicons name={c.icon as any} size={16} color={c.color} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.reservedItemName}>{c.label}</Text>
-                      <Text style={styles.reservedItemHint}>Cumul en attente de virement</Text>
-                    </View>
-                    <Text style={[styles.reservedItemAmount, { color: c.color }]}>{fmtMain(c.total)}</Text>
+              ]).map((c) => (
+                <TouchableOpacity
+                  key={c.type}
+                  style={styles.reservedItem}
+                  activeOpacity={0.7}
+                  onPress={() => { setShowReservedModal(false); setPreModalAmount(0); setPreModal(c.type); }}
+                >
+                  <View style={[styles.reservedItemIcon, { backgroundColor: c.color + '22' }]}>
+                    <Ionicons name={c.icon as any} size={16} color={c.color} />
                   </View>
-                  <View style={styles.reservedActions}>
-                    <TouchableOpacity
-                      style={styles.reservedReleaseBtn}
-                      activeOpacity={0.7}
-                      onPress={() => { setShowReservedModal(false); setPreModalAmount(0); setPreModal(c.type); }}
-                    >
-                      <Ionicons name="options-outline" size={14} color={COLORS.textSecondary} />
-                      <Text style={[styles.reservedReleaseText, { color: COLORS.textSecondary }]}>Gérer</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.reservedTransferBtn}
-                      activeOpacity={0.7}
-                      onPress={() => { setShowReservedModal(false); openCumulTransfer(c.type, c.total); }}
-                    >
-                      <Ionicons name="swap-horizontal" size={14} color={COLORS.green} />
-                      <Text style={styles.reservedTransferText}>Créer un virement</Text>
-                    </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reservedItemName}>{c.label}</Text>
+                    <Text style={styles.reservedItemHint}>
+                      {c.total > 0 ? 'En attente de virement · appuyez pour gérer' : 'Appuyez pour ajouter un montant'}
+                    </Text>
                   </View>
-                </View>
+                  <Text style={[styles.reservedItemAmount, { color: c.total > 0 ? c.color : COLORS.textSecondary }]}>{fmtMain(c.total)}</Text>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
               ))}
 
               {/* Réservé par projet */}
@@ -769,9 +820,6 @@ export default function PilotageScreen() {
                 </View>
               ))}
 
-              {reservationsTotal <= 0 && cumulsTotal <= 0 && pilotageData.reserved_by_project.length === 0 && (
-                <Text style={styles.reservedEmpty}>Aucun montant réservé pour le moment.</Text>
-              )}
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -794,6 +842,7 @@ export default function PilotageScreen() {
                 list.length === 0 ? <Text style={styles.detailEmpty}>{empty}</Text> :
                 list.map((t, i) => (
                   <View key={t.id ?? i} style={styles.detailRow}>
+                    <Ionicons name={iconForTransaction(t) as any} size={16} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
                       <Text style={styles.detailRowSub}>{t.is_recurring && t.recurrence_rule ? (recLabel[t.recurrence_rule] ?? 'Récurrent') : dts(t.date)}</Text>
@@ -805,7 +854,7 @@ export default function PilotageScreen() {
               return (
                 <>
                   <View style={styles.detailHeader}>
-                    <Text style={styles.detailTitle}>{detailKey ? titles[detailKey] : ''}</Text>
+                    <Text style={styles.detailTitle}>{detailKey === 'planned' ? (plannedTab === 'recurrentes' ? 'Dépenses récurrentes' : 'Dépenses variables prévues restantes') : (detailKey ? titles[detailKey] : '')}</Text>
                     <TouchableOpacity onPress={() => setDetailKey(null)} style={{ padding: 4 }}>
                       <Ionicons name="close" size={22} color={COLORS.text} />
                     </TouchableOpacity>
@@ -829,16 +878,61 @@ export default function PilotageScreen() {
                     )}
                     {detailKey === 'savings' && txList(suiviDetail.savings, semanticText(COLORS.green, COLORS), 'Aucun virement d\'épargne ce mois.')}
                     {detailKey === 'invest' && txList(suiviDetail.invest, semanticText(COLORS.violet, COLORS), 'Aucun virement d\'investissement ce mois.')}
-                    {detailKey === 'spent' && txList(suiviDetail.spent, semanticText(COLORS.danger, COLORS), 'Aucune dépense passée ce mois.')}
+                    {detailKey === 'spent' && (() => {
+                      // Répartition par sous-catégorie (camembert cliquable → filtre la liste, §N2)
+                      const groups: Record<string, { key: string; total: number; icon: string; color: string }> = {};
+                      for (const t of suiviDetail.spent) {
+                        const key = t.category?.name || 'Autre';
+                        (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
+                        groups[key].total += Math.abs(Number(t.amount));
+                      }
+                      const palette = [COLORS.danger, COLORS.orange, COLORS.violet, COLORS.blue, COLORS.green, COLORS.teal, COLORS.yellow, COLORS.emerald, COLORS.checking];
+                      const arr = Object.values(groups).sort((a, b) => b.total - a.total);
+                      arr.forEach((g, i) => { g.color = palette[i % palette.length]; });
+                      const totalSpent = arr.reduce((s, g) => s + g.total, 0);
+                      const filtered = spentFilter ? suiviDetail.spent.filter((t) => (t.category?.name || 'Autre') === spentFilter) : suiviDetail.spent;
+                      return (
+                        <>
+                          {arr.length > 0 && (
+                            <>
+                              <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                                <CategoryDonut
+                                  segments={arr.map((g) => ({ key: g.key, value: g.total, color: g.color }))}
+                                  size={150}
+                                  strokeWidth={20}
+                                  activeKey={spentFilter}
+                                  centerLabel={fmt(spentFilter ? (groups[spentFilter]?.total ?? 0) : totalSpent)}
+                                  centerSub={spentFilter ?? 'Total'}
+                                  centerColor={COLORS.text}
+                                />
+                              </View>
+                              <View style={styles.pieLegend}>
+                                {arr.map((g) => {
+                                  const active = spentFilter === g.key;
+                                  return (
+                                    <TouchableOpacity
+                                      key={g.key}
+                                      style={[styles.pieLegendItem, active && { borderColor: g.color, backgroundColor: g.color + '1A' }]}
+                                      onPress={() => setSpentFilter(active ? null : g.key)}
+                                      activeOpacity={0.7}
+                                    >
+                                      <View style={[styles.pieDot, { backgroundColor: g.color }]} />
+                                      <Ionicons name={g.icon as any} size={13} color={COLORS.textSecondary} />
+                                      <Text style={styles.pieLegendText} numberOfLines={1}>{g.key}</Text>
+                                      <Text style={[styles.pieLegendVal, { color: g.color }]}>{fmt(g.total)}</Text>
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </View>
+                              <View style={styles.suiviDivider} />
+                            </>
+                          )}
+                          {txList(filtered, semanticText(COLORS.danger, COLORS), 'Aucune dépense passée ce mois.')}
+                        </>
+                      );
+                    })()}
                     {detailKey === 'planned' && (
                       <>
-                        <View style={styles.detailTabs}>
-                          {([['recurrentes', 'Récurrentes'], ['variables', 'Variables']] as const).map(([k, t]) => (
-                            <TouchableOpacity key={k} style={[styles.detailTab, plannedTab === k && styles.detailTabActive]} onPress={() => setPlannedTab(k)} activeOpacity={0.8}>
-                              <Text style={[styles.detailTabText, plannedTab === k && styles.detailTabTextActive]}>{t}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
                         {plannedTab === 'recurrentes'
                           ? txList(suiviDetail.recurrentes, semanticText(COLORS.orange, COLORS), 'Aucune dépense récurrente.')
                           : (
@@ -890,7 +984,14 @@ export default function PilotageScreen() {
                           { l: 'Marge de sécurité', v: -(pilotageData.safety_margin_amount ?? 0) },
                         ].filter((r) => Math.round(Math.abs(r.v)) > 0).map((r) => (
                           <View key={r.l} style={styles.detailRow}>
-                            <Text style={[styles.detailRowLabel, { flex: 1 }]}>{r.l}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
+                              <Text style={styles.detailRowLabel}>{r.l}</Text>
+                              {r.l === 'Point bas de trésorerie' && (
+                                <TouchableOpacity onPress={() => setShowTroughInfo(true)} hitSlop={8}>
+                                  <Ionicons name="information-circle-outline" size={16} color={COLORS.emerald} />
+                                </TouchableOpacity>
+                              )}
+                            </View>
                             <Text style={[styles.detailRowValue, { color: r.v < 0 ? COLORS.textSecondary : COLORS.text }]}>{fmt(r.v)}</Text>
                           </View>
                         ))}
@@ -904,6 +1005,24 @@ export default function PilotageScreen() {
                 </>
               );
             })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Popup explicative « point bas de trésorerie » (§N8) */}
+      <Modal visible={showTroughInfo} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowTroughInfo(false)}>
+        <Pressable style={styles.detailOverlay} onPress={() => setShowTroughInfo(false)}>
+          <Pressable style={styles.detailBox} onPress={() => {}}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailTitle}>Point bas de trésorerie</Text>
+              <TouchableOpacity onPress={() => setShowTroughInfo(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.troughInfoText}>
+              C'est le solde le plus bas qu'atteindront vos comptes courants d'ici votre prochaine rentrée d'argent, en simulant vos revenus et dépenses à venir dans l'ordre des dates.{'\n\n'}
+              On se base dessus plutôt que sur votre solde actuel pour ne jamais vous laisser dépenser de l'argent que vous n'avez pas encore reçu : votre budget libre reste fiable même si une grosse dépense tombe avant votre prochaine paie.
+            </Text>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1158,6 +1277,7 @@ function makeStyles(c: AppColors) {
   depBarLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   depBarLabel: { fontSize: 13, color: c.text, fontWeight: '600' },
   depBarValue: { fontSize: 15, fontWeight: '700' },
+  depBarTotal: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
   depBarTrack: { height: 8, borderRadius: 4, backgroundColor: c.cardBorder, overflow: 'hidden' },
   depBarFill: { height: '100%', borderRadius: 4 },
   reserveLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
@@ -1174,6 +1294,12 @@ function makeStyles(c: AppColors) {
   detailRowSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
   detailRowValue: { fontSize: 15, fontWeight: '700' },
   detailEmpty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 20 },
+  troughInfoText: { fontSize: 13, color: c.textSecondary, lineHeight: 20 },
+  pieLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10, maxWidth: '100%' },
+  pieDot: { width: 9, height: 9, borderRadius: 5 },
+  pieLegendText: { fontSize: 12, color: c.text, fontWeight: '600', flexShrink: 1 },
+  pieLegendVal: { fontSize: 12, fontWeight: '800' },
   detailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 4 },
   detailTabs: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   detailTab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
@@ -1208,6 +1334,7 @@ function makeStyles(c: AppColors) {
   cumulsBannerLink: { marginLeft: 'auto', fontSize: 12, color: c.emerald, fontWeight: '700' },
   cumulsBtn: { alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 },
   cumulsTopRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
+  monthInline: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginLeft: 2 },
   cumulsBtnHeader: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
   cumulsBtnLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
   suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
@@ -1299,6 +1426,7 @@ function makeStyles(c: AppColors) {
   },
   reservedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   reservedTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+  reservedSectionLabel: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 12, marginBottom: 2 },
   reservedItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   reservedItemIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   reservedItemName: { fontSize: 14, fontWeight: '700', color: c.text },

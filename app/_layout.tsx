@@ -18,6 +18,7 @@ import ProfileChangeModal from './components/ProfileChangeModal';
 import StreakRecoveryModal from './components/StreakRecoveryModal';
 import FontApplier from './components/FontApplier';
 import GamificationSync from './components/GamificationSync';
+import AppDialogHost from './components/AppDialogHost';
 import { useAppColors } from './hooks/useAppColors';
 import { useCurrency } from './hooks/useCurrency';
 import { useProfile } from './hooks/useProfile';
@@ -185,6 +186,7 @@ function AppChrome() {
     <TourProvider>
     <View style={styles.root}>
       <View style={limitWidth ? styles.webColumn : styles.fullColumn}>
+      <AppDialogHost />
       <ImpersonationBanner />
       {!hideChrome && user && !isTabs && root !== 'legal' && root !== 'confidentialite' && (
         <SafeAreaView edges={['top']} style={styles.headerSafe}>

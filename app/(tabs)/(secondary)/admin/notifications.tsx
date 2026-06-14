@@ -83,14 +83,10 @@ export default function AdminNotifications() {
   const confirmSend = () => {
     setMsg(null);
     const question = 'Envoyer cette notification à tous les utilisateurs ayant activé les notifications ?';
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm(question)) sendMutation.mutate();
-    } else {
-      Alert.alert('Confirmer l\'envoi', question, [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Envoyer', onPress: () => sendMutation.mutate() },
-      ]);
-    }
+    Alert.alert('Confirmer l\'envoi', question, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Envoyer', onPress: () => sendMutation.mutate() },
+    ]);
   };
 
   if (!isAdmin) {

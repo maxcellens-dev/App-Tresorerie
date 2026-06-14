@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platfo
 import { Ionicons } from '@expo/vector-icons';
 import type { Category } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { CATEGORY_ICON_GLOSSARY, iconForCategory } from '../lib/categoryIcons';
 
 /** Normalise pour une recherche insensible à la casse et aux accents. */
 function norm(s: string): string {
@@ -22,14 +23,22 @@ export function useSubCategoriesGrouped(
     const subCats = byType.filter((c) => c.parent_id != null && c.parent_id !== '') as (Category & { parent_id: string })[];
     const parentIds = [...new Set(subCats.map((c) => c.parent_id))];
     const parentMap = new Map(byType.filter((c) => c.parent_id == null || c.parent_id === '').map((c) => [c.id, c]));
+    // Ordre identique à l'écran Catégories : tri par sort_order (parents et enfants), puis nom.
+    // « Mouvements » (virements) masqué dans les pages dépenses/recettes.
     const groups: CategoryGroup[] = parentIds
       .map((parentId) => {
         const parent = parentMap.get(parentId);
-        const children = subCats.filter((c) => c.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name));
+        const children = subCats
+          .filter((c) => c.parent_id === parentId)
+          .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999) || a.name.localeCompare(b.name));
         return { parentId, parentName: parent?.name ?? 'Catégorie', children };
       })
-      .filter((g) => g.children.length > 0)
-      .sort((a, b) => a.parentName.localeCompare(b.parentName));
+      .filter((g) => g.children.length > 0 && norm(g.parentName) !== 'mouvements')
+      .sort((a, b) => {
+        const pa = (parentMap.get(a.parentId)?.sort_order ?? 9999);
+        const pb = (parentMap.get(b.parentId)?.sort_order ?? 9999);
+        return pa - pb || a.parentName.localeCompare(b.parentName);
+      });
     return groups;
   }, [categories, type]);
 }
@@ -41,8 +50,8 @@ interface CategoryPickerProps {
   label?: string;
   /** Catégories parentes disponibles pour créer une sous-catégorie (hors « Mouvements »). */
   parents?: { id: string; name: string }[];
-  /** Crée une sous-catégorie et renvoie son id (la liste se met ensuite à jour). */
-  onCreateSubcategory?: (name: string, parentId: string) => Promise<string>;
+  /** Crée une sous-catégorie (avec son icône) et renvoie son id. */
+  onCreateSubcategory?: (name: string, parentId: string, icon: string) => Promise<string>;
 }
 
 export default function CategoryPicker({ groups, selectedCategoryId, onSelect, label = 'Sous-catégorie (optionnel)', parents, onCreateSubcategory }: CategoryPickerProps) {
@@ -60,12 +69,14 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newParentId, setNewParentId] = useState('');
+  const [newIcon, setNewIcon] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const openCreate = () => {
     setNewName('');
     setNewParentId(defaultParentId);
+    setNewIcon('');
     setCreateError(null);
     setShowCreate(true);
   };
@@ -76,7 +87,8 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
     if (!newParentId) { setCreateError('Choisissez une catégorie parente.'); return; }
     setCreating(true); setCreateError(null);
     try {
-      const newId = await onCreateSubcategory(name, newParentId);
+      const icon = newIcon || iconForCategory({ name });
+      const newId = await onCreateSubcategory(name, newParentId, icon);
       setShowCreate(false);
       setQuery('');
       if (newId) onSelect(newId);
@@ -93,7 +105,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
   const selectedCat = useMemo(() => {
     for (const g of groups) {
       const c = g.children.find((c) => c.id === selectedCategoryId);
-      if (c) return { name: c.name, parentName: g.parentName };
+      if (c) return { name: c.name, parentName: g.parentName, icon: c.icon };
     }
     return null;
   }, [groups, selectedCategoryId]);
@@ -118,7 +130,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
       <View style={styles.block}>
         <Text style={styles.label}>{label}</Text>
         <View style={styles.selectedChip}>
-          <Ionicons name="pricetag" size={16} color={COLORS.emerald} />
+          <Ionicons name={iconForCategory(selectedCat) as any} size={16} color={COLORS.emerald} />
           <View style={{ flex: 1 }}>
             <Text style={styles.selectedText} numberOfLines={1}>{selectedCat.name}</Text>
             <Text style={styles.selectedParent} numberOfLines={1}>{selectedCat.parentName}</Text>
@@ -188,6 +200,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
                   onPress={() => onSelect(cat.id)}
                   accessibilityRole="button"
                 >
+                  <Ionicons name={iconForCategory(cat) as any} size={15} color={selectedCategoryId === cat.id ? COLORS.emerald : COLORS.textSecondary} style={{ marginRight: 8 }} />
                   <Text style={[styles.rowText, selectedCategoryId === cat.id && styles.rowTextActive]} numberOfLines={1}>
                     {cat.name}
                   </Text>
@@ -236,6 +249,18 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
                 returnKeyType="done"
                 onSubmitEditing={handleCreate}
               />
+              <Text style={styles.createLabel}>Icône</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }} keyboardShouldPersistTaps="handled">
+                {Array.from(new Set(CATEGORY_ICON_GLOSSARY)).map((ic) => {
+                  const eff = newIcon || iconForCategory({ name: newName });
+                  const active = eff === ic;
+                  return (
+                    <TouchableOpacity key={ic} style={[styles.iconCell, active && { backgroundColor: COLORS.emerald + '22', borderColor: COLORS.emerald }]} onPress={() => setNewIcon(ic)} activeOpacity={0.7}>
+                      <Ionicons name={ic as any} size={20} color={active ? COLORS.emerald : COLORS.text} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
               {createError && <Text style={styles.createErrorText}>{createError}</Text>}
               <TouchableOpacity style={[styles.createSubmit, creating && { opacity: 0.6 }]} onPress={handleCreate} disabled={creating} activeOpacity={0.8}>
                 {creating ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.createSubmitText}>Ajouter</Text>}
@@ -283,6 +308,7 @@ function makeStyles(c: any) {
     paddingHorizontal: 14, paddingVertical: Platform.OS === 'web' ? 11 : 10, fontSize: 15, color: c.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
   },
+  iconCell: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' },
   createErrorText: { fontSize: 12, color: c.danger, marginTop: 6 },
   createSubmit: { marginTop: 14, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   createSubmitText: { fontSize: 15, fontWeight: '800', color: c.bg },

@@ -192,23 +192,30 @@ export default function RecommendationCard({
           {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}
         </View>
       ) : currentReco ? (
-      <>
-      {/* ── Slide courante : icône + titre/montant + nav swipe (même hauteur) ── */}
-      <View style={styles.slideRow}>
-        <View style={[styles.recoIconCircle, { backgroundColor: currentReco.color + '18' }]}>
-          <Ionicons name={currentReco.icon as any} size={18} color={currentReco.color} />
-        </View>
-        <View style={styles.slideContent}>
-          <Text style={styles.recoTitle}>{currentReco.title}</Text>
-          <Text style={[styles.recoAmount, { color: currentReco.color }]}>
-            {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
-          </Text>
-        </View>
-        {count > 1 && navControls}
+      <View style={styles.recoSlide}>
+      {/* Titre « Recommandations » + navigation — aligné avec la slide « Ton Relyka » (§N3) */}
+      <View style={styles.leadTopRow}>
+        <Text style={styles.leadTitle}>Recommandations</Text>
+        {count > 1 ? navControls : <View />}
       </View>
-      <Text style={styles.recoDescription}>{currentReco.description}</Text>
+      {/* Contenu central : icône + titre/montant + description */}
+      <View style={styles.recoMiddle}>
+        <View style={styles.slideRow}>
+          <View style={[styles.recoIconCircle, { backgroundColor: currentReco.color + '18' }]}>
+            <Ionicons name={currentReco.icon as any} size={18} color={currentReco.color} />
+          </View>
+          <View style={styles.slideContent}>
+            <Text style={styles.recoTitle}>{currentReco.title}</Text>
+            <Text style={[styles.recoAmount, { color: currentReco.color }]}>
+              {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.recoDescription}>{currentReco.description}</Text>
+      </View>
 
-      {/* ── Actions selon le type de reco ── */}
+      {/* ── Actions en bas du bloc (évite la marge vide, §N3) ── */}
+      <View>
       {confirmReserve && currentReco.type === 'keep' ? (
         <View style={styles.confirmBox}>
           <Text style={styles.confirmText}>
@@ -309,7 +316,8 @@ export default function RecommendationCard({
           )}
         </>
       )}
-      </>
+      </View>
+      </View>
       ) : null}
     </View>
   );
@@ -325,9 +333,8 @@ function makeStyles(c: any) {
     borderColor: c.cardBorder,
     gap: 12,
     // Hauteur constante : la slide jauge « Ton Relyka » est la plus grande ; les slides recos
-    // remplissent la même hauteur → plus de saut de hauteur au swipe.
+    // remplissent la même hauteur (titre en haut, actions en bas) → plus de saut au swipe.
     minHeight: 332,
-    justifyContent: 'center',
   },
 
   /* Header */
@@ -422,11 +429,13 @@ function makeStyles(c: any) {
     fontWeight: '600',
   },
 
-  /* Slide jauge « Ton Relyka » */
-  leadSlide: { alignItems: 'center', gap: 6 },
+  /* Slide jauge « Ton Relyka » + slide reco : même squelette (titre haut / contenu / bas) */
+  leadSlide: { flex: 1, alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   leadTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', alignSelf: 'stretch' },
   leadTitle: { fontSize: 13, color: c.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   leadMessage: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'center', paddingHorizontal: 4 },
+  recoSlide: { flex: 1, justifyContent: 'space-between', gap: 10 },
+  recoMiddle: { gap: 10, justifyContent: 'center' },
 
   /* Slide content */
   slideRow: {

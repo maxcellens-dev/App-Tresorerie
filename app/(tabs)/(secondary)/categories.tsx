@@ -158,22 +158,31 @@ export default function CategoriesScreen() {
         Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
       });
     };
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm(`Supprimer\n\n${message}`)) doDelete();
-      return;
-    }
     Alert.alert('Supprimer', message, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: doDelete },
     ]);
   }
 
+  // « Mouvements » (virements internes) : catégorie système masquée aux non-admins (§N1).
+  const normName = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const mouvementsIds = new Set(
+    categories.filter((c) => !c.parent_id && c.type === 'expense' && normName(c.name) === 'mouvements').map((c) => c.id)
+  );
+  const hideForUser = (c: Category) => !isAdmin && (mouvementsIds.has(c.id) || (!!c.parent_id && mouvementsIds.has(c.parent_id)));
+
   const income = categories.filter((c) => c.type === 'income');
-  const expense = categories.filter((c) => c.type === 'expense');
+  const expense = categories.filter((c) => c.type === 'expense' && !hideForUser(c));
   const incomeGrouped = groupCategories(income);
   const expenseGrouped = groupCategories(expense);
 
-  const parentOptions = categories.filter((c) => c.type === newType && !c.parent_id);
+  const parentOptions = categories.filter((c) => c.type === newType && !c.parent_id && !hideForUser(c));
+
+  // Non-admin : « Aucune » masqué → on force une catégorie parente par défaut.
+  useEffect(() => {
+    if (!isAdmin && newParentId === null && parentOptions.length > 0) setNewParentId(parentOptions[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, newType, parentOptions.length]);
 
   return (
     <View style={styles.root}>
@@ -229,12 +238,14 @@ export default function CategoriesScreen() {
                 <>
                   <Text style={styles.label}>Sous-catégorie de (optionnel)</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-                    <TouchableOpacity
-                      style={[styles.chip, !newParentId && styles.chipActive]}
-                      onPress={() => setNewParentId(null)}
-                    >
-                      <Text style={[styles.chipText, !newParentId && styles.chipTextActive]}>Aucune</Text>
-                    </TouchableOpacity>
+                    {isAdmin && (
+                      <TouchableOpacity
+                        style={[styles.chip, !newParentId && styles.chipActive]}
+                        onPress={() => setNewParentId(null)}
+                      >
+                        <Text style={[styles.chipText, !newParentId && styles.chipTextActive]}>Aucune</Text>
+                      </TouchableOpacity>
+                    )}
                     {parentOptions.map((p) => (
                       <TouchableOpacity
                         key={p.id}
@@ -428,6 +439,17 @@ export default function CategoriesScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Sélecteur d'icône de sous-catégorie (§13) — par utilisateur */}
+      <IconPickerModal
+        visible={!!iconModal}
+        value={iconModal?.current ?? null}
+        title={iconModal ? `Icône · ${iconModal.name}` : 'Choisir une icône'}
+        onClose={() => setIconModal(null)}
+        onSelect={(icon) => {
+          if (iconModal) updateCategory.mutate({ id: iconModal.id, name: iconModal.name, type: iconModal.type, icon });
+        }}
+      />
     </View>
   );
 }
@@ -523,6 +545,7 @@ function makeStyles(c: any) {
   rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flex: 1 },
   rowLabelChild: { fontSize: 14, color: c.textSecondary, flex: 1 },
   rowActions: { flexDirection: 'row', alignItems: 'center' },
+  catIconBtn: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald + '14', marginRight: 10 },
   empty: { padding: 20, color: c.textSecondary, textAlign: 'center' },
   modalOverlay: {
     flex: 1,

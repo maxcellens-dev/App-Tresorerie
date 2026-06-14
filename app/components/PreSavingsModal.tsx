@@ -43,10 +43,7 @@ export default function PreSavingsModal({
   const accent = isEpargne ? '#34d399' : '#a78bfa';
 
   function confirmReset() {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm('Remettre le cumul à 0 ? Aucun virement ne sera créé.')) onReset();
-      return;
-    }
+    // Confirmation in-app (§7) — plus de window.confirm navigateur.
     Alert.alert('Remettre à 0', 'Remettre le cumul à 0 ? Aucun virement ne sera créé.', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Remettre à 0', style: 'destructive', onPress: onReset },

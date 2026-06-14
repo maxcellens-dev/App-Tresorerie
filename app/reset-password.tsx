@@ -15,8 +15,7 @@ import { useBrandColors } from './hooks/useBrandColors';
 import { useAuth } from './contexts/AuthContext';
 
 function showAlert(title: string, message: string) {
-  if (Platform.OS === 'web') window.alert(`${title}\n${message}`);
-  else Alert.alert(title, message);
+  Alert.alert(title, message); // in-app global (§7)
 }
 
 export default function ResetPasswordScreen() {

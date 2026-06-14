@@ -34,6 +34,22 @@ function norm(s: string): string {
 
 /** Icône par défaut selon le nom de la sous-catégorie (défauts livrés avec l'app). */
 const DEFAULT_BY_NAME: Record<string, string> = {
+  // Nouveaux libellés par défaut (§N11)
+  'salaire, traitement': 'cash-outline',
+  'dividendes': 'trending-up-outline',
+  'dons': 'gift-outline',
+  'autres frais personnels': 'person-outline',
+  'animaux': 'paw-outline',
+  'vetements': 'shirt-outline',
+  'vacances': 'airplane-outline',
+  'mutuelle': 'medkit-outline',
+  'assurance sante': 'shield-checkmark-outline',
+  'loyer': 'home-outline',
+  'copropriete': 'business-outline',
+  "taxe d'habitation": 'document-text-outline',
+  'taxe fonciere': 'document-text-outline',
+  'electricite, eau, gaz': 'flash-outline',
+  'plateformes streaming': 'tv-outline',
   // Revenus
   'gerant societe': 'briefcase-outline',
   'salaire': 'cash-outline',

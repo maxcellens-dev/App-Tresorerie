@@ -87,10 +87,6 @@ export default function EditAccountScreen() {
     if (!id) return;
     const closeMessage =
       "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l\u2019utiliser pour des virements ou nouvelles transactions. Confirmer ?";
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      if (window.confirm('Fermer le compte\n\n' + closeMessage)) doClose();
-      return;
-    }
     Alert.alert(
       'Fermer le compte',
       "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",

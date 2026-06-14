@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
+import { iconForCategory, VIREMENT_ICON } from '../../lib/categoryIcons';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -528,6 +529,7 @@ export default function AccountDetailScreen() {
                   onPress={() => setSelectedTx(t)}
                   activeOpacity={0.7}
                 >
+                  <Ionicons name={(isTransfer ? VIREMENT_ICON : iconForCategory(t.category)) as any} size={16} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
                   <View style={styles.transferLeft}>
                     <Text style={styles.transferDate}>
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}

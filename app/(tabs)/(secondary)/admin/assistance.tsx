@@ -12,14 +12,11 @@ import { useAllSupportRequests, useDeleteSupportRequest, useDeleteClosedSupportR
 import SupportThreadModal from '../../../components/SupportThreadModal';
 
 function confirmThen(message: string, onYes: () => void) {
-  if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined' && window.confirm(message)) onYes();
-  } else {
-    Alert.alert('Confirmer', message, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: onYes },
-    ]);
-  }
+  // Confirmation in-app (§7)
+  Alert.alert('Confirmer', message, [
+    { text: 'Annuler', style: 'cancel' },
+    { text: 'Supprimer', style: 'destructive', onPress: onYes },
+  ]);
 }
 
 
