@@ -614,7 +614,7 @@ export default function PilotageScreen() {
                         </View>
                         <Text style={[styles.depBarValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)} <Text style={styles.depBarTotal}>/ {fmt(recurTotal)}</Text></Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange }]} /></View>
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${recurTotal > 0 ? Math.min(100, ((recurRemaining - recurTotal) / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange }]} /></View>
                     </TouchableOpacity>
                     {/* Dépenses variables prévues restantes — curseur = restant / estimé (décroît, §N5) */}
                     <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
