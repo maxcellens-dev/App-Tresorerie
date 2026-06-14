@@ -6,6 +6,7 @@ import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine'
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { getIgnored, addIgnored, getCompleted, addCompleted, isHidden, type IgnoredMap } from '../lib/recoDismissals';
+import RelykaGauge from './RelykaGauge';
 
 
 interface SmartRecommendationCardProps {
@@ -29,6 +30,14 @@ interface SmartRecommendationCardProps {
   hasInvestmentAccount?: boolean;
   /** Lien « Créer un compte ». */
   onCreateAccount?: () => void;
+  /** Affiche en 1ʳᵉ slide une jauge « Ton Relyka » composée des couleurs des recos visibles. */
+  showRelykaSlide?: boolean;
+  /** Montant du Relyka (reste à vivre) affiché au centre de la jauge. */
+  relykaAmount?: number;
+  /** Couleur du montant central (état : sain / épuisé / négatif). */
+  relykaColor?: string;
+  /** Message dynamique affiché sous la jauge. */
+  relykaMessage?: string;
 }
 
 export default function RecommendationCard({
@@ -44,6 +53,10 @@ export default function RecommendationCard({
   hasSavingsAccount,
   hasInvestmentAccount,
   onCreateAccount,
+  showRelykaSlide = false,
+  relykaAmount = 0,
+  relykaColor,
+  relykaMessage,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
@@ -66,7 +79,7 @@ export default function RecommendationCard({
   const handleIgnore = (reco: SmartRecommendation) => {
     addIgnored(reco.type, reco.amount);
     setIgnored(prev => ({ ...prev, [reco.type]: Math.round(reco.amount) }));
-    if (safeIndex >= visible.length - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
+    if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
 
   const handleConfirmReserve = (reco: SmartRecommendation) => {
@@ -76,31 +89,36 @@ export default function RecommendationCard({
     addCompleted('keep');
     setCompleted(prev => prev.includes('keep') ? prev : [...prev, 'keep']);
     setConfirmReserve(false);
-    if (safeIndex >= visible.length - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
+    if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
 
   const visible = recommendations.filter(r => !isHidden(r.type, r.amount, ignored, completed));
 
-  // Clamp index after dismiss
-  const safeIndex = Math.min(currentIndex, Math.max(0, visible.length - 1));
-  const currentReco = visible[safeIndex];
+  // Slide 0 = jauge « Ton Relyka » (optionnelle) ; slides suivants = recos.
+  const lead = showRelykaSlide ? 1 : 0;
+  const count = visible.length + lead;
 
-  // Réinitialiser la confirmation « Réserver » quand on change de reco
+  // Clamp index after dismiss
+  const safeIndex = Math.min(currentIndex, Math.max(0, count - 1));
+  const isLead = lead === 1 && safeIndex === 0;
+  const currentReco = lead === 1 ? visible[safeIndex - 1] : visible[safeIndex];
+
+  // Réinitialiser la confirmation « Réserver » quand on change de slide
   React.useEffect(() => { setConfirmReserve(false); }, [safeIndex]);
 
   const handlePrev = () => setCurrentIndex(prev => Math.max(0, prev - 1));
-  const handleNext = () => setCurrentIndex(prev => Math.min(visible.length - 1, prev + 1));
+  const handleNext = () => setCurrentIndex(prev => Math.min(count - 1, prev + 1));
 
   // Swipe gesture (uses functional setCurrentIndex to avoid stale closures)
-  const visibleLenRef = useRef(visible.length);
-  visibleLenRef.current = visible.length;
+  const countRef = useRef(count);
+  countRef.current = count;
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy),
       onPanResponderRelease: (_, g) => {
         if (g.dx < -40) {
-          setCurrentIndex(prev => Math.min(visibleLenRef.current - 1, prev + 1));
+          setCurrentIndex(prev => Math.min(countRef.current - 1, prev + 1));
         } else if (g.dx > 40) {
           setCurrentIndex(prev => Math.max(0, prev - 1));
         }
@@ -108,7 +126,7 @@ export default function RecommendationCard({
     })
   ).current;
 
-  if (visible.length === 0) {
+  if (count === 0) {
     return (
       <View style={styles.container}>
         {!hideTitle && (
@@ -134,20 +152,20 @@ export default function RecommendationCard({
       >
         <Ionicons name="chevron-back" size={18} color={safeIndex === 0 ? COLORS.cardBorder : COLORS.text} />
       </TouchableOpacity>
-      <Text style={styles.navIndicator}>{safeIndex + 1}/{visible.length}</Text>
+      <Text style={styles.navIndicator}>{safeIndex + 1}/{count}</Text>
       <TouchableOpacity
-        style={[styles.navBtn, safeIndex === visible.length - 1 && styles.navBtnDisabled]}
+        style={[styles.navBtn, safeIndex === count - 1 && styles.navBtnDisabled]}
         onPress={handleNext}
-        disabled={safeIndex === visible.length - 1}
+        disabled={safeIndex === count - 1}
         activeOpacity={0.7}
       >
-        <Ionicons name="chevron-forward" size={18} color={safeIndex === visible.length - 1 ? COLORS.cardBorder : COLORS.text} />
+        <Ionicons name="chevron-forward" size={18} color={safeIndex === count - 1 ? COLORS.cardBorder : COLORS.text} />
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={[styles.container, { borderColor: currentReco.color + '40' }]} {...panResponder.panHandlers}>
+    <View style={[styles.container, { borderColor: ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald) + '40' }]} {...panResponder.panHandlers}>
       {/* ── Header (titre + nav) — masqué si la section porte déjà le titre ── */}
       {!hideTitle && (
         <View style={styles.headerRow}>
@@ -159,6 +177,22 @@ export default function RecommendationCard({
         </View>
       )}
 
+      {isLead ? (
+        /* ── Slide 0 : jauge « Ton Relyka » composée des couleurs des recos ── */
+        <View style={styles.leadSlide}>
+          <View style={styles.leadTopRow}>
+            <Text style={styles.leadTitle}>Ton Relyka</Text>
+            {count > 1 ? navControls : <View />}
+          </View>
+          <RelykaGauge
+            amount={relykaAmount}
+            segments={visible.map(r => ({ amount: r.amount, color: r.color }))}
+            amountColor={relykaColor ?? COLORS.emerald}
+          />
+          {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}
+        </View>
+      ) : currentReco ? (
+      <>
       {/* ── Slide courante : icône + titre/montant + nav swipe (même hauteur) ── */}
       <View style={styles.slideRow}>
         <View style={[styles.recoIconCircle, { backgroundColor: currentReco.color + '18' }]}>
@@ -170,7 +204,7 @@ export default function RecommendationCard({
             {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
           </Text>
         </View>
-        {visible.length > 1 && navControls}
+        {count > 1 && navControls}
       </View>
       <Text style={styles.recoDescription}>{currentReco.description}</Text>
 
@@ -275,6 +309,8 @@ export default function RecommendationCard({
           )}
         </>
       )}
+      </>
+      ) : null}
     </View>
   );
 }
@@ -288,6 +324,10 @@ function makeStyles(c: any) {
     borderWidth: 1,
     borderColor: c.cardBorder,
     gap: 12,
+    // Hauteur constante : la slide jauge « Ton Relyka » est la plus grande ; les slides recos
+    // remplissent la même hauteur → plus de saut de hauteur au swipe.
+    minHeight: 332,
+    justifyContent: 'center',
   },
 
   /* Header */
@@ -382,6 +422,12 @@ function makeStyles(c: any) {
     fontWeight: '600',
   },
 
+  /* Slide jauge « Ton Relyka » */
+  leadSlide: { alignItems: 'center', gap: 6 },
+  leadTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', alignSelf: 'stretch' },
+  leadTitle: { fontSize: 13, color: c.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  leadMessage: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'center', paddingHorizontal: 4 },
+
   /* Slide content */
   slideRow: {
     flexDirection: 'row',
@@ -400,13 +446,14 @@ function makeStyles(c: any) {
     gap: 2,
   },
   recoTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: c.text,
   },
   recoAmount: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
   recoDescription: {
     fontSize: 12,

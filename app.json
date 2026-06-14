@@ -11,7 +11,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#0D2E2A"
       },
       "package": "com.relyka.myapp"
@@ -19,6 +19,15 @@
     "plugins": [
       "expo-router",
       "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo.png",
+          "imageWidth": 96,
+          "resizeMode": "contain",
+          "backgroundColor": "#0D2E2A"
+        }
+      ],
       [
         "expo-build-properties",
         {
@@ -40,8 +49,8 @@
       "name": "Relyka",
       "shortName": "Relyka",
       "description": "Laissez-vous guider pour faire des économies.",
-      "themeColor": "#020617",
-      "backgroundColor": "#020617"
+      "themeColor": "#0D2E2A",
+      "backgroundColor": "#0D2E2A"
     },
     "extra": {
       "router": {

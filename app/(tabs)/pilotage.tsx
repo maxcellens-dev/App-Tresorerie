@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import MonthlyClosure from '../components/MonthlyClosure';
@@ -76,6 +76,9 @@ export default function PilotageScreen() {
   const [preModalAmount, setPreModalAmount] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [showReservedModal, setShowReservedModal] = useState(false);
+  // Modaux détail du « Suivi du mois » (toutes les zones sont cliquables, §3)
+  const [detailKey, setDetailKey] = useState<'checking' | 'savings' | 'invest' | 'spent' | 'planned' | 'relyka' | null>(null);
+  const [plannedTab, setPlannedTab] = useState<'recurrentes' | 'variables'>('recurrentes');
   const releaseReserved = useReleaseReservedByProject(user?.id);
   const updateOnboarding = useUpdateOnboarding(user?.id);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
@@ -184,12 +187,17 @@ export default function PilotageScreen() {
   // les engagements volontaires (virements épargne/invest prévus, réservations), la marge et
   // l'enveloppe de dépenses variables estimée (qui, elle, n'est pas une transaction).
   const cashflowTrough = pilotageData?.cashflow_trough ?? (pilotageData?.current_checking_balance ?? 0);
+  // Les cumuls manuels (pré-épargne / pré-invest) sont de l'argent « réservé mentalement »
+  // en attente de virement → on les retire aussi du budget libre (Relyka) tant qu'ils ne sont
+  // pas libérés ou transformés en virement (auquel cas ils sont remis à 0 et déduits via les
+  // virements). Ils apparaissent également dans la ligne « Réservé » du Suivi du mois.
   const resteDisponible = Math.max(0,
     cashflowTrough
     - savingsRemaining
     - investRemaining
     - (pilotageData?.monthly_reserve_planned ?? 0)
     - reservationsTotal
+    - cumulsTotal
     - variableEnvelopeRemaining
     - safetyMarginDisplay
   );
@@ -201,6 +209,51 @@ export default function PilotageScreen() {
   // RÉELLEMENT libre selon le profil P1-P5 + seuils. L'épargne/réservé déjà prévus sont déjà
   // retirés du budget libre → on ne les redéduit pas par catégorie (pas de double comptage).
   const recoBudget = resteDisponible;
+
+  // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
+  const suiviDetail = React.useMemo(() => {
+    const now = new Date();
+    const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const todayStr = `${monthPrefix}-${String(now.getDate()).padStart(2, '0')}`;
+    const typeById: Record<string, string> = {};
+    accounts.forEach((a) => { typeById[a.id] = a.type; });
+    const checkingIds = new Set(accounts.filter((a) => a.type === 'checking').map((a) => a.id));
+    const inMonth = (d: string) => (d ?? '').slice(0, 7) === monthPrefix;
+
+    const savings: any[] = [], invest: any[] = [], spent: any[] = [], recurrentes: any[] = [];
+    for (const t of txForConseils as any[]) {
+      const amt = Number(t.amount);
+      const src = typeById[t.account_id];
+      const linked = t.linked_account_id ? typeById[t.linked_account_id] : null;
+      const draft = Boolean(t.is_draft);
+      const recurring = Boolean(t.is_recurring) && Boolean(t.recurrence_rule);
+      const isProjectDraft = draft && !!t.project_id;
+      // Virements épargne / investissement du mois : récurrents + futurs + brouillons de projet
+      // inclus (comme le total affiché), on exclut les « conservés »/réservés.
+      if (amt < 0 && linked && (!draft || isProjectDraft) && !t.is_reserved && (recurring || inMonth(t.date))) {
+        if (linked === 'investment' && (src === 'checking' || src === 'savings')) invest.push(t);
+        else if (linked === 'savings' && src === 'checking') savings.push(t);
+      }
+      // Vraies dépenses depuis un compte courant (hors virements / projets / régul)
+      if (amt < 0 && !t.linked_account_id && !t.project_id && checkingIds.has(t.account_id) && !draft) {
+        const cat = t.category;
+        const isExpense = !cat || cat.type === 'expense';
+        const isRegul = cat?.name && /r[ée]gularisation/i.test(cat.name);
+        if (isExpense && !isRegul) {
+          if (recurring) recurrentes.push(t);
+          else if (inMonth(t.date) && t.date <= todayStr) spent.push(t);
+        }
+      }
+    }
+    const byDateDesc = (a: any, b: any) => (b.date ?? '').localeCompare(a.date ?? '');
+    return {
+      checking: accounts.filter((a) => a.type === 'checking'),
+      savings: savings.sort(byDateDesc),
+      invest: invest.sort(byDateDesc),
+      spent: spent.sort(byDateDesc),
+      recurrentes: recurrentes.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount))),
+    };
+  }, [txForConseils, accounts]);
 
   // Synchroniser le statut des cumuls (actif / en_depassement)
   React.useEffect(() => {
@@ -338,49 +391,10 @@ export default function PilotageScreen() {
             />
           )}
 
-          {/* ── HERO : « Ton Relyka » du mois ── */}
-          {(() => {
-            const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
-            const reste = Math.round(resteDisponible);
-            const varRemaining = Math.round(Math.max(0, variableEnvelopeRemaining));
-            const restNeg = resteDisponible < 0;
-            const exhausted = !restNeg && reste <= 0;          // tombé à 0 €
-            const heroColor = restNeg ? COLORS.danger : exhausted ? COLORS.orange : COLORS.emerald;
-            const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-            // Message : encourageant si du budget reste, prudent une fois épuisé.
-            const heroSub = restNeg
-              ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
-              : exhausted
-              ? (varRemaining > 0
-                  ? 'Ton Relyka est épuisé, donc reste prudent.'
-                  : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
-              : 'Voici la somme qu\'il devrait te rester après tes dépenses habituelles et opérations diverses.\nIdéalement en suivant tes recommandations ;)';
-            return (
-              <View style={[styles.heroCard, { borderColor: heroColor + '44' }]}>
-                <Text style={styles.heroLabel}>Ton Relyka · {monthLabel}</Text>
-                <Text style={[styles.heroAmount, { color: heroColor }]}>{fmt(resteDisponible)}</Text>
-                <Text style={styles.heroSub}>{heroSub}</Text>
-                {/* Affichage intermédiaire : avant d'afficher 0 €, on explique les dépenses variables encore attendues. */}
-                {exhausted && varRemaining > 0 && (
-                  <View style={styles.heroEstimate}>
-                    <Ionicons name="information-circle-outline" size={16} color={COLORS.orange} />
-                    <Text style={styles.heroEstimateText}>
-                      D'après l'estimation, il te reste ~{fmt(varRemaining)} de dépenses variables d'ici la fin du mois.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            );
-          })()}
-
-          {/* ═══════════ SECTION 2 : Recommandations ═══════════ */}
+          {/* ═══════════ SECTION : « Ton Relyka » + Recommandations (carrousel) ═══════════
+              Plus de titre « Recommandations » : la jauge Relyka est la 1ʳᵉ slide, les recos
+              suivent. On garde uniquement l'accès aux cumuls en haut à droite. */}
           <View style={[styles.section, onbReco ? onbGlow(COLORS, true) : null]} ref={monthRef}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="bulb-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.sectionTitle}>Recommandations</Text>
-            </View>
-            <View style={styles.sectionDivider} />
-
             {/* Alerte de dépassement (§8) */}
             {enDepassement && (
               <View style={styles.overspendBox}>
@@ -391,21 +405,20 @@ export default function PilotageScreen() {
               </View>
             )}
 
-            {/* Bandeau cumuls en attente (§12) */}
-            {(preEpargneTotal > 0 || preInvestTotal > 0) && (
-              <TouchableOpacity style={styles.cumulsBanner} onPress={() => setPanelOpen(true)} activeOpacity={0.8}>
-                {preEpargneTotal > 0 && (
-                  <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
-                )}
-                {preInvestTotal > 0 && (
-                  <Text style={styles.cumulsBannerItem}>📈 En attente d'invest : {Math.round(preInvestTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
-                )}
-                <Text style={styles.cumulsBannerLink}>Gérer</Text>
-              </TouchableOpacity>
-            )}
-
             <RecommendationCard
               hideTitle
+              showRelykaSlide
+              relykaAmount={resteDisponible}
+              relykaColor={resteDisponible < 0 ? COLORS.danger : Math.round(resteDisponible) <= 0 ? COLORS.orange : COLORS.emerald}
+              relykaMessage={
+                resteDisponible < 0
+                  ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
+                  : Math.round(resteDisponible) <= 0
+                  ? (Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
+                      ? 'Ton Relyka est épuisé, donc reste prudent.'
+                      : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
+                  : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant tes recommandations ;)'
+              }
               recommendations={pilotageData ? computeRecommendations(pilotageData, {
                 customTierAllocations: customTiers,
                 financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
@@ -430,10 +443,26 @@ export default function PilotageScreen() {
               }}
             />
 
-            {/* Accès permanent aux cumuls (§12) */}
-            <TouchableOpacity style={styles.cumulsBtn} onPress={() => setPanelOpen(true)} activeOpacity={0.7}>
-              <Text style={styles.cumulsBtnLabel}>💰 Mes cumuls</Text>
-            </TouchableOpacity>
+            {/* Accès aux cumuls — SOUS le bloc Ton Relyka.
+                - Montant en attente → bandeau « Gérer » (ouvre le panneau).
+                - Sinon → bouton « Mes cumuls » à droite. */}
+            {(preEpargneTotal > 0 || preInvestTotal > 0) ? (
+              <TouchableOpacity style={[styles.cumulsBanner, { marginTop: 12, marginBottom: 0 }]} onPress={() => setPanelOpen(true)} activeOpacity={0.8}>
+                {preEpargneTotal > 0 && (
+                  <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                )}
+                {preInvestTotal > 0 && (
+                  <Text style={styles.cumulsBannerItem}>📈 En attente d'invest : {Math.round(preInvestTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                )}
+                <Text style={styles.cumulsBannerLink}>Gérer</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.cumulsTopRow}>
+                <TouchableOpacity style={styles.cumulsBtnHeader} onPress={() => setPanelOpen(true)} activeOpacity={0.7}>
+                  <Text style={styles.cumulsBtnLabel}>💰 Mes cumuls</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
           {/* ═══════════ SUIVI DU MOIS ═══════════ */}
           <View style={styles.section} ref={suiviRef}>
@@ -452,155 +481,124 @@ export default function PilotageScreen() {
 
             {(() => {
               const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
-              // Épargne / Investissement : TOUS les virements du mois (passés + futurs), affichage.
               const savings = pilotageData.month_savings_total ?? 0;
               const invest = pilotageData.month_invest_total ?? 0;
-              // Réservé = réservations projets (même compte) + montant conservé du mois (recos)
-              const reserve = pilotageData.monthly_reserve_planned + reservationsTotal;
+              // Réservé = réservations projets (même compte) + conservé du mois (recos) + cumuls manuels
+              const reserve = pilotageData.monthly_reserve_planned + reservationsTotal + cumulsTotal;
               const safetyMargin = pilotageData.safety_margin_amount ?? 0;
               const checkingBalance = pilotageData.current_checking_balance ?? 0;
-              // Dépenses prévues = variables estimées restantes + dépenses récurrentes à venir.
               const depVariable = pilotageData.variable_envelope_remaining;
               const depRecurrentes = monthExpensesRemaining;
               const depPrevuesTotal = depVariable + depRecurrentes;
+              const depPast = monthExpensesPast;
+              const depTotal = Math.max(1, depPast + depPrevuesTotal);
 
-              const items = [
-                { label: 'Épargne',         value: savings,  icon: 'shield-outline',      color: COLORS.green,  hint: 'Virements d\'épargne' },
-                { label: 'Investissement',  value: invest,   icon: 'trending-up-outline', color: COLORS.violet, hint: 'Virements d\'investissement' },
-                { label: 'Réservé',         value: reserve,  icon: 'lock-closed-outline', color: COLORS.blue,   hint: 'Projets, cumuls et recommandations' },
-              ];
-
-              // Reste du mois = reste disponible (base − cumuls − réservations)
               const rest = resteDisponible;
               const restNeg = rest < 0;
               const restLow = rest < pilotageData.committed_allocations;
               const restColor = restNeg ? COLORS.danger : restLow ? COLORS.yellow : COLORS.green;
-              const restHint = restNeg ? 'Attention : solde insuffisant' : restLow ? 'Prudence requise' : 'Vous êtes en bonne position';
 
               return (
-                <View style={styles.suiviCard}>
-                  {/* Point de départ : solde courant à date */}
-                  <View style={styles.suiviRow}>
-                    <View style={[styles.suiviIcon, { backgroundColor: COLORS.checking + '22' }]}>
-                      <Ionicons name="wallet-outline" size={16} color={COLORS.checking} />
+                <View style={{ gap: 10 }}>
+                  {/* 1. Budget courant actuel — 1 bloc */}
+                  <TouchableOpacity style={styles.suiviBlock} activeOpacity={0.7} onPress={() => setDetailKey('checking')}>
+                    <View style={styles.suiviBlockHead}>
+                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.checking + '22' }]}>
+                        <Ionicons name="wallet-outline" size={16} color={COLORS.checking} />
+                      </View>
+                      <Text style={styles.suiviBlockTitle}>Budget courant actuel</Text>
+                      <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Solde courant actuel</Text>
-                      <Text style={styles.suiviHint} numberOfLines={1}>Comptes courants à date</Text>
+                    <View style={styles.budgetValueRow}>
+                      <Text style={[styles.suiviBlockValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
+                      {(pilotageData.month_income_remaining ?? 0) > 0 && (
+                        <View style={styles.budgetIncome}>
+                          <Text style={styles.budgetIncomeLabel}>Recettes prévues</Text>
+                          <Text style={[styles.budgetIncomeValue, { color: semanticText(COLORS.emerald, COLORS) }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                        </View>
+                      )}
                     </View>
-                    <Text style={[styles.suiviValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
+                  </TouchableOpacity>
+
+                  {/* 2. Épargne + Investissement — 2 blocs sur la même ligne */}
+                  <View style={styles.suiviRow2}>
+                    {([
+                      { key: 'savings', label: 'Épargne', value: savings, icon: 'shield-outline', color: COLORS.green },
+                      { key: 'invest', label: 'Investissement', value: invest, icon: 'trending-up-outline', color: COLORS.violet },
+                    ] as const).map((b) => (
+                      <TouchableOpacity key={b.key} style={styles.suiviMiniBlock} activeOpacity={0.7} onPress={() => setDetailKey(b.key)}>
+                        <View style={styles.suiviMiniHead}>
+                          <View style={[styles.suiviIconSm, { backgroundColor: b.color + '22' }]}>
+                            <Ionicons name={b.icon as any} size={14} color={b.color} />
+                          </View>
+                          <Text style={styles.suiviMiniLabel} numberOfLines={1}>{b.label}</Text>
+                        </View>
+                        <Text style={[styles.suiviMiniValue, { color: semanticText(b.color, COLORS) }]}>{fmt(b.value)}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
 
-                  {/* Recettes prévues restantes (vert) — revenus à venir d'ici la prochaine rentrée */}
-                  {(pilotageData.month_income_remaining ?? 0) > 0 && (
-                    <View style={styles.suiviRow}>
-                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.emerald + '22' }]}>
-                        <Ionicons name="arrow-up-circle-outline" size={16} color={COLORS.emerald} />
+                  {/* 3. Dépenses — 2 barres cliquables */}
+                  <View style={styles.suiviBlock}>
+                    <View style={styles.suiviBlockHead}>
+                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
+                        <Ionicons name="card-outline" size={16} color={COLORS.danger} />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.suiviLabel, { fontWeight: '700' }]}>Recettes prévues restantes</Text>
-                        <Text style={styles.suiviHint} numberOfLines={1}>
-                          {pilotageData.expected_income_source === 'inferred' ? 'Estimé d’après votre historique' : 'Revenus à venir d’ici la prochaine rentrée'}
-                        </Text>
-                      </View>
-                      <Text style={[styles.suiviValue, { color: COLORS.emerald }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                      <Text style={styles.suiviBlockTitle}>Dépenses</Text>
                     </View>
-                  )}
-
-                  <View style={styles.suiviDivider} />
-
-                  {items.map((it) => {
-                    const isReserveRow = it.label === 'Réservé';
-                    const RowWrap: any = isReserveRow ? TouchableOpacity : View;
-                    return (
-                      <RowWrap
-                        key={it.label}
-                        ref={isReserveRow ? reservedRef : undefined}
-                        style={[styles.suiviRow, isReserveRow && onbReserved ? onbGlow(COLORS, true) : null]}
-                        {...(isReserveRow ? { onPress: openReservedModal, activeOpacity: 0.7 } : {})}
-                      >
-                        <View style={[styles.suiviIcon, { backgroundColor: it.color + '22' }]}>
-                          <Ionicons name={it.icon as any} size={16} color={it.color} />
+                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => setDetailKey('spent')}>
+                      <View style={styles.depBarTop}>
+                        <View style={styles.depBarLabelRow}>
+                          <Text style={styles.depBarLabel}>Dépensé ce mois</Text>
+                          <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.suiviLabel}>{it.label}</Text>
-                          <Text style={styles.suiviHint} numberOfLines={1}>{it.hint}</Text>
-                        </View>
-                        {isReserveRow && <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />}
-                        <Text style={[styles.suiviValue, { color: semanticText(it.color, COLORS) }]}>{fmt(it.value)}</Text>
-                      </RowWrap>
-                    );
-                  })}
-
-                  {/* Bloc dépenses (1 icône) : Dépensé ce mois (rouge, info) + Dépenses prévues restantes (orange) */}
-                  {(() => {
-                    const variableEditable = pilotageData.variable_envelope_source !== 'history';
-                    const VariableRow: any = variableEditable ? TouchableOpacity : View;
-                    return (
-                      <View style={styles.suiviRow}>
-                        <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
-                          <Ionicons name="card-outline" size={16} color={COLORS.danger} />
-                        </View>
-                        <View style={{ flex: 1, gap: 4 }}>
-                          {/* Dépensé ce mois (rouge) — déjà passé, déjà dans le solde (info) */}
-                          <View style={styles.depLine}>
-                            <Text style={[styles.suiviLabel, { fontWeight: '700', flex: 1 }]}>Dépensé ce mois</Text>
-                            <Text style={[styles.suiviValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(monthExpensesPast)}</Text>
-                          </View>
-                          {/* Dépenses prévues restantes (orange) = variables + récurrentes à venir */}
-                          <View style={styles.depLine}>
-                            <Text style={[styles.suiviLabel, { fontWeight: '700', flex: 1 }]}>Dépenses prévues restantes</Text>
-                            <Text style={[styles.suiviValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(depPrevuesTotal)}</Text>
-                          </View>
-                          <VariableRow
-                            style={styles.depLine}
-                            {...(variableEditable ? {
-                              activeOpacity: 0.7,
-                              onPress: () => {
-                                setWeeklyVariableInput(profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : '');
-                                setShowVariableModal(true);
-                              },
-                            } : {})}
-                          >
-                            <Text style={[styles.depSubLabel, { flex: 1 }]}>- dont variables</Text>
-                            {variableEditable && <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} style={{ marginRight: 4 }} />}
-                            <Text style={[styles.depSubValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(depVariable)}</Text>
-                          </VariableRow>
-                          <View style={styles.depLine}>
-                            <Text style={[styles.depSubLabel, { flex: 1 }]}>- dont récurrentes</Text>
-                            <Text style={styles.depSubValue}>{fmt(depRecurrentes)}</Text>
-                          </View>
-                        </View>
+                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
                       </View>
-                    );
-                  })()}
-
-                  {/* Marge de sécurité — affichée uniquement si > 0 */}
-                  {safetyMargin > 0 && (
-                    <View style={[styles.suiviRow, { opacity: 0.75, paddingVertical: 6 }]}>
-                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.yellow + '22', width: 24, height: 24 }]}>
-                        <Ionicons name="shield-outline" size={12} color={COLORS.yellow} />
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPast / depTotal) * 100)}%`, backgroundColor: COLORS.danger }]} /></View>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
+                      <View style={styles.depBarTop}>
+                        <View style={styles.depBarLabelRow}>
+                          <Text style={styles.depBarLabel}>Dépenses prévues restantes</Text>
+                          <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
+                        </View>
+                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(depPrevuesTotal)}</Text>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.suiviLabel, { color: COLORS.yellow, fontSize: 11 }]}>Votre marge de sécurité</Text>
-                      </View>
-                      <Text style={[styles.suiviValue, { color: COLORS.yellow, fontSize: 11 }]}>{fmt(safetyMargin)}</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.suiviDivider} />
-
-                  {/* Reste du mois */}
-                  <View style={styles.suiviRow}>
-                    <View style={[styles.suiviIcon, { backgroundColor: restColor + '22' }]}>
-                      <Ionicons name="wallet-outline" size={17} color={restColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.suiviLabelBig}>Ton Relyka <Text style={{ fontSize: 12, fontWeight: '600' }}>(Budget libre)</Text></Text>
-                      <Text style={styles.suiviHint}>{restHint}</Text>
-                    </View>
-                    <Text style={[styles.suiviValueBig, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPrevuesTotal / depTotal) * 100)}%`, backgroundColor: COLORS.orange }]} /></View>
+                    </TouchableOpacity>
                   </View>
+
+                  {/* 4. Réserve & Marge de sécurité — 1 bloc, 1 ligne chacun */}
+                  <View style={styles.suiviBlock}>
+                    <Text style={[styles.suiviBlockTitle, { marginBottom: 4 }]}>Réserve & Marge de sécurité</Text>
+                    <TouchableOpacity ref={reservedRef} style={[styles.reserveLine, onbReserved ? onbGlow(COLORS, true) : null]} activeOpacity={0.7} onPress={openReservedModal}>
+                      <View style={[styles.suiviIconSm, { backgroundColor: COLORS.blue + '22' }]}>
+                        <Ionicons name="lock-closed-outline" size={14} color={COLORS.blue} />
+                      </View>
+                      <Text style={styles.reserveLineLabel}>Réservé</Text>
+                      <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} />
+                      <Text style={[styles.reserveLineValue, { color: semanticText(COLORS.blue, COLORS) }]}>{fmt(reserve)}</Text>
+                    </TouchableOpacity>
+                    <View style={styles.reserveLine}>
+                      <View style={[styles.suiviIconSm, { backgroundColor: COLORS.yellow + '22' }]}>
+                        <Ionicons name="shield-outline" size={14} color={COLORS.yellow} />
+                      </View>
+                      <Text style={styles.reserveLineLabel}>Marge de sécurité</Text>
+                      <Text style={[styles.reserveLineValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(safetyMargin)}</Text>
+                    </View>
+                  </View>
+
+                  {/* 5. Ton Relyka (Budget libre) */}
+                  <TouchableOpacity style={[styles.suiviBlock, { borderColor: restColor + '55' }]} activeOpacity={0.7} onPress={() => setDetailKey('relyka')}>
+                    <View style={styles.suiviBlockHead}>
+                      <View style={[styles.suiviIcon, { backgroundColor: restColor + '22' }]}>
+                        <Ionicons name="sparkles-outline" size={16} color={restColor} />
+                      </View>
+                      <Text style={styles.suiviBlockTitle}>Ton Relyka <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textSecondary }}>(Budget libre)</Text></Text>
+                      <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />
+                    </View>
+                    <Text style={[styles.suiviBlockValue, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>
+                  </TouchableOpacity>
                 </View>
               );
             })()}
@@ -652,9 +650,9 @@ export default function PilotageScreen() {
       />
 
       {/* Modal des montants réservés */}
-      <Modal visible={showReservedModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowReservedModal(false)}>
-        <View style={styles.reservedOverlay}>
-          <View style={styles.reservedSheet}>
+      <Modal visible={showReservedModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowReservedModal(false)}>
+        <Pressable style={styles.reservedOverlay} onPress={() => setShowReservedModal(false)}>
+          <Pressable style={styles.reservedSheet} onPress={() => {}}>
             <View style={styles.reservedHeader}>
               <Text style={styles.reservedTitle}>Montants réservés</Text>
               <TouchableOpacity onPress={() => setShowReservedModal(false)} style={{ padding: 4 }}>
@@ -688,6 +686,43 @@ export default function PilotageScreen() {
                   </View>
                 </View>
               )}
+
+              {/* Cumuls manuels (pré-épargne / pré-invest) — réservés mentalement, déduits du Relyka */}
+              {([
+                { type: 'epargne' as PreSavingType, label: 'Pré-épargne', total: preEpargneTotal, icon: 'shield-outline', color: COLORS.green },
+                { type: 'invest' as PreSavingType, label: 'Pré-invest', total: preInvestTotal, icon: 'trending-up-outline', color: COLORS.violet },
+              ]).filter((c) => c.total > 0).map((c) => (
+                <View key={c.type} style={styles.reservedProjectBlock}>
+                  <View style={styles.reservedItem}>
+                    <View style={[styles.reservedItemIcon, { backgroundColor: c.color + '22' }]}>
+                      <Ionicons name={c.icon as any} size={16} color={c.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reservedItemName}>{c.label}</Text>
+                      <Text style={styles.reservedItemHint}>Cumul en attente de virement</Text>
+                    </View>
+                    <Text style={[styles.reservedItemAmount, { color: c.color }]}>{fmtMain(c.total)}</Text>
+                  </View>
+                  <View style={styles.reservedActions}>
+                    <TouchableOpacity
+                      style={styles.reservedReleaseBtn}
+                      activeOpacity={0.7}
+                      onPress={() => { setShowReservedModal(false); setPreModalAmount(0); setPreModal(c.type); }}
+                    >
+                      <Ionicons name="options-outline" size={14} color={COLORS.textSecondary} />
+                      <Text style={[styles.reservedReleaseText, { color: COLORS.textSecondary }]}>Gérer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.reservedTransferBtn}
+                      activeOpacity={0.7}
+                      onPress={() => { setShowReservedModal(false); openCumulTransfer(c.type, c.total); }}
+                    >
+                      <Ionicons name="swap-horizontal" size={14} color={COLORS.green} />
+                      <Text style={styles.reservedTransferText}>Créer un virement</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
 
               {/* Réservé par projet */}
               {pilotageData.reserved_by_project.map((r) => (
@@ -734,18 +769,149 @@ export default function PilotageScreen() {
                 </View>
               ))}
 
-              {reservationsTotal <= 0 && pilotageData.reserved_by_project.length === 0 && (
+              {reservationsTotal <= 0 && cumulsTotal <= 0 && pilotageData.reserved_by_project.length === 0 && (
                 <Text style={styles.reservedEmpty}>Aucun montant réservé pour le moment.</Text>
               )}
             </ScrollView>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modaux détail du « Suivi du mois » (centrés, fermeture au tap extérieur, §3/§8) */}
+      <Modal visible={detailKey !== null} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setDetailKey(null)}>
+        <Pressable style={styles.detailOverlay} onPress={() => setDetailKey(null)}>
+          <Pressable style={styles.detailBox} onPress={() => {}}>
+            {(() => {
+              const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+              const dts = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+              const lbl = (t: any) => t.note || t.category?.name || 'Opération';
+              const recLabel: Record<string, string> = { weekly: 'Hebdomadaire', monthly: 'Mensuel', quarterly: 'Trimestriel', yearly: 'Annuel' };
+              const titles: Record<string, string> = {
+                checking: 'Budget courant actuel', savings: 'Épargne du mois', invest: 'Investissement du mois',
+                spent: 'Dépensé ce mois', planned: 'Dépenses prévues restantes', relyka: 'Ton Relyka (Budget libre)',
+              };
+              const txList = (list: any[], color: string, empty: string) => (
+                list.length === 0 ? <Text style={styles.detailEmpty}>{empty}</Text> :
+                list.map((t, i) => (
+                  <View key={t.id ?? i} style={styles.detailRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
+                      <Text style={styles.detailRowSub}>{t.is_recurring && t.recurrence_rule ? (recLabel[t.recurrence_rule] ?? 'Récurrent') : dts(t.date)}</Text>
+                    </View>
+                    <Text style={[styles.detailRowValue, { color }]}>{fmt(Math.abs(Number(t.amount)))}</Text>
+                  </View>
+                ))
+              );
+              return (
+                <>
+                  <View style={styles.detailHeader}>
+                    <Text style={styles.detailTitle}>{detailKey ? titles[detailKey] : ''}</Text>
+                    <TouchableOpacity onPress={() => setDetailKey(null)} style={{ padding: 4 }}>
+                      <Ionicons name="close" size={22} color={COLORS.text} />
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                    {detailKey === 'checking' && (
+                      <>
+                        {suiviDetail.checking.map((a) => (
+                          <View key={a.id} style={styles.detailRow}>
+                            <Text style={[styles.detailRowLabel, { flex: 1 }]} numberOfLines={1}>{a.name}</Text>
+                            <Text style={[styles.detailRowValue, { color: COLORS.text }]}>{fmt(Number(a.balance))}</Text>
+                          </View>
+                        ))}
+                        {(pilotageData.month_income_remaining ?? 0) > 0 && (
+                          <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder }]}>
+                            <Text style={[styles.detailRowLabel, { flex: 1 }]}>Recettes prévues restantes</Text>
+                            <Text style={[styles.detailRowValue, { color: COLORS.emerald }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                    {detailKey === 'savings' && txList(suiviDetail.savings, semanticText(COLORS.green, COLORS), 'Aucun virement d\'épargne ce mois.')}
+                    {detailKey === 'invest' && txList(suiviDetail.invest, semanticText(COLORS.violet, COLORS), 'Aucun virement d\'investissement ce mois.')}
+                    {detailKey === 'spent' && txList(suiviDetail.spent, semanticText(COLORS.danger, COLORS), 'Aucune dépense passée ce mois.')}
+                    {detailKey === 'planned' && (
+                      <>
+                        <View style={styles.detailTabs}>
+                          {([['recurrentes', 'Récurrentes'], ['variables', 'Variables']] as const).map(([k, t]) => (
+                            <TouchableOpacity key={k} style={[styles.detailTab, plannedTab === k && styles.detailTabActive]} onPress={() => setPlannedTab(k)} activeOpacity={0.8}>
+                              <Text style={[styles.detailTabText, plannedTab === k && styles.detailTabTextActive]}>{t}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                        {plannedTab === 'recurrentes'
+                          ? txList(suiviDetail.recurrentes, semanticText(COLORS.orange, COLORS), 'Aucune dépense récurrente.')
+                          : (
+                            <View style={{ gap: 6, paddingTop: 4 }}>
+                              <Text style={styles.detailNote}>
+                                {pilotageData.variable_envelope_source === 'history'
+                                  ? `Estimation basée sur la moyenne de vos ${pilotageData.variable_envelope_months_used} derniers mois.`
+                                  : pilotageData.variable_envelope_source === 'onboarding'
+                                  ? 'Estimation basée sur le budget variable indiqué à l\'inscription.'
+                                  : 'Pas encore assez d\'historique pour estimer vos dépenses variables.'}
+                              </Text>
+                              {[
+                                { l: 'Enveloppe estimée', v: pilotageData.variable_envelope_initial, c: COLORS.text },
+                                { l: 'Déjà dépensé ce mois', v: pilotageData.variable_envelope_spent, c: COLORS.textSecondary },
+                                { l: 'Restant estimé', v: pilotageData.variable_envelope_remaining, c: semanticText(COLORS.orange, COLORS) },
+                              ].map((r) => (
+                                <View key={r.l} style={styles.detailRow}>
+                                  <Text style={[styles.detailRowLabel, { flex: 1 }]}>{r.l}</Text>
+                                  <Text style={[styles.detailRowValue, { color: r.c }]}>{fmt(r.v)}</Text>
+                                </View>
+                              ))}
+                              {pilotageData.variable_envelope_source !== 'history' && (
+                                <TouchableOpacity
+                                  style={styles.detailEditBtn}
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    setDetailKey(null);
+                                    setWeeklyVariableInput(profile?.weekly_variable_budget ? String(profile.weekly_variable_budget) : '');
+                                    setShowVariableModal(true);
+                                  }}
+                                >
+                                  <Ionicons name="create-outline" size={15} color={COLORS.emerald} />
+                                  <Text style={styles.detailEditBtnText}>Modifier l'estimation</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          )}
+                      </>
+                    )}
+                    {detailKey === 'relyka' && (
+                      <View>
+                        {[
+                          { l: 'Point bas de trésorerie', v: pilotageData.cashflow_trough ?? pilotageData.current_checking_balance },
+                          { l: 'Épargne à venir', v: -(pilotageData.month_savings_future ?? 0) },
+                          { l: 'Investissement à venir', v: -(pilotageData.month_invest_future ?? 0) },
+                          { l: 'Réservé (projets)', v: -(pilotageData.monthly_reserve_planned ?? 0) },
+                          { l: 'Conservé + cumuls', v: -(reservationsTotal + cumulsTotal) },
+                          { l: 'Dépenses variables estimées', v: -(pilotageData.variable_envelope_remaining ?? 0) },
+                          { l: 'Marge de sécurité', v: -(pilotageData.safety_margin_amount ?? 0) },
+                        ].filter((r) => Math.round(Math.abs(r.v)) > 0).map((r) => (
+                          <View key={r.l} style={styles.detailRow}>
+                            <Text style={[styles.detailRowLabel, { flex: 1 }]}>{r.l}</Text>
+                            <Text style={[styles.detailRowValue, { color: r.v < 0 ? COLORS.textSecondary : COLORS.text }]}>{fmt(r.v)}</Text>
+                          </View>
+                        ))}
+                        <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, marginTop: 4 }]}>
+                          <Text style={[styles.detailRowLabel, { flex: 1, fontWeight: '800' }]}>Ton Relyka</Text>
+                          <Text style={[styles.detailRowValue, { color: semanticText(COLORS.emerald, COLORS), fontWeight: '800' }]}>{fmt(resteDisponible)}</Text>
+                        </View>
+                      </View>
+                    )}
+                  </ScrollView>
+                </>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Modale : estimation hebdo des dépenses variables (alimente q9) */}
       <Modal visible={showVariableModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowVariableModal(false)}>
-        <View style={styles.varModalOverlay}>
-          <View style={styles.varModalBox}>
+        <Pressable style={styles.varModalOverlay} onPress={() => setShowVariableModal(false)}>
+          <Pressable style={styles.varModalBox} onPress={() => {}}>
             <Text style={styles.varModalTitle}>Dépenses variables</Text>
             <Text style={styles.varModalHint}>
               Combien dépensez-vous environ pour vos courses, loisirs et dépenses variables ?
@@ -790,8 +956,8 @@ export default function PilotageScreen() {
                 <Text style={styles.varModalSaveText}>Enregistrer</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -965,6 +1131,58 @@ function makeStyles(c: AppColors) {
     width: 32, height: 32, borderRadius: 9,
     alignItems: 'center', justifyContent: 'center',
   },
+  suiviIconSm: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+
+  // ── Suivi du mois : blocs cliquables (§3) ──
+  suiviBlock: {
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
+    padding: 14, gap: 10,
+  },
+  suiviBlockHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  suiviBlockTitle: { flex: 1, fontSize: 14, color: c.text, fontWeight: '700' },
+  suiviBlockValue: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  budgetValueRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  budgetIncome: { alignItems: 'flex-end' },
+  budgetIncomeLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '600' },
+  budgetIncomeValue: { fontSize: 15, fontWeight: '700' },
+  suiviRow2: { flexDirection: 'row', gap: 10 },
+  suiviMiniBlock: {
+    flex: 1, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
+    padding: 14, gap: 8,
+  },
+  suiviMiniHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  suiviMiniLabel: { flex: 1, fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  suiviMiniValue: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  depBar: { gap: 6 },
+  depBarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  depBarLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  depBarLabel: { fontSize: 13, color: c.text, fontWeight: '600' },
+  depBarValue: { fontSize: 15, fontWeight: '700' },
+  depBarTrack: { height: 8, borderRadius: 4, backgroundColor: c.cardBorder, overflow: 'hidden' },
+  depBarFill: { height: '100%', borderRadius: 4 },
+  reserveLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
+  reserveLineLabel: { flex: 1, fontSize: 14, color: c.text, fontWeight: '600' },
+  reserveLineValue: { fontSize: 16, fontWeight: '700' },
+
+  // ── Modaux détail (centrés) ──
+  detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  detailBox: { width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 18 },
+  detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  detailTitle: { fontSize: 17, fontWeight: '800', color: c.text, flex: 1 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
+  detailRowLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
+  detailRowSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
+  detailRowValue: { fontSize: 15, fontWeight: '700' },
+  detailEmpty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 20 },
+  detailNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 4 },
+  detailTabs: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  detailTab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+  detailTabActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  detailTabText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+  detailTabTextActive: { color: c.bg },
+  detailEditBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '12' },
+  detailEditBtnText: { fontSize: 13, fontWeight: '700', color: c.emerald },
+
   suiviLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   suiviHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
   suiviValue: { fontSize: 16, fontWeight: '700' },
@@ -989,6 +1207,8 @@ function makeStyles(c: AppColors) {
   cumulsBannerItem: { fontSize: 12, color: c.text, fontWeight: '600' },
   cumulsBannerLink: { marginLeft: 'auto', fontSize: 12, color: c.emerald, fontWeight: '700' },
   cumulsBtn: { alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 8 },
+  cumulsTopRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
+  cumulsBtnHeader: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
   cumulsBtnLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
   suiviDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 6 },
   profileTitle: {
@@ -1072,10 +1292,10 @@ function makeStyles(c: AppColors) {
     color: c.textSecondary,
   },
   // Modal Réservé
-  reservedOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  reservedOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   reservedSheet: {
-    backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder, gap: 8,
+    width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20,
+    padding: 18, borderWidth: 1, borderColor: c.cardBorder, gap: 8,
   },
   reservedHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   reservedTitle: { fontSize: 18, fontWeight: '800', color: c.text },

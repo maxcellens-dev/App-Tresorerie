@@ -4,7 +4,7 @@
  * le moment venu, de créer un virement global du total cumulé.
  */
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Platform, Alert, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -54,9 +54,9 @@ export default function PreSavingsModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Ionicons name={isEpargne ? 'shield-outline' : 'trending-up-outline'} size={20} color={accent} />
@@ -125,18 +125,18 @@ export default function PreSavingsModal({
               <Text style={styles.resetLabel}>Remettre à 0</Text>
             </TouchableOpacity>
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     sheet: {
-      backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-      padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder, gap: 12,
+      width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20,
+      padding: 22, borderWidth: 1, borderColor: c.cardBorder, gap: 12,
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },

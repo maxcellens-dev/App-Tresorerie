@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Modal,
+  Pressable,
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
@@ -631,8 +632,8 @@ export default function AccountDetailScreen() {
 
       {/* ── Calendrier pour le solde ── */}
       <Modal visible={showBalanceCalendar} transparent animationType="fade" onRequestClose={() => setShowBalanceCalendar(false)}>
-        <View style={modalStyles.overlay}>
-          <View style={[modalStyles.container, { padding: 8 }]}>
+        <Pressable style={modalStyles.overlay} onPress={() => setShowBalanceCalendar(false)}>
+          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
               <Text style={modalStyles.title}>Date de référence</Text>
               <TouchableOpacity onPress={() => setShowBalanceCalendar(false)}>
@@ -653,8 +654,8 @@ export default function AccountDetailScreen() {
               textColor={COLORS.text}
               textSecondaryColor="#334155"
             />
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ── Apport modal ── */}
@@ -864,8 +865,8 @@ export default function AccountDetailScreen() {
 
       {/* ── Calendrier Apport ── */}
       <Modal visible={showApportCalendar} transparent animationType="fade" onRequestClose={() => setShowApportCalendar(false)}>
-        <View style={modalStyles.overlay}>
-          <View style={[modalStyles.container, { padding: 8 }]}>
+        <Pressable style={modalStyles.overlay} onPress={() => setShowApportCalendar(false)}>
+          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
               <Text style={modalStyles.title}>Date de l'apport</Text>
               <TouchableOpacity onPress={() => setShowApportCalendar(false)}>
@@ -886,14 +887,14 @@ export default function AccountDetailScreen() {
               textColor={COLORS.text}
               textSecondaryColor="#334155"
             />
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ── Calendrier +/- value ── */}
       <Modal visible={showGainLossCalendar} transparent animationType="fade" onRequestClose={() => setShowGainLossCalendar(false)}>
-        <View style={modalStyles.overlay}>
-          <View style={[modalStyles.container, { padding: 8 }]}>
+        <Pressable style={modalStyles.overlay} onPress={() => setShowGainLossCalendar(false)}>
+          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
               <Text style={modalStyles.title}>Date de la +/- value</Text>
               <TouchableOpacity onPress={() => setShowGainLossCalendar(false)}>
@@ -914,8 +915,8 @@ export default function AccountDetailScreen() {
               textColor={COLORS.text}
               textSecondaryColor="#334155"
             />
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ── Intérêts modal (comptes épargne) ── */}
@@ -1020,8 +1021,8 @@ export default function AccountDetailScreen() {
 
       {/* ── Calendrier Intérêts ── */}
       <Modal visible={showInterestCalendar} transparent animationType="fade" onRequestClose={() => setShowInterestCalendar(false)}>
-        <View style={modalStyles.overlay}>
-          <View style={[modalStyles.container, { padding: 8 }]}>
+        <Pressable style={modalStyles.overlay} onPress={() => setShowInterestCalendar(false)}>
+          <Pressable style={[modalStyles.container, { padding: 8 }]} onPress={() => {}}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 }}>
               <Text style={modalStyles.title}>Date des intérêts</Text>
               <TouchableOpacity onPress={() => setShowInterestCalendar(false)}>
@@ -1042,8 +1043,8 @@ export default function AccountDetailScreen() {
               textColor={COLORS.text}
               textSecondaryColor="#334155"
             />
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Transaction detail (read-only) */}

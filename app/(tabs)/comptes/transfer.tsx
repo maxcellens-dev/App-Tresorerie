@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  Pressable,
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -394,8 +395,8 @@ export default function TransferScreen() {
 
         {/* Calendar Modal */}
         <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
-          <View style={styles.calendarOverlay}>
-            <View style={styles.calendarContainer}>
+          <Pressable style={styles.calendarOverlay} onPress={() => setShowCalendar(false)}>
+            <Pressable style={styles.calendarContainer} onPress={() => {}}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => setShowCalendar(false)}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
@@ -427,8 +428,8 @@ export default function TransferScreen() {
                 textColor={COLORS.text}
                 textSecondaryColor="#334155"
               />
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       </SafeAreaView>
     </View>

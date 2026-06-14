@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 export const AD_PLACEMENTS = [
   { value: 'pilotage', label: 'Pilotage' },
   { value: 'comptes', label: 'Comptes' },
+  { value: 'comptes_actions', label: 'Comptes — à côté des actions' },
   { value: 'transactions', label: 'Transactions' },
   { value: 'projets', label: 'Projets' },
   { value: 'projection', label: 'Projection' },

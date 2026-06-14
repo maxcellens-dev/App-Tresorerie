@@ -6,7 +6,7 @@
  *   paramétrable en admin (rotation_seconds).
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
@@ -17,7 +17,7 @@ import { logEvent } from '../lib/analytics';
 // Impressions déjà comptées dans la session (1 par bannière × emplacement) → évite le flood.
 const seenImpressions = new Set<string>();
 
-export default function AdSlot({ placement }: { placement: AdPlacement }) {
+export default function AdSlot({ placement, compact = false, style }: { placement: AdPlacement; compact?: boolean; style?: ViewStyle }) {
   const COLORS = useAppColors();
   const { user } = useAuth();
   const { showAds } = usePlan(user?.id);
@@ -65,9 +65,9 @@ export default function AdSlot({ placement }: { placement: AdPlacement }) {
   };
 
   return (
-    <Animated.View style={{ opacity }}>
+    <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, style]}>
       <TouchableOpacity
-        style={[styles.slot, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder }]}
+        style={[styles.slot, compact && styles.slotCompact, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder }]}
         onPress={open}
         activeOpacity={banner.url ? 0.85 : 1}
         disabled={!banner.url}
@@ -76,18 +76,18 @@ export default function AdSlot({ placement }: { placement: AdPlacement }) {
           // Image quasi pleine zone + tag « Sponsorisé » en overlay (pastille sombre
           // + ombre du texte → lisible quelle que soit l'image).
           <>
-            <Image source={{ uri: banner.image }} style={styles.img} resizeMode="cover" />
+            <Image source={{ uri: banner.image }} style={compact ? styles.imgCompact : styles.img} resizeMode="cover" />
             <View style={styles.tagOverlay}>
               <Text style={styles.tagOverlayText}>Sponsorisé</Text>
             </View>
           </>
         ) : (
-          <View style={styles.textWrap}>
-            <Text style={[styles.tag, { color: COLORS.textSecondary }]}>Sponsorisé</Text>
+          <View style={compact ? styles.textWrapCompact : styles.textWrap}>
+            {!compact && <Text style={[styles.tag, { color: COLORS.textSecondary }]}>Sponsorisé</Text>}
             <Animated.View style={styles.textRow}>
-              <Ionicons name="megaphone-outline" size={18} color={COLORS.emerald} />
-              <Text style={[styles.text, { color: COLORS.text }]} numberOfLines={2}>{banner.text ?? banner.label ?? 'Découvrez nos partenaires'}</Text>
-              {banner.url ? <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} /> : null}
+              <Ionicons name="megaphone-outline" size={compact ? 15 : 18} color={COLORS.emerald} />
+              <Text style={[compact ? styles.textCompact : styles.text, { color: COLORS.text }]} numberOfLines={2}>{banner.text ?? banner.label ?? 'Découvrez nos partenaires'}</Text>
+              {banner.url ? <Ionicons name="chevron-forward" size={compact ? 13 : 16} color={COLORS.textSecondary} /> : null}
             </Animated.View>
           </View>
         )}
@@ -98,6 +98,12 @@ export default function AdSlot({ placement }: { placement: AdPlacement }) {
 
 const styles = StyleSheet.create({
   slot: { borderWidth: 1, borderRadius: 14, marginVertical: 6, overflow: 'hidden', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+  // Variante compacte : remplit l'espace dispo à côté d'autres éléments (ex. actions Comptes).
+  compactWrap: { flex: 1 },
+  slotCompact: { marginVertical: 0, height: 64, justifyContent: 'center' },
+  imgCompact: { width: '100%', height: 64 },
+  textWrapCompact: { paddingHorizontal: 10, paddingVertical: 8 },
+  textCompact: { flex: 1, fontSize: 11.5, fontWeight: '600' },
   // Image pleine largeur, marge minimale → remplit la zone.
   img: { width: '100%', height: 96 },
   tagOverlay: { position: 'absolute', top: 7, left: 7, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },

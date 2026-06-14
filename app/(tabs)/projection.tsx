@@ -689,11 +689,64 @@ export default function ProjectionScreen() {
   );
 }
 
+/* ── Courbe des soldes prévus (ligne + points marqués) sur 6 mois ── */
+function BalanceCurve({ rows, width, COLORS }: {
+  rows: { label: string; balance: number; isCurrent: boolean }[];
+  width: number;
+  COLORS: any;
+}) {
+  if (rows.length < 2 || width <= 0) return null;
+  const h = 188;
+  const padL = 12, padR = 14, padT = 30, padB = 26;
+  const usableW = width - padL - padR;
+  const usableH = h - padT - padB;
+  const vals = rows.map((r) => r.balance);
+  let minV = Math.min(...vals, 0);
+  let maxV = Math.max(...vals);
+  if (maxV === minV) maxV = minV + 1;
+  const pad = (maxV - minV) * 0.12;
+  minV -= pad; maxV += pad;
+  const x = (i: number) => padL + (i / (rows.length - 1)) * usableW;
+  const y = (v: number) => padT + (1 - (v - minV) / (maxV - minV)) * usableH;
+  const line = rows.map((r, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(r.balance)}`).join(' ');
+  const area = `${line} L ${x(rows.length - 1)} ${padT + usableH} L ${x(0)} ${padT + usableH} Z`;
+  const zeroVisible = minV < 0 && maxV > 0;
+  const shortMonth = (lbl: string) => lbl.split(' ')[0].slice(0, 4);
+  return (
+    <Svg width={width} height={h}>
+      <Defs>
+        <LinearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={COLORS.blue} stopOpacity="0.28" />
+          <Stop offset="1" stopColor={COLORS.blue} stopOpacity="0.02" />
+        </LinearGradient>
+      </Defs>
+      {zeroVisible && (
+        <Line x1={padL} y1={y(0)} x2={width - padR} y2={y(0)} stroke={COLORS.cardBorder} strokeWidth={1} strokeDasharray="3 3" />
+      )}
+      <Path d={area} fill="url(#balGrad)" />
+      <Path d={line} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      {rows.map((r, i) => (
+        <React.Fragment key={i}>
+          <Circle cx={x(i)} cy={y(r.balance)} r={r.isCurrent ? 5 : 3.5} fill={r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} />
+          <SvgText x={x(i)} y={y(r.balance) - 10} fill={r.balance >= 0 ? COLORS.text : COLORS.danger} fontSize="10" fontWeight="700" textAnchor="middle">
+            {fmtK(r.balance)}
+          </SvgText>
+          <SvgText x={x(i)} y={h - 8} fill={r.isCurrent ? COLORS.blue : COLORS.textSecondary} fontSize="10" fontWeight={r.isCurrent ? '800' : '600'} textAnchor="middle">
+            {shortMonth(r.label)}
+          </SvgText>
+        </React.Fragment>
+      ))}
+    </Svg>
+  );
+}
+
 // ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
 function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onOpenDetail }: {
   transactions: any[]; accounts: any[]; pilotage: any; COLORS: any; styles: any; onOpenDetail: () => void;
 }) {
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
+  const { width: winW } = useWindowDimensions();
+  const chartWidth = Math.max(0, winW - 32 - 24); // padding scroll (16×2) + carte (12×2)
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -840,6 +893,13 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
         <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
       </TouchableOpacity>
       <Text style={styles.sectionHint}>Soldes et flux prévus sur les 6 prochains mois</Text>
+      {/* Courbe d'évolution des soldes prévus (points marqués) — au-dessus du 1er mois */}
+      <View style={[styles.chartCard, { marginTop: 0, alignItems: 'stretch' }]}>
+        <Text style={styles.chartTitle}>Prévision des soldes de trésorerie</Text>
+        <View style={{ alignItems: 'center' }}>
+          <BalanceCurve rows={rows} width={chartWidth} COLORS={COLORS} />
+        </View>
+      </View>
       {rows.map((r) => (
         <View key={`${r.year}-${r.month}`} style={[styles.tresoMonthCard, r.isCurrent && { borderColor: COLORS.blue + '88' }]}>
           <View style={[styles.tresoMonthHeader, r.isCurrent && { justifyContent: 'space-between' }]}>
@@ -899,6 +959,7 @@ function makeStyles(c: any) {
     tabText: { fontSize: 12, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
 
     sectionHint: { fontSize: 12, color: c.textSecondary, marginBottom: 14 },
+    chartTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 8 },
 
     kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
     kpiCard: {

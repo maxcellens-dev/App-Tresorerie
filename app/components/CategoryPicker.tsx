@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Category } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
@@ -39,12 +39,53 @@ interface CategoryPickerProps {
   selectedCategoryId: string;
   onSelect: (categoryId: string) => void;
   label?: string;
+  /** Catégories parentes disponibles pour créer une sous-catégorie (hors « Mouvements »). */
+  parents?: { id: string; name: string }[];
+  /** Crée une sous-catégorie et renvoie son id (la liste se met ensuite à jour). */
+  onCreateSubcategory?: (name: string, parentId: string) => Promise<string>;
 }
 
-export default function CategoryPicker({ groups, selectedCategoryId, onSelect, label = 'Sous-catégorie (optionnel)' }: CategoryPickerProps) {
+export default function CategoryPicker({ groups, selectedCategoryId, onSelect, label = 'Sous-catégorie (optionnel)', parents, onCreateSubcategory }: CategoryPickerProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const [query, setQuery] = useState('');
+
+  // ── Création rapide de sous-catégorie (§12) ──
+  const canCreate = !!onCreateSubcategory && !!parents && parents.length > 0;
+  const defaultParentId = useMemo(() => {
+    if (!parents || parents.length === 0) return '';
+    const frais = parents.find((p) => norm(p.name) === 'frais variables');
+    return (frais ?? parents[0]).id;
+  }, [parents]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newParentId, setNewParentId] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const openCreate = () => {
+    setNewName('');
+    setNewParentId(defaultParentId);
+    setCreateError(null);
+    setShowCreate(true);
+  };
+  const handleCreate = async () => {
+    if (!onCreateSubcategory) return;
+    const name = newName.trim();
+    if (!name) { setCreateError('Le nom est requis.'); return; }
+    if (!newParentId) { setCreateError('Choisissez une catégorie parente.'); return; }
+    setCreating(true); setCreateError(null);
+    try {
+      const newId = await onCreateSubcategory(name, newParentId);
+      setShowCreate(false);
+      setQuery('');
+      if (newId) onSelect(newId);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : 'Impossible de créer la sous-catégorie.');
+    } finally {
+      setCreating(false);
+    }
+  };
   const childIds = useMemo(() => new Set(groups.flatMap((g) => g.children.map((c) => c.id))), [groups]);
   const isNoneSelected = !selectedCategoryId || !childIds.has(selectedCategoryId);
 
@@ -93,22 +134,31 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
   return (
     <View style={styles.block}>
       <Text style={styles.label}>{label}</Text>
-      {groups.length > 0 && (
-        <View style={styles.searchRow}>
-          <Ionicons name="search" size={16} color={COLORS.textSecondary} />
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Rechercher une sous-catégorie…"
-            placeholderTextColor={COLORS.textSecondary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+      {(groups.length > 0 || canCreate) && (
+        <View style={styles.searchCreateRow}>
+          {groups.length > 0 ? (
+            <View style={[styles.searchRow, { flex: 1, marginBottom: 0 }]}>
+              <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Rechercher une sous-catégorie…"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : <View style={{ flex: 1 }} />}
+          {canCreate && (
+            <TouchableOpacity style={styles.createBtn} onPress={openCreate} accessibilityRole="button" accessibilityLabel="Créer une sous-catégorie">
+              <Ionicons name="add" size={22} color={COLORS.emerald} />
             </TouchableOpacity>
           )}
         </View>
@@ -147,6 +197,53 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
           ))}
         </ScrollView>
       </View>
+
+      {/* Modal de création rapide d'une sous-catégorie (§12) */}
+      {canCreate && (
+        <Modal visible={showCreate} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowCreate(false)}>
+          <Pressable style={styles.createOverlay} onPress={() => setShowCreate(false)}>
+            <Pressable style={styles.createBox} onPress={() => {}}>
+              <View style={styles.createHeader}>
+                <Text style={styles.createTitle}>Nouvelle sous-catégorie</Text>
+                <TouchableOpacity onPress={() => setShowCreate(false)} style={{ padding: 4 }}>
+                  <Ionicons name="close" size={22} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.createLabel}>Catégorie parente</Text>
+              <View style={styles.parentChips}>
+                {(parents ?? []).map((p) => {
+                  const active = newParentId === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[styles.parentChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}
+                      onPress={() => setNewParentId(p.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.parentChipText, active && { color: COLORS.bg }]}>{p.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={styles.createLabel}>Nom</Text>
+              <TextInput
+                style={styles.createInput}
+                value={newName}
+                onChangeText={(v) => { setNewName(v); if (createError) setCreateError(null); }}
+                placeholder="Ex. Restaurant, Abonnement…"
+                placeholderTextColor={COLORS.textSecondary}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleCreate}
+              />
+              {createError && <Text style={styles.createErrorText}>{createError}</Text>}
+              <TouchableOpacity style={[styles.createSubmit, creating && { opacity: 0.6 }]} onPress={handleCreate} disabled={creating} activeOpacity={0.8}>
+                {creating ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.createSubmitText}>Ajouter</Text>}
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -167,6 +264,28 @@ function makeStyles(c: any) {
     borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
     backgroundColor: c.card, paddingHorizontal: 12, paddingVertical: Platform.OS === 'web' ? 10 : 8, marginBottom: 8,
   },
+  searchCreateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  createBtn: {
+    width: 42, height: 42, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed' as any,
+    borderColor: c.emerald, backgroundColor: c.emerald + '12', alignItems: 'center', justifyContent: 'center',
+  },
+  // Modal création
+  createOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  createBox: { width: '100%', maxWidth: 440, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 18, gap: 6 },
+  createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  createTitle: { fontSize: 17, fontWeight: '800', color: c.text },
+  createLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 8, marginBottom: 6 },
+  parentChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  parentChip: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: c.card },
+  parentChipText: { fontSize: 13, fontWeight: '600', color: c.text },
+  createInput: {
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: Platform.OS === 'web' ? 11 : 10, fontSize: 15, color: c.text,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+  },
+  createErrorText: { fontSize: 12, color: c.danger, marginTop: 6 },
+  createSubmit: { marginTop: 14, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  createSubmitText: { fontSize: 15, fontWeight: '800', color: c.bg },
   searchInput: {
     flex: 1, fontSize: 15, color: c.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),

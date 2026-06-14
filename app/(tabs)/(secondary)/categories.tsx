@@ -30,6 +30,8 @@ import {
 } from '../../hooks/useCategories';
 import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import IconPickerModal from '../../components/IconPickerModal';
+import { iconForCategory } from '../../lib/categoryIcons';
 import { useNavBack } from '../../hooks/useNavBack';
 
 
@@ -65,6 +67,8 @@ export default function CategoriesScreen() {
   const [newType, setNewType] = useState<'income' | 'expense'>('expense');
   const [newParentId, setNewParentId] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean } | null>(null);
+  // Sélecteur d'icône d'une sous-catégorie (§13)
+  const [iconModal, setIconModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; current?: string | null } | null>(null);
   const [editName, setEditName] = useState('');
   const [editVariable, setEditVariable] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -300,6 +304,9 @@ export default function CategoriesScreen() {
                         </View>
                         {(incomeGrouped.byParent[p.id] ?? []).map((c) => (
                           <View key={c.id} style={[styles.row, styles.rowChild]}>
+                            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7}>
+                              <Ionicons name={iconForCategory(c) as any} size={18} color={COLORS.emerald} />
+                            </TouchableOpacity>
                             <Text style={styles.rowLabelChild}>{c.name}</Text>
                             <View style={styles.rowActions}>
                               <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8}>
@@ -341,6 +348,9 @@ export default function CategoriesScreen() {
                         </View>
                         {(expenseGrouped.byParent[p.id] ?? []).map((c) => (
                           <View key={c.id} style={[styles.row, styles.rowChild]}>
+                            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7}>
+                              <Ionicons name={iconForCategory(c) as any} size={18} color={COLORS.emerald} />
+                            </TouchableOpacity>
                             <Text style={styles.rowLabelChild}>{c.name}</Text>
                             <View style={styles.rowActions}>
                               <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8}>

@@ -1355,7 +1355,7 @@ function makeStyles(c: any) {
   simpleToggleText: { fontSize: 12, fontWeight: '700', color: c.emerald },
   controls: { marginBottom: 12 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  navArrow: { padding: 8 },
+  navArrow: { padding: 5 },
   navLabel: { flex: 1, alignItems: 'center' },
   navLabelText: { fontSize: 15, fontWeight: '700', color: c.text },
   navLabelHint: { fontSize: 11, color: c.emerald, marginTop: 2 },

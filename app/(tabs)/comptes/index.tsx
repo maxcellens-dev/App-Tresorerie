@@ -164,30 +164,33 @@ export default function AccountsListScreen() {
               </Text>
             </View>
 
-            {/* Quick actions */}
-            <View style={styles.quickActions} ref={actionsRef}>
-              <TouchableOpacity
-                ref={addBtnRef}
-                style={styles.quickBtn}
-                activeOpacity={0.75}
-                onPress={() => router.push('/(tabs)/comptes/add')}
-              >
-                <View style={styles.quickIcon}>
-                  <Ionicons name="add" size={22} color={COLORS.emerald} />
-                </View>
-                <Text style={styles.quickLabel}>Créer Compte</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                ref={transferBtnRef}
-                style={styles.quickBtn}
-                activeOpacity={0.75}
-                onPress={() => router.push('/(tabs)/comptes/transfer')}
-              >
-                <View style={styles.quickIcon}>
-                  <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
-                </View>
-                <Text style={styles.quickLabel}>Virement</Text>
-              </TouchableOpacity>
+            {/* Quick actions + zone pub compacte (maison) à droite, gérable en admin */}
+            <View style={styles.quickActions}>
+              <View style={styles.quickBtnGroup} ref={actionsRef}>
+                <TouchableOpacity
+                  ref={addBtnRef}
+                  style={styles.quickBtn}
+                  activeOpacity={0.75}
+                  onPress={() => router.push('/(tabs)/comptes/add')}
+                >
+                  <View style={styles.quickIcon}>
+                    <Ionicons name="add" size={22} color={COLORS.emerald} />
+                  </View>
+                  <Text style={styles.quickLabel}>Créer Compte</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  ref={transferBtnRef}
+                  style={styles.quickBtn}
+                  activeOpacity={0.75}
+                  onPress={() => router.push('/(tabs)/comptes/transfer')}
+                >
+                  <View style={styles.quickIcon}>
+                    <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
+                  </View>
+                  <Text style={styles.quickLabel}>Virement</Text>
+                </TouchableOpacity>
+              </View>
+              <AdSlot placement="comptes_actions" compact style={{ marginLeft: 16 }} />
             </View>
           </View>
 
@@ -345,8 +348,12 @@ function makeStyles(c: any) {
   // ── Quick actions ──
   quickActions: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'center',
     marginTop: 24,
+  },
+  quickBtnGroup: {
+    flexDirection: 'row',
+    gap: 16,
   },
   quickBtn: {
     alignItems: 'center',

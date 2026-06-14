@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
+import { useCategories, useAddCategory } from '../../../hooks/useCategories';
 import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
 import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../hooks/useTransactionMonthOverrides';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
@@ -80,6 +80,16 @@ export default function EditTransactionScreen() {
   const [showCalendar, setShowCalendar] = useState<false | 'date' | 'end' | 'future'>(false);
 
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
+  // Création rapide de sous-catégorie (§12)
+  const addCategory = useAddCategory(user?.id);
+  const subcatParents = useMemo(() => {
+    const t = isExpense ? 'expense' : 'income';
+    return categories
+      .filter((c) => (c.parent_id == null || c.parent_id === '') && String(c.type).toLowerCase() === t)
+      .filter((c) => c.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim() !== 'mouvements')
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, isExpense]);
 
   useEffect(() => {
     if (tx) {
@@ -504,6 +514,11 @@ export default function EditTransactionScreen() {
               selectedCategoryId={categoryId}
               onSelect={(cid) => { setCategoryId(cid); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
               label="Sous-catégorie *"
+              parents={subcatParents}
+              onCreateSubcategory={async (name, parentId) => {
+                const created = await addCategory.mutateAsync({ name, type: isExpense ? 'expense' : 'income', parent_id: parentId });
+                return (created as any)?.id ?? '';
+              }}
             />
           )}
 
@@ -677,8 +692,8 @@ export default function EditTransactionScreen() {
 
         {/* Calendar Modal */}
         <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
-          <View style={styles.calendarOverlay}>
-            <View style={styles.calendarContainer}>
+          <Pressable style={styles.calendarOverlay} onPress={() => setShowCalendar(false)}>
+            <Pressable style={styles.calendarContainer} onPress={() => {}}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => setShowCalendar(false)}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
@@ -721,8 +736,8 @@ export default function EditTransactionScreen() {
                 textColor={COLORS.text}
                 textSecondaryColor="#334155"
               />
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
         {/* Confirm Modal */}

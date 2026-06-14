@@ -85,7 +85,7 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
 export function useAddCategory(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; type: 'income' | 'expense'; parent_id?: string | null }) => {
+    mutationFn: async (input: { name: string; type: 'income' | 'expense'; parent_id?: string | null; icon?: string | null }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom de la catégorie est requis.');
@@ -106,6 +106,7 @@ export function useAddCategory(profileId: string | undefined) {
           name: input.name.trim(),
           type: input.type,
           parent_id: input.parent_id ?? null,
+          ...(input.icon != null && { icon: input.icon }),
         })
         .select()
         .single();
@@ -122,7 +123,7 @@ export function useAddCategory(profileId: string | undefined) {
 export function useUpdateCategory(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { id: string; name: string; type?: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean }) => {
+    mutationFn: async (input: { id: string; name: string; type?: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean; icon?: string | null }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom de la catégorie est requis.');
@@ -151,6 +152,7 @@ export function useUpdateCategory(profileId: string | undefined) {
           ...(input.type != null && { type: input.type }),
           ...(input.parent_id !== undefined && { parent_id: input.parent_id }),
           ...(input.is_variable !== undefined && { is_variable: input.is_variable }),
+          ...(input.icon !== undefined && { icon: input.icon }),
         })
         .eq('id', input.id)
         .eq('profile_id', profileId)

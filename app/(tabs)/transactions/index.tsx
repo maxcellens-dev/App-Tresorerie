@@ -22,6 +22,7 @@ import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { iconForTransaction } from '../../lib/categoryIcons';
 
 
 function formatDate(dateStr: string) {
@@ -669,6 +670,7 @@ export default function TransactionsListScreen() {
                               <View style={styles.draftTopRow}>
                                 <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
                                   <View style={styles.rowLabelRow}>
+                                    <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
                                     {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
                                     <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
                                       {item.note || item.category?.name || 'Sans libellé'}
@@ -735,6 +737,7 @@ export default function TransactionsListScreen() {
                             <View style={[styles.rowAccent, accentStyle]} />
                             <View style={styles.rowLeft}>
                               <View style={styles.rowLabelRow}>
+                                <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
                                 {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
                                 <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
                                   {item.note || item.category?.name || 'Sans libellé'}
@@ -924,20 +927,20 @@ function makeStyles(c: any) {
   },
   empty: { padding: 24, color: c.textSecondary, textAlign: 'center' },
   hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
-  periodNav: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    marginBottom: 16,
+  periodNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
     paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingVertical: 5,
     backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: c.cardBorder,
   },
-  periodBtn: { 
-    padding: 8,
+  periodBtn: {
+    padding: 6,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   filterBtn: {

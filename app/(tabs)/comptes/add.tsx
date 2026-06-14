@@ -1,5 +1,5 @@
 ﻿import { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -236,8 +236,8 @@ export default function AddAccountScreen() {
 
       {/* Calendar Modal */}
       <Modal visible={showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
-        <View style={styles.calendarOverlay}>
-          <View style={styles.calendarContainer}>
+        <Pressable style={styles.calendarOverlay} onPress={() => setShowCalendar(false)}>
+          <Pressable style={styles.calendarContainer} onPress={() => {}}>
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => setShowCalendar(false)}>
                 <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
@@ -260,8 +260,8 @@ export default function AddAccountScreen() {
               textColor={COLORS.text}
               textSecondaryColor="#334155"
             />
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

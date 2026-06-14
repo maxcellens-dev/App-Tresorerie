@@ -62,12 +62,12 @@ html, body, #root {
 // Visuellement identique au composant AppLoading → transition invisible.
 const BOOT_LOADER_CSS = `
 #app-boot {
-  position: fixed; inset: 0; z-index: 99999; background: #020617;
+  position: fixed; inset: 0; z-index: 99999; background: #0D2E2A;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   transition: opacity .4s ease;
 }
 #app-boot .boot-logo {
-  width: 84px; height: 84px; border-radius: 18px;
+  width: 96px; height: 96px;
   background: url('/favicon.png') center / contain no-repeat;
   animation: bootPulse 1.7s ease-in-out infinite;
 }

@@ -6,7 +6,9 @@
 import { useEffect, useRef } from 'react';
 import { View, Image, Text, StyleSheet, Animated, Easing } from 'react-native';
 
-const BG = '#020617';
+// Accordé au splash natif (expo-splash-screen) et au boot-loader web : même fond teal
+// et même badge centré → transition invisible entre l'aperçu de l'icône et le chargement.
+const BG = '#0D2E2A';
 const ACCENT = '#00B67A';
 
 export default function AppLoading() {
@@ -45,7 +47,7 @@ export default function AppLoading() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  logo: { width: 84, height: 84, borderRadius: 18 },
+  logo: { width: 96, height: 96 },
   brand: { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: 0.5, marginBottom: 26 },
   ring: { width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: ACCENT + '33', borderTopColor: ACCENT },
 });

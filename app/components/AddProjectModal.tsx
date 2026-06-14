@@ -10,6 +10,7 @@ import {
   TextInput,
   FlatList,
   Alert,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -986,9 +987,9 @@ export default function AddProjectModal() {
       </SafeAreaView>
 
       {/* Calendar modal */}
-      <Modal visible={!!showCalendar} transparent animationType="slide" onRequestClose={() => setShowCalendar(false)}>
-        <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-          <View style={[styles.calendarContainer, { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border }]}>
+      <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+        <Pressable style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }]} onPress={() => setShowCalendar(false)}>
+          <Pressable style={[styles.calendarContainer, { backgroundColor: COLORS.cardSolid, borderColor: COLORS.border, borderRadius: 20, width: '100%', maxWidth: 420 }]} onPress={() => {}}>
             <View style={styles.calendarHeader}>
               <TouchableOpacity onPress={() => setShowCalendar(false)}>
                 <Text style={[styles.calendarHeaderText, { color: COLORS.primary }]}>Fermer</Text>
@@ -1017,8 +1018,8 @@ export default function AddProjectModal() {
                 style={styles.calendar}
               />
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Delete Confirmation Modal */}

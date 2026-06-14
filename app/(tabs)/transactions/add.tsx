@@ -1,5 +1,5 @@
-﻿import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../components/CalendarWithPicker';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAccounts } from '../../hooks/useAccounts';
-import { useCategories } from '../../hooks/useCategories';
+import { useCategories, useAddCategory } from '../../hooks/useCategories';
 import { useAddTransaction, useTransactions } from '../../hooks/useTransactions';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
@@ -89,6 +89,16 @@ export default function AddTransactionScreen() {
   const selectableAccounts = isTransfer ? accounts : accounts.filter(a => a.type === 'checking');
 
   const categoryGroups = useSubCategoriesGrouped(categories, isExpense ? 'expense' : 'income');
+  // Création rapide de sous-catégorie (§12) : parents disponibles (hors « Mouvements ») + mutation.
+  const addCategory = useAddCategory(user?.id);
+  const subcatParents = useMemo(() => {
+    const t = isExpense ? 'expense' : 'income';
+    return categories
+      .filter((c) => (c.parent_id == null || c.parent_id === '') && String(c.type).toLowerCase() === t)
+      .filter((c) => c.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim() !== 'mouvements')
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories, isExpense]);
   useEffect(() => setCategoryId(''), [isExpense, isIncome]);
   useEffect(() => { if (!isExpense) setIsRefund(false); }, [isExpense]);
 
@@ -340,6 +350,11 @@ export default function AddTransactionScreen() {
                   selectedCategoryId={categoryId}
                   onSelect={(id) => { setCategoryId(id); setErrorFields((p) => p.filter((f) => f !== 'category')); setFormError(null); }}
                   label="Sous-catégorie *"
+                  parents={subcatParents}
+                  onCreateSubcategory={async (name, parentId) => {
+                    const created = await addCategory.mutateAsync({ name, type: isExpense ? 'expense' : 'income', parent_id: parentId });
+                    return (created as any)?.id ?? '';
+                  }}
                 />
 
                 {/* Montant */}
@@ -431,8 +446,8 @@ export default function AddTransactionScreen() {
 
         {/* Calendar Modal */}
         <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
-          <View style={styles.calendarOverlay}>
-            <View style={styles.calendarContainer}>
+          <Pressable style={styles.calendarOverlay} onPress={() => setShowCalendar(false)}>
+            <Pressable style={styles.calendarContainer} onPress={() => {}}>
               <View style={styles.calendarHeader}>
                 <TouchableOpacity onPress={() => setShowCalendar(false)}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.emerald }}>Fermer</Text>
@@ -464,8 +479,8 @@ export default function AddTransactionScreen() {
                 textColor={COLORS.text}
                 textSecondaryColor="#334155"
               />
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       </SafeAreaView>
     </View>

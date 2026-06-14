@@ -3,7 +3,7 @@
  * Ouvert depuis le bouton permanent « Mes cumuls » ou le bandeau.
  */
 import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -27,9 +27,9 @@ export default function CumulsPanel({ visible, epargneTotal, investTotal, onClos
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
           <View style={styles.header}>
             <Text style={styles.title}>Mes cumuls</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -52,18 +52,18 @@ export default function CumulsPanel({ visible, epargneTotal, investTotal, onClos
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           ))}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     sheet: {
-      backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-      padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder, gap: 10,
+      width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20,
+      padding: 20, borderWidth: 1, borderColor: c.cardBorder, gap: 10,
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     title: { fontSize: 18, fontWeight: '800', color: c.text },

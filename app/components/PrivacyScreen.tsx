@@ -40,7 +40,7 @@ export default function PrivacyScreen() {
             • <B>Rectification</B> : modifier vos informations à tout moment{'\n'}
             • <B>Suppression</B> : supprimer votre compte et toutes les données associées{'\n'}
             • <B>Portabilité</B> : exporter vos données au format standard{'\n\n'}
-            Contact : privacy@tresorerie.app
+            Contact : maxence.vi@gmail.com
           </Section>
 
           <Section title="5. Cookies et trackers">
