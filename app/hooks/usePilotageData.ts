@@ -761,8 +761,12 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   // Brouillons « Conservés » (is_reserved) — inclut les projets même-compte (réservés d'office).
   // Groupés par projet (1 ligne par projet, montants cumulés).
+  // §P11 : on ne compte QUE les occurrences jusqu'à la fin du mois courant (mensualité du mois +
+  // accumulé des mois passés). Les mois FUTURS ne sont pas encore « réservés » (l'argent n'y est pas).
+  const monthEndStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-31`;
   for (const t of transactions) {
     if (!(t as any).is_draft || !(t as any).is_reserved) continue;
+    if ((t.date ?? '') > monthEndStr) continue;
     const pid = (t as any).project_id as string | null;
     if (!pid) continue;
     const proj = projectsById[pid];

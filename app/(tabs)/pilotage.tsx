@@ -208,11 +208,29 @@ export default function PilotageScreen() {
   const baseADepenser = pilotageData?.safe_to_spend ?? 0;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
-  // ── Budget de recommandation ──
-  // Les recommandations se basent sur « Ton Relyka » (budget libre) : on répartit ce qui est
-  // RÉELLEMENT libre selon le profil P1-P5 + seuils. L'épargne/réservé déjà prévus sont déjà
-  // retirés du budget libre → on ne les redéduit pas par catégorie (pas de double comptage).
-  const recoBudget = resteDisponible;
+  // ── Budget de recommandation (§P7) ──
+  // Budget BRUT invariant = argent libre AVANT répartition volontaire (= point bas − dépenses
+  // variables estimées − marge). Il ne bouge PAS quand on cumule/réserve : on déduit ensuite
+  // SPÉCIFIQUEMENT de chaque catégorie ce qui y a déjà été affecté (`alreadyAllocated`).
+  // → cumuler 411 € d'invest met la reco invest à 0 sans toucher la reco « plaisir ».
+  const recoGrossBudget = Math.max(0, cashflowTrough - variableEnvelopeRemaining - safetyMarginDisplay);
+  const recoAlreadyAllocated = {
+    // Épargne / invest : virements prévus ce mois (non exécutés) + cumuls fléchés.
+    save: savingsRemaining + preEpargneTotal,
+    invest: investRemaining + preInvestTotal,
+    // Conserver : réservations + réservé projets du mois (PAS les cumuls épargne/invest).
+    keep: reservationsTotal + (pilotageData?.monthly_reserve_planned ?? 0),
+  };
+  // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
+  const recoList = pilotageData
+    ? computeRecommendations(pilotageData, {
+        customTierAllocations: customTiers,
+        financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
+        budget: recoGrossBudget,
+        alreadyAllocated: recoAlreadyAllocated,
+        thresholds: recoThresholds,
+      }).map((r) => ({ ...r, amount: Math.min(r.amount, Math.max(0, Math.round(resteDisponible))) }))
+    : [];
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
   const suiviDetail = React.useMemo(() => {
@@ -469,12 +487,7 @@ export default function PilotageScreen() {
                       : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
                   : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant tes recommandations ;)'
               }
-              recommendations={pilotageData ? computeRecommendations(pilotageData, {
-                customTierAllocations: customTiers,
-                financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
-                budget: recoBudget,
-                thresholds: recoThresholds,
-              }) : []}
+              recommendations={recoList}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
               hasSavingsAccount={hasSavingsAccount}
@@ -496,7 +509,7 @@ export default function PilotageScreen() {
             {/* Cumuls en attente — bandeau (ouvre « Réservé » où on gère/saisit les cumuls, §N).
                 Plus de bouton « Gérer » : tout le bandeau est cliquable. */}
             {(preEpargneTotal > 0 || preInvestTotal > 0) && (
-              <TouchableOpacity style={[styles.cumulsBanner, { marginTop: 12, marginBottom: 0 }]} onPress={openReservedModal} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.cumulsBanner, { marginTop: -4, marginBottom: 0 }]} onPress={openReservedModal} activeOpacity={0.8}>
                 {preEpargneTotal > 0 && (
                   <Text style={styles.cumulsBannerItem}>🛡 En attente d'épargne : {Math.round(preEpargneTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
                 )}
@@ -614,7 +627,7 @@ export default function PilotageScreen() {
                         </View>
                         <Text style={[styles.depBarValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)} <Text style={styles.depBarTotal}>/ {fmt(recurTotal)}</Text></Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${recurTotal > 0 ? Math.min(100, ((recurRemaining - recurTotal) / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange }]} /></View>
+                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange }]} /></View>
                     </TouchableOpacity>
                     {/* Dépenses variables prévues restantes — curseur = restant / estimé (décroît, §N5) */}
                     <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>

@@ -61,14 +61,7 @@ export default function OnboardingHintBanner() {
 
   useEffect(() => { setDismissed(false); slide.setValue(0); }, [key]);
 
-  const stepDone = step?.done ?? false;
-  // Auto-disparition de l'encart de validation au bout de 3 s.
-  useEffect(() => {
-    if (!key || dismissed || ob.dismissed || !stepDone) return;
-    const t = setTimeout(() => advanceRef.current(), 3000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, dismissed, ob.dismissed, stepDone]);
+  // Plus d'auto-avance (§P13) : l'utilisateur passe à l'étape suivante via le bouton « Suivant ».
 
   if (!key || dismissed || ob.dismissed || !step) return null;
 

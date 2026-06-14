@@ -6,10 +6,20 @@
 import { View, Text, StyleSheet } from 'react-native';
 import LegalLayout from './LegalLayout';
 import { useAppColors } from '../hooks/useAppColors';
+import { useLegalContent } from '../hooks/useLegalContent';
 
 export default function PrivacyScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const override = useLegalContent().data?.privacy;
+  // Contenu personnalisé en admin (§P9) → remplace le contenu par défaut.
+  if (override) {
+    return (
+      <LegalLayout title="Politique de confidentialité">
+        <View style={styles.card}><Text style={styles.sectionBody}>{override}</Text></View>
+      </LegalLayout>
+    );
+  }
   return (
     <LegalLayout title="Politique de confidentialité">
           <Text style={styles.updated}>Dernière mise à jour : juin 2025</Text>
@@ -40,7 +50,7 @@ export default function PrivacyScreen() {
             • <B>Rectification</B> : modifier vos informations à tout moment{'\n'}
             • <B>Suppression</B> : supprimer votre compte et toutes les données associées{'\n'}
             • <B>Portabilité</B> : exporter vos données au format standard{'\n\n'}
-            Contact : maxence.vi@gmail.com
+            Contact : relyka.dev@gmail.com
           </Section>
 
           <Section title="5. Cookies et trackers">

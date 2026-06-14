@@ -27,10 +27,13 @@ export default function Index() {
     // même si les flags dans `profiles` n'ont pas pu être écrits.
     const hasFinancialProfile = !!fpQuery.data;
 
+    // Garde-fou : si la requête « profil financier » a échoué (réseau), on NE renvoie PAS un
+    // utilisateur existant vers le questionnaire (faux positif). On le considère comme fait.
+    const fpUncertain = fpQuery.isError;
     const onboardingDone =
-      hasFinancialProfile || Boolean(profile?.initial_onboarding_completed);
+      hasFinancialProfile || fpUncertain || Boolean(profile?.initial_onboarding_completed);
     const questionnaireDone =
-      hasFinancialProfile || Boolean(profile?.financial_profile_questionnaire_completed);
+      hasFinancialProfile || fpUncertain || Boolean(profile?.financial_profile_questionnaire_completed);
 
     if (!profile) {
       return <Redirect href="/setup" />;

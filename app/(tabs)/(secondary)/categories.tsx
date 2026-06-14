@@ -32,6 +32,7 @@ import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
 import IconPickerModal from '../../components/IconPickerModal';
 import { iconForCategory } from '../../lib/categoryIcons';
+import { supabase } from '../../lib/supabase';
 import { useNavBack } from '../../hooks/useNavBack';
 
 
@@ -147,12 +148,43 @@ export default function CategoriesScreen() {
     }
   }
 
-  function handleDelete(c: Category) {
+  // Réordonne une sous-catégorie DANS son parent (§P2). Les enfants partageant souvent le même
+  // sort_order (seed), on réassigne des valeurs séquentielles distinctes pour fiabiliser l'ordre.
+  async function handleMoveChild(children: Category[], index: number, direction: 'up' | 'down') {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= children.length) return;
+    const reordered = [...children];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    try {
+      await reorderCategories.mutateAsync(reordered.map((c, i) => ({ id: c.id, sort_order: (i + 1) * 10 })));
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de réordonner.');
+    }
+  }
+
+  async function handleDelete(c: Category) {
     if (c.is_default && !isAdmin) {
       Alert.alert('Action impossible', 'Les catégories par défaut ne peuvent pas être supprimées. Vous pouvez les renommer.');
       return;
     }
-    const message = `Supprimer « ${c.name} » ? Les transactions liées ne seront plus catégorisées.`;
+    // Blocage si des transactions utilisent cette (sous-)catégorie (§P3) : on demande à l'utilisateur
+    // de d'abord les recatégoriser. Inclut la catégorie + ses éventuelles sous-catégories.
+    if (supabase) {
+      const childIds = categories.filter((x) => x.parent_id === c.id).map((x) => x.id);
+      const ids = [c.id, ...childIds];
+      const { count } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .in('category_id', ids);
+      if ((count ?? 0) > 0) {
+        Alert.alert(
+          'Suppression impossible',
+          `« ${c.name} » est utilisée par ${count} transaction${(count ?? 0) > 1 ? 's' : ''}. Retirez d'abord cette catégorie de ces transactions (modifiez-les ou changez leur catégorie) avant de pouvoir la supprimer.`
+        );
+        return;
+      }
+    }
+    const message = `Supprimer « ${c.name} » ?`;
     const doDelete = () => {
       deleteCategory.mutateAsync(c.id).catch((e: unknown) => {
         Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer.');
@@ -313,14 +345,20 @@ export default function CategoriesScreen() {
                             </TouchableOpacity>
                           </View>
                         </View>
-                        {(incomeGrouped.byParent[p.id] ?? []).map((c) => (
+                        {(incomeGrouped.byParent[p.id] ?? []).map((c, ci, arr) => (
                           <View key={c.id} style={[styles.row, styles.rowChild]}>
                             <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7}>
                               <Ionicons name={iconForCategory(c) as any} size={18} color={COLORS.emerald} />
                             </TouchableOpacity>
                             <Text style={styles.rowLabelChild}>{c.name}</Text>
                             <View style={styles.rowActions}>
-                              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8}>
+                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={{ opacity: ci === 0 ? 0.3 : 1 }}>
+                                <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={{ marginLeft: 4, opacity: ci === arr.length - 1 ? 0.3 : 1 }}>
+                                <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={{ marginLeft: 12 }}>
                                 <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
                               </TouchableOpacity>
                               <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={{ marginLeft: 12 }}>
@@ -357,14 +395,20 @@ export default function CategoriesScreen() {
                             </TouchableOpacity>
                           </View>
                         </View>
-                        {(expenseGrouped.byParent[p.id] ?? []).map((c) => (
+                        {(expenseGrouped.byParent[p.id] ?? []).map((c, ci, arr) => (
                           <View key={c.id} style={[styles.row, styles.rowChild]}>
                             <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7}>
                               <Ionicons name={iconForCategory(c) as any} size={18} color={COLORS.emerald} />
                             </TouchableOpacity>
                             <Text style={styles.rowLabelChild}>{c.name}</Text>
                             <View style={styles.rowActions}>
-                              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8}>
+                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={{ opacity: ci === 0 ? 0.3 : 1 }}>
+                                <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={{ marginLeft: 4, opacity: ci === arr.length - 1 ? 0.3 : 1 }}>
+                                <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={{ marginLeft: 12 }}>
                                 <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
                               </TouchableOpacity>
                               <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={{ marginLeft: 12 }}>

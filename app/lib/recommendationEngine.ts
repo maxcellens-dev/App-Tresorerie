@@ -465,5 +465,5 @@ function getKeepDescription(amount: number, data: PilotageData): string {
   if (data.current_checking_balance < data.committed_allocations * 2) {
     return `Votre solde courant est un peu juste. Gardez ${amount} € en réserve pour couvrir les imprévus.`;
   }
-  return `Conservez ${amount} € sur votre compte courant comme marge de manœuvre pour le mois prochain.`;
+  return `Conservez ${amount} € sur votre compte courant comme marge de manœuvre pour le mois prochain.\nCette somme sera déduite de votre Relyka pour ne pas y toucher.`;
 }

@@ -215,19 +215,16 @@ export default function ProjectionScreen() {
     }
     setHypos(initialHypos);
     if (saved?.years) setYears(saved.years);
+    // Épargne « personnalisé » : on restaure la saisie de l'utilisateur (§P5).
+    if (saved?.savingsMonthlyPerso != null) setSavingsMonthlyPerso(String(saved.savingsMonthlyPerso));
+    if (saved?.savingsInitial != null) { setSavingsInitial(String(saved.savingsInitial)); setSavSynced(true); }
+    if (saved?.savingsSource) setPickedSource(saved.savingsSource);
     setSelectedAccId(investAccounts[0].id);
     setLoaded(true);
   }, [investAccounts, loaded, user?.id, fiscalRates]);
 
-  // Sauvegarder à chaque changement (en base, debounced pour éviter de spammer).
+  // Sauvegarde : voir l'effet plus bas (après la déclaration des états d'épargne « perso »).
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (!loaded) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { saveAssumptions.mutate({ hypos, years }); }, 500);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hypos, years, loaded]);
 
   // Initialise automatiquement l'hypothèse des comptes d'invest qui n'en ont pas encore
   // (ex. comptes créés après le 1er chargement) → le bloc s'affiche sans devoir « actualiser ».
@@ -352,6 +349,17 @@ export default function ProjectionScreen() {
       setSavSynced(true);
     }
   }, [pilotage, savSynced]);
+
+  // Sauvegarde des hypothèses (debounced) — inclut l'épargne « perso » (§P5).
+  useEffect(() => {
+    if (!loaded) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveAssumptions.mutate({ hypos, years, savingsMonthlyPerso, savingsInitial, savingsSource: pickedSource });
+    }, 500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hypos, years, loaded, savingsMonthlyPerso, savingsInitial, pickedSource]);
 
   const savingsMonthly =
     savingsSource === 'reel' ? realMonthlySavings :
@@ -657,7 +665,7 @@ export default function ProjectionScreen() {
                   onPress={() => { setSavingsInitial(String(Math.round(realSavings))); markProjectionEdited(); }}
                 >
                   <Ionicons name="refresh" size={13} color={COLORS.emerald} />
-                  <Text style={styles.savingsResetText}>Réinitialiser au solde actuel de vos comptes épargne ({fmt(realSavings)})</Text>
+                  <Text style={styles.savingsResetText}>Réinitialiser à votre solde réel ({fmt(realSavings)})</Text>
                 </TouchableOpacity>
               )}
             </View>

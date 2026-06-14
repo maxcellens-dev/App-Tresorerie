@@ -30,14 +30,19 @@ export default function AppDialogHost() {
 
   const cancelBtn = req?.buttons.find((b) => b.style === 'cancel');
 
+  // On ne monte le Modal que lorsqu'un dialogue est demandé : son portail est alors ajouté EN
+  // DERNIER dans le DOM → toujours au-dessus des autres modaux déjà ouverts (sinon la confirmation
+  // s'affichait sous le modal courant, §P6).
+  if (!req) return null;
+
   return (
-    <Modal visible={!!req} transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(cancelBtn ?? { text: 'OK' })}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(cancelBtn ?? { text: 'OK' })}>
       <Pressable style={styles.overlay} onPress={() => onPress(cancelBtn ?? { text: 'OK' })}>
         <Pressable style={styles.box} onPress={() => {}}>
-          {!!req?.title && <Text style={styles.title}>{req.title}</Text>}
-          {!!req?.message && <Text style={styles.message}>{req.message}</Text>}
+          {!!req.title && <Text style={styles.title}>{req.title}</Text>}
+          {!!req.message && <Text style={styles.message}>{req.message}</Text>}
           <View style={styles.actions}>
-            {(req?.buttons ?? []).map((b, i) => (
+            {req.buttons.map((b, i) => (
               <Pressable
                 key={i}
                 style={[styles.btn, { borderColor: btnColor(b) + '55', backgroundColor: btnColor(b) + '12' }]}
