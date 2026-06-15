@@ -58,8 +58,10 @@ export interface StyleConfig {
   hidden_presets: string[];
   /** Ordre d'affichage des presets (ids natifs + custom). Les ids absents sont ajoutés à la fin. */
   preset_order: string[];
-  /** Surcharges des couleurs sémantiques globales { danger, blue, violet, green, orange, teal, yellow } */
+  /** Surcharges des couleurs sémantiques pour le thème SOMBRE. */
   semantic_colors: Record<string, string>;
+  /** Surcharges des couleurs sémantiques pour le thème CLAIR (indépendant du sombre). */
+  light_semantic_colors: Record<string, string>;
 }
 
 /** Ordonne une liste d'ids de presets selon l'ordre sauvegardé (ids absents ajoutés à la fin). */
@@ -79,7 +81,7 @@ export const MODE_DEFAULTS: ModeStyleConfig = {
 
 export const STYLE_DEFAULTS: StyleConfig = {
   dark:  { ...MODE_DEFAULTS },
-  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 4, bg_color: '#FFFFFF' },
+  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 88, bg_color: '#F4EFE6' },
   font_family: 'System',
   font_import_url: '',
   app_name_font: 'Arial Rounded MT Bold',
@@ -89,6 +91,7 @@ export const STYLE_DEFAULTS: StyleConfig = {
   hidden_presets: [],
   preset_order: [],
   semantic_colors: {},
+  light_semantic_colors: {},
 };
 
 const KEY = 'style_config';
@@ -112,6 +115,7 @@ export function useStyleConfig() {
         hidden_presets: style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
         preset_order: style?.preset_order ?? STYLE_DEFAULTS.preset_order,
         semantic_colors: style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
+        light_semantic_colors: style?.light_semantic_colors ?? STYLE_DEFAULTS.light_semantic_colors,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -137,6 +141,7 @@ export function useSaveStyleConfig() {
         hidden_presets: existing.style?.hidden_presets ?? STYLE_DEFAULTS.hidden_presets,
         preset_order: existing.style?.preset_order ?? STYLE_DEFAULTS.preset_order,
         semantic_colors: existing.style?.semantic_colors ?? STYLE_DEFAULTS.semantic_colors,
+        light_semantic_colors: existing.style?.light_semantic_colors ?? STYLE_DEFAULTS.light_semantic_colors,
       };
       const merged: StyleConfig = {
         dark:  { ...prev.dark,  ...(config.dark  ?? {}) },
@@ -150,6 +155,7 @@ export function useSaveStyleConfig() {
         hidden_presets: config.hidden_presets ?? prev.hidden_presets,
         preset_order: config.preset_order ?? prev.preset_order,
         semantic_colors: config.semantic_colors ?? prev.semantic_colors,
+        light_semantic_colors: config.light_semantic_colors ?? prev.light_semantic_colors,
       };
       const { error } = await supabase.from('app_config').update({
         theme: { ...existing, style: merged },

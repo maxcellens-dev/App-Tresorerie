@@ -35,7 +35,8 @@ export function useAppColors(): AppColors {
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
       semanticColors: styleConfig?.semantic_colors,
+      lightSemanticColors: styleConfig?.light_semantic_colors,
     }),
-    [mode, preset, cardAlpha, bgColor, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
+    [mode, preset, cardAlpha, bgColor, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors, styleConfig?.light_semantic_colors]
   );
 }

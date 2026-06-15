@@ -58,6 +58,7 @@ export interface AppColors {
 export const SEMANTIC_KEYS = ['danger', 'blue', 'violet', 'green', 'orange', 'teal', 'yellow', 'grey'] as const;
 export type SemanticKey = typeof SEMANTIC_KEYS[number];
 
+/** Valeurs par défaut pour le thème SOMBRE. */
 export const SEMANTIC_DEFAULTS: Record<SemanticKey, string> = {
   danger: '#f87171', // rouge (dépenses, suppression, erreurs)
   blue:   '#60a5fa', // compte courant, réservé, virement, solde
@@ -67,6 +68,18 @@ export const SEMANTIC_DEFAULTS: Record<SemanticKey, string> = {
   teal:   '#00C4CC', // projets
   yellow: '#fbbf24', // marge de sécurité
   grey:   '#8E949A', // textes secondaires / libellés
+};
+
+/** Valeurs par défaut pour le thème CLAIR — plus sombres pour le contraste sur fond pâle. */
+export const SEMANTIC_DEFAULTS_LIGHT: Record<SemanticKey, string> = {
+  danger: '#DC2626', // rouge soutenu
+  blue:   '#2563EB', // bleu foncé
+  violet: '#7C3AED', // violet foncé
+  green:  '#059669', // vert foncé
+  orange: '#D97706', // ambre (lisible sur fond clair)
+  teal:   '#0891B2', // teal foncé
+  yellow: '#B45309', // ambre sombre (évite le jaune pâle illisible)
+  grey:   '#6B7280', // gris moyen
 };
 
 export const SEMANTIC_LABELS: Record<SemanticKey, { label: string; emoji: string }> = {
@@ -94,12 +107,12 @@ const MODE_BASE: Record<ThemeMode, {
     cardWhiteBase: true,
   },
   light: {
-    bg: '#FFFFFF',
-    cardSolid: '#F2F3F5',
+    bg: '#F4EFE6',   // crème chaud — fond avec profondeur (comme sombre)
+    cardSolid: '#FFFFFF',
     text: '#191C1F',
-    textSecondary: '#6C757D',
-    danger: '#FF3B30',
-    cardWhiteBase: false,
+    textSecondary: '#6B7280',
+    danger: '#DC2626',
+    cardWhiteBase: true, // cartes blanches sur fond coloré (cohérent avec sombre)
   },
 };
 
@@ -137,14 +150,16 @@ export interface BuildColorsOptions {
   customAccents?: Record<string, string>;
   /** Presets personnalisés créés dans le Style Editor */
   extraPresets?: { id: string; label: string; dark: string; light: string }[];
-  /** Surcharges hex des couleurs sémantiques { danger:'#xxxxxx', blue:'#xxxxxx', ... } */
+  /** Surcharges hex des couleurs sémantiques pour le thème SOMBRE. */
   semanticColors?: Record<string, string>;
+  /** Surcharges hex des couleurs sémantiques pour le thème CLAIR (indépendant du sombre). */
+  lightSemanticColors?: Record<string, string>;
   /** Couleur de fond de l'app (derrière le dégradé) pour le mode courant. */
   bgColor?: string;
 }
 
 /** Couleurs de fond par défaut par mode (modifiables via le Style Editor). */
-export const DEFAULT_BG: Record<ThemeMode, string> = { dark: '#000000', light: '#FFFFFF' };
+export const DEFAULT_BG: Record<ThemeMode, string> = { dark: '#000000', light: '#F4EFE6' };
 
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
 export function resolveAccent(mode: ThemeMode, preset: string, opts?: BuildColorsOptions): string {
@@ -168,16 +183,23 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const isLight = mode === 'light';
   const bg = (opts?.bgColor && /^#[0-9A-Fa-f]{6}$/.test(opts.bgColor)) ? opts.bgColor : base.bg;
 
-  // Transparence des cartes configurable
-  const alpha = Math.min(100, Math.max(0, opts?.cardAlpha ?? (isLight ? 4 : 8))) / 100;
+  // Transparence des cartes configurable. Défaut clair : 88% (cartes blanches bien visibles sur fond coloré).
+  const alpha = Math.min(100, Math.max(0, opts?.cardAlpha ?? (isLight ? 88 : 8))) / 100;
+  // Mode clair : cartes BLANCHES (cardWhiteBase = true) — bien visibles sur fond crème/coloré.
   const cardRGB = base.cardWhiteBase ? '255,255,255' : '0,0,0';
   const card = `rgba(${cardRGB},${alpha})`;
-  const cardBorder = `rgba(${cardRGB},${Math.min(1, alpha + 0.04)})`;
+  const cardBorder = isLight
+    ? `rgba(0,0,0,${Math.min(1, alpha * 0.15 + 0.04).toFixed(2)})`   // bordure subtile sombre sur clair
+    : `rgba(${cardRGB},${Math.min(1, alpha + 0.04)})`;
 
-  // Couleurs sémantiques (surchargeables globalement via le Style Editor admin).
+  // Couleurs sémantiques — SÉPARÉES par mode :
+  // mode clair  → lightSemanticColors (admin) ?? SEMANTIC_DEFAULTS_LIGHT
+  // mode sombre → semanticColors (admin) ?? SEMANTIC_DEFAULTS
+  const semDefaults = isLight ? SEMANTIC_DEFAULTS_LIGHT : SEMANTIC_DEFAULTS;
+  const semOverrides = isLight ? (opts?.lightSemanticColors ?? {}) : (opts?.semanticColors ?? {});
   const sem = (key: SemanticKey): string => {
-    const v = opts?.semanticColors?.[key];
-    return v && /^#[0-9A-Fa-f]{6}$/.test(v) ? v : SEMANTIC_DEFAULTS[key];
+    const v = semOverrides[key];
+    return v && /^#[0-9A-Fa-f]{6}$/.test(v) ? v : semDefaults[key];
   };
   const danger = sem('danger');
   const blue   = sem('blue');
@@ -186,9 +208,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const orange = sem('orange');
   const teal   = sem('teal');
   const yellow = sem('yellow');
-  // Gris des textes secondaires : surchargé seulement s'il est explicitement défini
-  // (sinon on garde le gris par défaut propre à chaque mode).
-  const greyRaw = opts?.semanticColors?.grey;
+  const greyRaw = semOverrides.grey;
   const textSecondary = greyRaw && /^#[0-9A-Fa-f]{6}$/.test(greyRaw) ? greyRaw : base.textSecondary;
 
   return {
@@ -225,8 +245,8 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     yellow,
     warning: orange,
     success: green,
-    selected:     isLight ? '#F0F7FF' : '#0A1A2E',
-    currentMonth: isLight ? '#F0F7FF' : '#0A1A2E',
+    selected:     isLight ? '#EFF6FF' : '#0A1A2E',
+    currentMonth: isLight ? '#EFF6FF' : '#0A1A2E',
   } as AppColors;
 }
 
@@ -246,13 +266,12 @@ function darkenHex(hex: string, factor: number): string {
 
 /**
  * Couleur sémantique adaptée au texte selon le mode.
- * - Mode sombre : couleur inchangée (ressort bien sur fond noir).
- * - Mode clair  : couleur assombrie ~25 % (moins « flashy » sur fond blanc),
- *   sans modifier la palette stockée.
+ * - Mode sombre : couleur inchangée (ressort bien sur fond sombre).
+ * - Mode clair  : la couleur est déjà plus sombre dans SEMANTIC_DEFAULTS_LIGHT ;
+ *   on n'assombrit pas davantage pour éviter de la dénaturer.
  */
 export function semanticText(hex: string, COLORS: AppColors): string {
-  const isLight = COLORS.bg === '#FFFFFF';
-  return isLight ? darkenHex(hex, 0.28) : hex;
+  return hex; // Les défauts clair sont déjà correctement contrastés.
 }
 
 /** Pastille translucide (12 %) pour poser une valeur colorée. */

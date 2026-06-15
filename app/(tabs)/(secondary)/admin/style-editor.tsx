@@ -11,7 +11,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { supabase } from '../../../lib/supabase';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
-import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
+import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../theme/palette';
 
 
@@ -72,6 +72,7 @@ export default function StyleEditor() {
   const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [accentInputs, setAccentInputs] = useState<Record<string, string>>({});
   const [semanticInputs, setSemanticInputs] = useState<Record<string, string>>({});
+  const [lightSemanticInputs, setLightSemanticInputs] = useState<Record<string, string>>({});
   const [extraPresets, setExtraPresets] = useState<CustomPreset[]>([]);
   const [hiddenPresets, setHiddenPresets] = useState<string[]>([]);
   const [presetOrder, setPresetOrder] = useState<string[]>([]);
@@ -116,6 +117,9 @@ export default function StyleEditor() {
       const semInputs: Record<string, string> = {};
       SEMANTIC_KEYS.forEach(k => { semInputs[k] = styleConfig.semantic_colors?.[k] ?? SEMANTIC_DEFAULTS[k]; });
       setSemanticInputs(semInputs);
+      const lightSemInputs: Record<string, string> = {};
+      SEMANTIC_KEYS.forEach(k => { lightSemInputs[k] = styleConfig.light_semantic_colors?.[k] ?? SEMANTIC_DEFAULTS_LIGHT[k]; });
+      setLightSemanticInputs(lightSemInputs);
     }
   }, [styleConfig]);
 
@@ -123,9 +127,13 @@ export default function StyleEditor() {
   const liveAccents: Record<string, string> = {};
   THEME_PRESETS.forEach(p => { const v = accentInputs[p.id] ?? ''; if (isValidHex(v)) liveAccents[p.id] = v; });
 
-  // Couleurs sémantiques valides pour l'aperçu live
+  // Couleurs sémantiques valides pour l'aperçu live (selon le mode de prévisualisation)
   const liveSemantics: Record<string, string> = {};
-  SEMANTIC_KEYS.forEach(k => { const v = semanticInputs[k] ?? ''; if (isValidHex(v)) liveSemantics[k] = v; });
+  const liveLightSemantics: Record<string, string> = {};
+  SEMANTIC_KEYS.forEach(k => {
+    const vd = semanticInputs[k] ?? ''; if (isValidHex(vd)) liveSemantics[k] = vd;
+    const vl = lightSemanticInputs[k] ?? ''; if (isValidHex(vl)) liveLightSemantics[k] = vl;
+  });
 
   // Liste ordonnée des presets (natifs + custom) pour l'affichage et le réordonnancement
   const allPresetIds = [...THEME_PRESETS.map(p => p.id), ...extraPresets.map(p => p.id)];
@@ -142,7 +150,7 @@ export default function StyleEditor() {
 
   const previewAlpha = previewMode === 'dark' ? Number(darkCardAlpha || 0) : Number(lightCardAlpha || 0);
   const previewBg = previewMode === 'dark' ? darkBg : lightBg;
-  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, bgColor: previewBg });
+  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, lightSemanticColors: liveLightSemantics, bgColor: previewBg });
   const curGradEnabled = previewMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const curStops = (previewMode === 'dark' ? darkStops : lightStops).map(s => Math.min(100, Math.max(0, Number(s) || 0)) / 100);
 
@@ -220,6 +228,8 @@ export default function StyleEditor() {
       THEME_PRESETS.forEach(p => { const v = accentInputs[p.id] ?? ''; if (isValidHex(v)) validated[p.id] = v; });
       const validatedSemantics: Record<string, string> = {};
       SEMANTIC_KEYS.forEach(k => { const v = semanticInputs[k] ?? ''; if (isValidHex(v)) validatedSemantics[k] = v; });
+      const validatedLightSemantics: Record<string, string> = {};
+      SEMANTIC_KEYS.forEach(k => { const v = lightSemanticInputs[k] ?? ''; if (isValidHex(v)) validatedLightSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
         dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg) ? darkBg.toUpperCase() : DEFAULT_BG.dark },
@@ -233,6 +243,7 @@ export default function StyleEditor() {
         hidden_presets: hiddenPresets,
         preset_order: orderPresetIds([...THEME_PRESETS.map(p => p.id), ...extraPresets.map(p => p.id)], presetOrder),
         semantic_colors: validatedSemantics,
+        light_semantic_colors: validatedLightSemantics,
       };
       await saveStyle.mutateAsync(sc);
       setSaved(true);
@@ -436,37 +447,57 @@ export default function StyleEditor() {
                 <Text style={[styles.hint, { marginTop: 10 }]}>Les presets sont disponibles pour tous les utilisateurs dans Paramètres.</Text>
               </Section>
 
-              <Section label="Couleurs principales (montants, boutons, textes)" icon="brush-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Ces couleurs pilotent les montants, boutons et libellés partout dans l'app (recettes, dépenses, comptes, projets…). Globales à tous les utilisateurs.</Text>
-                <View style={{ gap: 10 }}>
-                  {SEMANTIC_KEYS.map(k => {
-                    const inputHex = semanticInputs[k] ?? SEMANTIC_DEFAULTS[k];
-                    const valid = isValidHex(inputHex);
-                    const col = valid ? inputHex : SEMANTIC_DEFAULTS[k];
-                    const isDefault = inputHex.toUpperCase() === SEMANTIC_DEFAULTS[k].toUpperCase();
-                    return (
-                      <View key={k} style={styles.accentItem}>
-                        <View style={[styles.swatch, { backgroundColor: col }]} />
-                        <Text style={styles.accentLabel}>{SEMANTIC_LABELS[k].emoji} {SEMANTIC_LABELS[k].label}</Text>
-                        <TextInput
-                          style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
-                          value={inputHex}
-                          onChangeText={v => setSemanticInputs(prev => ({ ...prev, [k]: v }))}
-                          placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
-                          maxLength={7} autoCapitalize="characters"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setSemanticInputs(prev => ({ ...prev, [k]: SEMANTIC_DEFAULTS[k] }))}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          disabled={isDefault}
-                        >
-                          <Ionicons name="refresh-outline" size={20} color={isDefault ? COLORS.cardBorder : COLORS.emerald} />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
-              </Section>
+              {/* Couleurs sémantiques — séparées par mode */}
+              {(['dark', 'light'] as const).map((m) => {
+                const isCurMode = previewMode === m;
+                const inputs = m === 'dark' ? semanticInputs : lightSemanticInputs;
+                const setInputs = m === 'dark' ? setSemanticInputs : setLightSemanticInputs;
+                const defaults = m === 'dark' ? SEMANTIC_DEFAULTS : SEMANTIC_DEFAULTS_LIGHT;
+                const modeLabel = m === 'dark' ? 'Sombre' : 'Clair';
+                const modeIcon = m === 'dark' ? '🌙' : '☀️';
+                return (
+                  <Section key={m} label={`Couleurs principales — Thème ${modeLabel} ${modeIcon}`} icon="brush-outline" COLORS={COLORS}>
+                    {!isCurMode && (
+                      <Text style={[styles.hint, { color: COLORS.orange }]}>
+                        Vous prévisualisez le thème {m === 'dark' ? 'Clair' : 'Sombre'} — passez en mode {modeLabel} (ci-dessus) pour voir ces couleurs en live.
+                      </Text>
+                    )}
+                    <Text style={styles.hint}>
+                      {m === 'dark'
+                        ? 'Montants, boutons et libellés pour le thème sombre. Globaux à tous les utilisateurs.'
+                        : 'Palette indépendante pour le thème clair — couleurs plus sombres pour le contraste sur fond pâle.'}
+                    </Text>
+                    <View style={{ gap: 10 }}>
+                      {SEMANTIC_KEYS.map(k => {
+                        const inputHex = inputs[k] ?? defaults[k];
+                        const valid = isValidHex(inputHex);
+                        const col = valid ? inputHex : defaults[k];
+                        const isDefault = inputHex.toUpperCase() === defaults[k].toUpperCase();
+                        return (
+                          <View key={k} style={styles.accentItem}>
+                            <View style={[styles.swatch, { backgroundColor: col }]} />
+                            <Text style={styles.accentLabel}>{SEMANTIC_LABELS[k].emoji} {SEMANTIC_LABELS[k].label}</Text>
+                            <TextInput
+                              style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
+                              value={inputHex}
+                              onChangeText={v => setInputs(prev => ({ ...prev, [k]: v }))}
+                              placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                              maxLength={7} autoCapitalize="characters"
+                            />
+                            <TouchableOpacity
+                              onPress={() => setInputs(prev => ({ ...prev, [k]: defaults[k] }))}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              disabled={isDefault}
+                            >
+                              <Ionicons name="refresh-outline" size={20} color={isDefault ? COLORS.cardBorder : COLORS.emerald} />
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </Section>
+                );
+              })}
 
             </>
           )}
@@ -502,12 +533,28 @@ export default function StyleEditor() {
                     <Ionicons name="refresh-outline" size={20} color={aBg.toUpperCase() === DEFAULT_BG[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
                   </TouchableOpacity>
                 </View>
-                <View style={styles.alphaRow}>
-                  {(activeMode === 'dark' ? ['#000000', '#0A0E14', '#111418', '#16181C'] : ['#FFFFFF', '#F7F8FA', '#F2F3F5', '#EAECEF']).map(hex => (
-                    <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex }, aBg.toUpperCase() === hex && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
-                      <Text style={{ color: activeMode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '600' }}>{hex.replace('#', '')}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={{ gap: 8 }}>
+                  {/* Ligne 1 : fonds colorés/chauds */}
+                  <View style={styles.alphaRow}>
+                    {(activeMode === 'dark'
+                      ? ['#000000', '#0A0E14', '#111418', '#16181C']
+                      : ['#F4EFE6', '#FDF6EC', '#F0EBE3', '#EAE5DC']
+                    ).map(hex => (
+                      <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex }, aBg.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
+                        <Text style={{ color: activeMode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '600' }}>{hex.slice(1)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {/* Ligne 2 : fonds neutres + blanc (mode clair seulement) */}
+                  {activeMode === 'light' && (
+                    <View style={styles.alphaRow}>
+                      {['#F7F8FA', '#F2F3F5', '#EAECEF', '#FFFFFF'].map(hex => (
+                        <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex, borderWidth: 1, borderColor: hex === '#FFFFFF' ? COLORS.cardBorder : 'transparent' }, aBg.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setBg(hex)}>
+                          <Text style={{ color: 'rgba(0,0,0,0.5)', fontSize: 9, fontWeight: '600' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
               </Section>
 
@@ -544,11 +591,12 @@ export default function StyleEditor() {
                   <PctInput value={aAlpha} onChange={v => setAlpha(v)} COLORS={COLORS} />
                 </View>
                 <View style={styles.alphaRow}>
-                  {[0, 8, 15, 25].map(pct => {
-                    const bg = activeMode === 'dark' ? `rgba(255,255,255,${pct / 100})` : `rgba(0,0,0,${pct / 100})`;
+                  {(activeMode === 'dark' ? [0, 8, 15, 25] : [0, 70, 88, 100]).map(pct => {
+                    // Mode clair : cartes blanches (blanc sur fond coloré) ; sombre : blanches translucides sur noir.
+                    const bg = `rgba(255,255,255,${pct / 100})`;
                     return (
-                      <TouchableOpacity key={pct} style={[styles.alphaSample, { backgroundColor: bg }, Math.abs(Number(aAlpha || 0) - pct) < 2 && { borderColor: COLORS.emerald }]} onPress={() => setAlpha(String(pct))}>
-                        <Text style={{ color: COLORS.textSecondary, fontSize: 10, fontWeight: '600' }}>{pct}%</Text>
+                      <TouchableOpacity key={pct} style={[styles.alphaSample, { backgroundColor: bg, borderWidth: 1, borderColor: COLORS.cardBorder }, Math.abs(Number(aAlpha || 0) - pct) < 2 && { borderColor: COLORS.emerald }]} onPress={() => setAlpha(String(pct))}>
+                        <Text style={{ color: activeMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)', fontSize: 10, fontWeight: '600' }}>{pct}%</Text>
                       </TouchableOpacity>
                     );
                   })}
