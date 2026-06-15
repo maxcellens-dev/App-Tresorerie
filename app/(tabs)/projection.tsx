@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../components/ScreenGradient';
+import CalculatorButton from '../components/CalculatorButton';
 import PageIntroModal from '../components/PageIntroModal';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import AdSlot from '../components/AdSlot';
@@ -706,6 +707,7 @@ export default function ProjectionScreen() {
         scrollRef={scrollRef}
         screenTitle="Projection"
       />
+      <CalculatorButton />
     </View>
   );
 }

@@ -58,8 +58,6 @@ const fmtFull = (n: number) =>
 
 const formatTooltipValue = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}`;
 
-const isInvestmentGainLossNote = (note?: string | null) => !!note && /plus|moins|gain|perte/i.test(note);
-
 // Tooltip SVG positionné à côté du point (droite ou gauche selon l'espace)
 function ChartTooltip({ cx, cy, value, color, chartWidth, padL = 0, padR = 0 }: {
   cx: number; cy: number; value: number; color: string;
@@ -171,11 +169,11 @@ function BarChart({ data, width }: { data: { label: string; income: number; expe
   );
 }
 
-function AreaLineChart({ points, width, color }: { points: { label: string; value: number }[]; width: number; color: string }) {
+function AreaLineChart({ points, width, color, height = 120 }: { points: { label: string; value: number }[]; width: number; color: string; height?: number }) {
   const C = useReportingColors();
   const s = makeStyles(C);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const chartH = 120;
+  const chartH = height;
   const padL = 48;
   const padR = 12;
   const usable = width - padL - padR;
@@ -237,196 +235,119 @@ function AreaLineChart({ points, width, color }: { points: { label: string; valu
           padR={padR}
         />
       ) : null}
-      {points.map((p, i) => (
-        <SvgText key={`label-${i}`} x={coords[i].x} y={chartH + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">
-          {p.label}
-        </SvgText>
-      ))}
+      {points.map((p, i) => {
+        const step = Math.max(1, Math.ceil(points.length / 6));
+        if (i % step !== 0 && i !== points.length - 1) return null;
+        return (
+          <SvgText key={`label-${i}`} x={coords[i].x} y={chartH + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">
+            {p.label}
+          </SvgText>
+        );
+      })}
     </Svg>
   );
 }
 
-function InvestmentGainLossChart({ series, years, width }: { series: { name: string; color: string; points: { year: string; value: number }[] }[]; years: string[]; width: number }) {
-  const C = useReportingColors();
-  const s = makeStyles(C);
-  const [active, setActive] = useState<{ seriesName: string; pointIndex: number } | null>(null);
-  if (!series.length || !years.length) {
-    return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 24 }}>Aucune donnée d'évolution disponible.</Text>;
-  }
-
-  const chartH = 168;
-  const padL = 44;
-  const padR = 24;
-  const usable = width - padL - padR;
-  const xStep = years.length > 1 ? usable / (years.length - 1) : 0;
-  const allValues = series.flatMap((s) => s.points.map((p) => p.value));
-  const maxVal = Math.max(...allValues, 0);
-  const minVal = Math.min(...allValues, 0);
-  const range = maxVal - minVal || 1;
-  const zeroY = 12 + (1 - (0 - minVal) / range) * (chartH - 24);
-
-  return (
-    <View>
-      <Svg width={width} height={chartH + 42}>
-        <Rect x={0} y={0} width={width} height={chartH + 42} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
-        {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
-          const y = 12 + (1 - pct) * (chartH - 24);
-          const val = minVal + pct * range;
-          return (
-            <G key={`grid-${idx}`}>
-              <Line x1={padL} y1={y} x2={width - padR} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
-              <SvgText x={padL - 8} y={y + 4} fill={C.textSecondary} fontSize={10} textAnchor="end">
-                {fmt(val)}
-              </SvgText>
-            </G>
-          );
-        })}
-        {minVal < 0 && maxVal > 0 ? (
-          <Line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke={C.text} strokeWidth={1} opacity={0.35} />
-        ) : null}
-        {series.map((serie) => (
-          <G key={serie.name}>
-            <Path
-              d={serie.points
-                .map((point, idx) => {
-                  const x = padL + idx * xStep;
-                  const y = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
-                  return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
-                })
-                .join(' ')}
-              fill="none"
-              stroke={serie.color}
-              strokeWidth={2.5}
-              strokeLinejoin="round"
-              {...svgPress(() => setActive(null))}
-            />
-            {serie.points.map((point, idx) => {
-              const x = padL + idx * xStep;
-              const y = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
-              return (
-                <Circle
-                  key={`${serie.name}-${idx}`}
-                  cx={x}
-                  cy={y}
-                  r={4}
-                  fill={C.bg}
-                  stroke={serie.color}
-                  strokeWidth={2.5}
-                  {...svgPress(() => setActive(active?.seriesName === serie.name && active.pointIndex === idx ? null : { seriesName: serie.name, pointIndex: idx }))}
-                />
-              );
-            })}
-          </G>
-        ))}
-        {years.map((year, idx) => (
-          <SvgText key={year} x={padL + idx * xStep} y={chartH + 30} fill={C.textSecondary} fontSize={10} textAnchor="middle">
-            {year}
-          </SvgText>
-        ))}
-        {active ? (() => {
-          const serie = series.find((s) => s.name === active.seriesName);
-          if (!serie) return null;
-          const point = serie.points[active.pointIndex];
-          const cx = padL + active.pointIndex * xStep;
-          const cy = 12 + (1 - (point.value - minVal) / range) * (chartH - 24);
-          return <ChartTooltip cx={cx} cy={cy} value={point.value} color={serie.color} chartWidth={width} padL={padL} padR={padR} />;
-        })() : null}
-      </Svg>
-      <View style={[s.legendWrap, { justifyContent: 'flex-start' }]}> 
-        {series.map((serie) => (
-          <View key={serie.name} style={s.legendItem}>
-            <View style={[s.legendDot, { backgroundColor: serie.color }]} />
-            <Text style={s.legendLabel} numberOfLines={1}>{serie.name}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function DonutChart({ slices, size }: { slices: { label: string; value: number; color: string }[]; size: number }) {
+/* ── Combo : barres d'épargne nette + courbe du taux d'épargne ── */
+function NetSavingsChart({ data, width }: { data: { label: string; net: number; rate: number }[]; width: number }) {
   const C = useReportingColors();
   const s = makeStyles(C);
   const [active, setActive] = useState<number | null>(null);
-  if (!slices.length) return <Text style={{ color: C.textSecondary, textAlign: 'center', padding: 30 }}>Aucune dépense ce mois.</Text>;
-  const total = slices.reduce((s, sl) => s + sl.value, 0);
-  const cx = size / 2;
-  const cy = size / 2;
-  const R = size * 0.38;
-  const r = size * 0.22;
-  let startAngle = -Math.PI / 2;
-  const paths = slices.map((sl, i) => {
-    const angle = (sl.value / total) * 2 * Math.PI;
-    const endAngle = startAngle + angle;
-    const x1 = cx + R * Math.cos(startAngle);
-    const y1 = cy + R * Math.sin(startAngle);
-    const x2 = cx + R * Math.cos(endAngle);
-    const y2 = cy + R * Math.sin(endAngle);
-    const ix1 = cx + r * Math.cos(startAngle);
-    const iy1 = cy + r * Math.sin(startAngle);
-    const ix2 = cx + r * Math.cos(endAngle);
-    const iy2 = cy + r * Math.sin(endAngle);
-    const largeArc = angle > Math.PI ? 1 : 0;
-    const d = `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${r} ${r} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
-    const res = { d, color: sl.color, idx: i };
-    startAngle = endAngle;
-    return res;
-  });
-  const activeSlice = active !== null ? slices[active] : null;
+  if (data.length < 2) return <Text style={{ color: C.textSecondary, padding: 20, textAlign: 'center' }}>Données insuffisantes</Text>;
+  const chartH = 160;
+  const padL = 44, padR = 32, padT = 14, padB = 22;
+  const usableW = width - padL - padR;
+  const usableH = chartH - padT - padB;
+  const maxAbs = Math.max(...data.map((d) => Math.abs(d.net)), 1);
+  const minV = Math.min(0, -maxAbs);
+  const maxV = Math.max(0, maxAbs);
+  const range = maxV - minV || 1;
+  const y = (v: number) => padT + (1 - (v - minV) / range) * usableH;
+  const slot = usableW / data.length;
+  const barW = Math.min(22, slot * 0.5);
+  const cx = (i: number) => padL + slot * i + slot / 2;
+  const zeroY = y(0);
+  // taux d'épargne borné [−20, 80] pour la lisibilité de la courbe
+  const rateMin = -20, rateMax = 80;
+  const ry = (r: number) => padT + (1 - (Math.max(rateMin, Math.min(rateMax, r)) - rateMin) / (rateMax - rateMin)) * usableH;
+  const ratePath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${cx(i)} ${ry(d.rate)}`).join(' ');
   return (
-    <View style={{ alignItems: 'center' }}>
-      <Svg width={size} height={size}>
-        {paths.map((p) => (
-          <Path
-            key={p.idx}
-            d={p.d}
-            fill={p.color}
-            opacity={active === null || active === p.idx ? 1 : 0.4}
-            {...svgPress(() => setActive(active === p.idx ? null : p.idx))}
-          />
-        ))}
-        {activeSlice ? (
-          <>
-            <SvgText x={cx} y={cy - 6} fill={C.text} fontSize={13} fontWeight="700" textAnchor="middle">
-              {fmtFull(activeSlice.value)}
+    <View>
+      <Svg width={width} height={chartH + 24}>
+        <Rect x={0} y={0} width={width} height={chartH + 24} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
+        {[0, 0.5, 1].map((pct, i) => {
+          const yy = padT + pct * usableH;
+          return <Line key={i} x1={padL} y1={yy} x2={width - padR} y2={yy} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />;
+        })}
+        <SvgText x={padL - 6} y={padT + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmt(maxV)}</SvgText>
+        <SvgText x={padL - 6} y={padT + usableH + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmt(minV)}</SvgText>
+        <Line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke={C.text} strokeWidth={1} opacity={0.3} />
+        {/* axe droite : taux */}
+        <SvgText x={width - padR + 6} y={ry(rateMax) + 4} fill={C.textSecondary} fontSize={9} textAnchor="start">{rateMax}%</SvgText>
+        <SvgText x={width - padR + 6} y={ry(0) + 4} fill={C.textSecondary} fontSize={9} textAnchor="start">0%</SvgText>
+        {data.map((d, i) => {
+          const yy = y(d.net);
+          const h = Math.abs(yy - zeroY);
+          const color = d.net >= 0 ? C.emerald : C.rose;
+          return (
+            <Rect key={i} x={cx(i) - barW / 2} y={Math.min(yy, zeroY)} width={barW} height={Math.max(h, 1)} rx={3} fill={color} opacity={active === null || active === i ? 0.9 : 0.4} {...svgPress(() => setActive(active === i ? null : i))} />
+          );
+        })}
+        <Path d={ratePath} fill="none" stroke={C.amber} strokeWidth={2} strokeLinejoin="round" />
+        {data.map((d, i) => <Circle key={`r-${i}`} cx={cx(i)} cy={ry(d.rate)} r={3} fill={C.bg} stroke={C.amber} strokeWidth={1.5} {...svgPress(() => setActive(active === i ? null : i))} />)}
+        {active !== null ? (
+          <G>
+            <SvgText x={Math.min(width - padR, Math.max(padL + 20, cx(active)))} y={Math.max(12, Math.min(y(data[active].net), ry(data[active].rate)) - 8)} fill={C.text} fontSize={10.5} fontWeight="700" textAnchor="middle">
+              {`${data[active].net >= 0 ? '+' : '−'}${fmt(Math.abs(data[active].net))} · ${data[active].rate.toFixed(0)}%`}
             </SvgText>
-            <SvgText x={cx} y={cy + 12} fill={C.textSecondary} fontSize={10} textAnchor="middle">
-              {((activeSlice.value / total) * 100).toFixed(0)}%
-            </SvgText>
-          </>
-        ) : (
-          <SvgText x={cx} y={cy + 4} fill={C.textSecondary} fontSize={11} textAnchor="middle">Total</SvgText>
-        )}
+          </G>
+        ) : null}
+        {data.map((d, i) => <SvgText key={`l-${i}`} x={cx(i)} y={chartH + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">{d.label}</SvgText>)}
       </Svg>
-      <View style={s.legendWrap}>
-        {slices.map((sl, i) => (
-          <TouchableOpacity key={i} style={s.legendItem} onPress={() => setActive(active === i ? null : i)} activeOpacity={0.7}>
-            <View style={[s.legendDot, { backgroundColor: sl.color }]} />
-            <Text style={s.legendLabel} numberOfLines={1}>{sl.label}</Text>
-            <Text style={s.legendPct}>{((sl.value / total) * 100).toFixed(0)}%</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={[s.legendWrap, { marginTop: 4 }]}>
+        <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.emerald }]} /><Text style={s.legendLabel}>Épargne nette</Text></View>
+        <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.amber }]} /><Text style={s.legendLabel}>Taux d'épargne</Text></View>
       </View>
     </View>
   );
 }
 
-function ProgressRow({ label, current, target, color }: { label: string; current: number; target: number; color: string }) {
+/* ── Barres horizontales : top postes de dépense ce mois vs mois précédent ── */
+function HBarCompare({ rows, width }: { rows: { label: string; current: number; previous: number }[]; width: number }) {
   const C = useReportingColors();
   const s = makeStyles(C);
-  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+  if (!rows.length) return <Text style={s.emptyChart}>Aucune dépense ce mois</Text>;
+  const maxVal = Math.max(...rows.flatMap((r) => [r.current, r.previous]), 1);
+  const labelW = 96;
+  const valW = 64;
+  const trackW = Math.max(40, width - labelW - valW - 8);
   return (
-    <View style={{ marginBottom: 14 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ color: C.text, fontSize: 13, fontWeight: '500', flex: 1 }} numberOfLines={1}>{label}</Text>
-        <Text style={{ color, fontSize: 12, fontWeight: '700', marginLeft: 8 }}>{pct.toFixed(0)}%</Text>
-      </View>
-      <View style={{ height: 8, backgroundColor: C.cardBorder, borderRadius: 4, overflow: 'hidden' }}>
-        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4 }} />
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-        <Text style={{ color: C.textSecondary, fontSize: 11 }}>{fmtFull(current)}</Text>
-        <Text style={{ color: C.textSecondary, fontSize: 11 }}>{fmtFull(target)}</Text>
+    <View>
+      {rows.map((r, i) => {
+        const curPct = (r.current / maxVal) * 100;
+        const prevPct = (r.previous / maxVal) * 100;
+        const diff = r.current - r.previous;
+        return (
+          <View key={i} style={{ marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ width: labelW, color: C.text, fontSize: 12, fontWeight: '500' }} numberOfLines={1}>{r.label}</Text>
+              <View style={{ width: trackW }}>
+                {/* mois précédent (contour) */}
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: C.cardBorder, marginBottom: 3, width: `${Math.max(prevPct, 1.5)}%` as any }} />
+                {/* mois en cours (plein) */}
+                <View style={{ height: 12, borderRadius: 4, backgroundColor: C.violet, width: `${Math.max(curPct, 1.5)}%` as any }} />
+              </View>
+              <Text style={{ width: valW, textAlign: 'right', color: C.text, fontSize: 12, fontWeight: '700' }}>{fmtFull(r.current)}</Text>
+            </View>
+            <Text style={{ marginLeft: labelW, color: diff > 0 ? C.rose : C.emerald, fontSize: 10, marginTop: 2 }}>
+              {diff === 0 ? '= stable' : `${diff > 0 ? '▲' : '▼'} ${fmtFull(Math.abs(diff))} vs mois préc.`}
+            </Text>
+          </View>
+        );
+      })}
+      <View style={[s.legendWrap, { marginTop: 4 }]}>
+        <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.violet }]} /><Text style={s.legendLabel}>Ce mois</Text></View>
+        <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.cardBorder, borderWidth: 1, borderColor: C.textSecondary }]} /><Text style={s.legendLabel}>Mois précédent</Text></View>
       </View>
     </View>
   );
@@ -444,6 +365,38 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
     <Animated.View style={{ opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] }}>
       {children}
     </Animated.View>
+  );
+}
+
+/* ── En-tête de section thématique (Patrimoine, Dépenses, Épargne…) ── */
+function GroupHeader({ icon, title, color }: { icon: string; title: string; color: string }) {
+  const C = useReportingColors();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 34, marginBottom: 2 }}>
+      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: color + '22', alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={icon as any} size={19} color={color} />
+      </View>
+      <Text style={{ fontSize: 19, fontWeight: '800', color: C.text, letterSpacing: -0.3 }}>{title}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: C.cardBorder, marginLeft: 4 }} />
+    </View>
+  );
+}
+
+/* ── Mini-graphe compact de patrimoine net (1 par type de compte) ── */
+function NetWorthMini({ label, value, color, points, width }: {
+  label: string; value: number; color: string; points: { label: string; value: number }[]; width: number;
+}) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
+  return (
+    <View style={[s.chartCard, { paddingVertical: 12, marginBottom: 10 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+        <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: color, marginRight: 8 }} />
+        <Text style={{ color: C.text, fontSize: 13.5, fontWeight: '700', flex: 1 }}>{label}</Text>
+        <Text style={{ color, fontSize: 15, fontWeight: '800' }}>{fmtFull(value)}</Text>
+      </View>
+      <AreaLineChart points={points} width={width} color={color} height={62} />
+    </View>
   );
 }
 
@@ -492,145 +445,156 @@ export default function ReportingScreen() {
     setRefreshing(false);
   };
 
-  /* ── Monthly income / expense for last 6 months ── */
-  const monthlyIO = useMemo(() => {
-    if (!transactions) return [];
+  /* ── Mois de départ : on n'affiche jamais de mois antérieur à la 1ʳᵉ donnée
+   *    (création des comptes / 1ʳᵉ transaction). L'historique se remplit donc
+   *    progressivement jusqu'à atteindre 12 mois. ── */
+  const dataStartYM = useMemo(() => {
+    let earliest: string | null = null;
+    for (const a of accounts ?? []) {
+      const ym = (a.created_at ?? '').substring(0, 7);
+      if (ym && (!earliest || ym < earliest)) earliest = ym;
+    }
+    for (const t of transactions ?? []) {
+      const ym = (t.date ?? '').substring(0, 7);
+      if (ym && (!earliest || ym < earliest)) earliest = ym;
+    }
+    return earliest; // 'YYYY-MM' ou null
+  }, [accounts, transactions]);
+
+  /* ── Liste des N derniers mois, bornée au mois de création ── */
+  const monthsWindow = (maxN: number) => {
     const now = new Date();
-    const months: { year: number; month: number; label: string; income: number; expense: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
+    const out: { year: number; month: number; ym: string; label: string }[] = [];
+    for (let i = maxN - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (dataStartYM && ym < dataStartYM) continue; // pas avant la 1ʳᵉ donnée
+      out.push({
         year: d.getFullYear(),
         month: d.getMonth() + 1,
+        ym,
         label: d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', ''),
-        income: 0,
-        expense: 0,
       });
     }
+    return out;
+  };
+
+  /* ── Résolution « grande catégorie » (parent) d'une catégorie ── */
+  const catById = useMemo(() => {
+    const m = new Map<string, { name: string; parent_id?: string | null }>();
+    for (const c of categories ?? []) m.set(c.id, { name: c.name, parent_id: c.parent_id });
+    return m;
+  }, [categories]);
+
+  const grandCategoryName = (categoryId: string | null | undefined): string => {
+    if (!categoryId) return 'Sans catégorie';
+    const c = catById.get(categoryId);
+    if (!c) return 'Sans catégorie';
+    if (c.parent_id) return catById.get(c.parent_id)?.name ?? c.name;
+    return c.name; // c'est déjà une grande catégorie
+  };
+
+  /* ── Revenus / dépenses par mois (jusqu'à 6 mois, borné à la création) ── */
+  const monthlyIO = useMemo(() => {
+    if (!transactions) return [];
+    const months = monthsWindow(6).map(m => ({ ...m, income: 0, expense: 0 }));
     for (const t of transactions) {
-      const [y, m] = t.date.split('-').map(Number);
-      const bucket = months.find(b => b.year === y && b.month === m);
+      if (t.linked_account_id || t.is_draft) continue; // exclure virements internes & brouillons
+      const ym = t.date.substring(0, 7);
+      const bucket = months.find(b => b.ym === ym);
       if (!bucket) continue;
       if (Number(t.amount) >= 0) bucket.income += Number(t.amount);
       else bucket.expense += Math.abs(Number(t.amount));
     }
     return months;
-  }, [transactions]);
+  }, [transactions, dataStartYM]);
 
-  /* ── Category-wise expense breakdown (current month) ── */
-  const categorySlices = useMemo(() => {
-    if (!transactions || !categories) return [];
-    const now = new Date();
-    const cy = now.getFullYear();
-    const cm = now.getMonth() + 1;
-    const catMap: Record<string, { name: string; total: number }> = {};
+  /* ── 3. Épargne nette mensuelle + taux d'épargne, 12 mois ── */
+  const netSavings12 = useMemo(() => {
+    if (!transactions) return [];
+    const months = monthsWindow(12);
+    const acc: Record<string, { income: number; expense: number }> = {};
+    months.forEach(m => { acc[m.ym] = { income: 0, expense: 0 }; });
     for (const t of transactions) {
+      if (t.linked_account_id || t.is_draft) continue;
+      const ym = t.date.substring(0, 7);
+      if (!acc[ym]) continue;
+      const amt = Number(t.amount);
+      if (amt >= 0) acc[ym].income += amt;
+      else acc[ym].expense += Math.abs(amt);
+    }
+    return months.map(m => {
+      const { income, expense } = acc[m.ym];
+      const net = income - expense;
+      const rate = income > 0 ? (net / income) * 100 : 0;
+      return { label: m.label, net, rate };
+    });
+  }, [transactions, dataStartYM]);
+
+  /* ── Top postes de dépense (GRANDE catégorie) : mois en cours vs précédent ── */
+  const topCategoriesCompare = useMemo(() => {
+    if (!transactions) return [];
+    const now = new Date();
+    const curYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevYm = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    const cur: Record<string, number> = {};
+    const old: Record<string, number> = {};
+    for (const t of transactions) {
+      if (t.linked_account_id || t.is_draft) continue;
       if (Number(t.amount) >= 0) continue;
-      const [y, m] = t.date.split('-').map(Number);
-      if (y !== cy || m !== cm) continue;
-      const catName = t.category?.name ?? 'Sans catégorie';
-      if (!catMap[catName]) catMap[catName] = { name: catName, total: 0 };
-      catMap[catName].total += Math.abs(Number(t.amount));
-    }
-    return Object.values(catMap)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-      .map((c, i) => ({ label: c.name, value: c.total, color: CHART_PALETTE[i % CHART_PALETTE.length] }));
-  }, [transactions, categories]);
-
-  /* ── Patrimoine evolution (monthly closing balance, 6 months) ── */
-  const patrimoinePoints = useMemo(() => {
-    if (!accounts || !transactions) return [];
-    const now = new Date();
-    const totalNow = accounts.reduce((s, a) => s + Number(a.balance), 0);
-    const months: { label: string; yearMonth: string; delta: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        label: d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', ''),
-        yearMonth: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        delta: 0,
-      });
-    }
-    // Sum all transaction deltas per month
-    for (const t of transactions) {
       const ym = t.date.substring(0, 7);
-      const bucket = months.find(m => m.yearMonth === ym);
-      if (bucket) bucket.delta += Number(t.amount);
+      const name = grandCategoryName(t.category_id);
+      const amt = Math.abs(Number(t.amount));
+      if (ym === curYm) cur[name] = (cur[name] ?? 0) + amt;
+      else if (ym === prevYm) old[name] = (old[name] ?? 0) + amt;
     }
-    // Reconstruct approx. balances going backwards from current
-    const points: { label: string; value: number }[] = [];
-    let runningBalance = totalNow;
-    for (let i = months.length - 1; i >= 0; i--) {
-      points.unshift({ label: months[i].label, value: runningBalance });
-      runningBalance -= months[i].delta;
-    }
-    return points;
-  }, [accounts, transactions]);
+    return Object.entries(cur)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([label, current]) => ({ label, current, previous: old[label] ?? 0 }));
+  }, [transactions, catById]);
 
-  /* ── Savings evolution (just savings+investment accounts) ── */
-  const savingsPoints = useMemo(() => {
+  /* ── Reconstruit l'évolution du solde (12 mois) pour un ensemble de comptes ── */
+  const buildBalanceSeries = (ids: Set<string>) => {
     if (!accounts || !transactions) return [];
-    const now = new Date();
-    const savingsIds = new Set(accounts.filter(a => a.type === 'savings' || a.type === 'investment').map(a => a.id));
-    const savingsNow = accounts.filter(a => savingsIds.has(a.id)).reduce((s, a) => s + Number(a.balance), 0);
-    const months: { label: string; yearMonth: string; delta: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        label: d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', ''),
-        yearMonth: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-        delta: 0,
-      });
-    }
+    const months = monthsWindow(12);
+    const startNow = accounts.filter(a => ids.has(a.id)).reduce((s, a) => s + Number(a.balance), 0);
+    const deltas: Record<string, number> = {};
     for (const t of transactions) {
-      if (!savingsIds.has(t.account_id)) continue;
+      if (t.is_draft || !ids.has(t.account_id)) continue;
       const ym = t.date.substring(0, 7);
-      const bucket = months.find(m => m.yearMonth === ym);
-      if (bucket) bucket.delta += Number(t.amount);
+      deltas[ym] = (deltas[ym] ?? 0) + Number(t.amount);
     }
     const points: { label: string; value: number }[] = [];
-    let running = savingsNow;
+    let running = startNow;
     for (let i = months.length - 1; i >= 0; i--) {
       points.unshift({ label: months[i].label, value: running });
-      running -= months[i].delta;
+      running -= (deltas[months[i].ym] ?? 0);
     }
     return points;
-  }, [accounts, transactions]);
+  };
 
-  const investmentGainLossSeries = useMemo(() => {
-    if (!accounts || !transactions) return { years: [], series: [] };
-    const investmentAccounts = accounts.filter((a) => a.type === 'investment');
-    const yearSet = new Set<number>();
+  /* ── Patrimoine net dans le temps, par type de compte (12 mois) ── */
+  const checkingEvolution = useMemo(
+    () => buildBalanceSeries(new Set((accounts ?? []).filter(a => a.type === 'checking').map(a => a.id))),
+    [accounts, transactions, dataStartYM],
+  );
+  const savingsEvolution = useMemo(
+    () => buildBalanceSeries(new Set((accounts ?? []).filter(a => a.type === 'savings').map(a => a.id))),
+    [accounts, transactions, dataStartYM],
+  );
+  const investmentEvolution = useMemo(
+    () => buildBalanceSeries(new Set((accounts ?? []).filter(a => a.type === 'investment').map(a => a.id))),
+    [accounts, transactions, dataStartYM],
+  );
 
-    const series = investmentAccounts.map((account, index) => {
-      const yearlyTotals: Record<number, number> = {};
-      for (const t of transactions) {
-        if (t.account_id !== account.id) continue;
-        if (t.category_id !== null) continue;
-        if (!isInvestmentGainLossNote(t.note ?? null)) continue;
-        const [year] = t.date.split('-').map(Number);
-        yearlyTotals[year] = (yearlyTotals[year] ?? 0) + Number(t.amount);
-        yearSet.add(year);
-      }
-      return {
-        name: account.name,
-        color: CHART_PALETTE[index % CHART_PALETTE.length],
-        yearlyTotals,
-      };
-    });
-
-    const years = Array.from(yearSet).sort((a, b) => a - b).map((year) => year.toString());
-    const activeSeries = series
-      .map((item) => ({
-        name: item.name,
-        color: item.color,
-        points: years.map((year) => ({ year, value: item.yearlyTotals[Number(year)] ?? 0 })),
-      }))
-      .filter((item) => item.points.some((point) => point.value !== 0));
-
-    return { years, series: activeSeries };
-  }, [accounts, transactions]);
+  /* ── Soldes actuels par type (pour l'en-tête de chaque mini-graphe) ── */
+  const balanceByType = useMemo(() => ({
+    checking: (accounts ?? []).filter(a => a.type === 'checking').reduce((s, a) => s + Number(a.balance), 0),
+    savings: (accounts ?? []).filter(a => a.type === 'savings').reduce((s, a) => s + Number(a.balance), 0),
+    investment: (accounts ?? []).filter(a => a.type === 'investment').reduce((s, a) => s + Number(a.balance), 0),
+  }), [accounts]);
 
   /* ── Month totals ── */
   const { totalIncome, totalExpense } = useMemo(() => {
@@ -733,14 +697,30 @@ export default function ReportingScreen() {
             </ScrollView>
           </FadeIn>
 
-          {/* ═══ REVENUS vs DÉPENSES ═══ */}
-          <FadeIn delay={160}>
+          {/* ════════════════ SECTION PATRIMOINE ════════════════ */}
+          <FadeIn delay={140}>
+            <GroupHeader icon="layers-outline" title="Patrimoine" color={ACCOUNT_COLORS.checking} />
+          </FadeIn>
+          <FadeIn delay={170}>
+            <View style={s.section}>
+              <Text style={[s.sectionSub, { marginTop: 2 }]}>Patrimoine net par type de compte · jusqu'à 12 mois</Text>
+              <NetWorthMini label="Compte courant" value={balanceByType.checking} color={ACCOUNT_COLORS.checking} points={checkingEvolution} width={chartWidth} />
+              <NetWorthMini label="Épargne" value={balanceByType.savings} color={ACCOUNT_COLORS.savings} points={savingsEvolution} width={chartWidth} />
+              <NetWorthMini label="Investissement" value={balanceByType.investment} color={ACCOUNT_COLORS.investment} points={investmentEvolution} width={chartWidth} />
+            </View>
+          </FadeIn>
+
+          {/* ════════════════ SECTION DÉPENSES ════════════════ */}
+          <FadeIn delay={250}>
+            <GroupHeader icon="card-outline" title="Dépenses" color={C.rose} />
+          </FadeIn>
+          <FadeIn delay={280}>
             <View style={s.section}>
               <View style={s.sectionHeader}>
                 <Ionicons name="bar-chart-outline" size={20} color={C.emerald} />
                 <Text style={s.sectionTitle}>Revenus vs Dépenses</Text>
               </View>
-              <Text style={s.sectionSub}>6 derniers mois</Text>
+              <Text style={s.sectionSub}>Jusqu'à 6 mois</Text>
               <View style={s.chartCard}>
                 <View style={s.legendRow}>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.emerald }]} /><Text style={s.legendSmall}>Revenus</Text></View>
@@ -754,113 +734,32 @@ export default function ReportingScreen() {
               </View>
             </View>
           </FadeIn>
-
-          {/* ═══ CATÉGORIES (Donut) ═══ */}
-          <FadeIn delay={240}>
+          <FadeIn delay={360}>
             <View style={s.section}>
               <View style={s.sectionHeader}>
-                <Ionicons name="pie-chart-outline" size={20} color={C.violet} />
-                <Text style={s.sectionTitle}>Répartition des dépenses</Text>
+                <Ionicons name="podium-outline" size={20} color={C.orange} />
+                <Text style={s.sectionTitle}>Top postes de dépense</Text>
               </View>
-              <Text style={s.sectionSub}>Mois en cours par catégorie</Text>
+              <Text style={s.sectionSub}>Par grande catégorie · ce mois vs précédent</Text>
               <View style={s.chartCard}>
-                <DonutChart slices={categorySlices} size={Math.min(chartWidth, 260)} />
+                <HBarCompare rows={topCategoriesCompare} width={chartWidth} />
               </View>
             </View>
           </FadeIn>
 
-          {/* ═══ PATRIMOINE EVOLUTION ═══ */}
-          <FadeIn delay={320}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}>
-                <Ionicons name="analytics-outline" size={20} color={ACCOUNT_COLORS.checking} />
-                <Text style={s.sectionTitle}>Évolution du patrimoine</Text>
-              </View>
-              <Text style={s.sectionSub}>Solde total estimé, 6 mois</Text>
-              <View style={s.chartCard}>
-                <AreaLineChart points={patrimoinePoints} width={chartWidth} color={ACCOUNT_COLORS.checking} />
-              </View>
-            </View>
-          </FadeIn>
-
-          {/* ═══ ÉPARGNE EVOLUTION ═══ */}
+          {/* ════════════════ SECTION ÉPARGNE ════════════════ */}
           <FadeIn delay={400}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}>
-                <Ionicons name="leaf-outline" size={20} color={ACCOUNT_COLORS.savings} />
-                <Text style={s.sectionTitle}>Évolution de l'épargne</Text>
-              </View>
-              <Text style={s.sectionSub}>Comptes épargne & investissement</Text>
-              <View style={s.chartCard}>
-                <AreaLineChart points={savingsPoints} width={chartWidth} color={ACCOUNT_COLORS.savings} />
-              </View>
-            </View>
+            <GroupHeader icon="leaf-outline" title="Épargne" color={ACCOUNT_COLORS.savings} />
           </FadeIn>
-
-          {/* ═══ PLUS / MOINS-VALUES INVESTISSEMENT ═══ */}
-          <FadeIn delay={440}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}>
-                <Ionicons name="trending-up-outline" size={20} color={C.violet} />
-                <Text style={s.sectionTitle}>Plus / moins-values</Text>
-              </View>
-              <Text style={s.sectionSub}>Comptes d'investissement — évolution annuelle</Text>
-              <View style={s.chartCard}>
-                {investmentGainLossSeries.series.length > 0 ? (
-                  <InvestmentGainLossChart series={investmentGainLossSeries.series} years={investmentGainLossSeries.years} width={chartWidth} />
-                ) : (
-                  <Text style={s.emptyChart}>Aucune plus/moins-value enregistrée.</Text>
-                )}
-              </View>
-            </View>
-          </FadeIn>
-
-          {/* ═══ PROJETS & OBJECTIFS ═══ */}
-          {pilotage && (pilotage.projects_with_progress.length > 0 || pilotage.objectives_with_progress.length > 0) ? (
-            <FadeIn delay={480}>
-              <View style={s.section}>
-                <View style={s.sectionHeader}>
-                  <Ionicons name="rocket-outline" size={20} color={C.amber} />
-                  <Text style={s.sectionTitle}>Projets & Objectifs</Text>
-                </View>
-
-                {pilotage.projects_with_progress.length > 0 ? (
-                  <View style={s.chartCard}>
-                    <Text style={s.subSectionTitle}>Projets</Text>
-                    {pilotage.projects_with_progress.map((p) => (
-                      <ProgressRow key={p.id} label={p.name} current={(p.progress_percentage / 100) * p.target_amount} target={p.target_amount} color={SEMANTIC.project} />
-                    ))}
-                    <View style={s.globalRow}>
-                      <Text style={s.globalLabel}>Avancement global</Text>
-                      <Text style={[s.globalValue, { color: SEMANTIC.project }]}>{pilotage.global_projects_percentage.toFixed(0)}%</Text>
-                    </View>
-                  </View>
-                ) : null}
-
-                {pilotage.objectives_with_progress.length > 0 ? (
-                  <View style={[s.chartCard, { marginTop: 12 }]}>
-                    <Text style={s.subSectionTitle}>Objectifs annuels</Text>
-                    {pilotage.objectives_with_progress.map((o) => (
-                      <ProgressRow key={o.id} label={o.name} current={o.current_year_invested} target={o.target_yearly_amount} color={accountColor(o.account_type ?? 'savings')} />
-                    ))}
-                    <View style={s.globalRow}>
-                      <Text style={s.globalLabel}>Avancement global</Text>
-                      <Text style={[s.globalValue, { color: ACCOUNT_COLORS.savings }]}>{pilotage.global_objectives_percentage.toFixed(0)}%</Text>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            </FadeIn>
-          ) : null}
-
-          {/* ═══ INDICATEURS DE SANTÉ ═══ */}
+          {/* Santé financière — placée avant l'épargne nette */}
           {pilotage ? (
-            <FadeIn delay={560}>
+            <FadeIn delay={430}>
               <View style={s.section}>
                 <View style={s.sectionHeader}>
                   <Ionicons name="pulse-outline" size={20} color={C.teal} />
                   <Text style={s.sectionTitle}>Santé financière</Text>
                 </View>
+                <Text style={s.sectionSub}>Épargne de sécurité & tendances</Text>
                 <View style={s.chartCard}>
                   <HealthIndicator
                     label="Épargne de sécurité"
@@ -893,14 +792,30 @@ export default function ReportingScreen() {
               </View>
             </FadeIn>
           ) : null}
+          <FadeIn delay={470}>
+            <View style={s.section}>
+              <View style={s.sectionHeader}>
+                <Ionicons name="wallet-outline" size={20} color={C.amber} />
+                <Text style={s.sectionTitle}>Épargne nette & taux</Text>
+              </View>
+              <Text style={s.sectionSub}>Revenus − dépenses, et part épargnée · jusqu'à 12 mois</Text>
+              <View style={s.chartCard}>
+                <NetSavingsChart data={netSavings12} width={chartWidth} />
+              </View>
+            </View>
+          </FadeIn>
 
-          {/* ═══ TABLEAU MENSUEL ═══ */}
+          {/* ════════════════ SECTION RÉCAPITULATIF ════════════════ */}
+          <FadeIn delay={600}>
+            <GroupHeader icon="grid-outline" title="Récapitulatif" color={C.indigo} />
+          </FadeIn>
           <FadeIn delay={640}>
             <View style={s.section}>
               <View style={s.sectionHeader}>
-                <Ionicons name="grid-outline" size={20} color={C.indigo} />
+                <Ionicons name="calendar-outline" size={20} color={C.indigo} />
                 <Text style={s.sectionTitle}>Récapitulatif mensuel</Text>
               </View>
+              <Text style={s.sectionSub}>Revenus, dépenses et solde par mois</Text>
               <View style={s.tableCard}>
                 <View style={s.tableHeaderRow}>
                   <Text style={[s.tableHeaderCell, { flex: 2 }]}>Mois</Text>

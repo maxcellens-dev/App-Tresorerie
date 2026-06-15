@@ -20,6 +20,7 @@ import GuideOverlay from '../../components/GuideOverlay';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useNavBack } from '../../hooks/useNavBack';
+import { useCalculator } from '../../contexts/CalculatorContext';
 
 const APP_VERSION = '1.0.0';
 
@@ -33,6 +34,7 @@ export default function SettingsScreen() {
 
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled } = useCalculator();
 
   const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
   const [safetyAmountInput, setSafetyAmountInput] = useState('');
@@ -255,6 +257,24 @@ export default function SettingsScreen() {
             </View>
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
               Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka). Les badges de notification dans l'app restent affichés même si vous les désactivez.
+            </Text>
+          </View>
+
+          {/* ── Calculatrice ── */}
+          <Text style={styles.sectionTitle}>Calculatrice</Text>
+          <View style={styles.card}>
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Ionicons name="calculator-outline" size={20} color={COLORS.textSecondary} />
+              <Text style={styles.rowLabel}>Afficher la calculatrice</Text>
+              <Switch
+                value={calculatorEnabled}
+                onValueChange={setCalculatorEnabled}
+                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              Affiche un bouton d'accès rapide à une calculatrice flottante, déplaçable, sur les écrans de saisie et de projection.
             </Text>
           </View>
 

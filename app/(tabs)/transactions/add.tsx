@@ -14,6 +14,7 @@ import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../types/database';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
+import CalculatorButton from '../../components/CalculatorButton';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { accountColor } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
@@ -483,6 +484,7 @@ export default function AddTransactionScreen() {
           </Pressable>
         </Modal>
       </SafeAreaView>
+      <CalculatorButton />
     </View>
   );
 }

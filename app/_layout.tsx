@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TourProvider } from './contexts/TourContext';
+import { CalculatorProvider } from './contexts/CalculatorContext';
+import Calculator from './components/Calculator';
 import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
@@ -214,6 +216,8 @@ function AppChrome() {
       {isTabs && user && <StreakRecoveryModal />}
       <AnalyticsTracker />
       <RouteHistoryTracker />
+      {/* Calculatrice flottante globale — visible quand ouverte, par-dessus tout */}
+      <Calculator />
     </View>
     </TourProvider>
   );
@@ -224,13 +228,15 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <ConfigSync />
-          <FontApplier />
-          <RecurringMaterializer />
-          <GamificationSync />
-          <PurchasesSync />
-          <PushRegistrar />
-          <AppChrome />
+          <CalculatorProvider>
+            <ConfigSync />
+            <FontApplier />
+            <RecurringMaterializer />
+            <GamificationSync />
+            <PurchasesSync />
+            <PushRegistrar />
+            <AppChrome />
+          </CalculatorProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
