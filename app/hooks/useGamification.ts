@@ -203,6 +203,9 @@ export function useGamification(userId: string | undefined) {
     // Les packs de gemmes (gems_iap) se paient en argent réel → gérés via purchaseGemsPack, pas ici.
     if (item.type === 'gems_iap') return { ok: false, reason: 'achat en argent réel' };
 
+    // Article exclusif Premium : verrouillé pour les non-abonnés (visible mais figé en boutique).
+    if (item.premiumOnly && !isPremium) return { ok: false, reason: 'réservé aux abonnés Premium' };
+
     const price = isPremium ? Math.round(item.price * (1 - config.premium_discount_pct / 100)) : item.price;
     if (state.gems < price) return { ok: false, reason: 'relyks insuffisants' };
 

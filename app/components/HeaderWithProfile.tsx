@@ -64,6 +64,8 @@ interface HeaderWithProfileProps {
   onBack?: () => void;
   /** Masquer l'avatar/profil à droite */
   hideProfile?: boolean;
+  /** Petit badge affiché à droite du titre (ex. étoile « fonction Premium »). */
+  titleBadge?: React.ReactNode;
 }
 
 /** Blende une couleur d'accent (#RRGGBB) à 30 % sur le fond — couleur opaque, aucun problème d'alpha sur web. */
@@ -79,7 +81,7 @@ function blendAccent(bg: string, accent: string, opacity = 0.30): string {
   } catch { return bg; }
 }
 
-export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false }: HeaderWithProfileProps) {
+export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
@@ -108,7 +110,14 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   // Déterminer le contenu à afficher à gauche
   const shouldShowTitle = title && title.trim() !== '';
   const leftContentToRender = leftContent || (shouldShowTitle ? (
-    <Text style={styles.title} numberOfLines={1}>{title}</Text>
+    titleBadge ? (
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        {titleBadge}
+      </View>
+    ) : (
+      <Text style={styles.title} numberOfLines={1}>{title}</Text>
+    )
   ) : (
     <View style={styles.greetingWrap}>
       <Text style={styles.greeting}>Bonjour,</Text>

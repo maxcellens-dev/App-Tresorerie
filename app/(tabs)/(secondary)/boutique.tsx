@@ -15,7 +15,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
-import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, type ShopItem, type ShopCategory } from '../../lib/gamification';
+import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, type ShopItem, type ShopCategory } from '../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
@@ -39,6 +39,7 @@ export default function BoutiqueScreen() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [tab, setTab] = useState<ShopTab>('app');
+  const [catFilter, setCatFilter] = useState<ShopCategory | 'all'>('all');
   const [confirmItem, setConfirmItem] = useState<{ key: string; label: string; price: number } | null>(null);
 
   const gems = state?.gems ?? 0;
@@ -86,6 +87,15 @@ export default function BoutiqueScreen() {
   // Bouton d'achat selon le type d'article (cadeau du jour / pack gemmes / achat en gemmes).
   const renderBuyButton = (item: ShopItem) => {
     const busy = busyKey === item.key;
+    // Article exclusif Premium et utilisateur non-Premium → bouton verrouillé (renvoie vers l'offre Premium).
+    if (item.premiumOnly && !isPremium) {
+      return (
+        <TouchableOpacity style={[styles.buyBtn, { backgroundColor: COLORS.yellow + '22', borderWidth: 1, borderColor: COLORS.yellow + '66', paddingHorizontal: 12 }]} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
+          <Ionicons name="lock-closed" size={12} color={COLORS.yellow} />
+          <Text style={[styles.buyText, { color: COLORS.yellow }]}>Premium</Text>
+        </TouchableOpacity>
+      );
+    }
     if (item.type === 'daily_gems') {
       return (
         <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canClaimDailyGems ? COLORS.green : COLORS.cardBorder, paddingHorizontal: 14 }]} onPress={() => canClaimDailyGems && onBuy(item.key)} disabled={!canClaimDailyGems || busy} activeOpacity={0.85}>
@@ -178,7 +188,22 @@ export default function BoutiqueScreen() {
                 )
               )}
 
-              {shopByCategory.map(({ cat, items }) => {
+              {/* Filtres par catégorie — navigation compacte (évite une page à rallonge) */}
+              {shopByCategory.length > 1 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
+                  {([{ cat: 'all' as const, label: 'Tout', icon: 'apps-outline' }, ...shopByCategory.map((g) => ({ cat: g.cat, label: SHOP_CATEGORY_LABELS[g.cat as ShopCategory], icon: SHOP_CATEGORY_ICONS[g.cat as ShopCategory] }))]).map((f) => {
+                    const active = catFilter === f.cat;
+                    return (
+                      <TouchableOpacity key={f.cat} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setCatFilter(f.cat as any)} activeOpacity={0.85}>
+                        <Ionicons name={f.icon as any} size={13} color={active ? COLORS.emerald : COLORS.textSecondary} />
+                        <Text style={[styles.filterChipText, active && { color: COLORS.emerald }]} numberOfLines={1}>{f.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
+              {(catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter)).map(({ cat, items }) => {
                 const compact = cat === 'gems' || cat === 'series';
                 return (
                   <View key={cat}>
@@ -214,17 +239,27 @@ export default function BoutiqueScreen() {
                     ) : (
                       items.map((item) => {
                         const owned = inventory.find((i) => i.item_key === item.key)?.qty ?? 0;
-                        const accentColor = COLORS.blue;
+                        const frozen = !!item.premiumOnly && !isPremium; // exclusif Premium, non débloqué
+                        const accentColor = item.premiumOnly ? COLORS.yellow : COLORS.blue;
                         return (
-                          <View key={item.key} style={styles.card}>
+                          <View key={item.key} style={[styles.card, frozen && styles.cardFrozen]}>
                             <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
                               {isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={22} color={accentColor} />}
+                              {frozen && <View style={styles.frozenLock}><Ionicons name="lock-closed" size={11} color="#fff" /></View>}
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.itemLabel}>
-                                {itemLabel(item)}
-                                {owned > 0 && item.type !== 'daily_gems' && <Text style={{ color: COLORS.green }}> · acquis</Text>}
-                              </Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <Text style={styles.itemLabel}>
+                                  {itemLabel(item)}
+                                  {owned > 0 && item.type !== 'daily_gems' && <Text style={{ color: COLORS.green }}> · acquis</Text>}
+                                </Text>
+                                {item.premiumOnly && (
+                                  <View style={styles.premiumPill}>
+                                    <Ionicons name="star" size={9} color={COLORS.yellow} />
+                                    <Text style={styles.premiumPillText}>Premium</Text>
+                                  </View>
+                                )}
+                              </View>
                               {!!itemDesc(item) && <Text style={styles.itemDesc}>{itemDesc(item)}</Text>}
                             </View>
                             {renderBuyButton(item)}
@@ -328,6 +363,14 @@ function makeStyles(c: any) {
     premiumBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 },
     premiumText: { flex: 1, fontSize: 12.5, color: c.text, fontWeight: '600' },
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
+    cardFrozen: { opacity: 0.6, borderStyle: 'dashed', borderColor: c.yellow + '55' },
+    frozenLock: { position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.textSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
+    premiumPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+    premiumPillText: { fontSize: 10, fontWeight: '800', color: c.yellow },
+    filterRow: { gap: 8, paddingVertical: 2, paddingRight: 8 },
+    filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
+    filterChipActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
+    filterChipText: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
     compactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
     compactCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 12, alignItems: 'center', gap: 8 },
     compactHalf: { flexBasis: '47%', flexGrow: 1 },

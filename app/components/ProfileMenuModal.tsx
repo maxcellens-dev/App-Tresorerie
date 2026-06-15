@@ -41,10 +41,10 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   // Reporting masqué aux utilisateurs tant que le flag n'est pas activé (les admins y accèdent toujours).
   const reportingVisible = Boolean(featureFlags?.reporting_enabled) || isAdmin;
 
-  const items: ({ icon: string; label: string; route: string; color?: string } | false)[] = [
+  const items: ({ icon: string; label: string; route: string; color?: string; premium?: boolean } | false)[] = [
     { icon: 'person-circle-outline', label: 'Mon Profil', route: '/(tabs)/(secondary)/profile' },
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
-    reportingVisible && { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b' },
+    reportingVisible && { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: true },
     { icon: 'bag-handle-outline', label: 'Boutique', route: '/(tabs)/(secondary)/boutique', color: '#22d3ee' },
     { icon: 'star-outline', label: 'Plan', route: '/(tabs)/(secondary)/premium', color: '#fbbf24' },
     { icon: 'options-outline', label: 'Paramètres', route: '/(tabs)/(secondary)/parametres' },
@@ -95,12 +95,18 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
 
           <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
             {items.filter(Boolean).map((it) => {
-              const item = it as { icon: string; label: string; route: string; color?: string };
+              const item = it as { icon: string; label: string; route: string; color?: string; premium?: boolean };
               const badgeCount = item.label === 'Support' ? supportUnread : 0;
               return (
                 <Pressable key={item.label} style={({ hovered }: any) => [styles.row, hovered && styles.rowHover]} onPress={() => go(item.route)}>
                   <Ionicons name={item.icon as any} size={20} color={item.color ?? COLORS.emerald} />
-                  <Text style={styles.rowLabel}>{item.label}</Text>
+                  <Text style={[styles.rowLabel, item.premium && { flex: 0 }]}>{item.label}</Text>
+                  {item.premium && (
+                    <View style={styles.premiumStar}>
+                      <Ionicons name="star" size={10} color="#F5B301" />
+                    </View>
+                  )}
+                  {item.premium ? <View style={{ flex: 1 }} /> : null}
                   {badgeCount > 0 && (
                     <View style={styles.unreadBadge}>
                       <Text style={styles.unreadBadgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
@@ -152,6 +158,7 @@ function makeStyles(c: any) {
     unreadBadge: { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
     unreadBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },
     rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: c.text },
+    premiumStar: { marginLeft: 6, width: 18, height: 18, borderRadius: 5, backgroundColor: 'rgba(245,179,1,0.16)', alignItems: 'center', justifyContent: 'center' },
     divider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 8 },
     logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13 },
     logoutLabel: { fontSize: 15, fontWeight: '700', color: c.text },

@@ -79,12 +79,15 @@ export default function AppearanceScreen() {
     return cosmetics.ownedKeys.map((key) => {
       const shopItem = gamiConfig?.shop.find((s) => s.key === key);
       const def = COSMETIC_DEFS[key];
+      // Couleur d'illustration : pour un cadre/flamme = sa teinte ; pour un titre = doré.
+      const color = def && /^#[0-9A-Fa-f]{6}$/.test(def.value) ? def.value : '#FFD700';
       return {
         key,
         label: shopItem?.label ?? key,
         description: shopItem?.description ?? '',
         icon: shopItem?.icon ?? 'sparkles',
         slotLabel: def?.slotLabel ?? '',
+        color,
         equipped: cosmetics.isEquipped(key),
       };
     });
@@ -162,7 +165,13 @@ export default function AppearanceScreen() {
             <View style={[styles.block, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, paddingTop: 16, marginTop: 16 }]}>
               <View style={styles.lockRow}>
                 <Text style={styles.label}>Couleur personnalisée</Text>
-                {!colorsUnlocked && <Ionicons name="lock-closed" size={15} color={COLORS.textSecondary} />}
+                {colorsUnlocked ? (
+                  <View style={{ marginLeft: 8, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(245,179,1,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="star" size={11} color="#F5B301" />
+                  </View>
+                ) : (
+                  <Ionicons name="lock-closed" size={15} color={COLORS.textSecondary} />
+                )}
               </View>
 
               {colorsUnlocked ? (
@@ -235,8 +244,8 @@ export default function AppearanceScreen() {
                       onPress={() => cosmetics.toggle(cos.key)}
                       activeOpacity={0.8}
                     >
-                      <View style={[styles.cosmeticIcon, { backgroundColor: '#FFD70022' }]}>
-                        <Ionicons name={cos.icon as any} size={20} color="#FFD700" />
+                      <View style={[styles.cosmeticIcon, { backgroundColor: cos.color + '22' }]}>
+                        <Ionicons name={cos.icon as any} size={20} color={cos.color} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.cosmeticLabel}>{cos.label}</Text>

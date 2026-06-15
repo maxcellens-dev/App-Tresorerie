@@ -50,17 +50,30 @@ export interface StreakConfig {
   freezeCost: number;     // coût d'un gel de série (gemmes)
 }
 
-export type ShopCategory = 'gratuit' | 'series' | 'apparence' | 'cosmetiques' | 'gems';
+export type ShopCategory = 'gratuit' | 'series' | 'apparence' | 'cosmetiques' | 'titres' | 'premium' | 'gems';
 
 export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   gratuit: 'Gratuit',
   series: 'Séries',
   apparence: 'Apparence',
   cosmetiques: 'Cosmétiques',
+  titres: 'Titres de profil',
+  premium: 'Exclusif Premium',
   gems: 'Recharger en relyks',
 };
 /** Ordre d'affichage des catégories dans la boutique. */
-export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'series', 'apparence', 'cosmetiques', 'gems'];
+export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'series', 'apparence', 'cosmetiques', 'titres', 'premium', 'gems'];
+
+/** Icône représentative par catégorie (pour les filtres de la boutique). */
+export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
+  gratuit: 'gift-outline',
+  series: 'snow-outline',
+  apparence: 'color-palette-outline',
+  cosmetiques: 'sparkles-outline',
+  titres: 'ribbon-outline',
+  premium: 'star',
+  gems: 'diamond-outline',
+};
 
 /** Les 7 couleurs d'accent premium débloquées par l'achat « accent_pack » (ou Premium). */
 export const ACCENT_PACK_COLORS = ['#FF2D55', '#FF6B6B', '#FFCC00', '#06D6A0', '#00C7BE', '#5856D6', '#C77DFF'];
@@ -80,9 +93,24 @@ export interface CosmeticDef {
 
 /** Mappe la clé d'article cosmétique → emplacement + effet. */
 export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
-  cosmetic_avatar_frame: { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#FFD700' },
-  cosmetic_title_legend: { slot: 'title', slotLabel: 'Titre de profil', value: 'Légende' },
-  cosmetic_gold_flame: { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#FFD700' },
+  // ── Cadres d'avatar (value = couleur de la bordure) ──
+  cosmetic_avatar_frame:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#FFD700' },
+  cosmetic_frame_silver:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#C0C0C0' },
+  cosmetic_frame_emerald:  { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#10B981' },
+  cosmetic_frame_neon:     { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#D946EF' },
+  cosmetic_frame_prestige: { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#F43F5E' },
+  // ── Titres de profil (value = texte affiché) ──
+  cosmetic_title_legend:      { slot: 'title', slotLabel: 'Titre de profil', value: 'Légende' },
+  cosmetic_title_strategist:  { slot: 'title', slotLabel: 'Titre de profil', value: 'Stratège' },
+  cosmetic_title_builder:     { slot: 'title', slotLabel: 'Titre de profil', value: 'Bâtisseur' },
+  cosmetic_title_saver:       { slot: 'title', slotLabel: 'Titre de profil', value: "Maître de l'épargne" },
+  cosmetic_title_investor:    { slot: 'title', slotLabel: 'Titre de profil', value: 'Investisseur' },
+  cosmetic_title_visionnaire: { slot: 'title', slotLabel: 'Titre de profil', value: 'Visionnaire' },
+  cosmetic_title_elite:       { slot: 'title', slotLabel: 'Titre de profil', value: 'Élite' },
+  // ── Flammes de série (value = couleur de la flamme) ──
+  cosmetic_gold_flame:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#FFD700' },
+  cosmetic_flame_blue:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#3B82F6' },
+  cosmetic_flame_violet: { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#8B5CF6' },
 };
 
 export type EquippedCosmetics = Partial<Record<CosmeticSlot, string>>;
@@ -99,6 +127,8 @@ export interface ShopItem {
   price: number;          // en gemmes (0 pour gratuit / payant en argent réel)
   icon?: string;          // Ionicons ou URL
   payload?: Record<string, unknown>; // ex. { qty } pour un pack, { gems, productId } pour un gems_iap
+  /** Article RÉSERVÉ aux abonnés Premium : visible pour tous mais figé (verrouillé) pour les non-Premium. */
+  premiumOnly?: boolean;
 }
 
 export interface GamificationConfig {
@@ -169,10 +199,24 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'streak_restore', type: 'streak_restore', category: 'series', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
     // ── Apparence ──
     { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent exclusives pour personnaliser votre espace.', price: 200, icon: 'color-palette' },
-    // ── Cosmétiques ──
+    // ── Cosmétiques : cadres d'avatar & flammes de série ──
+    { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
+    { key: 'cosmetic_frame_silver', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre argenté', description: 'Un cadre argenté élégant autour de ton avatar.', price: 70, icon: 'person-circle' },
+    { key: 'cosmetic_frame_emerald', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre émeraude', description: 'Un cadre vert émeraude autour de ton avatar.', price: 100, icon: 'person-circle' },
     { key: 'cosmetic_gold_flame', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme dorée', description: 'Une flamme de série dorée affichée sur ton profil.', price: 90, icon: 'flame' },
-    { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre d’avatar doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
-    { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'cosmetiques', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
+    { key: 'cosmetic_flame_blue', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme bleue', description: 'Une flamme de série bleu glacé.', price: 90, icon: 'flame' },
+    // ── Titres de profil ──
+    { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'titres', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
+    { key: 'cosmetic_title_strategist', type: 'cosmetic', category: 'titres', label: 'Titre « Stratège »', description: 'Affiche le titre « Stratège » sur ton profil.', price: 120, icon: 'ribbon' },
+    { key: 'cosmetic_title_builder', type: 'cosmetic', category: 'titres', label: 'Titre « Bâtisseur »', description: 'Affiche le titre « Bâtisseur » sur ton profil.', price: 160, icon: 'ribbon' },
+    { key: 'cosmetic_title_saver', type: 'cosmetic', category: 'titres', label: 'Titre « Maître de l’épargne »', description: 'Pour les épargnants accomplis.', price: 220, icon: 'ribbon' },
+    { key: 'cosmetic_title_investor', type: 'cosmetic', category: 'titres', label: 'Titre « Investisseur »', description: 'Affiche le titre « Investisseur » sur ton profil.', price: 200, icon: 'ribbon' },
+    // ── Exclusif Premium (visible mais verrouillé pour les non-Premium) ──
+    { key: 'cosmetic_frame_neon', type: 'cosmetic', category: 'premium', label: 'Cadre néon', description: 'Un cadre néon magenta exclusif.', price: 250, icon: 'person-circle', premiumOnly: true },
+    { key: 'cosmetic_frame_prestige', type: 'cosmetic', category: 'premium', label: 'Cadre prestige', description: 'Le cadre le plus rare, réservé aux Premium.', price: 350, icon: 'diamond', premiumOnly: true },
+    { key: 'cosmetic_flame_violet', type: 'cosmetic', category: 'premium', label: 'Flamme violette', description: 'Une flamme de série violette exclusive.', price: 220, icon: 'flame', premiumOnly: true },
+    { key: 'cosmetic_title_visionnaire', type: 'cosmetic', category: 'premium', label: 'Titre « Visionnaire »', description: 'Un titre exclusif réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
+    { key: 'cosmetic_title_elite', type: 'cosmetic', category: 'premium', label: 'Titre « Élite »', description: 'Le titre le plus prestigieux, réservé aux Premium.', price: 400, icon: 'sparkles', premiumOnly: true },
     // ── Recharger en gemmes (argent réel via le store) ──
     { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: '100_relyks' } },
     { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: '500_relyks' } },

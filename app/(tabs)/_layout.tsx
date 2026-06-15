@@ -8,11 +8,24 @@ import CustomTabBar from '../components/CustomTabBar';
 import OnboardingGate from '../components/OnboardingGate';
 import { useAppColors } from '../hooks/useAppColors';
 import { View } from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
+import { usePlan } from '../hooks/usePlan';
+
+/** Petite étoile « fonction Premium » — discrète, à droite d'un titre. */
+function PremiumStar() {
+  return (
+    <View style={{ marginLeft: 8, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(245,179,1,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+      <Ionicons name="star" size={11} color="#F5B301" />
+    </View>
+  );
+}
 
 function TabsHeader({ route }: { route: any }) {
   const COLORS = useAppColors();
   const segments = useSegments();
   const fullPath = segments.join('/');
+  const { user } = useAuth();
+  const { isPremium } = usePlan(user?.id);
 
   const titleMap: Record<string, string> = {
     '(tabs)/pilotage': 'Tableau de bord',
@@ -37,9 +50,11 @@ function TabsHeader({ route }: { route: any }) {
   const displayTitle = titleMap[fullPath] || 'Relyka';
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
+  const isReporting = fullPath === '(tabs)/reporting';
   return (
     <HeaderWithProfile
       title={isHome || showCustomHeader ? undefined : displayTitle}
+      titleBadge={isReporting && isPremium ? <PremiumStar /> : undefined}
       leftContent={
         (showCustomHeader || fullPath.includes('admin')) ? (
           <Text style={{ fontSize: 20, fontWeight: '700', color: COLORS.text }}>

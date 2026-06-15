@@ -658,8 +658,6 @@ export default function ReportingScreen() {
     );
   }
 
-  const currentMonthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-
   return (
     <View style={s.root}>
       <StatusBar style="light" />
@@ -671,9 +669,9 @@ export default function ReportingScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.emerald} progressBackgroundColor={C.card} />}
         >
-          {/* ═══ HEADER ═══ */}
+          {/* ═══ HEADER (retour uniquement) ═══ */}
           <FadeIn>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <TouchableOpacity
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 onPress={goBack}
@@ -681,20 +679,7 @@ export default function ReportingScreen() {
                 <Ionicons name="chevron-back" size={20} color={C.textSecondary} />
                 <Text style={{ fontSize: 14, fontWeight: '600', color: C.textSecondary }}>Retour</Text>
               </TouchableOpacity>
-              <Text style={[s.pageSub, { marginLeft: 'auto' }]}>{currentMonthLabel.charAt(0).toUpperCase() + currentMonthLabel.slice(1)}</Text>
             </View>
-          </FadeIn>
-
-          {/* ═══ KPI CARDS ═══ */}
-          <FadeIn delay={80}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
-              <KpiCard icon="wallet-outline" label="Patrimoine total" value={fmtFull(patrimoine)} color={ACCOUNT_COLORS.checking} />
-              <KpiCard icon="trending-up-outline" label="Revenus du mois" value={fmtFull(totalIncome)} color={ACCOUNT_COLORS.savings} />
-              <KpiCard icon="trending-down-outline" label="Dépenses du mois" value={fmtFull(totalExpense)} color={C.rose} />
-              {pilotage ? (
-                <KpiCard icon="shield-checkmark-outline" label="À dépenser" value={fmtFull(pilotage.safe_to_spend)} color={SEMANTIC.variableExpense} sub="en sécurité" />
-              ) : null}
-            </ScrollView>
           </FadeIn>
 
           {/* ════════════════ SECTION PATRIMOINE ════════════════ */}
