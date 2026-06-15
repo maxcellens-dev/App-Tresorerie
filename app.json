@@ -18,6 +18,7 @@
       "package": "com.relyka.myapp"
     },
     "plugins": [
+      "./plugins/withJitpackAuth",
       "expo-router",
       "expo-notifications",
       [
