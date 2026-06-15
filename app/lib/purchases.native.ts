@@ -12,7 +12,6 @@
  */
 import { Platform } from 'react-native';
 import Purchases, { LOG_LEVEL, type CustomerInfo } from 'react-native-purchases';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
 export type PurchaseReason = 'not_configured' | 'not_supported' | 'cancelled' | 'error';
 export interface PurchaseResult { ok: boolean; reason?: PurchaseReason; message?: string }
@@ -70,25 +69,36 @@ export async function isProActive(): Promise<boolean> {
   try { return entitlementActive(await Purchases.getCustomerInfo()); } catch { return false; }
 }
 
-/** Présente le Paywall RevenueCat (offres mensuelle/annuelle). ok=true si achat ou restauration. */
-export async function purchasePremium(_userId?: string): Promise<PurchaseResult> {
+// Product IDs Play Store / App Store pour l'abonnement Premium.
+const PRODUCT_IDS = {
+  monthly: '1001:201',
+  annual:  '1001:202',
+} as const;
+
+/** Achète directement le plan Premium choisi (mensuel ou annuel) via RevenueCat. */
+export async function purchasePremium(plan: 'monthly' | 'annual', _userId?: string): Promise<PurchaseResult> {
   if (!PURCHASES_SUPPORTED) return { ok: false, reason: 'not_supported' };
   if (!configured) return { ok: false, reason: 'not_configured', message: 'Paiement non initialisé.' };
   try {
-    const r = await RevenueCatUI.presentPaywall();
-    switch (r) {
-      case PAYWALL_RESULT.PURCHASED:
-      case PAYWALL_RESULT.RESTORED:
-        return { ok: true };
-      case PAYWALL_RESULT.CANCELLED:
-        return { ok: false, reason: 'cancelled' };
-      case PAYWALL_RESULT.NOT_PRESENTED:
-        return { ok: false, reason: 'not_configured', message: "Aucune offre n'est configurée dans RevenueCat." };
-      default:
-        return { ok: false, reason: 'error', message: "L'achat n'a pas pu aboutir." };
+    // On passe par les Offerings pour obtenir le Package RC (la voie recommandée).
+    const offerings = await Purchases.getOfferings();
+    const current = offerings.current;
+    const productId = PRODUCT_IDS[plan];
+    const pkg = current?.availablePackages.find(
+      (p) => p.product.identifier === productId
+    );
+    if (pkg) {
+      await Purchases.purchasePackage(pkg);
+    } else {
+      // Fallback : achat direct par productId (si l'offering n'est pas configurée).
+      const products = await Purchases.getProducts([productId]);
+      if (!products.length) return { ok: false, reason: 'not_configured', message: "Produit introuvable dans le store." };
+      await Purchases.purchaseStoreProduct(products[0]);
     }
+    return { ok: true };
   } catch (e: any) {
-    return { ok: false, reason: 'error', message: e?.message ?? "Erreur lors de l'achat." };
+    if (e?.userCancelled) return { ok: false, reason: 'cancelled' };
+    return { ok: false, reason: 'error', message: e?.message ?? "L'achat n'a pas pu aboutir." };
   }
 }
 

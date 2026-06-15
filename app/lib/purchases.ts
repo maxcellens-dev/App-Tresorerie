@@ -36,7 +36,7 @@ export async function logOutPurchases(): Promise<void> { /* no-op web */ }
 
 export async function isProActive(): Promise<boolean> { return false; }
 
-export async function purchasePremium(_userId?: string): Promise<PurchaseResult> {
+export async function purchasePremium(_plan: 'monthly' | 'annual', _userId?: string): Promise<PurchaseResult> {
   return {
     ok: false,
     reason: 'not_supported',

@@ -33,6 +33,7 @@ export default function PremiumScreen() {
   const setPremium = useSetPremium(user?.id);
   const { data: gam } = useGamificationConfig();
   const discount = gam?.premium_discount_pct ?? 0;
+  const [selectedPlan, setSelectedPlan] = React.useState<'monthly' | 'annual'>('annual');
   const [purchaseMsg, setPurchaseMsg] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<null | 'buy' | 'restore'>(null);
   const [sub, setSub] = React.useState<SubscriptionInfo | null>(null);
@@ -46,7 +47,7 @@ export default function PremiumScreen() {
   const onSubscribe = async () => {
     setPurchaseMsg(null);
     setBusy('buy');
-    const res = await purchasePremium(user?.id);
+    const res = await purchasePremium(selectedPlan, user?.id);
     setBusy(null);
     if (res.ok) {
       // Achat confirmé → on bascule en Premium immédiatement (RevenueCat reste la source de vérité).
@@ -121,19 +122,30 @@ export default function PremiumScreen() {
           {premiumEnabled && !isPremium && (
             <>
               <View style={styles.offersRow}>
-                <View style={styles.offerCard}>
+                <TouchableOpacity
+                  style={[styles.offerCard, selectedPlan === 'monthly' && { borderColor: COLORS.emerald, borderWidth: 2 }]}
+                  onPress={() => setSelectedPlan('monthly')}
+                  activeOpacity={0.8}
+                >
+                  {selectedPlan === 'monthly' && <View style={[styles.bestBadge, { backgroundColor: COLORS.emerald }]}><Text style={styles.bestBadgeText}>✓ Sélectionné</Text></View>}
                   <Text style={styles.offerName}>Mensuel</Text>
                   <Text style={styles.offerDesc}>Sans engagement, résiliable à tout moment.</Text>
-                </View>
-                <View style={[styles.offerCard, { borderColor: COLORS.emerald }]}>
-                  <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>Avantageux</Text></View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.offerCard, { borderColor: selectedPlan === 'annual' ? COLORS.emerald : COLORS.cardBorder, borderWidth: selectedPlan === 'annual' ? 2 : 1 }]}
+                  onPress={() => setSelectedPlan('annual')}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.bestBadge, { backgroundColor: selectedPlan === 'annual' ? COLORS.emerald : COLORS.yellow }]}>
+                    <Text style={styles.bestBadgeText}>{selectedPlan === 'annual' ? '✓ Sélectionné' : 'Avantageux'}</Text>
+                  </View>
                   <Text style={styles.offerName}>Annuel</Text>
                   <Text style={styles.offerDesc}>Le meilleur prix sur l'année.</Text>
-                </View>
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity style={[styles.cta, { backgroundColor: COLORS.emerald }]} activeOpacity={0.85} onPress={onSubscribe} disabled={busy !== null}>
-                {busy === 'buy' ? <ActivityIndicator color="#fff" /> : <Text style={[styles.ctaText, { color: '#fff' }]}>Choisir une formule</Text>}
+                {busy === 'buy' ? <ActivityIndicator color="#fff" /> : <Text style={[styles.ctaText, { color: '#fff' }]}>S'abonner — {selectedPlan === 'monthly' ? 'Mensuel' : 'Annuel'}</Text>}
               </TouchableOpacity>
 
               {PURCHASES_SUPPORTED && (
