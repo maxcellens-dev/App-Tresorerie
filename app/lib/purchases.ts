@@ -23,7 +23,7 @@ export interface SubscriptionInfo {
 }
 
 /** Identifiant d'entitlement configuré dans le tableau de bord RevenueCat. */
-export const RC_ENTITLEMENT_ID = 'Relyka Pro';
+export const RC_ENTITLEMENT_ID = 'Relyka_Premium';
 
 /** Les achats in-app natifs ne sont pas disponibles sur cette plateforme (web). */
 export const PURCHASES_SUPPORTED = false;

@@ -26,7 +26,7 @@ export interface SubscriptionInfo {
   managementURL: string | null;
 }
 
-export const RC_ENTITLEMENT_ID = 'Relyka Pro';
+export const RC_ENTITLEMENT_ID = 'Relyka_Premium';
 export const PURCHASES_SUPPORTED = Platform.OS === 'ios' || Platform.OS === 'android';
 
 // Clés publiques RevenueCat par plateforme.

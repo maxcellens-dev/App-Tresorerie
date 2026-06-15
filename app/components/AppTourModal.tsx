@@ -35,12 +35,20 @@ export default function AppTourModal({ visible, onFinish }: Props) {
   const isLast = step === slides.length - 1;
   const s = slides[step];
 
-  const next = () => { if (isLast) { setStep(0); onFinish(); } else setStep(step + 1); };
+  const finish = () => { setStep(0); onFinish(); };
+  const next = () => { if (isLast) finish(); else setStep(step + 1); };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={finish}>
       <View style={styles.overlay}>
         <View style={styles.card}>
+          {/* Passer — ferme le guide immédiatement (§guide) */}
+          {!isLast && (
+            <TouchableOpacity style={styles.skipBtn} onPress={finish} hitSlop={8}>
+              <Text style={styles.skipText}>Passer</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={[styles.iconCircle, { backgroundColor: s.color + '22', borderColor: s.color + '55' }]}>
             <Ionicons name={s.icon as any} size={36} color={s.color} />
           </View>
@@ -68,6 +76,8 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
     card: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid, borderRadius: 24, borderWidth: 1, borderColor: c.cardBorder, padding: 28, alignItems: 'center' },
+    skipBtn: { alignSelf: 'flex-end', marginBottom: 6 },
+    skipText: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
     iconCircle: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginBottom: 18 },
     title: { fontSize: 21, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 10, letterSpacing: -0.3 },
     text: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },

@@ -257,13 +257,17 @@ export default function PilotageScreen() {
         else if (linked === 'savings' && src === 'checking') savings.push(t);
       }
       // Vraies dépenses depuis un compte courant (hors virements / projets / régul)
-      if (amt < 0 && !t.linked_account_id && !t.project_id && checkingIds.has(t.account_id) && !draft) {
+      if (!t.linked_account_id && !t.project_id && checkingIds.has(t.account_id) && !draft) {
         const cat = t.category;
-        const isExpense = !cat || cat.type === 'expense';
-        const isRegul = cat?.name && /r[ée]gularisation/i.test(cat.name);
-        if (isExpense && !isRegul) {
-          if (recurring) recurrentes.push(t);
-          else if (inMonth(t.date) && t.date <= todayStr) spent.push(t);
+        const isExpenseOrRefund = !cat || cat.type === 'expense' || (amt > 0 && cat.type === 'income');
+        const isRegul = !cat?.name || /r[ée]gularisation|ajustement de solde/i.test(cat.name) || (cat === null && (t.note ?? '').toLowerCase().includes('gul'));
+        const isInMonth = inMonth(t.date) && t.date <= todayStr;
+        if (isExpenseOrRefund && !isRegul) {
+          // Récurrentes actives (template) → liste récurrentes (pour le modal plannifié)
+          if (recurring && amt < 0) recurrentes.push(t);
+          // Toute dépense/remboursement passé(e) dans le mois → liste spent (modal « Dépensé ce mois »)
+          // Inclut les récurrentes matérialisées (plus marquées recurring après migration 030).
+          if (isInMonth) spent.push(t);
         }
       }
     }
@@ -528,7 +532,7 @@ export default function PilotageScreen() {
               </View>
               <View style={styles.monthPill}>
                 <Text style={styles.monthPillText}>
-                  {`${String(new Date().getMonth() + 1).padStart(2, '0')}-${new Date().getFullYear()}`}
+                  {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
                 </Text>
               </View>
             </View>
