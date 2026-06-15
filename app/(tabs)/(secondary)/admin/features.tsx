@@ -37,6 +37,7 @@ export default function AdminFeatures() {
   const premiumOn = Boolean(flags?.premium_enabled);
   const adsOn = Boolean(flags?.ads_enabled);
   const reportingOn = Boolean(flags?.reporting_enabled);
+  const recoContextOn = flags?.reco_context_enabled !== false; // défaut activé
 
   const Toggle = ({ label, desc, value, onToggle }: { label: string; desc: string; value: boolean; onToggle: () => void }) => (
     <View style={styles.card}>
@@ -89,6 +90,12 @@ export default function AdminFeatures() {
               desc="Donne accès à la page Reporting (statistiques utilisateur) depuis le menu. Désactivé = page masquée pour les utilisateurs (les admins y accèdent toujours)."
               value={reportingOn}
               onToggle={() => save.mutate({ reporting_enabled: !reportingOn })}
+            />
+            <Toggle
+              label="Messages des recommandations"
+              desc="Phrase motivante sous chaque reco (projection investissement à 10/20 ans, économie possible…). Désactivé = recos sans ce message."
+              value={recoContextOn}
+              onToggle={() => save.mutate({ reco_context_enabled: !recoContextOn })}
             />
             <Toggle
               label="Mon compte : Premium (test)"

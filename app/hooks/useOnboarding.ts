@@ -24,7 +24,11 @@ export type OnboardingStepKey =
   | 'reserved_consulted'
   | 'projection_edited';
 
-export type OnboardingFlag = 'dismissed' | 'checklist_intro_shown' | 'reserved_consulted' | 'projection_edited' | 'reco_validated';
+export type PageIntroKey = 'transactions' | 'pilotage' | 'projets' | 'projection' | 'menu';
+
+export type OnboardingFlag =
+  | 'dismissed' | 'checklist_intro_shown' | 'reserved_consulted' | 'projection_edited' | 'reco_validated'
+  | 'intro_seen_transactions' | 'intro_seen_pilotage' | 'intro_seen_projets' | 'intro_seen_projection' | 'intro_seen_menu';
 
 export interface OnboardingStep {
   key: OnboardingStepKey;
@@ -40,7 +44,16 @@ interface OnboardingState {
   reserved_consulted?: boolean;
   projection_edited?: boolean;
   reco_validated?: boolean;
+  // Présentations « 1ʳᵉ visite » par page (modal centré). Réinitialisées si on relance le tuto.
+  intro_seen_transactions?: boolean;
+  intro_seen_pilotage?: boolean;
+  intro_seen_projets?: boolean;
+  intro_seen_projection?: boolean;
+  intro_seen_menu?: boolean;
 }
+
+/** Toutes les clés de présentation de page, pour réinitialiser le tuto. */
+export const ALL_PAGE_INTRO_KEYS: PageIntroKey[] = ['transactions', 'pilotage', 'projets', 'projection', 'menu'];
 
 const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: string }[] = [
   { key: 'account_initialized', label: 'Renseigner le solde de vos comptes', route: '/(tabs)/comptes',     hint: 'Ouvrez votre compte courant → « Nouveau Solde » et saisissez votre solde réel à ce jour.' },

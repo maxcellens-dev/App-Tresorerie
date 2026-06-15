@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import AdSlot from '../../components/AdSlot';
 import { tabRect } from '../../lib/tourTargets';
@@ -460,6 +461,7 @@ export default function TransactionsListScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <PageIntroModal pageKey="transactions" />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {showPeriodNav && (

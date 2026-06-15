@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable } from 'react-native';
 import ScreenGradient from '../components/ScreenGradient';
+import PageIntroModal from '../components/PageIntroModal';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import MonthlyClosure from '../components/MonthlyClosure';
 import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 import { usePilotageData } from '../hooks/usePilotageData';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useAccounts } from '../hooks/useAccounts';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../hooks/usePreSavings';
 import { useReservations, useSetMonthlyReservation } from '../hooks/useReservations';
@@ -25,6 +27,7 @@ import RecommendationCard from '../components/RecommendationCard';
 import ConseilsBanner from '../components/ConseilsBanner';
 import AdSlot from '../components/AdSlot';
 import { useProjects } from '../hooks/useProjects';
+import { useCategories } from '../hooks/useCategories';
 import PreSavingsModal from '../components/PreSavingsModal';
 import CumulsPanel from '../components/CumulsPanel';
 import CategoryDonut from '../components/CategoryDonut';
@@ -57,6 +60,18 @@ export default function PilotageScreen() {
   const pilotageQuery = usePilotageData(user?.id);
   const { data: projectsForConseils = [] } = useProjects(user?.id);
   const { data: txForConseils = [] } = useTransactions(user?.id);
+  const { data: categoriesList = [] } = useCategories(user?.id);
+  // Map nom de (sous-)catégorie → nom de la catégorie PARENTE (pour regrouper les récurrentes par catégorie).
+  const catParentName = useMemo(() => {
+    const byId: Record<string, any> = {};
+    for (const c of categoriesList as any[]) byId[c.id] = c;
+    const map: Record<string, string> = {};
+    for (const c of categoriesList as any[]) {
+      const parentName = c.parent_id && byId[c.parent_id] ? byId[c.parent_id].name : c.name;
+      if (c.name) map[String(c.name).toLowerCase()] = parentName;
+    }
+    return map;
+  }, [categoriesList]);
   const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
   const showClosure = closureEnabled && pendingMonths.length > 0;
   const { data: customTiers } = useRecommendationTiers();
@@ -83,6 +98,7 @@ export default function PilotageScreen() {
   const [plannedTab, setPlannedTab] = useState<'recurrentes' | 'variables'>('recurrentes');
   const [showTroughInfo, setShowTroughInfo] = useState(false); // popup « point bas de trésorerie » (§N8)
   const [spentFilter, setSpentFilter] = useState<string | null>(null); // filtre sous-catégorie du camembert (§N2)
+  const [recurFilter, setRecurFilter] = useState<string | null>(null); // filtre catégorie du camembert des récurrentes
   const releaseReserved = useReleaseReservedByProject(user?.id);
   const updateOnboarding = useUpdateOnboarding(user?.id);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
@@ -166,6 +182,10 @@ export default function PilotageScreen() {
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const isLoading = pilotageLoading;
+
+  // Messages contextuels des recos (projection invest, économie…) — activables en admin (défaut : oui).
+  const { data: featureFlags } = useFeatureFlags();
+  const recoContextEnabled = featureFlags?.reco_context_enabled !== false;
 
   // ── Reste disponible = Courant − tout ce qui est affiché ──
   // Formule directe depuis les valeurs affichées pour cohérence avec l'UI.
@@ -419,6 +439,7 @@ export default function PilotageScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
       <ScreenGradient />
+      <PageIntroModal pageKey="pilotage" />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {/* Bandeau marge de sécurité */}
@@ -492,6 +513,7 @@ export default function PilotageScreen() {
                   : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant tes recommandations ;)'
               }
               recommendations={recoList}
+              financials={recoContextEnabled && pilotageData ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance } : undefined}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
               hasSavingsAccount={hasSavingsAccount}
@@ -623,7 +645,7 @@ export default function PilotageScreen() {
                       <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: COLORS.danger }]} /></View>
                     </TouchableOpacity>
                     {/* Dépenses récurrentes restantes — curseur = restant / total (décroît, §N5) */}
-                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
+                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
                       <View style={styles.depBarTop}>
                         <View style={styles.depBarLabelRow}>
                           <Text style={styles.depBarLabel}>Dépenses récurrentes restantes</Text>
@@ -850,23 +872,29 @@ export default function PilotageScreen() {
               const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
               const dts = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
               const lbl = (t: any) => t.note || t.category?.name || 'Opération';
-              const recLabel: Record<string, string> = { weekly: 'Hebdomadaire', monthly: 'Mensuel', quarterly: 'Trimestriel', yearly: 'Annuel' };
               const titles: Record<string, string> = {
                 checking: 'Budget courant actuel', savings: 'Épargne du mois', invest: 'Investissement du mois',
                 spent: 'Dépensé ce mois', planned: 'Dépenses prévues restantes', relyka: 'Ton Relyka (Budget libre)',
               };
               const txList = (list: any[], color: string, empty: string) => (
                 list.length === 0 ? <Text style={styles.detailEmpty}>{empty}</Text> :
-                list.map((t, i) => (
-                  <View key={t.id ?? i} style={styles.detailRow}>
-                    <Ionicons name={iconForTransaction(t) as any} size={16} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
-                      <Text style={styles.detailRowSub}>{t.is_recurring && t.recurrence_rule ? (recLabel[t.recurrence_rule] ?? 'Récurrent') : dts(t.date)}</Text>
+                list.map((t, i) => {
+                  // Remboursement = montant positif (argent qui revient) → vert avec « + ».
+                  const amt = Number(t.amount);
+                  const isRefund = amt > 0;
+                  const valColor = isRefund ? semanticText(COLORS.green, COLORS) : color;
+                  return (
+                    <View key={t.id ?? i} style={styles.detailRow}>
+                      <Ionicons name={iconForTransaction(t) as any} size={16} color={isRefund ? semanticText(COLORS.green, COLORS) : COLORS.textSecondary} style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
+                        {/* Date de la transaction (au lieu de la périodicité). */}
+                        <Text style={styles.detailRowSub}>{dts(t.date)}</Text>
+                      </View>
+                      <Text style={[styles.detailRowValue, { color: valColor }]}>{(isRefund ? '+' : '') + fmt(Math.abs(amt))}</Text>
                     </View>
-                    <Text style={[styles.detailRowValue, { color }]}>{fmt(Math.abs(Number(t.amount)))}</Text>
-                  </View>
-                ))
+                  );
+                })
               );
               return (
                 <>
@@ -951,7 +979,62 @@ export default function PilotageScreen() {
                     {detailKey === 'planned' && (
                       <>
                         {plannedTab === 'recurrentes'
-                          ? txList(suiviDetail.recurrentes, semanticText(COLORS.orange, COLORS), 'Aucune dépense récurrente.')
+                          ? (() => {
+                            // Répartition par CATÉGORIE PARENTE (camembert cliquable → filtre la liste).
+                            const groups: Record<string, { key: string; total: number; icon: string; color: string }> = {};
+                            for (const t of suiviDetail.recurrentes) {
+                              const sub = t.category?.name || 'Autre';
+                              const key = catParentName[String(sub).toLowerCase()] || sub;
+                              (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
+                              groups[key].total += Math.abs(Number(t.amount));
+                            }
+                            const palette = [COLORS.orange, COLORS.danger, COLORS.violet, COLORS.blue, COLORS.green, COLORS.teal, COLORS.yellow, COLORS.emerald, COLORS.checking];
+                            const arr = Object.values(groups).sort((a, b) => b.total - a.total);
+                            arr.forEach((g, i) => { g.color = palette[i % palette.length]; });
+                            const totalRecur = arr.reduce((s, g) => s + g.total, 0);
+                            const filtered = recurFilter
+                              ? suiviDetail.recurrentes.filter((t) => (catParentName[String(t.category?.name || 'Autre').toLowerCase()] || (t.category?.name || 'Autre')) === recurFilter)
+                              : suiviDetail.recurrentes;
+                            return (
+                              <>
+                                {arr.length > 0 && (
+                                  <>
+                                    <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                                      <CategoryDonut
+                                        segments={arr.map((g) => ({ key: g.key, value: g.total, color: g.color }))}
+                                        size={150}
+                                        strokeWidth={20}
+                                        activeKey={recurFilter}
+                                        centerLabel={fmt(recurFilter ? (groups[recurFilter]?.total ?? 0) : totalRecur)}
+                                        centerSub={recurFilter ?? 'Total'}
+                                        centerColor={COLORS.text}
+                                      />
+                                    </View>
+                                    <View style={styles.pieLegend}>
+                                      {arr.map((g) => {
+                                        const active = recurFilter === g.key;
+                                        return (
+                                          <TouchableOpacity
+                                            key={g.key}
+                                            style={[styles.pieLegendItem, active && { borderColor: g.color, backgroundColor: g.color + '1A' }]}
+                                            onPress={() => setRecurFilter(active ? null : g.key)}
+                                            activeOpacity={0.7}
+                                          >
+                                            <View style={[styles.pieDot, { backgroundColor: g.color }]} />
+                                            <Ionicons name={g.icon as any} size={13} color={COLORS.textSecondary} />
+                                            <Text style={styles.pieLegendText} numberOfLines={1}>{g.key}</Text>
+                                            <Text style={[styles.pieLegendVal, { color: g.color }]}>{fmt(g.total)}</Text>
+                                          </TouchableOpacity>
+                                        );
+                                      })}
+                                    </View>
+                                    <View style={styles.suiviDivider} />
+                                  </>
+                                )}
+                                {txList(filtered, semanticText(COLORS.orange, COLORS), 'Aucune dépense récurrente.')}
+                              </>
+                            );
+                          })()
                           : (
                             <View style={{ gap: 6, paddingTop: 4 }}>
                               <Text style={styles.detailNote}>

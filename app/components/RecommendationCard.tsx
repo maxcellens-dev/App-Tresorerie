@@ -6,6 +6,7 @@ import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine'
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { getIgnored, addIgnored, getCompleted, addCompleted, isHidden, type IgnoredMap } from '../lib/recoDismissals';
+import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
 import RelykaGauge from './RelykaGauge';
 
 
@@ -38,6 +39,8 @@ interface SmartRecommendationCardProps {
   relykaColor?: string;
   /** Message dynamique affiché sous la jauge. */
   relykaMessage?: string;
+  /** Données financières pour la phrase contextuelle sous chaque reco (projection invest, économie…). */
+  financials?: RecoFinancials;
 }
 
 export default function RecommendationCard({
@@ -57,6 +60,7 @@ export default function RecommendationCard({
   relykaAmount = 0,
   relykaColor,
   relykaMessage,
+  financials,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
@@ -188,17 +192,21 @@ export default function RecommendationCard({
             amount={relykaAmount}
             segments={visible.map(r => ({ amount: r.amount, color: r.color }))}
             amountColor={relykaColor ?? COLORS.emerald}
+            onSegmentPress={(i) => setCurrentIndex(lead + i)}
           />
           {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}
         </View>
       ) : currentReco ? (
       <View style={styles.recoSlide}>
+      {/* Groupe HAUT : titre section + icône/titre/montant + textes — toujours collés en haut,
+          donc icône/titre/montant ne bougent pas d'une reco à l'autre (§N3). */}
+      <View style={styles.recoTop}>
       {/* Titre « Recommandations » + navigation — aligné avec la slide « Ton Relyka » (§N3) */}
       <View style={styles.leadTopRow}>
         <Text style={styles.leadTitle}>Recommandations</Text>
         {count > 1 ? navControls : <View />}
       </View>
-      {/* Contenu central : icône + titre/montant + description */}
+      {/* Contenu : icône + titre/montant (position fixe) puis description + texte contextuel à la suite */}
       <View style={styles.recoMiddle}>
         <View style={styles.slideRow}>
           <View style={[styles.recoIconCircle, { backgroundColor: currentReco.color + '18' }]}>
@@ -212,6 +220,15 @@ export default function RecommendationCard({
           </View>
         </View>
         <Text style={styles.recoDescription}>{currentReco.description}</Text>
+        {financials && (() => {
+          const ctx = getRecoContextText(currentReco.type, currentReco.amount, financials);
+          return ctx ? (
+            <View style={[styles.contextBox, { borderColor: currentReco.color + '40', backgroundColor: currentReco.color + '10' }]}>
+              <Text style={[styles.contextText, { color: currentReco.color }]}>{ctx}</Text>
+            </View>
+          ) : null;
+        })()}
+      </View>
       </View>
 
       {/* ── Actions en bas du bloc (évite la marge vide, §N3) ── */}
@@ -435,7 +452,9 @@ function makeStyles(c: any) {
   leadTitle: { fontSize: 13, color: c.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   leadMessage: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'center', paddingHorizontal: 4 },
   recoSlide: { flex: 1, justifyContent: 'space-between', gap: 10 },
-  recoMiddle: { gap: 10, justifyContent: 'center' },
+  // Groupe haut : titre section + icône/titre/montant + textes, collés en haut (position fixe au swipe).
+  recoTop: { gap: 10 },
+  recoMiddle: { gap: 10 },
 
   /* Slide content */
   slideRow: {
@@ -468,6 +487,18 @@ function makeStyles(c: any) {
     fontSize: 12,
     color: c.textSecondary,
     lineHeight: 17,
+  },
+  contextBox: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  contextText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
   },
 
   /* Actions */

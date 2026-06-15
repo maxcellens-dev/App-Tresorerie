@@ -22,6 +22,8 @@ interface Props {
   size?: number;
   strokeWidth?: number;
   trackColor?: string;           // Couleur de la partie « vide »
+  /** Clic sur un segment → renvoie l'index de la reco (dans `segments`). */
+  onSegmentPress?: (index: number) => void;
 }
 
 const BASE = 225;   // angle de départ (bas-gauche) en degrés, sens horaire depuis le haut
@@ -47,24 +49,26 @@ export default function RelykaGauge({
   size = 200,
   strokeWidth = 18,
   trackColor = 'rgba(255,255,255,0.07)',
+  onSegmentPress,
 }: Props) {
   const cx = size / 2;
   const cy = size / 2;
   const r = (size - strokeWidth) / 2 - 2;
 
-  // Fractions cumulées des recos sur le Relyka (clampées à 1 au total).
-  const denom = amount > 0 ? amount : 0;
+  // Le graphique représente la RÉPARTITION des recos entre elles (Investir / Épargne /
+  // Conserver / Se faire plaisir) : le total = somme des montants des recos, chaque segment
+  // proportionnel à sa part. La jauge se remplit donc entièrement, répartie « à la hauteur des montants ».
+  const denom = segments.reduce((sum, s) => sum + Math.max(0, s.amount), 0);
   let cum = 0;
-  const filled: { a1: number; a2: number; color: string }[] = [];
+  const filled: { a1: number; a2: number; color: string; idx: number }[] = [];
   if (denom > 0) {
-    for (const s of segments) {
-      if (s.amount <= 0) continue;
+    segments.forEach((s, i) => {
+      if (s.amount <= 0) return;
       const start = cum;
       cum = Math.min(1, cum + s.amount / denom);
-      if (cum <= start) continue;
-      filled.push({ a1: BASE + start * SWEEP, a2: BASE + cum * SWEEP, color: s.color });
-      if (cum >= 1) break;
-    }
+      if (cum <= start) return;
+      filled.push({ a1: BASE + start * SWEEP, a2: BASE + cum * SWEEP, color: s.color, idx: i });
+    });
   }
 
   const fmt = Math.round(amount).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
@@ -80,7 +84,7 @@ export default function RelykaGauge({
           strokeLinecap="round"
           fill="none"
         />
-        {/* Segments colorés (recos) */}
+        {/* Segments colorés (recos) — cliquables pour aller à la reco concernée. */}
         {filled.map((seg, i) => (
           <Path
             key={i}
@@ -89,11 +93,12 @@ export default function RelykaGauge({
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             fill="none"
+            onPress={onSegmentPress ? () => onSegmentPress(seg.idx) : undefined}
           />
         ))}
       </Svg>
-      {/* Centre : montant + label */}
-      <View style={[StyleSheet.absoluteFill, styles.center]}>
+      {/* Centre : montant + label — non cliquable (le clic ne doit agir que sur les segments). */}
+      <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
         <Text style={[styles.amount, { color: amountColor }]} numberOfLines={1} adjustsFontSizeToFit>
           {fmt}
         </Text>

@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../components/ScreenGradient';
+import PageIntroModal from '../components/PageIntroModal';
 import OnboardingHintBanner from '../components/OnboardingHintBanner';
 import AdSlot from '../components/AdSlot';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
@@ -425,6 +426,7 @@ export default function ProjectionScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <PageIntroModal pageKey="projection" />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">

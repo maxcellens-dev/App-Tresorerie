@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import AdSlot from '../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
@@ -373,6 +374,7 @@ export default function ProjectsScreen() {
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
       <StatusBar style="light" />
       <ScreenGradient />
+      <PageIntroModal pageKey="projets" />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>

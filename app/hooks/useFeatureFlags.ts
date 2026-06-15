@@ -12,6 +12,8 @@ export interface FeatureFlags {
   ads_enabled?: boolean;
   /** Page Reporting accessible aux utilisateurs (sinon : masquée du menu). */
   reporting_enabled?: boolean;
+  /** Messages contextuels sous les recommandations (projection invest, économie…). Défaut : activé. */
+  reco_context_enabled?: boolean;
 }
 
 const KEY = 'feature_flags';

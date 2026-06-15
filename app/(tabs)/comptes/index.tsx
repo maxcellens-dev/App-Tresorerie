@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import ScreenGradient from '../../components/ScreenGradient';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import AdSlot from '../../components/AdSlot';
-import { tabRect } from '../../lib/tourTargets';
+import { tabBarRect, headerProfileRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -48,18 +48,25 @@ export default function AccountsListScreen() {
 
   const GUIDE_STEPS: BubbleStep[] = [
     {
-      getRect: () => tabRect(0),
-      icon: 'wallet',
-      iconColor: '#34d399',
-      title: 'Onglet Comptes',
-      description: 'Touchez « Comptes » dans la barre du bas pour gérer vos comptes et virements.',
-    },
-    {
       getRef: () => actionsRef,
       icon: 'add-circle',
       iconColor: '#34d399',
-      title: 'Comptes & virements',
-      description: '« Compte » ajoute un compte (courant, épargne, investissement). « Virement » transfère de l\'argent entre vos comptes, tracé automatiquement.',
+      title: 'Commence ici',
+      description: 'Crée tes comptes (courant, épargne, investissement) et saisis ton solde réel à ce jour. « Virement » déplace de l\'argent entre tes comptes, tracé automatiquement.',
+    },
+    {
+      getRect: () => tabBarRect(),
+      icon: 'apps',
+      iconColor: '#34d399',
+      title: 'Ta navigation',
+      description: 'La barre du bas te donne accès à tout : Comptes, Transactions, Pilotage, Projets et Projection.',
+    },
+    {
+      getRect: () => headerProfileRect(),
+      icon: 'person-circle',
+      iconColor: '#34d399',
+      title: 'Ton menu',
+      description: 'En haut à droite : ton profil, tes réglages, ton abonnement et l\'assistance. Tout est là.',
     },
   ];
   

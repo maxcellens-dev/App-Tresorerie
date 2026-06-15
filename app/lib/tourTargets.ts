@@ -14,6 +14,12 @@ export function tabRect(index: number, count = 5): GuideRect {
   return { x: index * tabW + 8, y: height - 76, w: tabW - 16, h: 66 };
 }
 
+/** Rectangle de la barre de navigation entière (pour présenter tout le menu du bas). */
+export function tabBarRect(): GuideRect {
+  const { width, height } = Dimensions.get('window');
+  return { x: 6, y: height - 78, w: width - 12, h: 70 };
+}
+
 /** Rectangle approximatif du bouton profil (avatar) en haut à droite du header. */
 export function headerProfileRect(): GuideRect {
   const { width } = Dimensions.get('window');
