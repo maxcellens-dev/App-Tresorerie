@@ -9,6 +9,8 @@ export type ThemePreset = 'emerald' | 'ocean' | 'violet' | 'coral' | 'amber' | '
 
 /** Jeu de couleurs consommé par les écrans. */
 export interface AppColors {
+  /** Mode actif : 'dark' | 'light' — utile pour adapter le style par composant. */
+  mode: string;
   // ── Dynamiques (mode) ──
   bg: string;
   card: string;
@@ -47,6 +49,8 @@ export interface AppColors {
   success: string;
   selected: string;
   currentMonth: string;
+  /** Couleur de fond de l'entête (rgba — opacité configurable via Style Editor). */
+  headerBg: string;
   [key: string]: string;
 }
 
@@ -156,6 +160,8 @@ export interface BuildColorsOptions {
   lightSemanticColors?: Record<string, string>;
   /** Couleur de fond de l'app (derrière le dégradé) pour le mode courant. */
   bgColor?: string;
+  /** Opacité de l'entête (0-100). 0 = couleur de fond, 100 = couleur d'accent. */
+  headerAlpha?: number;
 }
 
 /** Couleurs de fond par défaut par mode (modifiables via le Style Editor). */
@@ -211,7 +217,16 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const greyRaw = semOverrides.grey;
   const textSecondary = greyRaw && /^#[0-9A-Fa-f]{6}$/.test(greyRaw) ? greyRaw : base.textSecondary;
 
+  // Entête : couleur de base selon le mode, rendue semi-transparente selon header_alpha.
+  // Sombre : cardSolid (#16181C) à l'opacité choisie (défaut 50 %).
+  // Clair  : blanc légèrement teinté accent (défaut 100 % = opaque).
+  // Entête : blend opaque fond → accent. 0% = fond de l'app, 100% = accent pur.
+  // Toujours opaque → jamais blanc/transparent sur web.
+  const headerAlphaVal = Math.min(100, Math.max(0, opts?.headerAlpha ?? (isLight ? 100 : 50))) / 100;
+  const headerBg = blendHex(bg, accent, headerAlphaVal);
+
   return {
+    mode,
     bg,
     card,
     cardSolid: base.cardSolid,
@@ -247,11 +262,23 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     success: green,
     selected:     isLight ? '#EFF6FF' : '#0A1A2E',
     currentMonth: isLight ? '#EFF6FF' : '#0A1A2E',
+    headerBg,
   } as AppColors;
 }
 
 export const DEFAULT_MODE: ThemeMode = 'dark';
 export const DEFAULT_PRESET: ThemePreset = 'emerald';
+
+/** Mélange deux couleurs hex : base + overlay à alpha (0-1). Résultat opaque (pas de transparence). */
+function blendHex(base: string, overlay: string, alpha: number): string {
+  const safeBase    = /^#[0-9A-Fa-f]{6}$/.test(base)    ? base    : '#000000';
+  const safeOverlay = /^#[0-9A-Fa-f]{6}$/.test(overlay) ? overlay : '#000000';
+  const a = Math.min(1, Math.max(0, alpha));
+  const r = Math.round(parseInt(safeBase.slice(1,3),16)*(1-a) + parseInt(safeOverlay.slice(1,3),16)*a);
+  const g = Math.round(parseInt(safeBase.slice(3,5),16)*(1-a) + parseInt(safeOverlay.slice(3,5),16)*a);
+  const b = Math.round(parseInt(safeBase.slice(5,7),16)*(1-a) + parseInt(safeOverlay.slice(5,7),16)*a);
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
 
 /** Assombrit une couleur hex (#RRGGBB) vers le noir d'un facteur 0-1. */
 function darkenHex(hex: string, factor: number): string {

@@ -15,6 +15,8 @@ export interface ModeStyleConfig {
   card_alpha: number;
   /** Couleur de fond de l'app (derrière le dégradé). Hex. */
   bg_color?: string;
+  /** Surplus d'accent appliqué à l'entête seule (0-100). 0 = l'entête prolonge le dégradé du corps. */
+  header_alpha?: number;
 }
 
 /** Retourne les 4 paliers d'opacité du dégradé (en 0-1) pour un mode. */
@@ -80,8 +82,8 @@ export const MODE_DEFAULTS: ModeStyleConfig = {
 };
 
 export const STYLE_DEFAULTS: StyleConfig = {
-  dark:  { ...MODE_DEFAULTS },
-  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 88, bg_color: '#F4EFE6' },
+  dark:  { ...MODE_DEFAULTS, header_alpha: 0 },
+  light: { gradient_enabled: true, gradient_opacity: 20, gradient_stops: [20, 12, 7, 3], card_alpha: 88, bg_color: '#F4EFE6', header_alpha: 0 },
   font_family: 'System',
   font_import_url: '',
   app_name_font: 'Arial Rounded MT Bold',

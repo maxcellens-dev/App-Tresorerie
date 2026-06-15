@@ -5,11 +5,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
+import { useStyleConfig, getGradientStops } from '../hooks/useStyleConfig';
 import { useUserUnreadCount, useAdminUnreadCount } from '../hooks/useUnreadBadges';
 import { useCosmetics } from '../hooks/useCosmetics';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
 import ProfileMenuModal from './ProfileMenuModal';
+
+/** Mélange opaque base + overlay à alpha (0-1). */
+function blendHex(base: string, overlay: string, alpha: number): string {
+  const b = /^#[0-9A-Fa-f]{6}$/.test(base) ? base : '#000000';
+  const o = /^#[0-9A-Fa-f]{6}$/.test(overlay) ? overlay : '#000000';
+  const a = Math.min(1, Math.max(0, alpha));
+  const r = Math.round(parseInt(b.slice(1, 3), 16) * (1 - a) + parseInt(o.slice(1, 3), 16) * a);
+  const g = Math.round(parseInt(b.slice(3, 5), 16) * (1 - a) + parseInt(o.slice(3, 5), 16) * a);
+  const bl = Math.round(parseInt(b.slice(5, 7), 16) * (1 - a) + parseInt(o.slice(5, 7), 16) * a);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
+}
 
 /** Pastille rouge avec compteur (badge « non lu »). */
 export function UnreadBadge({ count, style }: { count: number; style?: any }) {
@@ -73,6 +85,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   const segments = useSegments();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
+  const { data: styleConfig } = useStyleConfig();
   const avatarUrl = profile?.avatar_url ?? user?.user_metadata?.avatar_url;
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
 
@@ -102,8 +115,21 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
     </View>
   ));
 
+  // Fond de l'entête = couleur exacte du HAUT du dégradé du corps (blend bg + accent au 1er palier)
+  // → l'entête prolonge le dégradé sans couture. L'opacité ajoute un surplus d'accent SUR l'entête seule.
+  const headerBg = (() => {
+    const mode = (profile?.theme_mode ?? 'dark') as 'dark' | 'light';
+    const cfg = mode === 'light' ? styleConfig?.light : styleConfig?.dark;
+    const gradientEnabled = cfg?.gradient_enabled ?? true;
+    const stops = getGradientStops(cfg, mode === 'light' ? 20 : 30);
+    const baseline = gradientEnabled ? stops[0] : 0; // intensité accent en haut du corps
+    const extra = Math.min(100, Math.max(0, cfg?.header_alpha ?? 0)) / 100; // surplus admin
+    const alpha = Math.min(1, baseline + extra * (1 - baseline));
+    return blendHex(COLORS.bg, COLORS.emerald, alpha);
+  })();
+
   return (
-    <View style={[styles.bar, { height }]}>
+    <View style={[styles.bar, { height, backgroundColor: headerBg }]}>
       <View style={styles.left}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} onPress={() => (onBack ? onBack() : router.back())} accessibilityRole="button">
@@ -162,8 +188,8 @@ function makeStyles(c: any) {
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 10,
-    // Couleur blendée opaque = 30 % accent sur fond → raccord gradient, compatible web
-    backgroundColor: blendAccent(c.bg, c.emerald, 0.30),
+    // Entête transparente : le fond global (ScreenGradient au niveau racine) passe derrière.
+    backgroundColor: 'transparent',
   },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 6, marginRight: 6 },

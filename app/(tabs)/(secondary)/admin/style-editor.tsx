@@ -34,6 +34,26 @@ function isValidHex(v: string) { return /^#[0-9A-Fa-f]{6}$/.test(v); }
 function clampPct(v: number) { return Math.min(100, Math.max(0, v)); }
 function toHex(a: number) { return Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0').toUpperCase(); }
 
+/**
+ * Ouvre le sélecteur de couleur natif du navigateur, positionné près de l'endroit cliqué.
+ * Callback avec #RRGGBB. No-op sur natif.
+ */
+function openColorPicker(anchorX: number, anchorY: number, initial: string, onPick: (hex: string) => void) {
+  if (typeof document === 'undefined') return;
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = /^#[0-9A-Fa-f]{6}$/.test(initial) ? initial : '#000000';
+  // Positionner l'input invisible là où l'utilisateur a cliqué → le picker s'ouvre à cet endroit.
+  const wh = window.innerHeight;
+  const top = anchorY + 40 < wh ? anchorY : Math.max(0, anchorY - 220);
+  input.style.cssText = `position:fixed;left:${anchorX}px;top:${top}px;width:1px;height:1px;opacity:0;pointer-events:none;border:none;padding:0;`;
+  document.body.appendChild(input);
+  input.addEventListener('input', () => { onPick(input.value.toUpperCase()); });
+  input.addEventListener('change', () => { onPick(input.value.toUpperCase()); document.body.removeChild(input); });
+  input.addEventListener('blur', () => { try { document.body.removeChild(input); } catch {} });
+  input.click();
+}
+
 type Tab = 'colors' | 'background' | 'font';
 
 export default function StyleEditor() {
@@ -57,10 +77,12 @@ export default function StyleEditor() {
   const [darkGradEnabled, setDarkGradEnabled]   = useState(true);
   const [darkStops,       setDarkStops]         = useState<string[]>(['30', '18', '10', '5']);
   const [darkCardAlpha,   setDarkCardAlpha]     = useState('8');
+  const [darkHeaderAlpha,  setDarkHeaderAlpha]  = useState('0');
   const [darkBg,          setDarkBg]            = useState(DEFAULT_BG.dark);
   const [lightGradEnabled, setLightGradEnabled] = useState(true);
   const [lightStops,       setLightStops]       = useState<string[]>(['20', '12', '7', '3']);
-  const [lightCardAlpha,   setLightCardAlpha]   = useState('4');
+  const [lightCardAlpha,   setLightCardAlpha]   = useState('88');
+  const [lightHeaderAlpha, setLightHeaderAlpha] = useState('0');
   const [lightBg,          setLightBg]          = useState(DEFAULT_BG.light);
 
   const [fontFamily, setFontFamily] = useState('System');
@@ -98,10 +120,12 @@ export default function StyleEditor() {
       setDarkGradEnabled(styleConfig.dark.gradient_enabled);
       setDarkStops(toStopStrings(styleConfig.dark, 30));
       setDarkCardAlpha(String(styleConfig.dark.card_alpha));
+      setDarkHeaderAlpha(String(styleConfig.dark.header_alpha ?? 0));
       setDarkBg(styleConfig.dark.bg_color ?? DEFAULT_BG.dark);
       setLightGradEnabled(styleConfig.light.gradient_enabled);
       setLightStops(toStopStrings(styleConfig.light, 20));
       setLightCardAlpha(String(styleConfig.light.card_alpha));
+      setLightHeaderAlpha(String(styleConfig.light.header_alpha ?? 0));
       setLightBg(styleConfig.light.bg_color ?? DEFAULT_BG.light);
       setFontFamily(styleConfig.font_family ?? 'System');
       setFontImportUrl(styleConfig.font_import_url ?? '');
@@ -157,15 +181,17 @@ export default function StyleEditor() {
   // Getters/setters du mode édité (onglet Fond)
   const aEnabled = activeMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const aStops   = activeMode === 'dark' ? darkStops : lightStops;
-  const aAlpha   = activeMode === 'dark' ? darkCardAlpha : lightCardAlpha;
-  const aBg      = activeMode === 'dark' ? darkBg : lightBg;
+  const aAlpha       = activeMode === 'dark' ? darkCardAlpha   : lightCardAlpha;
+  const aHeaderAlpha = activeMode === 'dark' ? darkHeaderAlpha : lightHeaderAlpha;
+  const aBg          = activeMode === 'dark' ? darkBg          : lightBg;
   const setEnabled = (v: boolean) => activeMode === 'dark' ? setDarkGradEnabled(v) : setLightGradEnabled(v);
   const setStop    = (i: number, v: string) => {
     const setter = activeMode === 'dark' ? setDarkStops : setLightStops;
     setter(prev => prev.map((s, idx) => idx === i ? v : s));
   };
-  const setAlpha   = (v: string)  => activeMode === 'dark' ? setDarkCardAlpha(v)   : setLightCardAlpha(v);
-  const setBg      = (v: string)  => activeMode === 'dark' ? setDarkBg(v)          : setLightBg(v);
+  const setAlpha       = (v: string) => activeMode === 'dark' ? setDarkCardAlpha(v)   : setLightCardAlpha(v);
+  const setHeaderAlpha = (v: string) => activeMode === 'dark' ? setDarkHeaderAlpha(v) : setLightHeaderAlpha(v);
+  const setBg          = (v: string) => activeMode === 'dark' ? setDarkBg(v)          : setLightBg(v);
 
   // Téléverse un fichier de police vers Supabase Storage (bucket public « fonts »).
   // Web uniquement (ouverture du sélecteur de fichier natif du navigateur).
@@ -232,8 +258,8 @@ export default function StyleEditor() {
       SEMANTIC_KEYS.forEach(k => { const v = lightSemanticInputs[k] ?? ''; if (isValidHex(v)) validatedLightSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
-        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg) ? darkBg.toUpperCase() : DEFAULT_BG.dark },
-        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light },
+        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg)  ? darkBg.toUpperCase()  : DEFAULT_BG.dark,  header_alpha: clampPct(Number(darkHeaderAlpha)  || 0) },
+        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light, header_alpha: clampPct(Number(lightHeaderAlpha) || 0) },
         font_family: fontFamily,
         font_import_url: fontImportUrl.trim(),
         app_name_font: appNameFont.trim(),
@@ -383,7 +409,14 @@ export default function StyleEditor() {
                             <Ionicons name="chevron-down" size={16} color={idx === orderedPresetIds.length - 1 ? COLORS.cardBorder : COLORS.textSecondary} />
                           </TouchableOpacity>
                         </View>
-                        <TouchableOpacity style={[styles.swatch, { backgroundColor: col }]} onPress={() => setPreset(id)} activeOpacity={0.8}>
+                        <TouchableOpacity
+                          style={[styles.swatch, { backgroundColor: col }]}
+                          onPress={() => setPreset(id)}
+                          onLongPress={(e) => openColorPicker(e.nativeEvent.pageX, e.nativeEvent.pageY, col, v => native
+                            ? setAccentInputs(prev => ({ ...prev, [id]: v }))
+                            : setExtraPresets(prev => prev.map(x => x.id === id ? { ...x, dark: v } : x)))}
+                          activeOpacity={0.8}
+                        >
                           {active && <Ionicons name="checkmark" size={14} color="#fff" />}
                         </TouchableOpacity>
                         <Text style={styles.accentLabel} numberOfLines={1}>
@@ -447,23 +480,16 @@ export default function StyleEditor() {
                 <Text style={[styles.hint, { marginTop: 10 }]}>Les presets sont disponibles pour tous les utilisateurs dans Paramètres.</Text>
               </Section>
 
-              {/* Couleurs sémantiques — séparées par mode */}
-              {(['dark', 'light'] as const).map((m) => {
-                const isCurMode = previewMode === m;
-                const inputs = m === 'dark' ? semanticInputs : lightSemanticInputs;
-                const setInputs = m === 'dark' ? setSemanticInputs : setLightSemanticInputs;
-                const defaults = m === 'dark' ? SEMANTIC_DEFAULTS : SEMANTIC_DEFAULTS_LIGHT;
-                const modeLabel = m === 'dark' ? 'Sombre' : 'Clair';
-                const modeIcon = m === 'dark' ? '🌙' : '☀️';
+              {/* Couleurs sémantiques — seulement le mode prévisualisé */}
+              {(() => {
+                const inputs = previewMode === 'dark' ? semanticInputs : lightSemanticInputs;
+                const setInputs = previewMode === 'dark' ? setSemanticInputs : setLightSemanticInputs;
+                const defaults = previewMode === 'dark' ? SEMANTIC_DEFAULTS : SEMANTIC_DEFAULTS_LIGHT;
+                const modeLabel = previewMode === 'dark' ? 'Sombre 🌙' : 'Clair ☀️';
                 return (
-                  <Section key={m} label={`Couleurs principales — Thème ${modeLabel} ${modeIcon}`} icon="brush-outline" COLORS={COLORS}>
-                    {!isCurMode && (
-                      <Text style={[styles.hint, { color: COLORS.orange }]}>
-                        Vous prévisualisez le thème {m === 'dark' ? 'Clair' : 'Sombre'} — passez en mode {modeLabel} (ci-dessus) pour voir ces couleurs en live.
-                      </Text>
-                    )}
+                  <Section label={`Couleurs principales — Thème ${modeLabel}`} icon="brush-outline" COLORS={COLORS}>
                     <Text style={styles.hint}>
-                      {m === 'dark'
+                      {previewMode === 'dark'
                         ? 'Montants, boutons et libellés pour le thème sombre. Globaux à tous les utilisateurs.'
                         : 'Palette indépendante pour le thème clair — couleurs plus sombres pour le contraste sur fond pâle.'}
                     </Text>
@@ -475,7 +501,11 @@ export default function StyleEditor() {
                         const isDefault = inputHex.toUpperCase() === defaults[k].toUpperCase();
                         return (
                           <View key={k} style={styles.accentItem}>
-                            <View style={[styles.swatch, { backgroundColor: col }]} />
+                            <TouchableOpacity
+                              style={[styles.swatch, { backgroundColor: col }]}
+                              onPress={(e) => openColorPicker(e.nativeEvent.pageX, e.nativeEvent.pageY, col, (picked) => setInputs(prev => ({ ...prev, [k]: picked })))}
+                              activeOpacity={0.8}
+                            />
                             <Text style={styles.accentLabel}>{SEMANTIC_LABELS[k].emoji} {SEMANTIC_LABELS[k].label}</Text>
                             <TextInput
                               style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
@@ -497,7 +527,7 @@ export default function StyleEditor() {
                     </View>
                   </Section>
                 );
-              })}
+              })()}
 
             </>
           )}
@@ -601,6 +631,28 @@ export default function StyleEditor() {
                     );
                   })}
                 </View>
+              </Section>
+
+              {/* ── Surplus d'accent sur l'entête (couleur = accent de l'utilisateur) ── */}
+              <Section label={`Entête — surplus d'accent — ${activeMode === 'dark' ? 'Sombre 🌙' : 'Clair ☀️'}`} icon="browsers-outline" COLORS={COLORS}>
+                <Text style={styles.hint}>
+                  À 0 %, l'entête prolonge le dégradé du corps (aucune couture). Au-delà, seule l'entête prend plus de couleur d'accent par-dessus le fond.
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 0, flex: 1 }]}>Surplus d'accent</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.text, minWidth: 40, textAlign: 'right' }}>{aHeaderAlpha} %</Text>
+                </View>
+                {Platform.OS === 'web' ? (
+                  // Slider HTML natif — fluidité maximale
+                  <input
+                    type="range" min={0} max={100} step={1}
+                    value={Number(aHeaderAlpha) || 0}
+                    onChange={(e: any) => setHeaderAlpha(String(e.target.value))}
+                    style={{ width: '100%', cursor: 'pointer', accentColor: COLORS.emerald, height: 6, marginBottom: 12 } as any}
+                  />
+                ) : (
+                  <PctInput value={aHeaderAlpha} onChange={v => setHeaderAlpha(v)} COLORS={COLORS} />
+                )}
               </Section>
             </>
           )}

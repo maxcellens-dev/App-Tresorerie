@@ -1,6 +1,7 @@
 import { Tabs, useSegments } from 'expo-router';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
 import TabBarBackground from '../components/TabBarBackground';
 import HeaderWithProfile from '../components/HeaderWithProfile';
 import CustomTabBar from '../components/CustomTabBar';
@@ -54,6 +55,14 @@ function TabsHeader({ route }: { route: any }) {
 export default function TabsLayout() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+
+  // Web : body bg = c.bg → l'entête transparent montre la bonne couleur de fond (pas le blanc du navigateur).
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.body.style.backgroundColor = COLORS.bg;
+    }
+  }, [COLORS.bg]);
+
   return (
     <View style={{ flex: 1 }}>
     <Tabs

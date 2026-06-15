@@ -27,16 +27,20 @@ export function useAppColors(): AppColors {
   const bgColor = mode === 'light'
     ? styleConfig?.light.bg_color
     : styleConfig?.dark.bg_color;
+  const headerAlpha = mode === 'light'
+    ? styleConfig?.light.header_alpha
+    : styleConfig?.dark.header_alpha;
 
   return useMemo(
     () => buildColors(mode, preset, {
       cardAlpha,
       bgColor,
+      headerAlpha,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
       semanticColors: styleConfig?.semantic_colors,
       lightSemanticColors: styleConfig?.light_semantic_colors,
     }),
-    [mode, preset, cardAlpha, bgColor, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors, styleConfig?.light_semantic_colors]
+    [mode, preset, cardAlpha, bgColor, headerAlpha, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors, styleConfig?.light_semantic_colors]
   );
 }
