@@ -924,10 +924,14 @@ export default function PilotageScreen() {
                     {detailKey === 'savings' && txList(suiviDetail.savings, semanticText(COLORS.green, COLORS), 'Aucun virement d\'épargne ce mois.')}
                     {detailKey === 'invest' && txList(suiviDetail.invest, semanticText(COLORS.violet, COLORS), 'Aucun virement d\'investissement ce mois.')}
                     {detailKey === 'spent' && (() => {
-                      // Répartition par sous-catégorie (camembert cliquable → filtre la liste, §N2)
+                      // Répartition par CATÉGORIE PARENTE (camembert cliquable → filtre la liste, §N2)
+                      const parentOf = (t: any) => {
+                        const sub = t.category?.name || 'Autre';
+                        return catParentName[String(sub).toLowerCase()] || sub;
+                      };
                       const groups: Record<string, { key: string; total: number; icon: string; color: string }> = {};
                       for (const t of suiviDetail.spent) {
-                        const key = t.category?.name || 'Autre';
+                        const key = parentOf(t);
                         (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
                         groups[key].total += Math.abs(Number(t.amount));
                       }
@@ -935,7 +939,7 @@ export default function PilotageScreen() {
                       const arr = Object.values(groups).sort((a, b) => b.total - a.total);
                       arr.forEach((g, i) => { g.color = palette[i % palette.length]; });
                       const totalSpent = arr.reduce((s, g) => s + g.total, 0);
-                      const filtered = spentFilter ? suiviDetail.spent.filter((t) => (t.category?.name || 'Autre') === spentFilter) : suiviDetail.spent;
+                      const filtered = spentFilter ? suiviDetail.spent.filter((t) => parentOf(t) === spentFilter) : suiviDetail.spent;
                       return (
                         <>
                           {arr.length > 0 && (

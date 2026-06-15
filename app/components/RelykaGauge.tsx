@@ -8,7 +8,7 @@
  * Dynamique : passez la liste des recos visibles, le visuel suit.
  */
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable, type GestureResponderEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
@@ -73,9 +73,31 @@ export default function RelykaGauge({
 
   const fmt = Math.round(amount).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 
+  // Détection du segment au tap : calcule l'angle depuis le centre (compatible web ET natif,
+  // contrairement à onPress sur un <Path> SVG). N'agit que sur l'anneau (pas au centre).
+  const handlePress = (e: GestureResponderEvent) => {
+    if (!onSegmentPress || filled.length === 0) return;
+    const ne: any = e.nativeEvent;
+    const x = ne.locationX ?? ne.offsetX;
+    const y = ne.locationY ?? ne.offsetY;
+    if (typeof x !== 'number' || typeof y !== 'number') return;
+    const dx = x - cx;
+    const dy = y - cy;
+    const radius = Math.sqrt(dx * dx + dy * dy);
+    // Ignore le centre et l'extérieur : on ne réagit que sur la bande de l'anneau.
+    if (radius < r - strokeWidth || radius > r + strokeWidth) return;
+    // Angle : 0° = haut, sens horaire (même convention que pt()).
+    let a = (Math.atan2(dx, -dy) * 180) / Math.PI;
+    if (a < 0) a += 360;
+    if (a < BASE) a += 360;            // ramène dans [BASE, BASE+360)
+    if (a > BASE + SWEEP) return;       // dans le « trou » du bas → rien
+    const hit = filled.find((seg) => a >= seg.a1 && a <= seg.a2);
+    if (hit) onSegmentPress(hit.idx);
+  };
+
   return (
-    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <Svg width={size} height={size}>
+    <Pressable style={{ alignItems: 'center', justifyContent: 'center' }} onPress={handlePress}>
+      <Svg width={size} height={size} pointerEvents="none">
         {/* Track (partie vide / transparente) */}
         <Path
           d={arc(cx, cy, r, BASE, BASE + SWEEP)}
@@ -84,7 +106,7 @@ export default function RelykaGauge({
           strokeLinecap="round"
           fill="none"
         />
-        {/* Segments colorés (recos) — cliquables pour aller à la reco concernée. */}
+        {/* Segments colorés (recos) */}
         {filled.map((seg, i) => (
           <Path
             key={i}
@@ -93,7 +115,6 @@ export default function RelykaGauge({
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             fill="none"
-            onPress={onSegmentPress ? () => onSegmentPress(seg.idx) : undefined}
           />
         ))}
       </Svg>
@@ -104,7 +125,7 @@ export default function RelykaGauge({
         </Text>
         {!!label && <Text style={styles.label}>{label}</Text>}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
