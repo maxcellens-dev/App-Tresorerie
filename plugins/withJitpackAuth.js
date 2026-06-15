@@ -14,19 +14,28 @@ const { withProjectBuildGradle } = require('@expo/config-plugins');
 const MARKER = 'withJitpackAuth';
 
 const SNIPPET = `
-// >>> ${MARKER} : authentification jitpack (évite les 403 rate-limit sur EAS)
+// >>> ${MARKER} : fiabilise jitpack (www.jitpack.io renvoie 403 → on bascule sur jitpack.io + token)
 allprojects {
   repositories {
     all { repo ->
       try {
         def repoUrl = repo.hasProperty('url') ? (repo.url?.toString() ?: '') : ''
         if (repoUrl.contains('jitpack.io')) {
+          // 1) Le sous-domaine www.jitpack.io renvoie 403 → on pointe sur jitpack.io (sans www).
+          if (repoUrl.contains('www.jitpack.io')) {
+            repo.setUrl('https://jitpack.io')
+          }
+          // 2) Authentification (token) — requêtes authentifiées non rate-limitées.
           def jitpackToken = System.getenv('JITPACK_TOKEN')
           if (jitpackToken != null && jitpackToken.trim().length() > 0) {
             repo.credentials { username = jitpackToken.trim() }
           }
+          def newUrl = repo.hasProperty('url') ? (repo.url?.toString() ?: '') : ''
+          println "[${MARKER}] jitpack: '" + repoUrl + "' -> '" + newUrl + "' (token=" + (jitpackToken ? 'oui' : 'non') + ")"
         }
-      } catch (ignored) { }
+      } catch (e) {
+        println "[${MARKER}] erreur: " + e.message
+      }
     }
   }
 }
