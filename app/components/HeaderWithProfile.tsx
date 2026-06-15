@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -66,6 +67,9 @@ interface HeaderWithProfileProps {
   hideProfile?: boolean;
   /** Petit badge affiché à droite du titre (ex. étoile « fonction Premium »). */
   titleBadge?: React.ReactNode;
+  /** Ajoute l'inset système du haut (barre de statut) — pour l'en-tête de navigation
+   *  qui n'est PAS déjà enveloppé dans un SafeAreaView. */
+  applyTopInset?: boolean;
 }
 
 /** Blende une couleur d'accent (#RRGGBB) à 30 % sur le fond — couleur opaque, aucun problème d'alpha sur web. */
@@ -81,8 +85,9 @@ function blendAccent(bg: string, accent: string, opacity = 0.30): string {
   } catch { return bg; }
 }
 
-export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge }: HeaderWithProfileProps) {
+export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge, applyTopInset = false }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
+  const insets = useSafeAreaInsets();
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const segments = useSegments();
@@ -139,7 +144,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   })();
 
   return (
-    <View style={[styles.bar, { height, backgroundColor: headerBg }]}>
+    <View style={[styles.bar, { height: applyTopInset ? height + insets.top : height, backgroundColor: headerBg }, applyTopInset && { paddingTop: insets.top + 10 }]}>
       <View style={styles.left}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} onPress={() => (onBack ? onBack() : router.back())} accessibilityRole="button">

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 
 type TabName = 'comptes' | 'projects' | 'pilotage' | 'transactions' | 'projection';
@@ -24,11 +25,14 @@ const ITEMS: TabItem[] = [
 export default function CustomTabBar({ state }: any) {
   const router = useRouter();
   const COLORS = useAppColors();
+  const insets = useSafeAreaInsets();
   const styles = makeStyles(COLORS);
   const activeRoute = state?.routes?.[state.index]?.name;
 
   return (
-    <View style={styles.bar}>
+    // paddingBottom = inset système (barre de navigation / gestes) → le contenu remonte
+    // au-dessus des boutons du téléphone, et le fond couvre toute la zone (pas de bande vide).
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.topBorder} />
       {ITEMS.map((it) => {
         const focused = activeRoute === it.name;
@@ -60,9 +64,8 @@ function makeStyles(c: any) {
     bar: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      alignItems: 'center',
-      height: 72,
-      paddingTop: 4,
+      alignItems: 'flex-start',
+      paddingTop: 6,
       paddingHorizontal: 8,
       backgroundColor: c.bg,
     },

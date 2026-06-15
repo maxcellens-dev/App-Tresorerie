@@ -58,7 +58,7 @@ export default function RegisterScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
+        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={styles.keyboard}>
           <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>

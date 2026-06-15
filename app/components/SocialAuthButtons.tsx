@@ -1,12 +1,23 @@
 /**
- * SocialAuthButtons — connexion/inscription via Google, Apple et Facebook (mises en avant).
- * Utilise supabase.auth.signInWithOAuth. Tant que les fournisseurs ne sont pas configurés
- * côté Supabase, un message « bientôt disponible » s'affiche au lieu d'échouer brutalement.
+ * SocialAuthButtons — connexion/inscription via Google, Apple et Facebook.
+ *
+ * Web : supabase.auth.signInWithOAuth redirige la page (retour → session créée).
+ * Natif : signInWithOAuth(skipBrowserRedirect) → on ouvre le navigateur d'auth
+ *   (expo-web-browser) avec un redirect vers le scheme de l'app (tresorerie://auth-callback),
+ *   puis on récupère la session depuis l'URL de retour (code PKCE ou tokens en fragment).
+ *
+ * ⚠️ Côté Supabase : l'URL `tresorerie://auth-callback` doit être ajoutée dans
+ *    Authentication → URL Configuration → Redirect URLs.
  */
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { useBrandColors } from '../hooks/useBrandColors';
+
+// Permet à expo-web-browser de finaliser une session d'auth restée ouverte.
+WebBrowser.maybeCompleteAuthSession();
 
 type Provider = 'google' | 'apple' | 'facebook';
 
@@ -17,7 +28,17 @@ const PROVIDERS: { id: Provider; label: string; icon: keyof typeof Ionicons.glyp
 ];
 
 function showAlert(title: string, message: string) {
-  Alert.alert(title, message); // in-app global (§7)
+  Alert.alert(title, message);
+}
+
+/** Récupère une valeur dans une query/fragment string (parsing manuel — fiable en RN). */
+function paramFrom(str: string, key: string): string | null {
+  for (const part of str.split('&')) {
+    const eq = part.indexOf('=');
+    const k = eq >= 0 ? part.slice(0, eq) : part;
+    if (decodeURIComponent(k) === key) return decodeURIComponent(eq >= 0 ? part.slice(eq + 1) : '');
+  }
+  return null;
 }
 
 export default function SocialAuthButtons({ mode }: { mode: 'login' | 'register' }) {
@@ -27,13 +48,50 @@ export default function SocialAuthButtons({ mode }: { mode: 'login' | 'register'
   async function go(provider: Provider) {
     if (!supabase) { showAlert('Indisponible', 'Backend non configuré.'); return; }
     try {
-      const redirectTo = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined;
-      const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+      // ── Web : redirection classique de la page ──
+      if (Platform.OS === 'web') {
+        const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+        const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } });
+        if (error) throw error;
+        return;
+      }
+
+      // ── Natif : navigateur d'auth + retour via le scheme de l'app ──
+      const redirectTo = Linking.createURL('auth-callback'); // tresorerie://auth-callback
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
       if (error) throw error;
-      // Sur web, Supabase redirige vers le fournisseur ; au retour, la session est créée.
+      if (!data?.url) throw new Error("URL d'authentification indisponible.");
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success' || !result.url) return; // annulé / fermé par l'utilisateur
+
+      const url = result.url;
+      // 1) Flux PKCE : ?code=...
+      const query = url.includes('?') ? url.split('?')[1].split('#')[0] : '';
+      const code = paramFrom(query, 'code');
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) throw exErr;
+        return; // onAuthStateChange → redirection par le guard
+      }
+      // 2) Flux implicite : #access_token=...&refresh_token=...
+      const hash = url.includes('#') ? url.split('#')[1] : '';
+      const access_token = paramFrom(hash, 'access_token');
+      const refresh_token = paramFrom(hash, 'refresh_token');
+      if (access_token && refresh_token) {
+        const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (setErr) throw setErr;
+        return;
+      }
+      // Erreur renvoyée par le fournisseur, le cas échéant.
+      const errDesc = paramFrom(query, 'error_description') || paramFrom(hash, 'error_description');
+      throw new Error(errDesc || "Réponse d'authentification invalide.");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Connexion impossible.';
-      showAlert('Bientôt disponible', `La connexion ${provider.charAt(0).toUpperCase() + provider.slice(1)} n'est pas encore activée. ${msg}`);
+      showAlert('Connexion impossible', `${provider.charAt(0).toUpperCase() + provider.slice(1)} : ${msg}`);
     }
   }
 

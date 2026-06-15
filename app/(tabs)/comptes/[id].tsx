@@ -1216,7 +1216,7 @@ function makeStyles(c: any) {
     borderBottomColor: c.cardBorder,
   },
   transferRowLast: { borderBottomWidth: 0 },
-  transferLeft: {},
+  transferLeft: { flex: 1 },
   transferDate: { fontSize: 13, color: c.textSecondary, marginBottom: 2 },
   transferLabel: { fontSize: 15, fontWeight: '600', color: c.text },
   transferAmount: { fontSize: 15, fontWeight: '700' },

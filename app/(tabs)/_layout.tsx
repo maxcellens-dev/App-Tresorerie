@@ -53,6 +53,7 @@ function TabsHeader({ route }: { route: any }) {
   const isReporting = fullPath === '(tabs)/reporting';
   return (
     <HeaderWithProfile
+      applyTopInset
       title={isHome || showCustomHeader ? undefined : displayTitle}
       titleBadge={isReporting && isPremium ? <PremiumStar /> : undefined}
       leftContent={
