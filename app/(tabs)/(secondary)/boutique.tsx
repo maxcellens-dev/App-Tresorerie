@@ -15,7 +15,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
-import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, type ShopItem, type ShopCategory } from '../../lib/gamification';
+import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, type ShopItem, type ShopCategory } from '../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
@@ -148,10 +148,17 @@ export default function BoutiqueScreen() {
                 <Text style={styles.adminGemBtnText}>100</Text>
               </TouchableOpacity>
             )}
-            <View style={styles.gemPill}>
+            {/* Toucher son solde → accès direct à « Recharger en relyks ». */}
+            <TouchableOpacity
+              style={styles.gemPill}
+              onPress={() => { setTab('app'); setCatFilter('gems'); }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Recharger en relyks"
+            >
               <Ionicons name="diamond" size={14} color={COLORS.blue} />
               <Text style={styles.gemText}>{gems}</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -188,10 +195,18 @@ export default function BoutiqueScreen() {
                 )
               )}
 
-              {/* Filtres par catégorie — navigation compacte (évite une page à rallonge) */}
+              {/* Filtres par catégorie — navigation compacte (évite une page à rallonge).
+                  « Premium » est placé en 3ᵉ raccourci (après « Tout »), uniquement ici. */}
               {shopByCategory.length > 1 && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
-                  {([{ cat: 'all' as const, label: 'Tout', icon: 'apps-outline' }, ...shopByCategory.map((g) => ({ cat: g.cat, label: SHOP_CATEGORY_LABELS[g.cat as ShopCategory], icon: SHOP_CATEGORY_ICONS[g.cat as ShopCategory] }))]).map((f) => {
+                  {(() => {
+                    const cats = shopByCategory.map((g) => g.cat).filter((c) => c !== 'premium');
+                    if (shopByCategory.some((g) => g.cat === 'premium')) cats.splice(1, 0, 'premium' as ShopCategory);
+                    return [
+                      { cat: 'all' as const, label: 'Tout', icon: 'apps-outline' },
+                      ...cats.map((c) => ({ cat: c, label: c === 'premium' ? 'Premium' : SHOP_CATEGORY_LABELS[c as ShopCategory], icon: SHOP_CATEGORY_ICONS[c as ShopCategory] })),
+                    ];
+                  })().map((f) => {
                     const active = catFilter === f.cat;
                     return (
                       <TouchableOpacity key={f.cat} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setCatFilter(f.cat as any)} activeOpacity={0.85}>
@@ -208,7 +223,16 @@ export default function BoutiqueScreen() {
                 return (
                   <View key={cat}>
                     <View style={styles.catHeaderRow}>
-                      <Text style={styles.catHeader}>{SHOP_CATEGORY_LABELS[cat as ShopCategory]}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={styles.catHeader}>{SHOP_CATEGORY_LABELS[cat as ShopCategory]}</Text>
+                        {/* Badge « Premium » au niveau de la section (le mot entier ici, juste l'étoile sur les produits) */}
+                        {cat === 'premium' && (
+                          <View style={[styles.premiumPill, { marginBottom: 8, marginTop: 6 }]}>
+                            <Ionicons name="star" size={10} color={COLORS.yellow} />
+                            <Text style={styles.premiumPillText}>Premium</Text>
+                          </View>
+                        )}
+                      </View>
                       {/* Lien « Consulter mes achats » → Apparence (§N4) */}
                       {cat === 'apparence' && (
                         <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence' as any)} activeOpacity={0.7}>
@@ -240,7 +264,9 @@ export default function BoutiqueScreen() {
                       items.map((item) => {
                         const owned = inventory.find((i) => i.item_key === item.key)?.qty ?? 0;
                         const frozen = !!item.premiumOnly && !isPremium; // exclusif Premium, non débloqué
-                        const accentColor = item.premiumOnly ? COLORS.yellow : COLORS.blue;
+                        // Cosmétiques (cadres/flammes) : teinte = leur vraie couleur → style cohérent (ex. flamme bleue ≈ flamme dorée).
+                        const cosmeticColor = COSMETIC_DEFS[item.key] && /^#[0-9A-Fa-f]{6}$/.test(COSMETIC_DEFS[item.key].value) ? COSMETIC_DEFS[item.key].value : null;
+                        const accentColor = cosmeticColor ?? (item.premiumOnly ? COLORS.yellow : COLORS.blue);
                         return (
                           <View key={item.key} style={[styles.card, frozen && styles.cardFrozen]}>
                             <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
@@ -254,9 +280,8 @@ export default function BoutiqueScreen() {
                                   {owned > 0 && item.type !== 'daily_gems' && <Text style={{ color: COLORS.green }}> · acquis</Text>}
                                 </Text>
                                 {item.premiumOnly && (
-                                  <View style={styles.premiumPill}>
-                                    <Ionicons name="star" size={9} color={COLORS.yellow} />
-                                    <Text style={styles.premiumPillText}>Premium</Text>
+                                  <View style={styles.premiumDot}>
+                                    <Ionicons name="star" size={10} color={COLORS.yellow} />
                                   </View>
                                 )}
                               </View>
@@ -343,7 +368,7 @@ function makeStyles(c: any) {
     apparenceLink: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8, marginTop: 6 },
     apparenceLinkText: { fontSize: 11.5, fontWeight: '700', color: c.emerald },
     title: { fontSize: 26, fontWeight: '800', color: c.text },
-    gemPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+    gemPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     gemText: { fontSize: 14, fontWeight: '800', color: c.text },
     adminGemBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
     adminGemBtnText: { fontSize: 13, fontWeight: '800', color: '#fff' },
@@ -365,8 +390,9 @@ function makeStyles(c: any) {
     card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     cardFrozen: { opacity: 0.6, borderStyle: 'dashed', borderColor: c.yellow + '55' },
     frozenLock: { position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: 9, backgroundColor: c.textSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
-    premiumPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
-    premiumPillText: { fontSize: 10, fontWeight: '800', color: c.yellow },
+    premiumPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+    premiumPillText: { fontSize: 10.5, fontWeight: '800', color: c.yellow },
+    premiumDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: c.yellow + '22', borderWidth: 1, borderColor: c.yellow + '66', alignItems: 'center', justifyContent: 'center' },
     filterRow: { gap: 8, paddingVertical: 2, paddingRight: 8 },
     filterChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     filterChipActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },

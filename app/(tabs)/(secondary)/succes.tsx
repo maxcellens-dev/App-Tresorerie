@@ -2,8 +2,8 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -14,7 +14,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import { useNavBack } from '../../hooks/useNavBack';
-import { UNLOCK_COLOR, isImageIcon, currencyPlural } from '../../lib/gamification';
+import { UNLOCK_COLOR, isImageIcon, currencyPlural, type BadgeDef } from '../../lib/gamification';
 
 export default function SuccesScreen() {
   const COLORS = useAppColors();
@@ -26,6 +26,8 @@ export default function SuccesScreen() {
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
 
   const unlockedKeys = new Set(badges.map((b) => b.badge_key));
+  // Succès affiché en grand au centre de l'écran (au clic sur une carte).
+  const [selected, setSelected] = useState<BadgeDef | null>(null);
 
   // Masque les badges liés à la clôture si la fonctionnalité est désactivée.
   const visibleBadges = (config?.badges ?? []).filter((d) => d.metric !== 'closures_count' || closureEnabled);
@@ -44,7 +46,14 @@ export default function SuccesScreen() {
     const unlocked = unlockedKeys.has(def.key);
     const tint = unlocked ? UNLOCK_COLOR : COLORS.textSecondary;
     return (
-      <View key={def.key} style={[styles.card, unlocked && { borderColor: tint + '88' }]}>
+      <TouchableOpacity
+        key={def.key}
+        style={[styles.card, unlocked && { borderColor: tint + '88' }]}
+        onPress={() => setSelected(def)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={def.label}
+      >
         <View style={[styles.badgeIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.5 }]}>
           {isImageIcon(def.icon)
             ? <Image source={{ uri: def.icon }} style={styles.badgeImg} />
@@ -57,13 +66,15 @@ export default function SuccesScreen() {
         </View>
         <Text style={styles.badgeLabel} numberOfLines={2}>{def.label}</Text>
         <Text style={styles.badgeDesc} numberOfLines={3}>{def.description}</Text>
-        {def.gems > 0 && (
-          <View style={[styles.rewardPill, unlocked && { backgroundColor: tint + '22' }]}>
-            <Ionicons name="diamond" size={11} color={unlocked ? tint : COLORS.textSecondary} />
-            <Text style={[styles.rewardText, { color: unlocked ? tint : COLORS.textSecondary }]}>+{def.gems}</Text>
+        {/* Récompense affichée uniquement sur les succès À DÉBLOQUER (motivation) ;
+            sur les succès déjà obtenus, on la voit en grand au clic. */}
+        {!unlocked && def.gems > 0 && (
+          <View style={styles.rewardPill}>
+            <Ionicons name="diamond" size={11} color={COLORS.textSecondary} />
+            <Text style={[styles.rewardText, { color: COLORS.textSecondary }]}>+{def.gems}</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -125,6 +136,49 @@ export default function SuccesScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Succès agrandi au centre de l'écran */}
+      <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelected(null)}>
+          {selected && (() => {
+            const unlocked = unlockedKeys.has(selected.key);
+            const tint = unlocked ? UNLOCK_COLOR : COLORS.textSecondary;
+            const date = badges.find((b) => b.badge_key === selected.key)?.unlocked_at;
+            const dateStr = date ? new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+            return (
+              <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+                <TouchableOpacity style={styles.modalClose} onPress={() => setSelected(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+                <View style={[styles.modalIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.6 }]}>
+                  {isImageIcon(selected.icon)
+                    ? <Image source={{ uri: selected.icon }} style={styles.modalIconImg} />
+                    : <Ionicons name={(selected.icon || 'trophy') as any} size={64} color={tint} />}
+                  {!unlocked && (
+                    <View style={styles.modalLockOverlay}>
+                      <Ionicons name="lock-closed" size={18} color={COLORS.textSecondary} />
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.modalLabel}>{selected.label}</Text>
+                <Text style={styles.modalDesc}>{selected.description}</Text>
+                {selected.gems > 0 && (
+                  <View style={[styles.modalReward, { borderColor: tint + '66', backgroundColor: tint + '14' }]}>
+                    <Ionicons name="diamond" size={15} color={tint} />
+                    <Text style={[styles.modalRewardText, { color: tint }]}>+{selected.gems} {currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
+                  </View>
+                )}
+                <View style={[styles.modalStatusPill, { backgroundColor: unlocked ? UNLOCK_COLOR + '1A' : COLORS.cardBorder + '55' }]}>
+                  <Ionicons name={unlocked ? 'checkmark-circle' : 'lock-closed'} size={14} color={unlocked ? UNLOCK_COLOR : COLORS.textSecondary} />
+                  <Text style={[styles.modalStatusText, { color: unlocked ? UNLOCK_COLOR : COLORS.textSecondary }]}>
+                    {unlocked ? (dateStr ? `Débloqué le ${dateStr}` : 'Débloqué') : 'À débloquer'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })()}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -156,7 +210,20 @@ function makeStyles(c: any) {
     badgeLabel: { fontSize: 12, fontWeight: '700', color: c.text, textAlign: 'center' },
     badgeLevel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     badgeDesc: { fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 15 },
-    rewardPill: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: c.cardBorder + '55', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-    rewardText: { fontSize: 11, fontWeight: '800' },
+    rewardPill: { position: 'absolute', top: -8, right: -6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
+    rewardText: { fontSize: 10.5, fontWeight: '800' },
+    // ── Modal « succès en grand » ──
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
+    modalCard: { width: '100%', maxWidth: 360, backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 24, paddingVertical: 28, paddingHorizontal: 24, alignItems: 'center' },
+    modalClose: { position: 'absolute', top: 12, right: 12, padding: 4, zIndex: 2 },
+    modalIcon: { width: 110, height: 110, borderRadius: 55, alignItems: 'center', justifyContent: 'center', marginBottom: 18 },
+    modalIconImg: { width: 72, height: 72, borderRadius: 16 },
+    modalLockOverlay: { position: 'absolute', bottom: 2, right: 2, backgroundColor: c.cardSolid ?? c.card, borderRadius: 14, padding: 5, borderWidth: 1, borderColor: c.cardBorder },
+    modalLabel: { fontSize: 22, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 8 },
+    modalDesc: { fontSize: 14.5, color: c.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
+    modalReward: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, marginBottom: 12 },
+    modalRewardText: { fontSize: 14, fontWeight: '800' },
+    modalStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+    modalStatusText: { fontSize: 12.5, fontWeight: '700' },
   });
 }

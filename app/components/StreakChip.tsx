@@ -22,12 +22,12 @@ export default function StreakChip() {
   if (!user || !config?.identity.enabled || !state) return null;
   const streakIcon = config.identity.streakIcon || '🔥';
   const isActive = state.streak > 0;
-  // Cosmétique « flamme dorée » équipé → teinte dorée (sur l'icône emoji ET Ionicons).
-  const goldFlame = isActive && !!flameColor;
+  // Cosmétique « flamme » équipé → on utilise SA couleur réelle (dorée, bleue, violette…).
+  const flameTint = isActive && flameColor ? flameColor : null;
 
   return (
     <TouchableOpacity
-      style={[styles.chip, { borderColor: goldFlame ? '#FFD700' : COLORS.cardBorder, backgroundColor: goldFlame ? '#FFD7001A' : COLORS.card }]}
+      style={[styles.chip, { borderColor: flameTint ?? COLORS.cardBorder, backgroundColor: flameTint ? flameTint + '1A' : COLORS.card }]}
       onPress={() => router.push('/(tabs)/(secondary)/succes' as any)}
       activeOpacity={0.8}
       accessibilityRole="button"
@@ -35,10 +35,13 @@ export default function StreakChip() {
     >
       {isImageIcon(streakIcon)
         ? <Image source={{ uri: streakIcon }} style={styles.iconImg} />
-        : streakIcon.length <= 2
-          ? <Text style={[styles.emoji, !isActive && { opacity: 0.4 }, goldFlame && styles.goldEmoji]}>{streakIcon}</Text>
-          : <Ionicons name={streakIcon as any} size={14} color={goldFlame ? '#FFD700' : isActive ? COLORS.orange : COLORS.textSecondary} />}
-      <Text style={[styles.streakText, { color: goldFlame ? '#FFD700' : isActive ? COLORS.text : COLORS.textSecondary }]}>{state.streak}</Text>
+        : flameTint
+          // Flamme cosmétique : icône vectorielle colorée (l'emoji 🔥 n'est pas recolorable).
+          ? <Ionicons name="flame" size={14} color={flameTint} />
+          : streakIcon.length <= 2
+            ? <Text style={[styles.emoji, !isActive && { opacity: 0.4 }]}>{streakIcon}</Text>
+            : <Ionicons name={streakIcon as any} size={14} color={isActive ? COLORS.orange : COLORS.textSecondary} />}
+      <Text style={[styles.streakText, { color: flameTint ?? (isActive ? COLORS.text : COLORS.textSecondary) }]}>{state.streak}</Text>
     </TouchableOpacity>
   );
 }

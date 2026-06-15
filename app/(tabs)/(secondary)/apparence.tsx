@@ -86,12 +86,30 @@ export default function AppearanceScreen() {
         label: shopItem?.label ?? key,
         description: shopItem?.description ?? '',
         icon: shopItem?.icon ?? 'sparkles',
+        slot: def?.slot ?? 'autre',
         slotLabel: def?.slotLabel ?? '',
         color,
         equipped: cosmetics.isEquipped(key),
       };
     });
   }, [cosmetics.ownedKeys, cosmetics.equipped, gamiConfig]);
+
+  // Cosmétiques regroupés par catégorie (emplacement) et triés par nom.
+  const cosmeticGroups = useMemo(() => {
+    const order: { slot: string; label: string }[] = [
+      { slot: 'avatar_frame', label: "Cadres d'avatar" },
+      { slot: 'title', label: 'Titres de profil' },
+      { slot: 'streak_flame', label: 'Flammes de série' },
+    ];
+    return order
+      .map((g) => ({
+        ...g,
+        items: ownedCosmetics
+          .filter((c) => c.slot === g.slot)
+          .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [ownedCosmetics]);
   // Les presets natifs (7 couleurs de base) sont gratuits pour tous.
   // Les presets supplémentaires créés dans le Style Editor forment le "Pack couleurs".
   const nativePresets = allPresets.filter((p) => NATIVE_PRESET_IDS.includes(p.id));
@@ -237,24 +255,30 @@ export default function AppearanceScreen() {
               ) : (
                 <>
                   <Text style={styles.hint}>Cochez un cosmétique pour l'équiper. Il s'affichera sur votre profil et dans l'app.</Text>
-                  {ownedCosmetics.map((cos) => (
-                    <TouchableOpacity
-                      key={cos.key}
-                      style={[styles.cosmeticRow, cos.equipped && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '14' }]}
-                      onPress={() => cosmetics.toggle(cos.key)}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.cosmeticIcon, { backgroundColor: cos.color + '22' }]}>
-                        <Ionicons name={cos.icon as any} size={20} color={cos.color} />
+                  {cosmeticGroups.map((group) => (
+                    <View key={group.slot}>
+                      <Text style={styles.cosmeticGroupTitle}>{group.label}</Text>
+                      <View style={styles.cosmeticGrid}>
+                        {group.items.map((cos) => (
+                          <TouchableOpacity
+                            key={cos.key}
+                            style={[styles.cosmeticCard, cos.equipped && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '14' }]}
+                            onPress={() => cosmetics.toggle(cos.key)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={[styles.cosmeticCardIcon, { backgroundColor: cos.color + '22' }]}>
+                              <Ionicons name={cos.icon as any} size={22} color={cos.color} />
+                            </View>
+                            <Text style={styles.cosmeticCardLabel} numberOfLines={2}>{cos.label}</Text>
+                            {cos.equipped && (
+                              <View style={styles.cosmeticCheck}>
+                                <Ionicons name="checkmark" size={12} color="#fff" />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        ))}
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.cosmeticLabel}>{cos.label}</Text>
-                        {!!cos.slotLabel && <Text style={styles.cosmeticSlot}>{cos.slotLabel}</Text>}
-                      </View>
-                      <View style={[styles.checkBox, cos.equipped && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}>
-                        {cos.equipped && <Ionicons name="checkmark" size={15} color={COLORS.bg} />}
-                      </View>
-                    </TouchableOpacity>
+                    </View>
                   ))}
                 </>
               )}
@@ -293,10 +317,11 @@ function makeStyles(c: any) {
     lockRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     unlockBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, marginTop: 4 },
     unlockBtnText: { fontSize: 14, fontWeight: '700', color: c.bg },
-    cosmeticRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginTop: 4 },
-    cosmeticIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    cosmeticLabel: { fontSize: 14, fontWeight: '700', color: c.text },
-    cosmeticSlot: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
-    checkBox: { width: 24, height: 24, borderRadius: 7, borderWidth: 1.5, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+    cosmeticGroupTitle: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },
+    cosmeticGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
+    cosmeticCard: { flexBasis: '30%', flexGrow: 0, height: 96, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 7 },
+    cosmeticCardIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+    cosmeticCardLabel: { fontSize: 11, fontWeight: '700', color: c.text, textAlign: 'center' },
+    cosmeticCheck: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
   });
 }
