@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ export default function WelcomeScreen() {
   const styles = makeStyles(COLORS);
   const appNameFont = useAppNameFont();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width: winWidth } = useWindowDimensions();
   const { data: landing } = useLandingConfig();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -58,7 +59,7 @@ export default function WelcomeScreen() {
       </View>
 
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]} showsVerticalScrollIndicator={false}>
           
           <Animated.View style={[styles.hero, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
