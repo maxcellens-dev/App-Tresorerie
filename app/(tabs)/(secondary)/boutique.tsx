@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../components/ScreenGradient';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,8 +38,10 @@ export default function BoutiqueScreen() {
   const { isPremium, premiumEnabled } = usePlan(user?.id);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
   const [tab, setTab] = useState<ShopTab>('app');
-  const [catFilter, setCatFilter] = useState<ShopCategory | 'all'>('all');
+  // focus=gems (depuis « mes Relyks ») → pré-sélectionne « Recharger en relyks ».
+  const [catFilter, setCatFilter] = useState<ShopCategory | 'all'>(focus === 'gems' ? 'gems' : 'all');
   const [confirmItem, setConfirmItem] = useState<{ key: string; label: string; price: number } | null>(null);
 
   const gems = state?.gems ?? 0;

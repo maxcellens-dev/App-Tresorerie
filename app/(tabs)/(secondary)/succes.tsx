@@ -98,11 +98,18 @@ export default function SuccesScreen() {
               <Text style={styles.summaryLabel}>{(state?.streak ?? 0) > 1 ? 'semaines' : 'semaine'} d'affilée{'\n'}(record {state?.best_streak ?? 0})</Text>
             </View>
             <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
+            {/* Toucher ses Relyks → boutique (onglet « Recharger en relyks »). */}
+            <TouchableOpacity
+              style={styles.summaryItem}
+              onPress={() => router.push('/(tabs)/(secondary)/boutique?focus=gems' as any)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Recharger en relyks"
+            >
               <Ionicons name="diamond" size={22} color={COLORS.blue} />
               <Text style={styles.summaryValue}>{state?.gems ?? 0}</Text>
               <Text style={styles.summaryLabel}>{currencyPlural(config?.identity.currencyName || 'Relyk')}</Text>
-            </View>
+            </TouchableOpacity>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
               <Ionicons name="trophy" size={22} color={COLORS.yellow} />

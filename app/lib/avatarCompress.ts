@@ -99,10 +99,18 @@ function compressAvatarWeb(source: string | File): Promise<CompressedAvatarResul
 }
 
 /**
- * Native : expo-image-manipulator. WebP est marqué @platform web ; on utilise JPEG sur mobile avec forte compression.
+ * Native : expo-image-manipulator.
+ * - Android : WebP (meilleure compression) → image/webp.
+ * - iOS : WebP non supporté par image-manipulator → repli JPEG.
+ * On réduit la qualité par paliers jusqu'à passer sous 30 Ko.
  */
 async function compressAvatarNative(uri: string): Promise<CompressedAvatarResult> {
   const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+
+  // WebP dispo sur Android (et web) ; sur iOS on retombe sur JPEG.
+  const webpSupported = Platform.OS === 'android' && !!(SaveFormat as any).WEBP;
+  const format = webpSupported ? SaveFormat.WEBP : SaveFormat.JPEG;
+  const mime = webpSupported ? 'image/webp' : 'image/jpeg';
 
   let quality = 0.85;
   let lastResult: { uri: string; base64?: string } | null = null;
@@ -111,24 +119,19 @@ async function compressAvatarNative(uri: string): Promise<CompressedAvatarResult
     const result = await manipulateAsync(
       uri,
       [{ resize: { width: TARGET_SIZE, height: TARGET_SIZE } }],
-      {
-        compress: quality,
-        format: SaveFormat.JPEG,
-        base64: true,
-      }
+      { compress: quality, format, base64: true }
     );
     lastResult = result;
     const size = result.base64 ? Math.ceil((result.base64.length * 3) / 4) : 0;
     if (size <= MAX_SIZE_BYTES) {
       const data = result.base64 ? base64ToArrayBuffer(result.base64) : new ArrayBuffer(0);
-      return { data, mime: 'image/jpeg' };
+      return { data, mime };
     }
     quality -= 0.15;
   }
 
   if (lastResult?.base64) {
-    const data = base64ToArrayBuffer(lastResult.base64);
-    return { data, mime: 'image/jpeg' };
+    return { data: base64ToArrayBuffer(lastResult.base64), mime };
   }
   throw new Error('Compression avatar échouée');
 }
