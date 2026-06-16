@@ -316,8 +316,10 @@ function makeStyles(c: any) {
     flex: 1, fontSize: 15, color: c.text,
     ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
   },
-  listContainer: { maxHeight: 200, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.cardSolid },
-  list: { flex: 1 },
+  listContainer: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, backgroundColor: c.cardSolid, overflow: 'hidden' },
+  // Le maxHeight est porté par le ScrollView (pas le conteneur) : le ScrollView se dimensionne
+  // à son contenu jusqu'à 240 px, sans dépendre d'une hauteur de parent (évite l'effondrement à 0).
+  list: { maxHeight: 240 },
   listContent: { paddingVertical: 4, paddingBottom: 12 },
   section: { marginTop: 8 },
   sectionHeader: { fontSize: 12, fontWeight: '700', color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 6 },

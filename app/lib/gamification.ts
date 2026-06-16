@@ -251,7 +251,11 @@ function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
   const merged = DEFAULT_GAMIFICATION.shop.map((def) => {
     const s = storedByKey.get(def.key);
     if (!s) return def;
-    return { ...def, price: s.price ?? def.price, payload: { ...(def.payload ?? {}), ...(s.payload ?? {}) } };
+    // L'admin pilote prix + quantités, MAIS le productId (identifiant store) vient TOUJOURS du code
+    // (une mauvaise valeur stockée casserait l'achat — ex. relyka_gems_100 au lieu de 100_relyks).
+    const payload = { ...(def.payload ?? {}), ...(s.payload ?? {}) };
+    if ((def.payload as any)?.productId) (payload as any).productId = (def.payload as any).productId;
+    return { ...def, price: s.price ?? def.price, payload };
   });
   // Articles 100 % personnalisés (clés absentes du défaut) → conservés tels quels.
   const extra = stored.filter((s) => !DEFAULT_GAMIFICATION.shop.some((d) => d.key === s.key));

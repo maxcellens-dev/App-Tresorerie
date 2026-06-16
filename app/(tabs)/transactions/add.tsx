@@ -222,7 +222,7 @@ export default function AddTransactionScreen() {
   if (!user) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={['top']}>
+        <SafeAreaView style={styles.safe} edges={[]}>
           <Text style={styles.text}>Connectez-vous pour ajouter une transaction.</Text>
           <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
             <Text style={styles.btnLabel}>Retour</Text>
@@ -236,7 +236,7 @@ export default function AddTransactionScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={[]}>
         <HeaderWithProfile title="Nouvelle transaction" showBack={true} hideProfile={true} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

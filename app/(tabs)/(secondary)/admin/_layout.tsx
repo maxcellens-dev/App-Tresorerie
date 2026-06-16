@@ -1,10 +1,13 @@
 import { Stack } from 'expo-router';
+import { useAppColors } from '../../../hooks/useAppColors';
 
 export default function AdminLayout() {
+  const COLORS = useAppColors();
   return (
     <Stack
       screenOptions={{
         headerShown: false, // Parent (tabs) layout handles headers
+        contentStyle: { backgroundColor: COLORS.bg },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Panneau Admin' }} />

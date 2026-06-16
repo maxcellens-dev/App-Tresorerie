@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
+import { useAppColors } from '../../hooks/useAppColors';
 
 export default function SecondaryLayout() {
+  const COLORS = useAppColors();
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
       <Stack.Screen name="profile" />
       <Stack.Screen name="parametres" />
       <Stack.Screen name="apparence" />

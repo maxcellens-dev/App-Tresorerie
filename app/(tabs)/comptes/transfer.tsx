@@ -160,7 +160,7 @@ export default function TransferScreen() {
   if (!user) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={['top']}>
+        <SafeAreaView style={styles.safe} edges={[]}>
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
@@ -206,7 +206,7 @@ export default function TransferScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={[]}>
         <HeaderWithProfile title="Virement entre comptes" showBack={true} onBack={goBack} />
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 

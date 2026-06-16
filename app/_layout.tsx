@@ -197,7 +197,7 @@ function AppChrome() {
         </SafeAreaView>
       )}
       <View style={styles.content}>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="index" options={{ title: 'Relyka' }} />
           <Stack.Screen name="welcome" options={{ title: 'Relyka' }} />

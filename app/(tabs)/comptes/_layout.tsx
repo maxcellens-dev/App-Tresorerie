@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
+import { useAppColors } from '../../hooks/useAppColors';
 
 export default function AccountsLayout() {
+  const COLORS = useAppColors();
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" options={{ title: 'Compte' }} />
       <Stack.Screen name="add" options={{ title: 'Nouveau compte' }} />
