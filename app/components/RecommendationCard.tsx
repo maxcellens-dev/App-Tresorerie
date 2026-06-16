@@ -169,7 +169,7 @@ export default function RecommendationCard({
   );
 
   return (
-    <View style={[styles.container, { borderColor: ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald) + '40' }]} {...panResponder.panHandlers}>
+    <View style={[styles.container, (isLead && count === 1 && Math.round(relykaAmount) <= 0) && { minHeight: 0 }, { borderColor: ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald) + '40' }]} {...panResponder.panHandlers}>
       {/* ── Header (titre + nav) — masqué si la section porte déjà le titre ── */}
       {!hideTitle && (
         <View style={styles.headerRow}>
@@ -181,7 +181,18 @@ export default function RecommendationCard({
         </View>
       )}
 
-      {isLead ? (
+      {isLead && count === 1 && Math.round(relykaAmount) <= 0 ? (
+        /* ── À 0 € sans reco : version COMPACTE (pas de jauge, ligne réduite) ── */
+        <View style={styles.leadCompact}>
+          <View style={styles.leadCompactRow}>
+            <Text style={styles.leadTitle}>Ton Relyka</Text>
+            <Text style={[styles.leadCompactAmount, { color: relykaColor ?? COLORS.emerald }]}>
+              {Math.round(relykaAmount).toLocaleString('fr-FR')} €
+            </Text>
+          </View>
+          {!!relykaMessage && <Text style={styles.leadCompactMsg}>{relykaMessage}</Text>}
+        </View>
+      ) : isLead ? (
         /* ── Slide 0 : jauge « Ton Relyka » composée des couleurs des recos ── */
         <View style={styles.leadSlide}>
           <View style={styles.leadTopRow}>
@@ -451,6 +462,11 @@ function makeStyles(c: any) {
   leadTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', alignSelf: 'stretch' },
   leadTitle: { fontSize: 13, color: c.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   leadMessage: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'center', paddingHorizontal: 4 },
+  // Version compacte (Relyka à 0 € sans reco) : une ligne titre + montant, message à gauche.
+  leadCompact: { gap: 6 },
+  leadCompactRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  leadCompactAmount: { fontSize: 22, fontWeight: '900' },
+  leadCompactMsg: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'left' },
   recoSlide: { flex: 1, justifyContent: 'space-between', gap: 10 },
   // Groupe haut : titre section + icône/titre/montant + textes, collés en haut (position fixe au swipe).
   recoTop: { gap: 10 },

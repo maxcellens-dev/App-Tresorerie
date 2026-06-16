@@ -25,6 +25,7 @@ import { useReleaseReservedByProject } from '../hooks/useTransactions';
 import { useRecoThresholds } from '../hooks/useRecoThresholds';
 import RecommendationCard from '../components/RecommendationCard';
 import ConseilsBanner from '../components/ConseilsBanner';
+import { usePilotageTipsEnabled } from '../lib/uiPrefs';
 import AdSlot from '../components/AdSlot';
 import { useProjects } from '../hooks/useProjects';
 import { useCategories } from '../hooks/useCategories';
@@ -52,6 +53,7 @@ export default function PilotageScreen() {
   const { user } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
+  const tipsEnabled = usePilotageTipsEnabled();
   const onbReserved = useOnbHighlight('reserved_consulted');
   const onbReco = useOnbHighlight('reco_validated');
   const [refreshing, setRefreshing] = useState(false);
@@ -474,7 +476,7 @@ export default function PilotageScreen() {
               surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
               checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
             />
-          ) : (
+          ) : tipsEnabled ? (
             <ConseilsBanner
               userId={user?.id}
               pilotage={pilotageData}
@@ -482,7 +484,7 @@ export default function PilotageScreen() {
               projects={projectsForConseils}
               accounts={accounts}
             />
-          )}
+          ) : null}
 
           {/* ═══════════ SECTION : « Ton Relyka » + Recommandations (carrousel) ═══════════
               Plus de titre « Recommandations » : la jauge Relyka est la 1ʳᵉ slide, les recos

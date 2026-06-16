@@ -21,6 +21,7 @@ import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useNavBack } from '../../hooks/useNavBack';
 import { useCalculator } from '../../contexts/CalculatorContext';
+import { usePilotageTipsEnabled, setPilotageTipsEnabled } from '../../lib/uiPrefs';
 
 const APP_VERSION = '1.0.0';
 
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled } = useCalculator();
+  const tipsEnabled = usePilotageTipsEnabled();
 
   const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
   const [safetyAmountInput, setSafetyAmountInput] = useState('');
@@ -240,6 +242,24 @@ export default function SettingsScreen() {
                 Détermine si vos revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de votre Relyka — le montant que vous pouvez allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur l'argent déja encaissé.
               </Text>
             </View>
+          </View>
+
+          {/* ── Conseils (affichage en haut du Pilotage) ── */}
+          <Text style={styles.sectionTitle}>Conseils</Text>
+          <View style={styles.card}>
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Ionicons name="bulb-outline" size={20} color={COLORS.textSecondary} />
+              <Text style={styles.rowLabel}>Afficher les conseils</Text>
+              <Switch
+                value={tipsEnabled}
+                onValueChange={setPilotageTipsEnabled}
+                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              Affiche le bandeau de conseils en haut de la page Pilotage. Désactivez-le pour un écran plus épuré.
+            </Text>
           </View>
 
           {/* ── Notifications ── */}
