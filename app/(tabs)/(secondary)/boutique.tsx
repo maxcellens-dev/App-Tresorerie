@@ -235,8 +235,8 @@ export default function BoutiqueScreen() {
                           </View>
                         )}
                       </View>
-                      {/* Lien « Consulter mes achats » → Apparence (§N4) */}
-                      {cat === 'apparence' && (
+                      {/* Lien « Consulter mes achats » → Apparence (cosmétiques équipables : cadres, titres, flammes…) */}
+                      {(cat === 'apparence' || cat === 'cosmetiques' || cat === 'titres' || cat === 'premium') && (
                         <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence' as any)} activeOpacity={0.7}>
                           <Ionicons name="color-palette-outline" size={13} color={COLORS.emerald} />
                           <Text style={styles.apparenceLinkText}>Consulter mes achats</Text>

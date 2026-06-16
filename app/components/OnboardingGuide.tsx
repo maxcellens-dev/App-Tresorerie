@@ -143,7 +143,7 @@ function makeStyles(c: any) {
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: c.card,
+    backgroundColor: c.cardSolid,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,

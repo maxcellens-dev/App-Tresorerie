@@ -127,22 +127,21 @@ export default function AppearanceScreen() {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           <View style={styles.card}>
-            {isAdmin && (
-              <View style={[styles.block, { borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder, paddingBottom: 16, marginBottom: 16 }]}>
-                <Text style={styles.label}>Mode d'affichage</Text>
-                <View style={styles.segmentRow}>
-                  {THEME_MODES.map((m) => {
-                    const active = currentMode === m.id;
-                    return (
-                      <TouchableOpacity key={m.id} style={[styles.segment, active && styles.segmentActive]} onPress={() => setMode(m.id)} activeOpacity={0.8}>
-                        <Ionicons name={m.icon as any} size={16} color={active ? COLORS.bg : COLORS.textSecondary} />
-                        <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{m.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+            {/* Mode d'affichage clair / sombre — accessible à tous les utilisateurs. */}
+            <View style={[styles.block, { borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder, paddingBottom: 16, marginBottom: 16 }]}>
+              <Text style={styles.label}>Mode d'affichage</Text>
+              <View style={styles.segmentRow}>
+                {THEME_MODES.map((m) => {
+                  const active = currentMode === m.id;
+                  return (
+                    <TouchableOpacity key={m.id} style={[styles.segment, active && styles.segmentActive]} onPress={() => setMode(m.id)} activeOpacity={0.8}>
+                      <Ionicons name={m.icon as any} size={16} color={active ? COLORS.bg : COLORS.textSecondary} />
+                      <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]}>{m.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            )}
+            </View>
 
             <View style={styles.block}>
               <Text style={styles.label}>Couleur d'accent</Text>

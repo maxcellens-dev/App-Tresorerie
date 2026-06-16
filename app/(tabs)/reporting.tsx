@@ -42,10 +42,11 @@ const CHART = {
 
 const CHART_PALETTE = [CHART.emerald, CHART.rose, CHART.violet, CHART.sky, CHART.amber, CHART.orange, CHART.pink, CHART.teal, CHART.lime, CHART.cyan, CHART.indigo];
 
-/** Couleurs du Reporting : thème (bg/card/text…) + palette de graphiques fixe. */
+/** Couleurs du Reporting : thème (bg/card/text…) + palette de graphiques fixe.
+ *  `emerald` est ramené au VERT sémantique (Style Editor) pour respecter le thème clair. */
 function useReportingColors() {
   const t = useAppColors();
-  return { ...t, ...CHART };
+  return { ...t, ...CHART, emerald: t.green, emeraldDark: t.green };
 }
 
 const fmt = (n: number) => {

@@ -17,11 +17,16 @@ import { useGamificationConfig } from '../../hooks/useGamificationConfig';
 import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../lib/purchases';
 
 const BENEFITS = [
+  { icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.' },
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
   { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.' },
   { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.' },
+  { icon: 'people', title: 'Relyka World — Projets partagés (bientôt)', desc: 'Des projets financiers partagés entre utilisateurs.' },
   { icon: 'sparkles', title: 'Conseiller personnalisé (bientôt)', desc: 'Des conseils sur-mesure selon ton profil.' },
 ];
+
+// Prix affichés (alignés sur ceux du store Google Play).
+const PLAN_PRICES = { monthly: '2,39 €', annual: '23,99 €' } as const;
 
 export default function PremiumScreen() {
   const COLORS = useAppColors();
@@ -109,7 +114,7 @@ export default function PremiumScreen() {
           {BENEFITS.map((b) => (
             <View key={b.title} style={styles.benefit}>
               <View style={[styles.benefitIcon, { backgroundColor: COLORS.emerald + '22' }]}>
-                <Ionicons name={b.icon as any} size={20} color={COLORS.emerald} />
+                <Ionicons name={b.icon as any} size={17} color={COLORS.emerald} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.benefitTitle}>{b.title === 'Remise boutique' ? `Remise boutique −${discount}%` : b.title}</Text>
@@ -129,6 +134,7 @@ export default function PremiumScreen() {
                 >
                   {selectedPlan === 'monthly' && <View style={[styles.bestBadge, { backgroundColor: COLORS.emerald }]}><Text style={styles.bestBadgeText}>✓ Sélectionné</Text></View>}
                   <Text style={styles.offerName}>Mensuel</Text>
+                  <Text style={styles.offerPrice}>{PLAN_PRICES.monthly}<Text style={styles.offerPeriod}> / mois</Text></Text>
                   <Text style={styles.offerDesc}>Sans engagement, résiliable à tout moment.</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -140,6 +146,7 @@ export default function PremiumScreen() {
                     <Text style={styles.bestBadgeText}>{selectedPlan === 'annual' ? '✓ Sélectionné' : 'Avantageux'}</Text>
                   </View>
                   <Text style={styles.offerName}>Annuel</Text>
+                  <Text style={styles.offerPrice}>{PLAN_PRICES.annual}<Text style={styles.offerPeriod}> / an</Text></Text>
                   <Text style={styles.offerDesc}>Le meilleur prix sur l'année.</Text>
                 </TouchableOpacity>
               </View>
@@ -207,21 +214,23 @@ function makeStyles(c: any) {
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    hero: { alignItems: 'center', gap: 6, marginVertical: 16 },
-    heroTitle: { fontSize: 30, fontWeight: '900', color: c.text },
-    heroSub: { fontSize: 14, color: c.textSecondary },
-    note: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14, marginBottom: 16, backgroundColor: c.card },
+    hero: { alignItems: 'center', gap: 4, marginTop: 6, marginBottom: 12 },
+    heroTitle: { fontSize: 26, fontWeight: '900', color: c.text },
+    heroSub: { fontSize: 13, color: c.textSecondary },
+    note: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 12, backgroundColor: c.card },
     noteText: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
-    benefit: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
-    benefitIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    benefitTitle: { fontSize: 15, fontWeight: '700', color: c.text },
-    benefitDesc: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    benefit: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 12, marginBottom: 7 },
+    benefitIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    benefitTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
+    benefitDesc: { fontSize: 11, color: c.textSecondary, marginTop: 1, lineHeight: 14 },
     cta: { backgroundColor: c.cardBorder, borderRadius: 14, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
     ctaText: { fontSize: 15, fontWeight: '700', color: c.textSecondary },
     purchaseMsg: { fontSize: 13, color: c.text, textAlign: 'center', marginTop: 12, lineHeight: 18 },
     offersRow: { flexDirection: 'row', gap: 12, marginTop: 6, marginBottom: 4 },
     offerCard: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, gap: 4 },
     offerName: { fontSize: 15, fontWeight: '800', color: c.text },
+    offerPrice: { fontSize: 18, fontWeight: '900', color: c.emerald, marginTop: 2 },
+    offerPeriod: { fontSize: 12, fontWeight: '700', color: c.textSecondary },
     offerDesc: { fontSize: 11.5, color: c.textSecondary, lineHeight: 15 },
     bestBadge: { position: 'absolute', top: -9, right: 10, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     bestBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff' },

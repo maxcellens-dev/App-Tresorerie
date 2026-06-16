@@ -4,6 +4,7 @@
  * Le bouton « Quitter » rend la main à la session admin réelle.
  */
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function ImpersonationBanner() {
   const { isImpersonating, impersonatedEmail, stopImpersonating } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   if (!isImpersonating) return null;
 
@@ -20,7 +22,7 @@ export default function ImpersonationBanner() {
   };
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, Platform.OS !== 'web' && { paddingTop: insets.top + 8 }]}>
       <Ionicons name="eye" size={16} color="#1f2937" />
       <Text style={styles.text} numberOfLines={1}>
         Mode admin · vous agissez sur <Text style={styles.email}>{impersonatedEmail ?? 'ce compte'}</Text>

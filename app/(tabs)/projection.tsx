@@ -132,6 +132,10 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
 export default function ProjectionScreen() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  // Couleurs Investissement / Épargne = couleurs sémantiques du Style Editor
+  // (respectent le thème clair/sombre). Surchargent les constantes de marque par défaut.
+  const INVEST_COLOR = COLORS.investment;
+  const SAVINGS_COLOR = COLORS.savings;
   const onbHypo = useOnbHighlight('projection_edited');
   const { width } = useWindowDimensions();
   const { user } = useAuth();
@@ -305,6 +309,25 @@ export default function ProjectionScreen() {
 
   const selectedAcc = investAccounts.find((a) => a.id === selectedAccId) ?? investAccounts[0];
   const selHypo = selectedAcc ? hypos[selectedAcc.id] : undefined;
+
+  // Sécurité : si le compte sélectionné n'a pas encore d'hypothèse (init pas encore passée à
+  // cause d'un timing de chargement), on l'initialise tout de suite → les champs s'affichent
+  // par défaut, sans devoir cliquer sur l'icône « actualiser ».
+  useEffect(() => {
+    if (!selectedAcc || hypos[selectedAcc.id]) return;
+    const auto = autoContributedFor(selectedAcc as any);
+    setHypos((prev) => (prev[selectedAcc.id] ? prev : {
+      ...prev,
+      [selectedAcc.id]: {
+        contributed: String(Math.round(auto)),
+        contributedBase: auto,
+        annual: '0',
+        rate: '7',
+        tax: String(taxRateFor(fiscalRates, (selectedAcc as any).envelope)),
+      },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAcc?.id, hypos, fiscalRates]);
 
   // ── Calcul global (somme des comptes) ──
   const investRowsGlobal = useMemo<InvestYearRow[]>(() => {
@@ -1030,7 +1053,7 @@ function makeStyles(c: any) {
       borderWidth: 1, borderColor: c.cardBorder,
     },
     valueBadgeLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
-    valueBadgeValue: { fontSize: 15, fontWeight: '800', color: INVEST_COLOR },
+    valueBadgeValue: { fontSize: 15, fontWeight: '800', color: c.investment },
     miniHint: { fontSize: 10, color: c.textSecondary, lineHeight: 13 },
     fiscalNote: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 6,

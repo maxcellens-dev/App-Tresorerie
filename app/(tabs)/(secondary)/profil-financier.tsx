@@ -260,10 +260,10 @@ export default function ProfilFinancierScreen() {
               <View style={styles.card}>
                 <Text style={styles.sectionLabel}>Allocation recommandée</Text>
                 {([
-                  { label: 'Épargner',        key: 'save'   as const, color: '#34d399' },
-                  { label: 'Investir',         key: 'invest' as const, color: '#a78bfa' },
-                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: '#f59e0b' },
-                  { label: 'Conserver',        key: 'keep'   as const, color: '#60a5fa' },
+                  { label: 'Épargner',        key: 'save'   as const, color: COLORS.savings },
+                  { label: 'Investir',         key: 'invest' as const, color: COLORS.investment },
+                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: COLORS.warning },
+                  { label: 'Conserver',        key: 'keep'   as const, color: COLORS.checking },
                 ]).map(({ label, key, color }) => {
                   const pct = alloc[key];
                   return (
