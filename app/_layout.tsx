@@ -9,6 +9,7 @@ import { TourProvider } from './contexts/TourContext';
 import { CalculatorProvider } from './contexts/CalculatorContext';
 import Calculator from './components/Calculator';
 import UpdateBanner from './components/UpdateBanner';
+import AchievementCelebration from './components/AchievementCelebration';
 import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
@@ -226,6 +227,8 @@ function AppChrome() {
       <Calculator />
       {/* Bandeau « mise à jour disponible » (descend du haut) */}
       <UpdateBanner />
+      {/* Célébration globale d'un succès débloqué (par-dessus tout) */}
+      <AchievementCelebration />
     </View>
     </TourProvider>
   );

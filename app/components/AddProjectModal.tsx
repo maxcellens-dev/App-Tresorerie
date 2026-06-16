@@ -560,8 +560,8 @@ export default function AddProjectModal() {
         ) : (
           <View style={styles.pageBody}>
             {!showAccountPicker ? (
-              <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={{ flex: 1 }}>
-              <ScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined} style={{ flex: 1 }}>
+              <ScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
                 {/* Bandeau erreur */}
                 {formError && (
                   <View style={[styles.errorBanner, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '1F' }]}>

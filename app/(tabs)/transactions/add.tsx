@@ -238,7 +238,7 @@ export default function AddTransactionScreen() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title="Nouvelle transaction" />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
@@ -497,7 +497,7 @@ function makeStyles(c: any) {
   back: { marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   typeSelector: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   stepsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 },
   stepDot: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },

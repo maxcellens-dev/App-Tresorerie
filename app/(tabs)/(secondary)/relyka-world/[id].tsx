@@ -67,7 +67,8 @@ export default function RelykaWorldDetail() {
   const myParticipantId = participants.find((p) => p.user_id === user?.id)?.id;
 
   const total = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
-  const myExpenses = useMemo(() => expenses.filter((e) => e.paid_by === myParticipantId).reduce((s, e) => s + e.amount, 0), [expenses, myParticipantId]);
+  // « Mes dépenses » = la part qui revient à l'utilisateur (somme de ses quotes-parts), pas ce qu'il a avancé.
+  const myExpenses = useMemo(() => shares.filter((s) => s.participant_id === myParticipantId).reduce((sum, s) => sum + s.amount, 0), [shares, myParticipantId]);
 
   const balances = useMemo(() => computeBalances(participants, expenses, shares), [participants, expenses, shares]);
   const settlements = useMemo(() => settleUp(participants.map((p) => ({ id: p.id, amount: balances.get(p.id) ?? 0 }))), [participants, balances]);
@@ -241,7 +242,7 @@ export default function RelykaWorldDetail() {
             <View style={styles.sep} />
             <Text style={styles.label}>Participants actuels</Text>
             {participants.map((p) => (
-              <Text key={p.id} style={styles.partItem}>• {p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}{p.user_id === null ? ' · en attente' : ''}</Text>
+              <Text key={p.id} style={styles.partItem}>• {p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}{p.pending ? ' · en attente' : ''}</Text>
             ))}
           </View>
         </View>

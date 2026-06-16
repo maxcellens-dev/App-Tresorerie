@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   Pressable,
+  KeyboardAvoidingView,
 } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -210,7 +211,8 @@ export default function TransferScreen() {
         <ScreenHeader title="Virement entre comptes" onBack={goBack} />
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
           {/* Fil d'étapes */}
           <View style={styles.stepsRow}>
             <View style={[styles.stepDot, styles.stepDotActive]}><Text style={styles.stepDotText}>1</Text></View>
@@ -392,6 +394,7 @@ export default function TransferScreen() {
           </>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Calendar Modal */}
         <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
@@ -453,7 +456,7 @@ function makeStyles(c: any) {
   prevLink: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 14 },
   prevLinkText: { fontSize: 14, fontWeight: '700', color: c.emerald },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: {
     backgroundColor: c.card,

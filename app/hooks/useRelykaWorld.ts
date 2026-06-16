@@ -14,7 +14,7 @@ export interface RwProject {
   id: string; owner_id: string; name: string; emoji: string; description: string; currency: string; created_at: string;
 }
 export interface RwParticipant {
-  id: string; project_id: string; user_id: string | null; display_name: string; created_at: string;
+  id: string; project_id: string; user_id: string | null; display_name: string; created_at: string; pending?: boolean;
 }
 export interface RwExpense {
   id: string; project_id: string; title: string; emoji: string | null; amount: number; currency: string;

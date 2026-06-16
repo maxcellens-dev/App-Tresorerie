@@ -1,5 +1,5 @@
 ﻿import { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -113,7 +113,8 @@ export default function AddAccountScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>Nouveau compte</Text>
 
-        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
           {/* Bandeau d'erreur global */}
           {formError && (
             <View style={styles.errorBanner}>
@@ -232,6 +233,7 @@ export default function AddAccountScreen() {
             )}
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
 
       {/* Calendar Modal */}
@@ -274,7 +276,7 @@ function makeStyles(c: any) {
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 120 },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
