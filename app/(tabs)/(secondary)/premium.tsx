@@ -21,8 +21,8 @@ const BENEFITS = [
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
   { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.' },
   { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.' },
-  { icon: 'people', title: 'Relyka World — Projets partagés (bientôt)', desc: 'Des projets financiers partagés entre utilisateurs.' },
-  { icon: 'sparkles', title: 'Conseiller personnalisé (bientôt)', desc: 'Des conseils sur-mesure selon ton profil.' },
+  { icon: 'people', title: 'Relyka World — Projets partagés (bientôt)', desc: 'Vos projets financiers partagés entre utilisateurs.' },
+  { icon: 'sparkles', title: 'Conseils personnalisés (bientôt)', desc: 'Des conseils sur-mesure selon ton profil.' },
 ];
 
 // Prix affichés (alignés sur ceux du store Google Play).
@@ -92,7 +92,7 @@ export default function PremiumScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>

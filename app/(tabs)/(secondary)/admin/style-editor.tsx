@@ -391,7 +391,7 @@ export default function StyleEditor() {
               </Section>
 
               <Section label="Couleurs d'accentuation (presets)" icon="color-palette-outline" COLORS={COLORS}>
-                <Text style={styles.hint}>Pastille = activer · code hex = modifier · œil = masquer · flèches = réordonner (l'ordre s'applique aussi dans Paramètres). Ajoutez vos propres presets en bas.</Text>
+                <Text style={styles.hint}>Ligne = activer · pastille = choisir la couleur · code hex = modifier · œil = masquer · flèches = réordonner. Ajoutez vos propres presets en bas.</Text>
                 <View style={{ gap: 10 }}>
                   {orderedPresetIds.map((id, idx) => {
                     const native = THEME_PRESETS.find(p => p.id === id);
@@ -412,19 +412,22 @@ export default function StyleEditor() {
                             <Ionicons name="chevron-down" size={16} color={idx === orderedPresetIds.length - 1 ? COLORS.cardBorder : COLORS.textSecondary} />
                           </TouchableOpacity>
                         </View>
+                        {/* Pastille = ouvrir le sélecteur de couleur */}
                         <TouchableOpacity
                           style={[styles.swatch, { backgroundColor: col }]}
-                          onPress={() => setPreset(id)}
-                          onLongPress={() => setColorPicker({ value: col, onPick: v => native
+                          onPress={() => setColorPicker({ value: col, onPick: v => native
                             ? setAccentInputs(prev => ({ ...prev, [id]: v }))
                             : setExtraPresets(prev => prev.map(x => x.id === id ? { ...x, dark: v } : x)) })}
                           activeOpacity={0.8}
                         >
                           {active && <Ionicons name="checkmark" size={14} color="#fff" />}
                         </TouchableOpacity>
-                        <Text style={styles.accentLabel} numberOfLines={1}>
-                          {native ? `${native.emoji} ${native.label}` : custom!.label}{hidden ? ' · masqué' : ''}
-                        </Text>
+                        {/* Ligne (label) = activer ce preset */}
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => setPreset(id)} activeOpacity={0.7}>
+                          <Text style={styles.accentLabel} numberOfLines={1}>
+                            {native ? `${native.emoji} ${native.label}` : custom!.label}{hidden ? ' · masqué' : ''}
+                          </Text>
+                        </TouchableOpacity>
                         <TextInput
                           style={[styles.hexInput, { width: 84 }, !valid && { borderColor: COLORS.danger }]}
                           value={inputHex}
@@ -459,11 +462,11 @@ export default function StyleEditor() {
                     <TextInput style={[styles.hexInput, { textAlign: 'left', paddingLeft: 10 }]} value={newLabel} onChangeText={setNewLabel}
                       placeholder="Nom (ex. Turquoise)" placeholderTextColor={COLORS.textSecondary} />
                     <View style={styles.row2g}>
-                      <View style={[styles.swatch, { backgroundColor: isValidHex(newDark) ? newDark : '#888' }]} />
+                      <TouchableOpacity style={[styles.swatch, { backgroundColor: isValidHex(newDark) ? newDark : '#888' }]} onPress={() => setColorPicker({ value: isValidHex(newDark) ? newDark : '#000000', onPick: setNewDark })} activeOpacity={0.8} />
                       <TextInput style={[styles.hexInput, { flex: 1 }]} value={newDark} onChangeText={setNewDark} placeholder="#RRGGBB sombre" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
                     </View>
                     <View style={styles.row2g}>
-                      <View style={[styles.swatch, { backgroundColor: isValidHex(newLight) ? newLight : '#888', borderWidth: 1, borderColor: COLORS.cardBorder }]} />
+                      <TouchableOpacity style={[styles.swatch, { backgroundColor: isValidHex(newLight) ? newLight : '#888', borderWidth: 1, borderColor: COLORS.cardBorder }]} onPress={() => setColorPicker({ value: isValidHex(newLight) ? newLight : '#FFFFFF', onPick: setNewLight })} activeOpacity={0.8} />
                       <TextInput style={[styles.hexInput, { flex: 1 }]} value={newLight} onChangeText={setNewLight} placeholder="#RRGGBB clair" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
                     </View>
                     <TouchableOpacity
@@ -553,7 +556,11 @@ export default function StyleEditor() {
               <Section label="Couleur de fond de l'app" icon="contrast-outline" COLORS={COLORS}>
                 <Text style={styles.hint}>Couleur derrière le dégradé. {activeMode === 'dark' ? 'En sombre, un noir pur peut être adouci (ex. #0A0E14).' : ''}</Text>
                 <View style={styles.accentItem}>
-                  <View style={[styles.swatch, { backgroundColor: isValidHex(aBg) ? aBg : DEFAULT_BG[activeMode], borderWidth: 1, borderColor: COLORS.cardBorder }]} />
+                  <TouchableOpacity
+                    style={[styles.swatch, { backgroundColor: isValidHex(aBg) ? aBg : DEFAULT_BG[activeMode], borderWidth: 1, borderColor: COLORS.cardBorder }]}
+                    onPress={() => setColorPicker({ value: isValidHex(aBg) ? aBg : DEFAULT_BG[activeMode], onPick: setBg })}
+                    activeOpacity={0.8}
+                  />
                   <Text style={styles.accentLabel}>Fond {activeMode === 'dark' ? 'sombre' : 'clair'}</Text>
                   <TextInput
                     style={[styles.hexInput, { width: 96 }, !isValidHex(aBg) && { borderColor: COLORS.danger }]}

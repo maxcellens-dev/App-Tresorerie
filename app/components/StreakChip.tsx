@@ -22,8 +22,9 @@ export default function StreakChip() {
   if (!user || !config?.identity.enabled || !state) return null;
   const streakIcon = config.identity.streakIcon || '🔥';
   const isActive = state.streak > 0;
-  // Cosmétique « flamme » équipé → on utilise SA couleur réelle (dorée, bleue, violette…).
-  const flameTint = isActive && flameColor ? flameColor : null;
+  // Cosmétique « flamme » équipé → on utilise SA couleur réelle (dorée, bleue, violette…),
+  // même si la série est à 0 (le style cosmétique s'applique en permanence).
+  const flameTint = flameColor ? flameColor : null;
 
   return (
     <TouchableOpacity
