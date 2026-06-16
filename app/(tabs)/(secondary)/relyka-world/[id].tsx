@@ -67,8 +67,10 @@ export default function RelykaWorldDetail() {
   const myParticipantId = participants.find((p) => p.user_id === user?.id)?.id;
 
   const total = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
-  // « Mes dépenses » = la part qui revient à l'utilisateur (somme de ses quotes-parts), pas ce qu'il a avancé.
-  const myExpenses = useMemo(() => shares.filter((s) => s.participant_id === myParticipantId).reduce((sum, s) => sum + s.amount, 0), [shares, myParticipantId]);
+  // Ma part = somme de mes quotes-parts (ce que je dois payer au final).
+  const myShare = useMemo(() => shares.filter((s) => s.participant_id === myParticipantId).reduce((sum, s) => sum + s.amount, 0), [shares, myParticipantId]);
+  // Ce que j'ai avancé = somme des dépenses dont je suis le payeur (sorties de ma poche).
+  const myPaid = useMemo(() => expenses.filter((e) => e.paid_by === myParticipantId).reduce((sum, e) => sum + e.amount, 0), [expenses, myParticipantId]);
 
   const balances = useMemo(() => computeBalances(participants, expenses, shares), [participants, expenses, shares]);
   const settlements = useMemo(() => settleUp(participants.map((p) => ({ id: p.id, amount: balances.get(p.id) ?? 0 }))), [participants, balances]);
@@ -149,8 +151,9 @@ export default function RelykaWorldDetail() {
           {tab === 'expenses' ? (
             <>
               <View style={styles.totalsRow}>
-                <View style={styles.totalCol}><Text style={styles.totalLabel}>Mes dépenses</Text><Text style={styles.totalValue}>{fmt(myExpenses)}</Text></View>
-                <View style={styles.totalCol}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{fmt(total)}</Text></View>
+                <View style={styles.totalCol}><Text style={styles.totalLabel}>J'ai avancé</Text><Text style={styles.totalValue}>{fmt(myPaid)}</Text></View>
+                <View style={styles.totalCol}><Text style={styles.totalLabel}>Ma part</Text><Text style={styles.totalValue}>{fmt(myShare)}</Text></View>
+                <View style={styles.totalCol}><Text style={styles.totalLabel}>Total projet</Text><Text style={styles.totalValue}>{fmt(total)}</Text></View>
               </View>
               {expenses.length === 0 ? (
                 <Text style={styles.empty}>Aucune dépense. Ajoutez-en une !</Text>
@@ -296,10 +299,10 @@ function makeStyles(c: any) {
     tabActive: { backgroundColor: c.emerald },
     tabText: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
     tabTextActive: { color: c.bg },
-    totalsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-    totalCol: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, alignItems: 'center' },
-    totalLabel: { fontSize: 11.5, color: c.textSecondary },
-    totalValue: { fontSize: 17, fontWeight: '800', color: c.text, marginTop: 3 },
+    totalsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+    totalCol: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center' },
+    totalLabel: { fontSize: 11, color: c.textSecondary, textAlign: 'center' },
+    totalValue: { fontSize: 14.5, fontWeight: '800', color: c.text, marginTop: 4 },
     dateHeader: { fontSize: 13, fontWeight: '800', color: c.textSecondary, marginTop: 12, marginBottom: 8 },
     expCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 8 },
     expEmoji: { fontSize: 22 },
