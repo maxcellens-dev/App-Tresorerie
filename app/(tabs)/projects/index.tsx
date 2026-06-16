@@ -35,6 +35,11 @@ import {
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { useProfile } from '../../hooks/useProfile';
+import { TextInput, Modal } from 'react-native';
+import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation } from '../../hooks/useRelykaWorld';
+
+const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
 
 export default function ProjectsScreen() {
@@ -43,6 +48,31 @@ export default function ProjectsScreen() {
   const styles = makeStyles(COLORS);
   const router = useRouter();
   const { user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  // Relyka World (projets partagés) — affichés dans cette même page.
+  const { data: rwProjects = [] } = useRwProjects(user?.id);
+  const { data: rwInvitations = [] } = useRwInvitations(user?.id);
+  const respondInvite = useRwRespondInvitation(user?.id);
+  const createRwProject = useCreateRwProject(user?.id);
+  const [showTypeChoice, setShowTypeChoice] = useState(false);
+  const [showRwCreate, setShowRwCreate] = useState(false);
+  const [rwName, setRwName] = useState('');
+  const [rwEmoji, setRwEmoji] = useState('💸');
+  const [rwDesc, setRwDesc] = useState('');
+  const [rwBusy, setRwBusy] = useState(false);
+  const [rwErr, setRwErr] = useState<string | null>(null);
+  const myName = profile?.full_name || user?.email?.split('@')[0] || 'Moi';
+  const onCreateRw = async () => {
+    if (!rwName.trim()) return;
+    setRwBusy(true); setRwErr(null);
+    try {
+      const proj = await createRwProject.mutateAsync({ name: rwName.trim(), emoji: rwEmoji, description: rwDesc.trim(), myName });
+      setShowRwCreate(false); setRwName(''); setRwDesc(''); setRwEmoji('💸');
+      router.push(`/(tabs)/(secondary)/relyka-world/${(proj as any).id}` as any);
+    } catch (e: any) {
+      setRwErr(e?.message ?? 'Création impossible.');
+    } finally { setRwBusy(false); }
+  };
   const guide = useScreenGuide('projets', user?.id);
   const addBtnRef = useRef<any>(null);
   const PROJETS_GUIDE: BubbleStep[] = [
@@ -382,7 +412,7 @@ export default function ProjectsScreen() {
             ref={addBtnRef}
             style={[styles.addBtn, onbGlow(COLORS, onbProject)]}
             activeOpacity={0.8}
-            onPress={() => router.push('/(tabs)/projects/add' as any)}
+            onPress={() => setShowTypeChoice(true)}
             accessibilityRole="button"
           >
             <Ionicons name="add" size={20} color={COLORS.primary} />
@@ -411,12 +441,43 @@ export default function ProjectsScreen() {
             renderItem={renderProjectItem}
             ListHeaderComponent={
               !showArchived ? (
-                <View style={styles.infoCard}>
-                  <Ionicons name="bulb-outline" size={18} color={COLORS.primary} style={{ marginTop: 1 }} />
-                  <Text style={styles.infoText}>
-                    Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Accumulez de l'argent par des virements vers un compte dédié, ou en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place. Choisissez un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des versements <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuels</Text>.
-                  </Text>
-                </View>
+                <>
+                  {/* Invitations Relyka World en attente */}
+                  {rwInvitations.map((inv) => (
+                    <View key={inv.id} style={styles.rwInvCard}>
+                      <Text style={{ fontSize: 22 }}>{inv.project_emoji ?? '💸'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.rwProjName} numberOfLines={1}>{inv.project_name}</Text>
+                        <Text style={styles.rwProjSub} numberOfLines={1}>Invitation de {inv.from_name}</Text>
+                      </View>
+                      <TouchableOpacity style={styles.rwInvDecline} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: false })}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
+                      <TouchableOpacity style={styles.rwInvAccept} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: true })}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
+                    </View>
+                  ))}
+                  {/* Projets partagés (Relyka World) */}
+                  {rwProjects.length > 0 && (
+                    <>
+                      <Text style={styles.rwSectionLabel}>Projets partagés</Text>
+                      {rwProjects.map((p) => (
+                        <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
+                          <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.rwProjName} numberOfLines={1}>{p.name}</Text>
+                            <Text style={styles.rwProjSub} numberOfLines={1}>{p.description || 'Dépenses partagées'}</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                        </TouchableOpacity>
+                      ))}
+                      <Text style={styles.rwSectionLabel}>Projets personnels</Text>
+                    </>
+                  )}
+                  <View style={styles.infoCard}>
+                    <Ionicons name="bulb-outline" size={18} color={COLORS.primary} style={{ marginTop: 1 }} />
+                    <Text style={styles.infoText}>
+                      Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Accumulez de l'argent par des virements vers un compte dédié, ou en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place. Choisissez un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des versements <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuels</Text>.
+                    </Text>
+                  </View>
+                </>
               ) : (
                 <Text style={styles.archiveTitle}>Projets archivés</Text>
               )
@@ -436,6 +497,63 @@ export default function ProjectsScreen() {
           />
         )}
       </SafeAreaView>
+
+      {/* Choix du type de projet */}
+      <Modal visible={showTypeChoice} transparent animationType="fade" onRequestClose={() => setShowTypeChoice(false)}>
+        <TouchableOpacity style={styles.rwModalOverlay} activeOpacity={1} onPress={() => setShowTypeChoice(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.rwChoiceCard} onPress={() => {}}>
+            <Text style={styles.rwModalTitle}>Quel type de projet ?</Text>
+            <TouchableOpacity style={styles.rwChoiceOpt} activeOpacity={0.85}
+              onPress={() => { setShowTypeChoice(false); router.push('/(tabs)/projects/add' as any); }}>
+              <View style={[styles.rwChoiceIcon, { backgroundColor: COLORS.primary + '22' }]}><Ionicons name="flag" size={22} color={COLORS.primary} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rwChoiceTitle}>Personnel</Text>
+                <Text style={styles.rwChoiceSub}>Une cagnotte pour un objectif (épargne, voyage…)</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.rwChoiceOpt} activeOpacity={0.85}
+              onPress={() => { setShowTypeChoice(false); setShowRwCreate(true); }}>
+              <View style={[styles.rwChoiceIcon, { backgroundColor: '#3b82f6' + '22' }]}><Ionicons name="earth" size={22} color="#3b82f6" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rwChoiceTitle}>Partagé (Relyka World)</Text>
+                <Text style={styles.rwChoiceSub}>Dépenses partagées entre amis, avec équilibres</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Création projet partagé */}
+      <Modal visible={showRwCreate} transparent animationType="slide" onRequestClose={() => setShowRwCreate(false)}>
+        <View style={styles.rwModalOverlay}>
+          <View style={styles.rwCreateCard}>
+            <View style={styles.rwCreateHeader}>
+              <Text style={styles.rwModalTitle}>Nouveau projet partagé</Text>
+              <TouchableOpacity onPress={() => setShowRwCreate(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.rwLabel}>Icône</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {RW_EMOJIS.map((e) => (
+                <TouchableOpacity key={e} style={[styles.rwEmojiPick, rwEmoji === e && { borderColor: COLORS.emerald, borderWidth: 2 }]} onPress={() => setRwEmoji(e)}>
+                  <Text style={{ fontSize: 22 }}>{e}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={styles.rwLabel}>Nom du projet *</Text>
+            <TextInput style={styles.rwInput} value={rwName} onChangeText={setRwName} placeholder="Ex. Week-end à Lyon" placeholderTextColor={COLORS.textSecondary} />
+            <Text style={styles.rwLabel}>Description (optionnel)</Text>
+            <TextInput style={styles.rwInput} value={rwDesc} onChangeText={setRwDesc} placeholder="Quelques mots…" placeholderTextColor={COLORS.textSecondary} />
+            {!!rwErr && <Text style={{ color: COLORS.danger, fontSize: 12.5, marginBottom: 10 }}>{rwErr}</Text>}
+            <TouchableOpacity style={[styles.rwCreateCta, (!rwName.trim() || rwBusy) && { opacity: 0.5 }]} onPress={onCreateRw} disabled={!rwName.trim() || rwBusy} activeOpacity={0.85}>
+              {rwBusy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.rwCreateCtaText}>Créer le projet</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <GuideOverlay
         visible={guide.visible}
@@ -678,6 +796,27 @@ function makeStyles(c: any) {
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   addBtnLabel: { fontSize: 14, fontWeight: '700', color: c.primary },
+  rwSectionLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 8 },
+  rwInvCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary + '55', borderRadius: 14, padding: 12, marginBottom: 8 },
+  rwInvDecline: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.danger + '1A' },
+  rwInvAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.primary },
+  rwProjCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: '#3b82f6' + '44', borderRadius: 14, padding: 14, marginBottom: 8 },
+  rwProjName: { fontSize: 15, fontWeight: '700', color: c.text },
+  rwProjSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rwModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
+  rwChoiceCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 12 },
+  rwModalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+  rwChoiceOpt: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14 },
+  rwChoiceIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  rwChoiceTitle: { fontSize: 15, fontWeight: '800', color: c.text },
+  rwChoiceSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rwCreateCard: { width: '100%', maxWidth: 420, alignSelf: 'center', backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20 },
+  rwCreateHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  rwLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
+  rwInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: c.text, fontSize: 15, marginBottom: 14, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+  rwEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
+  rwCreateCta: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  rwCreateCtaText: { fontSize: 15, fontWeight: '800', color: c.bg },
   archiveToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -23,7 +23,7 @@ type Provider = 'google' | 'apple' | 'facebook';
 
 const PROVIDERS: { id: Provider; label: string; icon: keyof typeof Ionicons.glyphMap; bg: string; fg: string; border?: string }[] = [
   { id: 'google', label: 'Continuer avec Google', icon: 'logo-google', bg: '#ffffff', fg: '#1f1f1f', border: '#dadce0' },
-  { id: 'apple', label: 'Continuer avec Apple', icon: 'logo-apple', bg: '#000000', fg: '#ffffff' },
+  // Connexion Apple masquée pour l'instant (non gérée).
   { id: 'facebook', label: 'Continuer avec Facebook', icon: 'logo-facebook', bg: '#1877F2', fg: '#ffffff' },
 ];
 

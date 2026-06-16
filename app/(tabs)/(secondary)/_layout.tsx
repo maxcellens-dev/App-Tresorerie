@@ -19,6 +19,7 @@ export default function SecondaryLayout() {
       <Stack.Screen name="succes" />
       <Stack.Screen name="boutique" />
       <Stack.Screen name="premium" />
+      <Stack.Screen name="relyka-world" />
       <Stack.Screen name="admin" />
     </Stack>
   );

@@ -14,6 +14,7 @@ import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useCosmetics } from '../../hooks/useCosmetics';
+import * as Clipboard from 'expo-clipboard';
 import { useNavBack } from '../../hooks/useNavBack';
 import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
@@ -44,6 +45,12 @@ export default function ProfileScreen() {
 
   // ── Guide de présentation (bulles) ──
   const guide = useScreenGuide('parametres', user?.id);
+  const [copiedId, setCopiedId] = useState(false);
+  const copyPublicCode = async () => {
+    const code = (profile as any)?.public_code;
+    if (!code) return;
+    try { await Clipboard.setStringAsync(String(code)); setCopiedId(true); setTimeout(() => setCopiedId(false), 1500); } catch { /* ignore */ }
+  };
   const scrollRef = useRef<ScrollView>(null);
   const avatarRef = useRef<View>(null);
   const infoRef = useRef<View>(null);
@@ -240,6 +247,15 @@ export default function ProfileScreen() {
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Mon profil</Text>
+          <View style={{ flex: 1 }} />
+          {/* ID public partageable (pour les invitations Relyka World) — copiable d'un toucher. */}
+          {!!(profile as any)?.public_code && (
+            <TouchableOpacity style={styles.idChip} onPress={copyPublicCode} activeOpacity={0.7} accessibilityLabel="Copier mon ID Relyka">
+              <Text style={styles.idChipLabel}>ID</Text>
+              <Text style={styles.idChipCode}>{(profile as any).public_code}</Text>
+              <Ionicons name={copiedId ? 'checkmark' : 'copy-outline'} size={13} color={copiedId ? COLORS.emerald : COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection} ref={avatarRef}>
@@ -433,6 +449,9 @@ function makeStyles(c: any) {
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 4, marginRight: 12 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
+  idChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  idChipLabel: { fontSize: 10, fontWeight: '800', color: c.textSecondary, letterSpacing: 0.5 },
+  idChipCode: { fontSize: 12, fontWeight: '700', color: c.text, letterSpacing: 0.5 },
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },

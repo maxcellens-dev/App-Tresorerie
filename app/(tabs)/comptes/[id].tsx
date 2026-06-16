@@ -534,7 +534,7 @@ export default function AccountDetailScreen() {
                     <Text style={styles.transferDate}>
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Text>
-                    <Text style={styles.transferLabel}>{label}</Text>
+                    <Text style={[styles.transferLabel, t.category?.name === 'Projets' && { color: COLORS.blue }]}>{label}</Text>
                   </View>
                   <Text
                     style={[

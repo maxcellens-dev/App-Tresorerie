@@ -17,11 +17,10 @@ import { useGamificationConfig } from '../../hooks/useGamificationConfig';
 import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../lib/purchases';
 
 const BENEFITS = [
-  { icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.' },
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
   { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.' },
   { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.' },
-  { icon: 'people', title: 'Relyka World — Projets partagés (bientôt)', desc: 'Vos projets financiers partagés entre utilisateurs.' },
+  { icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.' },
   { icon: 'sparkles', title: 'Conseils personnalisés (bientôt)', desc: 'Des conseils sur-mesure selon ton profil.' },
 ];
 

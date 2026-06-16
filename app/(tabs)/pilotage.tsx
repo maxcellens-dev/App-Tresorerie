@@ -510,7 +510,7 @@ export default function PilotageScreen() {
                   ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
                   : Math.round(resteDisponible) <= 0
                   ? (Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
-                      ? 'Ton Relyka est épuisé, donc reste prudent.'
+                      ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
                       : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
                   : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant tes recommandations ;)'
               }

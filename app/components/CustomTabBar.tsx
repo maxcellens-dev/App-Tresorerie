@@ -4,6 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
+import { useAuth } from '../contexts/AuthContext';
+import { useRwInvitations } from '../hooks/useRelykaWorld';
+import { UnreadBadge } from './HeaderWithProfile';
 
 type TabName = 'comptes' | 'projects' | 'pilotage' | 'transactions' | 'projection';
 type IconName = 'wallet' | 'flag' | 'home' | 'list' | 'trending-up';
@@ -28,6 +31,9 @@ export default function CustomTabBar({ state }: any) {
   const insets = useSafeAreaInsets();
   const styles = makeStyles(COLORS);
   const activeRoute = state?.routes?.[state.index]?.name;
+  const { user } = useAuth();
+  const { data: rwInvitations = [] } = useRwInvitations(user?.id);
+  const rwInviteCount = rwInvitations.length;
 
   return (
     // paddingBottom = inset système (barre de navigation / gestes) → le contenu remonte
@@ -44,13 +50,17 @@ export default function CustomTabBar({ state }: any) {
             onPress={() => router.push(`/(tabs)/${it.name}` as any)}
             accessibilityRole="button"
           >
-            {focused ? (
-              <View style={[styles.activeIndicator, { backgroundColor: COLORS.tabActive + '20' }]}>
-                <Ionicons name={it.icon as any} size={22} color={color} />
-              </View>
-            ) : (
-              <Ionicons name={`${it.icon}-outline` as any} size={22} color={color} />
-            )}
+            <View>
+              {focused ? (
+                <View style={[styles.activeIndicator, { backgroundColor: COLORS.tabActive + '20' }]}>
+                  <Ionicons name={it.icon as any} size={22} color={color} />
+                </View>
+              ) : (
+                <Ionicons name={`${it.icon}-outline` as any} size={22} color={color} />
+              )}
+              {/* Badge invitations Relyka World en attente sur l'onglet Projets */}
+              {it.name === 'projects' && rwInviteCount > 0 && <UnreadBadge count={rwInviteCount} style={{ top: -4, right: -8 }} />}
+            </View>
             <Text style={[styles.label, { color }]}>{it.label}</Text>
           </TouchableOpacity>
         );
