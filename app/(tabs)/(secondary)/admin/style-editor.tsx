@@ -13,6 +13,7 @@ import { supabase } from '../../../lib/supabase';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
 import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../theme/palette';
+import ColorPickerModal from '../../../components/ColorPickerModal';
 
 
 const FONTS = [
@@ -61,6 +62,8 @@ export default function StyleEditor() {
   const goBack = useNavBack();
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  // Sélecteur de couleur centré (natif + web) ouvert au clic sur une pastille.
+  const [colorPicker, setColorPicker] = useState<{ value: string; onPick: (hex: string) => void } | null>(null);
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
@@ -412,9 +415,9 @@ export default function StyleEditor() {
                         <TouchableOpacity
                           style={[styles.swatch, { backgroundColor: col }]}
                           onPress={() => setPreset(id)}
-                          onLongPress={(e) => openColorPicker(e.nativeEvent.pageX, e.nativeEvent.pageY, col, v => native
+                          onLongPress={() => setColorPicker({ value: col, onPick: v => native
                             ? setAccentInputs(prev => ({ ...prev, [id]: v }))
-                            : setExtraPresets(prev => prev.map(x => x.id === id ? { ...x, dark: v } : x)))}
+                            : setExtraPresets(prev => prev.map(x => x.id === id ? { ...x, dark: v } : x)) })}
                           activeOpacity={0.8}
                         >
                           {active && <Ionicons name="checkmark" size={14} color="#fff" />}
@@ -503,7 +506,7 @@ export default function StyleEditor() {
                           <View key={k} style={styles.accentItem}>
                             <TouchableOpacity
                               style={[styles.swatch, { backgroundColor: col }]}
-                              onPress={(e) => openColorPicker(e.nativeEvent.pageX, e.nativeEvent.pageY, col, (picked) => setInputs(prev => ({ ...prev, [k]: picked })))}
+                              onPress={() => setColorPicker({ value: col, onPick: (picked) => setInputs(prev => ({ ...prev, [k]: picked })) })}
                               activeOpacity={0.8}
                             />
                             <Text style={styles.accentLabel}>{SEMANTIC_LABELS[k].emoji} {SEMANTIC_LABELS[k].label}</Text>
@@ -759,6 +762,13 @@ export default function StyleEditor() {
           </Text>
         </ScrollView>
       </SafeAreaView>
+
+      <ColorPickerModal
+        visible={!!colorPicker}
+        value={colorPicker?.value ?? '#000000'}
+        onPick={(hex) => colorPicker?.onPick(hex)}
+        onClose={() => setColorPicker(null)}
+      />
     </View>
   );
 }
