@@ -14,7 +14,6 @@ import { compressAvatarToWebP } from '../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useCosmetics } from '../../hooks/useCosmetics';
-import * as Clipboard from 'expo-clipboard';
 import { useNavBack } from '../../hooks/useNavBack';
 import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
@@ -45,12 +44,6 @@ export default function ProfileScreen() {
 
   // ── Guide de présentation (bulles) ──
   const guide = useScreenGuide('parametres', user?.id);
-  const [copiedId, setCopiedId] = useState(false);
-  const copyPublicCode = async () => {
-    const code = (profile as any)?.public_code;
-    if (!code) return;
-    try { await Clipboard.setStringAsync(String(code)); setCopiedId(true); setTimeout(() => setCopiedId(false), 1500); } catch { /* ignore */ }
-  };
   const scrollRef = useRef<ScrollView>(null);
   const avatarRef = useRef<View>(null);
   const infoRef = useRef<View>(null);
@@ -248,13 +241,13 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <Text style={styles.pageTitle}>Mon profil</Text>
           <View style={{ flex: 1 }} />
-          {/* ID public partageable (pour les invitations Relyka World) — copiable d'un toucher. */}
+          {/* ID public partageable (pour les invitations Relyka World).
+              Texte sélectionnable : appui long → « Copier » du téléphone (aucun module natif requis). */}
           {!!(profile as any)?.public_code && (
-            <TouchableOpacity style={styles.idChip} onPress={copyPublicCode} activeOpacity={0.7} accessibilityLabel="Copier mon ID Relyka">
+            <View style={styles.idChip}>
               <Text style={styles.idChipLabel}>ID</Text>
-              <Text style={styles.idChipCode}>{(profile as any).public_code}</Text>
-              <Ionicons name={copiedId ? 'checkmark' : 'copy-outline'} size={13} color={copiedId ? COLORS.emerald : COLORS.textSecondary} />
-            </TouchableOpacity>
+              <Text style={styles.idChipCode} selectable>{(profile as any).public_code}</Text>
+            </View>
           )}
         </View>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
