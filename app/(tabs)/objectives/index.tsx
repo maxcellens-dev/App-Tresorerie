@@ -323,7 +323,7 @@ export default function ObjectivesScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.header}>
           <View style={styles.headerActions}>
             <TouchableOpacity

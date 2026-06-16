@@ -463,7 +463,7 @@ export default function TransactionsListScreen() {
       <ScreenGradient />
       <PageIntroModal pageKey="transactions" />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         {showPeriodNav && (
           <View style={styles.periodNav} ref={periodNavRef}>
             <TouchableOpacity

@@ -452,7 +452,7 @@ export default function ProjectionScreen() {
       <ScreenGradient />
       <PageIntroModal pageKey="projection" />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Onglets */}

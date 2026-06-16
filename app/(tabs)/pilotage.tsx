@@ -412,7 +412,7 @@ export default function PilotageScreen() {
     return (
       <View style={styles.root}>
         <StatusBar barStyle="light-content" />
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
           <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
         </SafeAreaView>
       </View>
@@ -423,7 +423,7 @@ export default function PilotageScreen() {
     return (
       <View style={styles.root}>
         <StatusBar barStyle="light-content" />
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
           <View style={styles.loader}>
             <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 }}>
               {pilotageError ? `Erreur : ${(pilotageError as Error).message}` : 'Données indisponibles'}
@@ -443,7 +443,7 @@ export default function PilotageScreen() {
       <ScreenGradient />
       <PageIntroModal pageKey="pilotage" />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         {/* Bandeau marge de sécurité */}
         {(pilotageData.safety_margin_amount ?? 0) > 0 &&
          pilotageData.total_checking < (pilotageData.safety_margin_amount ?? 0) && (

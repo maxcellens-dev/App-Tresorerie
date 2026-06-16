@@ -165,11 +165,14 @@ export default function StyleEditor() {
   // Liste ordonnée des presets (natifs + custom) pour l'affichage et le réordonnancement
   const allPresetIds = [...THEME_PRESETS.map(p => p.id), ...extraPresets.map(p => p.id)];
   const orderedPresetIds = orderPresetIds(allPresetIds, presetOrder);
+  const isNativeId = (x: string) => THEME_PRESETS.some((p) => p.id === x);
   const movePreset = (id: string, dir: -1 | 1) => {
     const ids = orderPresetIds(allPresetIds, presetOrder);
     const i = ids.indexOf(id);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= ids.length) return;
+    // Réordonnancement UNIQUEMENT à l'intérieur d'un même groupe (natives entre elles, pack entre eux).
+    if (isNativeId(ids[i]) !== isNativeId(ids[j])) return;
     const arr = [...ids];
     [arr[i], arr[j]] = [arr[j], arr[i]];
     setPresetOrder(arr);
@@ -402,14 +405,21 @@ export default function StyleEditor() {
                     const inputHex = native ? (accentInputs[id] ?? native.swatch) : (custom!.dark);
                     const valid = isValidHex(inputHex);
                     const col = valid ? inputHex : (native?.swatch ?? '#888');
+                    // Titre « Pack couleurs » inséré devant le premier preset du pack (non natif).
+                    const isFirstPack = !native && orderedPresetIds.findIndex(x => !THEME_PRESETS.some(p => p.id === x)) === idx;
+                    // Bord de groupe : on ne peut monter/descendre que si le voisin est du MÊME groupe.
+                    const canUp = idx > 0 && isNativeId(orderedPresetIds[idx - 1]) === !!native;
+                    const canDown = idx < orderedPresetIds.length - 1 && isNativeId(orderedPresetIds[idx + 1]) === !!native;
                     return (
-                      <View key={id} style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }, hidden && { opacity: 0.45 }]}>
+                      <React.Fragment key={id}>
+                      {isFirstPack && <Text style={styles.packHeader}>Pack couleurs · teintes secondaires</Text>}
+                      <View style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }, hidden && { opacity: 0.45 }]}>
                         <View style={styles.moveCol}>
-                          <TouchableOpacity onPress={() => movePreset(id, -1)} disabled={idx === 0} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
-                            <Ionicons name="chevron-up" size={16} color={idx === 0 ? COLORS.cardBorder : COLORS.textSecondary} />
+                          <TouchableOpacity onPress={() => movePreset(id, -1)} disabled={!canUp} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
+                            <Ionicons name="chevron-up" size={16} color={!canUp ? COLORS.cardBorder : COLORS.textSecondary} />
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={() => movePreset(id, 1)} disabled={idx === orderedPresetIds.length - 1} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
-                            <Ionicons name="chevron-down" size={16} color={idx === orderedPresetIds.length - 1 ? COLORS.cardBorder : COLORS.textSecondary} />
+                          <TouchableOpacity onPress={() => movePreset(id, 1)} disabled={!canDown} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
+                            <Ionicons name="chevron-down" size={16} color={!canDown ? COLORS.cardBorder : COLORS.textSecondary} />
                           </TouchableOpacity>
                         </View>
                         {/* Pastille = ouvrir le sélecteur de couleur */}
@@ -437,14 +447,15 @@ export default function StyleEditor() {
                           placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
                           maxLength={7} autoCapitalize="characters"
                         />
-                        {native ? (
-                          <TouchableOpacity
-                            onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== id) : [...prev, id])}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={hidden ? COLORS.textSecondary : COLORS.emerald} />
-                          </TouchableOpacity>
-                        ) : (
+                        {/* Masquer (œil) — pour TOUS les presets (natifs et pack) */}
+                        <TouchableOpacity
+                          onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== id) : [...prev, id])}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={hidden ? COLORS.textSecondary : COLORS.emerald} />
+                        </TouchableOpacity>
+                        {/* Supprimer (✕) — uniquement les presets du Pack (les natifs ne se suppriment pas) */}
+                        {!native && (
                           <TouchableOpacity
                             onPress={() => { if (preset === id) setPreset('emerald'); setExtraPresets(prev => prev.filter(x => x.id !== id)); setPresetOrder(prev => prev.filter(x => x !== id)); }}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -453,6 +464,7 @@ export default function StyleEditor() {
                           </TouchableOpacity>
                         )}
                       </View>
+                      </React.Fragment>
                     );
                   })}
 
@@ -463,18 +475,16 @@ export default function StyleEditor() {
                       placeholder="Nom (ex. Turquoise)" placeholderTextColor={COLORS.textSecondary} />
                     <View style={styles.row2g}>
                       <TouchableOpacity style={[styles.swatch, { backgroundColor: isValidHex(newDark) ? newDark : '#888' }]} onPress={() => setColorPicker({ value: isValidHex(newDark) ? newDark : '#000000', onPick: setNewDark })} activeOpacity={0.8} />
-                      <TextInput style={[styles.hexInput, { flex: 1 }]} value={newDark} onChangeText={setNewDark} placeholder="#RRGGBB sombre" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
-                    </View>
-                    <View style={styles.row2g}>
-                      <TouchableOpacity style={[styles.swatch, { backgroundColor: isValidHex(newLight) ? newLight : '#888', borderWidth: 1, borderColor: COLORS.cardBorder }]} onPress={() => setColorPicker({ value: isValidHex(newLight) ? newLight : '#FFFFFF', onPick: setNewLight })} activeOpacity={0.8} />
-                      <TextInput style={[styles.hexInput, { flex: 1 }]} value={newLight} onChangeText={setNewLight} placeholder="#RRGGBB clair" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
+                      <TextInput style={[styles.hexInput, { flex: 1 }]} value={newDark} onChangeText={setNewDark} placeholder="#RRGGBB (couleur)" placeholderTextColor={COLORS.textSecondary} maxLength={7} autoCapitalize="characters" />
                     </View>
                     <TouchableOpacity
-                      style={{ backgroundColor: (newLabel.trim() && isValidHex(newDark) && isValidHex(newLight)) ? COLORS.emerald : COLORS.cardBorder, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                      style={{ backgroundColor: (newLabel.trim() && isValidHex(newDark)) ? COLORS.emerald : COLORS.cardBorder, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
                       onPress={() => {
-                        if (!newLabel.trim() || !isValidHex(newDark) || !isValidHex(newLight)) return;
+                        if (!newLabel.trim() || !isValidHex(newDark)) return;
                         const newId = 'custom_' + Date.now();
-                        setExtraPresets(prev => [...prev, { id: newId, label: newLabel.trim(), dark: newDark.toUpperCase(), light: newLight.toUpperCase() }]);
+                        // Couleur unique : on stocke la même teinte en dark ET light (identique clair/sombre).
+                        const hex = newDark.toUpperCase();
+                        setExtraPresets(prev => [...prev, { id: newId, label: newLabel.trim(), dark: hex, light: hex }]);
                         setPresetOrder(prev => [...prev, newId]);
                         setNewLabel(''); setNewDark('#FFFFFF'); setNewLight('#000000');
                       }}
@@ -843,6 +853,7 @@ function makeStyles(c: any) {
   row2g: { flexDirection: 'row', gap: 8, alignItems: 'center' },
 
   hint: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 17 },
+  packHeader: { fontSize: 13, fontWeight: '800', color: c.text, marginTop: 14, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
   fieldLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginBottom: 6 },
   textInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
   uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, borderStyle: 'dashed' as any },

@@ -376,7 +376,7 @@ export default function ProjectsScreen() {
       <ScreenGradient />
       <PageIntroModal pageKey="projets" />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.header}>
           <TouchableOpacity
             ref={addBtnRef}

@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ScreenGradient from './ScreenGradient';
-import HeaderWithProfile from './HeaderWithProfile';
+import ScreenHeader from './ScreenHeader';
 import CalendarWithPicker from './CalendarWithPicker';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects, useAddProject, useUpdateProject, useDeleteProjectFull, useDeleteProjectKeepingLocked, useCheckProjectTransactions } from '../hooks/useProjects';
@@ -551,10 +551,8 @@ export default function AddProjectModal() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <HeaderWithProfile
+        <ScreenHeader
           title={isEdit ? 'Modifier le projet' : 'Nouveau projet'}
-          showBack
-          hideProfile
           onBack={handleClose}
         />
         {isEdit && !editingProject ? (

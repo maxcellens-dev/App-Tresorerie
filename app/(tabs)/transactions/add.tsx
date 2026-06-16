@@ -13,7 +13,7 @@ import { useAddTransaction, useTransactions } from '../../hooks/useTransactions'
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../types/database';
-import HeaderWithProfile from '../../components/HeaderWithProfile';
+import ScreenHeader from '../../components/ScreenHeader';
 import CalculatorButton from '../../components/CalculatorButton';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import { accountColor } from '../../theme/colors';
@@ -237,7 +237,7 @@ export default function AddTransactionScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <HeaderWithProfile title="Nouvelle transaction" showBack={true} hideProfile={true} />
+        <ScreenHeader title="Nouvelle transaction" />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (

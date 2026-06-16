@@ -620,7 +620,7 @@ export default function ReportingScreen() {
       <View style={s.root}>
         <StatusBar style="light" />
               <ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={s.safe} edges={['left', 'right']}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <Ionicons name="lock-closed-outline" size={48} color={C.textSecondary} />
             <Text style={{ color: C.textSecondary, marginTop: 12, fontSize: 15 }}>Connectez-vous pour accéder au reporting.</Text>
@@ -635,7 +635,7 @@ export default function ReportingScreen() {
       <View style={s.root}>
         <StatusBar style="light" />
         <ScreenGradient />
-        <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+        <SafeAreaView style={s.safe} edges={['left', 'right']}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
             <Ionicons name="star-outline" size={48} color={C.amber} />
             <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>Reporting réservé aux abonnés Premium</Text>
@@ -663,7 +663,7 @@ export default function ReportingScreen() {
     <View style={s.root}>
       <StatusBar style="light" />
             <ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={s.safe} edges={['left', 'right']}>
         <ScrollView
           style={s.scroll}
           contentContainerStyle={s.scrollContent}

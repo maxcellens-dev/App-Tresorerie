@@ -23,7 +23,7 @@ import { useAccounts } from '../../hooks/useAccounts';
 import { useAddTransaction, useReleaseReservedByProject, useTransactions } from '../../hooks/useTransactions';
 import { computeContributed } from '../../lib/contributed';
 import { useResetPreSaving } from '../../hooks/usePreSavings';
-import HeaderWithProfile from '../../components/HeaderWithProfile';
+import ScreenHeader from '../../components/ScreenHeader';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import type { RecurrenceRule, PreSavingType } from '../../types/database';
 import type { RecoType } from '../../lib/recommendationEngine';
@@ -207,7 +207,7 @@ export default function TransferScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <HeaderWithProfile title="Virement entre comptes" showBack={true} onBack={goBack} />
+        <ScreenHeader title="Virement entre comptes" onBack={goBack} />
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

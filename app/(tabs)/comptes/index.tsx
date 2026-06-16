@@ -119,7 +119,7 @@ export default function AccountsListScreen() {
       <StatusBar style="light" />
       <ScreenGradient />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
