@@ -16,7 +16,7 @@ import { usePlan } from '../../hooks/usePlan';
 import { useCosmetics } from '../../hooks/useCosmetics';
 import { useNavBack } from '../../hooks/useNavBack';
 import { COSMETIC_DEFS } from '../../lib/gamification';
-import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, type ThemeMode, type ThemePreset } from '../../theme/palette';
+import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
 
 export default function AppearanceScreen() {
@@ -34,12 +34,15 @@ export default function AppearanceScreen() {
   const { data: styleConfig } = useStyleConfig();
   const allPresets = useMemo(() => {
     const hidden = new Set(styleConfig?.hidden_presets ?? []);
-    const native = THEME_PRESETS.map((p) => ({ id: p.id, label: p.label, swatch: styleConfig?.custom_accents?.[p.id] ?? p.swatch }));
-    const extra = (styleConfig?.extra_presets ?? []).map((p) => ({ id: p.id, label: p.label, swatch: p.dark }));
+    // La pastille affiche EXACTEMENT la couleur qui sera appliquée pour le mode courant
+    // (résolution identique à useAppColors) → plus de décalage liste ↔ appliqué.
+    const opts = { customAccents: styleConfig?.custom_accents, extraPresets: styleConfig?.extra_presets };
+    const native = THEME_PRESETS.map((p) => ({ id: p.id, label: p.label, swatch: resolveAccent(currentMode, p.id, opts) }));
+    const extra = (styleConfig?.extra_presets ?? []).map((p) => ({ id: p.id, label: p.label, swatch: resolveAccent(currentMode, p.id, opts) }));
     const all = [...native, ...extra];
     const ordered = orderPresetIds(all.map((p) => p.id), styleConfig?.preset_order);
     return ordered.map((id) => all.find((p) => p.id === id)!).filter((p) => p && !hidden.has(p.id));
-  }, [styleConfig]);
+  }, [styleConfig, currentMode]);
 
   const setMode = (mode: ThemeMode) => updateProfile.mutate({ theme_mode: mode });
   const setPreset = (preset: ThemePreset) => updateProfile.mutate({ theme_preset: preset });

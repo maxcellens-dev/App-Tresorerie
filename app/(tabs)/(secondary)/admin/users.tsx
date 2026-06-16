@@ -56,7 +56,10 @@ export default function AdminUsers() {
     if (!supabase) return;
     setBusyId(u.id);
     try {
-      await supabase.from('profiles').update({ is_premium: !u.is_premium }).eq('id', u.id);
+      // Grant/retrait MANUEL : on marque premium_manual pour que la synchro RevenueCat
+      // ne retire pas ce Premium « offert » (contrairement à un abonnement résilié).
+      const next = !u.is_premium;
+      await supabase.from('profiles').update({ is_premium: next, premium_manual: next }).eq('id', u.id);
       await qc.invalidateQueries({ queryKey: ['admin_user_search', query] });
       if (u.id === user?.id) qc.invalidateQueries({ queryKey: ['profile', user?.id] });
     } finally { setBusyId(null); }

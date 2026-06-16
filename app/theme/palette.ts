@@ -171,9 +171,12 @@ export const DEFAULT_BG: Record<ThemeMode, string> = { dark: '#000000', light: '
 export function resolveAccent(mode: ThemeMode, preset: string, opts?: BuildColorsOptions): string {
   // 0. Couleur personnalisée saisie par l'utilisateur (theme_preset = hex direct)
   if (/^#[0-9A-Fa-f]{6}$/.test(preset)) return preset;
-  // 1. Preset personnalisé créé par l'admin
+  // 1. Preset personnalisé créé par l'admin (fallback clair↔sombre si une teinte manque → jamais gris/undefined)
   const extra = opts?.extraPresets?.find((p) => p.id === preset);
-  if (extra) return mode === 'light' ? extra.light : extra.dark;
+  if (extra) {
+    const picked = mode === 'light' ? (extra.light || extra.dark) : (extra.dark || extra.light);
+    if (picked && /^#[0-9A-Fa-f]{6}$/.test(picked)) return picked;
+  }
   // 2. Surcharge hex d'un preset natif
   const custom = opts?.customAccents?.[preset];
   if (custom && /^#[0-9A-Fa-f]{6}$/.test(custom)) return custom;

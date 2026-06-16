@@ -53,8 +53,12 @@ function PurchasesSync() {
   const { data: profile } = useProfile(user?.id);
   const setPremium = useSetPremium(user?.id);
   const isPremiumDb = !!(profile as any)?.is_premium;
+  // Premium « manuel » (offert par un admin) : on ne le retire JAMAIS via RevenueCat.
+  const isManual = !!(profile as any)?.premium_manual;
   const isPremiumRef = useRef(isPremiumDb);
+  const isManualRef = useRef(isManual);
   useEffect(() => { isPremiumRef.current = isPremiumDb; }, [isPremiumDb]);
+  useEffect(() => { isManualRef.current = isManual; }, [isManual]);
 
   useEffect(() => {
     if (!PURCHASES_SUPPORTED || !user?.id) return;
@@ -62,7 +66,8 @@ function PurchasesSync() {
     let cancelled = false;
     const apply = (active: boolean) => {
       if (active && !isPremiumRef.current) setPremium.mutate(true);
-      else if (!active && isPremiumRef.current) setPremium.mutate(false);
+      // Rétrogradation UNIQUEMENT si le Premium n'est pas un grant manuel admin.
+      else if (!active && isPremiumRef.current && !isManualRef.current) setPremium.mutate(false);
     };
     (async () => {
       await configurePurchases(user.id);
