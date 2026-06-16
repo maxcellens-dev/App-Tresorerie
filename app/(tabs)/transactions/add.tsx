@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -238,8 +238,8 @@ export default function AddTransactionScreen() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <HeaderWithProfile title="Nouvelle transaction" showBack={true} hideProfile={true} />
-        
-        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} style={{ flex: 1 }}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
               <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
@@ -444,6 +444,7 @@ export default function AddTransactionScreen() {
             </View>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* Calendar Modal */}
         <Modal visible={!!showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>

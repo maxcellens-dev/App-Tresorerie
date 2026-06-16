@@ -140,7 +140,7 @@ export default function AssistanceScreen() {
 
       {/* Nouvelle demande */}
       <Modal visible={showNew} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowNew(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Contacter l'assistance</Text>

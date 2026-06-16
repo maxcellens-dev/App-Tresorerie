@@ -11,6 +11,8 @@ import {
   FlatList,
   Alert,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -560,7 +562,8 @@ export default function AddProjectModal() {
         ) : (
           <View style={styles.pageBody}>
             {!showAccountPicker ? (
-              <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={{ flex: 1 }}>
+              <ScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 {/* Bandeau erreur */}
                 {formError && (
                   <View style={[styles.errorBanner, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '1F' }]}>
@@ -937,6 +940,7 @@ export default function AddProjectModal() {
                 )}
                 <View style={{ height: 24 }} />
               </ScrollView>
+              </KeyboardAvoidingView>
             ) : (
               /* Account Picker */
               <View style={styles.form}>

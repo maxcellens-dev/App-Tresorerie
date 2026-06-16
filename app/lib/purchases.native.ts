@@ -130,14 +130,27 @@ export async function getSubscriptionInfo(): Promise<SubscriptionInfo | null> {
   } catch { return null; }
 }
 
-/** Achat d'un pack de gemmes (produit consommable). ok=true → créditer les gemmes côté app. */
+/** Achat d'un pack de gemmes (produit consommable). ok=true → créditer les gemmes côté app.
+ *  On essaie d'abord les Offerings (voie recommandée), puis l'achat direct par productId.
+ *  En cas d'introuvable, on renvoie la liste des IDs réellement disponibles (aide au diagnostic). */
 export async function purchaseGemsPack(productId: string): Promise<PurchaseResult> {
   if (!PURCHASES_SUPPORTED || !configured) return { ok: false, reason: 'not_supported' };
   try {
+    // 1) Offerings : cherche un package dont le produit correspond (toutes offerings, pas que current).
+    const offerings = await Purchases.getOfferings();
+    const allOfferings = [offerings.current, ...Object.values((offerings.all as any) ?? {})].filter(Boolean) as any[];
+    for (const off of allOfferings) {
+      const pkg = off.availablePackages?.find((p: any) => p.product.identifier === productId);
+      if (pkg) { await Purchases.purchasePackage(pkg); return { ok: true }; }
+    }
+    // 2) Achat direct par productId (consommable hors offering).
     const products = await Purchases.getProducts([productId]);
-    if (!products.length) return { ok: false, reason: 'not_configured', message: 'Produit indisponible (à créer dans le store).' };
-    await Purchases.purchaseStoreProduct(products[0]);
-    return { ok: true };
+    if (products.length) { await Purchases.purchaseStoreProduct(products[0]); return { ok: true }; }
+    // 3) Introuvable → liste des identifiants disponibles pour repérer le mismatch.
+    const available = new Set<string>();
+    for (const off of allOfferings) for (const p of off.availablePackages ?? []) available.add(p.product.identifier);
+    const list = [...available].join(', ') || '(aucun produit configuré dans l’offering)';
+    return { ok: false, reason: 'not_configured', message: `Produit « ${productId} » introuvable. IDs disponibles dans RevenueCat : ${list}` };
   } catch (e: any) {
     if (e?.userCancelled) return { ok: false, reason: 'cancelled' };
     return { ok: false, reason: 'error', message: e?.message ?? "Échec de l'achat." };
