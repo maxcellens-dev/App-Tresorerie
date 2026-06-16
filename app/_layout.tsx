@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TourProvider } from './contexts/TourContext';
 import { CalculatorProvider } from './contexts/CalculatorContext';
 import Calculator from './components/Calculator';
+import UpdateBanner from './components/UpdateBanner';
 import { useConfigSync } from './hooks/useConfigSync';
 import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
 import { supabase } from './lib/supabase';
@@ -218,6 +219,8 @@ function AppChrome() {
       <RouteHistoryTracker />
       {/* Calculatrice flottante globale — visible quand ouverte, par-dessus tout */}
       <Calculator />
+      {/* Bandeau « mise à jour disponible » (descend du haut) */}
+      <UpdateBanner />
     </View>
     </TourProvider>
   );

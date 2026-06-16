@@ -14,6 +14,13 @@ export interface FeatureFlags {
   reporting_enabled?: boolean;
   /** Messages contextuels sous les recommandations (projection invest, économie…). Défaut : activé. */
   reco_context_enabled?: boolean;
+  /** Dernière version publiée sur le store (ex. "1.0.2"). Si > version installée → bandeau « mise à jour ». */
+  latest_version?: string;
+  /** Version minimale requise (ex. "1.0.1"). Si > version installée → mise à jour OBLIGATOIRE (bandeau non fermable). */
+  min_version?: string;
+  /** URL du store pour la mise à jour (sinon : fiche Play par défaut depuis le package Android). */
+  update_url_android?: string;
+  update_url_ios?: string;
 }
 
 const KEY = 'feature_flags';
