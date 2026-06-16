@@ -51,6 +51,13 @@ function TabsHeader({ route }: { route: any }) {
   const isHome = route.name === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
   const isReporting = fullPath === '(tabs)/reporting';
+
+  // Écrans secondaires qui possèdent DÉJÀ leur propre en-tête (titre + bouton « Retour ») :
+  // on masque le TabsHeader « Relyka » redondant pour ne pas laisser un vide au-dessus du retour.
+  const SELF_HEADERED = ['boutique', 'premium', 'succes', 'profile', 'support', 'apparence', 'mes-donnees', 'cloture', 'change-password', 'assistance', 'ideas', 'parametres', 'categories'];
+  const lastSegment = fullPath.split('/').pop() ?? '';
+  if (fullPath.startsWith('(tabs)/(secondary)/') && SELF_HEADERED.includes(lastSegment)) return null;
+
   return (
     <HeaderWithProfile
       applyTopInset

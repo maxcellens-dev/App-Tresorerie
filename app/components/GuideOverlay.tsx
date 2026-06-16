@@ -13,6 +13,7 @@ import {
   findNodeHandle, Platform, ScrollView, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -43,13 +44,15 @@ interface Rect { x: number; y: number; w: number; h: number; }
 
 const PAD = 8;             // marge autour du spotlight
 const BUBBLE_H = 230;      // hauteur estimée de la bulle (pour décider au-dessus/en-dessous)
-const TOP_SAFE = 70;       // zone haute réservée (header)
 
 export default function GuideOverlay({
   visible, steps, currentStep, onNext, onSkip, scrollRef, screenTitle,
 }: Props) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const insets = useSafeAreaInsets();
+  // Zone haute réservée = barre de statut + marge → la bulle n'est jamais coupée par le haut du téléphone.
+  const TOP_SAFE = insets.top + 56;
   const [rect, setRect] = useState<Rect | null>(null);
   const [measuring, setMeasuring] = useState(true);
   const attemptRef = useRef(0);
