@@ -2,7 +2,7 @@
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,6 +70,7 @@ export default function SettingsScreen() {
   }, [styleConfig]);
 
   // ── Guide "bulles" ──
+  const insets = useSafeAreaInsets();
   const guide = useScreenGuide('parametres', user?.id);
   const scrollRef = useRef<ScrollView>(null);
   const categoriesRowRef = useRef<any>(null);
@@ -78,7 +79,7 @@ export default function SettingsScreen() {
 
   const GUIDE_STEPS: BubbleStep[] = [
     {
-      getRect: () => headerProfileRect(),
+      getRect: () => headerProfileRect(insets.top),
       icon: 'settings',
       iconColor: COLORS.emerald,
       title: 'Paramètres',

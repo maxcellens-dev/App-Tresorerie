@@ -5,14 +5,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
-/** Emplacements de pub (1 par page principale). */
+/**
+ * Emplacements de pub, regroupés par page (`group`) pour une sélection compacte en admin.
+ * `label` = description courte de la position dans la page.
+ */
 export const AD_PLACEMENTS = [
-  { value: 'pilotage', label: 'Pilotage' },
-  { value: 'comptes', label: 'Comptes' },
-  { value: 'comptes_actions', label: 'Comptes — à côté des actions' },
-  { value: 'transactions', label: 'Transactions' },
-  { value: 'projets', label: 'Projets' },
-  { value: 'projection', label: 'Projection' },
+  { value: 'comptes',            group: 'Comptes',      label: 'Bas de page' },
+  { value: 'comptes_actions',    group: 'Comptes',      label: 'À côté des actions' },
+  { value: 'transactions',       group: 'Transactions', label: 'Bas de page' },
+  { value: 'transactions_mois',  group: 'Transactions', label: 'Entre 2 mois' },
+  { value: 'pilotage',           group: 'Pilotage',     label: 'Bas de page' },
+  { value: 'pilotage_suivi',     group: 'Pilotage',     label: 'Avant « Suivi du mois »' },
+  { value: 'projets',            group: 'Projets',      label: 'Bas de page' },
+  { value: 'projets_perso',      group: 'Projets',      label: 'Avant « Projets personnels »' },
+  { value: 'projection',         group: 'Projection',   label: 'Bas de page' },
+  { value: 'projection_mois',    group: 'Projection',   label: 'Entre 2 mois' },
+  { value: 'projection_invest',  group: 'Projection',   label: 'Avant « Détail année par année »' },
 ] as const;
 export type AdPlacement = typeof AD_PLACEMENTS[number]['value'];
 

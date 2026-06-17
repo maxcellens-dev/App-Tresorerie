@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect, useRef } from 'react';
+﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import PageIntroModal from '../../components/PageIntroModal';
@@ -624,8 +624,11 @@ export default function TransactionsListScreen() {
                   <Text style={styles.empty}>Aucune transaction{hasFilter ? ' pour ce filtre' : ''}.</Text>
                 </View>
               ) : (
-                byMonth.map(({ key, year, month, items }) => (
-                  <View key={key} style={styles.monthBlock}>
+                byMonth.map(({ key, year, month, items }, monthIndex) => (
+                  <React.Fragment key={key}>
+                  {/* Bandeau pub entre le 1er et le 2e mois affiché */}
+                  {monthIndex === 1 && <AdSlot placement="transactions_mois" />}
+                  <View style={styles.monthBlock}>
                     <View style={styles.monthHeader}>
                       <Text style={styles.monthHeaderText}>{formatMonthHeader(year, month)}</Text>
                     </View>
@@ -771,6 +774,7 @@ export default function TransactionsListScreen() {
                       })}
                     </View>
                   </View>
+                  </React.Fragment>
                 ))
               )}
               <Text style={styles.hint}>Appuyez sur une ligne pour modifier ou supprimer.</Text>

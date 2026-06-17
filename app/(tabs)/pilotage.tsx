@@ -281,7 +281,9 @@ export default function PilotageScreen() {
       // Vraies dépenses depuis un compte courant (hors virements / projets / régul)
       if (!t.linked_account_id && !t.project_id && checkingIds.has(t.account_id) && !draft) {
         const cat = t.category;
-        const isExpenseOrRefund = !cat || cat.type === 'expense' || (amt > 0 && cat.type === 'income');
+        // « Dépensé ce mois » = dépenses (catégorie de dépense) et remboursements (montant positif
+        // sur une catégorie de dépense). Les recettes (catégorie income) sont exclues — §1.
+        const isExpenseOrRefund = !cat || cat.type === 'expense';
         const isRegul = !cat?.name || /r[ée]gularisation|ajustement de solde/i.test(cat.name) || (cat === null && (t.note ?? '').toLowerCase().includes('gul'));
         const isInMonth = inMonth(t.date) && t.date <= todayStr;
         if (isExpenseOrRefund && !isRegul) {
@@ -547,6 +549,9 @@ export default function PilotageScreen() {
               </TouchableOpacity>
             )}
           </View>
+          {/* Bandeau pub (maison) — juste au-dessus du Suivi du mois (espace au-dessus réduit) */}
+          <AdSlot placement="pilotage_suivi" style={{ marginTop: -18 }} />
+
           {/* ═══════════ SUIVI DU MOIS ═══════════ */}
           <View style={styles.section} ref={suiviRef}>
             <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
@@ -627,7 +632,7 @@ export default function PilotageScreen() {
                     ))}
                   </View>
 
-                  {/* 3. Dépenses — 2 barres cliquables */}
+                  {/* 3. Dépenses — 3 bandes cliquables (texte + montant à l'intérieur, §N5) */}
                   <View style={styles.suiviBlock}>
                     <View style={styles.suiviBlockHead}>
                       <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
@@ -635,38 +640,50 @@ export default function PilotageScreen() {
                       </View>
                       <Text style={styles.suiviBlockTitle}>Dépenses</Text>
                     </View>
-                    {/* Dépensé ce mois — vide = ce qui reste à dépenser (récurrent + variable) */}
-                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
-                      <View style={styles.depBarTop}>
-                        <View style={styles.depBarLabelRow}>
-                          <Text style={styles.depBarLabel}>Dépensé ce mois</Text>
+                    {/* 3 bandes : le remplissage = proportion, le texte est à l'intérieur de la bande. */}
+                    {/* Dépensé ce mois — rempli = part déjà dépensée / (dépensé + reste à dépenser) */}
+                    <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
+                      <View style={[styles.depBandFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: COLORS.danger + '38' }]} />
+                      <View style={styles.depBandContent}>
+                        <View style={styles.depBandLabelRow}>
+                          <View style={[styles.depBandDot, { backgroundColor: COLORS.danger }]} />
+                          <Text style={styles.depBandLabel} numberOfLines={1}>Dépensé ce mois</Text>
+                        </View>
+                        <View style={styles.depBandValueRow}>
+                          <Text style={[styles.depBandValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
                           <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
                         </View>
-                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: COLORS.danger }]} /></View>
                     </TouchableOpacity>
-                    {/* Dépenses récurrentes restantes — curseur = restant / total (décroît, §N5) */}
-                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
-                      <View style={styles.depBarTop}>
-                        <View style={styles.depBarLabelRow}>
-                          <Text style={styles.depBarLabel}>Dépenses récurrentes restantes</Text>
+                    {/* Dépenses récurrentes restantes — rempli = restant / total (décroît, §N5) */}
+                    <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
+                      <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange + '38' }]} />
+                      <View style={styles.depBandContent}>
+                        <View style={styles.depBandLabelRow}>
+                          <View style={[styles.depBandDot, { backgroundColor: COLORS.orange }]} />
+                          <Text style={styles.depBandLabel} numberOfLines={1}>Récurrentes restantes</Text>
+                        </View>
+                        <View style={styles.depBandValueRow}>
+                          <Text style={[styles.depBandValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)}</Text>
+                          <Text style={styles.depBandTotal}> / {fmt(recurTotal)}</Text>
                           <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
                         </View>
-                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)} <Text style={styles.depBarTotal}>/ {fmt(recurTotal)}</Text></Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange }]} /></View>
                     </TouchableOpacity>
-                    {/* Dépenses variables prévues restantes — curseur = restant / estimé (décroît, §N5) */}
-                    <TouchableOpacity style={styles.depBar} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
-                      <View style={styles.depBarTop}>
-                        <View style={styles.depBarLabelRow}>
-                          <Text style={styles.depBarLabel}>Dépenses variables prévues restantes</Text>
+                    {/* Dépenses variables prévues restantes — rempli = restant / estimé (décroît, §N5) */}
+                    <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
+                      <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: COLORS.yellow + '38' }]} />
+                      <View style={styles.depBandContent}>
+                        <View style={styles.depBandLabelRow}>
+                          <View style={[styles.depBandDot, { backgroundColor: COLORS.yellow }]} />
+                          <Text style={styles.depBandLabel} numberOfLines={1}>Variables prévues restantes</Text>
+                        </View>
+                        <View style={styles.depBandValueRow}>
+                          <Text style={[styles.depBandValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varRemaining)}</Text>
+                          <Text style={styles.depBandTotal}> / {fmt(varInitial)}</Text>
                           <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
                         </View>
-                        <Text style={[styles.depBarValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varRemaining)} <Text style={styles.depBarTotal}>/ {fmt(varInitial)}</Text></Text>
                       </View>
-                      <View style={styles.depBarTrack}><View style={[styles.depBarFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: COLORS.yellow }]} /></View>
                     </TouchableOpacity>
                   </View>
 
@@ -1378,14 +1395,16 @@ function makeStyles(c: AppColors) {
   suiviMiniHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   suiviMiniLabel: { flex: 1, fontSize: 12, color: c.textSecondary, fontWeight: '600' },
   suiviMiniValue: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  depBar: { gap: 6 },
-  depBarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  depBarLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  depBarLabel: { fontSize: 13, color: c.text, fontWeight: '600' },
-  depBarValue: { fontSize: 15, fontWeight: '700' },
-  depBarTotal: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
-  depBarTrack: { height: 8, borderRadius: 4, backgroundColor: c.cardBorder, overflow: 'hidden' },
-  depBarFill: { height: '100%', borderRadius: 4 },
+  // Bandes « Dépenses » : grande barre dont le remplissage = proportion, texte à l'intérieur.
+  depBand: { height: 46, borderRadius: 12, backgroundColor: c.cardBorder, overflow: 'hidden', justifyContent: 'center' },
+  depBandFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 12 },
+  depBandContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
+  depBandLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  depBandDot: { width: 8, height: 8, borderRadius: 4 },
+  depBandLabel: { flex: 1, fontSize: 13, color: c.text, fontWeight: '600' },
+  depBandValueRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  depBandValue: { fontSize: 15, fontWeight: '700' },
+  depBandTotal: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
   reserveLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   reserveLineLabel: { flex: 1, fontSize: 14, color: c.text, fontWeight: '600' },
   reserveLineValue: { fontSize: 16, fontWeight: '700' },

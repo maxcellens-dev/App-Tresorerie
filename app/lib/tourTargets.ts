@@ -20,8 +20,12 @@ export function tabBarRect(): GuideRect {
   return { x: 6, y: height - 78, w: width - 12, h: 70 };
 }
 
-/** Rectangle approximatif du bouton profil (avatar) en haut à droite du header. */
-export function headerProfileRect(): GuideRect {
+/**
+ * Rectangle approximatif du bouton profil (avatar) en haut à droite du header.
+ * `topInset` = hauteur de la barre de statut (useSafeAreaInsets().top) : sans ça, la cible
+ * vise au-dessus de l'avatar (sur la batterie / l'heure).
+ */
+export function headerProfileRect(topInset = 0): GuideRect {
   const { width } = Dimensions.get('window');
-  return { x: width - 66, y: 12, w: 50, h: 48 };
+  return { x: width - 62, y: topInset + 12, w: 50, h: 46 };
 }

@@ -24,23 +24,19 @@ function palette(c: any) {
 const CONTENT: Record<PageIntroKey, { icon: string; colorKey: string; title: string; text: string }> = {
   transactions: {
     icon: 'list-outline', colorKey: 'green', title: 'Transactions',
-    text: "Note tes dépenses et tes recettes en deux tapes. Les opérations qui reviennent (loyer, salaire…) se répètent automatiquement : tu ne les saisis qu'une seule fois.",
+    text: "Enregistre tes dépenses et tes recettes en quelques secondes. \n\nPour tes transactions habituelles (loyer, salaire, abonnements…), active la récurrence : tu ne les saisis qu'une fois.",
   },
   pilotage: {
     icon: 'home-outline', colorKey: 'green', title: 'Pilotage',
-    text: "Ton tableau de bord : ce qu'il te reste à allouer, tes recommandations personnalisées et le suivi de ton mois, d'un coup d'œil.",
+    text: "Ton tableau de bord du mois \n\n- Ton Relyka t'indique ce qu'il te reste à allouer et te fait des recommandations basées sur ta situation. \n- Le suivi du mois te résume où passe ton argent. \n\nDécide en un coup d'œil.",
   },
   projets: {
     icon: 'flag-outline', colorKey: 'blue', title: 'Projets',
-    text: "Définis tes projets d'épargne (voyage, voiture, apport…) et suis leur progression mois après mois. L'app met de côté ce qu'il faut.",
+    text: "Crée tes projets d'épargne (voyage, voiture, apport…) et suis leur avancement mois après mois. \nL'app calcule et met de côté ce qu'il faut. \n\nTu peux aussi lancer un projet partagé pour suivre des dépenses communes avec d'autres utilisateurs.\n\n Création automatique des transactions sur tes comptes.",
   },
   projection: {
     icon: 'trending-up-outline', colorKey: 'violet', title: 'Projection',
-    text: "Visualise l'évolution de ton épargne et de ton patrimoine dans le temps, selon tes hypothèses. De quoi te projeter sereinement.",
-  },
-  menu: {
-    icon: 'person-circle-outline', colorKey: 'orange', title: 'Ton menu',
-    text: "Profil, apparence, abonnement, assistance et réglages : tout est ici. Reviens-y quand tu veux personnaliser l'app ou nous contacter.",
+    text: "Anticipe l'évolution de ton épargne et de ton patrimoine dans le temps.\n\nCrée des hypothèses, ajuste-les pour comparer les scénarios et te projeter sereinement.",
   },
 };
 

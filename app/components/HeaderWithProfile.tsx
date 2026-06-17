@@ -12,7 +12,6 @@ import { useCosmetics } from '../hooks/useCosmetics';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
 import ProfileMenuModal from './ProfileMenuModal';
-import PageIntroModal from './PageIntroModal';
 
 /** Mélange opaque base + overlay à alpha (0-1). */
 function blendHex(base: string, overlay: string, alpha: number): string {
@@ -191,8 +190,6 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
         </TouchableOpacity>
       </View>}
       <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
-      {/* Présentation du menu à la 1ʳᵉ ouverture (par-dessus le menu). */}
-      <PageIntroModal pageKey="menu" active={menuOpen} />
     </View>
   );
 }

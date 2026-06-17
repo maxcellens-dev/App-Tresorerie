@@ -24,7 +24,7 @@ export type OnboardingStepKey =
   | 'reserved_consulted'
   | 'projection_edited';
 
-export type PageIntroKey = 'transactions' | 'pilotage' | 'projets' | 'projection' | 'menu';
+export type PageIntroKey = 'transactions' | 'pilotage' | 'projets' | 'projection';
 
 export type OnboardingFlag =
   | 'dismissed' | 'checklist_intro_shown' | 'reserved_consulted' | 'projection_edited' | 'reco_validated'
@@ -53,7 +53,7 @@ interface OnboardingState {
 }
 
 /** Toutes les clés de présentation de page, pour réinitialiser le tuto. */
-export const ALL_PAGE_INTRO_KEYS: PageIntroKey[] = ['transactions', 'pilotage', 'projets', 'projection', 'menu'];
+export const ALL_PAGE_INTRO_KEYS: PageIntroKey[] = ['transactions', 'pilotage', 'projets', 'projection'];
 
 const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: string }[] = [
   { key: 'account_initialized', label: 'Renseigner le solde de vos comptes', route: '/(tabs)/comptes',     hint: 'Ouvrez votre compte courant → « Nouveau Solde » et saisissez votre solde réel à ce jour.' },

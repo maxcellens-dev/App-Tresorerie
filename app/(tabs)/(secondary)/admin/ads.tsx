@@ -14,6 +14,18 @@ import { useNavBack } from '../../../hooks/useNavBack';
 import { supabase } from '../../../lib/supabase';
 import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, type AdBanner } from '../../../hooks/useAdsConfig';
 
+// Emplacements regroupés par page (ordre stable) → sélection compacte.
+type Placement = (typeof AD_PLACEMENTS)[number];
+const PLACEMENT_GROUPS: [string, Placement[]][] = (() => {
+  const map = new Map<string, Placement[]>();
+  for (const p of AD_PLACEMENTS) {
+    const arr = map.get(p.group) ?? [];
+    arr.push(p);
+    map.set(p.group, arr);
+  }
+  return Array.from(map.entries());
+})();
+
 export default function AdminAds() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
@@ -26,6 +38,18 @@ export default function AdminAds() {
   const [rotation, setRotation] = useState('6');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // Emplacements repliés par défaut (résumé sur 1 ligne) → carte bannière compacte.
+  const [openPlacements, setOpenPlacements] = useState<Record<string, boolean>>({});
+
+  // Résumé court des emplacements sélectionnés, groupé par page : « Comptes (2) · Pilotage ».
+  const placementSummary = (b: AdBanner) => {
+    const sel = bannerPlacements(b);
+    const byGroup = new Map<string, number>();
+    for (const p of AD_PLACEMENTS) {
+      if (sel.includes(p.value)) byGroup.set(p.group, (byGroup.get(p.group) ?? 0) + 1);
+    }
+    return Array.from(byGroup.entries()).map(([g, n]) => (n > 1 ? `${g} (${n})` : g)).join(' · ');
+  };
 
   useEffect(() => {
     if (loaded && banners === null) {
@@ -97,26 +121,43 @@ export default function AdminAds() {
                 <Text style={styles.cardTitle}>Bannière {i + 1}</Text>
                 <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
-              <Text style={styles.label}>Pages d'affichage (plusieurs possibles)</Text>
-              <View style={styles.placementRow}>
-                {AD_PLACEMENTS.map((p) => {
-                  const current = bannerPlacements(b);
-                  const active = current.includes(p.value);
-                  const toggle = () => {
-                    const next = active ? current.filter((x) => x !== p.value) : [...current, p.value];
-                    // On garde toujours au moins une page ciblée.
-                    update(i, { placements: next.length ? next : [p.value], placement: undefined });
-                  };
-                  return (
-                    <TouchableOpacity key={p.value} onPress={toggle}
-                      style={[styles.placementChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}>
-                      <Ionicons name={active ? 'checkbox' : 'square-outline'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
-                      <Text style={[styles.placementChipText, active && { color: COLORS.bg }]}>{p.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={styles.hintInline}>Plusieurs bannières sur une même page défilent en fondu (rotation).</Text>
+              {/* En-tête repliable : résumé des emplacements sur 1 ligne (compact). */}
+              <TouchableOpacity style={styles.placementToggle} onPress={() => setOpenPlacements((s) => ({ ...s, [b.id]: !s[b.id] }))} activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Emplacements</Text>
+                  <Text style={styles.placementSummary} numberOfLines={1}>{placementSummary(b) || 'Aucun'}</Text>
+                </View>
+                <Ionicons name={openPlacements[b.id] ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              {openPlacements[b.id] && (
+                <>
+                  {/* Groupé par page → chaque puce = une position dans la page. */}
+                  {PLACEMENT_GROUPS.map(([group, items]) => (
+                    <View key={group} style={styles.placementGroup}>
+                      <Text style={styles.placementGroupLabel}>{group}</Text>
+                      <View style={styles.placementRow}>
+                        {items.map((p) => {
+                          const current = bannerPlacements(b);
+                          const active = current.includes(p.value);
+                          const toggle = () => {
+                            const next = active ? current.filter((x) => x !== p.value) : [...current, p.value];
+                            // On garde toujours au moins une page ciblée.
+                            update(i, { placements: next.length ? next : [p.value], placement: undefined });
+                          };
+                          return (
+                            <TouchableOpacity key={p.value} onPress={toggle}
+                              style={[styles.placementChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}>
+                              <Ionicons name={active ? 'checkbox' : 'square-outline'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
+                              <Text style={[styles.placementChipText, active && { color: COLORS.bg }]}>{p.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={styles.hintInline}>Plusieurs bannières sur un même emplacement défilent en fondu (rotation).</Text>
+                </>
+              )}
               <Text style={styles.label}>Texte (si pas d'image)</Text>
               <TextInput style={styles.input} value={b.text ?? ''} onChangeText={(v) => update(i, { text: v })} placeholder="Découvrez notre partenaire…" placeholderTextColor={COLORS.textSecondary} />
               <Text style={styles.label}>Lien au clic (optionnel)</Text>
@@ -155,7 +196,11 @@ function makeStyles(c: any) {
     label: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginTop: 8, marginBottom: 4 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    placementRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+    placementToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 2 },
+    placementSummary: { fontSize: 12.5, color: c.text, fontWeight: '600', marginTop: 2 },
+    placementGroup: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
+    placementGroupLabel: { width: 78, fontSize: 11, color: c.textSecondary, fontWeight: '700', paddingTop: 7 },
+    placementRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     placementChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
     placementChipText: { fontSize: 11, color: c.text, fontWeight: '600' },
     hintInline: { fontSize: 11, color: c.textSecondary, marginTop: 6, fontStyle: 'italic' },

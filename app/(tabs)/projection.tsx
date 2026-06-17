@@ -607,6 +607,9 @@ export default function ProjectionScreen() {
             </View>
           </View>
 
+          {/* Bandeau pub (maison) — juste au-dessus du détail année par année */}
+          <AdSlot placement="projection_invest" />
+
           {/* Tableau global détaillé */}
           <TouchableOpacity style={styles.tableToggle} onPress={() => setShowTable((s) => !s)}>
             <Text style={styles.tableToggleText}>Détail année par année (global)</Text>
@@ -955,8 +958,11 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
           <BalanceCurve rows={rows} width={chartWidth} COLORS={COLORS} marginAmount={pilotage?.safety_margin_amount ?? 0} />
         </View>
       </View>
-      {rows.map((r) => (
-        <View key={`${r.year}-${r.month}`} style={[styles.tresoMonthCard, r.isCurrent && { borderColor: COLORS.blue + '88' }]}>
+      {rows.map((r, i) => (
+        <React.Fragment key={`${r.year}-${r.month}`}>
+        {/* Bandeau pub entre le 3e et le 4e mois — marges égales avec les cartes (≈10px). */}
+        {i === 3 && <AdSlot placement="projection_mois" style={{ marginTop: -6, marginBottom: 4 }} />}
+        <View style={[styles.tresoMonthCard, r.isCurrent && { borderColor: COLORS.blue + '88' }]}>
           <View style={[styles.tresoMonthHeader, r.isCurrent && { justifyContent: 'space-between' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 }}>
               {r.isCurrent && <View style={[styles.tresoCurrentDot, { backgroundColor: COLORS.blue }]} />}
@@ -993,6 +999,7 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
             </View>
           </View>
         </View>
+        </React.Fragment>
       ))}
     </View>
   );

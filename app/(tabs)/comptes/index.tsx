@@ -5,7 +5,7 @@ import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import AdSlot from '../../components/AdSlot';
 import { tabBarRect, headerProfileRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,7 +41,9 @@ export default function AccountsListScreen() {
   const archivedQuery = useArchivedAccounts(user?.id);
 
   // ── Guide "bulles" ──
+  const insets = useSafeAreaInsets();
   const guide = useScreenGuide('comptes', user?.id);
+  const scrollRef = useRef<ScrollView>(null);
   const addBtnRef = useRef<any>(null);
   const transferBtnRef = useRef<any>(null);
   const actionsRef = useRef<any>(null);
@@ -52,21 +54,21 @@ export default function AccountsListScreen() {
       icon: 'add-circle',
       iconColor: '#34d399',
       title: 'Commence ici',
-      description: 'Crée tes comptes (courant, épargne, investissement) et saisis ton solde réel à ce jour. « Virement » déplace de l\'argent entre tes comptes, tracé automatiquement.',
+      description: 'Ajoute tes comptes (courant, épargne, investissement) avec leur solde réel du jour.\n\nUn « Virement » déplace de l\'argent d\'un compte à l\'autre.',
     },
     {
       getRect: () => tabBarRect(),
       icon: 'apps',
       iconColor: '#34d399',
       title: 'Ta navigation',
-      description: 'La barre du bas te donne accès à tout : Comptes, Transactions, Pilotage, Projets et Projection.',
+      description: 'La barre du bas réunit tout l\'essentiel : Comptes, Transactions, Pilotage, Projets et Projection.',
     },
     {
-      getRect: () => headerProfileRect(),
+      getRect: () => headerProfileRect(insets.top),
       icon: 'person-circle',
       iconColor: '#34d399',
       title: 'Ton menu',
-      description: 'En haut à droite : ton profil, tes réglages, ton abonnement et l\'assistance. Tout est là.',
+      description: 'En haut à droite : ton profil, tes réglages, ton abonnement et l\'assistance. \n\nTout est là.',
     },
   ];
   
@@ -121,6 +123,7 @@ export default function AccountsListScreen() {
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -304,6 +307,7 @@ export default function AccountsListScreen() {
         currentStep={guide.step}
         onNext={() => guide.goNext(GUIDE_STEPS.length)}
         onSkip={guide.skip}
+        scrollRef={scrollRef}
         screenTitle="Comptes"
       />
     </View>

@@ -54,6 +54,7 @@ export default function ProjectsScreen() {
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const respondInvite = useRwRespondInvitation(user?.id);
   const createRwProject = useCreateRwProject(user?.id);
+  const [showInfo, setShowInfo] = useState(false);
   const [showTypeChoice, setShowTypeChoice] = useState(false);
   const [showRwCreate, setShowRwCreate] = useState(false);
   const [rwName, setRwName] = useState('');
@@ -419,6 +420,15 @@ export default function ProjectsScreen() {
             <Text style={[styles.addBtnLabel, { color: COLORS.primary }]}>Projet</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={styles.infoBtn}
+            activeOpacity={0.8}
+            onPress={() => setShowInfo(true)}
+            accessibilityRole="button"
+            accessibilityLabel="À quoi servent les projets ?"
+          >
+            <Ionicons name="bulb-outline" size={20} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.archiveToggleBtn}
             activeOpacity={0.8}
             onPress={() => setShowArchived(!showArchived)}
@@ -468,15 +478,13 @@ export default function ProjectsScreen() {
                           <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
                         </TouchableOpacity>
                       ))}
-                      <Text style={styles.rwSectionLabel}>Projets personnels</Text>
                     </>
                   )}
-                  <View style={styles.infoCard}>
-                    <Ionicons name="bulb-outline" size={18} color={COLORS.primary} style={{ marginTop: 1 }} />
-                    <Text style={styles.infoText}>
-                      Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Accumulez de l'argent par des virements vers un compte dédié, ou en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place. Choisissez un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des versements <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuels</Text>.
-                    </Text>
-                  </View>
+                  {/* Bandeau pub (maison) — juste au-dessus des projets personnels */}
+                  <AdSlot placement="projets_perso" />
+                  {rwProjects.length > 0 && (
+                    <Text style={styles.rwSectionLabel}>Projets personnels</Text>
+                  )}
                 </>
               ) : (
                 <Text style={styles.archiveTitle}>Projets archivés</Text>
@@ -498,6 +506,26 @@ export default function ProjectsScreen() {
         )}
       </SafeAreaView>
 
+      {/* Info « À quoi servent les projets ? » (déclenché par l'ampoule du header) */}
+      <Modal visible={showInfo} transparent animationType="fade" onRequestClose={() => setShowInfo(false)}>
+        <TouchableOpacity style={styles.rwModalOverlay} activeOpacity={1} onPress={() => setShowInfo(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.infoModalCard} onPress={() => {}}>
+            <View style={[styles.infoModalIcon, { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '55' }]}>
+              <Ionicons name="bulb-outline" size={28} color={COLORS.primary} />
+            </View>
+            <Text style={styles.infoModalTitle}>À quoi servent les projets ?</Text>
+            <Text style={styles.infoModalText}>
+              Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Accumulez de l'argent par des virements vers un compte dédié, ou en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place. Choisissez un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des versements <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuels</Text>.
+              {'\n\n'}Un <Text style={{ fontWeight: '700', color: COLORS.text }}>projet partagé</Text> permet de suivre des dépenses communes et de les équilibrer entre plusieurs personnes.
+            </Text>
+            <TouchableOpacity style={[styles.infoModalBtn, { backgroundColor: COLORS.primary }]} onPress={() => setShowInfo(false)} activeOpacity={0.85}>
+              <Text style={styles.infoModalBtnText}>J'ai compris</Text>
+              <Ionicons name="checkmark" size={18} color={COLORS.bg} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Choix du type de projet */}
       <Modal visible={showTypeChoice} transparent animationType="fade" onRequestClose={() => setShowTypeChoice(false)}>
         <TouchableOpacity style={styles.rwModalOverlay} activeOpacity={1} onPress={() => setShowTypeChoice(false)}>
@@ -516,7 +544,7 @@ export default function ProjectsScreen() {
               onPress={() => { setShowTypeChoice(false); setShowRwCreate(true); }}>
               <View style={[styles.rwChoiceIcon, { backgroundColor: '#3b82f6' + '22' }]}><Ionicons name="earth" size={22} color="#3b82f6" /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.rwChoiceTitle}>Partagé (Relyka World)</Text>
+                <Text style={styles.rwChoiceTitle}>Partagé</Text>
                 <Text style={styles.rwChoiceSub}>Dépenses partagées entre amis, avec équilibres</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
@@ -1104,17 +1132,18 @@ function makeStyles(c: any) {
     fontSize: 14,
     fontWeight: '500',
   },
-  infoCard: {
-    flexDirection: 'row',
-    gap: 10,
-    backgroundColor: c.card,
-    borderWidth: 1,
-    borderColor: c.primary + '40',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+  infoBtn: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: c.primary + '15', borderWidth: 1, borderColor: c.primary + '44',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  infoText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
+  infoModalCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 22, borderWidth: 1, borderColor: c.cardBorder, padding: 24, alignItems: 'center' },
+  infoModalIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginBottom: 14 },
+  infoModalTitle: { fontSize: 19, fontWeight: '800', color: c.text, textAlign: 'center', marginBottom: 10 },
+  infoModalText: { fontSize: 14, lineHeight: 21, color: c.textSecondary, textAlign: 'center', marginBottom: 20 },
+  infoModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28, width: '100%' },
+  infoModalBtnText: { fontSize: 15, fontWeight: '700', color: c.bg },
   archivedToggle: {
     flexDirection: 'row',
     alignItems: 'center',
