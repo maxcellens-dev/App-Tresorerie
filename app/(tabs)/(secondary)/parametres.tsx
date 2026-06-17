@@ -21,7 +21,7 @@ import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useNavBack } from '../../hooks/useNavBack';
 import { useCalculator } from '../../contexts/CalculatorContext';
-import { usePilotageTipsEnabled, setPilotageTipsEnabled } from '../../lib/uiPrefs';
+import { usePilotageTips } from '../../hooks/useUiPrefs';
 
 const APP_VERSION = '1.0.0';
 
@@ -36,7 +36,7 @@ export default function SettingsScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled } = useCalculator();
-  const tipsEnabled = usePilotageTipsEnabled();
+  const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
 
   const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
   const [safetyAmountInput, setSafetyAmountInput] = useState('');
@@ -253,7 +253,7 @@ export default function SettingsScreen() {
               <Text style={styles.rowLabel}>Afficher les conseils</Text>
               <Switch
                 value={tipsEnabled}
-                onValueChange={setPilotageTipsEnabled}
+                onValueChange={setTipsEnabled}
                 trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
                 thumbColor="#ffffff"
               />

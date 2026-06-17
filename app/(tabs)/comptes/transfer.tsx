@@ -28,7 +28,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
 import type { RecurrenceRule, PreSavingType } from '../../types/database';
 import type { RecoType } from '../../lib/recommendationEngine';
-import { addCompleted } from '../../lib/recoDismissals';
+import { useRecoDismissals } from '../../hooks/useUiPrefs';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
 
@@ -43,6 +43,7 @@ export default function TransferScreen() {
     releaseProject?: string;
   }>();
   const { user } = useAuth();
+  const { addCompleted: addRecoCompleted } = useRecoDismissals(user?.id);
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: allTransactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
@@ -142,7 +143,7 @@ export default function TransferScreen() {
 
       // Virement validé depuis une reco → la marquer « traitée » (ne réapparaît pas)
       if (params.recoComplete) {
-        await addCompleted(params.recoComplete as RecoType);
+        addRecoCompleted(params.recoComplete as RecoType);
       }
       // Virement global d'un cumul → remettre le cumul à 0
       if (params.resetPreSaving) {

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { FinancialProfile, Profile } from '../types/database';
+import type { FinancialProfile, Profile, UiPrefs } from '../types/database';
 
 const KEY = 'profile';
 
@@ -55,6 +55,7 @@ export function useProfile(profileId: string | undefined) {
         currency_code: (data as { currency_code?: string }).currency_code ?? 'EUR',
         notifications_enabled: (data as { notifications_enabled?: boolean }).notifications_enabled ?? true,
         equipped_cosmetics: (data as { equipped_cosmetics?: Record<string, string> }).equipped_cosmetics ?? {},
+        ui_prefs: ((data as { ui_prefs?: UiPrefs }).ui_prefs ?? {}) as UiPrefs,
       } as Profile;
     },
     enabled: !!profileId,

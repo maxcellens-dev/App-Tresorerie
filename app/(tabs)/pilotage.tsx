@@ -25,7 +25,7 @@ import { useReleaseReservedByProject } from '../hooks/useTransactions';
 import { useRecoThresholds } from '../hooks/useRecoThresholds';
 import RecommendationCard from '../components/RecommendationCard';
 import ConseilsBanner from '../components/ConseilsBanner';
-import { usePilotageTipsEnabled } from '../lib/uiPrefs';
+import { usePilotageTips } from '../hooks/useUiPrefs';
 import AdSlot from '../components/AdSlot';
 import { useProjects } from '../hooks/useProjects';
 import { useCategories } from '../hooks/useCategories';
@@ -53,7 +53,7 @@ export default function PilotageScreen() {
   const { user } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
-  const tipsEnabled = usePilotageTipsEnabled();
+  const { enabled: tipsEnabled } = usePilotageTips(user?.id);
   const onbReserved = useOnbHighlight('reserved_consulted');
   const onbReco = useOnbHighlight('reco_validated');
   const [refreshing, setRefreshing] = useState(false);

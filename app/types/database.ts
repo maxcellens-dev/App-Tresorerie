@@ -116,8 +116,27 @@ export interface Profile {
   notifications_enabled?: boolean;
   /** Cosmétiques équipés par emplacement (cadre d'avatar, titre, flamme de série). */
   equipped_cosmetics?: Record<string, string>;
+  /** Préférences d'interface + masquages de recommandations, stockés par compte (cf. useUiPrefs). */
+  ui_prefs?: UiPrefs;
   created_at: string;
   updated_at: string;
+}
+
+/** Masquages de recommandations pour le mois courant (par compte). */
+export interface RecoDismissals {
+  month: string;                       // 'YYYY-MM'
+  ignored: Record<string, number>;     // recoType → montant ignoré
+  completed: string[];                 // recoTypes complétés
+}
+
+/** Préférences d'interface stockées par compte (profiles.ui_prefs). */
+export interface UiPrefs {
+  /** Affichage des conseils en haut du Pilotage (défaut : activé). */
+  pilotage_tips_enabled?: boolean;
+  /** Accès rapide à la calculatrice flottante (défaut : activé). */
+  calculator_enabled?: boolean;
+  /** Recommandations ignorées / complétées du mois courant. */
+  reco_dismissals?: RecoDismissals;
 }
 
 export interface Account {

@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
 import { useAppColors } from '../hooks/useAppColors';
+import { useAuth } from '../contexts/AuthContext';
+import { useRecoDismissals } from '../hooks/useUiPrefs';
 import { CURRENCY_SYMBOL } from '../lib/currency';
-import { getIgnored, addIgnored, getCompleted, addCompleted, isHidden, type IgnoredMap } from '../lib/recoDismissals';
+import { isHidden } from '../lib/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
 import RelykaGauge from './RelykaGauge';
 
@@ -67,25 +68,15 @@ export default function RecommendationCard({
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
+  const { user } = useAuth();
+  // Masquages stockés par compte (profiles.ui_prefs) → réactifs et identiques sur tous les appareils.
+  const { ignored, completed, addIgnored, addCompleted } = useRecoDismissals(user?.id);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [ignored, setIgnored] = useState<IgnoredMap>({});
-  const [completed, setCompleted] = useState<RecoType[]>([]);
   const [confirmReserve, setConfirmReserve] = useState(false);
   const [reserveAmount, setReserveAmount] = useState('');
 
-  // Recharger les masquages à chaque focus (ex : retour de l'écran virement)
-  const reloadDismissals = React.useCallback(() => {
-    let active = true;
-    Promise.all([getIgnored(), getCompleted()]).then(([ig, co]) => {
-      if (active) { setIgnored(ig); setCompleted(co); }
-    });
-    return () => { active = false; };
-  }, []);
-  useFocusEffect(reloadDismissals);
-
   const handleIgnore = (reco: SmartRecommendation) => {
     addIgnored(reco.type, reco.amount);
-    setIgnored(prev => ({ ...prev, [reco.type]: Math.round(reco.amount) }));
     if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
 
@@ -94,7 +85,6 @@ export default function RecommendationCard({
     const amount = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : reco.amount;
     onReserver?.(reco, amount);
     addCompleted('keep');
-    setCompleted(prev => prev.includes('keep') ? prev : [...prev, 'keep']);
     setConfirmReserve(false);
     if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };

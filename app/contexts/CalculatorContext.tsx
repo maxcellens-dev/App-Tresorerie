@@ -4,12 +4,11 @@
  * l'ouvrir/fermer via le hook useCalculator() (cf. <CalculatorButton />).
  *
  * `enabled` : préférence utilisateur (Paramètres) pour afficher ou non l'icône d'accès.
- * Persistée localement (AsyncStorage). Activée par défaut.
+ * Persistée CÔTÉ COMPTE (profiles.ui_prefs). Activée par défaut.
  */
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const STORAGE_KEY = 'relyka.calculator_enabled';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { useAuth } from './AuthContext';
+import { useCalculatorEnabledPref } from '../hooks/useUiPrefs';
 
 interface CalculatorContextValue {
   isOpen: boolean;
@@ -24,21 +23,14 @@ interface CalculatorContextValue {
 const CalculatorContext = createContext<CalculatorContextValue | undefined>(undefined);
 
 export function CalculatorProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const { enabled, setEnabled: setEnabledPref } = useCalculatorEnabledPref(user?.id);
   const [isOpen, setIsOpen] = useState(false);
-  const [enabled, setEnabledState] = useState(true);
-
-  // Charge la préférence persistée (défaut : activée).
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((v) => { if (v === '0') setEnabledState(false); })
-      .catch(() => {});
-  }, []);
 
   const setEnabled = useCallback((v: boolean) => {
-    setEnabledState(v);
+    setEnabledPref(v);
     if (!v) setIsOpen(false); // désactivée → on referme aussi la fenêtre
-    AsyncStorage.setItem(STORAGE_KEY, v ? '1' : '0').catch(() => {});
-  }, []);
+  }, [setEnabledPref]);
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
