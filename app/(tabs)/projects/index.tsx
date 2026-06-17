@@ -536,7 +536,7 @@ export default function ProjectsScreen() {
               <View style={[styles.rwChoiceIcon, { backgroundColor: COLORS.primary + '22' }]}><Ionicons name="flag" size={22} color={COLORS.primary} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rwChoiceTitle}>Personnel</Text>
-                <Text style={styles.rwChoiceSub}>Une cagnotte pour un objectif (épargne, voyage…)</Text>
+                <Text style={styles.rwChoiceSub}>Une cagnotte pour un objectif (épargne, investissement voyage…)</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
