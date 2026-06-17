@@ -36,6 +36,7 @@ export default function AdminAds() {
 
   const [banners, setBanners] = useState<AdBanner[] | null>(null);
   const [rotation, setRotation] = useState('6');
+  const [opacity, setOpacity] = useState('100');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   // Emplacements repliés par défaut (résumé sur 1 ligne) → carte bannière compacte.
@@ -55,6 +56,7 @@ export default function AdminAds() {
     if (loaded && banners === null) {
       setBanners(loaded.banners);
       setRotation(String(loaded.rotation_seconds ?? 6));
+      setOpacity(String(loaded.opacity ?? 100));
     }
   }, [loaded]);
 
@@ -93,7 +95,7 @@ export default function AdminAds() {
   async function persist() {
     if (!banners) return;
     setMsg(null);
-    try { await save.mutateAsync({ banners, rotation_seconds: Math.max(2, Number(rotation) || 6) }); setMsg('Enregistré ✓'); }
+    try { await save.mutateAsync({ banners, rotation_seconds: Math.max(2, Number(rotation) || 6), opacity: Math.max(0, Math.min(100, Math.round(Number(opacity)) || 100)) }); setMsg('Enregistré ✓'); }
     catch (e: unknown) { setMsg(e instanceof Error ? e.message : 'Erreur'); }
   }
 
@@ -113,6 +115,25 @@ export default function AdminAds() {
           <View style={styles.card}>
             <Text style={styles.label}>Durée d'affichage avant changement (secondes)</Text>
             <TextInput style={styles.input} value={rotation} onChangeText={setRotation} keyboardType="numeric" placeholder="6" placeholderTextColor={COLORS.textSecondary} />
+          </View>
+
+          {/* Opacité globale des bannières */}
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.label, { marginTop: 0 }]}>Opacité des bannières</Text>
+              <Text style={styles.opacityValue}>{Math.max(0, Math.min(100, Math.round(Number(opacity)) || 0))} %</Text>
+            </View>
+            {Platform.OS === 'web' ? (
+              <input
+                type="range" min={0} max={100} step={1}
+                value={Math.max(0, Math.min(100, Number(opacity) || 0))}
+                onChange={(e: any) => setOpacity(String(e.target.value))}
+                style={{ width: '100%', cursor: 'pointer', accentColor: COLORS.emerald, height: 6, marginTop: 8 } as any}
+              />
+            ) : (
+              <TextInput style={styles.input} value={opacity} onChangeText={setOpacity} keyboardType="numeric" placeholder="100" placeholderTextColor={COLORS.textSecondary} />
+            )}
+            <Text style={styles.hintInline}>Appliquée à toutes les bannières (100 % = opaque).</Text>
           </View>
 
           {banners.map((b, i) => (
@@ -193,6 +214,7 @@ function makeStyles(c: any) {
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+    opacityValue: { fontSize: 14, fontWeight: '800', color: c.emerald },
     label: { fontSize: 12, color: c.textSecondary, fontWeight: '600', marginTop: 8, marginBottom: 4 },
     input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

@@ -26,6 +26,8 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
   const banners = (data?.banners ?? []).filter((b) => bannerPlacements(b).includes(placement));
   const count = banners.length;
   const rotationMs = Math.max(2, data?.rotation_seconds ?? 6) * 1000;
+  // Opacité globale des bannières (réglable en admin).
+  const baseOpacity = Math.max(0, Math.min(1, (data?.opacity ?? 100) / 100));
 
   const [idx, setIdx] = useState(0);
   const opacity = useRef(new Animated.Value(1)).current;
@@ -67,7 +69,7 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
   return (
     <Animated.View style={[{ opacity }, compact ? styles.compactWrap : null, style]}>
       <TouchableOpacity
-        style={[styles.slot, compact && styles.slotCompact, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder }]}
+        style={[styles.slot, compact && styles.slotCompact, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
         onPress={open}
         activeOpacity={banner.url ? 0.85 : 1}
         disabled={!banner.url}
@@ -104,8 +106,9 @@ const styles = StyleSheet.create({
   imgCompact: { width: '100%', height: 64 },
   textWrapCompact: { paddingHorizontal: 10, paddingVertical: 8 },
   textCompact: { flex: 1, fontSize: 11.5, fontWeight: '600' },
-  // Image pleine largeur, marge minimale → remplit la zone.
-  img: { width: '100%', height: 96 },
+  // Image pleine largeur à RATIO FORCÉ (≈3,5:1) → même forme sur toutes les pages, quelle que
+  // soit la largeur disponible. Uploader au ratio 3,5:1 (ex. 1400×400) pour éviter tout recadrage.
+  img: { width: '100%', aspectRatio: 3.5 },
   tagOverlay: { position: 'absolute', top: 7, left: 7, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   tagOverlayText: { fontSize: 8.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, color: '#fff', textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   textWrap: { padding: 12 },
