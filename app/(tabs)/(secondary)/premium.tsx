@@ -25,7 +25,7 @@ const BENEFITS = [
 ];
 
 // Prix affichés (alignés sur ceux du store Google Play).
-const PLAN_PRICES = { monthly: '2,39 €', annual: '23,99 €' } as const;
+const PLAN_PRICES = { monthly: '1,99 €', annual: '19,99 €' } as const;
 
 export default function PremiumScreen() {
   const COLORS = useAppColors();
