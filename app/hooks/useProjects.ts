@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
 import { CURRENCY_SYMBOL } from '../lib/currency';
+import { reverseBalanceAndDeleteTransactions, TX_REVERSAL_COLS } from './useTransactions';
 
 const PROJECTS_KEY = 'projects';
 const TRANSACTIONS_KEY = 'transactions';
@@ -41,6 +42,7 @@ function buildProjectTransactions(opts: {
       project_id: projectId,
       is_draft: true,
       is_reserved: true,
+      posted: false, // brouillon → jamais porté au solde (cohérence du drapeau)
     });
   } else {
     // Virement vers un autre compte (épargne / investissement) : le brouillon est un VIREMENT
@@ -60,6 +62,7 @@ function buildProjectTransactions(opts: {
         recurrence_end_date: null,
         project_id: projectId,
         is_draft: true,
+        posted: false, // brouillon → jamais porté au solde (cohérence du drapeau)
       });
     }
   }
@@ -226,6 +229,15 @@ export function useUpdateProject(profileId: string | undefined) {
     }) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
 
+      // État AVANT pour détecter si l'ÉCHÉANCIER change réellement (sinon : pas de
+      // régénération, on préserve les transactions déjà validées — cf. renommage).
+      const { data: before } = await supabase
+        .from('projects')
+        .select('monthly_allocation, allocation_type, target_date, source_account_id, linked_account_id, transaction_day, first_payment_date')
+        .eq('id', input.id)
+        .eq('profile_id', profileId)
+        .maybeSingle();
+
       // 1. Mettre à jour le projet
       const { data, error } = await supabase
         .from('projects')
@@ -249,8 +261,21 @@ export function useUpdateProject(profileId: string | undefined) {
         .single();
       if (error) throw error;
 
-      // Simple changement de statut → pas de sync des transactions
-      if (input.status && !input.name && input.monthly_allocation === undefined) return data;
+      // Régénérer les transactions UNIQUEMENT si un champ d'échéancier change réellement.
+      // Un simple renommage / changement de description / statut ne doit PAS nuker + recréer
+      // les transactions (ce qui dé-validait les paiements passés et brassait les soldes).
+      const changed = (field: keyof NonNullable<typeof before>, val: unknown) =>
+        val !== undefined && String((before as any)?.[field] ?? '') !== String((val as any) ?? '');
+      const scheduleChanged =
+        changed('monthly_allocation', input.monthly_allocation) ||
+        changed('allocation_type', input.allocation_type) ||
+        changed('target_date', input.target_date) ||
+        changed('source_account_id', input.source_account_id) ||
+        changed('linked_account_id', input.linked_account_id) ||
+        changed('transaction_day', input.transaction_day) ||
+        changed('first_payment_date', input.first_payment_date) ||
+        input.ponctuel_entries !== undefined;
+      if (!scheduleChanged) return data;
 
       const projectName = input.name ?? data.name;
       const sourceId = input.source_account_id !== undefined ? input.source_account_id : data.source_account_id;
@@ -273,16 +298,17 @@ export function useUpdateProject(profileId: string | undefined) {
       //    que le mois courant et les mois futurs. Mensuel / date : régénération complète.
       const nowDel = new Date();
       const currentMonthStart = `${nowDel.getFullYear()}-${String(nowDel.getMonth() + 1).padStart(2, '0')}-01`;
-      let delQuery = supabase
+      let selQuery = supabase
         .from('transactions')
-        .delete()
+        .select(TX_REVERSAL_COLS)
         .eq('project_id', input.id)
         .eq('profile_id', profileId);
       if (allocType === 'ponctuel') {
-        delQuery = delQuery.gte('date', currentMonthStart);
+        selQuery = selQuery.gte('date', currentMonthStart);
       }
-      const { error: delErr } = await delQuery;
-      if (delErr) console.warn('Erreur suppression txns projet:', delErr);
+      const { data: toDelete } = await selQuery;
+      // Réverse le solde des lignes déjà validées avant de supprimer (les nouvelles sont des brouillons).
+      await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
 
       // 3a. Ponctuel : régénérer depuis les entrées fournies
       if (allocType === 'ponctuel') {
@@ -403,13 +429,13 @@ export function useDeleteProjectFull(profileId: string | undefined) {
   return useMutation({
     mutationFn: async (projectId: string) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
-      // Delete all linked transactions first
-      const { error: txErr } = await supabase
+      // Supprimer les transactions liées en RÉVERSANT le solde des lignes validées (posted).
+      const { data: toDelete } = await supabase
         .from('transactions')
-        .delete()
+        .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId);
-      if (txErr) throw txErr;
+      await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
       // Delete the project
       const { error } = await supabase
         .from('projects')
@@ -446,13 +472,14 @@ export function useDeleteProjectKeepingLocked(profileId: string | undefined) {
         .lte('date', lockDate);
       if (unlinkErr) throw unlinkErr;
 
-      const { error: delErr } = await supabase
+      const { data: toDelete } = await supabase
         .from('transactions')
-        .delete()
+        .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId)
         .gt('date', lockDate);
-      if (delErr) throw delErr;
+      // Réverse le solde des lignes validées (posted) au-delà de la date de clôture.
+      await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
 
       const { error } = await supabase
         .from('projects')
@@ -534,14 +561,14 @@ export function useDeleteProjectFromDate(profileId: string | undefined) {
     mutationFn: async ({ projectId, fromDate }: { projectId: string; fromDate: string }) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
 
-      // 1. Supprimer les transactions >= fromDate
-      const { error: delErr } = await supabase
+      // 1. Supprimer les transactions >= fromDate en RÉVERSANT le solde des lignes validées.
+      const { data: toDelete } = await supabase
         .from('transactions')
-        .delete()
+        .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
         .eq('profile_id', profileId)
         .gte('date', fromDate);
-      if (delErr) throw delErr;
+      await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
 
       // 2. Calculer la somme des transactions restantes (débits = montants négatifs)
       const { data: remaining, error: sumErr } = await supabase

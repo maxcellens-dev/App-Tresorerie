@@ -43,6 +43,61 @@ async function effectiveBalanceDelta(accountId: string, txDate: string, note: st
   return (baselineDate && txDate < baselineDate) ? 0 : rawContribution;
 }
 
+/** Colonnes nécessaires pour réverser proprement l'impact solde avant suppression. */
+export const TX_REVERSAL_COLS = 'id, account_id, amount, date, is_draft, is_recurring, note, linked_account_id';
+
+interface ReversalRow {
+  id: string; account_id: string; amount: number; date: string;
+  is_draft: boolean | null; is_recurring: boolean | null;
+  note: string | null; linked_account_id: string | null;
+}
+
+/**
+ * Supprime un lot de transactions EN RÉVERSANT leur impact « à date » sur le solde des
+ * comptes (lignes posted uniquement), en incluant la jambe paire d'un virement si elle n'est
+ * pas déjà dans le lot. À utiliser partout où l'on supprimait des transactions de PROJET en
+ * masse : celles-ci peuvent désormais être validées (posted), et un `delete` brut laissait le
+ * solde faux (symptôme « le point bas ne revient pas / ça s'accumule »).
+ */
+export async function reverseBalanceAndDeleteTransactions(profileId: string, baseRows: ReversalRow[]): Promise<void> {
+  if (!supabase || baseRows.length === 0) return;
+  const byId = new Map<string, ReversalRow>();
+  for (const r of baseRows) byId.set(r.id, r);
+
+  // Inclure la jambe paire éventuelle (même date, montant opposé, comptes croisés) si elle
+  // n'a pas déjà été sélectionnée par le filtre projet.
+  for (const r of baseRows) {
+    if (!r.linked_account_id) continue;
+    const { data: paired } = await supabase
+      .from('transactions')
+      .select(TX_REVERSAL_COLS)
+      .eq('profile_id', profileId)
+      .eq('account_id', r.linked_account_id)
+      .eq('linked_account_id', r.account_id)
+      .eq('date', r.date)
+      .eq('amount', -Number(r.amount))
+      .maybeSingle();
+    if (paired && !byId.has((paired as any).id)) byId.set((paired as any).id, paired as any);
+  }
+
+  // Réversion : chaque ligne retire sa PROPRE contribution « à date » exactement une fois
+  // (les deux jambes étant dans le lot, on ne croise pas les comptes → pas de double compte).
+  const adjust: Record<string, number> = {};
+  for (const r of byId.values()) {
+    const contribution = balanceContribution({ amount: Number(r.amount), date: r.date, is_draft: r.is_draft, is_recurring: r.is_recurring });
+    const delta = await effectiveBalanceDelta(r.account_id, r.date, r.note, contribution);
+    if (delta !== 0) adjust[r.account_id] = (adjust[r.account_id] ?? 0) - delta;
+  }
+
+  await supabase.from('transactions').delete().in('id', Array.from(byId.keys())).eq('profile_id', profileId);
+
+  for (const [accId, delta] of Object.entries(adjust)) {
+    if (delta === 0) continue;
+    const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();
+    if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) + delta }).eq('id', accId);
+  }
+}
+
 export function useTransactions(profileId: string | undefined) {
   const query = useQuery({
     queryKey: [KEY, profileId],
@@ -255,6 +310,10 @@ export function useUpdateTransaction(profileId: string | undefined) {
           // liste, qui passe par useValidateProjectDraft). On crée la transaction de crédit sur le
           // compte de destination + on crédite son solde, comme le fait validateProjectDraft.
           const creditAmt = Math.abs(newAmount);
+          // `posted` reflète si le montant est DÉJÀ dans le solde : vrai seulement si la date est
+          // échue. Si le virement est validé à une date future, posted=false → le solde de
+          // destination n'est PAS impacté maintenant ; reconcile_posted() l'y portera le jour venu.
+          const creditRaw = balanceContribution({ amount: creditAmt, date: newDate, is_draft: false, is_recurring: false });
           await supabase.from('transactions').insert({
             profile_id: profileId,
             account_id: oldLinkedAccId,
@@ -268,8 +327,8 @@ export function useUpdateTransaction(profileId: string | undefined) {
             recurrence_end_date: null,
             project_id: oldProjectId,
             linked_account_id: oldAccId,
+            posted: creditRaw !== 0,
           });
-          const creditRaw = balanceContribution({ amount: creditAmt, date: newDate, is_draft: false, is_recurring: false });
           const creditDelta = await effectiveBalanceDelta(oldLinkedAccId, newDate, newNote, creditRaw);
           await adjustBalance(oldLinkedAccId, creditDelta);
         } else if (paired) {
@@ -387,20 +446,22 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (pairedId) {
         const { data: pairedRow } = await supabase
           .from('transactions')
-          .select('account_id, amount, is_draft, is_recurring, date')
+          .select('account_id, amount, is_draft, is_recurring, date, note')
           .eq('id', pairedId)
           .eq('profile_id', profileId)
           .maybeSingle();
         if (pairedRow) {
           await supabase.from('transactions').delete().eq('id', pairedId).eq('profile_id', profileId);
+          const pairedAccId = (pairedRow as any).account_id as string;
           const pairedContribution = balanceContribution({
             amount: Number((pairedRow as any).amount), date: (pairedRow as any).date,
             is_draft: (pairedRow as any).is_draft, is_recurring: (pairedRow as any).is_recurring,
           });
-          if (pairedContribution !== 0) {
-            const pairedAccId = (pairedRow as any).account_id as string;
+          // §P12 : même traitement « pré-régularisation » que la jambe principale (symétrie create/delete).
+          const pairedDelta = await effectiveBalanceDelta(pairedAccId, (pairedRow as any).date, (pairedRow as any).note, pairedContribution);
+          if (pairedDelta !== 0) {
             const { data: pairedAcc } = await supabase.from('accounts').select('balance').eq('id', pairedAccId).single();
-            if (pairedAcc) await supabase.from('accounts').update({ balance: Number(pairedAcc.balance) - pairedContribution }).eq('id', pairedAccId);
+            if (pairedAcc) await supabase.from('accounts').update({ balance: Number(pairedAcc.balance) - pairedDelta }).eq('id', pairedAccId);
           }
         }
       }
@@ -523,20 +584,25 @@ export function useValidateProjectDraft(profileId: string | undefined) {
       const sourceId = project.source_account_id as string;
       const linkedId = project.linked_account_id as string;
       const debitAmt = Number(debitTx.amount); // négatif
+      const creditAmt = Math.abs(debitAmt);
+      // Un virement validé à une date FUTURE ne doit pas impacter les soldes maintenant :
+      // posted=false → reconcile_posted() portera les deux jambes au solde le jour venu.
+      const debitPosted = balanceContribution({ amount: debitAmt, date: debitTx.date, is_draft: false, is_recurring: false }) !== 0;
 
       // 1. Valider le débit et le transformer en virement (linked_account_id = destination)
       await supabase
         .from('transactions')
-        .update({ is_draft: false, linked_account_id: linkedId })
+        .update({ is_draft: false, linked_account_id: linkedId, posted: debitPosted })
         .eq('id', debitTx.id)
         .eq('profile_id', profileId);
 
-      // Mettre à jour le solde du compte source
-      const { data: srcAcc } = await supabase.from('accounts').select('balance').eq('id', sourceId).single();
-      if (srcAcc) await supabase.from('accounts').update({ balance: Number(srcAcc.balance) + debitAmt }).eq('id', sourceId);
+      // Mettre à jour le solde du compte source (seulement si l'échéance est échue)
+      if (debitPosted) {
+        const { data: srcAcc } = await supabase.from('accounts').select('balance').eq('id', sourceId).single();
+        if (srcAcc) await supabase.from('accounts').update({ balance: Number(srcAcc.balance) + debitAmt }).eq('id', sourceId);
+      }
 
       // 2. Créer le crédit sur le compte de destination
-      const creditAmt = Math.abs(debitAmt);
       await supabase.from('transactions').insert({
         profile_id: profileId,
         account_id: linkedId,
@@ -550,11 +616,14 @@ export function useValidateProjectDraft(profileId: string | undefined) {
         recurrence_end_date: null,
         project_id: debitTx.project_id,
         linked_account_id: sourceId,
+        posted: debitPosted,
       });
 
-      // Mettre à jour le solde du compte destination
-      const { data: dstAcc } = await supabase.from('accounts').select('balance').eq('id', linkedId).single();
-      if (dstAcc) await supabase.from('accounts').update({ balance: Number(dstAcc.balance) + creditAmt }).eq('id', linkedId);
+      // Mettre à jour le solde du compte destination (seulement si l'échéance est échue)
+      if (debitPosted) {
+        const { data: dstAcc } = await supabase.from('accounts').select('balance').eq('id', linkedId).single();
+        if (dstAcc) await supabase.from('accounts').update({ balance: Number(dstAcc.balance) + creditAmt }).eq('id', linkedId);
+      }
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
