@@ -180,7 +180,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id').eq('id', input.id).eq('profile_id', profileId).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       const oldAccId = (existing as { account_id: string }).account_id;
       const oldAmount = Number((existing as { amount: number }).amount);
@@ -189,6 +189,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       const isNowDraft = input.is_draft !== undefined ? input.is_draft : wasInDraft;
       const oldLinkedAccId = (existing as { linked_account_id?: string | null }).linked_account_id ?? null;
       const oldDate = (existing as { date?: string }).date as string | undefined;
+      const oldProjectId = (existing as { project_id?: string | null }).project_id ?? null;
 
       const updates: Record<string, unknown> = {};
       if (input.account_id !== undefined) updates.account_id = input.account_id;
@@ -238,7 +239,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       // Un virement est composé de deux transactions reliées par linked_account_id.
       // Si on modifie le montant / la date / le libellé d'une jambe, l'autre doit suivre,
       // sinon le couple se désynchronise (et les soldes deviennent faux).
-      if (oldLinkedAccId && (input.amount !== undefined || input.date !== undefined || input.note !== undefined)) {
+      if (oldLinkedAccId && (input.amount !== undefined || input.date !== undefined || input.note !== undefined || input.is_draft !== undefined)) {
         const { data: paired } = await supabase
           .from('transactions')
           .select('id, account_id, amount, is_draft, is_recurring, date')
@@ -248,7 +249,30 @@ export function useUpdateTransaction(profileId: string | undefined) {
           .eq('date', oldDate ?? '')
           .eq('amount', -oldAmount)
           .maybeSingle();
-        if (paired) {
+        if (!paired && wasInDraft && !isNowDraft) {
+          // Validation d'un virement dont la jambe de CRÉDIT n'existe pas encore : c'est le cas
+          // d'un virement de projet validé via l'écran « Modifier » (et non via « Valider » de la
+          // liste, qui passe par useValidateProjectDraft). On crée la transaction de crédit sur le
+          // compte de destination + on crédite son solde, comme le fait validateProjectDraft.
+          const creditAmt = Math.abs(newAmount);
+          await supabase.from('transactions').insert({
+            profile_id: profileId,
+            account_id: oldLinkedAccId,
+            category_id: null,
+            amount: creditAmt,
+            date: newDate,
+            note: newNote ?? null,
+            is_draft: false,
+            is_recurring: false,
+            recurrence_rule: null,
+            recurrence_end_date: null,
+            project_id: oldProjectId,
+            linked_account_id: oldAccId,
+          });
+          const creditRaw = balanceContribution({ amount: creditAmt, date: newDate, is_draft: false, is_recurring: false });
+          const creditDelta = await effectiveBalanceDelta(oldLinkedAccId, newDate, newNote, creditRaw);
+          await adjustBalance(oldLinkedAccId, creditDelta);
+        } else if (paired) {
           const pairedOldAmt = Number((paired as any).amount);
           const pairedWasDraft = Boolean((paired as any).is_draft);
           const pairedRecurring = Boolean((paired as any).is_recurring);
@@ -286,6 +310,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      client.invalidateQueries({ queryKey: ['projects', profileId] });
     },
   });
 }

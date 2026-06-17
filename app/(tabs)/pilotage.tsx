@@ -243,6 +243,15 @@ export default function PilotageScreen() {
     // Conserver : réservations + réservé projets du mois (PAS les cumuls épargne/invest).
     keep: reservationsTotal + (pilotageData?.monthly_reserve_planned ?? 0),
   };
+  // Couleur d'affichage par type de reco — alignée sur les couleurs sémantiques du thème
+  // (clair/sombre) plutôt que sur les teintes fixes de l'engine, qui restaient trop claires
+  // en mode clair (ex. épargne #34d399 au lieu du vert défini #059669).
+  const recoColorByType: Record<string, string> = {
+    save:   COLORS.green,
+    invest: COLORS.violet,
+    enjoy:  COLORS.orange,
+    keep:   COLORS.blue,
+  };
   // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
   const recoList = pilotageData
     ? computeRecommendations(pilotageData, {
@@ -251,7 +260,11 @@ export default function PilotageScreen() {
         budget: recoGrossBudget,
         alreadyAllocated: recoAlreadyAllocated,
         thresholds: recoThresholds,
-      }).map((r) => ({ ...r, amount: Math.min(r.amount, Math.max(0, Math.round(resteDisponible))) }))
+      }).map((r) => ({
+        ...r,
+        color: recoColorByType[r.type] ?? r.color,
+        amount: Math.min(r.amount, Math.max(0, Math.round(resteDisponible))),
+      }))
     : [];
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
