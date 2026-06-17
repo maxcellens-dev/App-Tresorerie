@@ -2,7 +2,7 @@
  * Boutique — dépense les gemmes gagnées (gels de série, thèmes, et plus tard bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -43,6 +43,10 @@ export default function BoutiqueScreen() {
   // focus=gems (depuis « mes Relyks ») → pré-sélectionne « Recharger en relyks ».
   const [catFilter, setCatFilter] = useState<ShopCategory | 'all'>(focus === 'gems' ? 'gems' : 'all');
   const [confirmItem, setConfirmItem] = useState<{ key: string; label: string; price: number } | null>(null);
+  // « Recharger en relyks » est le dernier filtre (tout à droite) : quand on l'active (clic sur les
+  // relyks depuis la boutique ou la page Succès), on défile la barre de filtres jusqu'au bout pour
+  // le rendre visible.
+  const filterScrollRef = useRef<ScrollView>(null);
 
   const gems = state?.gems ?? 0;
   const freezes = state?.freezes ?? 0;
@@ -66,6 +70,14 @@ export default function BoutiqueScreen() {
   const shopByCategory = SHOP_CATEGORY_ORDER
     .map((cat) => ({ cat, items: shopItems.filter((s) => (s.category ?? 'series') === cat) }))
     .filter((g) => g.items.length > 0);
+
+  // Défile la barre de filtres jusqu'à « Recharger en relyks » (dernier, tout à droite) dès qu'il
+  // est sélectionné et que la liste est rendue (dépend de la longueur, donc rejoue après le chargement).
+  useEffect(() => {
+    if (catFilter !== 'gems' || activeTab !== 'app' || shopByCategory.length <= 1) return;
+    const t = setTimeout(() => filterScrollRef.current?.scrollToEnd({ animated: true }), 250);
+    return () => clearTimeout(t);
+  }, [catFilter, activeTab, shopByCategory.length]);
 
   const onBuy = async (key: string) => {
     setBusyKey(key); setMsg(null);
@@ -200,7 +212,7 @@ export default function BoutiqueScreen() {
               {/* Filtres par catégorie — navigation compacte (évite une page à rallonge).
                   « Premium » est placé en 3ᵉ raccourci (après « Tout »), uniquement ici. */}
               {shopByCategory.length > 1 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
+                <ScrollView ref={filterScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
                   {(() => {
                     const cats = shopByCategory.map((g) => g.cat).filter((c) => c !== 'premium');
                     if (shopByCategory.some((g) => g.cat === 'premium')) cats.splice(1, 0, 'premium' as ShopCategory);

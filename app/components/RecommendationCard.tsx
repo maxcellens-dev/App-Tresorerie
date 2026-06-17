@@ -39,6 +39,8 @@ interface SmartRecommendationCardProps {
   relykaColor?: string;
   /** Message dynamique affiché sous la jauge. */
   relykaMessage?: string;
+  /** Ouvre le détail « Ton Relyka » (utilisé sur la version compacte à 0 €). */
+  onOpenRelyka?: () => void;
   /** Données financières pour la phrase contextuelle sous chaque reco (projection invest, économie…). */
   financials?: RecoFinancials;
 }
@@ -60,6 +62,7 @@ export default function RecommendationCard({
   relykaAmount = 0,
   relykaColor,
   relykaMessage,
+  onOpenRelyka,
   financials,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
@@ -182,16 +185,20 @@ export default function RecommendationCard({
       )}
 
       {isLead && count === 1 && Math.round(relykaAmount) <= 0 ? (
-        /* ── À 0 € sans reco : version COMPACTE (pas de jauge, ligne réduite) ── */
-        <View style={styles.leadCompact}>
+        /* ── À 0 € sans reco : version COMPACTE (pas de jauge, ligne réduite) ──
+           Cliquable (chevron) → ouvre le détail « Ton Relyka », comme le bloc du Suivi du mois. */
+        <TouchableOpacity style={styles.leadCompact} activeOpacity={onOpenRelyka ? 0.7 : 1} disabled={!onOpenRelyka} onPress={onOpenRelyka}>
           <View style={styles.leadCompactRow}>
             <Text style={styles.leadTitle}>Ton Relyka</Text>
-            <Text style={[styles.leadCompactAmount, { color: relykaColor ?? COLORS.emerald }]}>
-              {Math.round(relykaAmount).toLocaleString('fr-FR')} €
-            </Text>
+            <View style={styles.leadCompactRight}>
+              <Text style={[styles.leadCompactAmount, { color: relykaColor ?? COLORS.emerald }]}>
+                {Math.round(relykaAmount).toLocaleString('fr-FR')} €
+              </Text>
+              {onOpenRelyka && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
+            </View>
           </View>
           {!!relykaMessage && <Text style={styles.leadCompactMsg}>{relykaMessage}</Text>}
-        </View>
+        </TouchableOpacity>
       ) : isLead ? (
         /* ── Slide 0 : jauge « Ton Relyka » composée des couleurs des recos ── */
         <View style={styles.leadSlide}>
@@ -465,6 +472,7 @@ function makeStyles(c: any) {
   // Version compacte (Relyka à 0 € sans reco) : une ligne titre + montant, message à gauche.
   leadCompact: { gap: 6 },
   leadCompactRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  leadCompactRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   leadCompactAmount: { fontSize: 22, fontWeight: '900' },
   leadCompactMsg: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'left' },
   recoSlide: { flex: 1, justifyContent: 'space-between', gap: 10 },

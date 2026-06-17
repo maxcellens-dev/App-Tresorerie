@@ -1,14 +1,15 @@
 /**
  * AchievementCelebration — overlay GLOBAL qui célèbre un succès dès qu'il est débloqué,
  * quelle que soit la page affichée. Animation d'apparition, on touche pour fermer, et
- * chaque succès n'est célébré qu'UNE seule fois (mémorisé localement).
+ * chaque succès n'est célébré qu'UNE seule fois — mémorisé CÔTÉ COMPTE (colonne
+ * user_badges.celebrated_at), donc pas de rejeu sur un autre appareil/écran.
  *
- * Les succès déjà débloqués AVANT la 1ʳᵉ exécution ne sont pas célébrés rétroactivement.
+ * Les succès déjà débloqués avant cette fonctionnalité ont été marqués comme célébrés par la
+ * migration → pas de célébration rétroactive.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
 import { useAppColors } from '../hooks/useAppColors';
@@ -18,51 +19,37 @@ export default function AchievementCelebration() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const { user } = useAuth();
-  const { badges, config } = useGamification(user?.id);
+  const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
 
-  const seenRef = useRef<Set<string> | null>(null);
+  // Succès déjà pris en charge cette session (évite de re-traiter avant le refetch du serveur).
+  const handledRef = useRef<Set<string>>(new Set());
   const [queue, setQueue] = useState<BadgeDef[]>([]);
   const [current, setCurrent] = useState<BadgeDef | null>(null);
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
 
-  const storeKey = `achiev_seen_${user?.id ?? 'anon'}`;
-
-  // Charge l'ensemble des succès déjà « vus ». Première fois → on enregistre les succès actuels
-  // comme vus (pas de célébration rétroactive).
+  // Réinitialise à chaque changement de compte.
   useEffect(() => {
-    if (!user?.id) { seenRef.current = null; return; }
-    let cancelled = false;
-    seenRef.current = null;
-    AsyncStorage.getItem(storeKey).then((raw) => {
-      if (cancelled) return;
-      if (raw == null) {
-        const init = new Set(badges.map((b) => b.badge_key));
-        seenRef.current = init;
-        AsyncStorage.setItem(storeKey, JSON.stringify([...init])).catch(() => {});
-      } else {
-        try { seenRef.current = new Set(JSON.parse(raw)); } catch { seenRef.current = new Set(); }
-      }
-    }).catch(() => { seenRef.current = new Set(); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    handledRef.current = new Set();
+    setQueue([]);
+    setCurrent(null);
   }, [user?.id]);
 
-  // Détecte les nouveaux succès → file d'attente.
+  // Détecte les succès non encore célébrés (celebrated_at null) → file d'attente, puis les marque
+  // célébrés côté serveur immédiatement pour qu'ils ne reviennent jamais.
   useEffect(() => {
-    if (!seenRef.current || !config) return;
-    const fresh = badges
-      .map((b) => b.badge_key)
-      .filter((k) => !seenRef.current!.has(k))
-      .map((k) => config.badges.find((d) => d.key === k))
+    if (!user?.id || !config) return;
+    const pending = badges.filter((b) => !b.celebrated_at && !handledRef.current.has(b.badge_key));
+    if (pending.length === 0) return;
+    pending.forEach((b) => handledRef.current.add(b.badge_key));
+    markBadgesCelebrated(pending.map((b) => b.badge_key));
+    const fresh = pending
+      .map((b) => config.badges.find((d) => d.key === b.badge_key))
       .filter((d): d is BadgeDef => !!d);
-    if (fresh.length === 0) return;
-    fresh.forEach((d) => seenRef.current!.add(d.key));
-    AsyncStorage.setItem(storeKey, JSON.stringify([...seenRef.current!])).catch(() => {});
-    setQueue((q) => [...q, ...fresh]);
+    if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [badges, config]);
+  }, [badges, config, user?.id]);
 
   // Affiche le suivant.
   useEffect(() => {

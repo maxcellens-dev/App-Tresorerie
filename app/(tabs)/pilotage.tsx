@@ -505,6 +505,7 @@ export default function PilotageScreen() {
             <RecommendationCard
               hideTitle
               showRelykaSlide
+              onOpenRelyka={() => setDetailKey('relyka')}
               relykaAmount={resteDisponible}
               relykaColor={resteDisponible < 0 ? COLORS.danger : Math.round(resteDisponible) <= 0 ? COLORS.orange : COLORS.emerald}
               relykaMessage={

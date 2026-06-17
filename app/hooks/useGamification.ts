@@ -33,7 +33,7 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export interface UserBadge { badge_key: string; unlocked_at: string }
+export interface UserBadge { badge_key: string; unlocked_at: string; celebrated_at: string | null }
 export interface InventoryItem { item_key: string; qty: number }
 
 async function fetchOrCreateState(userId: string): Promise<GamificationState> {
@@ -60,7 +60,7 @@ export function useGamification(userId: string | undefined) {
   const badgesQuery = useQuery({
     queryKey: ['user_badges', userId],
     queryFn: async (): Promise<UserBadge[]> => {
-      const { data } = await supabase!.from('user_badges').select('badge_key, unlocked_at').eq('profile_id', userId!);
+      const { data } = await supabase!.from('user_badges').select('badge_key, unlocked_at, celebrated_at').eq('profile_id', userId!);
       return (data ?? []) as UserBadge[];
     },
     enabled: !!userId && !!supabase,
@@ -227,6 +227,18 @@ export function useGamification(userId: string | undefined) {
     return { ok: true };
   }
 
+  /** Marque des succès comme « célébrés » (côté compte) → la célébration ne réapparaît plus,
+   *  quel que soit l'appareil. Idempotent : ne touche que les lignes pas encore célébrées. */
+  async function markBadgesCelebrated(keys: string[]): Promise<void> {
+    if (!userId || !supabase || keys.length === 0) return;
+    await supabase.from('user_badges')
+      .update({ celebrated_at: new Date().toISOString() })
+      .eq('profile_id', userId)
+      .in('badge_key', keys)
+      .is('celebrated_at', null);
+    qc.invalidateQueries({ queryKey: ['user_badges', userId] });
+  }
+
   /** Crédite des gemmes (après un achat en argent réel validé par le store / RevenueCat). */
   async function creditGems(amount: number): Promise<{ ok: boolean }> {
     if (!userId || !supabase || amount <= 0) return { ok: false };
@@ -294,6 +306,7 @@ export function useGamification(userId: string | undefined) {
     evaluate,
     buyItem,
     creditGems,
+    markBadgesCelebrated,
     canClaimDailyGems,
     streakLoss,
     restoreLostStreak,
