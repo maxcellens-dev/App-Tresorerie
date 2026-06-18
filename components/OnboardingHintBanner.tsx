@@ -2,16 +2,17 @@
  * OnboardingHintBanner — coachmark interactif du guide « Pour bien démarrer ».
  * Affiché en bas d'un écran quand on y arrive depuis une étape (param ?onb=<clé>).
  * - Tant que l'étape n'est pas faite : explique quoi faire (fermable, non bloquant).
- * - Dès que l'étape est accomplie : confirme, puis disparaît au bout de 3 s (slide vers le bas)
- *   ou si on touche ailleurs, et enchaîne sur l'étape suivante s'il en reste.
+ * - Dès que l'étape est accomplie : confirme. « Suivant » ferme le coachmark et ouvre la
+ *   checklist « Pour bien démarrer » (vue d'ensemble simple des prochaines étapes).
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStepKey } from '../hooks/useOnboarding';
+import { openOnboardingChecklist } from '../lib/onboardingChecklist';
 
 export default function OnboardingHintBanner() {
   const COLORS = useAppColors();
@@ -22,7 +23,6 @@ export default function OnboardingHintBanner() {
   const params = useLocalSearchParams<{ onb?: string }>();
   const key = params.onb as OnboardingStepKey | undefined;
   const [dismissed, setDismissed] = useState(false);
-  const slide = useRef(new Animated.Value(0)).current;
 
   const idx = key ? ob.steps.findIndex((s) => s.key === key) : -1;
   const step = idx >= 0 ? ob.steps[idx] : null;
@@ -35,21 +35,8 @@ export default function OnboardingHintBanner() {
   dismissRef.current = () => { setDismissed(true); router.setParams({ onb: '' as any }); };
   const dismiss = () => dismissRef.current();
 
-  const goToNext = () => {
-    if (!next) { dismiss(); return; }
-    setDismissed(true);
-    if (next.route === step!.route) router.setParams({ onb: next.key });
-    else router.replace((next.route + '?onb=' + next.key) as any);
-  };
-
-  // Avance (slide vers le bas) : prochaine étape s'il en reste, sinon fermeture.
-  const advanceRef = useRef(() => {});
-  advanceRef.current = () => {
-    Animated.timing(slide, { toValue: 180, duration: 250, useNativeDriver: true }).start(() => {
-      slide.setValue(0);
-      if (next) goToNext(); else dismiss();
-    });
-  };
+  // « Suivant » : ferme le coachmark puis ouvre la checklist « Pour bien démarrer ».
+  const openChecklist = () => { dismiss(); openOnboardingChecklist(); };
 
   // Swipe horizontal pour fermer.
   const pan = useRef(
@@ -59,18 +46,16 @@ export default function OnboardingHintBanner() {
     })
   ).current;
 
-  useEffect(() => { setDismissed(false); slide.setValue(0); }, [key]);
-
-  // Plus d'auto-avance (§P13) : l'utilisateur passe à l'étape suivante via le bouton « Suivant ».
+  useEffect(() => { setDismissed(false); }, [key]);
 
   if (!key || dismissed || ob.dismissed || !step) return null;
 
-  // ── Étape accomplie : confirmation + enchaînement (overlay tactile pour fermer en touchant ailleurs) ──
+  // ── Étape accomplie : confirmation + accès à la checklist (toucher ailleurs = fermer) ──
   if (step.done) {
     return (
       <View style={StyleSheet.absoluteFill as any} pointerEvents="box-none">
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => advanceRef.current()} />
-        <Animated.View style={[styles.wrap, { transform: [{ translateY: slide }] }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
+        <View style={styles.wrap}>
           <View style={[styles.card, { borderColor: COLORS.green + '66' }]} {...pan.panHandlers}>
             <View style={[styles.iconCircle, { backgroundColor: COLORS.green }]}>
               <Ionicons name="checkmark" size={18} color="#fff" />
@@ -82,7 +67,7 @@ export default function OnboardingHintBanner() {
                 : <Text style={styles.hint}>🎉 Bravo, vous avez terminé le guide !</Text>}
             </View>
             {next ? (
-              <TouchableOpacity style={styles.nextBtn} onPress={() => advanceRef.current()} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.nextBtn} onPress={openChecklist} activeOpacity={0.85}>
                 <Text style={styles.nextBtnText}>Suivant</Text>
                 <Ionicons name="arrow-forward" size={14} color={COLORS.bg} />
               </TouchableOpacity>
@@ -92,7 +77,7 @@ export default function OnboardingHintBanner() {
               </TouchableOpacity>
             )}
           </View>
-        </Animated.View>
+        </View>
       </View>
     );
   }

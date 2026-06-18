@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStep } from '../hooks/useOnboarding';
 import { useTour } from '../contexts/TourContext';
+import { subscribeOpenChecklist } from '../lib/onboardingChecklist';
 
 export default function OnboardingChecklist() {
   const COLORS = useAppColors();
@@ -22,6 +23,9 @@ export default function OnboardingChecklist() {
   const tour = useTour();
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
+
+  // Ouverture déclenchée depuis l'extérieur (ex. « Suivant » du coachmark d'étape validée).
+  useEffect(() => subscribeOpenChecklist(() => setOpen(true)), []);
 
   // Après le tour, on n'ouvre plus la checklist automatiquement : le bouton « Commencer »
   // du message de fin envoie directement sur la 1re étape (coachmark). On marque juste l'intro.
