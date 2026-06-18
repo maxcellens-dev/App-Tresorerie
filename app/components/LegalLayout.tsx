@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
-import { useAppColors } from '../hooks/useAppColors';
+import { usePublicColors } from '../hooks/usePublicColors';
 import { useAppNameFont } from '../hooks/useBrandFont';
 import { useNavBack } from '../hooks/useNavBack';
 import HeaderWithProfile from './HeaderWithProfile';
@@ -24,11 +24,12 @@ import HeaderWithProfile from './HeaderWithProfile';
 export const LEGAL_DESKTOP_MIN_WIDTH = 900;
 
 export default function LegalLayout({ title, children }: { title: string; children: React.ReactNode }) {
-  const COLORS = useAppColors();
+  const { user } = useAuth();
+  // Connecté → préférence perso ; public → thème de la vitrine (clair/sombre).
+  const COLORS = usePublicColors();
   const styles = makeStyles(COLORS);
   const appNameFont = useAppNameFont();
   const router = useRouter();
-  const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= LEGAL_DESKTOP_MIN_WIDTH;
   const goBack = useNavBack();
@@ -37,7 +38,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
   if (isDesktopWeb) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
           {/* En-tête site */}
           <View style={styles.siteHeader}>
@@ -95,7 +96,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
   // ───────── Mode « app » (mobile / natif) : en-tête identique aux autres pages ─────────
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView edges={['top']}>
         <HeaderWithProfile title="Relyka" />

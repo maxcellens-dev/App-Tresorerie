@@ -1,23 +1,29 @@
 /**
- * useBrandColors — palette de marque fixe (sombre + accent émeraude), indépendante
- * des préférences utilisateur. Utilisée par les écrans pré-auth (accueil, connexion,
- * inscription) : ce n'est pas un choix utilisateur, l'identité reste verte en permanence.
+ * useBrandColors — palette de marque (accent émeraude), indépendante des préférences
+ * utilisateur. Utilisée par les écrans pré-auth (accueil, connexion, inscription, etc.).
+ * Le MODE clair/sombre suit le réglage de la page d'accueil (app_config.landing.theme),
+ * piloté en admin → toute la vitrine bascule ensemble. L'accent reste émeraude.
  * Respecte les réglages globaux du Style Editor (transparence cartes, presets, couleurs sémantiques).
  */
 import { useMemo } from 'react';
 import { useStyleConfig } from './useStyleConfig';
-import { buildColors, type AppColors } from '../theme/palette';
+import { useLandingConfig } from './useLandingConfig';
+import { buildColors, type AppColors, type ThemeMode } from '../theme/palette';
 
 export function useBrandColors(): AppColors {
   const { data: styleConfig } = useStyleConfig();
+  const { data: landing } = useLandingConfig();
+  const mode = (landing?.theme ?? 'dark') as ThemeMode;
   return useMemo(
-    () => buildColors('dark', 'emerald', {
-      cardAlpha: styleConfig?.dark.card_alpha,
-      bgColor: styleConfig?.dark.bg_color,
+    () => buildColors(mode, 'emerald', {
+      cardAlpha: mode === 'light' ? styleConfig?.light.card_alpha : styleConfig?.dark.card_alpha,
+      bgColor: mode === 'light' ? styleConfig?.light.bg_color : styleConfig?.dark.bg_color,
+      headerAlpha: mode === 'light' ? styleConfig?.light.header_alpha : styleConfig?.dark.header_alpha,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
       semanticColors: styleConfig?.semantic_colors,
+      lightSemanticColors: styleConfig?.light_semantic_colors,
     }),
-    [styleConfig?.dark.card_alpha, styleConfig?.dark.bg_color, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors]
+    [mode, styleConfig]
   );
 }

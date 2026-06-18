@@ -47,7 +47,7 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <View style={styles.background}>
         <LinearGradient
           colors={[COLORS.emerald + '4D', COLORS.emerald + '1A', COLORS.bg, COLORS.bg]}

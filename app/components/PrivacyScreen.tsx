@@ -5,7 +5,7 @@
  */
 import { View, Text, StyleSheet } from 'react-native';
 import LegalLayout from './LegalLayout';
-import { useAppColors } from '../hooks/useAppColors';
+import { usePublicColors } from '../hooks/usePublicColors';
 import EditableLegalContent from './EditableLegalContent';
 
 // Texte par défaut pré-rempli quand un admin clique « Modifier » (§P9).
@@ -30,7 +30,7 @@ Aucun cookie publicitaire ni tracker tiers. Seuls des cookies techniques essenti
 Cette politique peut être mise à jour ; vous serez informé(e) de tout changement significatif via une notification dans l'application.`;
 
 export default function PrivacyScreen() {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   const styles = makeStyles(COLORS);
   return (
     <LegalLayout title="Politique de confidentialité">
@@ -79,12 +79,12 @@ export default function PrivacyScreen() {
 }
 
 function B({ children }: { children: React.ReactNode }) {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   return <Text style={{ fontWeight: '700', color: COLORS.text }}>{children}</Text>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   const styles = makeStyles(COLORS);
   return (
     <View style={styles.card}>

@@ -11,7 +11,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../hooks/useAppColors';
+import { usePublicColors } from '../hooks/usePublicColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useLegalContent, useSaveLegalContent, type LegalContent } from '../hooks/useLegalContent';
@@ -23,7 +23,7 @@ interface Props {
 }
 
 export default function EditableLegalContent({ which, seedText, children }: Props) {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   const styles = makeStyles(COLORS);
   const { user } = useAuth();
   const isAdmin = (useProfile(user?.id).data?.is_admin ?? (user?.email === 'maxcellens@gmail.com'));

@@ -56,7 +56,7 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={styles.keyboard}>
           <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))}>

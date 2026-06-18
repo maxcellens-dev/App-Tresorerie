@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import LegalLayout from './LegalLayout';
-import { useAppColors } from '../hooks/useAppColors';
+import { usePublicColors } from '../hooks/usePublicColors';
 import EditableLegalContent from './EditableLegalContent';
 
 // Texte par défaut pré-rempli quand un admin clique « Modifier » (§P9).
@@ -35,7 +35,7 @@ Droit applicable
 Droit français. Tout litige sera soumis aux tribunaux compétents.`;
 
 export default function LegalScreen() {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
   return (
@@ -104,12 +104,12 @@ export default function LegalScreen() {
 }
 
 function B({ children }: { children: React.ReactNode }) {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   return <Text style={{ fontWeight: '700', color: COLORS.text }}>{children}</Text>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const COLORS = useAppColors();
+  const COLORS = usePublicColors();
   const styles = makeStyles(COLORS);
   return (
     <View style={styles.card}>
