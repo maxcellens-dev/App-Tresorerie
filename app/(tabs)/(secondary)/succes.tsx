@@ -2,7 +2,7 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -14,7 +14,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useGamification } from '../../../hooks/useGamification';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import { useNavBack } from '../../../hooks/useNavBack';
-import { UNLOCK_COLOR, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/gamification';
+import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/gamification';
 
 export default function SuccesScreen() {
   const COLORS = useAppColors();
@@ -22,8 +22,16 @@ export default function SuccesScreen() {
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
-  const { state, badges, config } = useGamification(user?.id);
+  const { state, badges, config, markBadgesCelebrated } = useGamification(user?.id);
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
+
+  // « Bienvenue » est consommé ici (et non en pop-up) : à la 1ʳᵉ visite de la page Succès,
+  // on le marque célébré s'il ne l'est pas encore. Idempotent → no-op aux visites suivantes.
+  useEffect(() => {
+    const welcome = badges.find((b) => b.badge_key === WELCOME_BADGE_KEY && !b.celebrated_at);
+    if (welcome) markBadgesCelebrated([WELCOME_BADGE_KEY]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [badges]);
 
   const unlockedKeys = new Set(badges.map((b) => b.badge_key));
   // Succès affiché en grand au centre de l'écran (au clic sur une carte).

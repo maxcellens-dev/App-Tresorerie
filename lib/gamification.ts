@@ -9,6 +9,10 @@
  *  chaque succès est dissocié et soit verrouillé, soit débloqué. */
 export const UNLOCK_COLOR = '#f59e0b';
 
+/** Succès « Bienvenue » (1ʳᵉ connexion) : jamais célébré en pop-up — il est « consommé »
+ *  à la 1ʳᵉ visite de la page Succès (voir AchievementCelebration & écran Succès). */
+export const WELCOME_BADGE_KEY = 'premiere_connexion';
+
 /** Métriques calculables qui pilotent le déblocage automatique des badges. */
 export type BadgeMetric =
   | 'streak_weeks'           // série hebdo (record)

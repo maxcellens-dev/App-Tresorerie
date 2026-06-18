@@ -12,14 +12,20 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } f
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
+import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
-import { UNLOCK_COLOR, isImageIcon, formatCurrency, type BadgeDef } from '../lib/gamification';
+import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type BadgeDef } from '../lib/gamification';
 
 export default function AchievementCelebration() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const { user } = useAuth();
   const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
+  const { data: profile } = useProfile(user?.id);
+  // Aucune célébration tant que l'onboarding n'est pas terminé : questionnaire répondu
+  // ET tuto de présentation vu/fermé. Sinon un pop-up s'affiche par-dessus l'accueil/questionnaire.
+  const onboardingDone =
+    Boolean((profile as any)?.initial_onboarding_completed) && Boolean((profile as any)?.app_tour_done);
 
   // Succès déjà pris en charge cette session (évite de re-traiter avant le refetch du serveur).
   const handledRef = useRef<Set<string>>(new Set());
@@ -40,7 +46,14 @@ export default function AchievementCelebration() {
   // célébrés côté serveur immédiatement pour qu'ils ne reviennent jamais.
   useEffect(() => {
     if (!user?.id || !config) return;
-    const pending = badges.filter((b) => !b.celebrated_at && !handledRef.current.has(b.badge_key));
+    if (!onboardingDone) return; // rien avant la fin du questionnaire + tuto
+    const pending = badges.filter(
+      (b) =>
+        !b.celebrated_at &&
+        !handledRef.current.has(b.badge_key) &&
+        // « Bienvenue » n'est jamais célébré en pop-up : consommé à la 1ʳᵉ visite de la page Succès.
+        b.badge_key !== WELCOME_BADGE_KEY,
+    );
     if (pending.length === 0) return;
     pending.forEach((b) => handledRef.current.add(b.badge_key));
     markBadgesCelebrated(pending.map((b) => b.badge_key));
@@ -49,7 +62,7 @@ export default function AchievementCelebration() {
       .filter((d): d is BadgeDef => !!d);
     if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [badges, config, user?.id]);
+  }, [badges, config, user?.id, onboardingDone]);
 
   // Affiche le suivant.
   useEffect(() => {

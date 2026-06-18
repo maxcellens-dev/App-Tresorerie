@@ -124,7 +124,11 @@ function makeStyles(c: any) {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.emerald + '66',
       borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10,
-      shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
+      // Web : les props shadow* ne s'appliquent pas → la carte (blanche) se fond dans le fond clair.
+      // On utilise boxShadow sur web (séparation nette), shadow*/elevation sur natif.
+      ...(Platform.OS === 'web'
+        ? { boxShadow: '0 8px 28px rgba(0,0,0,0.18)' } as any
+        : { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6 }),
     },
     iconCircle: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     step: { fontSize: 10, fontWeight: '800', color: c.emerald, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 1 },

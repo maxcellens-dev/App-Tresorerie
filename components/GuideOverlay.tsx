@@ -276,7 +276,7 @@ function makeStyles(c: any) {
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
   title: { fontSize: 17, fontWeight: '800', color: c.text, marginBottom: 4 },
-  desc: { fontSize: 14, color: '#cbd5e1', lineHeight: 20 },
+  desc: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
   bubbleFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dots: { flexDirection: 'row', gap: 6 },
   dot: {
