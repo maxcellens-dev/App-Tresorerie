@@ -15,7 +15,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { useGamification } from '../../hooks/useGamification';
 import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
-import { isImageIcon, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, type ShopItem, type ShopCategory } from '../../lib/gamification';
+import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, type ShopItem, type ShopCategory } from '../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
@@ -122,6 +122,16 @@ export default function BoutiqueScreen() {
         <TouchableOpacity style={[styles.buyBtn, { backgroundColor: COLORS.yellow, paddingHorizontal: 14 }]} onPress={() => !busy && onBuyGems(item)} disabled={busy} activeOpacity={0.85}>
           {busy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[styles.buyText, { color: '#fff' }]}>Acheter</Text>}
         </TouchableOpacity>
+      );
+    }
+    // Produit unique déjà acquis : prix grisé, achat impossible (même avec assez de relyks).
+    const owned = (inventory.find((i) => i.item_key === item.key)?.qty ?? 0) > 0;
+    if (isUniqueItem(item) && owned) {
+      return (
+        <View style={[styles.buyBtn, { backgroundColor: COLORS.cardBorder }]}>
+          <Ionicons name="checkmark" size={12} color={COLORS.textSecondary} />
+          <Text style={[styles.buyText, { color: COLORS.textSecondary }]}>Acquis</Text>
+        </View>
       );
     }
     const price = priceOf(item.price);

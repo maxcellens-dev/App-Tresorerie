@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { useGamificationConfig } from './useGamificationConfig';
 import { usePlan } from './usePlan';
 import {
-  mondayOf, weeksBetween, isUnlocked,
+  mondayOf, weeksBetween, isUnlocked, isUniqueItem,
   type BadgeContext, type GamificationConfig,
 } from '../lib/gamification';
 
@@ -205,6 +205,12 @@ export function useGamification(userId: string | undefined) {
 
     // Article exclusif Premium : verrouillé pour les non-abonnés (visible mais figé en boutique).
     if (item.premiumOnly && !isPremium) return { ok: false, reason: 'réservé aux abonnés Premium' };
+
+    // Produit unique (couleurs, cosmétiques, thèmes) : déblocage permanent → un seul achat possible.
+    if (isUniqueItem(item)) {
+      const { data: owned } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
+      if ((owned?.qty ?? 0) > 0) return { ok: false, reason: 'déjà acquis' };
+    }
 
     const price = isPremium ? Math.round(item.price * (1 - config.premium_discount_pct / 100)) : item.price;
     if (state.gems < price) return { ok: false, reason: 'relyks insuffisants' };

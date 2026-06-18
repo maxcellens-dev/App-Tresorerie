@@ -296,6 +296,13 @@ export function isImageIcon(icon: string | undefined): boolean {
   return !!icon && /^https?:\/\//i.test(icon);
 }
 
+/** Produit « unique » : déblocage permanent acheté en relyks (couleurs, cosmétiques, thèmes).
+ *  Une fois acquis, il ne peut pas être racheté (≠ recharges, gels de série, cadeau du jour,
+ *  ou bons hors-app qui restent cumulables). */
+export function isUniqueItem(item: ShopItem): boolean {
+  return item.type === 'accent_pack' || item.type === 'cosmetic' || item.type === 'theme';
+}
+
 // ── Semaines (pour le streak) ───────────────────────────────────────────────
 
 /** Lundi (00:00 local) de la semaine contenant `d`, au format YYYY-MM-DD. */
