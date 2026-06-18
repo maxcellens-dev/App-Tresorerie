@@ -15,6 +15,8 @@ export interface LandingLink { label: string; anchor?: string; url?: string }
 export interface LandingConfig {
   /** Activer la landing desktop (sinon écran d'accueil classique partout). */
   enabled: boolean;
+  /** Thème visuel de la page d'accueil bureau : 'dark' (actuel) ou 'light' (clair, même accent). */
+  theme: 'dark' | 'light';
   brandName: string;
   navLinks: LandingLink[];
   ctaPrimaryLabel: string;
@@ -40,6 +42,7 @@ export interface LandingConfig {
 
 export const DEFAULT_LANDING: LandingConfig = {
   enabled: true,
+  theme: 'dark',
   brandName: 'Relyka',
   navLinks: [
     { label: 'Fonctionnalités', anchor: 'features' },

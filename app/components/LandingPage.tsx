@@ -3,27 +3,40 @@
  * Entièrement personnalisable en admin via app_config.landing (useLandingConfig).
  * Les boutons « S'inscrire » / « Se connecter » mènent aux pages /register et /login.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Image, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useBrandColors } from '../hooks/useBrandColors';
+import { useStyleConfig } from '../hooks/useStyleConfig';
+import { buildColors, type ThemeMode } from '../theme/palette';
 import { useAppNameFont } from '../hooks/useBrandFont';
 import { useLandingConfig } from '../hooks/useLandingConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 
 export default function LandingPage() {
-  const COLORS = useBrandColors();
   const appNameFont = useAppNameFont();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { data: cfg } = useLandingConfig();
+  const { data: styleConfig } = useStyleConfig();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = Boolean(profile?.is_admin);
+
+  // Thème de la landing piloté en admin (clair/sombre), accent émeraude conservé dans les deux cas.
+  const mode = (cfg?.theme ?? 'dark') as ThemeMode;
+  const COLORS = useMemo(() => buildColors(mode, 'emerald', {
+    cardAlpha: mode === 'light' ? styleConfig?.light.card_alpha : styleConfig?.dark.card_alpha,
+    bgColor: mode === 'light' ? styleConfig?.light.bg_color : styleConfig?.dark.bg_color,
+    headerAlpha: mode === 'light' ? styleConfig?.light.header_alpha : styleConfig?.dark.header_alpha,
+    customAccents: styleConfig?.custom_accents,
+    extraPresets: styleConfig?.extra_presets,
+    semanticColors: styleConfig?.semantic_colors,
+    lightSemanticColors: styleConfig?.light_semantic_colors,
+  }), [mode, styleConfig]);
 
   const wide = width >= 980;
   const styles = makeStyles(COLORS, wide);
@@ -62,7 +75,7 @@ export default function LandingPage() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
 
       {/* ── En-tête / menu ── */}
       <View style={styles.header}>

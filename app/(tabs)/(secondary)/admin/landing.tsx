@@ -85,6 +85,24 @@ export default function AdminLanding() {
               <Text style={styles.section}>Activer la landing desktop</Text>
               <Switch value={cfg.enabled} onValueChange={(v) => set({ enabled: v })} />
             </View>
+
+            {/* Thème de la page d'accueil — sombre (actuel) ou clair (même accent émeraude) */}
+            <Text style={styles.fieldLabel}>Thème de la page</Text>
+            <View style={styles.themeRow}>
+              {([
+                { id: 'dark' as const, label: 'Sombre', icon: 'moon-outline' },
+                { id: 'light' as const, label: 'Clair', icon: 'sunny-outline' },
+              ]).map((t) => {
+                const active = (cfg.theme ?? 'dark') === t.id;
+                return (
+                  <TouchableOpacity key={t.id} style={[styles.themeBtn, active && styles.themeBtnActive]} onPress={() => set({ theme: t.id })} activeOpacity={0.85}>
+                    <Ionicons name={t.icon as any} size={16} color={active ? '#fff' : COLORS.textSecondary} />
+                    <Text style={[styles.themeBtnText, active && { color: '#fff' }]}>{t.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <Field label="Nom de la marque" value={cfg.brandName} onChange={(v) => set({ brandName: v })} styles={styles} c={COLORS} />
             <Field label="Bouton principal (S'inscrire)" value={cfg.ctaPrimaryLabel} onChange={(v) => set({ ctaPrimaryLabel: v })} styles={styles} c={COLORS} />
             <Field label="Bouton secondaire (Se connecter)" value={cfg.ctaSecondaryLabel} onChange={(v) => set({ ctaSecondaryLabel: v })} styles={styles} c={COLORS} />
@@ -208,6 +226,10 @@ function makeStyles(c: any) {
     uploadBtn: { width: 44, borderWidth: 1.5, borderStyle: 'dashed' as any, borderColor: c.emerald, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 8 },
     addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },
+    themeRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    themeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
+    themeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+    themeBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
     saveBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     saveLabel: { color: '#fff', fontWeight: '700', fontSize: 15 },
     msg: { textAlign: 'center', marginTop: 10, fontWeight: '600' },
