@@ -1,9 +1,10 @@
 {
   "expo": {
     "name": "Relyka",
-    "slug": "tresorerie",
+    "owner": "relykadevs-team",
+    "slug": "relyka-app",
     "version": "1.0.0",
-    "scheme": "tresorerie",
+    "scheme": "relyka-app",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
