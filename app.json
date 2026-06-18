@@ -18,6 +18,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp"
+      "versionCode": 28
     },
     "plugins": [
       "./plugins/withJitpackAuth",
