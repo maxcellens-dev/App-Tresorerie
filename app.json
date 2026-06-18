@@ -17,7 +17,7 @@
         "backgroundColor": "#0D2E2A"
       },
       "softwareKeyboardLayoutMode": "resize",
-      "package": "com.relyka.myapp"
+      "package": "com.relyka.myapp",
       "versionCode": 28
     },
     "plugins": [
