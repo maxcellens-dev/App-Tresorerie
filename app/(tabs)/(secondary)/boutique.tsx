@@ -301,7 +301,6 @@ export default function BoutiqueScreen() {
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <Text style={styles.itemLabel}>
                                   {itemLabel(item)}
-                                  {owned > 0 && item.type !== 'daily_gems' && <Text style={{ color: COLORS.green }}> · acquis</Text>}
                                 </Text>
                                 {item.premiumOnly && (
                                   <View style={styles.premiumDot}>
