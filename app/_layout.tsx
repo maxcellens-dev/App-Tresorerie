@@ -1,35 +1,47 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions, LogBox } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemeProvider } from './contexts/ThemeContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { TourProvider } from './contexts/TourContext';
-import { CalculatorProvider } from './contexts/CalculatorContext';
-import Calculator from './components/Calculator';
-import UpdateBanner from './components/UpdateBanner';
-import AchievementCelebration from './components/AchievementCelebration';
-import { useConfigSync } from './hooks/useConfigSync';
-import { useMaterializeRecurring } from './hooks/useMaterializeRecurring';
-import { supabase } from './lib/supabase';
-import HeaderWithProfile from './components/HeaderWithProfile';
-import { LEGAL_DESKTOP_MIN_WIDTH } from './components/LegalLayout';
-import ImpersonationBanner from './components/ImpersonationBanner';
-import { setAnalyticsUser, logEvent, trackScreen } from './lib/analytics';
-import { recordRoute } from './lib/navHistory';
-import ProfileChangeModal from './components/ProfileChangeModal';
-import StreakRecoveryModal from './components/StreakRecoveryModal';
-import FontApplier from './components/FontApplier';
-import GamificationSync from './components/GamificationSync';
-import AppDialogHost from './components/AppDialogHost';
-import { useAppColors } from './hooks/useAppColors';
-import { useCurrency } from './hooks/useCurrency';
-import { useProfile } from './hooks/useProfile';
-import { useSetPremium } from './hooks/usePlan';
-import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from './lib/purchases';
-import { PUSH_SUPPORTED, getDevicePushTokenAsync } from './lib/pushNotifications';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { TourProvider } from '../contexts/TourContext';
+import { CalculatorProvider } from '../contexts/CalculatorContext';
+import Calculator from '../components/Calculator';
+import UpdateBanner from '../components/UpdateBanner';
+import AchievementCelebration from '../components/AchievementCelebration';
+import { useConfigSync } from '../hooks/useConfigSync';
+import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
+import { supabase } from '../lib/supabase';
+import HeaderWithProfile from '../components/HeaderWithProfile';
+import { LEGAL_DESKTOP_MIN_WIDTH } from '../components/LegalLayout';
+import ImpersonationBanner from '../components/ImpersonationBanner';
+import { setAnalyticsUser, logEvent, trackScreen } from '../lib/analytics';
+import { recordRoute } from '../lib/navHistory';
+import ProfileChangeModal from '../components/ProfileChangeModal';
+import StreakRecoveryModal from '../components/StreakRecoveryModal';
+import FontApplier from '../components/FontApplier';
+import GamificationSync from '../components/GamificationSync';
+import AppDialogHost from '../components/AppDialogHost';
+import { useAppColors } from '../hooks/useAppColors';
+import { useCurrency } from '../hooks/useCurrency';
+import { useProfile } from '../hooks/useProfile';
+import { useSetPremium } from '../hooks/usePlan';
+import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/purchases';
+import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/pushNotifications';
 import './global.css';
+
+// expo-router v4 scanne TOUS les fichiers de app/ comme des routes : nos dossiers non-route
+// (hooks/, lib/, contexts/, theme/, services/, types/, components/) déclenchent un console.error
+// « missing the required default export » par fichier → mur de LogBox qui masque l'écran en dev.
+// C'est inoffensif (expo-router les ignore ensuite). On masque ce bruit dev + les warnings de style
+// dépréciés des libs. À terme : sortir ces dossiers de app/ (cf. docs/MIGRATION_SDK52.md).
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    /missing the required default export/,
+    /"(textShadow|shadow)\*" style props are deprecated/,
+  ]);
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

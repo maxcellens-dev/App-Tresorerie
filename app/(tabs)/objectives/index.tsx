@@ -10,27 +10,27 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import OnboardingHintBanner from '../../components/OnboardingHintBanner';
-import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
+import ScreenGradient from '../../../components/ScreenGradient';
+import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
+import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   useObjectives,
   useDeleteObjective,
   useUpdateObjective,
-} from '../../hooks/useObjectives';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useAccountTransactionsByYear, calculateYearlyTotal } from '../../hooks/useAccountTransactionsByYear';
-import AddObjectiveModal from '../../components/AddObjectiveModal';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { accountColor } from '../../theme/colors';
-import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+} from '../../../hooks/useObjectives';
+import { useAccounts } from '../../../hooks/useAccounts';
+import { useAccountTransactionsByYear, calculateYearlyTotal } from '../../../hooks/useAccountTransactionsByYear';
+import AddObjectiveModal from '../../../components/AddObjectiveModal';
+import { usePilotageData } from '../../../hooks/usePilotageData';
+import { accountColor } from '../../../theme/colors';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 
 export default function ObjectivesScreen() {
@@ -320,7 +320,7 @@ export default function ObjectivesScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>

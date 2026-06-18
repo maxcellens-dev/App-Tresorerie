@@ -3,21 +3,21 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useGamification } from '../../hooks/useGamification';
-import { usePlan } from '../../hooks/usePlan';
-import { useCosmetics } from '../../hooks/useCosmetics';
-import { useNavBack } from '../../hooks/useNavBack';
-import { COSMETIC_DEFS } from '../../lib/gamification';
-import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../theme/palette';
-import { useStyleConfig, orderPresetIds } from '../../hooks/useStyleConfig';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useGamification } from '../../../hooks/useGamification';
+import { usePlan } from '../../../hooks/usePlan';
+import { useCosmetics } from '../../../hooks/useCosmetics';
+import { useNavBack } from '../../../hooks/useNavBack';
+import { COSMETIC_DEFS } from '../../../lib/gamification';
+import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../../theme/palette';
+import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 
 export default function AppearanceScreen() {
   const COLORS = useAppColors();

@@ -1,16 +1,16 @@
 ﻿import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAddAccount } from '../../hooks/useAccounts';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useFiscalEnvelopeRates } from '../../hooks/useFiscalEnvelopes';
-import CalendarWithPicker from '../../components/CalendarWithPicker';
-import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAddAccount } from '../../../hooks/useAccounts';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
+import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 
 
 const TYPES = [
@@ -104,7 +104,7 @@ export default function AddAccountScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">

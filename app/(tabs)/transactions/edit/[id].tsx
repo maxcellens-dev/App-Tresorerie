@@ -1,25 +1,25 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import CalendarWithPicker from '../../../../components/CalendarWithPicker';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories, useAddCategory } from '../../../hooks/useCategories';
-import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../hooks/useTransactions';
-import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../hooks/useTransactionMonthOverrides';
-import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
-import type { RecurrenceRule } from '../../../types/database';
-import { formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
-import { accountColor } from '../../../theme/colors';
-import { supabase } from '../../../lib/supabase';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useMonthlyClosure } from '../../../../hooks/useMonthlyClosure';
+import { useAccounts } from '../../../../hooks/useAccounts';
+import { useCategories, useAddCategory } from '../../../../hooks/useCategories';
+import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../../hooks/useTransactions';
+import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../../hooks/useTransactionMonthOverrides';
+import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/CategoryPicker';
+import type { RecurrenceRule } from '../../../../types/database';
+import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
+import { accountColor } from '../../../../theme/colors';
+import { supabase } from '../../../../lib/supabase';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 
 
 export default function EditTransactionScreen() {
@@ -413,7 +413,7 @@ export default function EditTransactionScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">

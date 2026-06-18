@@ -1,10 +1,10 @@
 ﻿import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
-import ScreenGradient from '../components/ScreenGradient';
+import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 
@@ -12,16 +12,16 @@ import { Animated, Easing } from 'react-native';
 const svgPress = (handler: () => void): Record<string, unknown> =>
   Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
 import Svg, { Rect, Text as SvgText, Line, Circle, Path, G, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { useTransactions } from '../hooks/useTransactions';
-import { useAccounts } from '../hooks/useAccounts';
-import { useCategories } from '../hooks/useCategories';
-import { usePilotageData } from '../hooks/usePilotageData';
-import { useProfile } from '../hooks/useProfile';
-import { usePlan } from '../hooks/usePlan';
-import { useNavBack } from '../hooks/useNavBack';
-import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../theme/colors';
-import { useAppColors } from '../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../lib/currency';
+import { useTransactions } from '../../hooks/useTransactions';
+import { useAccounts } from '../../hooks/useAccounts';
+import { useCategories } from '../../hooks/useCategories';
+import { usePilotageData } from '../../hooks/usePilotageData';
+import { useProfile } from '../../hooks/useProfile';
+import { usePlan } from '../../hooks/usePlan';
+import { useNavBack } from '../../hooks/useNavBack';
+import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../../theme/colors';
+import { useAppColors } from '../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 /* ── Couleurs fixes des graphiques (sémantique indépendante du thème) ── */
 const CHART = {
@@ -618,7 +618,7 @@ export default function ReportingScreen() {
   if (!user) {
     return (
       <View style={s.root}>
-        <StatusBar style="light" />
+        <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} />
               <ScreenGradient />
       <SafeAreaView style={s.safe} edges={['left', 'right']}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -633,7 +633,7 @@ export default function ReportingScreen() {
   if (!reportingAllowed) {
     return (
       <View style={s.root}>
-        <StatusBar style="light" />
+        <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} />
         <ScreenGradient />
         <SafeAreaView style={s.safe} edges={['left', 'right']}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
@@ -661,7 +661,7 @@ export default function ReportingScreen() {
 
   return (
     <View style={s.root}>
-      <StatusBar style="light" />
+      <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} />
             <ScreenGradient />
       <SafeAreaView style={s.safe} edges={['left', 'right']}>
         <ScrollView

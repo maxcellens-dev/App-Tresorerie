@@ -1,24 +1,24 @@
 ﻿import { useState, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import OnboardingHintBanner from '../../components/OnboardingHintBanner';
-import AdSlot from '../../components/AdSlot';
-import { tabBarRect, headerProfileRect } from '../../lib/tourTargets';
-import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
+import ScreenGradient from '../../../components/ScreenGradient';
+import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
+import AdSlot from '../../../components/AdSlot';
+import { tabBarRect, headerProfileRect } from '../../../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAccounts, useArchivedAccounts } from '../../hooks/useAccounts';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { ACCOUNT_ICONS } from '../../theme/colors';
-import { semanticText } from '../../theme/palette';
-import GuideOverlay from '../../components/GuideOverlay';
-import type { BubbleStep } from '../../components/GuideOverlay';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
-import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAccounts, useArchivedAccounts } from '../../../hooks/useAccounts';
+import { usePilotageData } from '../../../hooks/usePilotageData';
+import { ACCOUNT_ICONS } from '../../../theme/colors';
+import { semanticText } from '../../../theme/palette';
+import GuideOverlay from '../../../components/GuideOverlay';
+import type { BubbleStep } from '../../../components/GuideOverlay';
+import { useScreenGuide } from '../../../hooks/useScreenGuide';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -118,7 +118,7 @@ export default function AccountsListScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>

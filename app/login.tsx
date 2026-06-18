@@ -9,9 +9,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from './lib/supabase';
-import { useBrandColors } from './hooks/useBrandColors';
-import SocialAuthButtons from './components/SocialAuthButtons';
+import { supabase } from '../lib/supabase';
+import { useBrandColors } from '../hooks/useBrandColors';
+import SocialAuthButtons from '../components/SocialAuthButtons';
 
 
 export default function LoginScreen() {

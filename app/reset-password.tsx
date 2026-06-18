@@ -10,9 +10,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from './lib/supabase';
-import { useBrandColors } from './hooks/useBrandColors';
-import { useAuth } from './contexts/AuthContext';
+import { supabase } from '../lib/supabase';
+import { useBrandColors } from '../hooks/useBrandColors';
+import { useAuth } from '../contexts/AuthContext';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)

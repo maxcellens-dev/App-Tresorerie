@@ -9,12 +9,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import ScreenGradient from '../../../components/ScreenGradient';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { supabase } from '../../../lib/supabase';
+import ScreenGradient from '../../../../components/ScreenGradient';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useProfile } from '../../../../hooks/useProfile';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { supabase } from '../../../../lib/supabase';
 
 interface AdminUser { id: string; full_name: string | null; email: string | null; is_premium: boolean }
 
@@ -73,7 +73,7 @@ export default function AdminUsers() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>

@@ -1,27 +1,27 @@
 ﻿import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl, TextInput } from 'react-native';
-import ScreenGradient from '../components/ScreenGradient';
+import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../contexts/AuthContext';
-import GuideOverlay from '../components/GuideOverlay';
-import { tabRect } from '../lib/tourTargets';
-import type { BubbleStep } from '../components/GuideOverlay';
-import { useScreenGuide } from '../hooks/useScreenGuide';
-import { useTransactions, useAddTransaction } from '../hooks/useTransactions';
-import { usePilotageData } from '../hooks/usePilotageData';
-import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
-import { useAccounts } from '../hooks/useAccounts';
-import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
-import EditTransactionMonthModal from '../components/EditTransactionMonthModal';
-import type { RecurrenceRule, TransactionWithDetails } from '../types/database';
-import type { Category } from '../types/database';
-import { useAppColors } from '../hooks/useAppColors';
-import { useProfile, useUpdateProfile } from '../hooks/useProfile';
-import { CURRENCY_SYMBOL } from '../lib/currency';
+import { useAuth } from '../../contexts/AuthContext';
+import GuideOverlay from '../../components/GuideOverlay';
+import { tabRect } from '../../lib/tourTargets';
+import type { BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
+import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
+import { usePilotageData } from '../../hooks/usePilotageData';
+import { useCategories, useSeedDefaultCategories } from '../../hooks/useCategories';
+import { useAccounts } from '../../hooks/useAccounts';
+import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
+import EditTransactionMonthModal from '../../components/EditTransactionMonthModal';
+import type { RecurrenceRule, TransactionWithDetails } from '../../types/database';
+import type { Category } from '../../types/database';
+import { useAppColors } from '../../hooks/useAppColors';
+import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -820,7 +820,7 @@ export default function TreasuryPlanScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Retour vers la page précédente */}

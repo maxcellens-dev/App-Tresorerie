@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { useAppColors } from '../../hooks/useAppColors';
+import { useAppColors } from '../../../hooks/useAppColors';
 
 export default function TransactionsLayout() {
   const COLORS = useAppColors();

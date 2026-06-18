@@ -3,29 +3,29 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput,
 } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   useFinancialProfile,
   useQuestionnaireAnswers,
   useSaveQuestionnaire,
-} from '../../hooks/useFinancialProfile';
+} from '../../../hooks/useFinancialProfile';
 import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
   computeInitialProfile, detectIrregularIncome, safetyMarginFromQ8,
-} from '../../lib/financialProfileEngine';
-import type { QuestionnaireAnswers } from '../../lib/financialProfileEngine';
-import type { FinancialProfileId } from '../../types/database';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useNavBack } from '../../hooks/useNavBack';
+} from '../../../lib/financialProfileEngine';
+import type { QuestionnaireAnswers } from '../../../lib/financialProfileEngine';
+import type { FinancialProfileId } from '../../../types/database';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 
 
 const QUESTIONS = [
@@ -202,7 +202,7 @@ export default function ProfilFinancierScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>

@@ -10,12 +10,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { sendPushToAll } from '../../../lib/pushSend';
+import { supabase } from '../../../../lib/supabase';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useProfile } from '../../../../hooks/useProfile';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { sendPushToAll } from '../../../../lib/pushSend';
 
 interface AdminNotification {
   id: string;
@@ -92,7 +92,7 @@ export default function AdminNotifications() {
   if (!isAdmin) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
           <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
         </SafeAreaView>
@@ -104,7 +104,7 @@ export default function AdminNotifications() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />

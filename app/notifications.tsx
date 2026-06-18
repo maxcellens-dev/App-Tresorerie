@@ -3,9 +3,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from './hooks/useAppColors';
-import { useAuth } from './contexts/AuthContext';
-import { useProfile, useUpdateProfile } from './hooks/useProfile';
+import { useAppColors } from '../hooks/useAppColors';
+import { useAuth } from '../contexts/AuthContext';
+import { useProfile, useUpdateProfile } from '../hooks/useProfile';
 
 
 export default function NotificationsScreen() {
@@ -19,7 +19,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />

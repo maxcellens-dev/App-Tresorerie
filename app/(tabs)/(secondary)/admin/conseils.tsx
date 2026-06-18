@@ -8,12 +8,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useAllConseils } from '../../../hooks/useConseils';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { useAllConseils } from '../../../../hooks/useConseils';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase';
-import type { Conseil } from '../../../hooks/useConseils';
+import { supabase } from '../../../../lib/supabase';
+import type { Conseil } from '../../../../hooks/useConseils';
 
 export default function AdminConseils() {
   const COLORS = useAppColors();
@@ -56,7 +56,7 @@ export default function AdminConseils() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={goBack} style={{ padding: 4 }}>

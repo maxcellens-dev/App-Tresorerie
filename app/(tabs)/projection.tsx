@@ -3,38 +3,38 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   useWindowDimensions, Platform, findNodeHandle,
 } from 'react-native';
-import { CURRENCY_SYMBOL } from '../lib/currency';
+import { CURRENCY_SYMBOL } from '../../lib/currency';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../components/ScreenGradient';
-import CalculatorButton from '../components/CalculatorButton';
-import PageIntroModal from '../components/PageIntroModal';
-import OnboardingHintBanner from '../components/OnboardingHintBanner';
-import AdSlot from '../components/AdSlot';
-import { useUpdateOnboarding } from '../hooks/useOnboarding';
-import GuideOverlay, { type BubbleStep } from '../components/GuideOverlay';
-import { useScreenGuide } from '../hooks/useScreenGuide';
-import { tabRect } from '../lib/tourTargets';
-import { useOnbHighlight, onbGlow } from '../lib/onbHighlight';
-import { computeContributed } from '../lib/contributed';
+import ScreenGradient from '../../components/ScreenGradient';
+import CalculatorButton from '../../components/CalculatorButton';
+import PageIntroModal from '../../components/PageIntroModal';
+import OnboardingHintBanner from '../../components/OnboardingHintBanner';
+import AdSlot from '../../components/AdSlot';
+import { useUpdateOnboarding } from '../../hooks/useOnboarding';
+import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
+import { useScreenGuide } from '../../hooks/useScreenGuide';
+import { tabRect } from '../../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
+import { computeContributed } from '../../lib/contributed';
 import { useRouter } from 'expo-router';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
-import { useAuth } from '../contexts/AuthContext';
-import { usePilotageData } from '../hooks/usePilotageData';
-import { useTransactions } from '../hooks/useTransactions';
-import { useAccounts } from '../hooks/useAccounts';
-import { useQuestionnaireAnswers } from '../hooks/useFinancialProfile';
-import { useAppColors } from '../hooks/useAppColors';
-import { useFiscalEnvelopeRates, taxRateFor, noteFor } from '../hooks/useFiscalEnvelopes';
-import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../hooks/useProjectionAssumptions';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePilotageData } from '../../hooks/usePilotageData';
+import { useTransactions } from '../../hooks/useTransactions';
+import { useAccounts } from '../../hooks/useAccounts';
+import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
+import { useAppColors } from '../../hooks/useAppColors';
+import { useFiscalEnvelopeRates, taxRateFor, noteFor } from '../../hooks/useFiscalEnvelopes';
+import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/useProjectionAssumptions';
 import {
   projectInvestment, sumProjections, projectSavings, investCurve,
   estimateMonthlySavings, incomeFromQ3, savingsRateFromQ6,
   type InvestYearRow,
-} from '../lib/projectionEngine';
+} from '../../lib/projectionEngine';
 
-import { semanticText } from '../theme/palette';
+import { semanticText } from '../../theme/palette';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -448,7 +448,7 @@ export default function ProjectionScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <PageIntroModal pageKey="projection" />
       <OnboardingHintBanner />

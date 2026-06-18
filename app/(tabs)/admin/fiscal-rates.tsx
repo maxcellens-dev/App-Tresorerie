@@ -4,10 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useNavBack } from '../../hooks/useNavBack';
-import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../hooks/useFiscalEnvelopes';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
+import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../../hooks/useFiscalEnvelopes';
 
 export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();

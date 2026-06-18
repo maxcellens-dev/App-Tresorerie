@@ -10,12 +10,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { supabase } from '../../../lib/supabase';
-import { useGamificationConfig, useSaveGamificationConfig } from '../../../hooks/useGamificationConfig';
-import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../lib/gamification';
+import ScreenGradient from '../../../../components/ScreenGradient';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { supabase } from '../../../../lib/supabase';
+import { useGamificationConfig, useSaveGamificationConfig } from '../../../../hooks/useGamificationConfig';
+import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../../lib/gamification';
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Série (semaines)' },
@@ -99,7 +99,7 @@ export default function AdminGamification() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>

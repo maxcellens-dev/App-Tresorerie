@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useNavBack } from '../../hooks/useNavBack';
-import { useAuth } from '../../contexts/AuthContext';
-import { useMonthlyClosure, monthLabel } from '../../hooks/useMonthlyClosure';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useMonthlyClosure, monthLabel } from '../../../hooks/useMonthlyClosure';
 
 export default function ClotureScreen() {
   const COLORS = useAppColors();
@@ -26,7 +26,7 @@ export default function ClotureScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>

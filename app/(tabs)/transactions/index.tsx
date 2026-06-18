@@ -1,29 +1,29 @@
 ﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import PageIntroModal from '../../components/PageIntroModal';
-import OnboardingHintBanner from '../../components/OnboardingHintBanner';
-import AdSlot from '../../components/AdSlot';
-import { tabRect } from '../../lib/tourTargets';
-import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
+import ScreenGradient from '../../../components/ScreenGradient';
+import PageIntroModal from '../../../components/PageIntroModal';
+import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
+import AdSlot from '../../../components/AdSlot';
+import { tabRect } from '../../../lib/tourTargets';
+import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../hooks/useTransactions';
-import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
-import { useCategories } from '../../hooks/useCategories';
-import { useAccounts } from '../../hooks/useAccounts';
-import { accountColor } from '../../theme/colors';
-import type { TransactionWithDetails, RecurrenceRule } from '../../types/database';
-import GuideOverlay from '../../components/GuideOverlay';
-import type { BubbleStep } from '../../components/GuideOverlay';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
-import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
-import { iconForTransaction } from '../../lib/categoryIcons';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
+import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
+import { useCategories } from '../../../hooks/useCategories';
+import { useAccounts } from '../../../hooks/useAccounts';
+import { accountColor } from '../../../theme/colors';
+import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
+import GuideOverlay from '../../../components/GuideOverlay';
+import type { BubbleStep } from '../../../components/GuideOverlay';
+import { useScreenGuide } from '../../../hooks/useScreenGuide';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { iconForTransaction } from '../../../lib/categoryIcons';
 
 
 function formatDate(dateStr: string) {
@@ -459,7 +459,7 @@ export default function TransactionsListScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <PageIntroModal pageKey="transactions" />
       <OnboardingHintBanner />

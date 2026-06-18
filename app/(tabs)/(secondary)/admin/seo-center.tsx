@@ -13,11 +13,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { supabase } from '../../../lib/supabase';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useProfile } from '../../../../hooks/useProfile';
+import { supabase } from '../../../../lib/supabase';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
 
 
 export default function SEOCenter() {
@@ -99,7 +99,7 @@ export default function SEOCenter() {
   if (!isAdmin) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
           <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
         </SafeAreaView>
@@ -110,7 +110,7 @@ export default function SEOCenter() {
   if (loading) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color={COLORS.emerald} />
@@ -122,7 +122,7 @@ export default function SEOCenter() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />

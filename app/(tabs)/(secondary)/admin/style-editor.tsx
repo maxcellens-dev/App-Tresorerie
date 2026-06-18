@@ -5,15 +5,15 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { supabase } from '../../../lib/supabase';
-import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../hooks/useStyleConfig';
-import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG } from '../../../theme/palette';
-import type { ThemeMode, ThemePreset } from '../../../theme/palette';
-import ColorPickerModal from '../../../components/ColorPickerModal';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useProfile, useUpdateProfile } from '../../../../hooks/useProfile';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { supabase } from '../../../../lib/supabase';
+import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../../hooks/useStyleConfig';
+import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG } from '../../../../theme/palette';
+import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
+import ColorPickerModal from '../../../../components/ColorPickerModal';
 
 
 const FONTS = [
@@ -287,7 +287,7 @@ export default function StyleEditor() {
   if (!isAdmin) {
     return (
       <View style={styles.root}>
-        <StatusBar style="light" />
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <SafeAreaView style={styles.safe}><Text style={styles.body}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
@@ -301,7 +301,7 @@ export default function StyleEditor() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <LinearGradient
         colors={[COLORS.emerald + '4D', COLORS.emerald + '2E', COLORS.emerald + '14', COLORS.bg]}
         locations={[0, 0.28, 0.58, 1.0]}

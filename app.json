@@ -6,6 +6,7 @@
     "scheme": "tresorerie",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
     "ios": {
       "icon": "./assets/icon.png"
     },

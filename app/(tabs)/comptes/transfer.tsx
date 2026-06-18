@@ -13,24 +13,24 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import CalendarWithPicker from '../../components/CalendarWithPicker';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../hooks/useTransactions';
-import { computeContributed } from '../../lib/contributed';
-import { useResetPreSaving } from '../../hooks/usePreSavings';
-import ScreenHeader from '../../components/ScreenHeader';
-import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
-import type { RecurrenceRule, PreSavingType } from '../../types/database';
-import type { RecoType } from '../../lib/recommendationEngine';
-import { useRecoDismissals } from '../../hooks/useUiPrefs';
-import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAccounts } from '../../../hooks/useAccounts';
+import { useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/useTransactions';
+import { computeContributed } from '../../../lib/contributed';
+import { useResetPreSaving } from '../../../hooks/usePreSavings';
+import ScreenHeader from '../../../components/ScreenHeader';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
+import type { RecurrenceRule, PreSavingType } from '../../../types/database';
+import type { RecoType } from '../../../lib/recommendationEngine';
+import { useRecoDismissals } from '../../../hooks/useUiPrefs';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 
 export default function TransferScreen() {
@@ -91,10 +91,13 @@ export default function TransferScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.from, params.to, params.amount, params.label, params.date, params.destType, params.recoComplete, params.resetPreSaving]);
 
-  // Retour robuste : si pas d'historique (navigation inter-onglets), revenir à l'origine.
+  // Retour robuste. Quand on arrive ici depuis le Pilotage (reco/cumul), c'est une navigation
+  // INTER-ONGLETS : router.back() dépilerait dans l'onglet « Comptes » (→ atterrit sur Comptes)
+  // au lieu de revenir au Pilotage. On honore donc l'origine explicite EN PREMIER.
   function goBack() {
+    if (params.origin === 'pilotage') { router.replace('/(tabs)/pilotage' as any); return; }
     if (router.canGoBack()) { router.back(); return; }
-    router.replace((params.origin === 'pilotage' ? '/(tabs)/pilotage' : '/(tabs)/comptes') as any);
+    router.replace('/(tabs)/comptes' as any);
   }
 
   async function handleSubmit() {
@@ -217,7 +220,7 @@ export default function TransferScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title="Virement entre comptes" onBack={goBack} />

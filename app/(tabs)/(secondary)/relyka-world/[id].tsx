@@ -8,16 +8,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
-import ScreenHeader from '../../../components/ScreenHeader';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
   useDeleteRwProject, useUpdateRwProject, useRwRealtime, computeBalances, settleUp, type RwExpense,
-} from '../../../hooks/useRelykaWorld';
+} from '../../../../hooks/useRelykaWorld';
 
 const PROJ_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -114,7 +114,7 @@ export default function RelykaWorldDetail() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title={`${project.emoji || '💸'} ${project.name}`} onBack={goBack} />

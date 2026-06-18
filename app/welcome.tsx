@@ -6,10 +6,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWindowDimensions } from 'react-native';
-import { useBrandColors } from './hooks/useBrandColors';
-import { useAppNameFont } from './hooks/useBrandFont';
-import { useLandingConfig } from './hooks/useLandingConfig';
-import LandingPage from './components/LandingPage';
+import { useBrandColors } from '../hooks/useBrandColors';
+import { useAppNameFont } from '../hooks/useBrandFont';
+import { useLandingConfig } from '../hooks/useLandingConfig';
+import LandingPage from '../components/LandingPage';
 
 const { width } = Dimensions.get('window');
 

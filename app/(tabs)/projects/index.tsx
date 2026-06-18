@@ -11,33 +11,33 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import PageIntroModal from '../../components/PageIntroModal';
-import OnboardingHintBanner from '../../components/OnboardingHintBanner';
-import AdSlot from '../../components/AdSlot';
-import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
+import ScreenGradient from '../../../components/ScreenGradient';
+import PageIntroModal from '../../../components/PageIntroModal';
+import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
+import AdSlot from '../../../components/AdSlot';
+import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import GuideOverlay from '../../components/GuideOverlay';
-import type { BubbleStep } from '../../components/GuideOverlay';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
-import { tabRect } from '../../lib/tourTargets';
-import { useAuth } from '../../contexts/AuthContext';
+import GuideOverlay from '../../../components/GuideOverlay';
+import type { BubbleStep } from '../../../components/GuideOverlay';
+import { useScreenGuide } from '../../../hooks/useScreenGuide';
+import { tabRect } from '../../../lib/tourTargets';
+import { useAuth } from '../../../contexts/AuthContext';
 import {
   useProjects,
   useDeleteProjectFull,
   useArchiveProject,
   useCheckProjectTransactions,
   useDeleteProjectFromDate,
-} from '../../hooks/useProjects';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
-import { useProfile } from '../../hooks/useProfile';
+} from '../../../hooks/useProjects';
+import { usePilotageData } from '../../../hooks/usePilotageData';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { useProfile } from '../../../hooks/useProfile';
 import { TextInput, Modal } from 'react-native';
-import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation } from '../../hooks/useRelykaWorld';
+import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation } from '../../../hooks/useRelykaWorld';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -403,7 +403,7 @@ export default function ProjectsScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <PageIntroModal pageKey="projets" />
       <OnboardingHintBanner />

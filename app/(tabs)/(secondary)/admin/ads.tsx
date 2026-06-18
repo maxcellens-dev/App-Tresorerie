@@ -8,11 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { supabase } from '../../../lib/supabase';
-import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, type AdBanner } from '../../../hooks/useAdsConfig';
+import ScreenGradient from '../../../../components/ScreenGradient';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { supabase } from '../../../../lib/supabase';
+import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, type AdBanner } from '../../../../hooks/useAdsConfig';
 
 // Emplacements regroupés par page (ordre stable) → sélection compacte.
 type Placement = (typeof AD_PLACEMENTS)[number];
@@ -101,7 +101,7 @@ export default function AdminAds() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>

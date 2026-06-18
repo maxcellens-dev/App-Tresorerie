@@ -2,14 +2,14 @@ import { Tabs, useSegments } from 'expo-router';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect } from 'react';
-import TabBarBackground from '../components/TabBarBackground';
-import HeaderWithProfile from '../components/HeaderWithProfile';
-import CustomTabBar from '../components/CustomTabBar';
-import OnboardingGate from '../components/OnboardingGate';
-import { useAppColors } from '../hooks/useAppColors';
+import TabBarBackground from '../../components/TabBarBackground';
+import HeaderWithProfile from '../../components/HeaderWithProfile';
+import CustomTabBar from '../../components/CustomTabBar';
+import OnboardingGate from '../../components/OnboardingGate';
+import { useAppColors } from '../../hooks/useAppColors';
 import { View } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
-import { usePlan } from '../hooks/usePlan';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePlan } from '../../hooks/usePlan';
 
 /** Petite étoile « fonction Premium » — discrète, à droite d'un titre. */
 function PremiumStar() {

@@ -4,12 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useFeatureFlags, useSaveFeatureFlags } from '../../../hooks/useFeatureFlags';
-import { useSetPremium } from '../../../hooks/usePlan';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useProfile } from '../../../../hooks/useProfile';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
+import { useSetPremium } from '../../../../hooks/usePlan';
 
 
 export default function AdminFeatures() {
@@ -27,7 +27,7 @@ export default function AdminFeatures() {
 
   if (!isAdmin) {
     return (
-      <View style={styles.root}><StatusBar style="light" />
+      <View style={styles.root}><StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}><Text style={styles.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
@@ -53,7 +53,7 @@ export default function AdminFeatures() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />

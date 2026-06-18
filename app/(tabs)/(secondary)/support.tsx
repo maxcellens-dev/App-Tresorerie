@@ -3,16 +3,16 @@
  * Déplacé depuis Paramètres.
  */
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useTour } from '../../contexts/TourContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { useUserUnreadCount } from '../../hooks/useUnreadBadges';
-import { useNavBack } from '../../hooks/useNavBack';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useTour } from '../../../contexts/TourContext';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useUserUnreadCount } from '../../../hooks/useUnreadBadges';
+import { useNavBack } from '../../../hooks/useNavBack';
 
 export default function SupportScreen() {
   const COLORS = useAppColors();
@@ -33,7 +33,7 @@ export default function SupportScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>

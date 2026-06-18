@@ -8,15 +8,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../components/ScreenGradient';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProfile } from '../../hooks/useProfile';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useGamification } from '../../hooks/useGamification';
-import { usePlan } from '../../hooks/usePlan';
-import { useNavBack } from '../../hooks/useNavBack';
-import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, type ShopItem, type ShopCategory } from '../../lib/gamification';
-import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../lib/purchases';
+import ScreenGradient from '../../../components/ScreenGradient';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useProfile } from '../../../hooks/useProfile';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useGamification } from '../../../hooks/useGamification';
+import { usePlan } from '../../../hooks/usePlan';
+import { useNavBack } from '../../../hooks/useNavBack';
+import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, type ShopItem, type ShopCategory } from '../../../lib/gamification';
+import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
 
@@ -150,7 +150,7 @@ export default function BoutiqueScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
@@ -224,7 +224,7 @@ export default function BoutiqueScreen() {
               {shopByCategory.length > 1 && (
                 <ScrollView ref={filterScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
                   {(() => {
-                    const cats = shopByCategory.map((g) => g.cat).filter((c) => c !== 'premium');
+                    const cats: ShopCategory[] = shopByCategory.map((g) => g.cat).filter((c) => c !== 'premium');
                     if (shopByCategory.some((g) => g.cat === 'premium')) cats.splice(1, 0, 'premium' as ShopCategory);
                     return [
                       { cat: 'all' as const, label: 'Tout', icon: 'apps-outline' },

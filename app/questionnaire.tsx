@@ -8,32 +8,32 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Animated, Dimensions, Alert, ActivityIndicator, TextInput, Modal,
 } from 'react-native';
-import { useAppColors } from './hooks/useAppColors';
-import { useAppNameFont } from './hooks/useBrandFont';
-import ScreenGradient from './components/ScreenGradient';
+import { useAppColors } from '../hooks/useAppColors';
+import { useAppNameFont } from '../hooks/useBrandFont';
+import ScreenGradient from '../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from './contexts/AuthContext';
-import { useProfile, useUpdateProfile } from './hooks/useProfile';
-import CurrencyPicker from './components/CurrencyPicker';
-import { useSaveQuestionnaire } from './hooks/useFinancialProfile';
-import { useCategories, useSeedDefaultCategories } from './hooks/useCategories';
-import { useSeedDefaultAccounts } from './hooks/useAccounts';
+import { useAuth } from '../contexts/AuthContext';
+import { useProfile, useUpdateProfile } from '../hooks/useProfile';
+import CurrencyPicker from '../components/CurrencyPicker';
+import { useSaveQuestionnaire } from '../hooks/useFinancialProfile';
+import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
+import { useSeedDefaultAccounts } from '../hooks/useAccounts';
 import {
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
   computeInitialProfile, detectIrregularIncome,
   PROFILE_INFO, PROFILE_ALLOCATIONS, safetyMarginFromQ8,
-} from './lib/financialProfileEngine';
-import type { QuestionnaireAnswers } from './lib/financialProfileEngine';
-import type { FinancialProfileId } from './types/database';
+} from '../lib/financialProfileEngine';
+import type { QuestionnaireAnswers } from '../lib/financialProfileEngine';
+import type { FinancialProfileId } from '../types/database';
 import {
   saveQuestionnaireProgress,
   loadQuestionnaireProgress,
   clearQuestionnaireProgress,
-} from './hooks/useFirstVisitGuide';
+} from '../hooks/useFirstVisitGuide';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -266,7 +266,7 @@ export default function QuestionnaireScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
 

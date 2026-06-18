@@ -8,17 +8,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
-import ScreenHeader from '../../../components/ScreenHeader';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
-import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
-import { useRwProject, useRwExpenses, useAddRwExpense, useUpdateRwExpense, useDeleteRwExpense } from '../../../hooks/useRelykaWorld';
+import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { useAccounts } from '../../../../hooks/useAccounts';
+import { useCategories } from '../../../../hooks/useCategories';
+import { CURRENCY_SYMBOL } from '../../../../lib/currency';
+import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
+import CalendarWithPicker from '../../../../components/CalendarWithPicker';
+import { useRwProject, useRwExpenses, useAddRwExpense, useUpdateRwExpense, useDeleteRwExpense } from '../../../../hooks/useRelykaWorld';
 import { Alert } from 'react-native';
 
 const EMOJIS = ['🧾', '🍽️', '🛒', '🚕', '🏨', '🎟️', '⛽', '🍺', '🎁', '✈️'];
@@ -121,7 +121,7 @@ export default function AddRwExpense() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title={editing ? 'Modifier la dépense' : 'Ajouter une dépense'} onBack={goBack} />

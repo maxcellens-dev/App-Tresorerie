@@ -5,6 +5,9 @@
     "baseUrl": ".",
     "paths": { "@/*": ["./app/*"] },
     "module": "esnext",
+    // Honore le champ `exports` des packages (react-query, etc.) — sinon résolution
+    // « node » héritée d'expo/tsconfig.base → types perdus → flot d'implicit-any.
+    "moduleResolution": "bundler",
     "target": "esnext",
     "lib": ["esnext", "dom"]
   },

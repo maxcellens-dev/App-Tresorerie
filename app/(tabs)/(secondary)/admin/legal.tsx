@@ -7,10 +7,10 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useLegalContent, useSaveLegalContent } from '../../../hooks/useLegalContent';
+import ScreenGradient from '../../../../components/ScreenGradient';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useNavBack } from '../../../../hooks/useNavBack';
+import { useLegalContent, useSaveLegalContent } from '../../../../hooks/useLegalContent';
 
 export default function AdminLegal() {
   const COLORS = useAppColors();
@@ -42,7 +42,7 @@ export default function AdminLegal() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>

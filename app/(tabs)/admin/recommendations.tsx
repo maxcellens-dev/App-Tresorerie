@@ -9,14 +9,14 @@ import {
   RECO_TYPE_LABELS,
   TIER_LABELS,
   TIER_COLORS,
-} from '../../lib/recommendationEngine';
-import type { RecoType, SavingsTier } from '../../lib/recommendationEngine';
-import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../hooks/useRecommendationTiers';
-import type { TierAllocations } from '../../hooks/useRecommendationTiers';
-import { useRecoThresholds, useUpdateRecoThresholds } from '../../hooks/useRecoThresholds';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useNavBack } from '../../hooks/useNavBack';
+} from '../../../lib/recommendationEngine';
+import type { RecoType, SavingsTier } from '../../../lib/recommendationEngine';
+import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../../hooks/useRecommendationTiers';
+import type { TierAllocations } from '../../../hooks/useRecommendationTiers';
+import { useRecoThresholds, useUpdateRecoThresholds } from '../../../hooks/useRecoThresholds';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
 
 
 const RECO_ICONS: Record<RecoType, string> = {
@@ -159,7 +159,7 @@ export default function RecommendationsAdmin() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={goBack}>

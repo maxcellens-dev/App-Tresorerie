@@ -200,6 +200,9 @@ export default function RecommendationCard({
             amount={relykaAmount}
             segments={visible.map(r => ({ amount: r.amount, color: r.color }))}
             amountColor={relykaColor ?? COLORS.emerald}
+            // Partie vide visible dans les deux thèmes (gris transparent : sombre sur fond clair,
+            // clair sur fond sombre) — sinon le track blanc disparaît en thème clair.
+            trackColor={COLORS.mode === 'light' ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)'}
             onSegmentPress={(i) => setCurrentIndex(lead + i)}
           />
           {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}

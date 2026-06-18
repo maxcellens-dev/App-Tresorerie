@@ -37,7 +37,7 @@ export default function AppLoading() {
   return (
     <View style={styles.root}>
       <Animated.View style={{ transform: [{ scale }], opacity, marginBottom: 22 }}>
-        <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+        <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       </Animated.View>
       <Text style={styles.brand}>Relyka</Text>
       <Animated.View style={[styles.ring, { transform: [{ rotate }] }]} />

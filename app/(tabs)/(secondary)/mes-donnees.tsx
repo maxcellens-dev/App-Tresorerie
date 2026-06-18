@@ -1,17 +1,17 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Share, ActivityIndicator } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useNavBack } from '../../hooks/useNavBack';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProfile } from '../../hooks/useProfile';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useNavBack } from '../../../hooks/useNavBack';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useProfile } from '../../../hooks/useProfile';
+import { useAccounts } from '../../../hooks/useAccounts';
+import { useQuestionnaireAnswers } from '../../../hooks/useFinancialProfile';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
@@ -173,7 +173,7 @@ export default function MesDonneesScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>

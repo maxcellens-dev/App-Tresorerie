@@ -12,13 +12,13 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProfile } from '../../hooks/useProfile';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useProfile } from '../../../hooks/useProfile';
 import {
   useCategories,
   useAddCategory,
@@ -27,13 +27,13 @@ import {
   useDeleteCategory,
   useBulkUpdateVariable,
   useReorderCategories,
-} from '../../hooks/useCategories';
-import type { Category } from '../../types/database';
-import { useAppColors } from '../../hooks/useAppColors';
-import IconPickerModal from '../../components/IconPickerModal';
-import { iconForCategory } from '../../lib/categoryIcons';
-import { supabase } from '../../lib/supabase';
-import { useNavBack } from '../../hooks/useNavBack';
+} from '../../../hooks/useCategories';
+import type { Category } from '../../../types/database';
+import { useAppColors } from '../../../hooks/useAppColors';
+import IconPickerModal from '../../../components/IconPickerModal';
+import { iconForCategory } from '../../../lib/categoryIcons';
+import { supabase } from '../../../lib/supabase';
+import { useNavBack } from '../../../hooks/useNavBack';
 
 
 function groupCategories(categories: Category[]) {
@@ -218,7 +218,7 @@ export default function CategoriesScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>

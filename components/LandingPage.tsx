@@ -69,7 +69,7 @@ export default function LandingPage() {
       <View style={styles.header}>
         <View style={styles.headerInner}>
           <View style={styles.brandRow}>
-            <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
+            <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
             <Text style={[styles.brand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
           </View>
           <View style={styles.headerBtns}>

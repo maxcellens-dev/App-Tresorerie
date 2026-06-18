@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAppColors } from './hooks/useAppColors';
+import { useAppColors } from '../hooks/useAppColors';
 
 export default function NotFoundScreen() {
   const router = useRouter();

@@ -1,9 +1,9 @@
 import { Redirect } from 'expo-router';
-import { useAuth } from './contexts/AuthContext';
-import { useProfile } from './hooks/useProfile';
-import { useFinancialProfile } from './hooks/useFinancialProfile';
+import { useAuth } from '../contexts/AuthContext';
+import { useProfile } from '../hooks/useProfile';
+import { useFinancialProfile } from '../hooks/useFinancialProfile';
 import WelcomeScreen from './welcome';
-import AppLoading from './components/AppLoading';
+import AppLoading from '../components/AppLoading';
 
 export default function Index() {
   const { user, loading } = useAuth();

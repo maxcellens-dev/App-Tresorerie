@@ -1,24 +1,24 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import CalendarWithPicker from '../../components/CalendarWithPicker';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useCategories, useAddCategory } from '../../hooks/useCategories';
-import { useAddTransaction, useTransactions } from '../../hooks/useTransactions';
-import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
-import CategoryPicker, { useSubCategoriesGrouped } from '../../components/CategoryPicker';
-import type { RecurrenceRule } from '../../types/database';
-import ScreenHeader from '../../components/ScreenHeader';
-import CalculatorButton from '../../components/CalculatorButton';
-import { formatDateFrench, parseDateFromFrench, todayISO } from '../../lib/dateUtils';
-import { accountColor } from '../../theme/colors';
-import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAccounts } from '../../../hooks/useAccounts';
+import { useCategories, useAddCategory } from '../../../hooks/useCategories';
+import { useAddTransaction, useTransactions } from '../../../hooks/useTransactions';
+import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
+import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
+import type { RecurrenceRule } from '../../../types/database';
+import ScreenHeader from '../../../components/ScreenHeader';
+import CalculatorButton from '../../../components/CalculatorButton';
+import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
+import { accountColor } from '../../../theme/colors';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -234,7 +234,7 @@ export default function AddTransactionScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title="Nouvelle transaction" />

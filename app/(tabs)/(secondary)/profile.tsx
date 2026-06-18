@@ -1,22 +1,22 @@
 ﻿import { useRef } from 'react';
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
-import { supabase } from '../../lib/supabase';
-import { compressAvatarToWebP } from '../../lib/avatarCompress';
-import { uploadAvatar, deleteAvatar } from '../../services/avatarService';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useCosmetics } from '../../hooks/useCosmetics';
-import { useNavBack } from '../../hooks/useNavBack';
-import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
+import { supabase } from '../../../lib/supabase';
+import { compressAvatarToWebP } from '../../../lib/avatarCompress';
+import { uploadAvatar, deleteAvatar } from '../../../services/avatarService';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { useCosmetics } from '../../../hooks/useCosmetics';
+import { useNavBack } from '../../../hooks/useNavBack';
+import GuideOverlay, { type BubbleStep } from '../../../components/GuideOverlay';
+import { useScreenGuide } from '../../../hooks/useScreenGuide';
 
 
 export default function ProfileScreen() {
@@ -221,7 +221,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
         {Platform.OS === 'web' && typeof document !== 'undefined' && (
           <input

@@ -8,13 +8,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../components/ScreenGradient';
-import { useAuth } from '../../contexts/AuthContext';
-import { useAppColors } from '../../hooks/useAppColors';
-import { usePlan, useSetPremium } from '../../hooks/usePlan';
-import { useNavBack } from '../../hooks/useNavBack';
-import { useGamificationConfig } from '../../hooks/useGamificationConfig';
-import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../lib/purchases';
+import ScreenGradient from '../../../components/ScreenGradient';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useAppColors } from '../../../hooks/useAppColors';
+import { usePlan, useSetPremium } from '../../../hooks/usePlan';
+import { useNavBack } from '../../../hooks/useNavBack';
+import { useGamificationConfig } from '../../../hooks/useGamificationConfig';
+import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/purchases';
 
 const BENEFITS = [
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
@@ -89,7 +89,7 @@ export default function PremiumScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>

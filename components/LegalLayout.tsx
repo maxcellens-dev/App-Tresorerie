@@ -44,7 +44,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
           <View style={styles.siteHeader}>
             <View style={styles.siteHeaderInner}>
               <TouchableOpacity style={styles.brandRow} onPress={() => router.replace(user ? '/(tabs)/pilotage' : '/welcome')} activeOpacity={0.8}>
-                <Image source={require('../../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
+                <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
                 <Text style={[styles.brand, { fontFamily: appNameFont }]}>Relyka</Text>
               </TouchableOpacity>
               <View style={styles.siteHeaderBtns}>

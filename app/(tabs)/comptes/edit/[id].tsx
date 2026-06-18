@@ -1,14 +1,14 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useAccounts, useUpdateAccount, useCloseAccount } from '../../../hooks/useAccounts';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useAccounts, useUpdateAccount, useCloseAccount } from '../../../../hooks/useAccounts';
+import { useAppColors } from '../../../../hooks/useAppColors';
+import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
 
 
 const TYPES = [
@@ -117,7 +117,7 @@ export default function EditAccountScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
