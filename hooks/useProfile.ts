@@ -16,15 +16,19 @@ export function useProfile(profileId: string | undefined) {
     queryKey: [KEY, profileId],
     queryFn: async (): Promise<Profile | null> => {
       if (!supabase || !profileId) return null;
+      // Garantit que la session (token) est prête AVANT de lire. Juste après une connexion e-mail
+      // (transition in-app, sans rechargement), une lecture trop précoce part en « anonyme » →
+      // RLS renvoie 0 ligne SANS erreur → on croirait à un nouvel utilisateur (→ questionnaire).
+      // Si la session n'est pas encore là, on lève : react-query réessaie jusqu'à ce qu'elle le soit.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Session non prête');
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', profileId)
         .maybeSingle();
-      // IMPORTANT : ne PAS confondre « échec de lecture » et « profil absent ».
-      // Juste après une reconnexion, le token peut ne pas être encore propagé → le SELECT
-      // échoue. En renvoyant null on enverrait à tort l'utilisateur vers /setup (questionnaire).
-      // On relance donc l'erreur : react-query réessaie et expose isError (≠ data null).
+      // Ne PAS confondre « échec de lecture » et « profil absent » : on relance l'erreur
+      // (react-query réessaie + expose isError) ; null = profil réellement inexistant.
       if (error) throw error;
       if (!data) return null; // aucune ligne → profil réellement inexistant (nouvel utilisateur)
 

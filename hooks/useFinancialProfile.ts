@@ -32,6 +32,11 @@ export function useFinancialProfile(userId: string | undefined) {
     queryKey: [PROFILE_KEY, userId],
     queryFn: async (): Promise<UserFinancialProfile | null> => {
       if (!supabase || !userId) return null;
+      // Session (token) confirmée avant lecture : sinon une lecture précoce post-connexion e-mail
+      // part en « anonyme » → 0 ligne RLS sans erreur → l'app croit que le questionnaire n'est pas
+      // fait. On lève pour que react-query réessaie jusqu'à ce que la session soit prête.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Session non prête');
       const { data, error } = await supabase
         .from('user_financial_profile')
         .select('*')
