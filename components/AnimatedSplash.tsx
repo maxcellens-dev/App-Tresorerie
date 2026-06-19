@@ -42,18 +42,20 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
     const start = () => {
       if (startedRef.current) return;
       startedRef.current = true;
+      // Séquence courte (~750 ms) : juste le temps du fondu de thème, puis on s'efface vite
+      // vers la page (l'écran de chargement reprend le même loader si l'app n'est pas prête).
       Animated.sequence([
-        Animated.delay(120),
+        Animated.delay(60),
         Animated.parallel([
-          Animated.timing(bgFade, { toValue: 1, duration: 620, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(content, { toValue: 1, duration: 520, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(bgFade, { toValue: 1, duration: 340, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(content, { toValue: 1, duration: 280, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         ]),
-        Animated.delay(520),
-        Animated.timing(overlay, { toValue: 0, duration: 480, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+        Animated.delay(70),
+        Animated.timing(overlay, { toValue: 0, duration: 300, easing: Easing.in(Easing.ease), useNativeDriver: true }),
       ]).start(({ finished }) => { if (finished) { setGone(true); onDone(); } });
     };
     if (themeKnown) start();
-    const t = setTimeout(start, 900);
+    const t = setTimeout(start, 600); // filet de sécurité réseau (raccourci)
     return () => clearTimeout(t);
   }, [landing]); // eslint-disable-line react-hooks/exhaustive-deps
 
