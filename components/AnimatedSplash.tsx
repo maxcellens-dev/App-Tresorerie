@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCachedAdminTheme } from '../lib/themeBoot';
 import { useLandingConfig } from '../hooks/useLandingConfig';
 
@@ -23,6 +24,9 @@ const BG_DARK = '#0D2E2A';
 const ACCENT = '#00B67A';
 
 export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => void; onDone: () => void }) {
+  // Mêmes marges système que l'écran natif où s'affiche AppLoading (status bar / barre de nav),
+  // pour que le logo soit EXACTEMENT à la même hauteur → jonction sans décalage.
+  const insets = useSafeAreaInsets();
   const { data: landing } = useLandingConfig();
   const isLight = (landing?.theme ?? getCachedAdminTheme() ?? 'dark') === 'light';
   const themeBg = isLight ? BG_LIGHT : BG_DARK; // cible du fondu = vrai fond du thème
@@ -78,22 +82,25 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
 
   return (
     <Animated.View pointerEvents="none" onLayout={onReady} style={[StyleSheet.absoluteFill, styles.root, { opacity: overlay }]}>
-      {/* base = couleur intermédiaire (= splash natif) → jonction invisible */}
+      {/* Fonds : PLEIN écran (sous les barres système) → aucune zone non peinte */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_BG }]} />
-      {/* couche thème par-dessus, révélée en fondu enchaîné */}
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: themeBg, opacity: bgFade }]} />
-      {/* Logo — même position/animation que AppLoading (marginBottom 22, pulse) */}
-      <Animated.View style={{ marginBottom: 22, transform: [{ scale }], opacity: logoOpacity }}>
-        <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-      </Animated.View>
-      <Animated.Text style={[styles.brand, { color: brandColor, opacity: content }]}>Relyka</Animated.Text>
-      <Animated.View style={[styles.ring, { opacity: content, transform: [{ rotate }] }]} />
+      {/* Contenu : centré comme l'écran natif d'AppLoading, qui est inséré sous la barre de statut.
+          On décale donc le contenu de insets.top vers le bas pour que le logo soit à la même hauteur. */}
+      <View style={[StyleSheet.absoluteFill, styles.content, { paddingTop: insets.top }]}>
+        <Animated.View style={{ marginBottom: 22, transform: [{ scale }], opacity: logoOpacity }}>
+          <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+        </Animated.View>
+        <Animated.Text style={[styles.brand, { color: brandColor, opacity: content }]}>Relyka</Animated.Text>
+        <Animated.View style={[styles.ring, { opacity: content, transform: [{ rotate }] }]} />
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
+  root: { zIndex: 9999, elevation: 9999 },
+  content: { alignItems: 'center', justifyContent: 'center' },
   logo: { width: 96, height: 96 },
   brand: { fontSize: 22, fontWeight: '800', letterSpacing: 0.5, marginBottom: 26 },
   ring: { width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: ACCENT + '33', borderTopColor: ACCENT },
