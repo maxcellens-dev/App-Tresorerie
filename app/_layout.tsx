@@ -225,7 +225,9 @@ function AppChrome() {
         </SafeAreaView>
       )}
       <View style={styles.content}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
+        {/* Transitions en FONDU (pas de slide) : l'accueil apparaît EN PLACE sous le splash,
+            plus d'effet « écran qui arrive de la gauche ». */}
+        <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: COLORS.bg } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="index" options={{ title: 'Relyka' }} />
           <Stack.Screen name="welcome" options={{ title: 'Relyka' }} />

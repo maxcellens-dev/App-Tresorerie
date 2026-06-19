@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { usePilotageData } from '../../hooks/usePilotageData';
+import { signalAppReady } from '../../lib/splashGate';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useAccounts } from '../../hooks/useAccounts';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../../hooks/usePreSavings';
@@ -184,6 +185,12 @@ export default function PilotageScreen() {
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const isLoading = pilotageLoading;
+
+  // Signale au splash animé que la page de destination est prête (données chargées, ou erreur) →
+  // il ne s'efface qu'à ce moment, jamais sur le cercle de chargement de pilotage.
+  React.useEffect(() => {
+    if (pilotageData || pilotageError) signalAppReady();
+  }, [pilotageData, pilotageError]);
 
   // Messages contextuels des recos (projection invest, économie…) — activables en admin (défaut : oui).
   const { data: featureFlags } = useFeatureFlags();

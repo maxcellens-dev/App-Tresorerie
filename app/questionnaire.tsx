@@ -34,6 +34,7 @@ import {
   loadQuestionnaireProgress,
   clearQuestionnaireProgress,
 } from '../hooks/useFirstVisitGuide';
+import { signalAppReady } from '../lib/splashGate';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -94,6 +95,8 @@ export default function QuestionnaireScreen() {
   const COLORS = useAppColors();
   const appNameFont = useAppNameFont();
   const styles = makeStyles(COLORS);
+  // Écran de destination (onboarding) prêt → libère le splash animé.
+  useEffect(() => { signalAppReady(); }, []);
   const router = useRouter();
   const { user } = useAuth();
   const updateProfile = useUpdateProfile(user?.id);

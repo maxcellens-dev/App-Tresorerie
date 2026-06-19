@@ -9,6 +9,7 @@ import { useWindowDimensions } from 'react-native';
 import { useBrandColors } from '../hooks/useBrandColors';
 import { useAppNameFont } from '../hooks/useBrandFont';
 import { useLandingConfig } from '../hooks/useLandingConfig';
+import { signalAppReady } from '../lib/splashGate';
 import LandingPage from '../components/LandingPage';
 
 const { width } = Dimensions.get('window');
@@ -27,6 +28,9 @@ export default function WelcomeScreen() {
 
   // Sur web large (bureau) : page d'accueil marketing dédiée (≠ mobile), si activée en admin.
   const showLanding = Platform.OS === 'web' && winWidth >= 980 && (landing?.enabled ?? true);
+
+  // Écran de destination (non connecté) prêt immédiatement → libère le splash animé.
+  useEffect(() => { signalAppReady(); }, []);
 
   useEffect(() => {
     Animated.parallel([
