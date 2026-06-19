@@ -195,7 +195,7 @@ function makeStyles(c: any) {
   profileName: { fontSize: 17, fontWeight: '800' },
   profileTier: { fontSize: 12, color: c.textSecondary },
 
-  body: { color: '#cbd5e1', fontSize: 15, lineHeight: 24 },
+  body: { color: c.text, fontSize: 15, lineHeight: 24 },
 
   transitionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

@@ -13,6 +13,8 @@ import {
   useProfileNotificationMessages,
   useUpdateNotificationMessage,
   useUpdateMatrixConfig,
+  useFinancialProfile,
+  useSimulateProfileChange,
 } from '../../../hooks/useFinancialProfile';
 import { PROFILE_INFO } from '../../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
@@ -20,13 +22,16 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
 
 
-type Tab = 'messages' | 'matrix' | 'global';
+type Tab = 'simulate' | 'messages' | 'matrix' | 'global';
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: 'simulate', label: 'Simulation' },
   { key: 'messages', label: 'Messages' },
   { key: 'matrix',   label: 'Matrice' },
   { key: 'global',   label: 'Paramètres' },
 ];
+
+const ALL_PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
 
 const TRANSITIONS = [
   { key: 'P1_P2', label: 'P1 → P2', from: 'P1' as FinancialProfileId, to: 'P2' as FinancialProfileId },
@@ -46,6 +51,134 @@ const EXCEPTIONAL_TRANSITIONS = [
   { key: 'exceptional_one', label: 'Baisse de revenus (−1 niveau)' },
   { key: 'exceptional_two', label: 'Revenus nuls (−2 niveaux)' },
 ];
+
+// ── Simulation (admin) ──────────────────────────────────────────
+
+function SimulationSection({ userId }: { userId: string }) {
+  const COLORS = useAppColors();
+  const styles = makeStyles(COLORS);
+  const { data: fp, isLoading } = useFinancialProfile(userId);
+  const simulate = useSimulateProfileChange(userId);
+
+  const current = (fp?.profile_id as FinancialProfileId | undefined) ?? null;
+  const [target, setTarget] = useState<FinancialProfileId | null>(null);
+
+  if (isLoading) return <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />;
+
+  if (!current) {
+    return (
+      <View style={styles.sectionContent}>
+        <Text style={styles.matrixInfo}>
+          Aucun profil financier actif sur ce compte. Termine d'abord le questionnaire pour pouvoir simuler une transition.
+        </Text>
+      </View>
+    );
+  }
+
+  const currentNum = parseInt(current.replace('P', ''));
+  const direction: 'upgrade' | 'downgrade' | null = !target
+    ? null
+    : parseInt(target.replace('P', '')) > currentNum ? 'upgrade' : 'downgrade';
+
+  const trigger = (t: FinancialProfileId, reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop') => {
+    simulate.mutate({ target: t, reason }, {
+      onSuccess: () => setTarget(null),
+      onError: (e: any) => Alert.alert('Erreur', e?.message ?? 'Échec de la simulation.'),
+    });
+  };
+
+  const exceptionalTarget = (levels: number): FinancialProfileId =>
+    `P${Math.max(1, currentNum - levels)}` as FinancialProfileId;
+
+  return (
+    <View style={styles.sectionContent}>
+      <Text style={styles.matrixInfo}>
+        Force ton profil vers la cible choisie et affiche immédiatement la pop-up correspondante.
+        Ignore les critères, le gel des 6 mois et la date de déclenchement. Le changement est réel.
+      </Text>
+
+      {/* Profil actuel */}
+      <View style={styles.simCard}>
+        <Text style={styles.fieldLabel}>Profil actuel</Text>
+        <View style={styles.simCurrentRow}>
+          <Text style={styles.simEmoji}>{PROFILE_INFO[current].emoji}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.simName, { color: PROFILE_INFO[current].color }]}>{PROFILE_INFO[current].name}</Text>
+            <Text style={styles.simTier}>{current} · {PROFILE_INFO[current].tier}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Choix de la cible */}
+      <View style={styles.simCard}>
+        <Text style={styles.fieldLabel}>Profil cible</Text>
+        <View style={styles.simChipRow}>
+          {ALL_PROFILES.map((p) => {
+            const isCurrent = p === current;
+            const active = p === target;
+            return (
+              <TouchableOpacity
+                key={p}
+                disabled={isCurrent}
+                onPress={() => setTarget(p)}
+                style={[
+                  styles.simChip,
+                  isCurrent && styles.simChipDisabled,
+                  active && { backgroundColor: PROFILE_INFO[p].color, borderColor: PROFILE_INFO[p].color },
+                ]}
+              >
+                <Text style={styles.simChipEmoji}>{PROFILE_INFO[p].emoji}</Text>
+                <Text style={[styles.simChipText, active && { color: '#fff' }, isCurrent && { color: COLORS.textSecondary }]}>
+                  {p}{isCurrent ? ' (actuel)' : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {target && direction && (
+          <View style={[styles.simDirBadge, { backgroundColor: (direction === 'upgrade' ? COLORS.emerald : '#f87171') + '20' }]}>
+            <Ionicons name={direction === 'upgrade' ? 'trending-up' : 'trending-down'} size={15} color={direction === 'upgrade' ? COLORS.emerald : '#f87171'} />
+            <Text style={[styles.simDirText, { color: direction === 'upgrade' ? COLORS.emerald : '#f87171' }]}>
+              {direction === 'upgrade' ? 'Montée' : 'Descente'} · {current} → {target}
+            </Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.saveBtn, (!target || simulate.isPending) && { opacity: 0.5 }]}
+          disabled={!target || simulate.isPending}
+          onPress={() => target && direction && trigger(target, direction === 'upgrade' ? 'automatic_upgrade' : 'automatic_downgrade')}
+        >
+          {simulate.isPending
+            ? <ActivityIndicator color={COLORS.bg} size="small" />
+            : <Text style={styles.saveBtnText}>Déclencher la transition</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* Cas exceptionnels (baisse de revenus) */}
+      <View style={styles.simCard}>
+        <Text style={styles.fieldLabel}>Cas exceptionnels (baisse de revenus)</Text>
+        <TouchableOpacity
+          style={[styles.simExcBtn, (currentNum <= 1 || simulate.isPending) && { opacity: 0.5 }]}
+          disabled={currentNum <= 1 || simulate.isPending}
+          onPress={() => trigger(exceptionalTarget(1), 'exceptional_revenue_drop')}
+        >
+          <Ionicons name="warning-outline" size={16} color="#f59e0b" />
+          <Text style={styles.simExcText}>Baisse de revenus (−1 niveau → {exceptionalTarget(1)})</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.simExcBtn, (currentNum < 3 || simulate.isPending) && { opacity: 0.5 }]}
+          disabled={currentNum < 3 || simulate.isPending}
+          onPress={() => trigger(exceptionalTarget(2), 'exceptional_revenue_drop')}
+        >
+          <Ionicons name="warning-outline" size={16} color="#f59e0b" />
+          <Text style={styles.simExcText}>Revenus nuls (−2 niveaux → {exceptionalTarget(2)})</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
 
 // ── Messages de notification ────────────────────────────────────
 
@@ -361,7 +494,7 @@ export default function FinancialProfilesAdmin() {
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('messages');
+  const [activeTab, setActiveTab] = useState<Tab>('simulate');
 
   if (!user) return null;
 
@@ -394,6 +527,7 @@ export default function FinancialProfilesAdmin() {
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {activeTab === 'simulate' && <SimulationSection userId={user.id} />}
           {activeTab === 'messages' && <MessagesSection userId={user.id} />}
           {activeTab === 'matrix'   && <MatrixSection userId={user.id} />}
           {activeTab === 'global'   && <GlobalSection userId={user.id} />}
@@ -473,6 +607,33 @@ function makeStyles(c: any) {
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
     color: c.text, textAlign: 'center',
   },
+
+  // Simulation
+  simCard: {
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1,
+    borderColor: c.cardBorder, padding: 14, gap: 10,
+  },
+  simCurrentRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  simEmoji: { fontSize: 30 },
+  simName: { fontSize: 16, fontWeight: '800' },
+  simTier: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  simChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  simChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.bg,
+  },
+  simChipDisabled: { opacity: 0.5 },
+  simChipEmoji: { fontSize: 15 },
+  simChipText: { fontSize: 13, fontWeight: '700', color: c.text },
+  simDirBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  simDirText: { fontSize: 12.5, fontWeight: '700' },
+  simExcBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: '#f59e0b55', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#f59e0b12',
+  },
+  simExcText: { fontSize: 13, fontWeight: '600', color: c.text },
 
   // Formulaire commun
   editForm: { gap: 10 },

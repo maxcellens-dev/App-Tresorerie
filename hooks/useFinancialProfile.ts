@@ -381,6 +381,76 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
   });
 }
 
+// ── Admin — simulation d'une transition (force le profil + déclenche la pop-up) ─────
+
+/**
+ * Bascule RÉELLEMENT le profil de l'utilisateur courant vers `target` et journalise la
+ * transition avec `notification_shown=false` → la pop-up ProfileChangeModal s'affiche.
+ * Sert à l'admin pour tester n'importe quel cas, sans respecter critères ni gel.
+ */
+export function useSimulateProfileChange(userId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      target,
+      reason,
+    }: {
+      target: FinancialProfileId;
+      reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop';
+    }) => {
+      if (!supabase || !userId) throw new Error('Non connecté');
+      const now = new Date().toISOString();
+
+      // Profil actuel → previous_profile
+      const { data: fp } = await supabase
+        .from('user_financial_profile')
+        .select('profile_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      const previous = fp?.profile_id ?? null;
+
+      // Force le profil cible (profile_source borné à 'questionnaire'|'automatic' en base).
+      const { error: pErr } = await supabase
+        .from('user_financial_profile')
+        .upsert({
+          user_id: userId,
+          profile_id: target,
+          profile_source: 'automatic',
+          assigned_at: now,
+          updated_at: now,
+        }, { onConflict: 'user_id' });
+      if (pErr) throw pErr;
+
+      // Aligne les allocations sur le nouveau profil (comme le vrai moteur).
+      const alloc = PROFILE_ALLOCATIONS[target];
+      await supabase.from('profiles').update({
+        allocation_save_percent: alloc.save,
+        allocation_invest_percent: alloc.invest,
+        allocation_enjoy_percent: alloc.enjoy,
+        allocation_keep_percent: alloc.keep,
+        updated_at: now,
+      }).eq('id', userId);
+
+      // Journalise → déclenche la pop-up (non lue).
+      const { error: lErr } = await supabase.from('profile_change_log').insert({
+        user_id: userId,
+        previous_profile: previous,
+        new_profile: target,
+        change_reason: reason,
+        triggered_at: now,
+        notification_shown: false,
+      });
+      if (lErr) throw lErr;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [PROFILE_KEY, userId] });
+      client.invalidateQueries({ queryKey: [CHANGE_LOG_KEY, 'pending', userId] });
+      client.invalidateQueries({ queryKey: ['profile', userId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', userId] });
+    },
+  });
+}
+
 // ── Admin — mise à jour des messages de notification ─────────
 
 export function useUpdateNotificationMessage(userId: string | undefined) {
