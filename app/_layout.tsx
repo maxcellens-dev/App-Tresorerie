@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import AnimatedSplash from '../components/AnimatedSplash';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
@@ -41,6 +43,14 @@ if (__DEV__) {
     /missing the required default export/,
     /"(textShadow|shadow)\*" style props are deprecated/,
   ]);
+}
+
+// Empêche le splash natif de se cacher tout seul : on le garde jusqu'à ce que notre splash animé
+// soit à l'écran (transition invisible natif → animé). Natif uniquement (no-op / non requis sur web).
+if (Platform.OS !== 'web') {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+  // Filet de sécurité : ne jamais rester bloqué sur le splash natif si l'UI tarde / échoue.
+  setTimeout(() => { SplashScreen.hideAsync().catch(() => {}); }, 4000);
 }
 
 const queryClient = new QueryClient({
@@ -247,6 +257,8 @@ function AppChrome() {
 }
 
 export default function RootLayout() {
+  // Splash animé : natif uniquement (le web a déjà son boot-loader HTML dans app/+html.tsx).
+  const [splashDone, setSplashDone] = useState(Platform.OS === 'web');
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
@@ -259,6 +271,12 @@ export default function RootLayout() {
             <PurchasesSync />
             <PushRegistrar />
             <AppChrome />
+            {!splashDone && (
+              <AnimatedSplash
+                onReady={() => { SplashScreen.hideAsync().catch(() => {}); }}
+                onDone={() => setSplashDone(true)}
+              />
+            )}
           </CalculatorProvider>
         </AuthProvider>
       </ThemeProvider>

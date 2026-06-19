@@ -30,7 +30,7 @@
           "image": "./assets/logo.png",
           "imageWidth": 96,
           "resizeMode": "contain",
-          "backgroundColor": "#0D2E2A"
+          "backgroundColor": "#808F88"
         }
       ],
       [
@@ -54,8 +54,8 @@
       "name": "Relyka",
       "shortName": "Relyka",
       "description": "Laissez-vous guider pour faire des économies.",
-      "themeColor": "#0D2E2A",
-      "backgroundColor": "#0D2E2A"
+      "themeColor": "#808F88",
+      "backgroundColor": "#808F88"
     },
     "extra": {
       "router": {

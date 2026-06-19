@@ -63,7 +63,8 @@ html, body, #root {
 
 // Lit le dernier thème connu (clés alignées sur lib/themeBoot.ts) et fixe les variables CSS du
 // loader AVANT la première peinture. Priorité au thème UTILISATEUR (refresh d'une page connectée),
-// repli sur le thème ADMIN (pré-auth), puis défaut sombre (1ère visite / natif).
+// repli sur le thème ADMIN (pré-auth), puis — si rien n'est connu (1ère visite) — une couleur
+// INTERMÉDIAIRE neutre (#808F88, entre clair et sombre) pour minimiser l'écart au démarrage.
 const BOOT_THEME_JS = `
 (function () {
   function mode() {
@@ -75,13 +76,15 @@ const BOOT_THEME_JS = `
       var a = localStorage.getItem('relyka.admin.theme');
       if (a === 'light' || a === 'dark') return a;
     } catch (e) {}
-    return 'dark';
+    return null;
   }
   try {
-    var light = mode() === 'light';
+    var m = mode();
+    var bg = m === 'light' ? '#F4EFE6' : m === 'dark' ? '#0D2E2A' : '#808F88';
+    var fg = m === 'dark' ? '#fff' : '#191C1F';
     var r = document.documentElement.style;
-    r.setProperty('--boot-bg', light ? '#F4EFE6' : '#0D2E2A');
-    r.setProperty('--boot-fg', light ? '#191C1F' : '#fff');
+    r.setProperty('--boot-bg', bg);
+    r.setProperty('--boot-fg', fg);
   } catch (e) {}
 })();
 `;
@@ -90,7 +93,7 @@ const BOOT_THEME_JS = `
 // Visuellement identique au composant AppLoading → transition invisible.
 const BOOT_LOADER_CSS = `
 #app-boot {
-  position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #0D2E2A);
+  position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #808F88);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   transition: opacity .4s ease;
 }
