@@ -64,20 +64,25 @@ export async function reverseBalanceAndDeleteTransactions(profileId: string, bas
   const byId = new Map<string, ReversalRow>();
   for (const r of baseRows) byId.set(r.id, r);
 
-  // Inclure la jambe paire éventuelle (même date, montant opposé, comptes croisés) si elle
-  // n'a pas déjà été sélectionnée par le filtre projet.
+  // Inclure la jambe paire éventuelle (même date, montant opposé, sur le compte d'en face)
+  // si elle n'a pas déjà été sélectionnée par le filtre projet. Robuste (cf. useDeleteTransaction) :
+  // pas de linked_account_id réciproque exigé, pas de maybeSingle() (null silencieux sur ≥2 lignes).
   for (const r of baseRows) {
     if (!r.linked_account_id) continue;
-    const { data: paired } = await supabase
+    const { data: candidates } = await supabase
       .from('transactions')
       .select(TX_REVERSAL_COLS)
       .eq('profile_id', profileId)
       .eq('account_id', r.linked_account_id)
-      .eq('linked_account_id', r.account_id)
       .eq('date', r.date)
       .eq('amount', -Number(r.amount))
-      .maybeSingle();
-    if (paired && !byId.has((paired as any).id)) byId.set((paired as any).id, paired as any);
+      .is('category_id', null);
+    const list = (candidates ?? []) as ReversalRow[];
+    // Préférer la jambe qui pointe en retour ; sinon la première pas déjà dans le lot.
+    const paired = list.find((c) => c.linked_account_id === r.account_id && !byId.has(c.id))
+      ?? list.find((c) => !byId.has(c.id))
+      ?? null;
+    if (paired) byId.set(paired.id, paired);
   }
 
   // Réversion : chaque ligne retire sa PROPRE contribution « à date » exactement une fois
@@ -295,15 +300,21 @@ export function useUpdateTransaction(profileId: string | undefined) {
       // Si on modifie le montant / la date / le libellé d'une jambe, l'autre doit suivre,
       // sinon le couple se désynchronise (et les soldes deviennent faux).
       if (oldLinkedAccId && (input.amount !== undefined || input.date !== undefined || input.note !== undefined || input.is_draft !== undefined)) {
-        const { data: paired } = await supabase
+        // Retrouver la jambe opposée de façon robuste (cf. useDeleteTransaction) : même date,
+        // montant exactement opposé, sans catégorie, sur le compte d'en face — sans exiger un
+        // linked_account_id réciproque parfait (jambes désynchronisées/anciennes), et sans
+        // maybeSingle() (qui renvoie null en silence dès qu'il y a ≥2 candidats).
+        const { data: pairedCandidates } = await supabase
           .from('transactions')
-          .select('id, account_id, amount, is_draft, is_recurring, date')
+          .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
           .eq('profile_id', profileId)
           .eq('account_id', oldLinkedAccId)
-          .eq('linked_account_id', oldAccId)
           .eq('date', oldDate ?? '')
           .eq('amount', -oldAmount)
-          .maybeSingle();
+          .is('category_id', null);
+        const pairedList = (pairedCandidates ?? []) as Array<{ id: string; account_id: string; amount: number; is_draft: boolean | null; is_recurring: boolean | null; date: string; linked_account_id: string | null }>;
+        // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
+        const paired = pairedList.find((c) => c.linked_account_id === oldAccId) ?? pairedList[0] ?? null;
         if (!paired && wasInDraft && !isNowDraft) {
           // Validation d'un virement dont la jambe de CRÉDIT n'existe pas encore : c'est le cas
           // d'un virement de projet validé via l'écran « Modifier » (et non via « Valider » de la
