@@ -397,33 +397,31 @@ export function useDeleteTransaction(profileId: string | undefined) {
       const txCategoryId = (row as any).category_id as string | null;
       const txAccountId = (row as { account_id: string }).account_id;
 
-      // Chercher la transaction symétrique (l'autre côté d'un virement)
-      // Priorité 1 : via linked_account_id (virements via transfer.tsx)
+      // ── Chercher la jambe symétrique de l'autre côté du virement ──
+      // Robuste et symétrique (quel que soit le côté supprimé) : une jambe de virement est
+      // identifiable par l'absence de catégorie ET (un linked_account_id OU une note « virement »).
+      // On ne s'appuie PAS sur un linked_account_id parfaitement réciproque (les deux jambes
+      // peuvent s'être désynchronisées, ou l'une être ancienne/sans linked_account_id), et on
+      // n'utilise PAS maybeSingle() (qui renvoie null en silence dès qu'il y a 2 candidats).
       let pairedId: string | null = null;
-      if (linkedAccountId) {
-        const { data: paired } = await supabase
+      const looksLikeTransfer = txCategoryId === null && (!!linkedAccountId || (!!txNote && /virement/i.test(txNote)));
+      if (looksLikeTransfer) {
+        // Candidats = même date, montant exactement opposé, sans catégorie, sur un AUTRE compte.
+        // Si on connaît le compte d'en face (linked_account_id), on s'y restreint (plus précis).
+        let q = supabase
           .from('transactions')
-          .select('id, amount, is_draft')
-          .eq('profile_id', profileId)
-          .eq('account_id', linkedAccountId)
-          .eq('linked_account_id', txAccountId)
-          .eq('date', txDate)
-          .eq('amount', -txAmount)
-          .maybeSingle();
-        pairedId = paired?.id ?? null;
-      }
-      // Priorité 2 : via note "Virement" + montant opposé + même date (virements via add.tsx)
-      if (!pairedId && txCategoryId === null && txNote && /virement/i.test(txNote)) {
-        const { data: paired } = await supabase
-          .from('transactions')
-          .select('id, amount, is_draft')
+          .select('id, amount, is_draft, linked_account_id, account_id')
           .eq('profile_id', profileId)
           .eq('date', txDate)
           .eq('amount', -txAmount)
           .is('category_id', null)
-          .neq('account_id', txAccountId)
-          .maybeSingle();
-        pairedId = paired?.id ?? null;
+          .neq('id', id);
+        q = linkedAccountId ? q.eq('account_id', linkedAccountId) : q.neq('account_id', txAccountId);
+        const { data: candidates } = await q;
+        const list = (candidates ?? []) as Array<{ id: string; linked_account_id: string | null; account_id: string }>;
+        // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
+        const best = list.find((c) => c.linked_account_id === txAccountId) ?? list[0] ?? null;
+        pairedId = best?.id ?? null;
       }
 
       // Supprimer la transaction principale
