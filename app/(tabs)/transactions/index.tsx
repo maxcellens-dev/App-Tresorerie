@@ -110,14 +110,14 @@ export default function TransactionsListScreen() {
     {
       getRect: () => tabRect(1),
       icon: 'list',
-      iconColor: '#34d399',
+      iconColor: COLORS.green,
       title: 'Onglet Transactions',
       description: 'Touchez « Transactions » dans la barre du bas pour saisir et consulter vos opérations.',
     },
     {
       getRef: () => actionsRef,
       icon: 'swap-vertical',
-      iconColor: '#34d399',
+      iconColor: COLORS.green,
       title: 'Saisir une opération',
       description: 'Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
     },
@@ -381,7 +381,7 @@ export default function TransactionsListScreen() {
         ? `Valider le virement "${label}" vers le compte de destination ?`
         : `Valider "${label}" ?`,
       confirmLabel: 'Valider',
-      confirmColor: '#34d399',
+      confirmColor: COLORS.green,
       onConfirm: async () => {
         try {
           if (isProjectDebit) {
@@ -795,14 +795,14 @@ export default function TransactionsListScreen() {
                   <Text style={styles.confirmCancelText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? '#34d399', backgroundColor: (confirmModal?.confirmColor ?? '#34d399') + '18' }]}
+                  style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? COLORS.green, backgroundColor: (confirmModal?.confirmColor ?? COLORS.green) + '18' }]}
                   onPress={() => {
                     const cb = confirmModal?.onConfirm;
                     setConfirmModal(null);
                     cb?.();
                   }}
                 >
-                  <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? '#34d399' }]}>{confirmModal?.confirmLabel}</Text>
+                  <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? COLORS.green }]}>{confirmModal?.confirmLabel}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>

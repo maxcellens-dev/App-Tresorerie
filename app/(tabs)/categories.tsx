@@ -188,7 +188,7 @@ export default function CategoriesScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={handleRefresh}
-                tintColor="#34d399"
+                tintColor={COLORS.green}
                 progressBackgroundColor="#0f172a"
               />
             }

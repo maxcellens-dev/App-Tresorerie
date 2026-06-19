@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   },
   emoji: { fontSize: 13 },
   // Halo doré (cosmétique « flamme dorée ») — léger glow + teinte chaude sur l'emoji.
-  goldEmoji: { textShadowColor: '#FFD700', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
+  goldEmoji: { textShadowColor: '#f59e0b', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
   iconImg: { width: 14, height: 14, borderRadius: 3 },
   streakText: { fontSize: 12, fontWeight: '800' },
 });

@@ -173,7 +173,7 @@ export default function ProjectionScreen() {
   const PROJECTION_GUIDE: BubbleStep[] = [
     { getRect: () => tabRect(3), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
     { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },
-    { getRef: () => hypoRef, icon: 'options-outline', iconColor: '#34d399', title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
+    { getRef: () => hypoRef, icon: 'options-outline', iconColor: COLORS.green, title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
   ];
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');

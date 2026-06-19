@@ -48,7 +48,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
     { icon: 'bag-handle-outline', label: 'Boutique', route: '/(tabs)/(secondary)/boutique', color: '#22d3ee' },
     { icon: 'star-outline', label: 'Plan', route: '/(tabs)/(secondary)/premium', color: '#fbbf24' },
     { icon: 'options-outline', label: 'Paramètres', route: '/(tabs)/(secondary)/parametres' },
-    { icon: 'headset-outline', label: 'Support', route: '/(tabs)/(secondary)/support', color: '#34d399' },
+    { icon: 'headset-outline', label: 'Support', route: '/(tabs)/(secondary)/support', color: COLORS.green },
   ];
 
   return (
@@ -69,9 +69,9 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
               {/* Étiquettes côte à côte (retour à la ligne si besoin) — ordre : Admin, Premium, titres cosmétiques. */}
               <View style={styles.tagsRow}>
                 {isAdmin && (
-                  <View style={[styles.tag, { backgroundColor: '#34d39922', borderColor: '#34d399' }]}>
-                    <Ionicons name="shield-checkmark" size={10} color="#34d399" />
-                    <Text style={[styles.tagText, { color: '#34d399' }]}>Admin</Text>
+                  <View style={[styles.tag, { backgroundColor: COLORS.green + '22', borderColor: COLORS.green }]}>
+                    <Ionicons name="shield-checkmark" size={10} color={COLORS.green} />
+                    <Text style={[styles.tagText, { color: COLORS.green }]}>Admin</Text>
                   </View>
                 )}
                 {isPremium && (
@@ -81,9 +81,9 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
                   </View>
                 )}
                 {cosmeticTitles.map((t) => (
-                  <View key={t} style={[styles.tag, { backgroundColor: '#FFD7001A', borderColor: '#FFD70066' }]}>
-                    <Ionicons name="ribbon" size={10} color="#FFD700" />
-                    <Text style={[styles.tagText, { color: '#FFD700' }]}>{t}</Text>
+                  <View key={t} style={[styles.tag, { backgroundColor: '#f59e0b1A', borderColor: '#f59e0b66' }]}>
+                    <Ionicons name="ribbon" size={10} color="#f59e0b" />
+                    <Text style={[styles.tagText, { color: '#f59e0b' }]}>{t}</Text>
                   </View>
                 ))}
               </View>
@@ -148,8 +148,8 @@ function makeStyles(c: any) {
     avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
     avatarFrame: { borderWidth: 2.5, borderRadius: 26, padding: 2 },
     name: { fontSize: 16, fontWeight: '800', color: c.text },
-    titleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 3, marginTop: 3, borderWidth: 1, borderColor: '#FFD70066', backgroundColor: '#FFD7001A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-    titleBadgeText: { fontSize: 10, fontWeight: '800', color: '#FFD700' },
+    titleBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 3, marginTop: 3, borderWidth: 1, borderColor: '#f59e0b66', backgroundColor: '#f59e0b1A', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+    titleBadgeText: { fontSize: 10, fontWeight: '800', color: '#f59e0b' },
     tagsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 4 },
     tag: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     tagText: { fontSize: 10, fontWeight: '800' },

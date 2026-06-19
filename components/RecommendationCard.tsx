@@ -128,7 +128,7 @@ export default function RecommendationCard({
       <View style={styles.container}>
         {!hideTitle && (
           <View style={styles.headerRow}>
-            <Ionicons name="checkmark-circle" size={20} color="#34d399" />
+            <Ionicons name="checkmark-circle" size={20} color={COLORS.green} />
             <Text style={styles.headerLabel}>Recommandations</Text>
           </View>
         )}

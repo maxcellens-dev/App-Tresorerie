@@ -98,7 +98,7 @@ export interface CosmeticDef {
 /** Mappe la clé d'article cosmétique → emplacement + effet. */
 export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
   // ── Cadres d'avatar (value = couleur de la bordure) ──
-  cosmetic_avatar_frame:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#FFD700' },
+  cosmetic_avatar_frame:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#f59e0b' },
   cosmetic_frame_silver:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#C0C0C0' },
   cosmetic_frame_emerald:  { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#10B981' },
   cosmetic_frame_neon:     { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#D946EF' },
@@ -112,7 +112,7 @@ export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
   cosmetic_title_visionnaire: { slot: 'title', slotLabel: 'Titre de profil', value: 'Visionnaire' },
   cosmetic_title_elite:       { slot: 'title', slotLabel: 'Titre de profil', value: 'Élite' },
   // ── Flammes de série (value = couleur de la flamme) ──
-  cosmetic_gold_flame:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#FFD700' },
+  cosmetic_gold_flame:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#f59e0b' },
   cosmetic_flame_blue:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#3B82F6' },
   cosmetic_flame_violet: { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#8B5CF6' },
 };

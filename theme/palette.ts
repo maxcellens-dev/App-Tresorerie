@@ -311,3 +311,20 @@ export function semanticPill(hex: string): string {
   if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
   return hex + '1F'; // ~12 %
 }
+
+/** Éclaircit une couleur hex vers le blanc (amount 0 → 1 ; 0 = inchangée, 1 = blanche). */
+export function lighten(hex: string, amount: number): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const ch = (c: number) => Math.round(c + (255 - c) * amount).toString(16).padStart(2, '0');
+  return `#${ch(r)}${ch(g)}${ch(b)}`;
+}
+
+/** Remplissage « pastel » des barres : on ÉCLAIRCIT fortement la teinte vers le blanc (couleur
+ *  réellement plus claire, pas juste plus transparente) puis on pose une opacité moyenne — sur
+ *  fond sombre il faut assez d'opacité pour que la teinte claire ressorte sans noyer le texte. */
+export function pastelFill(hex: string): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  return lighten(hex, 0.4) + '99'; // teinte clairement pastel, ~50 % d'opacité
+}

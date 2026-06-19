@@ -150,10 +150,27 @@ export function useUpdateProfile(profileId: string | undefined) {
         }
       }
     },
+    // Mise à jour OPTIMISTE : on applique le changement dans le cache `profile` AVANT le réseau,
+    // pour que tous les écrans montés (apparence, menu, entêtes, pilotage, succès…) reflètent
+    // instantanément le nouveau thème/réglage sans attendre l'aller-retour Supabase ni un refresh.
+    onMutate: async (payload) => {
+      if (!profileId) return { prev: undefined };
+      await queryClient.cancelQueries({ queryKey: [KEY, profileId] });
+      const prev = queryClient.getQueryData([KEY, profileId]);
+      queryClient.setQueryData([KEY, profileId], (old: any) => (old ? { ...old, ...payload } : old));
+      return { prev };
+    },
+    // Échec réseau → on restaure l'état précédent (rollback) pour ne pas mentir à l'utilisateur.
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev !== undefined) queryClient.setQueryData([KEY, profileId], ctx.prev);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [KEY, profileId] });
       queryClient.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
       queryClient.invalidateQueries({ queryKey: ['questionnaire_answers', profileId] });
+    },
+    // Réconcilie le profil avec la vérité serveur une fois la requête terminée (succès ou échec).
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [KEY, profileId] });
     },
   });
 }

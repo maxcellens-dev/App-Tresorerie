@@ -83,7 +83,7 @@ export default function AppearanceScreen() {
       const shopItem = gamiConfig?.shop.find((s) => s.key === key);
       const def = COSMETIC_DEFS[key];
       // Couleur d'illustration : pour un cadre/flamme = sa teinte ; pour un titre = doré.
-      const color = def && /^#[0-9A-Fa-f]{6}$/.test(def.value) ? def.value : '#FFD700';
+      const color = def && /^#[0-9A-Fa-f]{6}$/.test(def.value) ? def.value : '#f59e0b';
       return {
         key,
         label: shopItem?.label ?? key,

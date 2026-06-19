@@ -166,7 +166,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
             accessibilityRole="button"
             accessibilityLabel="Admin"
           >
-            <Ionicons name="shield-checkmark" size={22} color="#34d399" />
+            <Ionicons name="shield-checkmark" size={22} color={COLORS.green} />
             <UnreadBadge count={adminUnread} style={{ top: -1, right: -3 }} />
           </TouchableOpacity>
         )}

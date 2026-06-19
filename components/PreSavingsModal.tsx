@@ -40,7 +40,7 @@ export default function PreSavingsModal({
   const depasse = nouveauTotal > base;
   const isEpargne = type === 'epargne';
   const titre = isEpargne ? 'Pré-épargne' : 'Pré-investissement';
-  const accent = isEpargne ? '#34d399' : '#a78bfa';
+  const accent = isEpargne ? COLORS.green : '#a78bfa';
 
   function confirmReset() {
     // Confirmation in-app (§7) — plus de window.confirm navigateur.

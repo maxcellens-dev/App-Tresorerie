@@ -76,7 +76,7 @@ export default function ObjectivesScreen() {
     }
     return {
       icon: 'shield-checkmark' as const,
-      color: '#34d399',
+      color: COLORS.green,
       title: 'Situation confortable',
       message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil de confort. Vous êtes en excellente position pour investir et atteindre vos objectifs financiers.`,
     };

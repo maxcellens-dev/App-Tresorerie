@@ -22,7 +22,7 @@ export default function CumulsPanel({ visible, epargneTotal, investTotal, onClos
   const styles = makeStyles(COLORS);
 
   const rows: { type: PreSavingType; label: string; total: number; icon: string; color: string }[] = [
-    { type: 'epargne', label: 'Pré-épargne', total: epargneTotal, icon: 'shield-outline', color: '#34d399' },
+    { type: 'epargne', label: 'Pré-épargne', total: epargneTotal, icon: 'shield-outline', color: COLORS.green },
     { type: 'invest', label: 'Pré-invest', total: investTotal, icon: 'trending-up-outline', color: '#a78bfa' },
   ];
 

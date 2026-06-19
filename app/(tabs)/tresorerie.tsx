@@ -126,7 +126,7 @@ export default function TreasuryPlanScreen() {
     {
       getRect: () => tabRect(3),
       icon: 'calendar',
-      iconColor: '#34d399',
+      iconColor: COLORS.green,
       title: 'Onglet Tréso',
       description: 'Touchez « Tréso » dans la barre du bas pour votre plan de trésorerie sur 12 mois.',
     },
@@ -1102,7 +1102,7 @@ export default function TreasuryPlanScreen() {
                 openEditModal(menuModalState.monthKey || '', menuModalState.categoryId ?? null, menuModalState.value || 0);
               }}
             >
-              <Ionicons name="pencil" size={20} color="#34d399" />
+              <Ionicons name="pencil" size={20} color={COLORS.green} />
               <Text style={styles.menuOptionText}>Modifier montant</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1167,7 +1167,7 @@ export default function TreasuryPlanScreen() {
                 if (c) openDraftModal(c.monthKey, c.categoryId, c.rowType);
               }}
             >
-              <Ionicons name="add-circle-outline" size={20} color="#34d399" />
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.green} />
               <Text style={styles.menuOptionText}>Créer une nouvelle</Text>
             </TouchableOpacity>
             {draftChoiceModal?.existingDrafts.map((draft) => (

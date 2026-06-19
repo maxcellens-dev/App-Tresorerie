@@ -43,7 +43,7 @@ export default function CalendarWithPicker({
   markedDates,
   theme,
   style,
-  accentColor = '#34d399',
+  accentColor = '#00B67A',
   bgColor = '#0f172a',
   textColor = '#ffffff',
   textSecondaryColor = '#94a3b8',
@@ -93,7 +93,7 @@ export default function CalendarWithPicker({
                 style={[
                   pickerStyles.cell,
                   isSelected && { backgroundColor: accentColor },
-                  isCurrent && !isSelected && pickerStyles.cellToday,
+                  isCurrent && !isSelected && [pickerStyles.cellToday, { borderColor: accentColor }],
                 ]}
                 onPress={() => {
                   setPickerYear(y);
@@ -138,7 +138,7 @@ export default function CalendarWithPicker({
                 style={[
                   pickerStyles.cell,
                   isSelected && { backgroundColor: accentColor },
-                  isCurrentMonth && !isSelected && pickerStyles.cellToday,
+                  isCurrentMonth && !isSelected && [pickerStyles.cellToday, { borderColor: accentColor }],
                 ]}
                 onPress={() => navigateTo(pickerYear, month)}
               >
@@ -234,7 +234,6 @@ const pickerStyles = StyleSheet.create({
   },
   cellToday: {
     borderWidth: 1,
-    borderColor: '#34d399',
   },
   cellText: { fontSize: 14, fontWeight: '500' },
   cancel: { alignItems: 'center', marginTop: 16, padding: 8 },

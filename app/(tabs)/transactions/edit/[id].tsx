@@ -751,10 +751,10 @@ export default function EditTransactionScreen() {
                   <Text style={styles.confirmCancelText}>Annuler</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? '#34d399', backgroundColor: (confirmModal?.confirmColor ?? '#34d399') + '18' }]}
+                  style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? COLORS.green, backgroundColor: (confirmModal?.confirmColor ?? COLORS.green) + '18' }]}
                   onPress={() => { const cb = confirmModal?.onConfirm; setConfirmModal(null); cb?.(); }}
                 >
-                  <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? '#34d399' }]}>{confirmModal?.confirmLabel}</Text>
+                  <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? COLORS.green }]}>{confirmModal?.confirmLabel}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>

@@ -45,7 +45,7 @@ import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useAppColors } from '../../hooks/useAppColors';
 import type { AppColors } from '../../theme/palette';
-import { semanticText } from '../../theme/palette';
+import { semanticText, pastelFill } from '../../theme/palette';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
 
 export default function PilotageScreen() {
@@ -157,14 +157,14 @@ export default function PilotageScreen() {
     {
       getRect: () => tabRect(2),
       icon: 'home',
-      iconColor: '#34d399',
+      iconColor: COLORS.green,
       title: 'Onglet Pilotage',
       description: 'Touchez « Pilotage » dans la barre du bas : c\'est votre tableau de bord.',
     },
     {
       getRef: () => suiviRef,
       icon: 'wallet-outline',
-      iconColor: '#34d399',
+      iconColor: COLORS.green,
       title: 'Suivi du mois',
       description: 'Vos engagements du mois (épargne, investissement, réservé) et vos dépenses. En bas, le « Budget libre à allouer » : ce qu\'il vous reste à dépenser librement.',
     },
@@ -622,7 +622,7 @@ export default function PilotageScreen() {
                       {(pilotageData.month_income_remaining ?? 0) > 0 && (
                         <View style={styles.budgetIncome}>
                           <Text style={styles.budgetIncomeLabel}>Recettes prévues</Text>
-                          <Text style={[styles.budgetIncomeValue, { color: semanticText(COLORS.emerald, COLORS) }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                          <Text style={[styles.budgetIncomeValue, { color: semanticText(COLORS.green, COLORS) }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
                         </View>
                       )}
                     </View>
@@ -657,7 +657,7 @@ export default function PilotageScreen() {
                     {/* 3 bandes : le remplissage = proportion, le texte est à l'intérieur de la bande. */}
                     {/* Dépensé ce mois — rempli = part déjà dépensée / (dépensé + reste à dépenser) */}
                     <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
-                      <View style={[styles.depBandFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: COLORS.danger + '38' }]} />
+                      <View style={[styles.depBandFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: pastelFill(COLORS.danger) }]} />
                       <View style={styles.depBandContent}>
                         <View style={styles.depBandLabelRow}>
                           <View style={[styles.depBandDot, { backgroundColor: COLORS.danger }]} />
@@ -671,7 +671,7 @@ export default function PilotageScreen() {
                     </TouchableOpacity>
                     {/* Dépenses récurrentes restantes — rempli = restant / total (décroît, §N5) */}
                     <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
-                      <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: COLORS.orange + '38' }]} />
+                      <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: pastelFill(COLORS.orange) }]} />
                       <View style={styles.depBandContent}>
                         <View style={styles.depBandLabelRow}>
                           <View style={[styles.depBandDot, { backgroundColor: COLORS.orange }]} />
@@ -686,7 +686,7 @@ export default function PilotageScreen() {
                     </TouchableOpacity>
                     {/* Dépenses variables prévues restantes — rempli = restant / estimé (décroît, §N5) */}
                     <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
-                      <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: COLORS.yellow + '38' }]} />
+                      <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: pastelFill(COLORS.yellow) }]} />
                       <View style={styles.depBandContent}>
                         <View style={styles.depBandLabelRow}>
                           <View style={[styles.depBandDot, { backgroundColor: COLORS.yellow }]} />
@@ -949,7 +949,7 @@ export default function PilotageScreen() {
                         {(pilotageData.month_income_remaining ?? 0) > 0 && (
                           <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder }]}>
                             <Text style={[styles.detailRowLabel, { flex: 1 }]}>Recettes prévues restantes</Text>
-                            <Text style={[styles.detailRowValue, { color: COLORS.emerald }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                            <Text style={[styles.detailRowValue, { color: COLORS.green }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
                           </View>
                         )}
                       </>
@@ -1418,7 +1418,7 @@ function makeStyles(c: AppColors) {
   depBandLabel: { flex: 1, fontSize: 13, color: c.text, fontWeight: '600' },
   depBandValueRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   depBandValue: { fontSize: 15, fontWeight: '700' },
-  depBandTotal: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+  depBandTotal: { fontSize: 12, fontWeight: '600', color: c.text },
   reserveLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   reserveLineLabel: { flex: 1, fontSize: 14, color: c.text, fontWeight: '600' },
   reserveLineValue: { fontSize: 16, fontWeight: '700' },

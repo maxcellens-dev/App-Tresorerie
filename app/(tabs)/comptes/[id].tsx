@@ -1005,7 +1005,7 @@ export default function AccountDetailScreen() {
                 <Text style={modalStyles.cancelLabel}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[modalStyles.confirm, { backgroundColor: '#34d399' }, interestLoading && { opacity: 0.5 }]}
+                style={[modalStyles.confirm, { backgroundColor: COLORS.green }, interestLoading && { opacity: 0.5 }]}
                 onPress={handleInterest}
                 disabled={interestLoading}
                 activeOpacity={0.8}
@@ -1039,8 +1039,8 @@ export default function AccountDetailScreen() {
                 setInterestDateDisplay(formatDateFrench(day.dateString));
                 setShowInterestCalendar(false);
               }}
-              markedDates={interestDate ? { [interestDate]: { selected: true, selectedColor: '#34d399', selectedTextColor: '#000' } } : {}}
-              accentColor="#34d399"
+              markedDates={interestDate ? { [interestDate]: { selected: true, selectedColor: COLORS.green, selectedTextColor: '#000' } } : {}}
+              accentColor={COLORS.green}
               bgColor={COLORS.card}
               textColor={COLORS.text}
               textSecondaryColor="#334155"

@@ -49,7 +49,7 @@ export default function ProfileScreen() {
   const infoRef = useRef<View>(null);
   const pwdRef = useRef<View>(null);
   const PROFILE_GUIDE: BubbleStep[] = [
-    { getRef: () => avatarRef, icon: 'person-circle-outline', iconColor: '#34d399', title: 'Votre profil', description: 'Ajoutez une photo et personnalisez votre compte.' },
+    { getRef: () => avatarRef, icon: 'person-circle-outline', iconColor: COLORS.green, title: 'Votre profil', description: 'Ajoutez une photo et personnalisez votre compte.' },
     { getRef: () => infoRef, icon: 'create-outline', iconColor: '#60a5fa', title: 'Vos informations', description: 'Modifiez votre nom puis enregistrez. L\'e-mail est géré par la connexion.' },
     { getRef: () => pwdRef, icon: 'lock-closed-outline', iconColor: '#a78bfa', title: 'Sécurité', description: 'Changez votre mot de passe quand vous le souhaitez.' },
   ];
@@ -263,7 +263,7 @@ export default function ProfileScreen() {
             </View>
             {!!profileTitle && (
               <View style={styles.titleBadge}>
-                <Ionicons name="ribbon" size={12} color="#FFD700" />
+                <Ionicons name="ribbon" size={12} color="#f59e0b" />
                 <Text style={styles.titleBadgeText}>{profileTitle}</Text>
               </View>
             )}
@@ -450,8 +450,8 @@ function makeStyles(c: any) {
   scrollContent: { paddingBottom: 100 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
   avatarFrame: { borderWidth: 3, borderRadius: 54, padding: 3 },
-  titleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10, borderWidth: 1, borderColor: '#FFD70066', backgroundColor: '#FFD7001A', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
-  titleBadgeText: { fontSize: 12, fontWeight: '800', color: '#FFD700' },
+  titleBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10, borderWidth: 1, borderColor: '#f59e0b66', backgroundColor: '#f59e0b1A', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  titleBadgeText: { fontSize: 12, fontWeight: '800', color: '#f59e0b' },
   avatar: { width: 96, height: 96, borderRadius: 48 },
   avatarPlaceholder: {
     width: 96,

@@ -320,7 +320,7 @@ function makeStyles(c: any) {
   },
   saveButton: {
     flex: 1.5,
-    backgroundColor: '#34d399',
+    backgroundColor: c.green,
   },
   saveButtonText: {
     fontSize: 13,

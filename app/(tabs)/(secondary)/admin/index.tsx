@@ -35,7 +35,7 @@ export default function AdminHub() {
       category: 'Moteur financier',
       items: [
         { href: '/(tabs)/admin/financial-profiles', icon: 'person-outline', title: 'Profils financiers', desc: 'P1-P5 · messages · seuils', color: '#a78bfa' },
-        { href: '/(tabs)/admin/recommendations', icon: 'bulb-outline', title: 'Recommandations', desc: 'Moteur & paliers', color: '#34d399' },
+        { href: '/(tabs)/admin/recommendations', icon: 'bulb-outline', title: 'Recommandations', desc: 'Moteur & paliers', color: COLORS.green },
         { href: '/(tabs)/admin/safe-to-spend', icon: 'calculator-outline', title: 'Formule À dépenser', desc: 'Calcul détaillé', color: '#60a5fa' },
         { href: '/(tabs)/admin/fiscal-rates', icon: 'cash-outline', title: 'Fiscalité', desc: 'Taux par enveloppe (PEA, AV…)', color: '#fbbf24' },
       ],
