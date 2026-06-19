@@ -95,7 +95,7 @@ export default function AddRwExpense() {
 
   const toggle = (id: string) => setInvolved((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const canSave = amountNum > 0 && !!paidBy && involvedList.length > 0 && !busy;
+  const canSave = title.trim().length > 0 && amountNum > 0 && !!paidBy && involvedList.length > 0 && !busy;
 
   const onSave = async () => {
     if (!canSave || !projectId) return;
@@ -103,7 +103,7 @@ export default function AddRwExpense() {
     try {
       // Répartition équitable entre les participants concernés (ajustement des centimes sur le 1er).
       const base = Math.floor((amountNum / involvedList.length) * 100) / 100;
-      const shares = involvedList.map((p, i) => ({ participant_id: p.id, amount: base }));
+      const shares = involvedList.map((p) => ({ participant_id: p.id, amount: base }));
       const diff = Math.round((amountNum - base * involvedList.length) * 100) / 100;
       if (shares.length) shares[0].amount = Math.round((shares[0].amount + diff) * 100) / 100;
       const common = {
@@ -116,7 +116,11 @@ export default function AddRwExpense() {
       if (editing) await updateExpense.mutateAsync({ expense: editing, ...common, iAmPayer: !!paidByMe });
       else await addExpense.mutateAsync(common);
       goBack();
-    } finally { setBusy(false); }
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message ?? 'Impossible d\'enregistrer la dépense. Vérifie ta connexion et réessaie.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
