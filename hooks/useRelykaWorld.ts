@@ -28,15 +28,32 @@ export interface RwInvitation {
 
 const ok = () => !!supabase;
 
-/** Liste des projets dont l'utilisateur est membre (RLS filtre). */
+/** Liste des projets dont l'utilisateur est membre. */
 export function useRwProjects(userId: string | undefined) {
-  // En mode « connecté en tant que », la RLS filtre par auth.uid() = l'ADMIN (le token reste le
-  // sien). On afficherait donc les projets partagés de l'admin sur le compte consulté → on désactive.
+  // En mode « connecté en tant que », le token reste celui de l'ADMIN : la RLS membre filtrerait
+  // par auth.uid() = admin (→ projets de l'admin, pas du user visité). On cible donc explicitement
+  // les projets dont le user consulté (userId = identité substituée) est owner ou participant.
+  // Possible grâce à la policy SELECT admin (migration 080).
   const { isImpersonating } = useAuth();
   return useQuery({
-    queryKey: ['rw_projects', userId],
-    enabled: !!userId && ok() && !isImpersonating,
+    queryKey: ['rw_projects', userId, isImpersonating],
+    enabled: !!userId && ok(),
     queryFn: async (): Promise<RwProject[]> => {
+      if (isImpersonating) {
+        const [{ data: owned }, { data: parts }] = await Promise.all([
+          supabase!.from('rw_projects').select('id').eq('owner_id', userId),
+          supabase!.from('rw_participants').select('project_id').eq('user_id', userId),
+        ]);
+        const ids = Array.from(new Set([
+          ...((owned ?? []) as any[]).map((o) => o.id),
+          ...((parts ?? []) as any[]).map((p) => p.project_id),
+        ]));
+        if (ids.length === 0) return [];
+        const { data, error } = await supabase!.from('rw_projects').select('*').in('id', ids).order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data ?? []) as RwProject[];
+      }
+      // Cas normal : la RLS membre filtre déjà sur auth.uid() = l'utilisateur courant.
       const { data, error } = await supabase!.from('rw_projects').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return (data ?? []) as RwProject[];

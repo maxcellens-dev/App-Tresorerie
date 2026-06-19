@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { supabase } from '../../../lib/supabase';
@@ -38,6 +39,17 @@ export default function ProfileScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
+
+  const copyPublicCode = async () => {
+    const code = (profile as any)?.public_code;
+    if (!code) return;
+    try {
+      await Clipboard.setStringAsync(String(code));
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 1500);
+    } catch { /* copie indisponible : le texte reste sélectionnable (appui long) */ }
+  };
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -242,12 +254,23 @@ export default function ProfileScreen() {
           <Text style={styles.pageTitle}>Mon profil</Text>
           <View style={{ flex: 1 }} />
           {/* ID public partageable (pour les invitations Relyka World).
-              Texte sélectionnable : appui long → « Copier » du téléphone (aucun module natif requis). */}
+              Appui → copie dans le presse-papiers ; texte aussi sélectionnable (appui long). */}
           {!!(profile as any)?.public_code && (
-            <View style={styles.idChip}>
+            <TouchableOpacity
+              style={styles.idChip}
+              onPress={copyPublicCode}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Copier mon identifiant"
+            >
               <Text style={styles.idChipLabel}>ID</Text>
               <Text style={styles.idChipCode} selectable>{(profile as any).public_code}</Text>
-            </View>
+              <Ionicons
+                name={idCopied ? 'checkmark' : 'copy-outline'}
+                size={13}
+                color={idCopied ? COLORS.emerald : COLORS.textSecondary}
+              />
+            </TouchableOpacity>
           )}
         </View>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
