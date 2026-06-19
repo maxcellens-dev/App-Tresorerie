@@ -1,97 +1,93 @@
 /**
  * AnimatedSplash — splash React animé (natif uniquement) qui prend le relais du splash natif
- * (expo-splash-screen) pour une transition SEAMLESS vers l'app :
- *  1. démarre EXACTEMENT comme le splash natif (fond teal #0D2E2A, logo centré) → aucun saut ;
- *  2. fond enchaîné du fond vers le THÈME ADMIN (clair = crème, sombre = teal) ;
- *  3. le logo « monte » et rétrécit vers le haut (vers l'emplacement du logo de la page suivante)
- *     pendant que tout le calque s'efface → révèle l'écran dessous (accueil OU écran de chargement).
+ * pour une transition SEAMLESS. Il est VISUELLEMENT IDENTIQUE à AppLoading (logo centré pulsant,
+ * « Relyka » dessous, anneau qui tourne — mêmes tailles/marges/animations) : ainsi, quand il
+ * s'efface, l'écran de chargement (ou l'accueil) apparaît SANS décalage du logo.
  *
- * Fonctionne déconnecté (révèle l'accueil) comme connecté (révèle l'écran de chargement, déjà
- * accordé au thème) → plus de « sombre puis clair » brutal.
+ *  1. démarre sur la couleur INTERMÉDIAIRE #808F88 (= splash natif après rebuild) ;
+ *  2. fond enchaîné vers le thème ADMIN (clair = crème, sombre = teal) + apparition du nom/anneau ;
+ *  3. tout le calque s'efface en fondu → révèle l'écran dessous, logo au même endroit.
  *
- * Le splash natif restant codé en dur en teal (app.json), le fondu enchaîné habille proprement
- * le passage teal → thème clair sans rebuild (tout est JS/OTA).
+ * Tout est JS/OTA. Le splash natif lui-même (app.json) ne change qu'au rebuild.
  */
 import { useEffect, useRef, useState } from 'react';
 import { View, Image, StyleSheet, Animated, Easing } from 'react-native';
 import { getCachedAdminTheme } from '../lib/themeBoot';
 import { useLandingConfig } from '../hooks/useLandingConfig';
 
-// Fond du splash : couleur INTERMÉDIAIRE (milieu entre le thème clair #F4EFE6 et le teal sombre
-// #0D2E2A) → écart minimal avec l'un comme l'autre. Doit correspondre à app.json >
-// expo-splash-screen > backgroundColor pour une transition invisible (nécessite un rebuild natif).
+// Fond du splash : couleur INTERMÉDIAIRE (milieu clair #F4EFE6 ↔ teal sombre #0D2E2A).
+// Doit correspondre à app.json > expo-splash-screen > backgroundColor (transition invisible).
 const SPLASH_BG = '#808F88';
 const BG_LIGHT = '#F4EFE6';
 const BG_DARK = '#0D2E2A';
+const ACCENT = '#00B67A';
 
 export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => void; onDone: () => void }) {
   const { data: landing } = useLandingConfig();
   const isLight = (landing?.theme ?? getCachedAdminTheme() ?? 'dark') === 'light';
-  const themeBg = isLight ? BG_LIGHT : BG_DARK; // cible du fondu : vrai fond du thème
+  const themeBg = isLight ? BG_LIGHT : BG_DARK; // cible du fondu = vrai fond du thème
   const brandColor = isLight ? '#191C1F' : '#FFFFFF';
 
-  const bgFade = useRef(new Animated.Value(0)).current;   // 0 = fond natif, 1 = fond thème
-  const brand = useRef(new Animated.Value(0)).current;
-  const logoScale = useRef(new Animated.Value(1)).current;
-  const logoY = useRef(new Animated.Value(0)).current;
-  const overlay = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(0)).current;     // pulsation logo (comme AppLoading)
+  const spin = useRef(new Animated.Value(0)).current;      // rotation anneau (comme AppLoading)
+  const bgFade = useRef(new Animated.Value(0)).current;    // fondu fond intermédiaire → thème
+  const content = useRef(new Animated.Value(0)).current;   // apparition nom + anneau
+  const overlay = useRef(new Animated.Value(1)).current;   // fondu de sortie du calque
   const [gone, setGone] = useState(false);
   const startedRef = useRef(false);
 
-  // Démarre la séquence quand le thème admin est connu (config chargée) — ou après un court délai
-  // de sécurité si le réseau tarde (on part alors du défaut). Évite un « pop » de couleur tardif.
+  // Boucles continues identiques à AppLoading → état d'animation identique à la jonction.
+  useEffect(() => {
+    const p = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    const s = Animated.loop(Animated.timing(spin, { toValue: 1, duration: 1100, easing: Easing.linear, useNativeDriver: true }));
+    p.start(); s.start();
+    return () => { p.stop(); s.stop(); };
+  }, [pulse, spin]);
+
+  // Entrée (fondu fond + nom/anneau) puis sortie (fondu du calque). Démarrée quand le thème admin
+  // est connu (config chargée) — ou après un court filet de sécurité réseau.
   useEffect(() => {
     if (startedRef.current) return;
     const themeKnown = landing !== undefined || getCachedAdminTheme() !== null;
     const start = () => {
       if (startedRef.current) return;
       startedRef.current = true;
-      const seq = Animated.sequence([
+      Animated.sequence([
         Animated.delay(120),
-        // Fondu enchaîné du fond + apparition du nom + petit « battement » du logo.
         Animated.parallel([
           Animated.timing(bgFade, { toValue: 1, duration: 620, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(brand, { toValue: 1, duration: 480, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.sequence([
-            Animated.timing(logoScale, { toValue: 1.08, duration: 320, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-            Animated.timing(logoScale, { toValue: 1, duration: 320, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          ]),
+          Animated.timing(content, { toValue: 1, duration: 520, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         ]),
-        Animated.delay(200),
-        // Le logo monte + rétrécit (vers l'en-tête de la page suivante) tandis que le calque s'efface.
-        Animated.parallel([
-          Animated.timing(overlay, { toValue: 0, duration: 480, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-          Animated.timing(logoY, { toValue: -64, duration: 480, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-          Animated.timing(logoScale, { toValue: 0.82, duration: 480, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-        ]),
-      ]);
-      seq.start(({ finished }) => { if (finished) { setGone(true); onDone(); } });
+        Animated.delay(420),
+        Animated.timing(overlay, { toValue: 0, duration: 480, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+      ]).start(({ finished }) => { if (finished) { setGone(true); onDone(); } });
     };
     if (themeKnown) start();
-    const t = setTimeout(start, 900); // filet de sécurité réseau
+    const t = setTimeout(start, 900);
     return () => clearTimeout(t);
   }, [landing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] });
+  const logoOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] });
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   if (gone) return null;
 
   return (
-    <Animated.View
-      pointerEvents="none"
-      onLayout={onReady}
-      style={[StyleSheet.absoluteFill, styles.root, { opacity: overlay }]}
-    >
-      {/* base = couleur intermédiaire (= splash natif) → transition invisible */}
+    <Animated.View pointerEvents="none" onLayout={onReady} style={[StyleSheet.absoluteFill, styles.root, { opacity: overlay }]}>
+      {/* base = couleur intermédiaire (= splash natif) → jonction invisible */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_BG }]} />
       {/* couche thème par-dessus, révélée en fondu enchaîné */}
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: themeBg, opacity: bgFade }]} />
-      <Animated.Image
-        source={require('../assets/logo.png')}
-        resizeMode="contain"
-        style={[styles.logo, { transform: [{ translateY: logoY }, { scale: logoScale }] }]}
-      />
-      <Animated.Text style={[styles.brand, { color: brandColor, opacity: brand, transform: [{ translateY: logoY }] }]}>
-        Relyka
-      </Animated.Text>
+      {/* Logo — même position/animation que AppLoading (marginBottom 22, pulse) */}
+      <Animated.View style={{ marginBottom: 22, transform: [{ scale }], opacity: logoOpacity }}>
+        <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+      </Animated.View>
+      <Animated.Text style={[styles.brand, { color: brandColor, opacity: content }]}>Relyka</Animated.Text>
+      <Animated.View style={[styles.ring, { opacity: content, transform: [{ rotate }] }]} />
     </Animated.View>
   );
 }
@@ -99,5 +95,6 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
 const styles = StyleSheet.create({
   root: { alignItems: 'center', justifyContent: 'center', zIndex: 9999, elevation: 9999 },
   logo: { width: 96, height: 96 },
-  brand: { marginTop: 18, fontSize: 22, fontWeight: '800', letterSpacing: 0.5 },
+  brand: { fontSize: 22, fontWeight: '800', letterSpacing: 0.5, marginBottom: 26 },
+  ring: { width: 30, height: 30, borderRadius: 15, borderWidth: 3, borderColor: ACCENT + '33', borderTopColor: ACCENT },
 });
