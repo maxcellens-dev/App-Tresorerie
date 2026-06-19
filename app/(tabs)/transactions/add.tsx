@@ -9,7 +9,7 @@ import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
-import { useAddTransaction, useTransactions } from '../../../hooks/useTransactions';
+import { createTransferLegs, useAddTransaction, useDeleteTransaction, useTransactions } from '../../../hooks/useTransactions';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
@@ -35,6 +35,7 @@ export default function AddTransactionScreen() {
   // Verrou de clôture gaté par le flag de fonctionnalité (null si Clôture désactivée).
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const deleteTransaction = useDeleteTransaction(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
   const getInitialType = (): TransactionType => {
@@ -183,29 +184,28 @@ export default function AddTransactionScreen() {
       : null;
 
     try {
-      await addTransaction.mutateAsync({
-        account_id: accountId,
-        category_id: isTransfer ? null : (categoryId || null),
-        amount: finalAmount,
-        date,
-        note: note || (isTransfer ? `Virement vers ${accounts.find(a => a.id === targetAccountId)?.name}` : undefined),
-        // Un virement relie les deux comptes : indispensable pour que le Suivi du mois
-        // classe correctement (épargne / investissement) et pour la détection de virement à l'édition.
-        linked_account_id: isTransfer ? targetAccountId : null,
-        is_draft: isDraft,
-        is_recurring: isRecurring,
-        recurrence_rule: isRecurring ? recurrenceRule : null,
-        recurrence_end_date: endDateISO,
-      });
-
       if (isTransfer) {
-        await addTransaction.mutateAsync({
-          account_id: targetAccountId,
-          category_id: null,
+        // Atomicité (2 jambes + rollback) centralisée — logique unique partagée avec l'écran Virement.
+        await createTransferLegs(addTransaction, deleteTransaction, {
+          fromAccountId: accountId,
+          toAccountId: targetAccountId,
           amount: num,
           date,
-          note: note || `Virement depuis ${accounts.find(a => a.id === accountId)?.name}`,
-          linked_account_id: accountId,
+          noteFrom: note || `Virement vers ${accounts.find(a => a.id === targetAccountId)?.name}`,
+          noteTo: note || `Virement depuis ${accounts.find(a => a.id === accountId)?.name}`,
+          isDraft,
+          isRecurring,
+          recurrenceRule,
+          recurrenceEndDate: endDateISO,
+        });
+      } else {
+        await addTransaction.mutateAsync({
+          account_id: accountId,
+          category_id: categoryId || null,
+          amount: finalAmount,
+          date,
+          note: note || undefined,
+          linked_account_id: null,
           is_draft: isDraft,
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,

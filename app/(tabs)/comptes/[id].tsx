@@ -572,6 +572,12 @@ export default function AccountDetailScreen() {
             <Text style={[modalStyles.helperText, { marginBottom: 14 }]}>
               Le solde calculé tient compte des transactions jusqu'à cette date.
             </Text>
+            <View style={modalStyles.infoBox}>
+              <Ionicons name="information-circle-outline" size={16} color={COLORS.blue} style={{ marginTop: 1 }} />
+              <Text style={modalStyles.infoText}>
+                Cette date devient une référence : une transaction ajoutée plus tard avec une date antérieure ne modifiera pas ce solde (il a déjà été constaté ici).
+              </Text>
+            </View>
 
             <Text style={modalStyles.label}>Solde calculé à cette date</Text>
             <View style={modalStyles.readOnlyInput}>
@@ -1314,6 +1320,8 @@ function makeModalStyles(c: any) {
   },
   dropdownOptionLabel: { color: c.text, fontSize: 15 },
   helperText: { color: c.textSecondary, fontSize: 12, marginTop: -8, marginBottom: 12 },
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.blue + '14', borderWidth: 1, borderColor: c.blue + '40', borderRadius: 10, padding: 10, marginTop: -4, marginBottom: 14 },
+  infoText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
   cancel: {
     flex: 1,
     paddingVertical: 14,

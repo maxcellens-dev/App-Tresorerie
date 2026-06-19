@@ -54,6 +54,10 @@ export default function ProjectsScreen() {
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const respondInvite = useRwRespondInvitation(user?.id);
   const createRwProject = useCreateRwProject(user?.id);
+  // Projets partagés actifs vs archivés (les archivés sont masqués de la liste active et
+  // consultables dans la vue « Archives », d'où on peut les désarchiver).
+  const activeRwProjects = rwProjects.filter((p) => !p.archived_at);
+  const archivedRwProjects = rwProjects.filter((p) => !!p.archived_at);
   const [showInfo, setShowInfo] = useState(false);
   const [showTypeChoice, setShowTypeChoice] = useState(false);
   const [showRwCreate, setShowRwCreate] = useState(false);
@@ -464,11 +468,11 @@ export default function ProjectsScreen() {
                       <TouchableOpacity style={styles.rwInvAccept} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: true })}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
                     </View>
                   ))}
-                  {/* Projets partagés (Relyka World) */}
-                  {rwProjects.length > 0 && (
+                  {/* Projets partagés (Relyka World) — actifs uniquement */}
+                  {activeRwProjects.length > 0 && (
                     <>
                       <Text style={styles.rwSectionLabel}>Projets partagés</Text>
-                      {rwProjects.map((p) => (
+                      {activeRwProjects.map((p) => (
                         <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
                           <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
                           <View style={{ flex: 1 }}>
@@ -482,12 +486,30 @@ export default function ProjectsScreen() {
                   )}
                   {/* Bandeau pub (maison) — juste au-dessus des projets personnels */}
                   <AdSlot placement="projets_perso" />
-                  {rwProjects.length > 0 && (
+                  {activeRwProjects.length > 0 && (
                     <Text style={styles.rwSectionLabel}>Projets personnels</Text>
                   )}
                 </>
               ) : (
-                <Text style={styles.archiveTitle}>Projets archivés</Text>
+                <>
+                  <Text style={styles.archiveTitle}>Projets archivés</Text>
+                  {/* Projets partagés archivés — ouvrir pour les désarchiver */}
+                  {archivedRwProjects.length > 0 && (
+                    <>
+                      <Text style={styles.rwSectionLabel}>Projets partagés archivés</Text>
+                      {archivedRwProjects.map((p) => (
+                        <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
+                          <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.rwProjName} numberOfLines={1}>{p.name}</Text>
+                            <Text style={styles.rwProjSub} numberOfLines={1}>{p.description || 'Dépenses partagées'}</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                </>
               )
             }
             ListEmptyComponent={renderEmptyState}

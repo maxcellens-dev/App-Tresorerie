@@ -200,6 +200,65 @@ export function useAddTransaction(profileId: string | undefined) {
   });
 }
 
+export interface CreateTransferLegsInput {
+  fromAccountId: string;
+  toAccountId: string;
+  amount: number; // montant POSITIF (le signe des jambes est géré ici)
+  date: string;
+  noteFrom?: string | null; // libellé de la jambe de débit (source)
+  noteTo?: string | null;   // libellé de la jambe de crédit (destination)
+  isDraft?: boolean;
+  isRecurring?: boolean;
+  recurrenceRule?: RecurrenceRule | null;
+  recurrenceEndDate?: string | null;
+}
+
+/**
+ * Crée les 2 jambes d'un virement de façon ATOMIQUE : débit sur la source, crédit sur la
+ * destination. Si la 2ᵉ jambe échoue, la 1ʳᵉ est annulée (réversion du solde via
+ * useDeleteTransaction) pour ne jamais laisser un virement à une seule jambe.
+ *
+ * Logique UNIQUE partagée par les deux écrans de saisie (transfer.tsx et transactions/add.tsx)
+ * afin d'éviter toute divergence entre les deux chemins.
+ */
+export async function createTransferLegs(
+  add: ReturnType<typeof useAddTransaction>,
+  del: ReturnType<typeof useDeleteTransaction>,
+  p: CreateTransferLegsInput,
+): Promise<void> {
+  const num = Math.abs(p.amount);
+  const common = {
+    is_draft: p.isDraft ?? false,
+    is_recurring: p.isRecurring ?? false,
+    recurrence_rule: p.isRecurring ? (p.recurrenceRule ?? null) : null,
+    recurrence_end_date: p.recurrenceEndDate ?? null,
+  };
+  const firstLeg = await add.mutateAsync({
+    account_id: p.fromAccountId,
+    category_id: null,
+    amount: -num,
+    date: p.date,
+    note: p.noteFrom ?? 'Virement interne',
+    linked_account_id: p.toAccountId,
+    ...common,
+  });
+  const firstLegId = (firstLeg as any)?.id ?? null;
+  try {
+    await add.mutateAsync({
+      account_id: p.toAccountId,
+      category_id: null,
+      amount: num,
+      date: p.date,
+      note: p.noteTo ?? 'Virement interne',
+      linked_account_id: p.fromAccountId,
+      ...common,
+    });
+  } catch (legErr) {
+    if (firstLegId) { try { await del.mutateAsync(firstLegId); } catch { /* best-effort */ } }
+    throw legErr;
+  }
+}
+
 /** Libère (supprime) tous les brouillons « Conservés » (is_reserved) d'un projet. */
 export function useReleaseReservedByProject(profileId: string | undefined) {
   const client = useQueryClient();
@@ -477,7 +536,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
 
       // Recalcul de l'allocation mensuelle en mode "Date cible" si suppression d'un débit projet
       if (projectId && txAmount < 0) {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localTodayISO();
         const { data: project } = await supabase
           .from('projects')
           .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day, name')

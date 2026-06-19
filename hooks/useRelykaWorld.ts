@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export interface RwProject {
   id: string; owner_id: string; name: string; emoji: string; description: string; currency: string; created_at: string;
+  archived_at?: string | null;
 }
 export interface RwParticipant {
   id: string; project_id: string; user_id: string | null; display_name: string; created_at: string; pending?: boolean;
@@ -151,13 +152,50 @@ export function useUpdateRwProject(projectId: string | undefined) {
 
 export function useDeleteRwProject(userId: string | undefined) {
   const qc = useQueryClient();
+  const delTx = useDeleteTransaction(userId);
   return useMutation({
     mutationFn: async (projectId: string) => {
       if (!supabase) throw new Error('Backend indisponible');
+      // Avant de supprimer le projet, nettoyer MES propres transactions réelles liées (réversion
+      // du solde via useDeleteTransaction). On ne peut/doit toucher que les nôtres (created_by = moi) ;
+      // les autres participants gèrent les leurs (RLS). La suppression n'est de toute façon proposée
+      // que si AUCUNE transaction du projet n'est encore passée (cf. garde côté UI).
+      const { data: myExpenses } = await supabase
+        .from('rw_expenses')
+        .select('transaction_id')
+        .eq('project_id', projectId)
+        .eq('created_by', userId)
+        .not('transaction_id', 'is', null);
+      for (const e of (myExpenses ?? []) as Array<{ transaction_id: string | null }>) {
+        if (e.transaction_id) { try { await delTx.mutateAsync(e.transaction_id); } catch { /* déjà supprimée */ } }
+      }
       const { error } = await supabase.from('rw_projects').delete().eq('id', projectId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rw_projects'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rw_projects'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+    },
+  });
+}
+
+/** Archive / désarchive un projet partagé (réservé au propriétaire via RLS). */
+export function useSetRwProjectArchived(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { projectId: string; archived: boolean }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase
+        .from('rw_projects')
+        .update({ archived_at: input.archived ? new Date().toISOString() : null })
+        .eq('id', input.projectId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['rw_projects'] });
+      qc.invalidateQueries({ queryKey: ['rw_project', v.projectId] });
+    },
   });
 }
 

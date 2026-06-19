@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
-import { useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/useTransactions';
+import { createTransferLegs, useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/useTransactions';
 import { computeContributed } from '../../../lib/contributed';
 import { useResetPreSaving } from '../../../hooks/usePreSavings';
 import ScreenHeader from '../../../components/ScreenHeader';
@@ -119,39 +119,20 @@ export default function TransferScreen() {
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
 
-    // Atomicité : un virement = 2 jambes. Si la 2ᵉ échoue, on annule la 1ʳᵉ (réversion solde
-    // via useDeleteTransaction) pour ne jamais laisser un virement à une seule jambe.
-    let firstLegId: string | null = null;
+    // Atomicité (2 jambes + rollback) centralisée dans createTransferLegs — logique unique
+    // partagée avec l'écran « Ajouter une transaction ».
     try {
-      const firstLeg = await addTransaction.mutateAsync({
-        account_id: fromAccountId,
-        category_id: null,
-        amount: -Math.abs(num),
+      await createTransferLegs(addTransaction, deleteTransaction, {
+        fromAccountId,
+        toAccountId,
+        amount: num,
         date,
-        note: note || 'Virement interne',
-        linked_account_id: toAccountId,
-        is_recurring: isRecurring,
-        recurrence_rule: isRecurring ? recurrenceRule : null,
-        recurrence_end_date: endDateISO,
+        noteFrom: note || 'Virement interne',
+        noteTo: note || 'Virement interne',
+        isRecurring,
+        recurrenceRule,
+        recurrenceEndDate: endDateISO,
       });
-      firstLegId = (firstLeg as any)?.id ?? null;
-      try {
-        await addTransaction.mutateAsync({
-          account_id: toAccountId,
-          category_id: null,
-          amount: Math.abs(num),
-          date,
-          note: note || 'Virement interne',
-          linked_account_id: fromAccountId,
-          is_recurring: isRecurring,
-          recurrence_rule: isRecurring ? recurrenceRule : null,
-          recurrence_end_date: endDateISO,
-        });
-      } catch (legErr) {
-        // Rollback de la 1ʳᵉ jambe (aucune jambe paire encore → simple réversion de son solde).
-        if (firstLegId) { try { await deleteTransaction.mutateAsync(firstLegId); } catch { /* best-effort */ } }
-        throw legErr;
-      }
       // L'apport « actuel » est dérivé des transactions (cf. computeContributed) :
       // l'ajout/suppression d'un virement est donc automatiquement répercuté, rien à mettre à jour ici.
 

@@ -23,6 +23,12 @@ interface AccountLike {
   initial_contributed?: number | null;
 }
 
+/** Date du jour (locale) au format YYYY-MM-DD — même référentiel que le solde « à date ». */
+function localTodayISO(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
 export function computeContributed(
   account: AccountLike,
   txs: TxLike[],
@@ -30,8 +36,12 @@ export function computeContributed(
 ): number | null {
   if (account.type !== 'investment') return null;
 
+  // Apport « actuel » = à date : on ne compte que les mouvements ÉCHUS (date ≤ aujourd'hui),
+  // exactement comme le solde du compte. Inclure des apports/virements datés dans le futur
+  // surévaluerait l'apport (l'argent n'est pas encore entré).
+  const today = localTodayISO();
   const accTxs = txs
-    .filter((t) => t.account_id === account.id && !t.is_draft)
+    .filter((t) => t.account_id === account.id && !t.is_draft && t.date <= today)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const sumAll = accTxs.reduce((s, t) => s + Number(t.amount), 0);

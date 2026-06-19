@@ -14,9 +14,10 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
+import { todayISO } from '../../../../lib/dateUtils';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
-  useDeleteRwProject, useUpdateRwProject, useRwRealtime, computeBalances, settleUp, type RwExpense,
+  useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime, computeBalances, settleUp, type RwExpense,
 } from '../../../../hooks/useRelykaWorld';
 
 const PROJ_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
@@ -38,6 +39,7 @@ export default function RelykaWorldDetail() {
   const inviteByCode = useRwInviteByCode(projectId);
   const addParticipant = useAddRwParticipant(projectId);
   const deleteProject = useDeleteRwProject(user?.id);
+  const setArchived = useSetRwProjectArchived(user?.id);
   const updateProject = useUpdateRwProject(projectId);
 
   const project = projData?.project;
@@ -45,6 +47,16 @@ export default function RelykaWorldDetail() {
   const expenses = expData?.expenses ?? [];
   const shares = expData?.shares ?? [];
   const isOwner = project?.owner_id === user?.id;
+  const isArchived = !!project?.archived_at;
+  // On ne connaît la réponse qu'une fois les dépenses chargées : tant qu'elles ne le sont pas,
+  // on n'affiche PAS « Supprimer » (évite toute suppression dans la fenêtre de chargement).
+  const expensesReady = expData !== undefined;
+  // Une dépense a impacté un VRAI compte dès qu'elle est payée via un compte (account_id) ET échue
+  // (date ≤ aujourd'hui). Visible pour tous les payeurs (RLS). Si ≥1 → suppression interdite.
+  const hasPostedRealTx = useMemo(() => {
+    const today = todayISO();
+    return expenses.some((e) => e.account_id != null && e.date <= today);
+  }, [expenses]);
 
   const [tab, setTab] = useState<'expenses' | 'balances'>('expenses');
   const [showInvite, setShowInvite] = useState(false);
@@ -99,9 +111,20 @@ export default function RelykaWorldDetail() {
   };
 
   const confirmDeleteProject = () => {
-    Alert.alert('Supprimer le projet', 'Tout le projet et ses dépenses seront supprimés pour tous les participants.', [
+    Alert.alert('Supprimer le projet', 'Tout le projet et ses dépenses seront supprimés pour tous les participants. Vos transactions liées sur vos comptes seront aussi retirées (le solde est rétabli).', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteProject.mutateAsync(projectId!); goBack(); } },
+    ]);
+  };
+
+  const onToggleArchive = () => {
+    if (isArchived) {
+      setArchived.mutate({ projectId: projectId!, archived: false });
+      return;
+    }
+    Alert.alert('Archiver le projet', 'Le projet sera masqué de la liste active mais conservé tel quel (dépenses, transactions et historique intacts). Vous pourrez le désarchiver à tout moment.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Archiver', onPress: async () => { await setArchived.mutateAsync({ projectId: projectId!, archived: true }); goBack(); } },
     ]);
   };
 
@@ -131,12 +154,37 @@ export default function RelykaWorldDetail() {
                 <Ionicons name="create-outline" size={18} color={COLORS.text} />
               </TouchableOpacity>
             )}
-            {isOwner && (
-              <TouchableOpacity style={styles.deleteProjBtn} onPress={confirmDeleteProject} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
-              </TouchableOpacity>
-            )}
           </View>
+
+          {/* Actions propriétaire : archiver (toujours) + supprimer (seulement si aucune dépense
+              n'a encore impacté un compte réel). Boutons clairs et libellés. */}
+          {isOwner && (
+            <>
+              {isArchived && (
+                <View style={styles.archivedBadge}>
+                  <Ionicons name="archive" size={14} color="#f59e0b" />
+                  <Text style={styles.archivedBadgeText}>Projet archivé</Text>
+                </View>
+              )}
+              <View style={styles.ownerActionsRow}>
+                <TouchableOpacity style={styles.archiveActionBtn} onPress={onToggleArchive} activeOpacity={0.85} disabled={setArchived.isPending}>
+                  <Ionicons name={isArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color="#f59e0b" />
+                  <Text style={styles.archiveActionText}>{isArchived ? 'Désarchiver' : 'Archiver'}</Text>
+                </TouchableOpacity>
+                {!isArchived && expensesReady && !hasPostedRealTx && (
+                  <TouchableOpacity style={styles.deleteActionBtn} onPress={confirmDeleteProject} activeOpacity={0.85} disabled={deleteProject.isPending}>
+                    <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+                    <Text style={styles.deleteActionText}>Supprimer</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {!isArchived && hasPostedRealTx && (
+                <Text style={styles.archiveHint}>
+                  Des dépenses de ce projet ont déjà impacté un compte. Il ne peut plus être supprimé — vous pouvez l'archiver.
+                </Text>
+              )}
+            </>
+          )}
 
           {/* Onglets */}
           <View style={styles.tabs}>
@@ -292,7 +340,14 @@ function makeStyles(c: any) {
     inviteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#3b82f6' + '1A', borderWidth: 1, borderColor: '#3b82f6' + '55', borderRadius: 999, paddingVertical: 10 },
     inviteBtnText: { fontSize: 13, fontWeight: '700', color: '#3b82f6' },
     editProjBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
-    deleteProjBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.danger + '14' },
+    archivedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#f59e0b' + '1A', borderWidth: 1, borderColor: '#f59e0b' + '55', borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12, marginBottom: 10 },
+    archivedBadgeText: { fontSize: 12, fontWeight: '800', color: '#f59e0b' },
+    ownerActionsRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    archiveActionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#f59e0b' + '14', borderWidth: 1, borderColor: '#f59e0b' + '55', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
+    archiveActionText: { fontSize: 14, fontWeight: '700', color: '#f59e0b' },
+    deleteActionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '55', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
+    deleteActionText: { fontSize: 14, fontWeight: '700', color: c.danger },
+    archiveHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginBottom: 12 },
     editEmojiPick: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, marginRight: 8 },
     tabs: { flexDirection: 'row', backgroundColor: c.card, borderRadius: 12, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: c.cardBorder },
     tab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 9 },
