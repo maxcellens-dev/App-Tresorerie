@@ -23,7 +23,9 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
   const { showAds } = usePlan(user?.id);
   const { data } = useAdsConfig();
 
-  const banners = (data?.banners ?? []).filter((b) => bannerPlacements(b).includes(placement));
+  // Masquage global (admin) → aucune bannière. Sinon on exclut les bannières masquées une à une.
+  const adsDisabled = !!data?.disabled;
+  const banners = adsDisabled ? [] : (data?.banners ?? []).filter((b) => !b.hidden && bannerPlacements(b).includes(placement));
   const count = banners.length;
   const rotationMs = Math.max(2, data?.rotation_seconds ?? 6) * 1000;
   // Opacité globale des bannières (réglable en admin).

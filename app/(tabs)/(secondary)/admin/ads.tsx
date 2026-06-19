@@ -37,6 +37,7 @@ export default function AdminAds() {
   const [banners, setBanners] = useState<AdBanner[] | null>(null);
   const [rotation, setRotation] = useState('6');
   const [opacity, setOpacity] = useState('100');
+  const [disabled, setDisabled] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   // Emplacements repliés par défaut (résumé sur 1 ligne) → carte bannière compacte.
@@ -57,6 +58,7 @@ export default function AdminAds() {
       setBanners(loaded.banners);
       setRotation(String(loaded.rotation_seconds ?? 6));
       setOpacity(String(loaded.opacity ?? 100));
+      setDisabled(loaded.disabled ?? false);
     }
   }, [loaded]);
 
@@ -95,7 +97,7 @@ export default function AdminAds() {
   async function persist() {
     if (!banners) return;
     setMsg(null);
-    try { await save.mutateAsync({ banners, rotation_seconds: Math.max(2, Number(rotation) || 6), opacity: Math.max(0, Math.min(100, Math.round(Number(opacity)) || 100)) }); setMsg('Enregistré ✓'); }
+    try { await save.mutateAsync({ banners, rotation_seconds: Math.max(2, Number(rotation) || 6), opacity: Math.max(0, Math.min(100, Math.round(Number(opacity)) || 100)), disabled }); setMsg('Enregistré ✓'); }
     catch (e: unknown) { setMsg(e instanceof Error ? e.message : 'Erreur'); }
   }
 
@@ -111,6 +113,22 @@ export default function AdminAds() {
         <Text style={styles.sub}>Affichées dans les zones de pub si le flag « Publicités » est activé (et masquées pour les Premium). Plusieurs bannières au même emplacement défilent en fondu enchaîné.</Text>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+          {/* Masquage global — retire toutes les pubs sans rien supprimer */}
+          <TouchableOpacity
+            style={[styles.card, styles.globalToggle, disabled && { borderColor: COLORS.danger }]}
+            activeOpacity={0.8}
+            onPress={() => setDisabled((v) => !v)}
+          >
+            <Ionicons name={disabled ? 'eye-off' : 'eye'} size={20} color={disabled ? COLORS.danger : COLORS.emerald} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{disabled ? 'Publicités masquées' : 'Publicités affichées'}</Text>
+              <Text style={styles.hintInline}>{disabled ? 'Toutes les bannières sont retirées (rien n\'est supprimé).' : 'Touchez pour masquer toutes les bannières d\'un coup.'}</Text>
+            </View>
+            <View style={[styles.switchTrack, disabled && { backgroundColor: COLORS.danger }]}>
+              <View style={[styles.switchThumb, disabled && { alignSelf: 'flex-start' }]} />
+            </View>
+          </TouchableOpacity>
+
           {/* Durée d'affichage avant fondu */}
           <View style={styles.card}>
             <Text style={styles.label}>Durée d'affichage avant changement (secondes)</Text>
@@ -137,10 +155,18 @@ export default function AdminAds() {
           </View>
 
           {banners.map((b, i) => (
-            <View key={b.id} style={styles.card}>
+            <View key={b.id} style={[styles.card, b.hidden && styles.cardHidden]}>
               <View style={styles.rowBetween}>
-                <Text style={styles.cardTitle}>Bannière {i + 1}</Text>
-                <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <Text style={styles.cardTitle}>Bannière {i + 1}</Text>
+                  {b.hidden && <Text style={styles.hiddenTag}>Masquée</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  <TouchableOpacity onPress={() => update(i, { hidden: !b.hidden })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name={b.hidden ? 'eye-off-outline' : 'eye-outline'} size={18} color={b.hidden ? COLORS.danger : COLORS.emerald} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                </View>
               </View>
               {/* En-tête repliable : résumé des emplacements sur 1 ligne (compact). */}
               <TouchableOpacity style={styles.placementToggle} onPress={() => setOpenPlacements((s) => ({ ...s, [b.id]: !s[b.id] }))} activeOpacity={0.7}>
@@ -212,6 +238,11 @@ function makeStyles(c: any) {
     title: { fontSize: 22, fontWeight: '800', color: c.text },
     sub: { fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
+    cardHidden: { opacity: 0.55 },
+    globalToggle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    switchTrack: { width: 44, height: 26, borderRadius: 13, backgroundColor: c.emerald, padding: 3, justifyContent: 'center' },
+    switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', alignSelf: 'flex-end' },
+    hiddenTag: { fontSize: 10, fontWeight: '800', color: c.danger, textTransform: 'uppercase', letterSpacing: 0.5, borderWidth: 1, borderColor: c.danger, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
     opacityValue: { fontSize: 14, fontWeight: '800', color: c.emerald },

@@ -34,6 +34,8 @@ export interface AdBanner {
   placements?: AdPlacement[];
   /** @deprecated Ancien champ mono-page — conservé pour rétrocompat (lu via bannerPlacements). */
   placement?: AdPlacement;
+  /** Bannière masquée (retrait temporaire sans suppression). */
+  hidden?: boolean;
 }
 
 /** Pages ciblées par une bannière (gère la rétrocompat mono-page → liste). */
@@ -47,6 +49,8 @@ export interface AdsConfig {
   rotation_seconds?: number;
   /** Opacité globale des bannières (0–100 %, défaut 100). Gérée en admin. */
   opacity?: number;
+  /** Masque TOUTES les bannières (retrait temporaire global sans suppression). */
+  disabled?: boolean;
 }
 
 const KEY = 'ads_config';
@@ -58,7 +62,7 @@ export function useAdsConfig() {
       if (!supabase) return { banners: [] };
       const { data } = await supabase.from('app_config').select('ads').eq('id', 'default').maybeSingle();
       const ads = (data as any)?.ads as AdsConfig | undefined;
-      return { banners: ads?.banners ?? [], rotation_seconds: ads?.rotation_seconds ?? 6, opacity: ads?.opacity ?? 100 };
+      return { banners: ads?.banners ?? [], rotation_seconds: ads?.rotation_seconds ?? 6, opacity: ads?.opacity ?? 100, disabled: ads?.disabled ?? false };
     },
     staleTime: 5 * 60 * 1000,
   });
