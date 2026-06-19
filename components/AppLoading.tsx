@@ -1,11 +1,13 @@
 /**
  * AppLoading — écran de chargement animé affiché pendant la résolution de la session / du profil.
- * Lit le dernier theme_mode connu (cache AsyncStorage) pour adapter les couleurs dès le lancement.
- * Le premier lancement (aucun cache) affiche le thème sombre par défaut.
+ * Écran PRÉ-AUTH : suit le thème admin global (app_config.landing.theme), comme la vitrine /
+ * la page de connexion — jamais le choix de l'utilisateur. Sombre par défaut tant que la config
+ * n'est pas chargée (1ère requête).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { View, Image, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { getCachedThemeMode, loadThemeMode } from '../lib/themeCache';
+import { useLandingConfig } from '../hooks/useLandingConfig';
+import { getCachedAdminTheme } from '../lib/themeBoot';
 
 const ACCENT = '#00B67A';
 // Fond sombre : accordé au splash natif (#0D2E2A) pour une transition invisible.
@@ -14,16 +16,12 @@ const BG_DARK = '#0D2E2A';
 const BG_LIGHT = '#F4EFE6';
 
 export default function AppLoading() {
-  const [mode, setMode] = useState<string>(getCachedThemeMode() ?? 'dark');
+  const { data: landing } = useLandingConfig();
+  // Avant la réponse réseau : dernier thème admin connu (localStorage web) → pas de flash sombre.
+  const mode = landing?.theme ?? getCachedAdminTheme() ?? 'dark';
 
   const pulse = useRef(new Animated.Value(0)).current;
   const spin = useRef(new Animated.Value(0)).current;
-
-  // Charge le mode persisté dès le montage (< 100 ms) ; met à jour si différent du défaut.
-  useEffect(() => {
-    loadThemeMode().then((m) => { if (m && m !== mode) setMode(m); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     const p = Animated.loop(

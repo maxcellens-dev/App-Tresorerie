@@ -12,7 +12,6 @@ import ScreenGradient from '../../../../components/ScreenGradient';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/useAppColors';
-import { useNavBack } from '../../../../hooks/useNavBack';
 import { useAccounts } from '../../../../hooks/useAccounts';
 import { useCategories } from '../../../../hooks/useCategories';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
@@ -27,11 +26,18 @@ export default function AddRwExpense() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const router = useRouter();
-  const goBack = useNavBack();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ projectId: string; expenseId?: string }>();
   const projectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const expenseId = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
+
+  // Retour vers le projet : on dépile l'écran d'ajout pour RÉVÉLER l'instance [id] déjà montée
+  // (router.back) — pas de remontage (donc pas de re-souscription realtime), et on retombe
+  // toujours sur le projet, jamais sur le Pilotage. Repli explicite si pile vide (ouverture directe).
+  const backToProject = React.useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace(`/(tabs)/(secondary)/relyka-world/${projectId}` as any);
+  }, [router, projectId]);
 
   const { data: projData } = useRwProject(projectId);
   const { data: expData } = useRwExpenses(projectId);
@@ -46,7 +52,10 @@ export default function AddRwExpense() {
     if (!editing) return;
     Alert.alert('Supprimer la dépense', 'Cette dépense (et la transaction liée à ton compte) sera supprimée.', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteExpense.mutateAsync(editing); goBack(); } },
+      { text: 'Supprimer', style: 'destructive', onPress: async () => {
+        try { await deleteExpense.mutateAsync(editing); backToProject(); }
+        catch (e: any) { Alert.alert('Erreur', e?.message ?? 'Suppression impossible. Réessaie.'); }
+      } },
     ]);
   };
   // Catégorie « Projets » (comme une transaction de projet classique).
@@ -115,7 +124,7 @@ export default function AddRwExpense() {
       };
       if (editing) await updateExpense.mutateAsync({ expense: editing, ...common, iAmPayer: !!paidByMe });
       else await addExpense.mutateAsync(common);
-      goBack();
+      backToProject();
     } catch (e: any) {
       Alert.alert('Erreur', e?.message ?? 'Impossible d\'enregistrer la dépense. Vérifie ta connexion et réessaie.');
     } finally {
@@ -128,7 +137,7 @@ export default function AddRwExpense() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <ScreenHeader title={editing ? 'Modifier la dépense' : 'Ajouter une dépense'} onBack={goBack} />
+        <ScreenHeader title={editing ? 'Modifier la dépense' : 'Ajouter une dépense'} onBack={backToProject} />
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.label}>Icône</Text>

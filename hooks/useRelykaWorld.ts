@@ -319,8 +319,14 @@ export function useRwRealtime(projectId: string | undefined) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!supabase || !projectId) return;
-    const channel = supabase
-      .channel(`rw_${projectId}`)
+    const client = supabase;
+    // Nom de canal UNIQUE par montage. Si l'écran est remonté (ex. retour après ajout d'une
+    // dépense) avant la fin du nettoyage asynchrone du canal précédent, un nom partagé ferait
+    // renvoyer par `.channel()` le canal DÉJÀ souscrit → `.on()` lève « cannot add
+    // postgres_changes callbacks after subscribe() » (écran blanc). Un suffixe aléatoire élimine
+    // toute collision de topic ; le `removeChannel` du cleanup ferme bien chaque instance.
+    const channel = client.channel(`rw_${projectId}_${Math.random().toString(36).slice(2)}`);
+    channel
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rw_expenses', filter: `project_id=eq.${projectId}` },
         () => qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rw_expense_shares', filter: `project_id=eq.${projectId}` },
@@ -328,6 +334,6 @@ export function useRwRealtime(projectId: string | undefined) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rw_participants', filter: `project_id=eq.${projectId}` },
         () => qc.invalidateQueries({ queryKey: ['rw_project', projectId] }))
       .subscribe();
-    return () => { supabase!.removeChannel(channel); };
+    return () => { client.removeChannel(channel); };
   }, [projectId, qc]);
 }

@@ -20,8 +20,13 @@ export function useProfile(profileId: string | undefined) {
         .from('profiles')
         .select('*')
         .eq('id', profileId)
-        .single();
-      if (error || !data) return null;
+        .maybeSingle();
+      // IMPORTANT : ne PAS confondre « échec de lecture » et « profil absent ».
+      // Juste après une reconnexion, le token peut ne pas être encore propagé → le SELECT
+      // échoue. En renvoyant null on enverrait à tort l'utilisateur vers /setup (questionnaire).
+      // On relance donc l'erreur : react-query réessaie et expose isError (≠ data null).
+      if (error) throw error;
+      if (!data) return null; // aucune ligne → profil réellement inexistant (nouvel utilisateur)
 
       const financial_profile = (data as { financial_profile?: FinancialProfile }).financial_profile ?? 'suivi';
       const defaultAlloc = DEFAULT_ALLOCATIONS[financial_profile];

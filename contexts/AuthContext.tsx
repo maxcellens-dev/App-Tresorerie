@@ -6,6 +6,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useQueryClient } from '@tanstack/react-query';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { clearCachedUserTheme } from '../lib/themeBoot';
 
 type AuthState = {
   user: User | null;
@@ -72,6 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Vide le cache des requêtes : évite qu'une donnée périmée d'une session précédente
     // (ex. profil financier null) ne fausse la redirection de la session suivante.
     queryClient.clear();
+    // Oublie le thème utilisateur mémorisé → le prochain rendu (pré-auth) reprend le thème admin.
+    clearCachedUserTheme();
   }, [queryClient]);
 
   const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);

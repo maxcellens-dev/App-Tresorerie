@@ -8,12 +8,14 @@
 import { useMemo } from 'react';
 import { useStyleConfig } from './useStyleConfig';
 import { useLandingConfig } from './useLandingConfig';
+import { getCachedAdminTheme } from '../lib/themeBoot';
 import { buildColors, type AppColors, type ThemeMode } from '../theme/palette';
 
 export function useBrandColors(): AppColors {
   const { data: styleConfig } = useStyleConfig();
   const { data: landing } = useLandingConfig();
-  const mode = (landing?.theme ?? 'dark') as ThemeMode;
+  // Avant la réponse réseau : dernier thème admin connu (localStorage web) → pas de flash sombre.
+  const mode = (landing?.theme ?? getCachedAdminTheme() ?? 'dark') as ThemeMode;
   return useMemo(
     () => buildColors(mode, 'emerald', {
       cardAlpha: mode === 'light' ? styleConfig?.light.card_alpha : styleConfig?.dark.card_alpha,

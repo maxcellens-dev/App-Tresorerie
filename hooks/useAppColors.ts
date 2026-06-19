@@ -8,7 +8,7 @@ import { useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { useStyleConfig } from './useStyleConfig';
-import { saveThemeMode } from '../lib/themeCache';
+import { getCachedUserTheme, setCachedUserTheme } from '../lib/themeBoot';
 import {
   buildColors, DEFAULT_MODE, DEFAULT_PRESET,
   type AppColors, type ThemeMode,
@@ -19,13 +19,16 @@ export function useAppColors(): AppColors {
   const { data: profile } = useProfile(user?.id);
   const { data: styleConfig } = useStyleConfig();
 
-  const mode = (profile?.theme_mode ?? DEFAULT_MODE) as ThemeMode;
-  const preset = (profile?.theme_preset ?? DEFAULT_PRESET) as string;
+  // Au rechargement web, le profil n'est pas encore chargé : on repart du dernier thème
+  // utilisateur mémorisé (localStorage) au lieu du défaut sombre → pas de flash de fond noir.
+  const cachedUser = getCachedUserTheme();
+  const mode = (profile?.theme_mode ?? cachedUser?.mode ?? DEFAULT_MODE) as ThemeMode;
+  const preset = (profile?.theme_preset ?? cachedUser?.preset ?? DEFAULT_PRESET) as string;
 
-  // Persiste le mode dès qu'il est connu → AppLoading peut l'utiliser au prochain lancement.
+  // Mémorise le thème dès qu'il est réellement connu (profil chargé) pour le prochain démarrage.
   useEffect(() => {
-    if (profile?.theme_mode) saveThemeMode(profile.theme_mode);
-  }, [profile?.theme_mode]);
+    if (profile?.theme_mode) setCachedUserTheme(profile.theme_mode, profile.theme_preset ?? DEFAULT_PRESET);
+  }, [profile?.theme_mode, profile?.theme_preset]);
 
   const cardAlpha = mode === 'light'
     ? styleConfig?.light.card_alpha

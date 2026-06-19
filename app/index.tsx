@@ -36,6 +36,10 @@ export default function Index() {
       hasFinancialProfile || fpUncertain || Boolean(profile?.financial_profile_questionnaire_completed);
 
     if (!profile) {
+      // Échec transitoire de lecture du profil (token pas encore propagé après reconnexion) :
+      // surtout NE PAS réinitialiser l'onboarding. On envoie sur l'accueil ; le profil se
+      // rechargera. Seul un vrai « profil absent » (data null, sans erreur) mène au questionnaire.
+      if (profileQuery.isError) return <Redirect href="/(tabs)/home" />;
       return <Redirect href="/setup" />;
     }
     if (!questionnaireDone) {

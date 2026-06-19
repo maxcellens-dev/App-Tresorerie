@@ -22,6 +22,9 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="mobile-web-app-capable" content="yes" />
 
         <ScrollViewStyleReset />
+        {/* AVANT toute peinture : applique le dernier thème admin connu (localStorage) au loader
+            statique → plus de flash sombre quand l'admin a paramétré le thème clair. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_THEME_JS }} />
         <style dangerouslySetInnerHTML={{ __html: LOCK_VIEWPORT_CSS }} />
         <style dangerouslySetInnerHTML={{ __html: BOOT_LOADER_CSS }} />
       </head>
@@ -58,11 +61,36 @@ html, body, #root {
 }
 `;
 
+// Lit le dernier thème connu (clés alignées sur lib/themeBoot.ts) et fixe les variables CSS du
+// loader AVANT la première peinture. Priorité au thème UTILISATEUR (refresh d'une page connectée),
+// repli sur le thème ADMIN (pré-auth), puis défaut sombre (1ère visite / natif).
+const BOOT_THEME_JS = `
+(function () {
+  function mode() {
+    try {
+      var u = localStorage.getItem('relyka.user.theme');
+      if (u) { var m = JSON.parse(u).mode; if (m === 'light' || m === 'dark') return m; }
+    } catch (e) {}
+    try {
+      var a = localStorage.getItem('relyka.admin.theme');
+      if (a === 'light' || a === 'dark') return a;
+    } catch (e) {}
+    return 'dark';
+  }
+  try {
+    var light = mode() === 'light';
+    var r = document.documentElement.style;
+    r.setProperty('--boot-bg', light ? '#F4EFE6' : '#0D2E2A');
+    r.setProperty('--boot-fg', light ? '#191C1F' : '#fff');
+  } catch (e) {}
+})();
+`;
+
 // Loader affiché immédiatement (HTML statique) le temps que le bundle JS charge et que React monte.
 // Visuellement identique au composant AppLoading → transition invisible.
 const BOOT_LOADER_CSS = `
 #app-boot {
-  position: fixed; inset: 0; z-index: 99999; background: #0D2E2A;
+  position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #0D2E2A);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   transition: opacity .4s ease;
 }
@@ -72,7 +100,7 @@ const BOOT_LOADER_CSS = `
   animation: bootPulse 1.7s ease-in-out infinite;
 }
 #app-boot .boot-brand {
-  margin-top: 22px; color: #fff; font-weight: 800; letter-spacing: .5px; font-size: 22px;
+  margin-top: 22px; color: var(--boot-fg, #fff); font-weight: 800; letter-spacing: .5px; font-size: 22px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 #app-boot .boot-ring {
