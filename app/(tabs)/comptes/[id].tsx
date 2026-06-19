@@ -320,7 +320,7 @@ export default function AccountDetailScreen() {
     // Pour remonter à la date de référence, on ne retire donc que les transactions
     // réellement portées au solde, c.-à-d. comprises entre la date de réf. et aujourd'hui.
     // (Les transactions FUTURES ne sont pas dans le solde → ne pas les réintégrer.)
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const afterDate = (transactions as TransactionWithDetails[]).filter(
       (t) => t.account_id === id && !(t as any).is_draft && !(t as any).is_recurring
         && t.date > balanceDate && t.date <= today
@@ -331,7 +331,7 @@ export default function AccountDetailScreen() {
 
   const accountTransactions = useMemo(() => {
     if (!id) return [];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const allTx = transactions as TransactionWithDetails[];
     return allTx
       .filter((t) => t.account_id === id && !(t as any).is_draft && t.date <= today)
@@ -644,7 +644,7 @@ export default function AccountDetailScreen() {
             </View>
             <CalendarWithPicker
               current={balanceDate}
-              maxDate={new Date().toISOString().slice(0, 10)}
+              maxDate={todayISO()}
               onDayPress={(day: any) => {
                 setBalanceDate(day.dateString);
                 setBalanceDateDisplay(formatDateFrench(day.dateString));
@@ -877,7 +877,7 @@ export default function AccountDetailScreen() {
             </View>
             <CalendarWithPicker
               current={apportDate}
-              maxDate={new Date().toISOString().slice(0, 10)}
+              maxDate={todayISO()}
               onDayPress={(day: any) => {
                 setApportDate(day.dateString);
                 setApportDateDisplay(formatDateFrench(day.dateString));
@@ -905,7 +905,7 @@ export default function AccountDetailScreen() {
             </View>
             <CalendarWithPicker
               current={gainLossDate}
-              maxDate={new Date().toISOString().slice(0, 10)}
+              maxDate={todayISO()}
               onDayPress={(day: any) => {
                 setGainLossDate(day.dateString);
                 setGainLossDateDisplay(formatDateFrench(day.dateString));
@@ -1033,7 +1033,7 @@ export default function AccountDetailScreen() {
             </View>
             <CalendarWithPicker
               current={interestDate}
-              maxDate={new Date().toISOString().slice(0, 10)}
+              maxDate={todayISO()}
               onDayPress={(day: any) => {
                 setInterestDate(day.dateString);
                 setInterestDateDisplay(formatDateFrench(day.dateString));
