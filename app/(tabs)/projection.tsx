@@ -188,7 +188,13 @@ export default function ProjectionScreen() {
   // Apport repris dans l'hypothèse = « apport actuel » dérivé des transactions (apports + virements − retraits au prorata).
   // À défaut (aucun apport de base défini), on retombe sur la valeur du compte.
   const autoContributedFor = React.useCallback((acc: { id: string; balance: number; initialContributed: number | null }) => {
-    const derived = computeContributed({ id: acc.id, type: 'investment', balance: acc.balance, initial_contributed: acc.initialContributed }, transactions as any);
+    // estimateBaseWhenMissing : sans apport de création défini, l'apport est estimé en EXCLUANT
+    // les +/- values (sinon le repli sur le solde gonflerait l'apport des plus-values latentes).
+    const derived = computeContributed(
+      { id: acc.id, type: 'investment', balance: acc.balance, initial_contributed: acc.initialContributed },
+      transactions as any,
+      { estimateBaseWhenMissing: true },
+    );
     return derived != null ? derived : acc.balance;
   }, [transactions]);
 
@@ -217,6 +223,16 @@ export default function ProjectionScreen() {
           rate: '7',
           tax: String(taxRateFor(fiscalRates, acc.envelope)),
         };
+      } else if (acc.initialContributed == null) {
+        // Correction des projections enregistrées avec l'ancien repli (apport = solde, +/- values
+        // incluses). On ne recalcule QUE si la valeur n'a pas été éditée à la main (= encore égale
+        // à la base auto précédente) → on ne touche jamais à une saisie volontaire de l'utilisateur.
+        const h = initialHypos[acc.id];
+        const looksAuto = h.contributedBase != null && Math.round(num(h.contributed)) === Math.round(h.contributedBase);
+        if (looksAuto) {
+          const auto = autoContributedFor(acc);
+          initialHypos[acc.id] = { ...h, contributed: String(Math.round(auto)), contributedBase: auto };
+        }
       }
     }
     setHypos(initialHypos);
@@ -402,7 +418,10 @@ export default function ProjectionScreen() {
     if (investAccountIds.size === 0) return 0;
     const yearStart = `${currentYear}-01-01`;
     return (transactions as any[])
-      .filter((t) => t.account_id && investAccountIds.has(t.account_id) && !t.is_draft && Number(t.amount) > 0 && t.date >= yearStart)
+      // Apports & virements UNIQUEMENT (transfert lié ou note « apport ») : on exclut les +/- values
+      // enregistrées comme transactions positives, qui augmentent la valeur mais pas l'apport.
+      .filter((t) => t.account_id && investAccountIds.has(t.account_id) && !t.is_draft && Number(t.amount) > 0 && t.date >= yearStart
+        && (!!t.linked_account_id || /apport/i.test(t.note || '')))
       .reduce((s, t) => s + Number(t.amount), 0);
   }, [investAccounts, transactions, currentYear]);
 

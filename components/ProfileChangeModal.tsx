@@ -11,7 +11,11 @@ interface Props {
   userId: string | undefined;
 }
 
-function getTransitionKey(prev: string | null, next: string, reason: string): { transition: string; direction: 'upgrade' | 'downgrade' | 'exceptional' } | null {
+function getTransitionKey(prev: string | null, next: string, reason: string): { transition: string; direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same' } | null {
+  // Bilan mensuel : le profil n'a pas changé → message « maintien », clé = profil courant.
+  if (reason === 'monthly_recap') {
+    return { transition: next, direction: 'same' };
+  }
   if (reason === 'exceptional_revenue_drop') {
     if (!prev) return null;
     const prevNum = parseInt(prev.replace('P', ''));
@@ -40,6 +44,11 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
   'P4_P5|downgrade':  { title: '🚀 Votre profil évolue vers "Bonne dynamique"', body: 'Votre flux d\'investissement est passé en dessous du seuil.' },
   'exceptional_one|exceptional': { title: '⚠️ Profil ajusté suite à une baisse de revenus', body: 'Vos revenus des 2 derniers mois sont inférieurs à votre moyenne habituelle.' },
   'exceptional_two|exceptional': { title: '⚠️ Profil ajusté — aucun revenu détecté', body: 'Aucun revenu enregistré ces 2 derniers mois.' },
+  'P1|same': { title: '🌱 Toujours au profil "Premiers repères"', body: 'Ce mois-ci, votre profil reste inchangé. Continuez à constituer votre matelas de sécurité.' },
+  'P2|same': { title: '🌿 Toujours au profil "Réserve à construire"', body: 'Votre profil reste stable ce mois-ci. Poursuivez le renforcement de votre réserve.' },
+  'P3|same': { title: '⚖️ Toujours au profil "Stabilité à améliorer"', body: 'Votre situation reste stable ce mois-ci. Continuez sur cette lancée.' },
+  'P4|same': { title: '🚀 Toujours au profil "Bonne dynamique"', body: 'Votre profil reste solide ce mois-ci. Votre dynamique d\'investissement se confirme.' },
+  'P5|same': { title: '🎯 Toujours au profil "Patrimoine en développement"', body: 'Votre maturité financière se maintient ce mois-ci. Continuez à optimiser votre patrimoine.' },
 };
 
 export default function ProfileChangeModal({ userId }: Props) {
@@ -78,6 +87,7 @@ export default function ProfileChangeModal({ userId }: Props) {
 
   const isUpgrade = key?.direction === 'upgrade';
   const isDowngrade = key?.direction === 'downgrade';
+  const isSame = key?.direction === 'same';
   const accentColor = profileInfo?.color ?? COLORS.emerald;
 
   function handleClose() {
@@ -97,17 +107,17 @@ export default function ProfileChangeModal({ userId }: Props) {
 
             {/* Direction badge */}
             <View style={[styles.directionBadge, {
-              backgroundColor: isUpgrade ? '#1a2f1a' : isDowngrade ? '#2a1a1a' : '#1a1a2a',
+              backgroundColor: isUpgrade ? '#1a2f1a' : isDowngrade ? '#2a1a1a' : isSame ? '#16223a' : '#1a1a2a',
             }]}>
               <Ionicons
-                name={isUpgrade ? 'trending-up' : isDowngrade ? 'trending-down' : 'warning'}
+                name={isUpgrade ? 'trending-up' : isDowngrade ? 'trending-down' : isSame ? 'sync' : 'warning'}
                 size={16}
-                color={isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : '#f59e0b'}
+                color={isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : isSame ? '#60a5fa' : '#f59e0b'}
               />
               <Text style={[styles.directionText, {
-                color: isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : '#f59e0b',
+                color: isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : isSame ? '#60a5fa' : '#f59e0b',
               }]}>
-                {isUpgrade ? 'Progression' : isDowngrade ? 'Ajustement' : 'Alerte'}
+                {isUpgrade ? 'Progression' : isDowngrade ? 'Ajustement' : isSame ? 'Bilan du mois' : 'Alerte'}
               </Text>
             </View>
 
@@ -128,8 +138,8 @@ export default function ProfileChangeModal({ userId }: Props) {
             {/* Corps du message */}
             {!!body && <Text style={styles.body}>{body}</Text>}
 
-            {/* Transition */}
-            {pendingChange.previous_profile && (
+            {/* Transition (masquée pour un bilan « maintien » : pas de changement à montrer) */}
+            {pendingChange.previous_profile && !isSame && (
               <View style={styles.transitionRow}>
                 <Text style={styles.transitionFrom}>
                   {PROFILE_INFO[pendingChange.previous_profile as FinancialProfileId]?.emoji}

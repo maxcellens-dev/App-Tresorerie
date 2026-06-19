@@ -16,7 +16,8 @@ export type ChangeReason =
   | 'questionnaire_update'
   | 'automatic_upgrade'
   | 'automatic_downgrade'
-  | 'exceptional_revenue_drop';
+  | 'exceptional_revenue_drop'
+  | 'monthly_recap';
 
 export interface UserFinancialProfile {
   user_id: string;
@@ -79,7 +80,7 @@ export interface ProfileMatrixConfig {
 
 export interface ProfileNotificationMessage {
   transition: string;
-  direction: 'upgrade' | 'downgrade' | 'exceptional';
+  direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same';
   title: string;
   body: string;
   updated_at: string;

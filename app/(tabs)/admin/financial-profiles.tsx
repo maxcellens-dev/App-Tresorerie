@@ -52,6 +52,9 @@ const EXCEPTIONAL_TRANSITIONS = [
   { key: 'exceptional_two', label: 'Revenus nuls (−2 niveaux)' },
 ];
 
+// Messages de « maintien » (bilan mensuel quand le profil ne change pas) — un par profil.
+const MAINTAIN_TRANSITIONS = ALL_PROFILES.map((p) => ({ key: p, label: `${p} — maintien` }));
+
 // ── Simulation (admin) ──────────────────────────────────────────
 
 function SimulationSection({ userId }: { userId: string }) {
@@ -80,7 +83,7 @@ function SimulationSection({ userId }: { userId: string }) {
     ? null
     : parseInt(target.replace('P', '')) > currentNum ? 'upgrade' : 'downgrade';
 
-  const trigger = (t: FinancialProfileId, reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop') => {
+  const trigger = (t: FinancialProfileId, reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop' | 'monthly_recap') => {
     simulate.mutate({ target: t, reason }, {
       onSuccess: () => setTarget(null),
       onError: (e: any) => Alert.alert('Erreur', e?.message ?? 'Échec de la simulation.'),
@@ -176,6 +179,19 @@ function SimulationSection({ userId }: { userId: string }) {
           <Text style={styles.simExcText}>Revenus nuls (−2 niveaux → {exceptionalTarget(2)})</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Bilan mensuel — message « maintien » (le profil ne change pas) */}
+      <View style={styles.simCard}>
+        <Text style={styles.fieldLabel}>Bilan mensuel (même profil)</Text>
+        <TouchableOpacity
+          style={[styles.simMaintainBtn, simulate.isPending && { opacity: 0.5 }]}
+          disabled={simulate.isPending}
+          onPress={() => trigger(current, 'monthly_recap')}
+        >
+          <Ionicons name="sync-outline" size={16} color="#60a5fa" />
+          <Text style={styles.simExcText}>Message de maintien ({current})</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -196,16 +212,17 @@ function MessagesSection({ userId }: { userId: string }) {
     ...TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'upgrade' as const })),
     ...DOWNGRADE_TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'downgrade' as const })),
     ...EXCEPTIONAL_TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'exceptional' as const })),
+    ...MAINTAIN_TRANSITIONS.map(t => ({ key: t.key, label: t.label, direction: 'same' as const })),
   ];
 
-  function startEdit(transition: string, direction: 'upgrade' | 'downgrade' | 'exceptional') {
+  function startEdit(transition: string, direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same') {
     const msg = messages.find(m => m.transition === transition && m.direction === direction);
     setEditTitle(msg?.title ?? '');
     setEditBody(msg?.body ?? '');
     setEditing(`${transition}|${direction}`);
   }
 
-  async function handleSave(transition: string, direction: 'upgrade' | 'downgrade' | 'exceptional') {
+  async function handleSave(transition: string, direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same') {
     if (!editTitle.trim()) { Alert.alert('Titre requis'); return; }
     try {
       await updateMsg.mutateAsync({ transition, direction, title: editTitle.trim(), body: editBody.trim() });
@@ -224,14 +241,14 @@ function MessagesSection({ userId }: { userId: string }) {
         const msg = messages.find(m => m.transition === transition && m.direction === direction);
         const editKey = `${transition}|${direction}`;
         const isEditing = editing === editKey;
-        const dirColor = direction === 'upgrade' ? COLORS.emerald : direction === 'downgrade' ? '#f87171' : '#f59e0b';
+        const dirColor = direction === 'upgrade' ? COLORS.emerald : direction === 'downgrade' ? '#f87171' : direction === 'same' ? '#60a5fa' : '#f59e0b';
 
         return (
           <View key={editKey} style={styles.msgCard}>
             <View style={styles.msgHeader}>
               <View style={[styles.dirBadge, { backgroundColor: dirColor + '20' }]}>
                 <Text style={[styles.dirBadgeText, { color: dirColor }]}>
-                  {direction === 'upgrade' ? '↑ Montée' : direction === 'downgrade' ? '↓ Descente' : '⚠ Exceptionnel'}
+                  {direction === 'upgrade' ? '↑ Montée' : direction === 'downgrade' ? '↓ Descente' : direction === 'same' ? '↺ Maintien' : '⚠ Exceptionnel'}
                 </Text>
               </View>
               <Text style={styles.msgTransition}>{label}</Text>
@@ -634,6 +651,11 @@ function makeStyles(c: any) {
     paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#f59e0b12',
   },
   simExcText: { fontSize: 13, fontWeight: '600', color: c.text },
+  simMaintainBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: '#60a5fa55', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 11, backgroundColor: '#60a5fa12',
+  },
 
   // Formulaire commun
   editForm: { gap: 10 },

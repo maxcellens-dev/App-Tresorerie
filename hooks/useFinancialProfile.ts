@@ -366,6 +366,17 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
           allocation_keep_percent: alloc.keep,
           updated_at: now,
         }).eq('id', userId);
+      } else {
+        // Pas de changement ce mois-ci → « bilan mensuel » : on informe quand même l'utilisateur
+        // qu'il reste dans le même profil (uniquement après le gel, 1×/mois grâce aux gardes plus haut).
+        await supabase.from('profile_change_log').insert({
+          user_id: userId,
+          previous_profile: fp.profile_id,
+          new_profile: fp.profile_id,
+          change_reason: 'monthly_recap',
+          triggered_at: now,
+          notification_shown: false,
+        });
       }
 
       await supabase
@@ -396,7 +407,7 @@ export function useSimulateProfileChange(userId: string | undefined) {
       reason,
     }: {
       target: FinancialProfileId;
-      reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop';
+      reason: 'automatic_upgrade' | 'automatic_downgrade' | 'exceptional_revenue_drop' | 'monthly_recap';
     }) => {
       if (!supabase || !userId) throw new Error('Non connecté');
       const now = new Date().toISOString();
@@ -463,7 +474,7 @@ export function useUpdateNotificationMessage(userId: string | undefined) {
       body,
     }: {
       transition: string;
-      direction: 'upgrade' | 'downgrade' | 'exceptional';
+      direction: 'upgrade' | 'downgrade' | 'exceptional' | 'same';
       title: string;
       body: string;
     }) => {

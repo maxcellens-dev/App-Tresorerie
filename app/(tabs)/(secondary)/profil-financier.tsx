@@ -249,7 +249,7 @@ export default function ProfilFinancierScreen() {
                 )}
                 {isIrregular && (
                   <View style={styles.infoBox}>
-                    <Ionicons name="information-circle-outline" size={14} color="#60a5fa" />
+                    <Ionicons name="information-circle-outline" size={14} color={COLORS.teal} />
                     <Text style={styles.infoText}>
                       Revenus irréguliers détectés — calculs sur moyenne glissante.
                     </Text>
@@ -276,6 +276,9 @@ export default function ProfilFinancierScreen() {
                     </View>
                   );
                 })}
+                <Text style={styles.principleNote}>
+                  Après 6 mois d'utilisation, votre profil est réévalué chaque mois selon votre comportement (épargne, dépenses, revenus). Il peut monter, descendre ou rester le même — vous êtes informé à chaque bilan.
+                </Text>
               </View>
 
               <TouchableOpacity style={styles.editBtn} onPress={startEditing}>
@@ -460,7 +463,7 @@ function makeStyles(c: any) {
     flexDirection: 'row', gap: 8, alignItems: 'flex-start',
     backgroundColor: c.cardBorder, borderRadius: 10, padding: 10,
   },
-  infoText: { flex: 1, color: '#93c5fd', fontSize: 12, lineHeight: 16 },
+  infoText: { flex: 1, color: c.teal, fontSize: 12, lineHeight: 16 },
 
   // Récapitulatif des réponses
   answerRow: {
@@ -472,6 +475,7 @@ function makeStyles(c: any) {
 
   // Allocation
   sectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  principleNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 4, fontStyle: 'italic' },
   allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   allocLabel: { width: 110, fontSize: 13, color: c.text },
   allocBarContainer: { flex: 1, height: 6, backgroundColor: c.cardBorder, borderRadius: 3 },

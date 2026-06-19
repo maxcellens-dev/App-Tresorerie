@@ -23,10 +23,12 @@ interface AccountLike {
   initial_contributed?: number | null;
 }
 
-export function computeContributed(account: AccountLike, txs: TxLike[]): number | null {
+export function computeContributed(
+  account: AccountLike,
+  txs: TxLike[],
+  opts?: { estimateBaseWhenMissing?: boolean },
+): number | null {
   if (account.type !== 'investment') return null;
-  const base = account.initial_contributed;
-  if (base == null) return null;
 
   const accTxs = txs
     .filter((t) => t.account_id === account.id && !t.is_draft)
@@ -34,7 +36,18 @@ export function computeContributed(account: AccountLike, txs: TxLike[]): number 
 
   const sumAll = accTxs.reduce((s, t) => s + Number(t.amount), 0);
   // Valeur du compte avant toute transaction (solde actuel − somme des transactions).
-  let value = Number(account.balance) - sumAll;
+  const preTxValue = Number(account.balance) - sumAll;
+
+  let base = account.initial_contributed;
+  if (base == null) {
+    // Sans apport de base défini : « non suivi » par défaut (null). Avec l'option d'estimation,
+    // on considère la valeur AVANT toute transaction comme du capital apporté → les +/- values
+    // (mouvements ni apport ni retrait) n'augmentent jamais l'apport, seulement la valeur.
+    if (!opts?.estimateBaseWhenMissing) return null;
+    base = Math.max(0, preTxValue);
+  }
+
+  let value = preTxValue;
   let apport = base;
 
   for (const t of accTxs) {
