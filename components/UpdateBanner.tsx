@@ -9,7 +9,7 @@
  * Natif uniquement (le web est toujours à jour). La fermeture est mémorisée par version.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Linking, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -37,7 +37,8 @@ export default function UpdateBanner() {
   const styles = makeStyles(COLORS);
   const insets = useSafeAreaInsets();
   const { data: flags } = useFeatureFlags();
-  const slide = useRef(new Animated.Value(-200)).current;
+  const slide = useRef(new Animated.Value(-200)).current;   // vertical (show/hide + swipe haut)
+  const slideX = useRef(new Animated.Value(0)).current;     // horizontal (swipe latéral)
   const [dismissed, setDismissed] = useState(false);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
 
@@ -62,12 +63,13 @@ export default function UpdateBanner() {
   }, []);
 
   useEffect(() => {
+    if (shouldShow) slideX.setValue(0); // réaffichage centré (au cas où un swipe latéral l'a décalé)
     Animated.timing(slide, {
       toValue: shouldShow ? 0 : -200,
       duration: 280,
       useNativeDriver: true,
     }).start();
-  }, [shouldShow, slide]);
+  }, [shouldShow, slide, slideX]);
 
   if (Platform.OS === 'web' || (!required && !available)) return null;
 
@@ -84,10 +86,50 @@ export default function UpdateBanner() {
     AsyncStorage.setItem(DISMISS_KEY, targetVersion).catch(() => {});
   };
 
+  // Valeurs « fraîches » lues au moment du geste (le PanResponder est créé une seule fois).
+  const requiredRef = useRef(required);
+  const targetRef = useRef(targetVersion);
+  useEffect(() => { requiredRef.current = required; targetRef.current = targetVersion; });
+
+  // Swipe pour fermer (haut OU latéral), uniquement si la MAJ n'est PAS obligatoire.
+  const closeAndDismiss = (anim: Animated.CompositeAnimation) => {
+    anim.start(() => {
+      setDismissed(true);
+      AsyncStorage.setItem(DISMISS_KEY, targetRef.current).catch(() => {});
+    });
+  };
+  const panResponder = useRef(
+    PanResponder.create({
+      // On capture le geste dès qu'il bouge nettement vers le haut OU sur les côtés.
+      onMoveShouldSetPanResponder: (_e, g) =>
+        !requiredRef.current && (Math.abs(g.dx) > 8 || (g.dy < -6 && Math.abs(g.dy) > Math.abs(g.dx))),
+      onPanResponderMove: (_e, g) => {
+        // Axe dominant : horizontal → on suit le doigt latéralement ; vertical (vers le haut) sinon.
+        if (Math.abs(g.dx) > Math.abs(g.dy)) slideX.setValue(g.dx);
+        else if (g.dy < 0) slide.setValue(g.dy);
+      },
+      onPanResponderRelease: (_e, g) => {
+        const horizontal = Math.abs(g.dx) > Math.abs(g.dy);
+        if (horizontal && (Math.abs(g.dx) > 90 || Math.abs(g.vx) > 0.5)) {
+          // Sort sur le côté du geste.
+          const to = g.dx > 0 ? 600 : -600;
+          closeAndDismiss(Animated.timing(slideX, { toValue: to, duration: 180, useNativeDriver: true }));
+        } else if (!horizontal && (g.dy < -40 || g.vy < -0.5)) {
+          closeAndDismiss(Animated.timing(slide, { toValue: -240, duration: 180, useNativeDriver: true }));
+        } else {
+          // Pas assez loin → on remet en place (les deux axes).
+          Animated.spring(slideX, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+          Animated.spring(slide, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+        }
+      },
+    }),
+  ).current;
+
   return (
     <Animated.View
       pointerEvents="box-none"
-      style={[styles.wrap, { paddingTop: insets.top + 8, transform: [{ translateY: slide }] }]}
+      {...panResponder.panHandlers}
+      style={[styles.wrap, { paddingTop: insets.top + 8, transform: [{ translateY: slide }, { translateX: slideX }] }]}
     >
       <View style={styles.card}>
         <View style={styles.iconWrap}>

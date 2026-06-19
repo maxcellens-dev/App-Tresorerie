@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { View, StyleSheet, Platform, useWindowDimensions, LogBox } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import AnimatedSplash from '../components/AnimatedSplash';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import HeaderWithProfile from '../components/HeaderWithProfile';
 import { LEGAL_DESKTOP_MIN_WIDTH } from '../components/LegalLayout';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from '../lib/analytics';
-import { recordRoute } from '../lib/navHistory';
+import { recordRoute, consumePreviousRoute } from '../lib/navHistory';
 import ProfileChangeModal from '../components/ProfileChangeModal';
 import StreakRecoveryModal from '../components/StreakRecoveryModal';
 import FontApplier from '../components/FontApplier';
@@ -212,6 +212,27 @@ function AppChrome() {
       router.replace('/');
     }
   }, [loading, user, isTabs, root]);
+
+  // Bouton retour PHYSIQUE Android : retour FIABLE vers la page réellement précédente (via
+  // navHistory), au lieu du dépilage par défaut de la pile imbriquée qui atterrit sur une page
+  // obsolète ou Comptes. Même logique que le bouton « Retour » in-app (useNavBack).
+  const isAuthPageRef = useRef(isAuthPage);
+  isAuthPageRef.current = isAuthPage;
+  const backPathname = usePathname();
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const onBack = () => {
+      // Sur les pages d'auth (welcome/login…) : comportement par défaut (quitter l'app).
+      if (isAuthPageRef.current) return false;
+      const prev = consumePreviousRoute();
+      if (prev) { router.navigate(prev as any); return true; }
+      return false; // aucune page précédente (racine) → défaut (quitter l'app)
+    };
+    // Ré-abonnement à chaque navigation : notre handler reste le dernier enregistré (donc appelé
+    // en premier), prioritaire sur le retour par défaut de la pile imbriquée.
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => sub.remove();
+  }, [router, backPathname]);
 
   return (
     <TourProvider>
