@@ -131,7 +131,7 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
 
 export default function ProjectionScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Couleurs Investissement / Épargne = couleurs sémantiques du Style Editor
   // (respectent le thème clair/sombre). Surchargent les constantes de marque par défaut.
   const INVEST_COLOR = COLORS.investment;

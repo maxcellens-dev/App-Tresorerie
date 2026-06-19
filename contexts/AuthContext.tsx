@@ -2,7 +2,7 @@
  * AuthContext - État de connexion Supabase pour toute l'app.
  */
 
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -105,23 +105,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isImpersonating = !!impersonatedUserId && !!realUser;
   // En mode consultation : tout l'app lit/écrit les données du compte cible (id substitué),
   // mais l'authentification (token, Google…) reste celle de l'admin réel.
-  const effectiveUser: User | null = isImpersonating
-    ? ({ ...(realUser as User), id: impersonatedUserId!, email: impersonatedEmail ?? (realUser as User).email })
-    : realUser;
+  // Mémoïsé : sinon un nouvel objet à chaque rendu re-rendrait tous les consommateurs de useAuth.
+  const effectiveUser: User | null = useMemo(
+    () => (isImpersonating
+      ? ({ ...(realUser as User), id: impersonatedUserId!, email: impersonatedEmail ?? (realUser as User).email })
+      : realUser),
+    [isImpersonating, realUser, impersonatedUserId, impersonatedEmail],
+  );
 
-  const value = {
-    user: effectiveUser,
-    session: state.session,
-    loading: state.loading,
-    signOut,
-    passwordRecovery,
-    clearPasswordRecovery,
-    realUser,
-    isImpersonating,
-    impersonatedEmail,
-    impersonate,
-    stopImpersonating,
-  };
+  // value mémoïsé → les consommateurs (useAuth → useAppColors → quasi tout l'app) ne se re-rendent
+  // que sur un vrai changement, pas à chaque rendu du provider.
+  const value = useMemo(
+    () => ({
+      user: effectiveUser,
+      session: state.session,
+      loading: state.loading,
+      signOut,
+      passwordRecovery,
+      clearPasswordRecovery,
+      realUser,
+      isImpersonating,
+      impersonatedEmail,
+      impersonate,
+      stopImpersonating,
+    }),
+    [effectiveUser, state.session, state.loading, signOut, passwordRecovery, clearPasswordRecovery, realUser, isImpersonating, impersonatedEmail, impersonate, stopImpersonating],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

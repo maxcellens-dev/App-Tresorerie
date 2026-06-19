@@ -91,7 +91,7 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
 
 export default function TransactionsListScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const onbRecurring = useOnbHighlight('recurring_tx');
   const router = useRouter();
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();

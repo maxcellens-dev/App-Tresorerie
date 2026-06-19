@@ -56,8 +56,11 @@ if (Platform.OS !== 'web') {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30 s
-      refetchOnWindowFocus: true,
+      // Données considérées « fraîches » 2 min → moins de refetchs → moins de re-rendus.
+      staleTime: 1000 * 60 * 2,
+      // Plus de refetch automatique au retour en avant-plan / focus (source de churn).
+      // Le refetch au montage reste (respecte staleTime : ne retape pas si données fraîches).
+      refetchOnWindowFocus: false,
       refetchOnMount: true,
     },
   },

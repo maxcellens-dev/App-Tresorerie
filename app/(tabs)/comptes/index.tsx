@@ -30,7 +30,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function AccountsListScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const onbAccount = useOnbHighlight('account_initialized');
   const router = useRouter();
   const { user } = useAuth();

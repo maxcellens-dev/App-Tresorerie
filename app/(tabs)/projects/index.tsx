@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -45,7 +45,7 @@ const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗
 export default function ProjectsScreen() {
   const COLORS = useAppColors();
   const onbProject = useOnbHighlight('project');
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
