@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 /**
  * ScreenHeader — en-tête standard des écrans secondaires/formulaires :
  * une ligne « ← Retour » puis un grand titre. Identique aux pages Boutique, Premium, etc.
@@ -10,7 +11,7 @@ import { useAppColors } from '../hooks/useAppColors';
 
 export default function ScreenHeader({ title, onBack }: { title: string; onBack?: () => void }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   return (
     <View>

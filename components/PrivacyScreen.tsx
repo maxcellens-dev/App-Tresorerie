@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 /**
  * PrivacyScreen — contenu de la politique de confidentialité.
  * Rendu par la route publique /confidentialite (accessible sans connexion).
@@ -31,7 +32,7 @@ Cette politique peut être mise à jour ; vous serez informé(e) de tout changem
 
 export default function PrivacyScreen() {
   const COLORS = usePublicColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <LegalLayout title="Politique de confidentialité">
       <EditableLegalContent which="privacy" seedText={DEFAULT_PRIVACY_TEXT}>
@@ -85,7 +86,7 @@ function B({ children }: { children: React.ReactNode }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const COLORS = usePublicColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>

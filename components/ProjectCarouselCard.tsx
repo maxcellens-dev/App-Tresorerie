@@ -11,7 +11,7 @@ interface ProjectCarouselCardProps {
 
 export default function ProjectCarouselCard({ project }: ProjectCarouselCardProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const progress = useMemo(() => {
     // Use computed progress_percentage from pilotage if available
     if (typeof project.progress_percentage === 'number') {

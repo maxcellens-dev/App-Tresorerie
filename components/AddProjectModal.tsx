@@ -67,7 +67,7 @@ function getNext12Months(): { key: string; label: string; dayOne: string }[] {
 
 export default function AddProjectModal() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const { user } = useAuth();

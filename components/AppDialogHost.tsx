@@ -3,7 +3,7 @@
  * pour supprimer toutes les pop-ups natives du navigateur. À monter une seule fois, haut
  * dans l'arbre (au-dessus des écrans).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Alert } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton } from '../lib/appDialog';
@@ -13,7 +13,7 @@ import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton 
 
 export default function AppDialogHost() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [req, setReq] = useState<DialogRequest | null>(null);
 
   useEffect(() => {

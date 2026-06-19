@@ -2,7 +2,7 @@
  * Admin — Publicités (bannières maison). Gère les bannières affichées dans les zones de pub
  * (activées via le flag « Publicités »). Texte ou image (téléversée), lien optionnel.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,7 +28,7 @@ const PLACEMENT_GROUPS: [string, Placement[]][] = (() => {
 
 export default function AdminAds() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { data: loaded } = useAdsConfig();

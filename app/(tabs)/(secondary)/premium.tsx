@@ -2,7 +2,7 @@
  * Premium — présentation de l'offre. Le paiement réel (RevenueCat/Stripe) sera branché
  * ensuite ; ici on présente les avantages. Si l'offre est désactivée en admin, écran neutre.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -29,7 +29,7 @@ const PLAN_PRICES = { monthly: '1,99 €', annual: '19,99 €' } as const;
 
 export default function PremiumScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

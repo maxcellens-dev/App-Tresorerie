@@ -3,7 +3,7 @@
  * Ordre : "Pour vous" (contextuel) d'abord, puis général. Rotation auto toutes les 5 s
  * s'il y a 2 conseils. Croix → fermé pour la journée.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
@@ -22,7 +22,7 @@ interface Slide { id: string; label: string; icon: string; iconColor: string; te
 
 export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [], accounts = [] }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts);
 
   // Liste ordonnée : "Pour vous" puis général.

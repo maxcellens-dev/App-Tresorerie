@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useSegments } from 'expo-router';
@@ -87,7 +87,7 @@ function blendAccent(bg: string, accent: string, opacity = 0.30): string {
 export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge, applyTopInset = false }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const segments = useSegments();
   const { user } = useAuth();

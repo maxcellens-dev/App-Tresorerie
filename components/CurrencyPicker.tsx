@@ -18,7 +18,7 @@ interface Props {
 
 export default function CurrencyPicker({ value, onChange, label }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 

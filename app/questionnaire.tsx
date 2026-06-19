@@ -68,7 +68,7 @@ function OptionCard({
   label, selected, onSelect, multiSelect = false,
 }: { label: string; selected: boolean; onSelect: () => void; multiSelect?: boolean }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <TouchableOpacity
       style={[styles.optionCard, selected && styles.optionCardActive]}
@@ -94,7 +94,7 @@ function OptionCard({
 export default function QuestionnaireScreen() {
   const COLORS = useAppColors();
   const appNameFont = useAppNameFont();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Écran de destination (onboarding) prêt → libère le splash animé.
   useEffect(() => { signalAppReady(); }, []);
   const router = useRouter();

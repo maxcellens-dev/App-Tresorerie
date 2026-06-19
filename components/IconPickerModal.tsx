@@ -2,7 +2,7 @@
  * IconPickerModal — sélecteur d'icône pour une sous-catégorie (§13).
  * Grille d'icônes du glossaire (Ionicons). Centré, fermable au tap extérieur.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
@@ -18,7 +18,7 @@ interface Props {
 
 export default function IconPickerModal({ visible, value, title = 'Choisir une icône', onClose, onSelect }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Dédoublonne (le glossaire peut contenir des répétitions volontaires).
   const icons = Array.from(new Set(CATEGORY_ICON_GLOSSARY));
 

@@ -24,7 +24,7 @@ const EMOJIS = ['🧾', '🍽️', '🛒', '🚕', '🏨', '🎟️', '⛽', '�
 
 export default function AddRwExpense() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ projectId: string; expenseId?: string }>();

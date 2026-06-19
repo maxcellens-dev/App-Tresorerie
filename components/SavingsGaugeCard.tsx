@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -13,7 +13,7 @@ interface SavingsGaugeProps {
 
 export default function SavingsGaugeCard({ current, thresholdMin, thresholdOptimal, thresholdComfort }: SavingsGaugeProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Déterminer la zone et la couleur
   let status = '';
   let color = '';

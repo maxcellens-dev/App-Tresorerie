@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,7 +32,7 @@ export default function AddObjectiveModal({
   editingObjective,
 }: AddObjectiveModalProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   const addObjectiveMutation = useAddObjective(user?.id || '');
   const updateObjectiveMutation = useUpdateObjective(user?.id || '');

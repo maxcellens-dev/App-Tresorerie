@@ -2,7 +2,7 @@
  * Mini-panneau d'accès aux cumuls pré-épargne / pré-invest (§12).
  * Ouvert depuis le bouton permanent « Mes cumuls » ou le bandeau.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
@@ -19,7 +19,7 @@ interface Props {
 
 export default function CumulsPanel({ visible, epargneTotal, investTotal, onClose, onOpen }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
 
   const rows: { type: PreSavingType; label: string; total: number; icon: string; color: string }[] = [
     { type: 'epargne', label: 'Pré-épargne', total: epargneTotal, icon: 'shield-outline', color: COLORS.green },

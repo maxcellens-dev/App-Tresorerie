@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages } from '../hooks/useFinancialProfile';
@@ -53,7 +53,7 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
 
 export default function ProfileChangeModal({ userId }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);

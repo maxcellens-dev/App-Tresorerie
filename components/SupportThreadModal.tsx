@@ -2,7 +2,7 @@
  * SupportThreadModal — fil de discussion d'une demande d'assistance.
  * Partagé entre l'écran utilisateur et le panneau admin.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
@@ -25,7 +25,7 @@ function formatTime(iso: string) {
 
 export default function SupportThreadModal({ visible, requestId, subject, status, role, authorId, onClose }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: liveRequest } = useSupportRequest(visible ? requestId ?? undefined : undefined);
   const liveStatus: 'open' | 'closed' = liveRequest?.status ?? status;
   const { data: messages = [], isLoading } = useSupportMessages(visible ? requestId ?? undefined : undefined);

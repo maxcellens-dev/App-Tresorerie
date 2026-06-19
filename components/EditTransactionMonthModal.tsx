@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -42,7 +42,7 @@ export default function EditTransactionMonthModal({
   profileId,
 }: EditTransactionMonthModalProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [inputValue, setInputValue] = useState(String(currentOverrideAmount ?? originalAmount));
   const setOverride = useSetTransactionMonthOverride(profileId);
   const deleteOverride = useDeleteTransactionMonthOverride(profileId);

@@ -3,7 +3,7 @@
  * Permet d'accumuler mentalement un montant (déduit du reste disponible) puis,
  * le moment venu, de créer un virement global du total cumulé.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Platform, Alert, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
@@ -28,7 +28,7 @@ export default function PreSavingsModal({
   visible, type, recoAmount, total, base, onClose, onSave, onCreateTransfer, onReset,
 }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [montant, setMontant] = useState('');
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -35,7 +35,7 @@ import { CURRENCY_SYMBOL } from '../../../lib/currency';
 
 export default function TransferScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const params = useLocalSearchParams<{
     from?: string; to?: string; amount?: string; label?: string; date?: string;

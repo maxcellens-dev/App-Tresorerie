@@ -7,7 +7,7 @@
  * Les succès déjà débloqués avant cette fonctionnalité ont été marqués comme célébrés par la
  * migration → pas de célébration rétroactive.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +18,7 @@ import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type Badg
 
 export default function AchievementCelebration() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
   const { data: profile } = useProfile(user?.id);

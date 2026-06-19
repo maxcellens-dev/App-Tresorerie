@@ -56,7 +56,7 @@ interface CategoryPickerProps {
 
 export default function CategoryPicker({ groups, selectedCategoryId, onSelect, label = 'Sous-catégorie (optionnel)', parents, onCreateSubcategory }: CategoryPickerProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [query, setQuery] = useState('');
 
   // ── Création rapide de sous-catégorie (§12) ──

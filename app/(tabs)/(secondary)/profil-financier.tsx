@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput,
@@ -52,7 +52,7 @@ function OptionList({
   multiSelect?: boolean;
 }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const selectedValues = multiSelect ? selected.split('|').filter(Boolean) : [];
   return (
     <View style={styles.optionList}>
@@ -99,7 +99,7 @@ function OptionList({
 
 export default function ProfilFinancierScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

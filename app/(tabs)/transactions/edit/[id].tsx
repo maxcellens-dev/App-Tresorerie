@@ -24,7 +24,7 @@ import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 
 export default function EditTransactionScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; instanceDate?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;

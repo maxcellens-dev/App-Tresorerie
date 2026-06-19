@@ -111,7 +111,7 @@ function GrowthChart({ points, width, color }: {
 function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
   label: string; value: string; onChange: (v: string) => void; suffix?: string; colors: any; flex?: number;
 }) {
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={[styles.field, { flex }]}>
       <Text style={styles.fieldLabel}>{label}</Text>

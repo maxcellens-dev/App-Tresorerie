@@ -4,7 +4,7 @@
  *   (Supabase). Message clair + repli « contactez un administrateur » (Supabase gratuit).
  * - Avec session de récupération (arrivée via le lien e-mail) : saisie du nouveau mot de passe.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +20,7 @@ function showAlert(title: string, message: string) {
 
 export default function ResetPasswordScreen() {
   const COLORS = useBrandColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { passwordRecovery, clearPasswordRecovery } = useAuth();
 

@@ -2,7 +2,7 @@
  * Admin — Utilisateurs. Recherche par e-mail / nom et passage Premium ⇄ Normal manuel.
  * (Lecture/écriture des profils via les policies admin — migration 052.)
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +20,7 @@ interface AdminUser { id: string; full_name: string | null; email: string | null
 
 export default function AdminUsers() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user, impersonate } = useAuth();

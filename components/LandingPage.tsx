@@ -3,7 +3,7 @@
  * Entièrement personnalisable en admin via app_config.landing (useLandingConfig).
  * Les boutons « S'inscrire » / « Se connecter » mènent aux pages /register et /login.
  */
-import { useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Image, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -27,7 +27,7 @@ export default function LandingPage() {
   const isAdmin = Boolean(profile?.is_admin);
 
   const wide = width >= 980;
-  const styles = makeStyles(COLORS, wide);
+  const styles = useMemo(() => makeStyles(COLORS, wide), [COLORS, wide]);
 
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(40)).current;

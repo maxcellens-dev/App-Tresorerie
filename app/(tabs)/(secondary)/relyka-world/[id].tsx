@@ -25,7 +25,7 @@ const fmt = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits:
 
 export default function RelykaWorldDetail() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

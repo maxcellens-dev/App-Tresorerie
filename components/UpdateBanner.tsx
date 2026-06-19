@@ -8,7 +8,7 @@
  *
  * Natif uniquement (le web est toujours à jour). La fermeture est mémorisée par version.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Linking, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,7 +34,7 @@ function isNewer(a: string, b: string): boolean {
 
 export default function UpdateBanner() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const { data: flags } = useFeatureFlags();
   const slide = useRef(new Animated.Value(-200)).current;   // vertical (show/hide + swipe haut)

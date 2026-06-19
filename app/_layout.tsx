@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler } from 'react-native';
@@ -176,7 +176,7 @@ function AnalyticsTracker() {
 
 function AppChrome() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   useCurrency(); // synchronise le symbole de devise global avec le profil
   const segments = useSegments();
   const router = useRouter();

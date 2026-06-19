@@ -8,7 +8,7 @@
  * - Override présent → on l'affiche en blocs (séparés par lignes vides).
  * - Édition → zone de texte pré-remplie avec l'override ou le texte par défaut (seedText).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePublicColors } from '../hooks/usePublicColors';
@@ -24,7 +24,7 @@ interface Props {
 
 export default function EditableLegalContent({ which, seedText, children }: Props) {
   const COLORS = usePublicColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   const isAdmin = (useProfile(user?.id).data?.is_admin ?? (user?.email === 'maxcellens@gmail.com'));
   const { data: content } = useLegalContent();

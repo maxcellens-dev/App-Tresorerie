@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -12,7 +12,7 @@ interface VariableTrendProps {
 
 export default function VariableTrendCard({ current, average, percentage }: VariableTrendProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const color =
     percentage > 100 ? COLORS.red :
     percentage > 70 ? COLORS.amber :

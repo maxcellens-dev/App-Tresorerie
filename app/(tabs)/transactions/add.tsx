@@ -25,7 +25,7 @@ type TransactionType = 'expense' | 'income' | 'transfer';
 
 export default function AddTransactionScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   const { user } = useAuth();

@@ -21,7 +21,7 @@ import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 
 export default function AppearanceScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const goBack = useNavBack();

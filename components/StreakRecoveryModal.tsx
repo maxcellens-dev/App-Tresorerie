@@ -3,7 +3,7 @@
  * (semaines manquées au-delà de ses gels). Permet de payer en gemmes pour la retrouver et la
  * compléter (prix = prix de récupération × nombre de semaines non couvertes).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -14,7 +14,7 @@ import { useAppColors } from '../hooks/useAppColors';
 
 export default function StreakRecoveryModal() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const { state, streakLoss, restoreLostStreak, config } = useGamification(user?.id);

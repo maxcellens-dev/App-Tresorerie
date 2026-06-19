@@ -3,7 +3,7 @@
  * menu, fonctionnalités, statistiques, CTA et pied de page. Téléversement d'images vers
  * le bucket public « gamification » (préfixe landing/).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,7 +17,7 @@ import { useLandingConfig, useSaveLandingConfig, type LandingConfig, type Landin
 
 export default function AdminLanding() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { data: loaded } = useLandingConfig();

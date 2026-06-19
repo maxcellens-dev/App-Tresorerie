@@ -3,7 +3,7 @@
  * Présente le menu et chaque écran. L'utilisateur doit dérouler toutes les étapes
  * (pas de fermeture/skip). À la fin → onFinish() (qui marque app_tour_done).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
@@ -18,7 +18,7 @@ interface Props { visible: boolean; onFinish: () => void; }
 
 export default function AppTourModal({ visible, onFinish }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [step, setStep] = useState(0);
 
   const slides: { icon: string; color: string; title: string; text: string }[] = [

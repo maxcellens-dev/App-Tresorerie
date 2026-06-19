@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -38,7 +38,7 @@ export default function TransactionAmountCell({
   styleOverrides,
 }: TransactionAmountCellProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [menuVisible, setMenuVisible] = useState(false);
 
   const isPos = amount >= 0;

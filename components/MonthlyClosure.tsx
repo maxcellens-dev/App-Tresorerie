@@ -3,7 +3,7 @@
  * Activé seulement si le drapeau admin monthly_closure_enabled est vrai (sinon rien ne s'affiche).
  * Monté sur le Pilotage.
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,7 +21,7 @@ interface Props {
 
 export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);

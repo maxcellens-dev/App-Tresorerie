@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -29,7 +29,7 @@ export default function CustomTabBar({ state }: any) {
   const router = useRouter();
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const activeRoute = state?.routes?.[state.index]?.name;
   const { user } = useAuth();
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);

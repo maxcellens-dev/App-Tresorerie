@@ -2,7 +2,7 @@
  * Boutique — dépense les gemmes gagnées (gels de série, thèmes, et plus tard bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,7 +28,7 @@ const RELYKA_SERVICES = [
 
 export default function BoutiqueScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

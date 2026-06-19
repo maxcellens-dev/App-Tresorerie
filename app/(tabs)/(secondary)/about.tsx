@@ -1,4 +1,5 @@
-﻿import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+﻿import { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +14,7 @@ const APP_VERSION = '1.0.0';
 export default function AboutScreen() {
   const COLORS = useAppColors();
   const appNameFont = useAppNameFont();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
 
   return (

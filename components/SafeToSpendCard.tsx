@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
@@ -13,7 +13,7 @@ interface SafeToSpendProps {
 
 export default function SafeToSpend({ amount, isLow = false, isNegative = false, reserved = 0 }: SafeToSpendProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const color = isNegative ? COLORS.red : isLow ? COLORS.orange : COLORS.emerald;
   
   return (

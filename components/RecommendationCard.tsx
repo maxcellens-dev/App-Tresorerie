@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
@@ -67,7 +67,7 @@ export default function RecommendationCard({
   financials,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   // Masquages stockés par compte (profiles.ui_prefs) → réactifs et identiques sur tous les appareils.
   const { ignored, completed, addIgnored, addCompleted } = useRecoDismissals(user?.id);

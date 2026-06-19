@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,7 +17,7 @@ const { width } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
   const COLORS = useBrandColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const appNameFont = useAppNameFont();
   const router = useRouter();
   const insets = useSafeAreaInsets();

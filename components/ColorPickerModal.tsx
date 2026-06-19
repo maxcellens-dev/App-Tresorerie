@@ -3,7 +3,7 @@
  * affiché au centre de l'écran. Natif + web. Saisie hex synchronisée.
  * Utilisé par le Style Editor : clic sur une pastille → ouvre ce sélecteur.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Platform, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +51,7 @@ export default function ColorPickerModal({
   onClose: () => void;
 }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [h, setH] = useState(0);
   const [s, setS] = useState(1);
   const [v, setV] = useState(1);

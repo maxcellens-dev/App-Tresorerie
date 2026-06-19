@@ -36,7 +36,7 @@ import { CURRENCY_SYMBOL } from '../../../lib/currency';
 export default function ObjectivesScreen() {
   const COLORS = useAppColors();
   const onbObjective = useOnbHighlight('objective');
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);

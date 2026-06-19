@@ -3,7 +3,7 @@
  * notification à tous les utilisateurs ayant activé les notifications (Paramètres).
  * Historique des envois en dessous (table admin_notifications, migration 063).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -32,7 +32,7 @@ function formatDate(iso: string) {
 
 export default function AdminNotifications() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const qc = useQueryClient();

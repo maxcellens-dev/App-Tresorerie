@@ -5,7 +5,7 @@
  * - Dès que l'étape est accomplie : confirme. « Suivant » ferme le coachmark et ouvre la
  *   checklist « Pour bien démarrer » (vue d'ensemble simple des prochaines étapes).
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ import { openOnboardingChecklist } from '../lib/onboardingChecklist';
 
 export default function OnboardingHintBanner() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const ob = useOnboarding(user?.id);

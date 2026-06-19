@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 
 function showAlert(title: string, message: string) {
@@ -16,7 +16,7 @@ import SocialAuthButtons from '../components/SocialAuthButtons';
 
 export default function RegisterScreen() {
   const COLORS = useBrandColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');

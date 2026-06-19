@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef } from 'react';
+﻿import { useMemo, useEffect, useState, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   View,
@@ -50,7 +50,7 @@ function groupCategories(categories: Category[]) {
 
 export default function CategoriesScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

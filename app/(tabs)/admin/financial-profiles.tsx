@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator,
@@ -59,7 +59,7 @@ const MAINTAIN_TRANSITIONS = ALL_PROFILES.map((p) => ({ key: p, label: `${p} —
 
 function SimulationSection({ userId }: { userId: string }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: fp, isLoading } = useFinancialProfile(userId);
   const simulate = useSimulateProfileChange(userId);
 
@@ -200,7 +200,7 @@ function SimulationSection({ userId }: { userId: string }) {
 
 function MessagesSection({ userId }: { userId: string }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: messages = [], isLoading } = useProfileNotificationMessages();
   const updateMsg = useUpdateNotificationMessage(userId);
 
@@ -305,7 +305,7 @@ function MessagesSection({ userId }: { userId: string }) {
 
 function MatrixSection({ userId }: { userId: string }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: configs = [], isLoading } = useProfileMatrixConfig();
   const updateConfig = useUpdateMatrixConfig(userId);
 
@@ -430,7 +430,7 @@ function MatrixSection({ userId }: { userId: string }) {
 
 function GlobalSection({ userId }: { userId: string }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: configs = [] } = useProfileMatrixConfig();
   const updateConfig = useUpdateMatrixConfig(userId);
   const [freeze, setFreeze] = useState('6');
@@ -507,7 +507,7 @@ function GlobalSection({ userId }: { userId: string }) {
 
 export default function FinancialProfilesAdmin() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

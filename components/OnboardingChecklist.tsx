@@ -4,7 +4,7 @@
  * - Chaque étape est cliquable → navigue vers l'écran concerné avec un indice (param ?onb=).
  * - L'utilisateur peut refuser le guide ("Passer le guide").
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ import { subscribeOpenChecklist } from '../lib/onboardingChecklist';
 
 export default function OnboardingChecklist() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const ob = useOnboarding(user?.id);

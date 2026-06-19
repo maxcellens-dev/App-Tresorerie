@@ -13,7 +13,7 @@ interface ObjectiveCarouselCardProps {
 
 export default function ObjectiveCarouselCard({ objective }: ObjectiveCarouselCardProps) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const acctType = objective.linked_account?.type ?? objective.account_type ?? 'savings';
   const accentColor = accountColor(acctType);
   // For annual objectives, fetch transactions from linked account

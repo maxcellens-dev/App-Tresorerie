@@ -7,7 +7,7 @@
  *   <PageIntroModal pageKey="transactions" />          // déclenché au focus de l'écran
  *   <PageIntroModal pageKey="menu" active={menuOpen} /> // déclenché par un état explicite
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
@@ -48,7 +48,7 @@ interface Props {
 
 export default function PageIntroModal({ pageKey, active }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const focused = useIsFocused();
   const { seen, ready, dismiss } = usePageIntro(pageKey);
   const [open, setOpen] = useState(false);

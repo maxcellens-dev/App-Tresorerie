@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 /**
  * LegalScreen — contenu des mentions légales.
  * Rendu par la route publique /legal (accessible sans connexion).
@@ -36,7 +37,7 @@ Droit français. Tout litige sera soumis aux tribunaux compétents.`;
 
 export default function LegalScreen() {
   const COLORS = usePublicColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   return (
     <LegalLayout title="Mentions légales">
@@ -110,7 +111,7 @@ function B({ children }: { children: React.ReactNode }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const COLORS = usePublicColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>

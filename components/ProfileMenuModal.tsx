@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 /**
  * ProfileMenuModal — menu en surimpression ouvert depuis l'avatar de l'en-tête.
  * Regroupe l'accès aux pages « compte » (profil, financier, reporting, boutique, plan,
@@ -19,7 +20,7 @@ const APP_VERSION = '1.0.0';
 
 export default function ProfileMenuModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const appNameFont = useAppNameFont();
   const router = useRouter();
   const { user, signOut } = useAuth();

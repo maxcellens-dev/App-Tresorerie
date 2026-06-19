@@ -1,4 +1,4 @@
-﻿import { useRef } from 'react';
+﻿import { useMemo, useRef } from 'react';
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
@@ -22,7 +22,7 @@ import { useScreenGuide } from '../../../hooks/useScreenGuide';
 
 export default function ProfileScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user, signOut } = useAuth();
   const goBack = useNavBack();

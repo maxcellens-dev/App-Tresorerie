@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 /**
  * SocialAuthButtons — connexion/inscription via Google, Apple et Facebook.
  *
@@ -45,7 +46,7 @@ function paramFrom(str: string, key: string): string | null {
 
 export default function SocialAuthButtons({ mode }: { mode: 'login' | 'register' }) {
   const COLORS = useBrandColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
 
   async function go(provider: Provider) {
     if (!supabase) { showAlert('Indisponible', 'Backend non configuré.'); return; }

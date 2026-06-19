@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef } from 'react';
+﻿import { useMemo, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -44,7 +44,7 @@ function groupCategories(categories: Category[]) {
 
 export default function CategoriesScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);

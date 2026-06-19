@@ -68,7 +68,7 @@ function findSymmetricTx(
 
 export default function AccountDetailScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const modalStyles = makeModalStyles(COLORS);
   const txDetailStyles = makeTxDetailStyles(COLORS);
   const router = useRouter();

@@ -4,7 +4,7 @@
  * et la liste des badges (libellé, description, métrique, icône Ionicons OU image téléversée,
  * seuils + gemmes par niveau). Téléversement d'icônes vers le bucket « gamification ».
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -33,7 +33,7 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
 
 export default function AdminGamification() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { data: loaded } = useGamificationConfig();

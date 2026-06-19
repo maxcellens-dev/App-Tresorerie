@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../hooks/useAppColors';
@@ -12,7 +12,7 @@ export default function HeroCard({
   style?: object;
 }) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <LinearGradient
       colors={[COLORS.card, COLORS.cardBorder]}

@@ -7,7 +7,7 @@
  *  • Mobile / app (largeur < 900 px ou natif) → en-tête D'APP identique aux autres pages
  *    (barre « Relyka » + série/gemmes/avatar, puis flèche « Retour » + titre).
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, useWindowDimensions } from 'react-native';
 import ScreenGradient from './ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +27,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
   const { user } = useAuth();
   // Connecté → préférence perso ; public → thème de la vitrine (clair/sombre).
   const COLORS = usePublicColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const appNameFont = useAppNameFont();
   const router = useRouter();
   const { width } = useWindowDimensions();

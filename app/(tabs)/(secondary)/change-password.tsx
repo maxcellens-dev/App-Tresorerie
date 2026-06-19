@@ -1,7 +1,7 @@
 /**
  * Changement de mot de passe (utilisateur connecté). Met à jour via supabase.auth.updateUser.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -18,7 +18,7 @@ function showAlert(title: string, message: string) {
 
 export default function ChangePasswordScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const [password, setPassword] = useState('');

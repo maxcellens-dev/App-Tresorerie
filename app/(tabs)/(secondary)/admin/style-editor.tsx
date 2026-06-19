@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -61,7 +61,7 @@ export default function StyleEditor() {
   const router = useRouter();
   const goBack = useNavBack();
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Sélecteur de couleur centré (natif + web) ouvert au clic sur une pastille.
   const [colorPicker, setColorPicker] = useState<{ value: string; onPick: (hex: string) => void } | null>(null);
   const { user } = useAuth();
@@ -815,7 +815,7 @@ function ModeBtn({ label, icon, active, accent, COLORS, onPress }: { label: stri
 }
 
 function PctInput({ value, onChange, COLORS }: { value: string; onChange: (v: string) => void; COLORS: any }) {
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.pctWrap}>
       <TextInput style={styles.pctInput} value={value} onChangeText={v => onChange(v.replace(/[^0-9]/g, '').slice(0, 3))} keyboardType="number-pad" maxLength={3} />

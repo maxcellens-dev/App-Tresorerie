@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,7 +45,7 @@ function useAddSuggestion(profileId: string | undefined) {
 
 export default function IdeasScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();

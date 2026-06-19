@@ -2,7 +2,7 @@
  * Admin — Pages légales (§P9). Édite le texte des pages « Confidentialité » et « Mentions légales ».
  * Laisser vide = afficher le contenu par défaut codé dans l'app.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -14,7 +14,7 @@ import { useLegalContent, useSaveLegalContent } from '../../../../hooks/useLegal
 
 export default function AdminLegal() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const goBack = useNavBack();
   const { data: loaded } = useLegalContent();
   const save = useSaveLegalContent();

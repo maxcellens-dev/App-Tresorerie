@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 /**
  * Support — assistance, idées, confidentialité, mentions légales, revoir le guide.
  * Déplacé depuis Paramètres.
@@ -16,7 +17,7 @@ import { useNavBack } from '../../../hooks/useNavBack';
 
 export default function SupportScreen() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
   const tour = useTour();

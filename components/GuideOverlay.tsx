@@ -7,7 +7,7 @@
  *
  * Chaque étape fournit `getRef()` → ref de la View cible.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
   findNodeHandle, Platform, ScrollView, Modal,
@@ -49,7 +49,7 @@ export default function GuideOverlay({
   visible, steps, currentStep, onNext, onSkip, scrollRef, screenTitle,
 }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   // Zone haute réservée = barre de statut + marge → la bulle n'est jamais coupée par le haut du téléphone.
   const TOP_SAFE = insets.top + 56;

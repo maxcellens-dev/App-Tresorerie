@@ -3,7 +3,7 @@
  * Affiche une bottom sheet animée avec les étapes du guide, une par une.
  * Reproposé si non terminé lors des sessions suivantes.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal,
   Animated, Dimensions,
@@ -35,7 +35,7 @@ export default function OnboardingGuide({
   visible, steps, currentStep, onNext, onSkip, screenTitle,
 }: Props) {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const slideAnim = useRef(new Animated.Value(300)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const cardAnim = useRef(new Animated.Value(0)).current;
