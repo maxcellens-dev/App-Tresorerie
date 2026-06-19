@@ -85,9 +85,10 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
       {/* Fonds : PLEIN écran (sous les barres système) → aucune zone non peinte */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: SPLASH_BG }]} />
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: themeBg, opacity: bgFade }]} />
-      {/* Contenu : centré comme l'écran natif d'AppLoading, qui est inséré sous la barre de statut.
-          On décale donc le contenu de insets.top vers le bas pour que le logo soit à la même hauteur. */}
-      <View style={[StyleSheet.absoluteFill, styles.content, { paddingTop: insets.top }]}>
+      {/* Contenu : l'écran natif d'AppLoading dessine SOUS la barre de statut mais s'arrête au-dessus
+          de la barre de navigation → son contenu est centré dans [0, H − navbar], donc plus haut.
+          On réserve donc insets.bottom en bas pour centrer le logo EXACTEMENT à la même hauteur. */}
+      <View style={[StyleSheet.absoluteFill, styles.content, { paddingBottom: insets.bottom }]}>
         <Animated.View style={{ marginBottom: 22, transform: [{ scale }], opacity: logoOpacity }}>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
         </Animated.View>
