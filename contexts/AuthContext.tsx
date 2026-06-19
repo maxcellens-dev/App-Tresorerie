@@ -2,7 +2,7 @@
  * AuthContext - État de connexion Supabase pour toute l'app.
  */
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -37,6 +37,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
   const [impersonatedEmail, setImpersonatedEmail] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  // Vrai uniquement quand l'utilisateur se déconnecte volontairement (bouton). Tout autre
+  // événement « session nulle » (refresh échoué/token expiré au retour d'arrière-plan) est ignoré.
+  const explicitSignOut = useRef(false);
 
   const updateState = useCallback((session: Session | null) => {
     setState({
@@ -58,7 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Diagnostic (dev) : permet de voir quel événement survient au retour en avant-plan
+      // (TOKEN_REFRESHED = OK ; SIGNED_OUT = échec du refresh → déconnexion à investiguer).
+      if (__DEV__) console.log('[auth] onAuthStateChange', _event, !!session);
       if (_event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      // Session nulle non sollicitée → on garde la session courante (rester connecté tant que
+      // l'utilisateur ne se déconnecte pas lui-même). On ne vide que sur déconnexion explicite.
+      if (!session) {
+        if (explicitSignOut.current) { explicitSignOut.current = false; updateState(null); }
+        return;
+      }
       updateState(session);
     });
 
@@ -66,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [updateState]);
 
   const signOut = useCallback(async () => {
+    explicitSignOut.current = true; // autorise le vidage de session sur le SIGNED_OUT qui suit
     setImpersonatedUserId(null);
     setImpersonatedEmail(null);
     if (supabase) await supabase.auth.signOut();

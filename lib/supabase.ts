@@ -7,7 +7,7 @@
  * - Web : stockage par défaut (localStorage) + détection de session dans l'URL (OAuth).
  */
 import { createClient } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -27,3 +27,16 @@ export const supabase = url && anonKey
       },
     })
   : null;
+
+// ── Rafraîchissement de token piloté par l'état de l'app (natif uniquement) ──
+// Requis par Supabase sur React Native : en arrière-plan, l'OS suspend le timer d'auto-refresh.
+// Sans ce pilotage, au retour en avant-plan l'access token peut être expiré et le refresh
+// échouer → événement SIGNED_OUT → l'utilisateur est déconnecté (constaté après OAuth Google).
+// On (ré)active le refresh quand l'app redevient active, on le coupe sinon.
+if (supabase && !isWeb) {
+  if (AppState.currentState === 'active') supabase.auth.startAutoRefresh();
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') supabase!.auth.startAutoRefresh();
+    else supabase!.auth.stopAutoRefresh();
+  });
+}

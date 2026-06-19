@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAddTransaction, useDeleteTransaction } from './useTransactions';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface RwProject {
   id: string; owner_id: string; name: string; emoji: string; description: string; currency: string; created_at: string;
@@ -29,9 +30,12 @@ const ok = () => !!supabase;
 
 /** Liste des projets dont l'utilisateur est membre (RLS filtre). */
 export function useRwProjects(userId: string | undefined) {
+  // En mode « connecté en tant que », la RLS filtre par auth.uid() = l'ADMIN (le token reste le
+  // sien). On afficherait donc les projets partagés de l'admin sur le compte consulté → on désactive.
+  const { isImpersonating } = useAuth();
   return useQuery({
     queryKey: ['rw_projects', userId],
-    enabled: !!userId && ok(),
+    enabled: !!userId && ok() && !isImpersonating,
     queryFn: async (): Promise<RwProject[]> => {
       const { data, error } = await supabase!.from('rw_projects').select('*').order('created_at', { ascending: false });
       if (error) throw error;
@@ -286,9 +290,11 @@ export function useRwInviteByCode(projectId: string | undefined) {
 
 /** Invitations en attente reçues par l'utilisateur courant. */
 export function useRwInvitations(userId: string | undefined) {
+  // Idem useRwProjects : la RPC s'appuie sur auth.uid() = l'admin → on masque en impersonation.
+  const { isImpersonating } = useAuth();
   return useQuery({
     queryKey: ['rw_invitations', userId],
-    enabled: !!userId && ok(),
+    enabled: !!userId && ok() && !isImpersonating,
     queryFn: async (): Promise<RwInvitation[]> => {
       // RPC : enrichit avec le nom du projet + le nom de l'invitant (l'invité n'a pas encore accès au projet).
       const { data, error } = await supabase!.rpc('rw_my_invitations');
