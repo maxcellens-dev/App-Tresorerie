@@ -3,11 +3,13 @@
  *
  * Web : supabase.auth.signInWithOAuth redirige la page (retour → session créée).
  * Natif : signInWithOAuth(skipBrowserRedirect) → on ouvre le navigateur d'auth
- *   (expo-web-browser) avec un redirect vers le scheme de l'app (tresorerie://auth-callback),
+ *   (expo-web-browser) avec un redirect vers le scheme de l'app (relyka-app://auth-callback),
  *   puis on récupère la session depuis l'URL de retour (code PKCE ou tokens en fragment).
  *
- * ⚠️ Côté Supabase : l'URL `tresorerie://auth-callback` doit être ajoutée dans
- *    Authentication → URL Configuration → Redirect URLs.
+ * ⚠️ Côté Supabase : l'URL `relyka-app://auth-callback` DOIT être ajoutée dans
+ *    Authentication → URL Configuration → Redirect URLs. Sans ça, après Google, Supabase
+ *    redirige vers son Site URL (page web) → le navigateur reste ouvert et ne revient
+ *    jamais dans l'app (symptôme « bloqué sur Chrome »).
  */
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
