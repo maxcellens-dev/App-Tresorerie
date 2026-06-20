@@ -29,7 +29,7 @@ const RECO_ICONS: Record<RecoType, string> = {
 const RECO_DESC: Record<RecoType, string> = {
   save: 'Transférer vers l\'épargne de sécurité.',
   invest: 'Alimenter un objectif d\'investissement.',
-  enjoy: 'Budget dépenses variables et loisirs.',
+  enjoy: 'Plafond de dépenses variables et loisirs à ne pas dépasser.',
   keep: 'Conserver sur le compte courant.',
 };
 

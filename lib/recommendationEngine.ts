@@ -407,7 +407,7 @@ function buildRecommendation(
     case 'enjoy':
       return {
         type,
-        title: 'Possibilité de se faire plaisir',
+        title: 'Plaisir : à ne pas dépasser',
         shortTitle: 'Plaisir',
         description: getEnjoyDescription(amount, data),
         amount,
@@ -435,15 +435,29 @@ function buildRecommendation(
 
 /* ── Descriptions contextuelles ──────────────────────────── */
 
+/** Nombre de mois de dépenses couverts par l'épargne, en libellé générique. */
+function securityMonthsLabel(months: number): string {
+  if (months < 0.75) return 'moins d’1 mois';
+  return `${Math.round(months)} mois`;
+}
+
 function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageData): string {
-  const gap = data.safety_threshold_optimal - data.current_savings;
-  if (tier === 'critical') {
-    return `Votre épargne est en dessous du seuil critique. Transférez ${amount} € vers votre compte épargne pour vous rapprocher de l'objectif de ${data.safety_threshold_min.toLocaleString('fr-FR')} €.`;
-  }
-  if (tier === 'below_optimal') {
-    return `Il vous manque ${Math.max(0, gap).toLocaleString('fr-FR')} € pour atteindre le seuil optimal. Épargnez ${amount} € ce mois-ci.`;
-  }
-  return `Maintenez votre matelas de sécurité en épargnant ${amount} €.`;
+  // Approche générique : on indique l'épargne de sécurité totale, combien de mois de dépenses elle
+  // couvre, et une appréciation de niveau — plus parlant qu'un écart à un « seuil » abstrait.
+  const savings = Math.max(0, data.current_savings);
+  const monthlyExpenses = data.month_expenses_total;
+  const months = monthlyExpenses > 0 ? savings / monthlyExpenses : null;
+
+  const QUAL: Record<SavingsTier, string> = {
+    critical:      'Niveau encore faible, à renforcer en priorité',
+    below_optimal: 'Niveau à renforcer',
+    healthy:       'Niveau correct',
+    p4_dynamic:    'Niveau solide',
+    comfortable:   'Niveau confortable',
+  };
+
+  const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de dépenses couvertes)` : '';
+  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. ${QUAL[tier]}. Épargnez ${amount} € ce mois-ci pour la consolider.`;
 }
 
 function getInvestDescription(tier: SavingsTier, amount: number, _data: PilotageData): string {
@@ -457,13 +471,14 @@ function getInvestDescription(tier: SavingsTier, amount: number, _data: Pilotage
 }
 
 function getEnjoyDescription(amount: number, data: PilotageData): string {
+  // Ce montant est un PLAFOND (limite à ne pas dépasser pour le plaisir), pas une somme à utiliser.
   if (data.variable_trend_percentage > 120) {
-    return `Vos dépenses variables sont en hausse. Limitez-vous à ${amount} € de budget plaisir ce mois-ci.`;
+    return `Vos dépenses variables sont en hausse : tenez-vous sous ${amount} € de plaisir ce mois-ci pour ne pas creuser.`;
   }
   if (data.variable_trend_percentage < 80 && data.variable_trend_percentage > 0) {
-    return `Bravo, vos dépenses sont maîtrisées ! Profitez de ${amount} € pour vous faire plaisir.`;
+    return `Vos dépenses sont bien maîtrisées : vous pouvez aller jusqu'à ${amount} €, mais évitez de dépasser cette limite.`;
   }
-  return `Budget plaisir recommandé : ${amount} € pour vos dépenses variables et loisirs.`;
+  return `Pour rester dans vos objectifs, ne dépassez pas ${amount} € de dépenses plaisir et loisirs ce mois-ci.`;
 }
 
 function getKeepDescription(amount: number, data: PilotageData): string {
