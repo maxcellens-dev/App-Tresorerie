@@ -435,18 +435,19 @@ function buildRecommendation(
 
 /* ── Descriptions contextuelles ──────────────────────────── */
 
-/** Nombre de mois de dépenses couverts par l'épargne, en libellé générique. */
+/** Nombre de mois de revenus couverts par l'épargne (mois de sécurité), en libellé générique. */
 function securityMonthsLabel(months: number): string {
   if (months < 0.75) return 'moins d’1 mois';
   return `${Math.round(months)} mois`;
 }
 
 function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageData): string {
-  // Approche générique : on indique l'épargne de sécurité totale, combien de mois de dépenses elle
-  // couvre, et une appréciation de niveau — plus parlant qu'un écart à un « seuil » abstrait.
+  // Approche générique : épargne de sécurité totale + nb de mois de sécurité (= mois de REVENUS
+  // couverts par l'épargne) + appréciation de niveau. Plus parlant qu'un écart à un « seuil » abstrait.
   const savings = Math.max(0, data.current_savings);
-  const monthlyExpenses = data.month_expenses_total;
-  const months = monthlyExpenses > 0 ? savings / monthlyExpenses : null;
+  // Mois de sécurité = épargne / revenu mensuel moyen (6 mois, hors 1er mois incomplet).
+  const monthlyIncome = data.avg_monthly_income;
+  const months = monthlyIncome > 0 ? savings / monthlyIncome : null;
 
   const QUAL: Record<SavingsTier, string> = {
     critical:      'Niveau encore faible, à renforcer en priorité',
@@ -456,7 +457,8 @@ function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageDat
     comfortable:   'Niveau confortable',
   };
 
-  const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de dépenses couvertes)` : '';
+  // Revenu non détecté → on n'affiche pas les « mois de sécurité » (juste le total + l'appréciation).
+  const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
   return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. ${QUAL[tier]}. Épargnez ${amount} € ce mois-ci pour la consolider.`;
 }
 

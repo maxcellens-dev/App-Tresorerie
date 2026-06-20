@@ -19,7 +19,8 @@ export interface PilotageData {
   // Revenu attendu + creux + garde-fou projection (modèle « trésorerie adaptative »)
   month_income_remaining: number;        // recettes à venir d'ici la prochaine rentrée (affichage)
   cashflow_trough: number;               // point bas du solde courant simulé (revenus + dépenses réelles)
-  expected_monthly_income: number;       // revenu mensuel détecté (explicite ou inféré)
+  expected_monthly_income: number;       // revenu mensuel détecté (explicite ou inféré) — projection
+  avg_monthly_income: number;            // revenu mensuel moyen (6 mois, hors 1er mois incomplet) — mois de sécurité
   expected_income_source: 'explicit' | 'inferred' | 'none';
   expected_income_confidence: number;    // 0..1
   projection_min_buffer: number;         // plus bas du solde courant projeté sur N mois
@@ -340,6 +341,44 @@ function detectExpectedIncome(transactions: any[], checkingIds: Set<string>, tod
   return none;
 }
 
+/**
+ * Revenu mensuel « de référence » pour les mois de sécurité : moyenne des SOMMES de recettes par
+ * mois sur les 6 derniers mois (toutes recettes confondues, hors virements/brouillons/régul).
+ * On EXCLUT le tout 1ᵉʳ mois de l'utilisateur (arrivée sur l'app → données souvent incomplètes,
+ * salaire pas forcément saisi) SAUF s'il contient déjà une vraie recette (> 1000 €, pas un simple
+ * remboursement). Renvoie 0 si rien d'exploitable (mention « mois de sécurité » alors masquée).
+ */
+function computeAvgMonthlyIncome(transactions: any[], checkingIds: Set<string>, todayStr: string): number {
+  const REAL_INCOME_MIN = 1000; // seuil « vraie recette » (vs remboursement) pour valider le 1ᵉʳ mois
+  const now = new Date(todayStr + 'T00:00:00');
+  const windowStart = isoDay(new Date(now.getFullYear(), now.getMonth() - 5, 1)); // 6 mois (courant inclus)
+  const qualifies = (t: any) =>
+    checkingIds.has(t.account_id) && !t.is_draft && !t.is_reserved && !t.linked_account_id
+    && Number(t.amount) > 0 && t.date <= todayStr && !/r[ée]gul/i.test(t.note ?? '');
+
+  const byMonth: Record<string, { sum: number; maxOne: number }> = {};
+  let hasOlderIncome = false; // une recette antérieure à la fenêtre → utilisateur établi (pas un 1ᵉʳ mois)
+  for (const t of transactions) {
+    if (!qualifies(t)) continue;
+    if (t.date < windowStart) { hasOlderIncome = true; continue; }
+    const amt = Number(t.amount);
+    const mk = t.date.slice(0, 7);
+    const e = (byMonth[mk] ??= { sum: 0, maxOne: 0 });
+    e.sum += amt;
+    e.maxOne = Math.max(e.maxOne, amt);
+  }
+
+  let months = Object.keys(byMonth).sort(); // chronologique
+  if (months.length === 0) return 0;
+  // Si la fenêtre atteint le 1ᵉʳ mois de l'utilisateur, on ne le retient que s'il a une vraie recette.
+  if (!hasOlderIncome && byMonth[months[0]].maxOne <= REAL_INCOME_MIN) {
+    months = months.slice(1);
+  }
+  if (months.length === 0) return 0;
+  const total = months.reduce((s, mk) => s + byMonth[mk].sum, 0);
+  return total / months.length;
+}
+
 /** Prudence (0..1, 1 = très prudent). Override profiles.prudence_level (0..100), sinon dérivée des allocations. */
 function profilePrudence(profile: any): number {
   if (typeof profile?.prudence_level === 'number') return clamp01(profile.prudence_level / 100);
@@ -410,6 +449,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // au décalage de date de paie (le montant du creux ne bouge presque pas). Le revenu non saisi
   // est INFÉRÉ de l'historique et pondéré par la prudence (profil).
   const expectedIncome = detectExpectedIncome(transactions, checkingIds, todayStr);
+  const avgMonthlyIncome = computeAvgMonthlyIncome(transactions, checkingIds, todayStr);
 
   let nextIncomeDate: string | null = null;
   for (const t of transactions) {
@@ -865,6 +905,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     month_income_remaining,
     cashflow_trough: trough,
     expected_monthly_income: expectedIncome.monthlyAmount,
+    avg_monthly_income: avgMonthlyIncome,
     expected_income_source: expectedIncome.source,
     expected_income_confidence: expectedIncome.confidence,
     projection_min_buffer,
