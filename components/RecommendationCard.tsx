@@ -248,8 +248,8 @@ export default function RecommendationCard({
         <View style={styles.confirmBox}>
           <Text style={styles.confirmText}>
             {reservedThisMonth > 0
-              ? `Déjà conservé ce mois : ${reservedThisMonth.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}. Validez le nouveau total à conserver ce mois-ci :`
-              : 'Montant à conserver ce mois-ci ? Cette somme est déduite de votre reste disponible mais reste sur votre compte courant.'}
+              ? `Déjà conservé ce mois : ${reservedThisMonth.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}. Valide le nouveau total à conserver ce mois-ci :`
+              : 'Montant à conserver ce mois-ci ? Cette somme est déduite de ton reste disponible mais reste sur ton compte courant.'}
           </Text>
           <View style={styles.reserveAmountRow}>
             <TextInput
@@ -337,8 +337,8 @@ export default function RecommendationCard({
             <TouchableOpacity style={styles.noAccountBox} onPress={onCreateAccount} activeOpacity={0.7}>
               <Ionicons name="information-circle-outline" size={15} color={currentReco.color} />
               <Text style={styles.noAccountText}>
-                Vous n'avez pas encore de compte {currentReco.type === 'save' ? 'épargne' : 'investissement'}.{' '}
-                <Text style={{ color: currentReco.color, fontWeight: '700' }}>Créez-en un dans Mes Comptes.</Text>
+                Tu n'as pas encore de compte {currentReco.type === 'save' ? 'épargne' : 'investissement'}.{' '}
+                <Text style={{ color: currentReco.color, fontWeight: '700' }}>Crées-en un dans Mes Comptes.</Text>
               </Text>
             </TouchableOpacity>
           )}
