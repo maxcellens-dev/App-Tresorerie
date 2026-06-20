@@ -18,7 +18,9 @@ import GuideOverlay from '../../../components/GuideOverlay';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../../lib/currency';
+import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
+import { useProfile } from '../../../hooks/useProfile';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -94,8 +96,24 @@ export default function AccountsListScreen() {
     : type === 'checking' ? COLORS.checking
     : COLORS.textSecondary;
 
-  const total = accounts.reduce((s, a) => s + a.balance, 0);
-  
+  // ── Multi-devises : chaque compte garde sa devise ; les AGRÉGATS sont convertis dans la devise
+  // de référence de l'utilisateur (profiles.currency_code). « ≈ » si plusieurs devises en jeu.
+  const { data: profile } = useProfile(user?.id);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const refCode = profile?.currency_code ?? 'EUR';
+  const refSymbol = currencySymbolFor(refCode);
+  const mixedCurrencies = new Set(accounts.map((a) => a.currency || 'EUR')).size > 1;
+  // Taux manquant → on garde la valeur brute (rare ; agrégat alors indicatif).
+  const toRef = (a: { balance: number; currency?: string }) =>
+    convertAmount(Number(a.balance), a.currency || 'EUR', refCode, rates) ?? Number(a.balance);
+  const sumRef = (filter: (a: any) => boolean) => accounts.filter(filter).reduce((s, a) => s + toRef(a), 0);
+
+  const total = accounts.reduce((s, a) => s + toRef(a), 0);
+  const totalChecking = sumRef((a) => a.type === 'checking');
+  const totalSavings = sumRef((a) => a.type === 'savings');
+  const totalInvested = sumRef((a) => a.type === 'investment');
+  const approx = mixedCurrencies ? '≈ ' : '';
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -142,19 +160,20 @@ export default function AccountsListScreen() {
             <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
             <View style={styles.overviewRow}>
               {(() => {
-                const s = pilotageData.total_savings;
+                // Agrégats convertis dans la devise de référence (multi-devises).
+                const s = totalSavings;
                 const sCol = s < 5000 ? COLORS.danger : s < 10000 ? COLORS.orange : COLORS.savings;
                 const sKw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
                 return [
-                  { label: 'Courant', value: pilotageData.total_checking, color: COLORS.checking, icon: 'wallet-outline', sub: null },
+                  { label: 'Courant', value: totalChecking, color: COLORS.checking, icon: 'wallet-outline', sub: null },
                   { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline', sub: sKw },
-                  { label: 'Investi', value: pilotageData.total_invested, color: COLORS.investment, icon: 'trending-up-outline', sub: null },
+                  { label: 'Investi', value: totalInvested, color: COLORS.investment, icon: 'trending-up-outline', sub: null },
                 ].map((item) => (
                   <View key={item.label} style={[styles.overviewCard, { borderLeftColor: item.color }]}>
                     <Ionicons name={item.icon as any} size={14} color={item.color} style={{ marginBottom: 2 }} />
                     <Text style={styles.overviewLabel}>{item.label}</Text>
                     <Text style={[styles.overviewValue, { color: semanticText(item.color, COLORS) }]}>
-                      {item.value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOL}
+                      {approx}{item.value.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} {refSymbol}
                     </Text>
                     {item.sub && <Text style={[styles.overviewSub, { color: semanticText(item.color, COLORS) }]}>{item.sub}</Text>}
                   </View>
@@ -169,8 +188,8 @@ export default function AccountsListScreen() {
             <Text style={styles.heroLabel}>Total liquidités</Text>
             <View style={styles.heroAmountRow}>
               <Text style={styles.heroAmount}>
-                {totalFormatted.sign}{totalFormatted.int}
-                <Text style={styles.heroDec}>,{totalFormatted.dec} {CURRENCY_SYMBOL}</Text>
+                {approx}{totalFormatted.sign}{totalFormatted.int}
+                <Text style={styles.heroDec}>,{totalFormatted.dec} {refSymbol}</Text>
               </Text>
             </View>
 
@@ -260,7 +279,7 @@ export default function AccountsListScreen() {
                     {/* Solde */}
                     <View style={styles.accountBalanceWrap}>
                       <Text style={styles.accountBalance}>
-                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
                       </Text>
                       <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
                     </View>

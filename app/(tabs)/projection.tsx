@@ -3,7 +3,9 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   useWindowDimensions, Platform, findNodeHandle,
 } from 'react-native';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
+import { useCurrencyRates } from '../../hooks/useCurrencyRates';
+import { useProfile } from '../../hooks/useProfile';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -141,10 +143,29 @@ export default function ProjectionScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { data: pilotage } = usePilotageData(user?.id);
-  const { data: transactions = [] } = useTransactions(user?.id);
+  const { data: rawTransactions = [] } = useTransactions(user?.id);
   const { data: answers } = useQuestionnaireAnswers(user?.id);
-  const { data: allAccounts = [] } = useAccounts(user?.id);
+  const { data: rawAllAccounts = [] } = useAccounts(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
+
+  // ── Multi-devises : la projection raisonne dans la devise de RÉFÉRENCE. On convertit comptes
+  // (solde + apport investissement) et transactions (par la devise de leur compte).
+  const { data: profile } = useProfile(user?.id);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const refCode = (profile as any)?.currency_code ?? 'EUR';
+  const allAccounts = useMemo(() => rawAllAccounts.map((a) => {
+    const cur = (a as any).currency || 'EUR';
+    const ic = (a as any).initial_contributed;
+    return {
+      ...a,
+      balance: convertAmount(Number(a.balance), cur, refCode, rates) ?? Number(a.balance),
+      initial_contributed: ic != null ? (convertAmount(Number(ic), cur, refCode, rates) ?? Number(ic)) : ic,
+    };
+  }), [rawAllAccounts, rates, refCode]);
+  const transactions = useMemo(
+    () => rawTransactions.map((t) => ({ ...t, amount: convertAmount(Number(t.amount), (t as any).account?.currency || refCode, refCode, rates) ?? Number(t.amount) })),
+    [rawTransactions, rates, refCode],
+  );
 
   const chartWidth = Math.min(width - 48, 560);
   const num = (s: string) => parseFloat(String(s).replace(/\s/g, '').replace(/,/g, '.')) || 0;

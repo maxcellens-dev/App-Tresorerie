@@ -30,7 +30,7 @@ import type { RecurrenceRule, PreSavingType } from '../../../types/database';
 import type { RecoType } from '../../../lib/recommendationEngine';
 import { useRecoDismissals } from '../../../hooks/useUiPrefs';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { currencySymbolFor } from '../../../lib/currency';
 
 
 export default function TransferScreen() {
@@ -114,6 +114,19 @@ export default function TransferScreen() {
       Alert.alert('Comptes différents', 'Le compte source et le compte cible doivent être différents.');
       return;
     }
+    // Phase 1 : pas encore de virement entre devises différentes (la conversion arrive en Phase 3).
+    // On bloque pour ne PAS créer de jambes miroir −X/+X fausses (X EUR débité ≠ X CHF crédité).
+    {
+      const srcCur = accounts.find((a) => a.id === fromAccountId)?.currency || 'EUR';
+      const dstCur = accounts.find((a) => a.id === toAccountId)?.currency || 'EUR';
+      if (srcCur !== dstCur) {
+        Alert.alert(
+          'Devises différentes',
+          "Les virements entre comptes de devises différentes arrivent bientôt. Pour l'instant, le compte source et le compte cible doivent avoir la même devise.",
+        );
+        return;
+      }
+    }
 
     const endDateISO = isRecurring && recurrenceEndDateInput.trim()
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
@@ -173,7 +186,8 @@ export default function TransferScreen() {
   }
 
   // ── Retrait d'un compte d'investissement : règle du prorata (capital vs plus-value) ──
-  const fmtEur = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+  // Virement mono-devise (Phase 1) → tout est dans la devise du compte source.
+  const fmtEur = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + currencySymbolFor(fromAcc?.currency);
   const fromAcc = accounts.find((a) => a.id === fromAccountId);
   const toAcc = accounts.find((a) => a.id === toAccountId);
   const withdrawalNum = parseFloat((amount || '').replace(',', '.'));
@@ -231,7 +245,7 @@ export default function TransferScreen() {
               >
                 <Text style={[styles.chipText, fromAccountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
                 <Text style={[styles.chipSubtext, fromAccountId === acc.id && styles.chipSubtextActive]}>
-                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -251,7 +265,7 @@ export default function TransferScreen() {
               >
                 <Text style={[styles.chipText, toAccountId === acc.id && styles.chipTextActive]}>{acc.name}</Text>
                 <Text style={[styles.chipSubtext, toAccountId === acc.id && styles.chipSubtextActive]}>
-                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                  {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -273,7 +287,7 @@ export default function TransferScreen() {
             <Text style={styles.prevLinkText}>Étape précédente</Text>
           </TouchableOpacity>
 
-          <Text style={styles.label}>Montant ({CURRENCY_SYMBOL})</Text>
+          <Text style={styles.label}>Montant ({currencySymbolFor(fromAcc?.currency)})</Text>
           <TextInput
             style={styles.input}
             value={amount}

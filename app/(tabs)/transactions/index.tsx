@@ -22,7 +22,7 @@ import GuideOverlay from '../../../components/GuideOverlay';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
 import { iconForTransaction } from '../../../lib/categoryIcons';
 
 
@@ -705,7 +705,7 @@ export default function TransactionsListScreen() {
                                   </Text>
                                 </TouchableOpacity>
                                 <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
-                                  {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
+                                  {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
                                 </Text>
                               </View>
                               {/* Ligne 2 : actions */}
@@ -772,7 +772,7 @@ export default function TransactionsListScreen() {
                               </View>
                             ) : (
                               <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg]}>
-                                {amt > 0 ? '+' : ''}{amt.toFixed(2)} {CURRENCY_SYMBOL}
+                                {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
                               </Text>
                             )}
                           </TouchableOpacity>

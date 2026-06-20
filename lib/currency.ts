@@ -146,3 +146,20 @@ export const DEFAULT_CURRENCY = 'EUR';
 export function floorToTen(n: number): number {
   return Math.floor(n / 10) * 10;
 }
+
+// ── Conversion multi-devises ──────────────────────────────────
+/** Table des taux : code → unités de la devise pour 1 EUR (base EUR, rate(EUR)=1). */
+export type RatesMap = Record<string, number>;
+
+/**
+ * Convertit `amount` de la devise `from` vers `to` via la base EUR : amount × rate(to) / rate(from).
+ * Si un taux manque (devise inconnue), on NE DEVINE PAS : on renvoie `null` → l'appelant décide
+ * (afficher « ≈ ? » plutôt qu'un montant faux). `from === to` → renvoie le montant tel quel.
+ */
+export function convertAmount(amount: number, from: string, to: string, rates: RatesMap): number | null {
+  if (!from || !to || from === to) return amount;
+  const rf = rates[from];
+  const rt = rates[to];
+  if (!rf || !rt || rf <= 0 || rt <= 0) return null;
+  return (amount * rt) / rf;
+}

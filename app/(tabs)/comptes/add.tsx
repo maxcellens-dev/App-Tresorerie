@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useRef } from 'react';
+﻿import { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,8 +7,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAddAccount } from '../../../hooks/useAccounts';
+import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
+import CurrencyPicker from '../../../components/CurrencyPicker';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 
@@ -28,9 +30,15 @@ export default function AddAccountScreen() {
   const addAccount = useAddAccount(user?.id);
   const scrollRef = useRef<ScrollView>(null);
 
+  const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
+  // Devise du compte : par défaut celle de l'utilisateur (devise de référence), modifiable.
   const [currency, setCurrency] = useState('EUR');
+  const currencyTouched = useRef(false);
+  useEffect(() => {
+    if (!currencyTouched.current && profile?.currency_code) setCurrency(profile.currency_code);
+  }, [profile?.currency_code]);
   const [balance, setBalance] = useState('0');
   const [initDate, setInitDate] = useState(todayISO());
   const [initDateDisplay, setInitDateDisplay] = useState(formatDateFrench(todayISO()));
@@ -143,6 +151,14 @@ export default function AddAccountScreen() {
                 <Text style={[styles.chipText, type === t.value && styles.chipTextActive]}>{t.label}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+
+          <View style={{ marginBottom: 16 }}>
+            <CurrencyPicker
+              label="Devise du compte"
+              value={currency}
+              onChange={(c) => { currencyTouched.current = true; setCurrency(c); }}
+            />
           </View>
 
           {type === 'investment' && (

@@ -208,9 +208,9 @@ export interface Transaction {
 }
 
 export interface TransactionWithDetails extends Transaction {
-  account?: { name: string; type: string } | null;
+  account?: { name: string; type: string; currency?: string } | null;
   category?: { name: string; type: string } | null;
-  linked_account?: { name: string; type: string } | null;
+  linked_account?: { name: string; type: string; currency?: string } | null;
   /** Mois d'affichage (YYYY-MM) pour les écritures récurrentes projetées. */
   displayDate?: string;
 }

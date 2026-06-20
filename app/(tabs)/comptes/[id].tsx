@@ -28,7 +28,7 @@ import { useTransactions, useAddTransaction } from '../../../hooks/useTransactio
 import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { currencySymbolFor } from '../../../lib/currency';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -354,6 +354,10 @@ export default function AccountDetailScreen() {
       </View>
     );
   }
+
+  // Toutes les valeurs de cet écran sont dans la devise DU COMPTE (le solde et ses transactions
+  // sont mono-devise). On affiche donc le symbole de la devise du compte partout ici.
+  const CURRENCY_SYMBOL = currencySymbolFor((account as any).currency);
 
   return (
     <View style={styles.root}>

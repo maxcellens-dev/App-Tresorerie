@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
+import { convertAmount, type RatesMap } from '../lib/currency';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -122,16 +123,18 @@ async function fetchPilotageData(profileId: string): Promise<{
   questionnaireAnswers: any | null;
   projects: Project[];
   objectives: Objective[];
+  rates: RatesMap;
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
-  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes] = await Promise.all([
+  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
     supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
     supabase.from('projects').select('*').eq('profile_id', profileId),
     supabase.from('objectives').select('*').eq('profile_id', profileId),
     supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
+    supabase.from('currency_rates').select('code, rate'),
   ]);
 
   if (profileRes.error) throw profileRes.error;
@@ -140,6 +143,9 @@ async function fetchPilotageData(profileId: string): Promise<{
   if (projectsRes.error) throw projectsRes.error;
   if (objectivesRes.error) throw objectivesRes.error;
   if (qaRes.error) throw qaRes.error;
+  // Taux : non bloquant (si erreur → EUR seul ; la conversion laissera les montants tels quels).
+  const rates: RatesMap = { EUR: 1 };
+  for (const r of (ratesRes.data ?? []) as { code: string; rate: number }[]) rates[r.code] = Number(r.rate);
 
   return {
     profile: (profileRes.data as Profile) || null,
@@ -160,6 +166,7 @@ async function fetchPilotageData(profileId: string): Promise<{
       target_yearly_amount: Number(o.target_yearly_amount),
     })) as Objective[],
     questionnaireAnswers: qaRes.data ?? null,
+    rates,
   };
 }
 
@@ -392,7 +399,19 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const { profile, accounts, transactions, projects, objectives } = data;
+  const { profile, projects, objectives, rates } = data;
+
+  // ── Multi-devises : on NORMALISE comptes & transactions dans la devise de RÉFÉRENCE de
+  // l'utilisateur AVANT tout calcul. Tout le reste de la fonction raisonne donc en une seule
+  // devise (la référence). Taux manquant → montant laissé tel quel (pas d'invention).
+  const refCode = profile?.currency_code ?? 'EUR';
+  const accountCurrency = new Map(data.accounts.map((a) => [a.id, (a as any).currency || 'EUR']));
+  const toRef = (amount: number, from: string) => convertAmount(amount, from, refCode, rates) ?? amount;
+  const accounts = data.accounts.map((a) => ({ ...a, balance: toRef(Number(a.balance), (a as any).currency || 'EUR') }));
+  const transactions = data.transactions.map((t) => ({
+    ...t,
+    amount: toRef(Number(t.amount), accountCurrency.get((t as any).account_id) ?? refCode),
+  }));
 
   // =====================================================================
   // AGGREGATIONS: Accounts by Type

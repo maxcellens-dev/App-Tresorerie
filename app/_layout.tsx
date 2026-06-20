@@ -27,6 +27,7 @@ import GamificationSync from '../components/GamificationSync';
 import AppDialogHost from '../components/AppDialogHost';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCurrency } from '../hooks/useCurrency';
+import { useRatesAutoRefresh } from '../hooks/useRatesAutoRefresh';
 import { useProfile } from '../hooks/useProfile';
 import { useSetPremium } from '../hooks/usePlan';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/purchases';
@@ -178,6 +179,7 @@ function AppChrome() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   useCurrency(); // synchronise le symbole de devise global avec le profil
+  useRatesAutoRefresh(); // admin : met à jour les taux de change ~1×/jour
   const segments = useSegments();
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();

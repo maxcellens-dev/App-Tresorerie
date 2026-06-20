@@ -18,7 +18,7 @@ import CalculatorButton from '../../../components/CalculatorButton';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { currencySymbolFor } from '../../../lib/currency';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -78,6 +78,13 @@ export default function AddTransactionScreen() {
       if (!accountId) return showError('Veuillez choisir un compte source.', ['account']);
       if (!targetAccountId) return showError('Veuillez choisir un compte de destination.', ['targetAccount']);
       if (accountId === targetAccountId) return showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
+      // Phase 1 : virement mono-devise uniquement (cross-devises = Phase 3) → on bloque pour ne pas
+      // créer de jambes miroir −X/+X fausses entre deux devises.
+      {
+        const srcCur = accounts.find(a => a.id === accountId)?.currency || 'EUR';
+        const dstCur = accounts.find(a => a.id === targetAccountId)?.currency || 'EUR';
+        if (srcCur !== dstCur) return showError('Les virements entre devises différentes arrivent bientôt — choisissez deux comptes de même devise.', ['targetAccount']);
+      }
     } else {
       const num = parseFloat(amount.replace(',', '.'));
       if (Number.isNaN(num) || num === 0) return showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
@@ -361,7 +368,7 @@ export default function AddTransactionScreen() {
                 />
 
                 {/* Montant */}
-                <Text style={styles.label}>Montant ({CURRENCY_SYMBOL}) *</Text>
+                <Text style={styles.label}>Montant ({currencySymbolFor(accounts.find(a => a.id === accountId)?.currency)}) *</Text>
                 <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={goNext} />
               </>
             )
@@ -378,7 +385,7 @@ export default function AddTransactionScreen() {
                 <>
                   <Text style={styles.label}>Libellé (optionnel)</Text>
                   <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Ex. Virement épargne..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
-                  <Text style={styles.label}>Montant ({CURRENCY_SYMBOL}) *</Text>
+                  <Text style={styles.label}>Montant ({currencySymbolFor(accounts.find(a => a.id === accountId)?.currency)}) *</Text>
                   <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
                 </>
               )}

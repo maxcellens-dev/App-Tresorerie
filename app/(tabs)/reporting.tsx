@@ -21,7 +21,8 @@ import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
 import { ACCOUNT_COLORS, SEMANTIC, accountColor } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
+import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 
 /* ── Couleurs fixes des graphiques (sémantique indépendante du thème) ── */
 const CHART = {
@@ -435,10 +436,24 @@ export default function ReportingScreen() {
   const isAdmin = (profile as any)?.is_admin === true;
   const reportingAllowed = isPremium || isAdmin;
 
-  const { data: transactions, refetch: rTx } = useTransactions(user?.id);
-  const { data: accounts, refetch: rAcc } = useAccounts(user?.id);
+  const { data: rawTransactions, refetch: rTx } = useTransactions(user?.id);
+  const { data: rawAccounts, refetch: rAcc } = useAccounts(user?.id);
   const { data: categories } = useCategories(user?.id);
   const { data: pilotage, refetch: rPil } = usePilotageData(user?.id);
+
+  // ── Multi-devises : le reporting raisonne dans la devise de RÉFÉRENCE de l'utilisateur.
+  // On convertit comptes (par leur devise) et transactions (par la devise de leur compte).
+  // On préserve `undefined` pendant le chargement (les gardes/états de chargement restent valides).
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const refCode = (profile as any)?.currency_code ?? 'EUR';
+  const accounts = useMemo(
+    () => rawAccounts?.map((a) => ({ ...a, balance: convertAmount(Number(a.balance), (a as any).currency || 'EUR', refCode, rates) ?? Number(a.balance) })),
+    [rawAccounts, rates, refCode],
+  );
+  const transactions = useMemo(
+    () => rawTransactions?.map((t) => ({ ...t, amount: convertAmount(Number(t.amount), (t as any).account?.currency || refCode, refCode, rates) ?? Number(t.amount) })),
+    [rawTransactions, rates, refCode],
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);

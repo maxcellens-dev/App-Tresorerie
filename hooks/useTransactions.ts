@@ -137,9 +137,9 @@ export function useTransactions(profileId: string | undefined) {
         .from('transactions')
         .select(`
           *,
-          account:accounts!account_id(name, type),
+          account:accounts!account_id(name, type, currency),
           category:categories!category_id(name, type),
-          linked_account:accounts!linked_account_id(name, type)
+          linked_account:accounts!linked_account_id(name, type, currency)
         `)
         .eq('profile_id', profileId)
         .order('date', { ascending: false })
