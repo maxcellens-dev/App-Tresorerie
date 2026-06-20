@@ -326,7 +326,10 @@ export default function TransactionsListScreen() {
     for (const arr of Object.values(map)) arr.sort((a, b) => {
       const dateA = getEffectiveDate(a);
       const dateB = getEffectiveDate(b);
-      return dateB.localeCompare(dateA);
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      // Même jour : ordre chronologique de saisie → la régul se place après les transactions
+      // saisies avant elle et avant les « nouvelles » saisies après.
+      return ((a as any).created_at ?? '').localeCompare((b as any).created_at ?? '');
     });
     const keys = Object.keys(map).sort((a, b) => {
       // Trier les mois en ordre inverse (plus récent d'abord)

@@ -197,6 +197,12 @@ export interface Transaction {
   materialized_from?: string | null;
   /** Portée au solde du compte ? false pour une dépense future non récurrente en attente d'échéance. */
   posted?: boolean;
+  /** §P12 — Transaction datée LE JOUR d'une régularisation et déclarée « déjà incluse » dans ce
+   *  solde régularisé → elle ne compte pas dans le solde (le recalcul l'exclut). N'est utile QUE
+   *  pour le cas « même jour » : l'absorption « avant la régul » est dérivée de la date au recalcul. */
+  regul_covered?: boolean;
+  /** Pour une ligne de régularisation : solde cible saisi par l'utilisateur (affichage). */
+  regul_target?: number | null;
   created_at: string;
   updated_at: string;
 }

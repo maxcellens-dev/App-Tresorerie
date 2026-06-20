@@ -62,6 +62,22 @@ async function regulOnSameDay(accountId: string, date: string): Promise<{ accoun
   return { accountName: (acc as any)?.name ?? 'ce compte' };
 }
 
+/**
+ * Recalcule (côté base) le solde STOCKÉ des comptes touchés via recompute_account_balance().
+ * Source de vérité unique du solde → à appeler après TOUTE mutation qui modifie des transactions.
+ * Élimine toute dérive : le solde ne dépend plus d'additions/réversions incrémentales.
+ */
+async function recomputeBalances(accountIds: Array<string | null | undefined>): Promise<void> {
+  if (!supabase) return;
+  const today = localTodayISO();
+  const seen = new Set<string>();
+  for (const id of accountIds) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    await supabase.rpc('recompute_account_balance', { p_account: id, p_today: today });
+  }
+}
+
 /** Colonnes nécessaires pour réverser proprement l'impact solde avant suppression. */
 export const TX_REVERSAL_COLS = 'id, account_id, amount, date, is_draft, is_recurring, note, linked_account_id';
 
@@ -104,22 +120,12 @@ export async function reverseBalanceAndDeleteTransactions(profileId: string, bas
     if (paired) byId.set(paired.id, paired);
   }
 
-  // Réversion : chaque ligne retire sa PROPRE contribution « à date » exactement une fois
-  // (les deux jambes étant dans le lot, on ne croise pas les comptes → pas de double compte).
-  const adjust: Record<string, number> = {};
-  for (const r of byId.values()) {
-    const contribution = balanceContribution({ amount: Number(r.amount), date: r.date, is_draft: r.is_draft, is_recurring: r.is_recurring });
-    const delta = await effectiveBalanceDelta(r.account_id, r.date, r.note, contribution);
-    if (delta !== 0) adjust[r.account_id] = (adjust[r.account_id] ?? 0) - delta;
-  }
+  const affectedAccounts = Array.from(new Set(Array.from(byId.values()).map((r) => r.account_id)));
 
   await supabase.from('transactions').delete().in('id', Array.from(byId.keys())).eq('profile_id', profileId);
 
-  for (const [accId, delta] of Object.entries(adjust)) {
-    if (delta === 0) continue;
-    const { data: acc } = await supabase.from('accounts').select('balance').eq('id', accId).single();
-    if (acc) await supabase.from('accounts').update({ balance: Number(acc.balance) + delta }).eq('id', accId);
-  }
+  // Solde = recalcul depuis les faits (anti-dérive) — plus de réversion incrémentale fragile.
+  await recomputeBalances(affectedAccounts);
 }
 
 export function useTransactions(profileId: string | undefined) {
@@ -172,19 +178,18 @@ export function useAddTransaction(profileId: string | undefined) {
       /** Saisie interactive : si une régul existe le même jour, demander si l'opération y est
        *  déjà incluse (→ ne pas réimpacter le solde) ou si c'est une nouvelle opération. */
       checkRegulConflict?: boolean;
+      /** Pour une ligne de régularisation : solde cible saisi (affichage). */
+      regul_target?: number | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      // Solde « à date » : on n'ajoute au solde que ce qui est effectivement sorti/entré
-      // (non-brouillon ET pas une dépense future non récurrente).
       const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
 
-      // §P12 : transaction datée AVANT la dernière régularisation → n'impacte pas le solde
-      // (déjà capturée). Marquée `posted: true` pour que reconcile_posted ne la reporte pas.
-      let effectiveContribution = await effectiveBalanceDelta(input.account_id, input.date, input.note, contribution);
-
-      // §P12bis : transaction datée LE JOUR d'une régularisation (cas ambigu, non couvert par le
-      // strict « avant »). On demande à l'utilisateur si elle est déjà incluse dans ce solde.
-      if (input.checkRegulConflict && contribution !== 0 && effectiveContribution !== 0) {
+      // §P12bis — Cas ambigu : transaction datée LE JOUR d'une régularisation. On demande si elle
+      // est DÉJÀ incluse dans ce solde (→ regul_covered = true, le recalcul l'exclut) ou si c'est
+      // une NOUVELLE opération postérieure à la régul (→ elle compte). L'absorption « avant la
+      // régul » n'a PAS besoin d'être stockée : le recalcul la dérive de la date.
+      let regulCovered = false;
+      if (input.checkRegulConflict && contribution !== 0) {
         const noteLc = (input.note ?? '').toLowerCase();
         const isRegulItself = noteLc.includes('gul') || input.note === 'Ajustement de solde';
         if (!isRegulItself) {
@@ -196,13 +201,10 @@ export function useAddTransaction(profileId: string | undefined) {
               confirmText: 'Déjà incluse',
               cancelText: 'Nouvelle opération',
             });
-            // « Déjà incluse » → absorbée (la régul la couvre déjà, comme une transaction pré-régul).
-            // « Nouvelle » (ou fermeture) → comportement normal : elle impacte le solde.
-            if (alreadyCounted) effectiveContribution = 0;
+            regulCovered = alreadyCounted; // « Déjà incluse » → couverte ; « Nouvelle »/fermeture → compte.
           }
         }
       }
-      const preBaseline = contribution !== 0 && effectiveContribution === 0;
 
       const { data, error } = await supabase
         .from('transactions')
@@ -220,19 +222,15 @@ export function useAddTransaction(profileId: string | undefined) {
           recurrence_end_date: input.recurrence_end_date ?? null,
           project_id: input.project_id ?? null,
           linked_account_id: input.linked_account_id ?? null,
-          // posted = false pour une dépense future non récurrente (portée au solde plus tard
-          // par reconcile_posted une fois échue). Pré-régularisation → posted true (déjà capturée).
-          posted: preBaseline ? true : contribution !== 0,
+          posted: contribution !== 0,
+          regul_covered: regulCovered,
+          regul_target: input.regul_target ?? null,
         })
         .select()
         .single();
       if (error) throw error;
-      if (effectiveContribution !== 0) {
-        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', input.account_id).single();
-        if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) + effectiveContribution }).eq('id', input.account_id);
-        }
-      }
+      // Solde = recalcul depuis les faits (source de vérité, anti-dérive).
+      await recomputeBalances([input.account_id]);
       return data;
     },
     onSuccess: () => {
@@ -481,6 +479,8 @@ export function useUpdateTransaction(profileId: string | undefined) {
           }
         }
       }
+      // Solde = recalcul depuis les faits sur tous les comptes touchés (ancien/nouveau + jambe paire).
+      await recomputeBalances([oldAccId, newAccId, oldLinkedAccId]);
       return data;
     },
     onSuccess: () => {
@@ -549,36 +549,20 @@ export function useDeleteTransaction(profileId: string | undefined) {
       // On ne retire du solde que ce qui y avait effectivement été ajouté
       // (contribution « à date » : ni brouillon, ni dépense future non récurrente ;
       //  §P12 : ni une transaction pré-régularisation, qui n'avait pas impacté le solde).
-      const txContribution = balanceContribution({ amount: txAmount, date: txDate, is_draft: isDraft, is_recurring: isRecurringRow });
-      const txDelta = await effectiveBalanceDelta(txAccountId, txDate, txNote, txContribution);
-      if (txDelta !== 0) {
-        const { data: acc } = await supabase.from('accounts').select('balance').eq('id', txAccountId).single();
-        if (acc) {
-          await supabase.from('accounts').update({ balance: Number(acc.balance) - txDelta }).eq('id', txAccountId);
-        }
-      }
+      // Solde = recalcul depuis les faits (anti-dérive).
+      await recomputeBalances([txAccountId]);
 
       // Supprimer le côté symétrique si trouvé
       if (pairedId) {
         const { data: pairedRow } = await supabase
           .from('transactions')
-          .select('account_id, amount, is_draft, is_recurring, date, note')
+          .select('account_id')
           .eq('id', pairedId)
           .eq('profile_id', profileId)
           .maybeSingle();
         if (pairedRow) {
           await supabase.from('transactions').delete().eq('id', pairedId).eq('profile_id', profileId);
-          const pairedAccId = (pairedRow as any).account_id as string;
-          const pairedContribution = balanceContribution({
-            amount: Number((pairedRow as any).amount), date: (pairedRow as any).date,
-            is_draft: (pairedRow as any).is_draft, is_recurring: (pairedRow as any).is_recurring,
-          });
-          // §P12 : même traitement « pré-régularisation » que la jambe principale (symétrie create/delete).
-          const pairedDelta = await effectiveBalanceDelta(pairedAccId, (pairedRow as any).date, (pairedRow as any).note, pairedContribution);
-          if (pairedDelta !== 0) {
-            const { data: pairedAcc } = await supabase.from('accounts').select('balance').eq('id', pairedAccId).single();
-            if (pairedAcc) await supabase.from('accounts').update({ balance: Number(pairedAcc.balance) - pairedDelta }).eq('id', pairedAccId);
-          }
+          await recomputeBalances([(pairedRow as any).account_id as string]);
         }
       }
 
@@ -740,6 +724,9 @@ export function useValidateProjectDraft(profileId: string | undefined) {
         const { data: dstAcc } = await supabase.from('accounts').select('balance').eq('id', linkedId).single();
         if (dstAcc) await supabase.from('accounts').update({ balance: Number(dstAcc.balance) + creditAmt }).eq('id', linkedId);
       }
+
+      // Solde = recalcul depuis les faits sur les deux comptes du virement (anti-dérive).
+      await recomputeBalances([sourceId, linkedId]);
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Account } from '../types/database';
+import { todayISO } from '../lib/dateUtils';
 
 const KEY = 'accounts';
 
@@ -104,7 +105,7 @@ export function useAddAccount(profileId: string | undefined) {
           name: input.name.trim(),
           type: input.type || 'checking',
           currency: input.currency || 'EUR',
-          balance: input.balance ?? 0,
+          balance: 0,
           ...(input.type === 'investment' && input.fiscal_envelope ? { fiscal_envelope: input.fiscal_envelope } : {}),
           ...(input.type === 'investment' && input.initial_contributed != null ? { initial_contributed: input.initial_contributed, current_contributed: input.initial_contributed } : {}),
           ...(input.init_date ? { init_date: input.init_date } : {}),
@@ -112,6 +113,27 @@ export function useAddAccount(profileId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
+
+      // Le solde est désormais DÉRIVÉ des transactions (recompute_account_balance). Un solde initial
+      // doit donc être adossé à une vraie transaction « Solde initial », sinon le recalcul (déclenché
+      // par la 1ʳᵉ écriture) le remettrait à zéro.
+      const initBal = input.balance ?? 0;
+      if (data && initBal !== 0) {
+        const accId = (data as any).id as string;
+        const initDate = input.init_date ?? todayISO();
+        await supabase.from('transactions').insert({
+          profile_id: profileId,
+          account_id: accId,
+          category_id: null,
+          amount: initBal,
+          date: initDate,
+          note: 'Solde initial',
+          is_draft: false,
+          is_recurring: false,
+          posted: true,
+        });
+        await supabase.rpc('recompute_account_balance', { p_account: accId, p_today: todayISO() });
+      }
       return data;
     },
     onSuccess: () => {

@@ -16,6 +16,7 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
+import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/txOrder';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -147,6 +148,7 @@ export default function AccountDetailScreen() {
         date: balanceDate,
         note: balanceNote.trim() || 'Ajustement de solde',
         is_recurring: false,
+        regul_target: newBalance, // solde cible saisi → affiché sur la ligne de régul
       });
       setShowBalance(false);
       setBalanceInput('');
@@ -338,7 +340,7 @@ export default function AccountDetailScreen() {
     const allTx = transactions as TransactionWithDetails[];
     return allTx
       .filter((t) => t.account_id === id && !(t as any).is_draft && t.date <= today)
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort(compareTransactionsForDisplay);
   }, [id, transactions]);
 
   if (!user || !account) {
@@ -538,6 +540,11 @@ export default function AccountDetailScreen() {
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Text>
                     <Text style={[styles.transferLabel, t.category?.name === 'Projets' && { color: COLORS.blue }]}>{label}</Text>
+                    {isRegulRow(t) && (t as any).regul_target != null && (
+                      <Text style={styles.regulTarget}>
+                        → solde {Number((t as any).regul_target).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                      </Text>
+                    )}
                   </View>
                   <Text
                     style={[
@@ -1228,6 +1235,7 @@ function makeStyles(c: any) {
   transferLeft: { flex: 1 },
   transferDate: { fontSize: 13, color: c.textSecondary, marginBottom: 2 },
   transferLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+  regulTarget: { fontSize: 12, color: c.emerald, fontWeight: '600', marginTop: 1 },
   transferAmount: { fontSize: 15, fontWeight: '700' },
   transferAmountIn: { color: c.green },
   transferAmountOut: { color: c.text },
