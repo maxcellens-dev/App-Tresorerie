@@ -434,7 +434,7 @@ export default function ProfilFinancierScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 20 },
+  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
   backLabel: { fontSize: 15, color: c.text, fontWeight: '500' },
   scroll: { flex: 1 },

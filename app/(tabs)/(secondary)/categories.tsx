@@ -504,7 +504,7 @@ function makeStyles(c: any) {
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 4, marginRight: 12 },
   pageTitle: { fontSize: 22, fontWeight: '700', color: c.text },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },

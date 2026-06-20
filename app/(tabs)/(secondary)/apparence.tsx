@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -123,10 +124,7 @@ export default function AppearanceScreen() {
       <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Apparence</Text>
+        <ScreenHeader title="Apparence" onBack={goBack} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           <View style={styles.card}>

@@ -31,7 +31,7 @@ export default function ClotureScreen() {
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Clôture mensuelle</Text>
@@ -117,7 +117,7 @@ export default function ClotureScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
     pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
     backBtn: { padding: 4, marginRight: 12 },
     title: { fontSize: 24, fontWeight: '700', color: c.text },

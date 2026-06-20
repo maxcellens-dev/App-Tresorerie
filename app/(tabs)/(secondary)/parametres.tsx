@@ -344,7 +344,7 @@ function makeStyles(c: AppColors) {
     saveBtn: { backgroundColor: c.emerald, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 28 },
     saveBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
 
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
     pageTitle: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
     sectionTitle: { fontSize: 12, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },

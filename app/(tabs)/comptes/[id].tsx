@@ -13,6 +13,7 @@ import {
   Pressable,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
@@ -347,10 +348,7 @@ export default function AccountDetailScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe}>
-          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
+          <ScreenHeader title="Compte" onBack={() => router.back()} />
           <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
         </SafeAreaView>
       </View>
@@ -362,15 +360,10 @@ export default function AccountDetailScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-        </TouchableOpacity>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
-
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{account.name}</Text>
-          <View style={styles.modifyRow}>
+        <ScreenHeader
+          title={account.name}
+          onBack={() => router.back()}
+          right={
             <TouchableOpacity
               style={styles.editBtn}
               onPress={() => router.push(`/(tabs)/comptes/edit/${id}`)}
@@ -381,7 +374,10 @@ export default function AccountDetailScreen() {
               <Ionicons name="pencil" size={20} color={COLORS.text} />
               <Text style={styles.editBtnLabel}>Modifier</Text>
             </TouchableOpacity>
-          </View>
+          }
+        />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
+
           <View style={styles.buttonRow}>
             {account.type === 'checking' ? (
               <TouchableOpacity
@@ -440,7 +436,6 @@ export default function AccountDetailScreen() {
               <Text style={[styles.editBtnLabel, { color: COLORS.emerald }]}>Virement</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Solde</Text>
@@ -1159,12 +1154,12 @@ export default function AccountDetailScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1 },
-  scrollContent: { paddingHorizontal: 24, paddingTop: 8 },
+  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+  scrollContent: { paddingTop: 4 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
   title: { fontSize: 22, fontWeight: '700', color: c.text, flex: 1, minWidth: 0 },
-  buttonRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', width: '100%' },
+  buttonRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', width: '100%', marginBottom: 20 },
   modifyRow: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
   editBtn: {
     flexDirection: 'row',

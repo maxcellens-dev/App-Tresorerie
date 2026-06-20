@@ -80,7 +80,7 @@ export default function IdeasScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.pageHeader}>
             <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+              <Ionicons name="arrow-back" size={22} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.title}>Boîte à idées</Text>
           </View>
@@ -172,7 +172,7 @@ function makeStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { padding: 4, marginRight: 12 },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
   card: {

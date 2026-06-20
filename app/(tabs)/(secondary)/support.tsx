@@ -67,7 +67,7 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
     title: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, overflow: 'hidden' },

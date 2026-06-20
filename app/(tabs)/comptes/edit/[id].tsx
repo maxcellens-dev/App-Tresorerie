@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
 import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -105,10 +106,7 @@ export default function EditAccountScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe}>
-          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
+          <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
           <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
         </SafeAreaView>
       </View>
@@ -120,11 +118,7 @@ export default function EditAccountScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Modifier le compte</Text>
+        <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {formError && (
@@ -195,7 +189,7 @@ export default function EditAccountScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
   scroll: { flex: 1 },

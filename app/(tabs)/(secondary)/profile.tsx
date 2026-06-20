@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -205,10 +206,7 @@ export default function ProfileScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={[]}>
-          <TouchableOpacity style={styles.back} onPress={goBack}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
+          <ScreenHeader title="Mon profil" onBack={goBack} />
           <Text style={styles.text}>Connectez-vous pour modifier votre profil.</Text>
           <View style={styles.loginActions}>
             <TouchableOpacity
@@ -246,16 +244,12 @@ export default function ProfileScreen() {
           />
         )}
 
-        <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.pageTitle}>Mon profil</Text>
-          <View style={{ flex: 1 }} />
-          {/* ID public partageable (pour les invitations Relyka World).
-              Appui → copie dans le presse-papiers ; texte aussi sélectionnable (appui long). */}
-          {!!(profile as any)?.public_code && (
+        {/* ID public partageable (pour les invitations Relyka World) à droite du titre.
+            Appui → copie dans le presse-papiers ; texte aussi sélectionnable (appui long). */}
+        <ScreenHeader
+          title="Mon profil"
+          onBack={goBack}
+          right={!!(profile as any)?.public_code && (
             <TouchableOpacity
               style={styles.idChip}
               onPress={copyPublicCode}
@@ -272,7 +266,7 @@ export default function ProfileScreen() {
               />
             </TouchableOpacity>
           )}
-        </View>
+        />
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection} ref={avatarRef}>
             <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
@@ -460,7 +454,7 @@ export default function ProfileScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 4, marginRight: 12 },
