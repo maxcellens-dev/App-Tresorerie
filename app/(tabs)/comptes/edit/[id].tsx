@@ -35,7 +35,7 @@ export default function EditAccountScreen() {
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
   const [currency, setCurrency] = useState('EUR');
-  const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('cto');
+  const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('pea');
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
   const scrollRef = useRef<ScrollView>(null);
@@ -45,7 +45,7 @@ export default function EditAccountScreen() {
       setName(account.name);
       setType(account.type);
       setCurrency(account.currency);
-      setFiscalEnvelope((account as any).fiscal_envelope ?? 'cto');
+      setFiscalEnvelope((account as any).fiscal_envelope ?? 'pea');
     }
   }, [account]);
 
@@ -161,14 +161,11 @@ export default function EditAccountScreen() {
                     onPress={() => setFiscalEnvelope(r.envelope)}
                   >
                     <Text style={[styles.chipText, fiscalEnvelope === r.envelope && styles.chipTextActive]}>
-                      {r.label} · {r.tax_rate}%
+                      {r.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.hintSmall}>
-                {fiscalRates.find((r) => r.envelope === fiscalEnvelope)?.note ?? 'Détermine la fiscalité utilisée dans la page Projection.'}
-              </Text>
             </>
           )}
 

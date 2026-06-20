@@ -35,7 +35,7 @@ export default function AddAccountScreen() {
   const [initDate, setInitDate] = useState(todayISO());
   const [initDateDisplay, setInitDateDisplay] = useState(formatDateFrench(todayISO()));
   const [showCalendar, setShowCalendar] = useState(false);
-  const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('cto');
+  const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('pea');
   const [initialContributed, setInitialContributed] = useState('');
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
 
@@ -156,14 +156,11 @@ export default function AddAccountScreen() {
                     onPress={() => setFiscalEnvelope(r.envelope)}
                   >
                     <Text style={[styles.chipText, fiscalEnvelope === r.envelope && styles.chipTextActive]}>
-                      {r.label} · {r.tax_rate}%
+                      {r.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.hintSmall}>
-                {fiscalRates.find((r) => r.envelope === fiscalEnvelope)?.note ?? 'Détermine la fiscalité utilisée dans la page Projection.'}
-              </Text>
 
               <Text style={styles.label}>Apport (Montant total des apports à date)</Text>
               <TextInput

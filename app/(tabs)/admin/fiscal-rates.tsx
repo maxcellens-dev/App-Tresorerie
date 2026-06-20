@@ -78,7 +78,7 @@ export default function FiscalRatesAdmin() {
                   <Text style={styles.suffix}>%</Text>
                 </View>
               </View>
-              <Text style={styles.noteLabel}>Note (affichée dans la création de compte et la projection)</Text>
+              <Text style={styles.noteLabel}>Note (affichée dans la projection)</Text>
               <TextInput
                 style={styles.noteInput}
                 value={notes[r.envelope] ?? ''}
