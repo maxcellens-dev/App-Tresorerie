@@ -19,7 +19,7 @@ import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type Badg
 export default function AchievementCelebration() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
   const { data: profile } = useProfile(user?.id);
   // Aucune célébration tant que l'onboarding n'est pas terminé : questionnaire répondu
@@ -45,6 +45,7 @@ export default function AchievementCelebration() {
   // Détecte les succès non encore célébrés (celebrated_at null) → file d'attente, puis les marque
   // célébrés côté serveur immédiatement pour qu'ils ne reviennent jamais.
   useEffect(() => {
+    if (isImpersonating) return; // consultation admin : ne pas célébrer / marquer les succès du compte cible
     if (!user?.id || !config) return;
     if (!onboardingDone) return; // rien avant la fin du questionnaire + tuto
     const pending = badges.filter(
@@ -62,7 +63,7 @@ export default function AchievementCelebration() {
       .filter((d): d is BadgeDef => !!d);
     if (fresh.length > 0) setQueue((q) => [...q, ...fresh]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [badges, config, user?.id, onboardingDone]);
+  }, [badges, config, user?.id, onboardingDone, isImpersonating]);
 
   // Affiche le suivant.
   useEffect(() => {

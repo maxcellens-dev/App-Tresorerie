@@ -8,12 +8,14 @@ import { useProfile } from './useProfile';
 import { useUpdateOnboarding, type PageIntroKey } from './useOnboarding';
 
 export function usePageIntro(pageKey: PageIntroKey) {
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const update = useUpdateOnboarding(user?.id);
 
   const state = ((profile as any)?.onboarding_state ?? {}) as Record<string, boolean>;
-  const seen = Boolean(state['intro_seen_' + pageKey]);
+  // En consultation admin : on considère la présentation comme « déjà vue » → elle ne s'ouvre
+  // jamais et aucun drapeau n'est écrit sur le compte cible.
+  const seen = isImpersonating || Boolean(state['intro_seen_' + pageKey]);
   // On ne propose la présentation qu'une fois le profil chargé (évite un flash avant lecture).
   const ready = !!profile;
 

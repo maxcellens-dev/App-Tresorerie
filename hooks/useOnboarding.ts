@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { useAccounts } from './useAccounts';
 import { useTransactions } from './useTransactions';
@@ -70,8 +71,13 @@ export const ONBOARDING_HINTS: Record<OnboardingStepKey, { label: string; hint: 
 
 export function useUpdateOnboarding(userId: string | undefined) {
   const qc = useQueryClient();
+  const { isImpersonating } = useAuth();
   return useMutation({
     mutationFn: async (patch: { app_tour_done?: boolean; flags?: Partial<Record<OnboardingFlag, boolean>> }) => {
+      // En mode « connecté en tant que » (consultation admin) : on n'écrit JAMAIS l'état
+      // d'onboarding du compte cible (tour de présentation, étapes du guide, présentations de
+      // page…). Visiter un compte ne doit pas valider/avancer son onboarding.
+      if (isImpersonating) return;
       if (!supabase || !userId) return;
       const updates: Record<string, any> = {};
       if (patch.app_tour_done !== undefined) updates.app_tour_done = patch.app_tour_done;

@@ -5,6 +5,7 @@ import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificati
 import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
+import { useAuth } from '../contexts/AuthContext';
 
 
 interface Props {
@@ -54,10 +55,14 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
 export default function ProfileChangeModal({ userId }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isImpersonating } = useAuth();
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
 
+  // En consultation admin : ne pas afficher le message de bilan/changement de profil du compte
+  // cible (ni le marquer comme « vu »). C'est une notification destinée à l'utilisateur lui-même.
+  if (isImpersonating) return null;
   if (!pendingChange) return null;
 
   const key = getTransitionKey(

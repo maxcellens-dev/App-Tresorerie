@@ -16,7 +16,7 @@ export default function StreakRecoveryModal() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { state, streakLoss, restoreLostStreak, config } = useGamification(user?.id);
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,7 +25,8 @@ export default function StreakRecoveryModal() {
 
   const gems = state?.gems ?? 0;
   const currency = config?.identity.currencyName ?? 'Relyk';
-  const visible = !!streakLoss && !dismissed;
+  // En consultation admin : pas de proposition de récupération de série sur le compte cible.
+  const visible = !isImpersonating && !!streakLoss && !dismissed;
   if (!visible) return null;
 
   const { weeksMissed, freezesUsed, newStreak, price, previousStreak } = streakLoss!;

@@ -21,17 +21,19 @@ export default function SuccesScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const goBack = useNavBack();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { state, badges, config, markBadgesCelebrated } = useGamification(user?.id);
   const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
 
   // « Bienvenue » est consommé ici (et non en pop-up) : à la 1ʳᵉ visite de la page Succès,
   // on le marque célébré s'il ne l'est pas encore. Idempotent → no-op aux visites suivantes.
+  // En consultation admin : on ne consomme PAS le badge du compte cible (laissé à l'utilisateur).
   useEffect(() => {
+    if (isImpersonating) return;
     const welcome = badges.find((b) => b.badge_key === WELCOME_BADGE_KEY && !b.celebrated_at);
     if (welcome) markBadgesCelebrated([WELCOME_BADGE_KEY]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [badges]);
+  }, [badges, isImpersonating]);
 
   const unlockedKeys = new Set(badges.map((b) => b.badge_key));
   // Succès affiché en grand au centre de l'écran (au clic sur une carte).

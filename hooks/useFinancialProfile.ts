@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import {
   computeInitialProfile,
   detectIrregularIncome,
@@ -260,9 +261,14 @@ export function useMarkNotificationShown(userId: string | undefined) {
 
 export function useAutoProfileEvaluation(userId: string | undefined) {
   const client = useQueryClient();
+  const { isImpersonating } = useAuth();
 
   return useMutation({
     mutationFn: async () => {
+      // En consultation admin : ne JAMAIS lancer l'évaluation mensuelle du compte cible.
+      // Elle écrit un profile_change_log (bilan mensuel / transition) et avance
+      // last_auto_evaluation → visiter un compte ne doit pas déclencher son bilan.
+      if (isImpersonating) return;
       if (!supabase || !userId) return;
 
       // Charger le profil actuel

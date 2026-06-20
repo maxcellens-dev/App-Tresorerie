@@ -22,7 +22,7 @@ interface Props {
 export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const { data: allTx = [] } = useTransactions(user?.id);
@@ -210,8 +210,8 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
         </View>
       </Modal>
 
-      {/* Pop-up de bilan éphémère */}
-      <Modal visible={!!bilan} transparent animationType="fade" statusBarTranslucent onRequestClose={() => markBilanSeen.mutate()}>
+      {/* Pop-up de bilan éphémère — masquée en consultation admin (ne pas consommer le bilan du compte cible) */}
+      <Modal visible={!isImpersonating && !!bilan} transparent animationType="fade" statusBarTranslucent onRequestClose={() => markBilanSeen.mutate()}>
         <View style={styles.bilanOverlay}>
           <View style={styles.bilanCard}>
             {bilan && bilan.surplus > 0 ? (

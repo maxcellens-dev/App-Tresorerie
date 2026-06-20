@@ -18,7 +18,7 @@ export default function OnboardingChecklist() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const ob = useOnboarding(user?.id);
   const tour = useTour();
   const [open, setOpen] = useState(false);
@@ -30,18 +30,22 @@ export default function OnboardingChecklist() {
   // Après le tour, on n'ouvre plus la checklist automatiquement : le bouton « Commencer »
   // du message de fin envoie directement sur la 1re étape (coachmark). On marque juste l'intro.
   useEffect(() => {
+    if (isImpersonating) return; // consultation admin : pas d'écriture sur le compte cible
     if (ob.shouldAutoOpenChecklist && !tour.finished && !autoOpened.current) {
       autoOpened.current = true;
       ob.markFlag('checklist_intro_shown');
     }
-  }, [ob.shouldAutoOpenChecklist, tour.finished]);
+  }, [ob.shouldAutoOpenChecklist, tour.finished, isImpersonating]);
 
   // Fige les étapes accomplies (validées pour toujours, même si l'élément créé est supprimé).
   useEffect(() => {
+    if (isImpersonating) return; // consultation admin : ne pas figer/valider les étapes du compte cible
     if (ob.pendingPersist.length) ob.persistDone();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ob.pendingPersist.join(',')]);
+  }, [ob.pendingPersist.join(','), isImpersonating]);
 
+  // En consultation admin : pas de badge « Pour bien démarrer » (élément lié à l'utilisateur).
+  if (isImpersonating) return null;
   if (!ob.badgeVisible) return null;
 
   const goToStep = (step: OnboardingStep) => {
