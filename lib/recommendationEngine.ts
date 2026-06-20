@@ -407,7 +407,7 @@ function buildRecommendation(
     case 'enjoy':
       return {
         type,
-        title: 'Plaisir : à ne pas dépasser',
+        title: 'Budget plaisir à ne pas dépasser',
         shortTitle: 'Plaisir',
         description: getEnjoyDescription(amount, data),
         amount,
@@ -459,33 +459,33 @@ function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageDat
 
   // Revenu non détecté → on n'affiche pas les « mois de sécurité » (juste le total + l'appréciation).
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
-  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. ${QUAL[tier]}. Épargnez ${amount} € ce mois-ci pour la consolider.`;
+  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. \nPlace ${amount} € ce mois-ci pour la consolider.`;
 }
 
 function getInvestDescription(tier: SavingsTier, amount: number, _data: PilotageData): string {
   if (tier === 'comfortable') {
-    return `Votre épargne est confortable. Placez ${amount} € sur vos investissements pour faire fructifier votre patrimoine.`;
+    return `Ton épargne est confortable. Place ${amount} € sur tes investissements pour faire fructifier ton patrimoine.`;
   }
   if (tier === 'healthy') {
-    return `Bonne santé financière ! Investissez ${amount} € pour diversifier votre patrimoine.`;
+    return `Bonne santé financière ! Investis ${amount} € pour diversifier ton patrimoine.`;
   }
-  return `Commencez à investir ${amount} € même modestement pour préparer l'avenir.`;
+  return `Commence à investir ${amount} € même modestement pour préparer l'avenir.`;
 }
 
 function getEnjoyDescription(amount: number, data: PilotageData): string {
   // Ce montant est un PLAFOND (limite à ne pas dépasser pour le plaisir), pas une somme à utiliser.
   if (data.variable_trend_percentage > 120) {
-    return `Vos dépenses variables sont en hausse : tenez-vous sous ${amount} € de plaisir ce mois-ci pour ne pas creuser.`;
+    return `Tes dépenses variables sont en hausse : tiens-toi sous ${amount} € de plaisir ce mois-ci pour ne pas creuser.`;
   }
   if (data.variable_trend_percentage < 80 && data.variable_trend_percentage > 0) {
-    return `Vos dépenses sont bien maîtrisées : vous pouvez aller jusqu'à ${amount} €, mais évitez de dépasser cette limite.`;
+    return `Tes dépenses sont bien maîtrisées : tu peux aller jusqu'à ${amount} €, mais évite de dépasser cette limite.`;
   }
-  return `Pour rester dans vos objectifs, ne dépassez pas ${amount} € de dépenses plaisir et loisirs ce mois-ci.`;
+  return `Pour rester dans tes objectifs, ne dépasse pas ${amount} € de dépenses plaisir et loisirs ce mois-ci.`;
 }
 
 function getKeepDescription(amount: number, data: PilotageData): string {
   if (data.current_checking_balance < data.committed_allocations * 2) {
-    return `Votre solde courant est un peu juste. Gardez ${amount} € en réserve pour couvrir les imprévus.`;
+    return `Ton solde courant est un peu juste. Garde ${amount} € en réserve pour couvrir les imprévus.`;
   }
-  return `Conservez ${amount} € sur votre compte courant comme marge de manœuvre pour le mois prochain.\nCette somme sera déduite de votre Relyka pour ne pas y toucher.`;
+  return `Conserve ${amount} € sur ton compte courant comme marge de manœuvre pour le mois prochain.\nCette somme sera déduite de ton Relyka pour ne pas y toucher.`;
 }
