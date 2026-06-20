@@ -132,6 +132,7 @@ export default function TransferScreen() {
         isRecurring,
         recurrenceRule,
         recurrenceEndDate: endDateISO,
+        checkRegulConflict: true,
       });
       // L'apport « actuel » est dérivé des transactions (cf. computeContributed) :
       // l'ajout/suppression d'un virement est donc automatiquement répercuté, rien à mettre à jour ici.

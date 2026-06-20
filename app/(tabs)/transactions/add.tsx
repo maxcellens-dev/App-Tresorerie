@@ -197,6 +197,7 @@ export default function AddTransactionScreen() {
           isRecurring,
           recurrenceRule,
           recurrenceEndDate: endDateISO,
+          checkRegulConflict: true,
         });
       } else {
         await addTransaction.mutateAsync({
@@ -210,6 +211,7 @@ export default function AddTransactionScreen() {
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,
           recurrence_end_date: endDateISO,
+          checkRegulConflict: true,
         });
       }
 

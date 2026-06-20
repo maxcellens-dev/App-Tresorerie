@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Transaction, TransactionWithDetails, RecurrenceRule } from '../types/database';
+import { appConfirm } from '../lib/appDialog';
+import { formatDateFrench } from '../lib/dateUtils';
 
 const KEY = 'transactions';
 
@@ -41,6 +43,23 @@ async function effectiveBalanceDelta(accountId: string, txDate: string, note: st
     .order('date', { ascending: false }).limit(1).maybeSingle();
   const baselineDate = (data as any)?.date as string | undefined;
   return (baselineDate && txDate < baselineDate) ? 0 : rawContribution;
+}
+
+/**
+ * §P12bis — Détecte une régularisation de solde datée EXACTEMENT du même jour qu'une transaction
+ * que l'on est en train de saisir, sur le même compte. Cas ambigu : la transaction est-elle déjà
+ * comptée dans le solde régularisé (→ ne pas réimpacter) ou s'agit-il d'une nouvelle opération
+ * (→ impacter le solde) ? Renvoie le nom du compte si une régul existe ce jour-là, sinon null.
+ */
+async function regulOnSameDay(accountId: string, date: string): Promise<{ accountName: string } | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.from('transactions').select('id')
+    .eq('account_id', accountId).eq('date', date).is('category_id', null)
+    .or('note.ilike.%gul%,note.eq.Ajustement de solde')
+    .limit(1).maybeSingle();
+  if (!data) return null;
+  const { data: acc } = await supabase.from('accounts').select('name').eq('id', accountId).maybeSingle();
+  return { accountName: (acc as any)?.name ?? 'ce compte' };
 }
 
 /** Colonnes nécessaires pour réverser proprement l'impact solde avant suppression. */
@@ -150,6 +169,9 @@ export function useAddTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
       project_id?: string | null;
       linked_account_id?: string | null;
+      /** Saisie interactive : si une régul existe le même jour, demander si l'opération y est
+       *  déjà incluse (→ ne pas réimpacter le solde) ou si c'est une nouvelle opération. */
+      checkRegulConflict?: boolean;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       // Solde « à date » : on n'ajoute au solde que ce qui est effectivement sorti/entré
@@ -158,7 +180,28 @@ export function useAddTransaction(profileId: string | undefined) {
 
       // §P12 : transaction datée AVANT la dernière régularisation → n'impacte pas le solde
       // (déjà capturée). Marquée `posted: true` pour que reconcile_posted ne la reporte pas.
-      const effectiveContribution = await effectiveBalanceDelta(input.account_id, input.date, input.note, contribution);
+      let effectiveContribution = await effectiveBalanceDelta(input.account_id, input.date, input.note, contribution);
+
+      // §P12bis : transaction datée LE JOUR d'une régularisation (cas ambigu, non couvert par le
+      // strict « avant »). On demande à l'utilisateur si elle est déjà incluse dans ce solde.
+      if (input.checkRegulConflict && contribution !== 0 && effectiveContribution !== 0) {
+        const noteLc = (input.note ?? '').toLowerCase();
+        const isRegulItself = noteLc.includes('gul') || input.note === 'Ajustement de solde';
+        if (!isRegulItself) {
+          const conflict = await regulOnSameDay(input.account_id, input.date);
+          if (conflict) {
+            const alreadyCounted = await appConfirm({
+              title: 'Déjà comptée dans ce solde ?',
+              message: `Une régularisation de solde a été faite le ${formatDateFrench(input.date)} sur « ${conflict.accountName} ». Cette opération y est-elle déjà incluse, ou s'agit-il d'une nouvelle opération qui doit modifier le solde ?`,
+              confirmText: 'Déjà incluse',
+              cancelText: 'Nouvelle opération',
+            });
+            // « Déjà incluse » → absorbée (la régul la couvre déjà, comme une transaction pré-régul).
+            // « Nouvelle » (ou fermeture) → comportement normal : elle impacte le solde.
+            if (alreadyCounted) effectiveContribution = 0;
+          }
+        }
+      }
       const preBaseline = contribution !== 0 && effectiveContribution === 0;
 
       const { data, error } = await supabase
@@ -211,6 +254,9 @@ export interface CreateTransferLegsInput {
   isRecurring?: boolean;
   recurrenceRule?: RecurrenceRule | null;
   recurrenceEndDate?: string | null;
+  /** Saisie interactive : demander, pour chaque jambe, si l'opération est déjà incluse dans une
+   *  régularisation de solde du même jour (cf. addTransaction.checkRegulConflict). */
+  checkRegulConflict?: boolean;
 }
 
 /**
@@ -232,6 +278,8 @@ export async function createTransferLegs(
     is_recurring: p.isRecurring ?? false,
     recurrence_rule: p.isRecurring ? (p.recurrenceRule ?? null) : null,
     recurrence_end_date: p.recurrenceEndDate ?? null,
+    // Chaque jambe vérifie sa propre date vs une éventuelle régul sur SON compte.
+    checkRegulConflict: p.checkRegulConflict ?? false,
   };
   const firstLeg = await add.mutateAsync({
     account_id: p.fromAccountId,

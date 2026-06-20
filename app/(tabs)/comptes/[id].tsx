@@ -174,6 +174,7 @@ export default function AccountDetailScreen() {
         date: apportDate,
         note: apportNote.trim() || 'Apport',
         is_recurring: false,
+        checkRegulConflict: true,
       });
       // L'apport « actuel » est dérivé des transactions (computeContributed) → rien à mettre à jour ici.
       setShowApport(false);
@@ -247,6 +248,7 @@ export default function AccountDetailScreen() {
         date: gainLossDate,
         note: gainLossNote.trim() || (num < 0 ? INVESTMENT_LOSS_NOTE : INVESTMENT_GAIN_NOTE),
         is_recurring: false,
+        checkRegulConflict: true,
       });
       setShowGainLoss(false);
       setGainLossAmount('');
@@ -299,6 +301,7 @@ export default function AccountDetailScreen() {
         date: interestDate,
         note: interestNote.trim() || 'Intérêts',
         is_recurring: false,
+        checkRegulConflict: true,
       });
       setShowInterest(false);
       setInterestAmount('');
