@@ -15,8 +15,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useUserUnreadCount } from '../hooks/useUnreadBadges';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useAppNameFont } from '../hooks/useBrandFont';
-
-const APP_VERSION = '1.0.0';
+import { APP_VERSION } from '../lib/appVersion';
 
 export default function ProfileMenuModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const COLORS = useAppColors();

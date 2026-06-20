@@ -22,8 +22,7 @@ import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
 import { usePilotageTips } from '../../../hooks/useUiPrefs';
-
-const APP_VERSION = '1.0.0';
+import { APP_VERSION } from '../../../lib/appVersion';
 
 export default function SettingsScreen() {
   const appNameFont = useAppNameFont();

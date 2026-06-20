@@ -7,9 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useAppNameFont } from '../../../hooks/useBrandFont';
-
-
-const APP_VERSION = '1.0.0';
+import { APP_VERSION } from '../../../lib/appVersion';
 
 export default function AboutScreen() {
   const COLORS = useAppColors();
