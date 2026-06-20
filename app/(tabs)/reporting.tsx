@@ -674,11 +674,12 @@ export default function ReportingScreen() {
           <FadeIn>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                 onPress={goBack}
+                accessibilityRole="button"
               >
-                <Ionicons name="chevron-back" size={20} color={C.textSecondary} />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: C.textSecondary }}>Retour</Text>
+                <Ionicons name="arrow-back" size={22} color={C.text} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>Retour</Text>
               </TouchableOpacity>
             </View>
           </FadeIn>
