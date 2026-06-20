@@ -10,7 +10,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
-  findNodeHandle, Platform, ScrollView, Modal,
+  findNodeHandle, Platform, ScrollView, Modal, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,10 +51,16 @@ export default function GuideOverlay({
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
-  // Zone haute réservée = barre de statut + marge → la bulle n'est jamais coupée par le haut du téléphone.
-  const TOP_SAFE = insets.top + 56;
+  // Zones sûres haut/bas. Robuste sur tous les téléphones : à l'intérieur d'un Modal, les insets
+  // peuvent être à 0 → on retombe sur StatusBar.currentHeight (Android) pour ne jamais passer la
+  // bulle sous l'encoche / la barre de statut.
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0);
+  const TOP_SAFE = topInset + 12;
+  const BOTTOM_SAFE = Math.max(insets.bottom, 16) + 12;
   const [rect, setRect] = useState<Rect | null>(null);
   const [measuring, setMeasuring] = useState(true);
+  // Hauteur RÉELLE de la bulle (mesurée) → positionnement fiable quel que soit le texte/écran.
+  const [bubbleH, setBubbleH] = useState(BUBBLE_H);
   const attemptRef = useRef(0);
 
   const step = steps[currentStep];
@@ -132,20 +138,28 @@ export default function GuideOverlay({
       }
     : null;
 
-  // Position de la bulle : sous la cible si la place le permet, sinon au-dessus
+  // Position de la bulle : sous la cible si elle tient entièrement, sinon au-dessus, sinon dans la
+  // plus grande zone libre (sans flèche). Toujours CLAMPÉE dans la zone visible → jamais coupée.
+  const maxTop = SH - BOTTOM_SAFE - bubbleH; // plus haut possible pour que la bulle tienne en bas
   let bubbleTop: number;
   let pointer: 'up' | 'down' | null = null;
   if (spot) {
-    const spaceBelow = SH - (spot.y + spot.h);
-    if (spaceBelow > BUBBLE_H + 40) {
-      bubbleTop = spot.y + spot.h + 14;
-      pointer = 'up';
+    const belowY = spot.y + spot.h + 14;
+    const aboveY = spot.y - bubbleH - 14;
+    if (belowY <= maxTop) {
+      bubbleTop = belowY; pointer = 'up';
+    } else if (aboveY >= TOP_SAFE) {
+      bubbleTop = aboveY; pointer = 'down';
     } else {
-      bubbleTop = Math.max(TOP_SAFE, spot.y - BUBBLE_H - 14);
-      pointer = 'down';
+      // Ne tient ni dessous ni dessus en entier → on choisit la plus grande zone, sans flèche.
+      const spaceBelow = SH - BOTTOM_SAFE - (spot.y + spot.h);
+      const spaceAbove = spot.y - TOP_SAFE;
+      bubbleTop = spaceBelow >= spaceAbove ? maxTop : TOP_SAFE;
+      pointer = null;
     }
+    bubbleTop = Math.min(Math.max(bubbleTop, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
   } else {
-    bubbleTop = SH / 2 - BUBBLE_H / 2;
+    bubbleTop = Math.max(TOP_SAFE, (SH - bubbleH) / 2);
   }
 
   // Position horizontale de la flèche (centrée sur la cible)
@@ -189,7 +203,7 @@ export default function GuideOverlay({
             styles.arrow,
             pointer === 'up'
               ? { top: bubbleTop - 8, left: arrowLeft, borderBottomColor: COLORS.cardSolid }
-              : { top: bubbleTop + BUBBLE_H - 2, left: arrowLeft, borderTopColor: COLORS.cardSolid },
+              : { top: bubbleTop + bubbleH - 2, left: arrowLeft, borderTopColor: COLORS.cardSolid },
             pointer === 'up' ? styles.arrowUp : styles.arrowDown,
           ]}
         />
@@ -197,7 +211,14 @@ export default function GuideOverlay({
 
       {/* ── Bulle ── */}
       {!measuring && (
-        <View style={[styles.bubble, { top: bubbleTop }]} pointerEvents="auto">
+        <View
+          style={[styles.bubble, { top: bubbleTop }]}
+          pointerEvents="auto"
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0 && Math.abs(h - bubbleH) > 1) setBubbleH(h);
+          }}
+        >
           {/* Header */}
           <View style={styles.bubbleHeader}>
             {screenTitle && <Text style={styles.screenTitle}>Guide — {screenTitle}</Text>}

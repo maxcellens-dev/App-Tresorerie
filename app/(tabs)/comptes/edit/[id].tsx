@@ -171,7 +171,7 @@ export default function EditAccountScreen() {
 
           <View style={styles.balanceInfo}>
             <Ionicons name="information-circle-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.balanceInfoText}>Le solde ne peut être modifié qu'via des transactions.</Text>
+            <Text style={styles.balanceInfoText}>Le solde ne peut être modifié que via des transactions.</Text>
           </View>
 
           <TouchableOpacity style={[styles.submitBtn, updateAccount.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateAccount.isPending} accessibilityRole="button">
