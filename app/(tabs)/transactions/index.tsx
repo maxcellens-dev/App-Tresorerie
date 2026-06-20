@@ -327,9 +327,12 @@ export default function TransactionsListScreen() {
       const dateA = getEffectiveDate(a);
       const dateB = getEffectiveDate(b);
       if (dateA !== dateB) return dateB.localeCompare(dateA);
-      // Même jour : ordre chronologique de saisie → la régul se place après les transactions
-      // saisies avant elle et avant les « nouvelles » saisies après.
-      return ((a as any).created_at ?? '').localeCompare((b as any).created_at ?? '');
+      // Même jour : « déjà incluses » en bas, sinon plus récent en haut → une transaction saisie
+      // après la régul passe au-dessus, la régul au-dessus de ce qu'elle a absorbé.
+      const ca = (a as any).regul_covered ? 1 : 0;
+      const cb = (b as any).regul_covered ? 1 : 0;
+      if (ca !== cb) return ca - cb;
+      return ((b as any).created_at ?? '').localeCompare((a as any).created_at ?? '');
     });
     const keys = Object.keys(map).sort((a, b) => {
       // Trier les mois en ordre inverse (plus récent d'abord)
