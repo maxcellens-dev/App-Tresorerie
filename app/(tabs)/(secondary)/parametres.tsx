@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
+import { currencySymbolFor } from '../../../lib/currency';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useAppNameFont } from '../../../hooks/useBrandFont';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
@@ -31,6 +32,7 @@ export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
+  const currencySymbol = currencySymbolFor(profile?.currency_code);
 
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -196,7 +198,7 @@ export default function SettingsScreen() {
                   maxLength={8}
                   returnKeyType="done"
                 />
-                <Text style={{ color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' }}>€</Text>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' }}>{currencySymbol}</Text>
                 {String(parseFloat(safetyAmountInput.replace(',', '.')) || 0) !== String(currentSafetyAmount) && (
                   <TouchableOpacity
                     onPress={handleSafetyAmountSave}

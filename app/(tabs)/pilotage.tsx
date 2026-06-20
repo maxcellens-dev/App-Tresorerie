@@ -1193,7 +1193,7 @@ export default function PilotageScreen() {
                 placeholderTextColor={COLORS.textSecondary}
                 autoFocus
               />
-              <Text style={styles.varModalUnit} numberOfLines={1}>€ / sem.</Text>
+              <Text style={styles.varModalUnit} numberOfLines={1}>{CURRENCY_SYMBOL} / sem.</Text>
             </View>
             {weeklyVariableInput ? (
               <Text style={styles.varModalMonthly}>

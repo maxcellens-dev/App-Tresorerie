@@ -26,6 +26,7 @@ import type { QuestionnaireAnswers } from '../../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
+import { useCurrencySymbol } from '../../../hooks/useCurrency';
 
 
 const QUESTIONS = [
@@ -101,6 +102,7 @@ export default function ProfilFinancierScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
+  const currencySymbol = useCurrencySymbol();
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: fp, isLoading: fpLoading } = useFinancialProfile(user?.id);
@@ -293,9 +295,9 @@ export default function ProfilFinancierScreen() {
                   {QUESTIONS.map((q, i) => {
                     const answer = (savedAnswers as any)[q.key] as string | undefined;
                     const displayAnswer = q.key === 'q8' && answer
-                      ? (safetyMarginFromQ8(answer) > 0 ? safetyMarginFromQ8(answer).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €' : 'Non défini (0 €)')
+                      ? (safetyMarginFromQ8(answer) > 0 ? safetyMarginFromQ8(answer).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' ' + currencySymbol : `Non défini (0 ${currencySymbol})`)
                       : q.key === 'q9'
-                      ? (answer && parseFloat(answer.replace(',', '.')) > 0 ? parseFloat(answer.replace(',', '.')).toLocaleString('fr-FR') + ' € / sem.' : 'Estimation auto')
+                      ? (answer && parseFloat(answer.replace(',', '.')) > 0 ? parseFloat(answer.replace(',', '.')).toLocaleString('fr-FR') + ' ' + currencySymbol + ' / sem.' : 'Estimation auto')
                       : q.key === 'q1' && answer && answer.includes('|')
                       ? answer.split('|').filter(Boolean).join(', ')
                       : (answer || '—');
@@ -345,17 +347,17 @@ export default function ProfilFinancierScreen() {
                           placeholder="0"
                           placeholderTextColor={COLORS.textSecondary}
                         />
-                        <Text style={styles.q8CurrencyLabel}>€</Text>
+                        <Text style={styles.q8CurrencyLabel}>{currencySymbol}</Text>
                       </View>
                       <TouchableOpacity
                         style={styles.q8DontKnow}
                         onPress={() => setAnswers(prev => ({ ...prev, q8: '' }))}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.q8DontKnowText}>Effacer / Je ne sais pas → 0 €</Text>
+                        <Text style={styles.q8DontKnowText}>{`Effacer / Je ne sais pas → 0 ${currencySymbol}`}</Text>
                       </TouchableOpacity>
                       <Text style={styles.q8Hint}>
-                        Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € — déduit du "Budget libre à allouer" dans le Pilotage.
+                        Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbol} — déduit du "Budget libre à allouer" dans le Pilotage.
                       </Text>
                     </View>
                   ) : q.key === 'q9' ? (
@@ -369,7 +371,7 @@ export default function ProfilFinancierScreen() {
                           placeholder="0"
                           placeholderTextColor={COLORS.textSecondary}
                         />
-                        <Text style={styles.q8CurrencyLabel}>€ / sem.</Text>
+                        <Text style={styles.q8CurrencyLabel}>{currencySymbol} / sem.</Text>
                       </View>
                       <TouchableOpacity
                         style={styles.q8DontKnow}
@@ -379,7 +381,7 @@ export default function ProfilFinancierScreen() {
                         <Text style={styles.q8DontKnowText}>Effacer / Je ne sais pas → estimation auto</Text>
                       </TouchableOpacity>
                       <Text style={styles.q8Hint}>
-                        Sert de repli pour l'« Enveloppe variables » du Pilotage tant que l'historique est insuffisant. ≈ {Math.round((parseFloat((answers.q9 || '0').replace(',', '.')) || 0) * 4.33).toLocaleString('fr-FR')} € / mois.
+                        Sert de repli pour l'« Enveloppe variables » du Pilotage tant que l'historique est insuffisant. ≈ {Math.round((parseFloat((answers.q9 || '0').replace(',', '.')) || 0) * 4.33).toLocaleString('fr-FR')} {currencySymbol} / mois.
                       </Text>
                     </View>
                   ) : (

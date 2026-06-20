@@ -432,7 +432,7 @@ export default function TransactionsListScreen() {
     const montant = Math.abs(Number(item.amount));
     showConfirm({
       title: 'Conserver pour plus tard',
-      message: `Mettre ${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € de "${label}" en Réservé ? Le montant n'est pas dépensé mais mis de côté et visible dans la ligne Réservé du Pilotage.`,
+      message: `Mettre ${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL} de "${label}" en Réservé ? Le montant n'est pas dépensé mais mis de côté et visible dans la ligne Réservé du Pilotage.`,
       confirmLabel: 'Conserver',
       confirmColor: '#60a5fa',
       onConfirm: async () => {

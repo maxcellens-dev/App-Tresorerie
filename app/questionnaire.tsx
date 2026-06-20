@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../hooks/useProfile';
+import { currencySymbolFor } from '../lib/currency';
 import CurrencyPicker from '../components/CurrencyPicker';
 import { useSaveQuestionnaire } from '../hooks/useFinancialProfile';
 import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
@@ -101,6 +102,8 @@ export default function QuestionnaireScreen() {
   const { user } = useAuth();
   const updateProfile = useUpdateProfile(user?.id);
   const { data: userProfile } = useProfile(user?.id);
+  // Symbole de la devise CHOISIE (réactif au sélecteur ci-dessous), pas un « € » en dur.
+  const currencySymbol = currencySymbolFor(userProfile?.currency_code);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
   const { data: existingCategories = [] } = useCategories(user?.id);
   const seedDefaultCategories = useSeedDefaultCategories(user?.id);
@@ -373,7 +376,7 @@ export default function QuestionnaireScreen() {
                     placeholder="Ex. 500"
                     placeholderTextColor={COLORS.textSecondary}
                   />
-                  <Text style={styles.q8Currency}>€</Text>
+                  <Text style={styles.q8Currency}>{currencySymbol}</Text>
                   <TouchableOpacity
                     style={styles.q8DontKnow}
                     onPress={() => { handleSelect('q8', ''); handleNext(); }}
@@ -408,7 +411,7 @@ export default function QuestionnaireScreen() {
                         placeholder="Ex. 40"
                         placeholderTextColor={COLORS.textSecondary}
                       />
-                      <Text style={styles.q9Unit}>€ / semaine</Text>
+                      <Text style={styles.q9Unit}>{currencySymbol} / semaine</Text>
                     </View>
                     <View style={styles.q9Equals}><Ionicons name="swap-horizontal" size={18} color={COLORS.textSecondary} /></View>
                     <View style={styles.q9Field}>
@@ -421,7 +424,7 @@ export default function QuestionnaireScreen() {
                         placeholder="Ex. 173"
                         placeholderTextColor={COLORS.textSecondary}
                       />
-                      <Text style={styles.q9Unit}>€ / mois</Text>
+                      <Text style={styles.q9Unit}>{currencySymbol} / mois</Text>
                     </View>
                   </View>
                   <TouchableOpacity
