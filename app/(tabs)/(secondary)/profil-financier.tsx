@@ -4,6 +4,7 @@ import {
   Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -207,10 +208,7 @@ export default function ProfilFinancierScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Profil financier" onBack={goBack} />
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 

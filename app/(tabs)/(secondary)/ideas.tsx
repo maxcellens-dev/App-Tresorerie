@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -77,13 +78,8 @@ export default function IdeasScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
             <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right']}>
+        <ScreenHeader title="Boîte à idées" onBack={goBack} />
         <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.pageHeader}>
-            <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-            </TouchableOpacity>
-            <Text style={styles.title}>Boîte à idées</Text>
-          </View>
           <Text style={styles.subtitle}>
             Aidez-nous à améliorer Relyka ! Partagez vos suggestions, idées de fonctionnalités ou améliorations.
           </Text>

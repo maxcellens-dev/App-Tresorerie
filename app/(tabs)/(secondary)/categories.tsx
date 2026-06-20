@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -221,13 +222,7 @@ export default function CategoriesScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-        <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.pageTitle}>Catégories</Text>
-        </View>
+        <ScreenHeader title="Catégories" onBack={goBack} />
         <Text style={styles.subtitle}>
           Recettes et dépenses par défaut. Modifiez, ajoutez ou supprimez des postes.
         </Text>
