@@ -72,6 +72,17 @@ export default function RelykaGauge({
   }
 
   const fmt = Math.round(amount).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+  // Taille adaptée à la longueur (montant élevé + devise longue type « CHF ») pour que TOUTE la
+  // valeur + le signe restent visibles. adjustsFontSizeToFit étant peu fiable (Android), on calcule
+  // une base selon le nombre de caractères ; le fit reste un filet de sécurité pour les cas extrêmes.
+  const amountFontSize = (() => {
+    const n = fmt.length;
+    if (n <= 7) return 34;   // « 9 999 € »
+    if (n <= 9) return 30;   // « 99 999 € »
+    if (n <= 11) return 25;  // « 123 456 € » / « 12 500 CHF »
+    if (n <= 13) return 21;  // « 1 234 567 € »
+    return 18;
+  })();
 
   // Détection du segment au tap : calcule l'angle depuis le centre (compatible web ET natif,
   // contrairement à onPress sur un <Path> SVG). N'agit que sur l'anneau (pas au centre).
@@ -120,7 +131,12 @@ export default function RelykaGauge({
       </Svg>
       {/* Centre : montant + label — non cliquable (le clic ne doit agir que sur les segments). */}
       <View style={[StyleSheet.absoluteFill, styles.center]} pointerEvents="none">
-        <Text style={[styles.amount, { color: amountColor }]} numberOfLines={1} adjustsFontSizeToFit>
+        <Text
+          style={[styles.amount, { color: amountColor, fontSize: amountFontSize }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.5}
+        >
           {fmt}
         </Text>
         {!!label && <Text style={styles.label}>{label}</Text>}
@@ -130,7 +146,7 @@ export default function RelykaGauge({
 }
 
 const styles = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  center: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   amount: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
   label: { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.6)', textAlign: 'center', marginTop: 4 },
 });
