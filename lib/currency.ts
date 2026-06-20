@@ -136,3 +136,13 @@ export function setCurrencySymbol(code?: string | null): void {
 }
 
 export const DEFAULT_CURRENCY = 'EUR';
+
+/**
+ * Arrondi « proposition » à la dizaine INFÉRIEURE — utilisé pour « Ton Relyka » et les
+ * montants de recommandations (épargner, investir, plaisir, conserver) afin d'afficher des
+ * montants génériques et non au centime/à l'euro près (864 € ou 869 € → 860 €).
+ * NB : ne pas utiliser dans le détail « Ton Relyka » qui montre le vrai calcul.
+ */
+export function floorToTen(n: number): number {
+  return Math.floor(n / 10) * 10;
+}

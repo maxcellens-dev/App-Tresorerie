@@ -47,7 +47,7 @@ import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useAppColors } from '../../hooks/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { semanticText, pastelFill } from '../../theme/palette';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { CURRENCY_SYMBOL, floorToTen } from '../../lib/currency';
 
 export default function PilotageScreen() {
   const router = useRouter();
@@ -270,7 +270,9 @@ export default function PilotageScreen() {
       }).map((r) => ({
         ...r,
         color: recoColorByType[r.type] ?? r.color,
-        amount: Math.min(r.amount, Math.max(0, Math.round(resteDisponible))),
+        // Plafonné au reste réellement disponible, lui aussi arrondi à la dizaine inférieure
+        // (cohérent avec l'affichage « Ton Relyka »). r.amount est déjà arrondi par le moteur.
+        amount: Math.min(r.amount, Math.max(0, floorToTen(resteDisponible))),
       }))
     : [];
 
@@ -526,7 +528,8 @@ export default function PilotageScreen() {
               hideTitle
               showRelykaSlide
               onOpenRelyka={() => setDetailKey('relyka')}
-              relykaAmount={resteDisponible}
+              // Montant affiché arrondi à la dizaine inférieure ; le détail « Ton Relyka » (au clic) garde le vrai calcul.
+              relykaAmount={floorToTen(resteDisponible)}
               relykaColor={resteDisponible < 0 ? COLORS.danger : Math.round(resteDisponible) <= 0 ? COLORS.orange : COLORS.emerald}
               relykaMessage={
                 resteDisponible < 0
@@ -737,7 +740,8 @@ export default function PilotageScreen() {
                       <Text style={styles.suiviBlockTitle}>Ton Relyka <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textSecondary }}>(Budget libre)</Text></Text>
                       <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />
                     </View>
-                    <Text style={[styles.suiviBlockValue, { color: semanticText(restColor, COLORS) }]}>{fmt(rest)}</Text>
+                    {/* « Ton Relyka » arrondi à la dizaine inférieure (proposition générique). Le détail au clic montre le vrai calcul. */}
+                    <Text style={[styles.suiviBlockValue, { color: semanticText(restColor, COLORS) }]}>{floorToTen(rest).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
                   </TouchableOpacity>
                 </View>
               );

@@ -14,6 +14,7 @@
 import type { PilotageData } from '../hooks/usePilotageData';
 import type { FinancialProfile, FinancialProfileId } from '../types/database';
 import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
+import { floorToTen } from './currency';
 
 /* ── Types ───────────────────────────────────────────────── */
 
@@ -368,10 +369,14 @@ function normalizeAllocations(alloc: Record<RecoType, number>) {
 function buildRecommendation(
   type: RecoType,
   percentage: number,
-  amount: number,
+  rawAmount: number,
   tier: SavingsTier,
   data: PilotageData,
 ): SmartRecommendation {
+  // Montant « proposition » : arrondi à la dizaine inférieure → le montant affiché, les
+  // sous-textes/conseils (qui interpolent `amount`) et l'action validée (virement/conservation)
+  // partagent tous cette même valeur arrondie.
+  const amount = Math.max(0, floorToTen(rawAmount));
   switch (type) {
     case 'save':
       return {
