@@ -4,7 +4,7 @@
  * dans l'arbre (au-dessus des écrans).
  */
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton } from '../lib/appDialog';
 
@@ -18,12 +18,11 @@ export default function AppDialogHost() {
   const [inputVal, setInputVal] = useState('');
 
   useEffect(() => {
-    registerDialogHost((r) => setReq(r));
+    // On initialise la valeur du champ EN MÊME TEMPS que la demande (même batch de rendu) → le
+    // champ est correct dès le 1ᵉʳ rendu, sans fenêtre où un tap renverrait une valeur vide.
+    registerDialogHost((r) => { setReq(r); setInputVal(r?.input?.defaultValue ?? ''); });
     return () => registerDialogHost(null);
   }, []);
-
-  // Pré-remplit le champ de saisie à chaque nouveau dialogue (modifiable ensuite).
-  useEffect(() => { setInputVal(req?.input?.defaultValue ?? ''); }, [req]);
 
   const close = () => setReq(null);
   // La valeur du champ (le cas échéant) est transmise au handler du bouton (cf. appPrompt).
@@ -42,6 +41,7 @@ export default function AppDialogHost() {
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(cancelBtn ?? { text: 'OK' })}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable style={styles.overlay} onPress={() => onPress(cancelBtn ?? { text: 'OK' })}>
         <Pressable style={styles.box} onPress={() => {}}>
           {!!req.title && <Text style={styles.title}>{req.title}</Text>}
@@ -50,7 +50,7 @@ export default function AppDialogHost() {
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
-                defaultValue={req.input.defaultValue}
+                value={inputVal}
                 onChangeText={setInputVal}
                 placeholder={req.input.placeholder}
                 placeholderTextColor={COLORS.textSecondary}
@@ -74,6 +74,7 @@ export default function AppDialogHost() {
           </View>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

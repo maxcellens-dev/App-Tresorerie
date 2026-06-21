@@ -78,7 +78,13 @@ export default function EditAccountScreen() {
 
   const doClose = () => {
     if (!id) return;
-    closeAccount.mutateAsync(id).then(() => router.back()).catch((e: unknown) => {
+    closeAccount.mutateAsync(id).then(() => {
+      // Le compte vient d'être supprimé/archivé : ne PAS revenir sur sa page de détail (qui
+      // bouclerait sur « Chargement… »). On vide la pile Comptes jusqu'à la liste.
+      const r = router as any;
+      if (typeof r.dismissAll === 'function') r.dismissAll();
+      else router.replace('/(tabs)/comptes');
+    }).catch((e: unknown) => {
       setFormError(e instanceof Error ? e.message : 'Impossible de fermer le compte.');
       scrollRef.current?.scrollTo({ y: 0, animated: true });
     });

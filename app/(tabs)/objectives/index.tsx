@@ -24,7 +24,7 @@ import {
   useDeleteObjective,
   useUpdateObjective,
 } from '../../../hooks/useObjectives';
-import { useAccounts } from '../../../hooks/useAccounts';
+import { useAccounts, useArchivedAccounts } from '../../../hooks/useAccounts';
 import { useAccountTransactionsByYear, calculateYearlyTotal } from '../../../hooks/useAccountTransactionsByYear';
 import AddObjectiveModal from '../../../components/AddObjectiveModal';
 import { usePilotageData } from '../../../hooks/usePilotageData';
@@ -45,6 +45,14 @@ export default function ObjectivesScreen() {
   const objectivesQuery = useObjectives(user?.id || '');
   const { data: objectives = [], isLoading, refetch } = objectivesQuery;
   const { data: accounts = [] } = useAccounts(user?.id || '');
+  const { data: archivedAccounts = [] } = useArchivedAccounts(user?.id || '');
+  // Devise par compte (actifs + archivés) → un objectif lié à un compte archivé en devise
+  // étrangère reste converti correctement vers la devise de référence.
+  const accountCurrencyById = useMemo(() => {
+    const m = new Map<string, string>();
+    [...accounts, ...archivedAccounts].forEach((a) => m.set(a.id, (a as any).currency || 'EUR'));
+    return m;
+  }, [accounts, archivedAccounts]);
   const { data: pilotage } = usePilotageData(user?.id);
   const deleteObjectiveMutation = useDeleteObjective(user?.id || '');
   const updateObjectiveMutation = useUpdateObjective(user?.id || '');
@@ -165,7 +173,7 @@ export default function ObjectivesScreen() {
     const currentAmountRaw = objective.linked_account_id
       ? transactions.filter((t) => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0)
       : (objective.current_year_invested || 0);
-    const linkedCur = accounts.find((a) => a.id === objective.linked_account_id)?.currency || refCode;
+    const linkedCur = accountCurrencyById.get(objective.linked_account_id) ?? refCode;
     const currentAmount = objective.linked_account_id
       ? (convertAmount(currentAmountRaw, linkedCur, refCode, rates) ?? currentAmountRaw)
       : currentAmountRaw;

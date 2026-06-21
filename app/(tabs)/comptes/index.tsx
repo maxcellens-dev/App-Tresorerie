@@ -11,7 +11,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts, useArchivedAccounts } from '../../../hooks/useAccounts';
-import { usePilotageData } from '../../../hooks/usePilotageData';
 import { ACCOUNT_ICONS } from '../../../theme/colors';
 import { semanticText } from '../../../theme/palette';
 import GuideOverlay from '../../../components/GuideOverlay';
@@ -74,7 +73,6 @@ export default function AccountsListScreen() {
     },
   ];
   
-  const { data: pilotageData } = usePilotageData(user?.id);
   const { data: accounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
 
@@ -155,15 +153,20 @@ export default function AccountsListScreen() {
           }
         >
           {/* ── Vue d'ensemble patrimoine (avant le total) ── */}
-          {pilotageData && (
+          {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
+          {accounts.length > 0 && (
             <View>
             <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
             <View style={styles.overviewRow}>
               {(() => {
                 // Agrégats convertis dans la devise de référence (multi-devises).
+                // Seuils du profil (en devise de référence), configurables ; défauts sinon.
                 const s = totalSavings;
-                const sCol = s < 5000 ? COLORS.danger : s < 10000 ? COLORS.orange : COLORS.savings;
-                const sKw = s < 5000 ? 'Critique' : s < 10000 ? 'À renforcer' : s < 20000 ? 'Saine' : 'Confortable';
+                const thMin = (profile as any)?.safety_threshold_min ?? 5000;
+                const thOpt = (profile as any)?.safety_threshold_optimal ?? 10000;
+                const thComf = (profile as any)?.safety_threshold_comfort ?? 20000;
+                const sCol = s < thMin ? COLORS.danger : s < thOpt ? COLORS.orange : COLORS.savings;
+                const sKw = s < thMin ? 'Critique' : s < thOpt ? 'À renforcer' : s < thComf ? 'Saine' : 'Confortable';
                 return [
                   { label: 'Courant', value: totalChecking, color: COLORS.checking, icon: 'wallet-outline', sub: null },
                   { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline', sub: sKw },
