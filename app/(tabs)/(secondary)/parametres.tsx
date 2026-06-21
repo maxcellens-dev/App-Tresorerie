@@ -304,12 +304,12 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Devise</Text>
           <View style={styles.card}>
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
-              <Text style={styles.rowLabel}>Devise d'affichage</Text>
+              <Text style={styles.rowLabel}>Devise de référence</Text>
               <CurrencyPicker
                 value={profile?.currency_code ?? 'EUR'}
                 onChange={(code) => updateProfile.mutate({ currency_code: code })}
               />
-              <Text style={styles.currencyHint}>Change le symbole des montants partout. Aucune conversion n'est appliquée.</Text>
+              <Text style={styles.currencyHint}>Devise de tes totaux (Total liquidités, Pilotage, Projection…). Chaque compte garde sa propre devise ; les totaux y sont convertis au taux du jour (≈ si plusieurs devises).</Text>
             </View>
           </View>
         </ScrollView>
