@@ -55,10 +55,13 @@ export default function RelykaGauge({
   const cy = size / 2;
   const r = (size - strokeWidth) / 2 - 2;
 
-  // Le graphique représente la part de chaque reco RAPPORTÉE AU TOTAL du Relyka (montant central).
-  // Donc le dénominateur = le Relyka, pas la somme des recos : si une reco est ignorée, sa portion
-  // laisse un vide (track) au lieu d'être redistribuée, et l'ensemble ne se remplit jamais à plus de 100 %.
-  const denom = Math.max(0, amount);
+  // Le graphique représente la part de chaque reco RAPPORTÉE AU TOTAL du Relyka (montant central) :
+  // si une reco est ignorée, sa portion laisse un vide (track) au lieu d'être redistribuée.
+  // MAIS si la somme des recos dépasse le Relyka (montants déjà alloués clampés à 0, arrondis,
+  // plafonds…), on prend alors la somme des recos comme dénominateur : sinon le 1ᵉʳ gros segment
+  // saturerait toute la jauge (ex. tout violet) et masquerait les autres recos visibles.
+  const segTotal = segments.reduce((sum, s) => sum + Math.max(0, s.amount), 0);
+  const denom = Math.max(0, amount, segTotal);
   let cum = 0;
   const filled: { a1: number; a2: number; color: string; idx: number }[] = [];
   if (denom > 0) {

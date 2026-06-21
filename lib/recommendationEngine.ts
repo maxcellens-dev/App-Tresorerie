@@ -307,18 +307,31 @@ export function computeRecommendations(
     keep: th.seuil_reco_conserver,
   };
 
-  // 7. Montant net par catégorie = (% × budget) − déjà alloué réellement ce mois (avant cascade).
+  // 7. Montant net par catégorie = (% × budget) − déjà alloué réellement ce mois (clampé ≥ 0).
+  // Si l'alloué dépasse la part théorique d'une catégorie (ex. on a déjà viré plus vers l'épargne
+  // que sa part recommandée), l'excédent (`overflow`) n'est pas perdu : il est répercuté en cascade
+  // ci-dessous, comme le dépassement. Sans ça, Σ(recos) dépasserait le Relyka (un segment saturerait
+  // toute la jauge). Invariant visé : Σ(recos) = Relyka.
   const nets: Partial<Record<RecoType, number>> = {};
+  let overflow = 0;
   for (const type of filtered) {
-    const raw = (alloc[type] / 100) * budget;
-    nets[type] = Math.round(Math.max(0, raw - (alreadyAllocated[type] ?? 0)));
+    const afterAlloc = (alloc[type] / 100) * budget - (alreadyAllocated[type] ?? 0);
+    if (afterAlloc < 0) overflow += -afterAlloc;
+    nets[type] = Math.round(Math.max(0, afterAlloc));
+  }
+  // Allocations volontaires fléchées sur une catégorie NON recommandée (ex. épargne déjà engagée
+  // alors que la part « épargne » est à 0 % pour ce profil → reco filtrée) : ce montant réduit bien
+  // le Relyka, donc il doit aussi être répercuté en cascade. Sinon Σ(recos) dépasse le Relyka.
+  for (const type of types) {
+    if (filtered.includes(type)) continue;
+    overflow += Math.max(0, alreadyAllocated[type] ?? 0);
   }
 
-  // 8. Cascade de dépassement : une fois l'enveloppe des dépenses variables épuisée, le surplus
-  // de dépenses grignote les recos une par une dans l'ordre choisi (selon la prudence) — « Confort »
-  // d'abord, jusqu'à passer sous son seuil d'affichage, puis les suivantes. Les % d'allocation ne
-  // sont alors plus exactement respectés : c'est le comportement attendu.
-  let toConsume = Math.max(0, opts.overspend ?? 0);
+  // 8. Cascade : le dépassement de l'enveloppe variable + l'excédent d'allocation volontaire
+  // grignotent les recos une par une dans l'ordre choisi (selon la prudence) — « Confort » d'abord,
+  // jusqu'à passer sous son seuil d'affichage, puis les suivantes. Les % d'allocation ne sont alors
+  // plus exactement respectés : c'est voulu, et Σ(recos) reste égal au Relyka.
+  let toConsume = Math.round(Math.max(0, (opts.overspend ?? 0) + overflow));
   if (toConsume > 0) {
     const order = opts.consumptionOrder ?? DEFAULT_CONSUMPTION_ORDERS.equilibre;
     for (const type of order) {
@@ -489,7 +502,7 @@ function buildRecommendation(
     case 'enjoy':
       return {
         type,
-        title: 'Ta marge de confort',
+        title: 'Confort',
         shortTitle: 'Confort',
         description: getEnjoyDescription(amount, data),
         amount,
@@ -557,7 +570,7 @@ function getInvestDescription(tier: SavingsTier, amount: number, _data: Pilotage
 function getEnjoyDescription(amount: number, _data: PilotageData): string {
   // « Confort » = la marge totalement libre, une fois tes dépenses variables habituelles couvertes.
   // C'est elle qui est entamée en premier si tu dépenses au-delà de ton budget variable.
-  return `Il te reste ${amount} € totalement disponibles ce mois-ci. Fais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
+  return `Il te reste ${amount} € totalement disponibles ce mois-ci. \nFais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
 function getKeepDescription(amount: number, data: PilotageData): string {

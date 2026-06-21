@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import PageIntroModal from '../../components/PageIntroModal';
@@ -12,7 +12,8 @@ import { useUpdateOnboarding } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
@@ -61,7 +62,20 @@ export default function PilotageScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Données principales
+  const queryClient = useQueryClient();
   const pilotageQuery = usePilotageData(user?.id);
+
+  // À chaque fois qu'on (re)vient sur le Pilotage, on rafraîchit les données qui pilotent les recos.
+  // Garantit que tout changement fait sur un autre écran (prudence du budget, nouvelle dépense…) est
+  // reflété immédiatement : nouveau budget/dépassement (pilotage_data) + nouvelle prudence (profile).
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      queryClient.invalidateQueries({ queryKey: ['pilotage_data', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['recommendation_settings'] });
+    }, [user?.id, queryClient]),
+  );
   const { data: projectsForConseils = [] } = useProjects(user?.id);
   const { data: txForConseils = [] } = useTransactions(user?.id);
   const { data: categoriesList = [] } = useCategories(user?.id);
