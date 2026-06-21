@@ -22,10 +22,9 @@ import ScreenGradient from './ScreenGradient';
 import ScreenHeader from './ScreenHeader';
 import CalendarWithPicker from './CalendarWithPicker';
 import { useAuth } from '../contexts/AuthContext';
-import { useProjects, useAddProject, useUpdateProject, useDeleteProjectFull, useDeleteProjectKeepingLocked, useCheckProjectTransactions } from '../hooks/useProjects';
+import { useProjects, useAddProject, useUpdateProject, useDeleteProjectDissociating, useCheckProjectTransactions } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
 import { useProfile } from '../hooks/useProfile';
-import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
@@ -100,8 +99,10 @@ export default function AddProjectModal() {
     current_accumulated: 0,
   });
 
-  // ponctuelEntries: key YYYY-MM → { enabled, amount }
+  // ponctuelEntries: key YYYY-MM → { enabled, amount } — UNIQUEMENT la ligne ÉDITABLE (brouillon) du mois.
   const [ponctuelEntries, setPonctuelEntries] = useState<Record<string, PonctuelEntry>>({});
+  // Virements FIGÉS (validés = is_draft false, ou mois passés) : lecture seule, plusieurs par mois possibles.
+  const [frozenTxns, setFrozenTxns] = useState<Array<{ id: string; month: string; date: string; amount: number; validated: boolean }>>([]);
   // Jour du mois où les virements ponctuels sont générés (1-31, clampé selon le mois)
   const [ponctuelDay, setPonctuelDay] = useState('1');
 
@@ -123,11 +124,9 @@ export default function AddProjectModal() {
   const wizard = !isEdit;
 
   // Deletion state
-  const deleteFullMutation = useDeleteProjectFull(user?.id || '');
-  const deleteKeepingLockedMutation = useDeleteProjectKeepingLocked(user?.id || '');
+  const deleteDissociatingMutation = useDeleteProjectDissociating(user?.id || '');
   const { check: checkTransactions } = useCheckProjectTransactions(user?.id || '');
   const { data: profile } = useProfile(user?.id);
-  const { lockDate: closureLock } = useMonthlyClosure(user?.id);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmState, setDeleteConfirmState] = useState<{
     title: string;
@@ -159,28 +158,39 @@ export default function AddProjectModal() {
         current_accumulated: editingProject.current_accumulated || 0,
       });
 
-      // Si ponctuel : charger les transactions existantes
+      // Si ponctuel : charger les transactions existantes, en séparant les FIGÉES (validées ou mois
+      // passé → lecture seule, plusieurs/mois) de la ligne ÉDITABLE (brouillon courant/futur) par mois.
       if (allocType === 'ponctuel' && supabase) {
         supabase
           .from('transactions')
-          .select('date, amount')
+          .select('id, date, amount, is_draft')
           .eq('project_id', editingProject.id)
           .lt('amount', 0)
           .order('date', { ascending: true })
           .then(({ data: txns }) => {
             if (!txns) return;
-            const entries: Record<string, PonctuelEntry> = {};
-            for (const t of txns) {
-              const key = t.date.slice(0, 7); // YYYY-MM
-              entries[key] = { enabled: true, amount: Math.abs(Number(t.amount)).toString() };
+            const frozen: Array<{ id: string; month: string; date: string; amount: number; validated: boolean }> = [];
+            const editable: Record<string, PonctuelEntry> = {};
+            let firstDay: number | null = null;
+            for (const t of txns as any[]) {
+              const month = String(t.date).slice(0, 7);
+              const validated = t.is_draft === false;
+              const isPastMonth = month < currentMonthKey;
+              if (firstDay === null) firstDay = Number(String(t.date).slice(8, 10)) || 1;
+              if (validated || isPastMonth) {
+                frozen.push({ id: t.id, month, date: t.date, amount: Math.abs(Number(t.amount)), validated });
+              } else {
+                editable[month] = { enabled: true, amount: Math.abs(Number(t.amount)).toString() };
+              }
             }
-            setPonctuelEntries(entries);
-            // Déduire le jour du mois depuis la première transaction
-            if (txns.length > 0) setPonctuelDay(String(Number(txns[0].date.slice(8, 10)) || 1));
+            setFrozenTxns(frozen);
+            setPonctuelEntries(editable);
+            if (firstDay !== null) setPonctuelDay(String(firstDay));
           });
       } else {
+        setFrozenTxns([]);
         setPonctuelEntries({});
-      setPonctuelDay('1');
+        setPonctuelDay('1');
       }
     } else {
       initializedRef.current = true;
@@ -217,17 +227,24 @@ export default function AddProjectModal() {
     return amountToAccumulate / monthsLeft;
   }, [form.allocation_type, form.target_date, form.target_amount, form.current_accumulated, form.first_payment_date]);
 
+  // Total = virements figés (déjà actés) + lignes éditables activées (à venir).
   const ponctuelTotal = useMemo(() => {
-    return Object.values(ponctuelEntries).reduce((sum, e) => {
-      if (e?.enabled && e.amount) return sum + (parseFloat(e.amount) || 0);
-      return sum;
-    }, 0);
-  }, [ponctuelEntries]);
+    const frozenSum = frozenTxns.reduce((s, t) => s + t.amount, 0);
+    const editableSum = Object.values(ponctuelEntries).reduce((sum, e) => (e?.enabled && e.amount ? sum + (parseFloat(e.amount) || 0) : sum), 0);
+    return frozenSum + editableSum;
+  }, [frozenTxns, ponctuelEntries]);
 
-  // Mois affichés dans le tableau ponctuel = mois PASSÉS déjà saisis (lecture seule, grisés)
-  // + les 12 mois à partir du mois courant (modifiables).
+  // Virements figés groupés par mois (plusieurs possibles par mois).
+  const frozenByMonth = useMemo(() => {
+    const map: Record<string, typeof frozenTxns> = {};
+    for (const t of frozenTxns) (map[t.month] ??= []).push(t);
+    return map;
+  }, [frozenTxns]);
+
+  // Mois affichés = mois PASSÉS ayant des virements figés (lecture seule) + les 12 mois à partir du
+  // mois courant (chacun avec sa ligne éditable, + ses éventuels virements figés du mois).
   const ponctuelDisplayMonths = useMemo(() => {
-    const past = Object.keys(ponctuelEntries)
+    const pastFrozen = Object.keys(frozenByMonth)
       .filter((k) => k < currentMonthKey)
       .sort()
       .map((k) => {
@@ -236,11 +253,11 @@ export default function AddProjectModal() {
           key: k,
           label: new Date(y, m - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
           dayOne: `${k}-01`,
-          isPast: true,
+          editable: false,
         };
       });
-    return [...past, ...months12.map((m) => ({ ...m, isPast: false }))];
-  }, [ponctuelEntries, currentMonthKey, months12]);
+    return [...pastFrozen, ...months12.map((m) => ({ ...m, editable: true }))];
+  }, [frozenByMonth, currentMonthKey, months12]);
 
   const togglePonctuelMonth = (key: string) => {
     setPonctuelEntries((prev) => {
@@ -334,7 +351,9 @@ export default function AddProjectModal() {
         .sort()
         .map((k) => ({ date: ponctuelDateFor(k), amount: parseFloat(ponctuelEntries[k].amount) }));
       const anyEnabled = Object.values(ponctuelEntries).some((e) => e?.enabled && parseFloat(e.amount || '0') > 0);
-      if (!anyEnabled) {
+      // En édition, des virements déjà figés (validés/passés) suffisent : on autorise l'enregistrement
+      // même sans nouvelle ligne éditable (ex. simple renommage d'un projet déjà actif).
+      if (!anyEnabled && frozenTxns.length === 0) {
         setFormError('Veuillez activer au moins un mois avec un montant.');
         return;
       }
@@ -398,103 +417,41 @@ export default function AddProjectModal() {
     router.back();
   };
 
-  const runDeleteFull = () => {
+  const runDeleteDissociating = () => {
     if (!editingProject) return;
     setDeleteConfirmState(null);
-    deleteFullMutation.mutate(editingProject.id, {
+    deleteDissociatingMutation.mutate(editingProject.id, {
       onSuccess: () => { handleClose(); },
       onError: () => Alert.alert('Erreur', 'La suppression du projet a échoué.'),
     });
   };
 
-  const runDeleteKeepingLocked = (lockDate: string) => {
-    if (!editingProject) return;
-    setDeleteConfirmState(null);
-    deleteKeepingLockedMutation.mutate(
-      { projectId: editingProject.id, lockDate },
-      {
-        onSuccess: () => { handleClose(); },
-        onError: () => Alert.alert('Erreur', 'La suppression du projet a échoué.'),
-      },
-    );
-  };
-
-  const buildDeleteSummary = (opts: {
-    projectName: string;
-    kept?: number;
-    removedPast?: number;
-    removedFuture?: number;
-  }) => {
-    const lines = [`Projet « ${opts.projectName} »`, ''];
-    if (opts.kept && opts.kept > 0) {
-      lines.push('✓ Conservé dans vos comptes :');
-      lines.push(`  • ${opts.kept} transaction(s) clôturée(s) (détachées du projet)`);
-      lines.push('');
-    }
-    lines.push('✗ Sera supprimé :');
-    lines.push('  • Le projet');
-    if (opts.removedPast && opts.removedPast > 0) {
-      lines.push(`  • ${opts.removedPast} transaction(s) passée(s)`);
-    }
-    if (opts.removedFuture && opts.removedFuture > 0) {
-      lines.push(`  • ${opts.removedFuture} virement(s) planifié(s) à venir`);
-    }
-    if (!opts.removedPast && !opts.removedFuture) {
-      lines.push('  • Aucune transaction liée');
-    }
-    lines.push('', 'Cette action est irréversible.');
-    return lines.join('\n');
-  };
-
   const handleDelete = async () => {
     if (!editingProject) return;
     try {
-      const { past, future } = await checkTransactions(editingProject.id);
-      const closureLockDate = closureLock;
-      const lockedTxns = closureLockDate ? past.filter((t: any) => t.date <= closureLockDate) : [];
-      const unlockedPastTxns = closureLockDate ? past.filter((t: any) => t.date > closureLockDate) : past;
-      const futureCount = future.length;
-
-      if (lockedTxns.length > 0 && unlockedPastTxns.length === 0 && futureCount === 0) {
-        setDeleteConfirmState({
-          title: 'Suppression impossible',
-          message: `Le projet « ${editingProject.name} » compte ${lockedTxns.length} transaction(s) dans une période clôturée.\n\nCes écritures ne peuvent pas être effacées. Rouvrez la période concernée dans le Pilotage si vous souhaitez tout supprimer.`,
-          options: [{ label: 'Compris', action: () => setDeleteConfirmState(null) }],
-        });
-        return;
+      // Validés (is_draft=false) → conservés et détachés du projet (deviennent des virements
+      // classiques). Brouillons (non validés) → supprimés. Le projet est supprimé.
+      const { validated, drafts } = await checkTransactions(editingProject.id);
+      const vCount = validated.length;
+      const dCount = drafts.length;
+      const lines = [`Projet « ${editingProject.name} »`, ''];
+      if (vCount > 0) {
+        lines.push('✓ Conservé dans vos comptes :');
+        lines.push(`  • ${vCount} virement(s) validé(s), détaché(s) du projet (deviennent des virements classiques)`);
+        lines.push('');
       }
-
-      if (lockedTxns.length > 0 && closureLockDate && (unlockedPastTxns.length > 0 || futureCount > 0)) {
-        setDeleteConfirmState({
-          title: 'Supprimer le projet ?',
-          message: buildDeleteSummary({
-            projectName: editingProject.name,
-            kept: lockedTxns.length,
-            removedPast: unlockedPastTxns.length,
-            removedFuture: futureCount,
-          }),
-          options: [
-            { label: 'Annuler', action: () => setDeleteConfirmState(null) },
-            {
-              label: 'Oui, supprimer',
-              destructive: true,
-              action: () => runDeleteKeepingLocked(closureLockDate),
-            },
-          ],
-        });
-        return;
-      }
+      lines.push('✗ Sera supprimé :');
+      lines.push('  • Le projet');
+      if (dCount > 0) lines.push(`  • ${dCount} virement(s) en brouillon (non validés)`);
+      if (vCount === 0 && dCount === 0) lines.push('  • Aucune transaction liée');
+      lines.push('', 'Cette action est irréversible.');
 
       setDeleteConfirmState({
         title: 'Supprimer le projet ?',
-        message: buildDeleteSummary({
-          projectName: editingProject.name,
-          removedPast: past.length,
-          removedFuture: futureCount,
-        }),
+        message: lines.join('\n'),
         options: [
           { label: 'Annuler', action: () => setDeleteConfirmState(null) },
-          { label: 'Oui, supprimer', destructive: true, action: runDeleteFull },
+          { label: 'Oui, supprimer', destructive: true, action: runDeleteDissociating },
         ],
       });
     } catch (err) {
@@ -738,53 +695,65 @@ export default function AddProjectModal() {
                     <Text style={[styles.label, { color: COLORS.text, marginTop: 12 }]}>Apports par mois</Text>
                     <View style={[styles.ponctuelContainer, { backgroundColor: COLORS.background, borderColor: COLORS.border }]}>
                       {ponctuelDisplayMonths.map((m, idx) => {
+                        const frozenRows = frozenByMonth[m.key] ?? [];
                         const entry = ponctuelEntries[m.key];
                         const enabled = entry?.enabled ?? false;
-                        const isPast = (m as any).isPast;
+                        const isLastMonth = idx === ponctuelDisplayMonths.length - 1;
                         return (
-                          <View
-                            key={m.key}
-                            style={[
-                              styles.ponctuelRow,
-                              idx < ponctuelDisplayMonths.length - 1 && { borderBottomWidth: 1, borderBottomColor: COLORS.border },
-                              isPast && { opacity: 0.55 },
-                            ]}
-                          >
-                            <TouchableOpacity
-                              style={styles.ponctuelToggle}
-                              onPress={() => !isPast && togglePonctuelMonth(m.key)}
-                              activeOpacity={isPast ? 1 : 0.7}
-                              disabled={isPast}
-                            >
-                              {isPast ? (
-                                <Ionicons name="lock-closed" size={14} color={COLORS.textSecondary} />
-                              ) : (
-                                <View style={[styles.ponctuelDot, enabled && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}>
-                                  {enabled && <View style={styles.ponctuelDotInner} />}
+                          <React.Fragment key={m.key}>
+                            {/* Virements FIGÉS du mois (validés / passés) — lecture seule, plusieurs possibles */}
+                            {frozenRows.map((fr) => (
+                              <View
+                                key={fr.id}
+                                style={[styles.ponctuelRow, { borderBottomWidth: 1, borderBottomColor: COLORS.border, opacity: 0.7 }]}
+                              >
+                                <View style={styles.ponctuelToggle}>
+                                  <Ionicons name="lock-closed" size={14} color={fr.validated ? COLORS.green : COLORS.textSecondary} />
                                 </View>
-                              )}
-                            </TouchableOpacity>
-                            <Text style={[styles.ponctuelLabel, { color: enabled ? COLORS.text : COLORS.textSecondary }]}>
-                              {m.label}{isPast ? ' · passé' : ''}
-                            </Text>
-                            {isPast ? (
-                              <Text style={[styles.ponctuelInput, { color: COLORS.textSecondary, borderColor: 'transparent', textAlign: 'right' }]}>
-                                {enabled && entry?.amount ? `${entry.amount} ${CURRENCY_SYMBOL}` : '–'}
-                              </Text>
-                            ) : enabled ? (
-                              <TextInput
-                                style={[styles.ponctuelInput, { color: COLORS.blue, borderColor: COLORS.blue + '60' }]}
-                                placeholder="0"
-                                placeholderTextColor={COLORS.textSecondary}
-                                value={entry?.amount || ''}
-                                onChangeText={(v) => setPonctuelAmount(m.key, v)}
-                                keyboardType="decimal-pad"
-                                editable={!isPending}
-                              />
-                            ) : (
-                              <Text style={styles.ponctuelDash}>–</Text>
+                                <Text style={[styles.ponctuelLabel, { color: COLORS.textSecondary }]} numberOfLines={1}>
+                                  {m.label} · {fr.validated ? 'validé' : 'passé'}
+                                </Text>
+                                <Text style={[styles.ponctuelInput, { color: COLORS.textSecondary, borderColor: 'transparent', textAlign: 'right' }]}>
+                                  {fr.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
+                                </Text>
+                              </View>
+                            ))}
+                            {/* Ligne ÉDITABLE du mois (courant/futur) : permet d'ajouter un (autre) virement */}
+                            {m.editable && (
+                              <View
+                                style={[
+                                  styles.ponctuelRow,
+                                  !isLastMonth && { borderBottomWidth: 1, borderBottomColor: COLORS.border },
+                                ]}
+                              >
+                                <TouchableOpacity
+                                  style={styles.ponctuelToggle}
+                                  onPress={() => togglePonctuelMonth(m.key)}
+                                  activeOpacity={0.7}
+                                >
+                                  <View style={[styles.ponctuelDot, enabled && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}>
+                                    {enabled && <View style={styles.ponctuelDotInner} />}
+                                  </View>
+                                </TouchableOpacity>
+                                <Text style={[styles.ponctuelLabel, { color: enabled ? COLORS.text : COLORS.textSecondary }]}>
+                                  {m.label}{frozenRows.length > 0 ? ' · autre virement' : ''}
+                                </Text>
+                                {enabled ? (
+                                  <TextInput
+                                    style={[styles.ponctuelInput, { color: COLORS.blue, borderColor: COLORS.blue + '60' }]}
+                                    placeholder="0"
+                                    placeholderTextColor={COLORS.textSecondary}
+                                    value={entry?.amount || ''}
+                                    onChangeText={(v) => setPonctuelAmount(m.key, v)}
+                                    keyboardType="decimal-pad"
+                                    editable={!isPending}
+                                  />
+                                ) : (
+                                  <Text style={styles.ponctuelDash}>–</Text>
+                                )}
+                              </View>
                             )}
-                          </View>
+                          </React.Fragment>
                         );
                       })}
                       {/* Total */}
@@ -924,9 +893,9 @@ export default function AddProjectModal() {
                   <TouchableOpacity
                     style={[styles.button, { backgroundColor: COLORS.danger + '20', marginTop: 12 }]}
                     onPress={() => { handleDelete(); }}
-                    disabled={deleteFullMutation.isPending || deleteKeepingLockedMutation.isPending}
+                    disabled={deleteDissociatingMutation.isPending}
                   >
-                    {deleteFullMutation.isPending ? (
+                    {deleteDissociatingMutation.isPending ? (
                       <ActivityIndicator color={COLORS.danger} />
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>

@@ -293,22 +293,38 @@ export function useUpdateProject(profileId: string | undefined) {
         .maybeSingle();
       const projetsCategoryId = projetsCat?.id ?? null;
 
-      // 2. Supprimer les transactions du projet à régénérer.
-      //    Ponctuel : préserver les mois PASSÉS (avant le mois courant) — on ne supprime
-      //    que le mois courant et les mois futurs. Mensuel / date : régénération complète.
-      const nowDel = new Date();
-      const currentMonthStart = `${nowDel.getFullYear()}-${String(nowDel.getMonth() + 1).padStart(2, '0')}-01`;
-      let selQuery = supabase
+      // 2. Supprimer UNIQUEMENT les brouillons (is_draft=true) du projet à régénérer.
+      //    Les transactions VALIDÉES (is_draft=false) ne sont JAMAIS touchées par une mise à jour :
+      //    elles ne peuvent être modifiées que manuellement (page Transactions). On les préserve donc
+      //    et on régénère seulement les brouillons à venir.
+      let delQuery = supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', input.id)
-        .eq('profile_id', profileId);
+        .eq('profile_id', profileId)
+        .eq('is_draft', true);
       if (allocType === 'ponctuel') {
-        selQuery = selQuery.gte('date', currentMonthStart);
+        // Ponctuel : on ne régénère que le mois courant + futurs → préserver aussi les brouillons
+        // des mois PASSÉS (affichés « figés · passé » dans le formulaire).
+        const nowDel = new Date();
+        const currentMonthStart = `${nowDel.getFullYear()}-${String(nowDel.getMonth() + 1).padStart(2, '0')}-01`;
+        delQuery = delQuery.gte('date', currentMonthStart);
       }
-      const { data: toDelete } = await selQuery;
-      // Réverse le solde des lignes déjà validées avant de supprimer (les nouvelles sont des brouillons).
+      const { data: toDelete } = await delQuery;
+      // (brouillons → posted=false : aucune réversion de solde, simple suppression.)
       await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
+
+      // Mois qui possèdent déjà une transaction VALIDÉE : en mensuel/date, on n'y recrée pas de
+      // brouillon (sinon doublon avec la validée). En ponctuel, plusieurs virements/mois sont permis,
+      // donc on n'applique PAS ce filtre (les entrées fournies font foi).
+      const { data: validatedTxns } = await supabase
+        .from('transactions')
+        .select('date')
+        .eq('project_id', input.id)
+        .eq('profile_id', profileId)
+        .eq('is_draft', false)
+        .lt('amount', 0);
+      const validatedMonths = new Set((validatedTxns ?? []).map((t: any) => String(t.date).slice(0, 7)));
 
       // 3a. Ponctuel : régénérer depuis les entrées fournies
       if (allocType === 'ponctuel') {
@@ -368,6 +384,9 @@ export function useUpdateProject(profileId: string | undefined) {
 
         const txDate = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
 
+        // Ne pas recréer de brouillon sur un mois qui a déjà une transaction validée (préservée).
+        if (validatedMonths.has(txDate.slice(0, 7))) { cursor.setMonth(cursor.getMonth() + 1); continue; }
+
         const monthTxns = buildProjectTransactions({
           profileId,
           projectId: input.id,
@@ -405,23 +424,71 @@ export function useCheckProjectTransactions(profileId: string | undefined) {
     check: async (projectId: string) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
       const today = new Date().toISOString().split('T')[0];
-      const { data: pastTxns, error: e1 } = await supabase
+      const { data: all, error } = await supabase
         .from('transactions')
-        .select('id, date')
+        .select('id, date, is_draft')
         .eq('project_id', projectId)
-        .eq('profile_id', profileId)
-        .lte('date', today);
-      if (e1) throw e1;
-      const { data: futureTxns, error: e2 } = await supabase
-        .from('transactions')
-        .select('id, date')
-        .eq('project_id', projectId)
-        .eq('profile_id', profileId)
-        .gt('date', today);
-      if (e2) throw e2;
-      return { past: pastTxns ?? [], future: futureTxns ?? [] };
+        .eq('profile_id', profileId);
+      if (error) throw error;
+      const rows = (all ?? []) as { id: string; date: string; is_draft: boolean | null }[];
+      // past/future conservés pour la compatibilité (sélecteur de date « supprimer à partir de »).
+      const past = rows.filter((t) => t.date <= today);
+      const future = rows.filter((t) => t.date > today);
+      // validées (is_draft=false) = conservées+dissociées à la suppression ; brouillons = supprimés.
+      const validated = rows.filter((t) => t.is_draft === false);
+      const drafts = rows.filter((t) => t.is_draft !== false);
+      return { past, future, validated, drafts };
     },
   };
+}
+
+/**
+ * Suppression « douce » du projet (comportement par défaut) :
+ *  - les transactions VALIDÉES (is_draft=false) sont DÉTACHÉES (project_id → null) → elles
+ *    deviennent de simples virements classiques (l'argent reste sur les comptes) ;
+ *  - les BROUILLONS (is_draft=true, jamais validés, sans impact sur les soldes) sont supprimés ;
+ *  - le projet est supprimé.
+ */
+export function useDeleteProjectDissociating(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      if (!supabase || !profileId) throw new Error('Not authenticated');
+
+      // 1. Détacher les validées (les 2 jambes d'un virement portent project_id) → virements classiques.
+      const { error: unlinkErr } = await supabase
+        .from('transactions')
+        .update({ project_id: null })
+        .eq('project_id', projectId)
+        .eq('profile_id', profileId)
+        .eq('is_draft', false);
+      if (unlinkErr) throw unlinkErr;
+
+      // 2. Supprimer les brouillons restants (aucun impact solde → simple suppression via le helper).
+      const { data: drafts } = await supabase
+        .from('transactions')
+        .select(TX_REVERSAL_COLS)
+        .eq('project_id', projectId)
+        .eq('profile_id', profileId)
+        .eq('is_draft', true);
+      await reverseBalanceAndDeleteTransactions(profileId, (drafts ?? []) as any);
+
+      // 3. Supprimer le projet.
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId)
+        .eq('profile_id', profileId);
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [PROJECTS_KEY, profileId] });
+      client.invalidateQueries({ queryKey: [TRANSACTIONS_KEY, profileId] });
+      client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
 }
 
 export function useDeleteProjectFull(profileId: string | undefined) {
