@@ -32,6 +32,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useSetPremium } from '../hooks/usePlan';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/purchases';
 import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/pushNotifications';
+import { maybeApplyUpdateOnLaunch } from '../lib/otaUpdate';
 import './global.css';
 
 // expo-router v4 scanne TOUS les fichiers de app/ comme des routes : nos dossiers non-route
@@ -287,6 +288,10 @@ function AppChrome() {
 export default function RootLayout() {
   // Splash animé : natif uniquement (le web a déjà son boot-loader HTML dans app/+html.tsx).
   const [splashDone, setSplashDone] = useState(Platform.OS === 'web');
+
+  // OTA : application de la mise à jour Expo dès la 1ʳᵉ réouverture (DÉSACTIVÉ par défaut → no-op
+  // tant que le flag dans lib/otaUpdate est à false ; voir ce fichier pour l'activation).
+  useEffect(() => { maybeApplyUpdateOnLaunch(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
