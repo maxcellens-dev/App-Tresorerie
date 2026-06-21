@@ -30,7 +30,9 @@ import AddObjectiveModal from '../../../components/AddObjectiveModal';
 import { usePilotageData } from '../../../hooks/usePilotageData';
 import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { CURRENCY_SYMBOL, convertAmount } from '../../../lib/currency';
+import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
+import { useProfile } from '../../../hooks/useProfile';
 
 
 export default function ObjectivesScreen() {
@@ -151,14 +153,22 @@ export default function ObjectivesScreen() {
       objective.linked_account_id,
       currentYear
     );
+    const { data: rates = { EUR: 1 } } = useCurrencyRates();
+    const { data: objProfile } = useProfile(user?.id);
+    const refCode = (objProfile as any)?.currency_code ?? 'EUR';
 
     const targetAmount = parseFloat(objective.target_yearly_amount);
 
-    // Même logique que le Pilotage : somme des transactions POSITIVES de l'année
-    // sur le compte lié, quelle que soit la catégorie de l'objectif.
-    const currentAmount = objective.linked_account_id
+    // Même logique que le Pilotage : somme des transactions POSITIVES de l'année sur le compte lié.
+    // Le compte lié peut être dans une autre devise que la RÉFÉRENCE (où est exprimé le target) →
+    // on convertit la somme en devise de référence avant de comparer / d'afficher.
+    const currentAmountRaw = objective.linked_account_id
       ? transactions.filter((t) => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0)
       : (objective.current_year_invested || 0);
+    const linkedCur = accounts.find((a) => a.id === objective.linked_account_id)?.currency || refCode;
+    const currentAmount = objective.linked_account_id
+      ? (convertAmount(currentAmountRaw, linkedCur, refCode, rates) ?? currentAmountRaw)
+      : currentAmountRaw;
     
     const progress = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
 

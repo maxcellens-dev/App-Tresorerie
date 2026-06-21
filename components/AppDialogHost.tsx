@@ -4,7 +4,7 @@
  * dans l'arbre (au-dessus des écrans).
  */
 import React, { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton } from '../lib/appDialog';
 
@@ -15,14 +15,19 @@ export default function AppDialogHost() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [req, setReq] = useState<DialogRequest | null>(null);
+  const [inputVal, setInputVal] = useState('');
 
   useEffect(() => {
     registerDialogHost((r) => setReq(r));
     return () => registerDialogHost(null);
   }, []);
 
+  // Pré-remplit le champ de saisie à chaque nouveau dialogue (modifiable ensuite).
+  useEffect(() => { setInputVal(req?.input?.defaultValue ?? ''); }, [req]);
+
   const close = () => setReq(null);
-  const onPress = (b: DialogButton) => { close(); b.onPress?.(); };
+  // La valeur du champ (le cas échéant) est transmise au handler du bouton (cf. appPrompt).
+  const onPress = (b: DialogButton) => { const v = inputVal; close(); b.onPress?.(v); };
 
   // Couleur d'un bouton selon son style.
   const btnColor = (b: DialogButton) =>
@@ -41,6 +46,21 @@ export default function AppDialogHost() {
         <Pressable style={styles.box} onPress={() => {}}>
           {!!req.title && <Text style={styles.title}>{req.title}</Text>}
           {!!req.message && <Text style={styles.message}>{req.message}</Text>}
+          {!!req.input && (
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                defaultValue={req.input.defaultValue}
+                onChangeText={setInputVal}
+                placeholder={req.input.placeholder}
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType={req.input.keyboardType ?? 'default'}
+                autoFocus
+                selectTextOnFocus
+              />
+              {!!req.input.suffix && <Text style={styles.inputSuffix}>{req.input.suffix}</Text>}
+            </View>
+          )}
           <View style={styles.actions}>
             {req.buttons.map((b, i) => (
               <Pressable
@@ -64,6 +84,9 @@ function makeStyles(c: any) {
     box: { width: '100%', maxWidth: 420, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 6 },
     title: { fontSize: 17, fontWeight: '800', color: c.text },
     message: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginTop: 2 },
+    inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14 },
+    input: { flex: 1, fontSize: 16, color: c.text, paddingVertical: 12 },
+    inputSuffix: { fontSize: 15, fontWeight: '700', color: c.textSecondary },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 16 },
     btn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
     btnText: { fontSize: 14, fontWeight: '700' },

@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Transaction, TransactionWithDetails, RecurrenceRule } from '../types/database';
-import { appConfirm } from '../lib/appDialog';
+import { appConfirm, appPrompt } from '../lib/appDialog';
+import { convertAmount } from '../lib/currency';
 import { formatDateFrench } from '../lib/dateUtils';
 
 const KEY = 'transactions';
@@ -79,12 +80,13 @@ async function recomputeBalances(accountIds: Array<string | null | undefined>): 
 }
 
 /** Colonnes nécessaires pour réverser proprement l'impact solde avant suppression. */
-export const TX_REVERSAL_COLS = 'id, account_id, amount, date, is_draft, is_recurring, note, linked_account_id';
+export const TX_REVERSAL_COLS = 'id, account_id, amount, date, is_draft, is_recurring, note, linked_account_id, transfer_group_id';
 
 interface ReversalRow {
   id: string; account_id: string; amount: number; date: string;
   is_draft: boolean | null; is_recurring: boolean | null;
   note: string | null; linked_account_id: string | null;
+  transfer_group_id?: string | null;
 }
 
 /**
@@ -103,20 +105,32 @@ export async function reverseBalanceAndDeleteTransactions(profileId: string, bas
   // si elle n'a pas déjà été sélectionnée par le filtre projet. Robuste (cf. useDeleteTransaction) :
   // pas de linked_account_id réciproque exigé, pas de maybeSingle() (null silencieux sur ≥2 lignes).
   for (const r of baseRows) {
-    if (!r.linked_account_id) continue;
-    const { data: candidates } = await supabase
-      .from('transactions')
-      .select(TX_REVERSAL_COLS)
-      .eq('profile_id', profileId)
-      .eq('account_id', r.linked_account_id)
-      .eq('date', r.date)
-      .eq('amount', -Number(r.amount))
-      .is('category_id', null);
-    const list = (candidates ?? []) as ReversalRow[];
-    // Préférer la jambe qui pointe en retour ; sinon la première pas déjà dans le lot.
-    const paired = list.find((c) => c.linked_account_id === r.account_id && !byId.has(c.id))
-      ?? list.find((c) => !byId.has(c.id))
-      ?? null;
+    let paired: ReversalRow | null = null;
+    if (r.transfer_group_id) {
+      // Appariement fiable par GROUPE (cross-devises : montants des jambes différents).
+      const { data: byGroup } = await supabase
+        .from('transactions')
+        .select(TX_REVERSAL_COLS)
+        .eq('profile_id', profileId)
+        .eq('transfer_group_id', r.transfer_group_id)
+        .neq('id', r.id);
+      paired = ((byGroup ?? []) as ReversalRow[]).find((c) => !byId.has(c.id)) ?? null;
+    } else if (r.linked_account_id) {
+      // Anciens virements (sans groupe) : heuristique historique (montant opposé, même date).
+      const { data: candidates } = await supabase
+        .from('transactions')
+        .select(TX_REVERSAL_COLS)
+        .eq('profile_id', profileId)
+        .eq('account_id', r.linked_account_id)
+        .eq('date', r.date)
+        .eq('amount', -Number(r.amount))
+        .is('category_id', null);
+      const list = (candidates ?? []) as ReversalRow[];
+      // Préférer la jambe qui pointe en retour ; sinon la première pas déjà dans le lot.
+      paired = list.find((c) => c.linked_account_id === r.account_id && !byId.has(c.id))
+        ?? list.find((c) => !byId.has(c.id))
+        ?? null;
+    }
     if (paired) byId.set(paired.id, paired);
   }
 
@@ -175,6 +189,8 @@ export function useAddTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
       project_id?: string | null;
       linked_account_id?: string | null;
+      /** Identifiant de groupe partagé par les 2 jambes d'un virement (appariement robuste). */
+      transfer_group_id?: string | null;
       /** Saisie interactive : si une régul existe le même jour, demander si l'opération y est
        *  déjà incluse (→ ne pas réimpacter le solde) ou si c'est une nouvelle opération. */
       checkRegulConflict?: boolean;
@@ -222,6 +238,7 @@ export function useAddTransaction(profileId: string | undefined) {
           recurrence_end_date: input.recurrence_end_date ?? null,
           project_id: input.project_id ?? null,
           linked_account_id: input.linked_account_id ?? null,
+          transfer_group_id: input.transfer_group_id ?? null,
           posted: contribution !== 0,
           regul_covered: regulCovered,
           regul_target: input.regul_target ?? null,
@@ -244,7 +261,10 @@ export function useAddTransaction(profileId: string | undefined) {
 export interface CreateTransferLegsInput {
   fromAccountId: string;
   toAccountId: string;
-  amount: number; // montant POSITIF (le signe des jambes est géré ici)
+  amount: number; // montant POSITIF débité de la source (le signe des jambes est géré ici)
+  /** Virement CROSS-DEVISES : montant POSITIF réellement crédité sur la destination (devise dest).
+   *  Absent ou égal à `amount` → virement mono-devise classique (jambes miroir). */
+  amountTo?: number;
   date: string;
   noteFrom?: string | null; // libellé de la jambe de débit (source)
   noteTo?: string | null;   // libellé de la jambe de crédit (destination)
@@ -270,12 +290,17 @@ export async function createTransferLegs(
   del: ReturnType<typeof useDeleteTransaction>,
   p: CreateTransferLegsInput,
 ): Promise<void> {
-  const num = Math.abs(p.amount);
+  const num = Math.abs(p.amount);                                   // débité de la source
+  const numTo = p.amountTo != null ? Math.abs(p.amountTo) : num;    // crédité sur la destination
+  // Identifiant de groupe partagé par les 2 jambes → appariement robuste (édition/suppression),
+  // indispensable en cross-devises où les montants des jambes diffèrent (−num ≠ +numTo).
+  const groupId = transferUuid();
   const common = {
     is_draft: p.isDraft ?? false,
     is_recurring: p.isRecurring ?? false,
     recurrence_rule: p.isRecurring ? (p.recurrenceRule ?? null) : null,
     recurrence_end_date: p.recurrenceEndDate ?? null,
+    transfer_group_id: groupId,
     // Chaque jambe vérifie sa propre date vs une éventuelle régul sur SON compte.
     checkRegulConflict: p.checkRegulConflict ?? false,
   };
@@ -293,7 +318,7 @@ export async function createTransferLegs(
     await add.mutateAsync({
       account_id: p.toAccountId,
       category_id: null,
-      amount: num,
+      amount: numTo,
       date: p.date,
       note: p.noteTo ?? 'Virement interne',
       linked_account_id: p.fromAccountId,
@@ -303,6 +328,17 @@ export async function createTransferLegs(
     if (firstLegId) { try { await del.mutateAsync(firstLegId); } catch { /* best-effort */ } }
     throw legErr;
   }
+}
+
+/** UUID v4 léger (groupement de jambes — pas un usage cryptographique). */
+function transferUuid(): string {
+  const c: any = (globalThis as any).crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 /** Libère (supprime) tous les brouillons « Conservés » (is_reserved) d'un projet. */
@@ -345,7 +381,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id').eq('id', input.id).eq('profile_id', profileId).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       const oldAccId = (existing as { account_id: string }).account_id;
       const oldAmount = Number((existing as { amount: number }).amount);
@@ -353,6 +389,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       const wasRecurring = Boolean((existing as { is_recurring?: boolean }).is_recurring);
       const isNowDraft = input.is_draft !== undefined ? input.is_draft : wasInDraft;
       const oldLinkedAccId = (existing as { linked_account_id?: string | null }).linked_account_id ?? null;
+      const oldGroupId = (existing as { transfer_group_id?: string | null }).transfer_group_id ?? null;
       const oldDate = (existing as { date?: string }).date as string | undefined;
       const oldProjectId = (existing as { project_id?: string | null }).project_id ?? null;
 
@@ -409,17 +446,37 @@ export function useUpdateTransaction(profileId: string | undefined) {
         // montant exactement opposé, sans catégorie, sur le compte d'en face — sans exiger un
         // linked_account_id réciproque parfait (jambes désynchronisées/anciennes), et sans
         // maybeSingle() (qui renvoie null en silence dès qu'il y a ≥2 candidats).
-        const { data: pairedCandidates } = await supabase
-          .from('transactions')
-          .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
-          .eq('profile_id', profileId)
-          .eq('account_id', oldLinkedAccId)
-          .eq('date', oldDate ?? '')
-          .eq('amount', -oldAmount)
-          .is('category_id', null);
-        const pairedList = (pairedCandidates ?? []) as Array<{ id: string; account_id: string; amount: number; is_draft: boolean | null; is_recurring: boolean | null; date: string; linked_account_id: string | null }>;
+        // Appariement de la jambe opposée : par GROUPE si disponible (fiable, indépendant du
+        // montant → indispensable en cross-devises) ; sinon heuristique historique (montant opposé).
+        type PairedRow = { id: string; account_id: string; amount: number; is_draft: boolean | null; is_recurring: boolean | null; date: string; linked_account_id: string | null };
+        let pairedList: PairedRow[];
+        if (oldGroupId) {
+          const { data: byGroup } = await supabase
+            .from('transactions')
+            .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
+            .eq('profile_id', profileId)
+            .eq('transfer_group_id', oldGroupId)
+            .neq('id', input.id);
+          pairedList = (byGroup ?? []) as PairedRow[];
+        } else {
+          const { data: byHeur } = await supabase
+            .from('transactions')
+            .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
+            .eq('profile_id', profileId)
+            .eq('account_id', oldLinkedAccId)
+            .eq('date', oldDate ?? '')
+            .eq('amount', -oldAmount)
+            .is('category_id', null);
+          pairedList = (byHeur ?? []) as PairedRow[];
+        }
         // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
         const paired = pairedList.find((c) => c.linked_account_id === oldAccId) ?? pairedList[0] ?? null;
+        // Cross-devises : si les deux comptes ont des devises différentes, les montants des jambes
+        // sont INDÉPENDANTS (réels débité/crédité) → on ne mirrore PAS automatiquement la jambe opposée.
+        const { data: curRows } = await supabase.from('accounts').select('id, currency, name').in('id', [oldAccId, oldLinkedAccId]);
+        const curOf = new Map((curRows ?? []).map((a: any) => [a.id, (a.currency || 'EUR') as string]));
+        const nameOf = new Map((curRows ?? []).map((a: any) => [a.id, a.name as string]));
+        const crossCurrency = (curOf.get(oldAccId) || 'EUR') !== (curOf.get(oldLinkedAccId) || 'EUR');
         if (!paired && wasInDraft && !isNowDraft) {
           // Validation d'un virement dont la jambe de CRÉDIT n'existe pas encore : c'est le cas
           // d'un virement de projet validé via l'écran « Modifier » (et non via « Valider » de la
@@ -453,15 +510,45 @@ export function useUpdateTransaction(profileId: string | undefined) {
           const pairedRecurring = Boolean((paired as any).is_recurring);
           const pairedOldDate = (paired as any).date as string;
           const pairedAccId = (paired as any).account_id as string;
-          // La jambe opposée porte le montant de signe inverse.
+          // Mono-devise : la jambe opposée porte TOUJOURS le montant de signe inverse (miroir).
+          // Cross-devises : montants indépendants. Si le MONTANT change, on PROPOSE (popup) de
+          // recalculer aussi l'autre jambe au taux du jour — sinon il faudrait l'éditer à la main.
           const newMainAmount = input.amount !== undefined ? input.amount : oldAmount;
-          const pairedNewAmt = -newMainAmount;
+          let pairedNewAmt = crossCurrency ? pairedOldAmt : -newMainAmount;
+          let updatePairedAmount = !crossCurrency && input.amount !== undefined;
+          if (crossCurrency && input.amount !== undefined && newMainAmount !== oldAmount) {
+            const thisCur = curOf.get(oldAccId) || 'EUR';
+            const pairedCur = curOf.get(pairedAccId) || 'EUR';
+            const { data: rateRows } = await supabase.from('currency_rates').select('code, rate');
+            const ratesMap: Record<string, number> = { EUR: 1 };
+            for (const rr of (rateRows ?? []) as any[]) ratesMap[rr.code] = Number(rr.rate);
+            const conv = convertAmount(Math.abs(newMainAmount), thisCur, pairedCur, ratesMap);
+            if (conv != null) {
+              // Signe OPPOSÉ à la jambe éditée (un virement a un débit et un crédit).
+              const sign = -Math.sign(newMainAmount || 1);
+              const proposedMag = Math.round(conv * 100) / 100; // proposition au taux du jour
+              // Champ pré-rempli au taux mais LIBREMENT modifiable (le vrai montant reçu peut différer).
+              const entered = await appPrompt({
+                title: "Montant sur l'autre compte ?",
+                message: `Virement entre devises différentes. Montant sur « ${nameOf.get(pairedAccId) ?? "l'autre compte"} » — proposé au taux du jour, ajustable. « Laisser » pour ne pas y toucher.`,
+                defaultValue: proposedMag.toFixed(2),
+                suffix: pairedCur,
+                keyboardType: 'decimal-pad',
+                confirmText: 'Mettre à jour',
+                cancelText: 'Laisser',
+              });
+              if (entered !== null) {
+                const n = parseFloat(entered.replace(',', '.'));
+                if (Number.isFinite(n) && n > 0) { pairedNewAmt = sign * (Math.round(n * 100) / 100); updatePairedAmount = true; }
+              }
+            }
+          }
           const pairedNewDate = input.date !== undefined ? input.date : pairedOldDate;
           const pairedNewDraft = input.is_draft !== undefined ? input.is_draft : pairedWasDraft;
           const pairedOldContribution = balanceContribution({ amount: pairedOldAmt, date: pairedOldDate, is_draft: pairedWasDraft, is_recurring: pairedRecurring });
           const pairedNewContribution = balanceContribution({ amount: pairedNewAmt, date: pairedNewDate, is_draft: pairedNewDraft, is_recurring: pairedRecurring });
           const pairedUpdates: Record<string, unknown> = {};
-          if (input.amount !== undefined) pairedUpdates.amount = pairedNewAmt;
+          if (updatePairedAmount) pairedUpdates.amount = pairedNewAmt;
           if (input.date !== undefined) pairedUpdates.date = input.date;
           if (input.note !== undefined) pairedUpdates.note = input.note;
           if (input.is_draft !== undefined) pairedUpdates.is_draft = input.is_draft;
@@ -499,7 +586,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data: row, error: fetchErr } = await supabase
         .from('transactions')
-        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id')
+        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id, transfer_group_id')
         .eq('id', id)
         .eq('profile_id', profileId)
         .single();
@@ -514,6 +601,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
       const txNote = (row as any).note as string | null;
       const txCategoryId = (row as any).category_id as string | null;
       const txAccountId = (row as { account_id: string }).account_id;
+      const txGroupId = (row as any).transfer_group_id as string | null;
 
       // ── Chercher la jambe symétrique de l'autre côté du virement ──
       // Robuste et symétrique (quel que soit le côté supprimé) : une jambe de virement est
@@ -522,24 +610,35 @@ export function useDeleteTransaction(profileId: string | undefined) {
       // peuvent s'être désynchronisées, ou l'une être ancienne/sans linked_account_id), et on
       // n'utilise PAS maybeSingle() (qui renvoie null en silence dès qu'il y a 2 candidats).
       let pairedId: string | null = null;
-      const looksLikeTransfer = txCategoryId === null && (!!linkedAccountId || (!!txNote && /virement/i.test(txNote)));
-      if (looksLikeTransfer) {
-        // Candidats = même date, montant exactement opposé, sans catégorie, sur un AUTRE compte.
-        // Si on connaît le compte d'en face (linked_account_id), on s'y restreint (plus précis).
-        let q = supabase
+      if (txGroupId) {
+        // Appariement fiable par GROUPE (indépendant du montant → marche en cross-devises où les
+        // jambes ont des montants différents). On exclut soi-même.
+        const { data: byGroup } = await supabase
           .from('transactions')
-          .select('id, amount, is_draft, linked_account_id, account_id')
+          .select('id')
           .eq('profile_id', profileId)
-          .eq('date', txDate)
-          .eq('amount', -txAmount)
-          .is('category_id', null)
+          .eq('transfer_group_id', txGroupId)
           .neq('id', id);
-        q = linkedAccountId ? q.eq('account_id', linkedAccountId) : q.neq('account_id', txAccountId);
-        const { data: candidates } = await q;
-        const list = (candidates ?? []) as Array<{ id: string; linked_account_id: string | null; account_id: string }>;
-        // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
-        const best = list.find((c) => c.linked_account_id === txAccountId) ?? list[0] ?? null;
-        pairedId = best?.id ?? null;
+        pairedId = ((byGroup ?? [])[0] as any)?.id ?? null;
+      } else {
+        // Anciens virements (sans groupe) : heuristique historique (montant opposé, même date).
+        const looksLikeTransfer = txCategoryId === null && (!!linkedAccountId || (!!txNote && /virement/i.test(txNote)));
+        if (looksLikeTransfer) {
+          let q = supabase
+            .from('transactions')
+            .select('id, amount, is_draft, linked_account_id, account_id')
+            .eq('profile_id', profileId)
+            .eq('date', txDate)
+            .eq('amount', -txAmount)
+            .is('category_id', null)
+            .neq('id', id);
+          q = linkedAccountId ? q.eq('account_id', linkedAccountId) : q.neq('account_id', txAccountId);
+          const { data: candidates } = await q;
+          const list = (candidates ?? []) as Array<{ id: string; linked_account_id: string | null; account_id: string }>;
+          // Préférer la jambe qui pointe en retour vers nous ; sinon la première candidate plausible.
+          const best = list.find((c) => c.linked_account_id === txAccountId) ?? list[0] ?? null;
+          pairedId = best?.id ?? null;
+        }
       }
 
       // Supprimer la transaction principale

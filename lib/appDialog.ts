@@ -6,8 +6,13 @@
  * Un seul dialogue à la fois ; suffisant pour des confirmations.
  */
 export type DialogButtonStyle = 'default' | 'cancel' | 'destructive';
-export interface DialogButton { text: string; style?: DialogButtonStyle; onPress?: () => void }
-export interface DialogRequest { title?: string; message?: string; buttons: DialogButton[] }
+/** `onPress` reçoit la valeur du champ de saisie si le dialogue en comporte un (cf. appPrompt). */
+export interface DialogButton { text: string; style?: DialogButtonStyle; onPress?: (inputValue?: string) => void }
+export interface DialogInput {
+  defaultValue?: string; placeholder?: string;
+  keyboardType?: 'default' | 'decimal-pad'; suffix?: string;
+}
+export interface DialogRequest { title?: string; message?: string; buttons: DialogButton[]; input?: DialogInput }
 
 let controller: ((req: DialogRequest) => void) | null = null;
 
@@ -30,6 +35,28 @@ export function appConfirm(opts: {
       ],
     };
     if (controller) controller(req); else resolve(false);
+  });
+}
+
+/**
+ * Saisie in-app (remplace `window.prompt(...)`). Résout la valeur saisie si confirmé, `null` sinon.
+ * Le champ est pré-rempli avec `defaultValue` (modifiable par l'utilisateur).
+ */
+export function appPrompt(opts: {
+  title?: string; message?: string; defaultValue?: string; placeholder?: string;
+  confirmText?: string; cancelText?: string; keyboardType?: 'default' | 'decimal-pad'; suffix?: string;
+}): Promise<string | null> {
+  return new Promise((resolve) => {
+    const req: DialogRequest = {
+      title: opts.title,
+      message: opts.message,
+      input: { defaultValue: opts.defaultValue, placeholder: opts.placeholder, keyboardType: opts.keyboardType, suffix: opts.suffix },
+      buttons: [
+        { text: opts.cancelText ?? 'Annuler', style: 'cancel', onPress: () => resolve(null) },
+        { text: opts.confirmText ?? 'OK', style: 'default', onPress: (v?: string) => resolve(v ?? '') },
+      ],
+    };
+    if (controller) controller(req); else resolve(null);
   });
 }
 

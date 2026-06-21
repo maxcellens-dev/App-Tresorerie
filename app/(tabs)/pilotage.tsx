@@ -47,7 +47,8 @@ import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useAppColors } from '../../hooks/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { semanticText, pastelFill } from '../../theme/palette';
-import { CURRENCY_SYMBOL, floorToTen } from '../../lib/currency';
+import { CURRENCY_SYMBOL, floorToTen, convertAmount } from '../../lib/currency';
+import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 
 export default function PilotageScreen() {
   const router = useRouter();
@@ -107,6 +108,7 @@ export default function PilotageScreen() {
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
   // Modale de saisie de l'estimation hebdo des dépenses variables (alimente q9)
   const { data: profile } = useProfile(user?.id);
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
   const [showVariableModal, setShowVariableModal] = useState(false);
   const [weeklyVariableInput, setWeeklyVariableInput] = useState('');
   const updateProfileVar = useUpdateProfile(user?.id);
@@ -391,10 +393,16 @@ export default function PilotageScreen() {
     dest: 'savings' | 'investment'; amount: number; label: string;
     recoComplete?: string; resetPreSaving?: PreSavingType;
   }) => {
+    // Le montant de reco est en devise de RÉFÉRENCE ; on le convertit dans la devise du compte
+    // SOURCE (courant principal) pour pré-remplir le bon montant. Si la destination est dans une
+    // autre devise, l'écran Virement demandera ensuite le « montant reçu » (au taux du jour).
+    const refCode = profile?.currency_code ?? 'EUR';
+    const srcCur = accounts.find((a) => a.id === mainCheckingId)?.currency || refCode;
+    const amountSrc = convertAmount(opts.amount, refCode, srcCur, rates) ?? opts.amount;
     const q = new URLSearchParams({
       from: mainCheckingId ?? '',
       destType: opts.dest,
-      amount: String(Math.round(opts.amount)),
+      amount: String(Math.round(amountSrc)),
       label: opts.label,
       origin: 'pilotage',
       ...(opts.recoComplete ? { recoComplete: opts.recoComplete } : {}),

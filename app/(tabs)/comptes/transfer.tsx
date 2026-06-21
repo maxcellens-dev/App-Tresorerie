@@ -30,7 +30,8 @@ import type { RecurrenceRule, PreSavingType } from '../../../types/database';
 import type { RecoType } from '../../../lib/recommendationEngine';
 import { useRecoDismissals } from '../../../hooks/useUiPrefs';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { currencySymbolFor } from '../../../lib/currency';
+import { currencySymbolFor, convertAmount } from '../../../lib/currency';
+import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 
 
 export default function TransferScreen() {
@@ -59,6 +60,9 @@ export default function TransferScreen() {
   const [fromAccountId, setFromAccountId] = useState(params.from || '');
   const [toAccountId, setToAccountId] = useState(params.to || '');
   const [amount, setAmount] = useState(params.amount || '');
+  // Virement cross-devises : montant réellement reçu sur la destination (devise dest).
+  const [amountTo, setAmountTo] = useState('');
+  const amountToTouched = useRef(false);
   const [date, setDate] = useState(params.date || todayISO());
   const [dateDisplay, setDateDisplay] = useState(formatDateFrench(params.date || todayISO()));
   const [note, setNote] = useState(params.label || 'Virement interne');
@@ -68,6 +72,19 @@ export default function TransferScreen() {
   const [recurrenceEndDateInput, setRecurrenceEndDateInput] = useState('');
   // Saisie en 2 étapes (style banque). Si les comptes sont préremplis (depuis une reco), on va direct à l'étape 2.
   const [step, setStep] = useState<1 | 2>(params.from && params.to ? 2 : 1);
+
+  // Taux pour pré-remplir le montant reçu en cross-devises (modifiable ensuite par l'utilisateur).
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  useEffect(() => {
+    const fromC = accounts.find((a) => a.id === fromAccountId)?.currency || 'EUR';
+    const toC = accounts.find((a) => a.id === toAccountId)?.currency || 'EUR';
+    if (fromC === toC) return;                 // mono-devise : pas de 2ᵉ champ
+    if (amountToTouched.current) return;        // l'utilisateur a saisi son vrai montant reçu
+    const n = parseFloat((amount || '').replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) { setAmountTo(''); return; }
+    const conv = convertAmount(n, fromC, toC, rates);
+    setAmountTo(conv != null ? conv.toFixed(2) : '');
+  }, [amount, fromAccountId, toAccountId, accounts, rates]);
 
   function goNext() {
     if (!fromAccountId) { Alert.alert('Compte source requis', 'Choisissez un compte source.'); return; }
@@ -114,16 +131,21 @@ export default function TransferScreen() {
       Alert.alert('Comptes différents', 'Le compte source et le compte cible doivent être différents.');
       return;
     }
-    // Phase 1 : pas encore de virement entre devises différentes (la conversion arrive en Phase 3).
-    // On bloque pour ne PAS créer de jambes miroir −X/+X fausses (X EUR débité ≠ X CHF crédité).
-    {
-      const srcCur = accounts.find((a) => a.id === fromAccountId)?.currency || 'EUR';
-      const dstCur = accounts.find((a) => a.id === toAccountId)?.currency || 'EUR';
-      if (srcCur !== dstCur) {
-        Alert.alert(
-          'Devises différentes',
-          "Les virements entre comptes de devises différentes arrivent bientôt. Pour l'instant, le compte source et le compte cible doivent avoir la même devise.",
-        );
+    // Cross-devises : comptes de devises différentes → jambes ASYMÉTRIQUES (−num sur la source /
+    // +numTo sur la destination). numTo = montant réellement crédité (saisi, pré-rempli au taux).
+    const fromCur = accounts.find((a) => a.id === fromAccountId)?.currency || 'EUR';
+    const dstAcc = accounts.find((a) => a.id === toAccountId);
+    const toCur = dstAcc?.currency || 'EUR';
+    const cross = fromCur !== toCur;
+    let numTo = num;
+    if (cross) {
+      numTo = parseFloat(amountTo.replace(',', '.'));
+      if (Number.isNaN(numTo) || numTo <= 0) {
+        Alert.alert('Montant reçu requis', `Saisissez le montant réellement crédité sur « ${dstAcc?.name ?? 'la destination'} » (en ${toCur}).`);
+        return;
+      }
+      if (isRecurring) {
+        Alert.alert('Récurrence indisponible', 'Un virement récurrent doit relier deux comptes de la même devise (les taux de change varient dans le temps).');
         return;
       }
     }
@@ -139,6 +161,7 @@ export default function TransferScreen() {
         fromAccountId,
         toAccountId,
         amount: num,
+        amountTo: cross ? numTo : undefined,
         date,
         noteFrom: note || 'Virement interne',
         noteTo: note || 'Virement interne',
@@ -190,6 +213,8 @@ export default function TransferScreen() {
   const fmtEur = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + currencySymbolFor(fromAcc?.currency);
   const fromAcc = accounts.find((a) => a.id === fromAccountId);
   const toAcc = accounts.find((a) => a.id === toAccountId);
+  // Cross-devises : comptes de devises différentes → on affiche un 2ᵉ champ « montant reçu ».
+  const isCross = !!fromAcc && !!toAcc && (fromAcc.currency || 'EUR') !== (toAcc.currency || 'EUR');
   const withdrawalNum = parseFloat((amount || '').replace(',', '.'));
   const fromApport = fromAcc ? computeContributed(fromAcc, allTransactions as any) : null;
   const isInvestWithdrawal = fromAcc?.type === 'investment' && fromApport != null && !isRecurring;
@@ -287,15 +312,34 @@ export default function TransferScreen() {
             <Text style={styles.prevLinkText}>Étape précédente</Text>
           </TouchableOpacity>
 
-          <Text style={styles.label}>Montant ({currencySymbolFor(fromAcc?.currency)})</Text>
+          <Text style={styles.label}>Montant {isCross ? 'envoyé ' : ''}({currencySymbolFor(fromAcc?.currency)})</Text>
           <TextInput
             style={styles.input}
             value={amount}
-            onChangeText={setAmount}
+            // Changer le montant ENVOYÉ ré-active la proposition automatique du montant reçu
+            // (au taux) → évite de garder un « reçu » figé, devenu incohérent, par oubli.
+            onChangeText={(v) => { amountToTouched.current = false; setAmount(v); }}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
           />
+
+          {isCross && (
+            <>
+              <Text style={styles.label}>Montant reçu ({currencySymbolFor(toAcc?.currency)})</Text>
+              <TextInput
+                style={styles.input}
+                value={amountTo}
+                onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); }}
+                placeholder="0,00"
+                placeholderTextColor={COLORS.textSecondary}
+                keyboardType="decimal-pad"
+              />
+              <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: -10, marginBottom: 16, lineHeight: 17 }}>
+                Proposé au taux du jour. Ajuste-le avec le montant RÉELLEMENT crédité sur ton relevé ({currencySymbolFor(fromAcc?.currency)} → {currencySymbolFor(toAcc?.currency)}).
+              </Text>
+            </>
+          )}
 
           {prorata && (
             <View style={styles.withdrawCard}>

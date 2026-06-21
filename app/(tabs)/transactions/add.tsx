@@ -78,12 +78,12 @@ export default function AddTransactionScreen() {
       if (!accountId) return showError('Veuillez choisir un compte source.', ['account']);
       if (!targetAccountId) return showError('Veuillez choisir un compte de destination.', ['targetAccount']);
       if (accountId === targetAccountId) return showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
-      // Phase 1 : virement mono-devise uniquement (cross-devises = Phase 3) → on bloque pour ne pas
-      // créer de jambes miroir −X/+X fausses entre deux devises.
+      // Cross-devises : la saisie du « montant reçu » se fait sur l'écran dédié « Virement »
+      // (qui pré-remplit au taux du jour). Ici, on redirige vers lui plutôt que de gérer 2 montants.
       {
         const srcCur = accounts.find(a => a.id === accountId)?.currency || 'EUR';
         const dstCur = accounts.find(a => a.id === targetAccountId)?.currency || 'EUR';
-        if (srcCur !== dstCur) return showError('Les virements entre devises différentes arrivent bientôt — choisissez deux comptes de même devise.', ['targetAccount']);
+        if (srcCur !== dstCur) return showError("Pour un virement entre devises différentes, utilise l'écran « Virement » (icône ⇄ sur la page Comptes) : il te demande le montant réellement reçu.", ['targetAccount']);
       }
     } else {
       const num = parseFloat(amount.replace(',', '.'));
