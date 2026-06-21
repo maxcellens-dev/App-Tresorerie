@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAddTransaction, useDeleteTransaction } from './useTransactions';
 import { useAuth } from '../contexts/AuthContext';
+import { todayISO } from '../lib/dateUtils';
 
 export interface RwProject {
   id: string; owner_id: string; name: string; emoji: string; description: string; currency: string; created_at: string;
@@ -156,18 +157,22 @@ export function useDeleteRwProject(userId: string | undefined) {
   return useMutation({
     mutationFn: async (projectId: string) => {
       if (!supabase) throw new Error('Backend indisponible');
-      // Avant de supprimer le projet, nettoyer MES propres transactions réelles liées (réversion
-      // du solde via useDeleteTransaction). On ne peut/doit toucher que les nôtres (created_by = moi) ;
-      // les autres participants gèrent les leurs (RLS). La suppression n'est de toute façon proposée
-      // que si AUCUNE transaction du projet n'est encore passée (cf. garde côté UI).
+      // Nettoyage de MES propres transactions réelles liées (RLS : on ne touche que les nôtres,
+      // created_by = moi ; chaque participant garde les siennes). Règle :
+      //   • Transaction PASSÉE (date ≤ aujourd'hui = a impacté le compte) → CONSERVÉE : elle devient
+      //     une simple dépense/recette normale (le lien projet disparaît avec rw_expenses en cascade).
+      //   • Transaction NON passée (future) → supprimée (réversion du solde via useDeleteTransaction).
+      const today = todayISO();
       const { data: myExpenses } = await supabase
         .from('rw_expenses')
-        .select('transaction_id')
+        .select('transaction_id, date')
         .eq('project_id', projectId)
         .eq('created_by', userId)
         .not('transaction_id', 'is', null);
-      for (const e of (myExpenses ?? []) as Array<{ transaction_id: string | null }>) {
-        if (e.transaction_id) { try { await delTx.mutateAsync(e.transaction_id); } catch { /* déjà supprimée */ } }
+      for (const e of (myExpenses ?? []) as Array<{ transaction_id: string | null; date: string }>) {
+        if (e.transaction_id && e.date > today) {
+          try { await delTx.mutateAsync(e.transaction_id); } catch { /* déjà supprimée */ }
+        }
       }
       const { error } = await supabase.from('rw_projects').delete().eq('id', projectId);
       if (error) throw error;

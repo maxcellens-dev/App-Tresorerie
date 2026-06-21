@@ -146,7 +146,10 @@ export default function RelykaWorldDetail() {
   };
 
   const confirmDeleteProject = () => {
-    Alert.alert('Supprimer le projet', 'Tout le projet et ses dépenses seront supprimés pour tous les participants. Vos transactions liées sur vos comptes seront aussi retirées (le solde est rétabli).', [
+    const msg = hasPostedRealTx
+      ? 'Le projet et ses dépenses sont supprimés pour tous les participants. Les transactions déjà passées (qui ont impacté un compte) sont conservées et deviennent de simples dépenses/recettes chez chaque participant. Seules les transactions non encore passées sont retirées (le solde est rétabli).'
+      : 'Le projet et ses dépenses seront supprimés pour tous les participants (aucune dépense n\'a encore impacté de compte).';
+    Alert.alert('Supprimer le projet', msg, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: async () => { await deleteProject.mutateAsync(projectId!); goBack(); } },
     ]);
@@ -206,7 +209,7 @@ export default function RelykaWorldDetail() {
                   <Ionicons name={isArchived ? 'folder-open-outline' : 'archive-outline'} size={16} color="#f59e0b" />
                   <Text style={styles.archiveActionText}>{isArchived ? 'Désarchiver' : 'Archiver'}</Text>
                 </TouchableOpacity>
-                {!isArchived && expensesReady && !hasPostedRealTx && (
+                {!isArchived && expensesReady && (
                   <TouchableOpacity style={styles.deleteActionBtn} onPress={confirmDeleteProject} activeOpacity={0.85} disabled={deleteProject.isPending}>
                     <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
                     <Text style={styles.deleteActionText}>Supprimer</Text>
@@ -215,7 +218,7 @@ export default function RelykaWorldDetail() {
               </View>
               {!isArchived && hasPostedRealTx && (
                 <Text style={styles.archiveHint}>
-                  Des dépenses de ce projet ont déjà impacté un compte. Il ne peut plus être supprimé — vous pouvez l'archiver.
+                  À la suppression, les dépenses déjà passées sont conservées chez chaque participant (elles deviennent de simples transactions). L'archivage garde tout le projet intact.
                 </Text>
               )}
             </>
