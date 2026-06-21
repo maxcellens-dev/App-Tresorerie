@@ -17,7 +17,8 @@ import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 import { todayISO } from '../../../../lib/dateUtils';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
-  useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime, computeBalances, settleUp, type RwExpense,
+  useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime,
+  useUpdateRwParticipant, useRwReinviteParticipant, computeBalances, settleUp, type RwExpense, type RwParticipant,
 } from '../../../../hooks/useRelykaWorld';
 
 const PROJ_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
@@ -38,6 +39,8 @@ export default function RelykaWorldDetail() {
   const { data: expData } = useRwExpenses(projectId);
   const inviteByCode = useRwInviteByCode(projectId);
   const addParticipant = useAddRwParticipant(projectId);
+  const updateParticipant = useUpdateRwParticipant(projectId);
+  const reinviteParticipant = useRwReinviteParticipant(projectId);
   const deleteProject = useDeleteRwProject(user?.id);
   const setArchived = useSetRwProjectArchived(user?.id);
   const updateProject = useUpdateRwProject(projectId);
@@ -108,6 +111,38 @@ export default function RelykaWorldDetail() {
     if (!freeName.trim()) return;
     await addParticipant.mutateAsync(freeName.trim());
     setFreeName('');
+  };
+
+  // ── Édition d'un participant NON INSCRIT (renommer + inviter par ID pour qu'il prenne sa place) ──
+  const [editPart, setEditPart] = useState<RwParticipant | null>(null);
+  const [partName, setPartName] = useState('');
+  const [partCode, setPartCode] = useState('');
+  const [partErr, setPartErr] = useState<string | null>(null);
+  const [partBusy, setPartBusy] = useState(false);
+  const openPartEdit = (p: RwParticipant) => {
+    setEditPart(p); setPartName(p.display_name); setPartCode(''); setPartErr(null); setShowInvite(false);
+  };
+  const savePartName = async () => {
+    if (!editPart || !partName.trim() || partName.trim() === editPart.display_name) return;
+    setPartBusy(true); setPartErr(null);
+    try {
+      await updateParticipant.mutateAsync({ participantId: editPart.id, name: partName.trim() });
+      setEditPart(null);
+    } catch (e: any) { setPartErr(e?.message ?? 'Renommage impossible.'); }
+    finally { setPartBusy(false); }
+  };
+  const reinvitePart = async () => {
+    if (!editPart || !partCode.trim()) return;
+    setPartBusy(true); setPartErr(null);
+    try {
+      // Renomme d'abord si l'utilisateur a aussi modifié le nom, puis envoie l'invitation.
+      if (partName.trim() && partName.trim() !== editPart.display_name) {
+        await updateParticipant.mutateAsync({ participantId: editPart.id, name: partName.trim() });
+      }
+      await reinviteParticipant.mutateAsync({ participantId: editPart.id, code: partCode.trim() });
+      setEditPart(null);
+    } catch (e: any) { setPartErr(e?.message ?? 'Invitation impossible.'); }
+    finally { setPartBusy(false); }
   };
 
   const confirmDeleteProject = () => {
@@ -292,9 +327,53 @@ export default function RelykaWorldDetail() {
 
             <View style={styles.sep} />
             <Text style={styles.label}>Participants actuels</Text>
-            {participants.map((p) => (
-              <Text key={p.id} style={styles.partItem}>• {p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}{p.pending ? ' · en attente' : ''}</Text>
-            ))}
+            {participants.map((p) => {
+              // Non inscrit (pas de compte lié, pas en attente) → modifiable (renommer / inviter par ID).
+              const editable = !p.user_id && !p.pending;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.partRow}
+                  activeOpacity={editable ? 0.6 : 1}
+                  disabled={!editable}
+                  onPress={() => editable && openPartEdit(p)}
+                >
+                  <Text style={styles.partItem}>• {p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}{p.pending ? ' · en attente' : ''}{editable ? ' · non inscrit' : ''}</Text>
+                  {editable && <Ionicons name="create-outline" size={18} color={COLORS.emerald} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal édition d'un participant non inscrit (renommer / inviter par ID) */}
+      <Modal visible={!!editPart} transparent animationType="slide" onRequestClose={() => setEditPart(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Participant non inscrit</Text>
+              <TouchableOpacity onPress={() => setEditPart(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>Nom</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={partName} onChangeText={setPartName} placeholder="Nom" placeholderTextColor={COLORS.textSecondary} />
+              <TouchableOpacity style={[styles.addNameBtn, (partBusy || !partName.trim() || partName.trim() === editPart?.display_name) && { opacity: 0.5 }]} onPress={savePartName} disabled={partBusy || !partName.trim() || partName.trim() === editPart?.display_name}>
+                <Ionicons name="checkmark" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sep} />
+            <Text style={styles.label}>Inviter cette personne par son ID Relyka</Text>
+            <Text style={styles.partHint}>Si elle accepte, elle prend la place de ce participant : ses dépenses et parts déjà saisies lui sont rattachées.</Text>
+            <TextInput style={styles.input} value={partCode} onChangeText={(t) => setPartCode(t.toUpperCase())} placeholder="Ex. A1B2C3D4" placeholderTextColor={COLORS.textSecondary} autoCapitalize="characters" />
+            {!!partErr && <Text style={styles.errText}>{partErr}</Text>}
+            <TouchableOpacity style={[styles.modalCta, (!partCode.trim() || partBusy) && { opacity: 0.5 }]} onPress={reinvitePart} disabled={!partCode.trim() || partBusy}>
+              {partBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalCtaText}>Envoyer l'invitation</Text>}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -386,6 +465,8 @@ function makeStyles(c: any) {
     addNameBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
     sep: { height: 1, backgroundColor: c.cardBorder, marginVertical: 16 },
     partItem: { fontSize: 13, color: c.text, marginBottom: 4 },
+    partRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 2 },
+    partHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginBottom: 8, marginTop: -2 },
     detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
     detailCard: { width: '100%', maxWidth: 360, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 22, alignItems: 'center' },
     detailEmoji: { fontSize: 36 },

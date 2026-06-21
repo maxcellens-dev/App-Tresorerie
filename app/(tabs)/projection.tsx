@@ -199,6 +199,12 @@ export default function ProjectionScreen() {
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');
 
+  // Étape « Personnaliser une projection » du guide : ouvrir l'onglet Investissement, car les
+  // hypothèses à ajuster (hypoRef) ne sont rendues que là — sinon le scroll ne mène à rien.
+  React.useEffect(() => {
+    if (onbHypo) setActiveTab('invest');
+  }, [onbHypo]);
+
   // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {
     const list = allAccounts.filter((a: any) => a.type === 'investment');

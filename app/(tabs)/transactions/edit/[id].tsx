@@ -14,6 +14,7 @@ import { useCategories, useAddCategory } from '../../../../hooks/useCategories';
 import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../../hooks/useTransactions';
 import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../../hooks/useTransactionMonthOverrides';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/CategoryPicker';
+import { isRegulRow } from '../../../../lib/txOrder';
 import type { RecurrenceRule } from '../../../../types/database';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
 import { accountColor } from '../../../../theme/colors';
@@ -56,6 +57,9 @@ export default function EditTransactionScreen() {
   const tx = transactions.find((t) => t.id === id);
   const isPast = tx ? new Date(tx.date) < new Date(new Date().toISOString().slice(0, 10)) : false;
   const isVirement = !!(tx as any)?.linked_account_id;
+  // Régularisation de solde : pas de vraie sous-catégorie stockée (le moteur de solde l'identifie
+  // par le libellé + category_id null). On la présente comme « Régularisation solde », verrouillée.
+  const isRegul = !!tx && isRegulRow(tx as any);
   const instanceYear = instanceDate ? Number(instanceDate.split('-')[0]) : undefined;
   const instanceMonth = instanceDate ? Number(instanceDate.split('-')[1]) : undefined;
   const { data: instanceOverrides = [] } = useTransactionMonthOverrides(user?.id, instanceYear, instanceMonth);
@@ -114,15 +118,6 @@ export default function EditTransactionScreen() {
       setFutureAmountDateDisplay('');
     }
   }, [tx, instanceDate, currentInstanceOverride]);
-
-  // Bascule de type par l'utilisateur uniquement (réinitialise la sous-catégorie).
-  // On NE met PAS d'effet sur [isExpense] pour éviter d'effacer la catégorie au chargement d'une recette.
-  const switchType = (expense: boolean) => {
-    if (expense === isExpense) return;
-    setIsExpense(expense);
-    setIsRefund(false);
-    setCategoryId('');
-  };
 
   // Date d'effet par défaut = date complète de l'échéance concernée (jj-mm-aaaa).
   // `instanceDate` peut être un mois (YYYY-MM) → on complète avec le jour de la transaction.
@@ -192,7 +187,7 @@ export default function EditTransactionScreen() {
     }
 
     // Sous-catégorie obligatoire pour une dépense / recette validée (pas les virements ni les brouillons).
-    if (!isVirement && !isDraft && !categoryId) {
+    if (!isVirement && !isRegul && !isDraft && !categoryId) {
       showError('Veuillez choisir une sous-catégorie.', ['category']);
       return;
     }
@@ -454,15 +449,11 @@ export default function EditTransactionScreen() {
               </View>
             </>
           ) : (
-            /* ── Dépense / Recette ── */
+            /* ── Dépense / Recette ── (type figé à la création : badge en lecture seule, comme le virement) */
             <>
-              <View style={styles.toggle}>
-                <TouchableOpacity style={[styles.toggleBtn, isExpense && styles.toggleBtnActive]} onPress={() => switchType(true)}>
-                  <Text style={[styles.toggleLabel, isExpense && styles.toggleLabelActive]}>Dépense</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.toggleBtn, !isExpense && styles.toggleBtnActive]} onPress={() => switchType(false)}>
-                  <Text style={[styles.toggleLabel, !isExpense && styles.toggleLabelActive]}>Recette</Text>
-                </TouchableOpacity>
+              <View style={[styles.typeBadge, { backgroundColor: (isExpense ? COLORS.danger : COLORS.green) + '1F' }]}>
+                <Ionicons name={isExpense ? 'arrow-down' : 'arrow-up'} size={16} color={isExpense ? COLORS.danger : COLORS.green} />
+                <Text style={[styles.typeBadgeText, { color: isExpense ? COLORS.danger : COLORS.green }]}>{isExpense ? 'Dépense' : 'Recette'}</Text>
               </View>
 
               {isExpense && (
@@ -507,7 +498,16 @@ export default function EditTransactionScreen() {
           />
 
           {/* Sous-catégorie (dépense / recette uniquement, juste après le libellé) */}
-          {!isVirement && (
+          {isRegul ? (
+            /* Régularisation : sous-catégorie fixe « Régularisation solde », verrouillée (non modifiable). */
+            <>
+              <Text style={styles.label}>Sous-catégorie</Text>
+              <View style={[styles.input, styles.lockedField]}>
+                <Text style={styles.lockedFieldText}>Régularisation solde</Text>
+                <Ionicons name="lock-closed" size={16} color={COLORS.textSecondary} />
+              </View>
+            </>
+          ) : !isVirement && (
             <CategoryPicker
               key={isExpense ? 'expense' : 'income'}
               groups={categoryGroups}
@@ -804,6 +804,8 @@ function makeStyles(c: any) {
   scrollContent: { paddingBottom: 40 },
   virementBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#1e3a5f', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 20, alignSelf: 'flex-start' as const },
   virementBadgeText: { fontSize: 14, fontWeight: '700', color: '#60a5fa' },
+  typeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 20, alignSelf: 'flex-start' as const },
+  typeBadgeText: { fontSize: 14, fontWeight: '700' },
   virementAccounts: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, paddingVertical: 12, paddingHorizontal: 16, marginBottom: 20 },
   virementAccountText: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text, textAlign: 'center' as const },
   toggle: { flexDirection: 'row', marginBottom: 20, gap: 12 },
@@ -817,6 +819,8 @@ function makeStyles(c: any) {
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: c.text, marginBottom: 20 },
   inputError: { borderColor: c.danger },
+  lockedField: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', opacity: 0.7 },
+  lockedFieldText: { fontSize: 16, color: c.textSecondary, fontWeight: '600' },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -847,7 +851,7 @@ function makeStyles(c: any) {
   instanceModeLabel: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   instanceModeLabelActive: { color: c.bg, fontWeight: '600' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 10 },
-  futureBlock: { backgroundColor: '#08101f', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
+  futureBlock: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 16 },
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
   submitBtn: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
   submitBtnPrimary: { backgroundColor: c.emerald },

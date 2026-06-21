@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { useNavBack } from '../../hooks/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import GuideOverlay from '../../components/GuideOverlay';
@@ -106,6 +107,7 @@ export default function TreasuryPlanScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -298,8 +300,11 @@ export default function TreasuryPlanScreen() {
       // Identifier les Mouvements
       const isSavingsMove = isChecking && linkedType === 'savings';
       const isInvestMove = isChecking && linkedType === 'investment';
+      // Détection FIABLE : `regul_target` est posé uniquement sur les régularisations de solde
+      // (à la création), donc indépendant du libellé que l'utilisateur a pu saisir. Repli sur le
+      // libellé pour les régul anciennes (avant `regul_target`).
       const isRegulMove = isChecking && !t.linked_account_id &&
-        (t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde');
+        ((t as any).regul_target != null || /gul/i.test(t.note ?? '') || t.note === 'Ajustement de solde');
       // Exclure l'autre côté d'un virement (compte non-courant avec linked_account_id)
       const isExcluded = !!t.linked_account_id && !isChecking;
 
@@ -315,11 +320,12 @@ export default function TreasuryPlanScreen() {
       // Réservations même-compte (projet) → Réservé.
       if (isProjectTx && isChecking) { addToMouv(mouvProjets, t, amount); continue; }
 
-      // Régularisation dépense (montant négatif): row grise sous Frais variables
-      // Régularisation recette (montant positif): tombe dans byCategoryMonth → section RECETTES
-      if (isRegulMove && amount < 0) {
+      // TOUTES les régularisations (montant − ou +) → ligne « Régularisation solde » sous Frais
+      // variables. regulByMonth est SIGNÉ : une régul qui BAISSE le solde (−) = coût ; une qui le
+      // MONTE (+) = crédit (affiché en négatif, comme un remboursement).
+      if (isRegulMove) {
         addToMouv(regulByMonth, t, amount);
-        // Pas de continue → tombe aussi dans le traitement classique ci-dessous
+        // Pas de continue → tombe aussi dans le traitement classique (catégorie 'none', non affichée).
       }
 
       // Traitement classique recettes/dépenses
@@ -447,11 +453,12 @@ export default function TreasuryPlanScreen() {
         months.forEach((m) => {
           // Coût NET = dépenses − remboursements. byCategoryMonth est signé : une dépense est
           // négative, un remboursement (montant positif sur une catégorie de dépense) est positif.
-          // Coût = −(somme signée). Les régularisations sont ajoutées en valeur absolue.
-          const regulAbs = isFraisVariables ? Math.abs(regulByMonth[m.key] ?? 0) : 0;
+          // Coût = −(somme signée). Régul : coût = −(montant signé) → baisse de solde (−) = coût,
+          // hausse de solde (+) = crédit.
+          const regulCost = isFraisVariables ? -(regulByMonth[m.key] ?? 0) : 0;
           const signedSum = (byCategoryMonth[p.id]?.[m.key] ?? 0) +
             children.reduce((sum, c) => sum + (byCategoryMonth[c.id]?.[m.key] ?? 0), 0);
-          parentValues[m.key] = -signedSum + regulAbs;
+          parentValues[m.key] = -signedSum + regulCost;
           expenseCatTotals[m.key] += parentValues[m.key];
         });
 
@@ -465,10 +472,11 @@ export default function TreasuryPlanScreen() {
 
         let regulRow: Row | undefined;
         if (isFraisVariables) {
-          // Valeurs absolues pour affichage cohérent (rouge car type expense)
-          const regulAbs: Record<string, number> = {};
-          months.forEach((m) => { regulAbs[m.key] = Math.abs(regulByMonth[m.key] ?? 0); });
-          regulRow = { label: 'Régularisation solde', categoryId: null, type: 'expense', values: regulAbs, isChild: true, isRegulRow: true };
+          // Coût signé : régul qui baisse le solde → coût (positif, rouge) ; qui le monte → crédit
+          // (négatif). Cohérent avec l'affichage des remboursements (dépense négative = crédit).
+          const regulVals: Record<string, number> = {};
+          months.forEach((m) => { regulVals[m.key] = -(regulByMonth[m.key] ?? 0); });
+          regulRow = { label: 'Régularisation solde', categoryId: null, type: 'expense', values: regulVals, isChild: true, isRegulRow: true };
         }
 
         expenseBlocks.push({
@@ -822,11 +830,11 @@ export default function TreasuryPlanScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safe} edges={[]}>
         {/* Retour vers la page précédente */}
         <TouchableOpacity
           style={styles.backRow}
-          onPress={() => router.back()}
+          onPress={goBack}
           accessibilityRole="button"
         >
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />

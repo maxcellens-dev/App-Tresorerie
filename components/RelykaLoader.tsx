@@ -5,16 +5,18 @@
  * Couleurs pilotées par le thème via les props `accent` / `textColor`.
  */
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, Image, StyleSheet, Animated, Easing, type ImageSourcePropType } from 'react-native';
 
 interface Props {
   size?: number;
   accent: string;       // couleur d'accent du thème (anneau + halo)
   textColor: string;    // couleur du texte central
   text?: string;
+  /** Logo affiché au centre à la place du texte (ex. logo du splash). */
+  logo?: ImageSourcePropType;
 }
 
-export default function RelykaLoader({ size = 150, accent, textColor, text = 'Relyka' }: Props) {
+export default function RelykaLoader({ size = 150, accent, textColor, text = 'Relyka', logo }: Props) {
   const letters = text.split('');
   const spin = useRef(new Animated.Value(0)).current;
   const letterVals = useRef(letters.map(() => new Animated.Value(0))).current;
@@ -61,7 +63,10 @@ export default function RelykaLoader({ size = 150, accent, textColor, text = 'Re
           },
         ]}
       />
-      {/* RELYKA au centre, lettres qui pulsent en vague. */}
+      {/* Logo au centre (si fourni) — sinon RELYKA, lettres qui pulsent en vague. */}
+      {logo ? (
+        <Image source={logo} style={{ width: size * 0.46, height: size * 0.46, resizeMode: 'contain' }} />
+      ) : (
       <View style={styles.row}>
         {letters.map((l, i) => {
           const v = letterVals[i];
@@ -74,6 +79,7 @@ export default function RelykaLoader({ size = 150, accent, textColor, text = 'Re
           );
         })}
       </View>
+      )}
     </View>
   );
 }

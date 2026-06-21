@@ -19,7 +19,7 @@ export default function AppLoading() {
 
   return (
     <View style={[styles.root, { backgroundColor: bg }]}>
-      <RelykaLoader accent={COLORS.emerald} textColor={textColor} />
+      <RelykaLoader accent={COLORS.emerald} textColor={textColor} logo={require('../assets/logo.png')} />
     </View>
   );
 }

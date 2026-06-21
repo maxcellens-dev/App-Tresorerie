@@ -20,6 +20,7 @@ import { PROFILE_INFO } from '../../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
+import { useSavingsConfig, useSaveSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
 
 
 type Tab = 'simulate' | 'messages' | 'matrix' | 'global';
@@ -439,6 +440,34 @@ function GlobalSection({ userId }: { userId: string }) {
   const [dropThreshold, setDropThreshold] = useState('50');
   const [saving, setSaving] = useState(false);
 
+  // ── Seuils d'épargne (globaux, en EUR) + libellés affichés (Comptes → vue d'ensemble) ──
+  const { data: savingsCfg } = useSavingsConfig();
+  const saveSavings = useSaveSavingsConfig();
+  const [sv, setSv] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const c = savingsCfg ?? SAVINGS_DEFAULTS;
+    setSv({
+      min: String(c.min), optimal: String(c.optimal), comfort: String(c.comfort),
+      label_critical: c.label_critical, label_low: c.label_low, label_healthy: c.label_healthy, label_comfort: c.label_comfort,
+    });
+  }, [savingsCfg]);
+  async function handleSaveSavings() {
+    try {
+      await saveSavings.mutateAsync({
+        min: parseFloat(sv.min) || 0,
+        optimal: parseFloat(sv.optimal) || 0,
+        comfort: parseFloat(sv.comfort) || 0,
+        label_critical: sv.label_critical?.trim() || SAVINGS_DEFAULTS.label_critical,
+        label_low: sv.label_low?.trim() || SAVINGS_DEFAULTS.label_low,
+        label_healthy: sv.label_healthy?.trim() || SAVINGS_DEFAULTS.label_healthy,
+        label_comfort: sv.label_comfort?.trim() || SAVINGS_DEFAULTS.label_comfort,
+      });
+      Alert.alert('Sauvegardé');
+    } catch (e: unknown) {
+      Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de sauvegarder.');
+    }
+  }
+
   useEffect(() => {
     const first = configs[0] as any;
     if (first) {
@@ -498,6 +527,54 @@ function GlobalSection({ userId }: { userId: string }) {
         {saving
           ? <ActivityIndicator color={COLORS.bg} size="small" />
           : <Text style={styles.saveBtnText}>Appliquer à toutes les transitions</Text>}
+      </TouchableOpacity>
+
+      {/* ── Seuils d'épargne + libellés (vue d'ensemble Comptes) ── */}
+      <Text style={[styles.fieldLabel, { marginTop: 20 }]}>Seuils d'épargne (en €, base — convertis dans la devise de réf.)</Text>
+      {[
+        { field: 'min',     label: `Seuil « ${sv.label_critical || 'Critique'} » si épargne <` },
+        { field: 'optimal', label: `Seuil « ${sv.label_low || 'À renforcer'} » si épargne <` },
+        { field: 'comfort', label: `Seuil « ${sv.label_healthy || 'Saine'} » si épargne <` },
+      ].map(({ field, label }) => (
+        <View key={field} style={styles.globalRow}>
+          <Text style={styles.globalLabel}>{label}</Text>
+          <TextInput
+            style={styles.globalInput}
+            value={sv[field] ?? ''}
+            onChangeText={(v) => setSv((p) => ({ ...p, [field]: v }))}
+            keyboardType="decimal-pad"
+            placeholderTextColor={COLORS.textSecondary}
+          />
+        </View>
+      ))}
+      <Text style={styles.matrixInfo}>Au-delà du seuil le plus haut : « {sv.label_comfort || 'Confortable'} ».</Text>
+
+      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Libellés des paliers</Text>
+      {[
+        { field: 'label_critical', label: 'Palier 1 (le plus bas)' },
+        { field: 'label_low',      label: 'Palier 2' },
+        { field: 'label_healthy',  label: 'Palier 3' },
+        { field: 'label_comfort',  label: 'Palier 4 (le plus haut)' },
+      ].map(({ field, label }) => (
+        <View key={field} style={styles.globalRow}>
+          <Text style={styles.globalLabel}>{label}</Text>
+          <TextInput
+            style={[styles.globalInput, { width: 130, textAlign: 'left' }]}
+            value={sv[field] ?? ''}
+            onChangeText={(v) => setSv((p) => ({ ...p, [field]: v }))}
+            placeholderTextColor={COLORS.textSecondary}
+          />
+        </View>
+      ))}
+
+      <TouchableOpacity
+        style={[styles.saveBtn, saveSavings.isPending && { opacity: 0.6 }]}
+        onPress={handleSaveSavings}
+        disabled={saveSavings.isPending}
+      >
+        {saveSavings.isPending
+          ? <ActivityIndicator color={COLORS.bg} size="small" />
+          : <Text style={styles.saveBtnText}>Enregistrer les seuils d'épargne</Text>}
       </TouchableOpacity>
     </View>
   );

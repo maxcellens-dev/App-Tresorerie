@@ -212,6 +212,33 @@ export function useAddRwParticipant(projectId: string | undefined) {
   });
 }
 
+/** Renomme un participant (utile surtout pour les participants non inscrits). */
+export function useUpdateRwParticipant(projectId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { participantId: string; name: string }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('rw_participants').update({ display_name: input.name.trim() }).eq('id', input.participantId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_project', projectId] }); qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); },
+  });
+}
+
+/** Ré-invite un participant non inscrit EXISTANT par son ID public (RPC sécurisée). S'il accepte,
+ *  il reprend la place du participant partout où il était affecté (parts/dépenses inchangées). */
+export function useRwReinviteParticipant(projectId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { participantId: string; code: string }) => {
+      if (!supabase || !projectId) throw new Error('Backend indisponible');
+      const { error } = await supabase.rpc('rw_reinvite_participant', { p_project: projectId, p_participant: input.participantId, p_code: input.code });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rw_project', projectId] }),
+  });
+}
+
 export function useRemoveRwParticipant(projectId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({

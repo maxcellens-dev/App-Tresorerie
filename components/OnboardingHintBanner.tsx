@@ -53,7 +53,7 @@ export default function OnboardingHintBanner() {
   // ── Étape accomplie : confirmation + accès à la checklist (toucher ailleurs = fermer) ──
   if (step.done) {
     return (
-      <View style={StyleSheet.absoluteFill as any} pointerEvents="box-none">
+      <View style={[StyleSheet.absoluteFill as any, styles.overlayRoot]} pointerEvents="box-none">
         <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
         <View style={styles.wrap}>
           <View style={[styles.card, { borderColor: COLORS.green + '66' }]} {...pan.panHandlers}>
@@ -104,7 +104,10 @@ export default function OnboardingHintBanner() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    wrap: { position: 'absolute', bottom: Platform.OS === 'web' ? 90 : 86, left: 12, right: 12, zIndex: 60 },
+    // zIndex + elevation élevés : le coachmark est monté AVANT le contenu de page (SafeAreaView) ;
+    // sans cela, la liste se peint par-dessus (Android = ordre de rendu, pas de zIndex sans elevation).
+    overlayRoot: { zIndex: 9999, elevation: 9999 },
+    wrap: { position: 'absolute', bottom: Platform.OS === 'web' ? 90 : 86, left: 12, right: 12, zIndex: 9999, elevation: 9999 },
     card: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.emerald + '66',

@@ -1,9 +1,9 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, BackHandler } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -18,7 +18,8 @@ import CalculatorButton from '../../../components/CalculatorButton';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { currencySymbolFor } from '../../../lib/currency';
+import { currencySymbolFor, convertAmount } from '../../../lib/currency';
+import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -45,6 +46,9 @@ export default function AddTransactionScreen() {
   };
 
   const [amount, setAmount] = useState('');
+  // Virement cross-devises : montant réellement crédité sur la destination (devise dest).
+  const [amountTo, setAmountTo] = useState('');
+  const amountToTouched = useRef(false);
   const [date, setDate] = useState(todayISO());
   const [dateDisplay, setDateDisplay] = useState(formatDateFrench(todayISO()));
   const [note, setNote] = useState('');
@@ -71,6 +75,40 @@ export default function AddTransactionScreen() {
   // Changer de type → revenir à l'étape 1.
   const changeType = (t: TransactionType) => { setTransactionType(t); setStep(1); setFormError(null); setErrorFields([]); };
 
+  // Virement cross-devises : devise source ≠ devise destination → 2ᵉ champ « montant reçu ».
+  const srcCurrency = accounts.find((a) => a.id === accountId)?.currency || 'EUR';
+  const dstCurrency = accounts.find((a) => a.id === targetAccountId)?.currency || 'EUR';
+  const isCross = isTransfer && !!accountId && !!targetAccountId && srcCurrency !== dstCurrency;
+
+  // Taux pour pré-remplir le montant reçu (modifiable ensuite par l'utilisateur).
+  const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  useEffect(() => {
+    if (!isCross) return;
+    if (amountToTouched.current) return;        // l'utilisateur a saisi son vrai montant reçu
+    const n = parseFloat((amount || '').replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) { setAmountTo(''); return; }
+    const conv = convertAmount(n, srcCurrency, dstCurrency, rates);
+    setAmountTo(conv != null ? conv.toFixed(2) : '');
+  }, [amount, isCross, srcCurrency, dstCurrency, rates]);
+
+  // Bouton retour (header) + retour physique Android : depuis l'étape 2, revenir à l'étape 1
+  // plutôt que de quitter l'écran.
+  const handleBack = useCallback(() => {
+    if (step === 2) { setStep(1); setFormError(null); setErrorFields([]); return; }
+    router.back();
+  }, [step, router]);
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return;
+      const onBack = () => {
+        if (step === 2) { setStep(1); setFormError(null); setErrorFields([]); return true; }
+        return false;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => sub.remove();
+    }, [step]),
+  );
+
   // Validation de l'étape 1 avant de passer à l'étape 2.
   function goNext() {
     setFormError(null); setErrorFields([]);
@@ -78,13 +116,7 @@ export default function AddTransactionScreen() {
       if (!accountId) return showError('Veuillez choisir un compte source.', ['account']);
       if (!targetAccountId) return showError('Veuillez choisir un compte de destination.', ['targetAccount']);
       if (accountId === targetAccountId) return showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
-      // Cross-devises : la saisie du « montant reçu » se fait sur l'écran dédié « Virement »
-      // (qui pré-remplit au taux du jour). Ici, on redirige vers lui plutôt que de gérer 2 montants.
-      {
-        const srcCur = accounts.find(a => a.id === accountId)?.currency || 'EUR';
-        const dstCur = accounts.find(a => a.id === targetAccountId)?.currency || 'EUR';
-        if (srcCur !== dstCur) return showError("Pour un virement entre devises différentes, utilise l'écran « Virement » (icône ⇄ sur la page Comptes) : il te demande le montant réellement reçu.", ['targetAccount']);
-      }
+      // Cross-devises géré sur place (étape 2 : champ « montant reçu » pré-rempli au taux du jour).
     } else {
       const num = parseFloat(amount.replace(',', '.'));
       if (Number.isNaN(num) || num === 0) return showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
@@ -168,6 +200,7 @@ export default function AddTransactionScreen() {
       return;
     }
 
+    let numTo = num;
     if (isTransfer) {
       if (!targetAccountId) {
         showError('Veuillez choisir un compte de destination.', ['targetAccount']);
@@ -176,6 +209,18 @@ export default function AddTransactionScreen() {
       if (accountId === targetAccountId) {
         showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
         return;
+      }
+      // Cross-devises : jambes asymétriques (−num sur la source / +numTo sur la destination).
+      if (isCross) {
+        if (isRecurring) {
+          showError('Un virement récurrent doit relier deux comptes de la même devise (les taux de change varient dans le temps).');
+          return;
+        }
+        numTo = parseFloat(amountTo.replace(',', '.'));
+        if (Number.isNaN(numTo) || numTo <= 0) {
+          showError(`Saisissez le montant réellement crédité sur « ${accounts.find(a => a.id === targetAccountId)?.name ?? 'la destination'} » (en ${dstCurrency}).`, ['amountTo']);
+          return;
+        }
       }
     }
 
@@ -197,6 +242,7 @@ export default function AddTransactionScreen() {
           fromAccountId: accountId,
           toAccountId: targetAccountId,
           amount: num,
+          amountTo: isCross ? numTo : undefined,
           date,
           noteFrom: note || `Virement vers ${accounts.find(a => a.id === targetAccountId)?.name}`,
           noteTo: note || `Virement depuis ${accounts.find(a => a.id === accountId)?.name}`,
@@ -246,7 +292,7 @@ export default function AddTransactionScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={[]}>
-        <ScreenHeader title="Nouvelle transaction" />
+        <ScreenHeader title="Nouvelle transaction" onBack={handleBack} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (
@@ -385,8 +431,15 @@ export default function AddTransactionScreen() {
                 <>
                   <Text style={styles.label}>Libellé (optionnel)</Text>
                   <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Ex. Virement épargne..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
-                  <Text style={styles.label}>Montant ({currencySymbolFor(accounts.find(a => a.id === accountId)?.currency)}) *</Text>
-                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
+                  <Text style={styles.label}>Montant {isCross ? 'envoyé ' : ''}({currencySymbolFor(srcCurrency)}) *</Text>
+                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { amountToTouched.current = false; setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType={isCross ? 'next' : 'done'} onSubmitEditing={isCross ? undefined : () => handleSubmit()} />
+                  {isCross && (
+                    <>
+                      <Text style={styles.label}>Montant reçu ({currencySymbolFor(dstCurrency)}) *</Text>
+                      <TextInput style={[styles.input, errorFields.includes('amountTo') && styles.inputError]} value={amountTo} onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); setErrorFields((p) => p.filter((f) => f !== 'amountTo')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
+                      <Text style={styles.hint}>Proposé au taux du jour. Ajuste-le avec le montant RÉELLEMENT crédité sur ton relevé ({currencySymbolFor(srcCurrency)} → {currencySymbolFor(dstCurrency)}).</Text>
+                    </>
+                  )}
                 </>
               )}
 

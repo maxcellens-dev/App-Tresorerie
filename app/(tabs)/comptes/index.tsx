@@ -20,6 +20,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useProfile } from '../../../hooks/useProfile';
+import { useSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -98,6 +99,7 @@ export default function AccountsListScreen() {
   // de référence de l'utilisateur (profiles.currency_code). « ≈ » si plusieurs devises en jeu.
   const { data: profile } = useProfile(user?.id);
   const { data: rates = { EUR: 1 } } = useCurrencyRates();
+  const { data: savingsCfg = SAVINGS_DEFAULTS } = useSavingsConfig();
   const refCode = profile?.currency_code ?? 'EUR';
   const refSymbol = currencySymbolFor(refCode);
   const mixedCurrencies = new Set(accounts.map((a) => a.currency || 'EUR')).size > 1;
@@ -162,11 +164,15 @@ export default function AccountsListScreen() {
                 // Agrégats convertis dans la devise de référence (multi-devises).
                 // Seuils du profil (en devise de référence), configurables ; défauts sinon.
                 const s = totalSavings;
-                const thMin = (profile as any)?.safety_threshold_min ?? 5000;
-                const thOpt = (profile as any)?.safety_threshold_optimal ?? 10000;
-                const thComf = (profile as any)?.safety_threshold_comfort ?? 20000;
+                // Seuils stockés en EUR (base, config admin globale) → convertis dans la devise de
+                // référence pour être comparés à l'épargne (elle-même convertie). Ref = EUR → neutre.
+                // Une valeur personnalisée sur le profil utilisateur reste prioritaire.
+                const toRefAmount = (v: number) => convertAmount(v, 'EUR', refCode, rates) ?? v;
+                const thMin = toRefAmount((profile as any)?.safety_threshold_min ?? savingsCfg.min);
+                const thOpt = toRefAmount((profile as any)?.safety_threshold_optimal ?? savingsCfg.optimal);
+                const thComf = toRefAmount((profile as any)?.safety_threshold_comfort ?? savingsCfg.comfort);
                 const sCol = s < thMin ? COLORS.danger : s < thOpt ? COLORS.orange : COLORS.savings;
-                const sKw = s < thMin ? 'Critique' : s < thOpt ? 'À renforcer' : s < thComf ? 'Saine' : 'Confortable';
+                const sKw = s < thMin ? savingsCfg.label_critical : s < thOpt ? savingsCfg.label_low : s < thComf ? savingsCfg.label_healthy : savingsCfg.label_comfort;
                 return [
                   { label: 'Courant', value: totalChecking, color: COLORS.checking, icon: 'wallet-outline', sub: null },
                   { label: 'Épargne', value: s, color: sCol, icon: 'leaf-outline', sub: sKw },
