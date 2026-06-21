@@ -17,7 +17,7 @@ import GuideOverlay from '../../../components/GuideOverlay';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL, currencySymbolFor, convertAmount } from '../../../lib/currency';
+import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useProfile } from '../../../hooks/useProfile';
 import { useSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
@@ -39,6 +39,7 @@ export default function AccountsListScreen() {
   const { welcome } = useLocalSearchParams<{ welcome?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
   const accountsQuery = useAccounts(user?.id);
   const archivedQuery = useArchivedAccounts(user?.id);
 
@@ -300,24 +301,34 @@ export default function AccountsListScreen() {
 
           {archivedAccounts.length > 0 && (
             <View style={styles.archivedSection}>
-              <Text style={styles.archivedTitle}>Comptes archivés</Text>
-              <Text style={styles.archivedHint}>Comptes fermés — non utilisables pour de nouvelles opérations.</Text>
-              <View style={styles.accountList}>
-                {archivedAccounts.map((acc, idx) => (
-                  <View key={acc.id} style={[styles.accountRow, idx < archivedAccounts.length - 1 && styles.accountRowBorder, { opacity: 0.55 }]}>
-                    <View style={[styles.accountIconCircle, { backgroundColor: COLORS.cardBorder }]}>
-                      <Ionicons name="archive-outline" size={16} color={COLORS.textSecondary} />
+              {/* En-tête repliable : masqué tant qu'il n'y a aucun compte archivé (cf. guard ci-dessus). */}
+              <TouchableOpacity
+                style={styles.archivedHeader}
+                onPress={() => setArchivedExpanded((v) => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+              >
+                <Ionicons name={archivedExpanded ? 'chevron-down' : 'chevron-forward'} size={16} color={COLORS.textSecondary} />
+                <Text style={styles.archivedTitle}>Archivés ({archivedAccounts.length})</Text>
+              </TouchableOpacity>
+              {archivedExpanded && (
+                <View style={styles.accountList}>
+                  {archivedAccounts.map((acc, idx) => (
+                    <View key={acc.id} style={[styles.accountRow, idx < archivedAccounts.length - 1 && styles.accountRowBorder, { opacity: 0.55 }]}>
+                      <View style={[styles.accountIconCircle, { backgroundColor: COLORS.cardBorder }]}>
+                        <Ionicons name="archive-outline" size={16} color={COLORS.textSecondary} />
+                      </View>
+                      <View style={styles.accountInfo}>
+                        <Text style={[styles.accountName, { color: COLORS.textSecondary }]}>{acc.name}</Text>
+                        <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
+                      </View>
+                      <Text style={[styles.accountBalance, { color: COLORS.textSecondary }]}>
+                        {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
+                      </Text>
                     </View>
-                    <View style={styles.accountInfo}>
-                      <Text style={[styles.accountName, { color: COLORS.textSecondary }]}>{acc.name}</Text>
-                      <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type} · Archivé</Text>
-                    </View>
-                    <Text style={[styles.accountBalance, { color: COLORS.textSecondary }]}>
-                      {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
           <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
@@ -454,8 +465,8 @@ function makeStyles(c: any) {
 
   // ── Archivés ──
   archivedSection: { marginTop: 8, marginBottom: 16 },
-  archivedTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 4, marginLeft: 24 },
-  archivedHint: { fontSize: 12, color: c.textSecondary, marginBottom: 10, marginLeft: 24 },
+  archivedHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, marginLeft: 24, marginBottom: 4 },
+  archivedTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
 
   // ── Hint bas de page ──
   hint: { marginTop: 8, marginBottom: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },

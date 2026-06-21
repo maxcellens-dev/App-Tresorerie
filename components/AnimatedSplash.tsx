@@ -79,7 +79,7 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: themeBg, opacity: bgFade }]} />
       {/* Loader centré comme AppLoading (zone au-dessus de la barre de navigation) */}
       <Animated.View style={[StyleSheet.absoluteFill, styles.content, { paddingBottom: insets.bottom, opacity: content, transform: [{ translateY: contentY }] }]}>
-        <RelykaLoader accent={COLORS.emerald} textColor={textColor} logo={require('../assets/logo.png')} />
+        <RelykaLoader accent={COLORS.emerald} textColor={textColor} />
       </Animated.View>
     </Animated.View>
   );
