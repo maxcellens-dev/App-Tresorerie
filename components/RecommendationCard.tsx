@@ -182,7 +182,7 @@ export default function RecommendationCard({
             <Text style={styles.leadTitle}>Ton Relyka</Text>
             <View style={styles.leadCompactRight}>
               <Text style={[styles.leadCompactAmount, { color: relykaColor ?? COLORS.emerald }]}>
-                {Math.round(relykaAmount).toLocaleString('fr-FR')} €
+                {Math.round(relykaAmount).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
               </Text>
               {onOpenRelyka && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
             </View>

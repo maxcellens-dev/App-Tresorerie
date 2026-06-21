@@ -530,7 +530,7 @@ function makeStyles(c: any) {
   passwordBtn: { backgroundColor: c.cardBorder, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   text: { color: c.text },
   loginActions: { marginTop: 16, gap: 12 },
-  signOutBtn: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
+  signOutBtn: { backgroundColor: c.mode === 'light' ? c.cardSolid : '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
   signOutLabel: { fontSize: 16, fontWeight: '600', color: c.text },
 
   // Zone de danger
