@@ -24,6 +24,7 @@ import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
 import { iconForTransaction } from '../../../lib/categoryIcons';
+import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
 
 
 function formatDate(dateStr: string) {
@@ -136,6 +137,9 @@ export default function TransactionsListScreen() {
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAccounts(user?.id);
+  // Transactions liées à une dépense de projet PARTAGÉ (Relyka World) : pas de project_id, on les
+  // repère via ce set pour leur donner la même pastille « projet » que les projets personnels.
+  const { data: rwTxIds } = useRwLinkedTransactionIds(user?.id);
 
   // Par défaut, sélectionner tous les comptes courants. On RÉINITIALISE quand l'ensemble des
   // comptes change (ex. mode admin « connecté en tant que » → comptes d'un autre utilisateur),
@@ -642,7 +646,7 @@ export default function TransactionsListScreen() {
                       {items.map((item, index) => {
                         const effectiveDate = getEffectiveDate(item);
                         const isFuture = effectiveDate > todayStr;
-                        const isProject = !!item.project_id;
+                        const isProject = !!item.project_id || (rwTxIds?.has(item.id) ?? false);
                         const isRecurring = item.is_recurring && !isProject;
                         const isReservation = isProject && Number(item.amount) === 0;
                         const amt = Number(item.amount);

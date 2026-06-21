@@ -181,7 +181,30 @@ export function useDeleteRwProject(userId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['rw_projects'] });
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['rw_linked_tx_ids', userId] });
     },
+  });
+}
+
+/**
+ * Set des `transaction_id` de MES transactions réelles liées à une dépense Relyka World.
+ * Sert à afficher la pastille « projet » dans la liste des transactions (les transactions RW
+ * ne portent pas de project_id — le lien est via rw_expenses.transaction_id).
+ */
+export function useRwLinkedTransactionIds(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['rw_linked_tx_ids', userId],
+    queryFn: async (): Promise<Set<string>> => {
+      if (!supabase || !userId) return new Set();
+      const { data } = await supabase
+        .from('rw_expenses')
+        .select('transaction_id')
+        .eq('created_by', userId)
+        .not('transaction_id', 'is', null);
+      return new Set(((data ?? []) as Array<{ transaction_id: string | null }>).map((e) => e.transaction_id).filter(Boolean) as string[]);
+    },
+    enabled: !!userId,
+    staleTime: 30_000,
   });
 }
 
@@ -294,7 +317,7 @@ export function useAddRwExpense(projectId: string | undefined, userId: string | 
       }
       return exp as RwExpense;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['rw_linked_tx_ids', userId] }); },
   });
 }
 
@@ -340,7 +363,7 @@ export function useUpdateRwExpense(projectId: string | undefined, userId: string
         .map((s) => ({ expense_id: input.expense.id, project_id: projectId, participant_id: s.participant_id, amount: s.amount }));
       if (rows.length) { const { error: se } = await supabase.from('rw_expense_shares').insert(rows); if (se) throw se; }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['rw_linked_tx_ids', userId] }); },
   });
 }
 
@@ -358,7 +381,7 @@ export function useDeleteRwExpense(projectId: string | undefined, userId: string
       const { error } = await supabase.from('rw_expenses').delete().eq('id', expense.id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] }); qc.invalidateQueries({ queryKey: ['transactions'] }); qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['rw_linked_tx_ids', userId] }); },
   });
 }
 
