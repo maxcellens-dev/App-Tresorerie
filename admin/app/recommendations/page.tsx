@@ -19,7 +19,7 @@ const RECO_COLORS: Record<string, string> = {
 const RECO_LABELS: Record<string, string> = {
   save: 'Épargner',
   invest: 'Investir',
-  enjoy: 'Se faire plaisir',
+  enjoy: 'Confort',
   keep: 'Conserver',
 };
 
@@ -66,7 +66,7 @@ const TIERS = [
 const MODIFIERS = [
   {
     name: 'Tendance dépenses variables',
-    desc: 'Si la tendance des dépenses variables > 120 %, on réduit « Se faire plaisir » et on augmente « Conserver ». Inversement si < 80 %.',
+    desc: 'Si la tendance des dépenses variables > 120 %, on réduit « Confort » et on augmente « Conserver ». Inversement si < 80 %.',
     icon: '📊',
   },
   {
@@ -118,7 +118,7 @@ export default function RecommendationsAdmin() {
             <div style={{ fontSize: 13, color: COLORS.textSecondary, lineHeight: 1.5 }}>
               {type === 'save' && 'Transférer vers l\'épargne de sécurité. Prioritaire quand les réserves sont basses.'}
               {type === 'invest' && 'Alimenter un objectif d\'investissement. Prioritaire quand l\'épargne est confortable.'}
-              {type === 'enjoy' && 'Budget dépenses variables et loisirs. Toujours présent (10-30 %).'}
+              {type === 'enjoy' && 'Marge de confort dispo une fois les dépenses variables couvertes. Grignotée en premier en cas de dépassement.'}
               {type === 'keep' && 'Conserver sur le compte courant comme réserve. Augmente si le solde est tendu.'}
             </div>
             <div
@@ -163,7 +163,7 @@ export default function RecommendationsAdmin() {
               <th style={thStyle}>Condition</th>
               <th style={{ ...thStyle, color: RECO_COLORS.save }}>🛡️ Épargner</th>
               <th style={{ ...thStyle, color: RECO_COLORS.invest }}>📈 Investir</th>
-              <th style={{ ...thStyle, color: RECO_COLORS.enjoy }}>✨ Plaisir</th>
+              <th style={{ ...thStyle, color: RECO_COLORS.enjoy }}>✨ Confort</th>
               <th style={{ ...thStyle, color: RECO_COLORS.keep }}>⏳ Conserver</th>
             </tr>
           </thead>
@@ -273,7 +273,7 @@ export default function RecommendationsAdmin() {
           <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
             <li><span style={{ color: RECO_COLORS.save }}>🛡️ Épargner : 320 €</span></li>
             <li><span style={{ color: RECO_COLORS.invest }}>📈 Investir : 230 €</span></li>
-            <li><span style={{ color: RECO_COLORS.enjoy }}>✨ Se faire plaisir : 200 €</span></li>
+            <li><span style={{ color: RECO_COLORS.enjoy }}>✨ Confort : 200 €</span></li>
             <li><span style={{ color: RECO_COLORS.keep }}>⏳ Conserver : 250 €</span></li>
           </ul>
         </div>

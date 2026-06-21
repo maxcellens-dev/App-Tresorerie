@@ -7,7 +7,7 @@
  * Types de recommandations :
  *   1. Épargner    → renforcer l'épargne de sécurité
  *   2. Investir    → alimenter un objectif d'investissement
- *   3. Se faire plaisir → budget dépenses variables / loisirs
+ *   3. Confort     → marge en plus dispo une fois les dépenses variables habituelles couvertes
  *   4. Conserver   → garder en réserve pour le mois suivant
  */
 
@@ -59,6 +59,57 @@ const RECO_ICONS: Record<RecoType, string> = {
   enjoy:  'sparkles-outline',
   keep:   'hourglass-outline',
 };
+
+/* ── Ordre de consommation des recos (cascade de dépassement) ──────────────
+ * Quand l'enveloppe des dépenses variables est épuisée, tout dépassement grignote
+ * les recos une par une dans cet ordre (1er = réduit en premier). « Confort » d'abord,
+ * puis les autres selon la prudence du budget. Les % d'allocation ne sont alors plus
+ * exactement respectés : c'est voulu.
+ */
+export type ConsumptionMode = 'prudent' | 'equilibre' | 'dynamique';
+
+export const CONSUMPTION_MODE_LABELS: Record<ConsumptionMode, string> = {
+  prudent:   'Prudent',
+  equilibre: 'Équilibré',
+  dynamique: 'Dynamique',
+};
+
+export const DEFAULT_CONSUMPTION_ORDERS: Record<ConsumptionMode, RecoType[]> = {
+  prudent:   ['enjoy', 'invest', 'save', 'keep'],
+  equilibre: ['enjoy', 'invest', 'keep', 'save'],
+  dynamique: ['enjoy', 'save', 'keep', 'invest'],
+};
+
+/** Mode « Auto » : le mode est dérivé du profil financier P1–P5. */
+export const DEFAULT_AUTO_PROFILE_MAP: Record<FinancialProfileId, ConsumptionMode> = {
+  P1: 'prudent', P2: 'prudent', P3: 'equilibre', P4: 'equilibre', P5: 'dynamique',
+};
+
+/**
+ * Résout le mode de consommation depuis le réglage de prudence du budget.
+ * `prudenceLevel` (profiles.prudence_level) : null = Auto (dérive du profil),
+ * sinon 75 ≈ Prudent, 50 ≈ Équilibré, 25 ≈ Dynamique.
+ */
+export function resolveConsumptionMode(
+  prudenceLevel: number | null | undefined,
+  profileId: FinancialProfileId | undefined,
+  autoMap: Record<FinancialProfileId, ConsumptionMode> = DEFAULT_AUTO_PROFILE_MAP,
+): ConsumptionMode {
+  if (prudenceLevel == null) return autoMap[profileId ?? 'P3'] ?? 'equilibre';
+  if (prudenceLevel >= 63) return 'prudent';
+  if (prudenceLevel >= 38) return 'equilibre';
+  return 'dynamique';
+}
+
+/** Ordre complet (les 4 types) pour un mode, complété par les défauts si la config est partielle. */
+export function getConsumptionOrder(
+  mode: ConsumptionMode,
+  orders: Partial<Record<ConsumptionMode, RecoType[]>> = DEFAULT_CONSUMPTION_ORDERS,
+): RecoType[] {
+  const order = orders[mode] ?? DEFAULT_CONSUMPTION_ORDERS[mode];
+  const seen = new Set(order);
+  return [...order, ...DEFAULT_CONSUMPTION_ORDERS[mode].filter((t) => !seen.has(t))];
+}
 
 
 export const PROFILE_LABELS: Record<FinancialProfile, string> = {
@@ -157,6 +208,15 @@ export interface ComputeRecoOptions {
   thresholds?: RecoThresholds;
   /** Montants déjà alloués par catégorie (déduits du % théorique de chaque reco). */
   alreadyAllocated?: Partial<Record<RecoType, number>>;
+  /**
+   * Dépassement de l'enveloppe variable (€) : montant dépensé au-delà des dépenses variables
+   * habituelles estimées. Quand > 0, il est grignoté sur les recos une par une dans
+   * `consumptionOrder` (cascade), au lieu de réduire toutes les recos au prorata.
+   * Le `budget` doit alors être le budget « enveloppe juste atteinte » (= budget courant + overspend).
+   */
+  overspend?: number;
+  /** Ordre de consommation des recos quand `overspend > 0` (1er = réduit en premier). */
+  consumptionOrder?: RecoType[];
 }
 
 export function computeRecommendations(
@@ -247,11 +307,33 @@ export function computeRecommendations(
     keep: th.seuil_reco_conserver,
   };
 
-  // 7. Construire les recommandations (montant net ≥ seuil)
-  const result: SmartRecommendation[] = [];
+  // 7. Montant net par catégorie = (% × budget) − déjà alloué réellement ce mois (avant cascade).
+  const nets: Partial<Record<RecoType, number>> = {};
   for (const type of filtered) {
     const raw = (alloc[type] / 100) * budget;
-    const net = Math.round(Math.max(0, raw - (alreadyAllocated[type] ?? 0)));
+    nets[type] = Math.round(Math.max(0, raw - (alreadyAllocated[type] ?? 0)));
+  }
+
+  // 8. Cascade de dépassement : une fois l'enveloppe des dépenses variables épuisée, le surplus
+  // de dépenses grignote les recos une par une dans l'ordre choisi (selon la prudence) — « Confort »
+  // d'abord, jusqu'à passer sous son seuil d'affichage, puis les suivantes. Les % d'allocation ne
+  // sont alors plus exactement respectés : c'est le comportement attendu.
+  let toConsume = Math.max(0, opts.overspend ?? 0);
+  if (toConsume > 0) {
+    const order = opts.consumptionOrder ?? DEFAULT_CONSUMPTION_ORDERS.equilibre;
+    for (const type of order) {
+      if (toConsume <= 0) break;
+      const cur = nets[type] ?? 0;
+      const take = Math.min(cur, toConsume);
+      nets[type] = cur - take;
+      toConsume -= take;
+    }
+  }
+
+  // 9. Construire les recommandations (montant net ≥ seuil d'affichage)
+  const result: SmartRecommendation[] = [];
+  for (const type of filtered) {
+    const net = nets[type] ?? 0;
     if (net <= 0) continue;
     const min = thresholdByType[type] ?? 0;
     if (net < min) continue;
@@ -292,7 +374,7 @@ export const TIER_COLORS: Record<SavingsTier, string> = {
 export const RECO_TYPE_LABELS: Record<RecoType, string> = {
   save: 'Épargner',
   invest: 'Investir',
-  enjoy: 'Se faire plaisir',
+  enjoy: 'Confort',
   keep: 'Conserver',
 };
 
@@ -407,8 +489,8 @@ function buildRecommendation(
     case 'enjoy':
       return {
         type,
-        title: 'Budget plaisir à ne pas dépasser',
-        shortTitle: 'Plaisir',
+        title: 'Ta marge de confort',
+        shortTitle: 'Confort',
         description: getEnjoyDescription(amount, data),
         amount,
         percentage,
@@ -472,15 +554,10 @@ function getInvestDescription(tier: SavingsTier, amount: number, _data: Pilotage
   return `Commence à investir ${amount} € même modestement pour préparer l'avenir.`;
 }
 
-function getEnjoyDescription(amount: number, data: PilotageData): string {
-  // Ce montant est un PLAFOND (limite à ne pas dépasser pour le plaisir), pas une somme à utiliser.
-  if (data.variable_trend_percentage > 120) {
-    return `Tes dépenses variables sont en hausse : tiens-toi sous ${amount} € de plaisir ce mois-ci pour ne pas creuser.`;
-  }
-  if (data.variable_trend_percentage < 80 && data.variable_trend_percentage > 0) {
-    return `Tes dépenses sont bien maîtrisées : tu peux aller jusqu'à ${amount} €, mais évite de dépasser cette limite.`;
-  }
-  return `Pour rester dans tes objectifs, ne dépasse pas ${amount} € de dépenses plaisir et loisirs ce mois-ci.`;
+function getEnjoyDescription(amount: number, _data: PilotageData): string {
+  // « Confort » = la marge totalement libre, une fois tes dépenses variables habituelles couvertes.
+  // C'est elle qui est entamée en premier si tu dépenses au-delà de ton budget variable.
+  return `Il te reste ${amount} € totalement disponibles ce mois-ci. Fais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
 function getKeepDescription(amount: number, data: PilotageData): string {

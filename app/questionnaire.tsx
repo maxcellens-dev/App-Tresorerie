@@ -545,7 +545,7 @@ export default function QuestionnaireScreen() {
                 {([
                   { label: 'Épargner',        key: 'save'   as const, color: COLORS.green },
                   { label: 'Investir',         key: 'invest' as const, color: COLORS.violet },
-                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: COLORS.orange },
+                  { label: 'Confort',          key: 'enjoy'  as const, color: COLORS.orange },
                   { label: 'Conserver',        key: 'keep'   as const, color: COLORS.blue },
                 ]).map(({ label, key, color }) => {
                   const pct = alloc[key];

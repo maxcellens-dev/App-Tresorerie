@@ -9,11 +9,15 @@ import {
   RECO_TYPE_LABELS,
   TIER_LABELS,
   TIER_COLORS,
+  CONSUMPTION_MODE_LABELS,
+  DEFAULT_CONSUMPTION_ORDERS,
+  DEFAULT_AUTO_PROFILE_MAP,
 } from '../../../lib/recommendationEngine';
-import type { RecoType, SavingsTier } from '../../../lib/recommendationEngine';
+import type { RecoType, SavingsTier, ConsumptionMode } from '../../../lib/recommendationEngine';
+import type { FinancialProfileId } from '../../../types/database';
 import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../../hooks/useRecommendationTiers';
 import type { TierAllocations } from '../../../hooks/useRecommendationTiers';
-import { useRecoThresholds, useUpdateRecoThresholds } from '../../../hooks/useRecoThresholds';
+import { useRecoThresholds, useUpdateRecoThresholds, useUpdateRecoConsumption } from '../../../hooks/useRecoThresholds';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
@@ -29,9 +33,27 @@ const RECO_ICONS: Record<RecoType, string> = {
 const RECO_DESC: Record<RecoType, string> = {
   save: 'Transférer vers l\'épargne de sécurité.',
   invest: 'Alimenter un objectif d\'investissement.',
-  enjoy: 'Plafond de dépenses variables et loisirs à ne pas dépasser.',
+  enjoy: 'Marge de confort : ce qu\'il reste en plus une fois les dépenses variables habituelles couvertes. Grignotée en premier en cas de dépassement.',
   keep: 'Conserver sur le compte courant.',
 };
+
+const CONSUMPTION_MODES: ConsumptionMode[] = ['prudent', 'equilibre', 'dynamique'];
+const PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
+const PROFILE_LABELS_SHORT: Record<FinancialProfileId, string> = {
+  P1: 'P1 — Premiers repères',
+  P2: 'P2 — Réserve à construire',
+  P3: 'P3 — Stabilité à améliorer',
+  P4: 'P4 — Bonne dynamique',
+  P5: 'P5 — Patrimoine en dév.',
+};
+
+type AdminTab = 'paliers' | 'seuils' | 'ordre' | 'infos';
+const ADMIN_TABS: { key: AdminTab; label: string }[] = [
+  { key: 'paliers', label: 'Paliers' },
+  { key: 'seuils', label: 'Seuils' },
+  { key: 'ordre', label: 'Ordre' },
+  { key: 'infos', label: 'Infos' },
+];
 
 const TIERS: SavingsTier[] = ['critical', 'below_optimal', 'healthy', 'p4_dynamic', 'comfortable'];
 const TIER_CONDITIONS: Record<SavingsTier, string> = {
@@ -60,10 +82,41 @@ export default function RecommendationsAdmin() {
   const { user } = useAuth();
   const { data: thresholds } = useRecoThresholds();
   const updateThresholds = useUpdateRecoThresholds(user?.id);
+  const updateConsumption = useUpdateRecoConsumption(user?.id);
+
+  // Onglet actif (réorganisation de la page en onglets pour éviter une page interminable).
+  const [tab, setTab] = useState<AdminTab>('paliers');
 
   // Local editable state: string values for inputs
   const [draft, setDraft] = useState<Record<SavingsTier, Record<RecoType, string>> | null>(null);
   const [editMode, setEditMode] = useState(false);
+
+  // ── Ordre de déduction (cascade de dépassement) ──
+  const [orders, setOrders] = useState<Record<ConsumptionMode, RecoType[]>>(DEFAULT_CONSUMPTION_ORDERS);
+  const [autoMap, setAutoMap] = useState<Record<FinancialProfileId, ConsumptionMode>>(DEFAULT_AUTO_PROFILE_MAP);
+  useEffect(() => {
+    if (thresholds?.consumption_orders) setOrders({ ...DEFAULT_CONSUMPTION_ORDERS, ...thresholds.consumption_orders });
+    if (thresholds?.auto_profile_map) setAutoMap({ ...DEFAULT_AUTO_PROFILE_MAP, ...thresholds.auto_profile_map });
+  }, [thresholds]);
+
+  function moveInOrder(mode: ConsumptionMode, index: number, dir: -1 | 1) {
+    setOrders((prev) => {
+      const arr = [...prev[mode]];
+      const j = index + dir;
+      if (j < 0 || j >= arr.length) return prev;
+      [arr[index], arr[j]] = [arr[j], arr[index]];
+      return { ...prev, [mode]: arr };
+    });
+  }
+
+  async function saveOrder() {
+    try {
+      await updateConsumption.mutateAsync({ consumption_orders: orders, auto_profile_map: autoMap });
+      Alert.alert('Enregistré', 'L\'ordre de déduction a été mis à jour.');
+    } catch (err: unknown) {
+      Alert.alert('Erreur', err instanceof Error ? err.message : 'Impossible de sauvegarder.');
+    }
+  }
 
   // Seuils de reste min pour afficher chaque reco (§9)
   const [seuils, setSeuils] = useState<{ epargne: string; invest: string; plaisir: string; conserver: string }>({ epargne: '', invest: '', plaisir: '', conserver: '' });
@@ -166,7 +219,7 @@ export default function RecommendationsAdmin() {
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
             <Text style={styles.backLabel}>Retour</Text>
           </TouchableOpacity>
-          {!editMode ? (
+          {tab === 'paliers' && (!editMode ? (
             <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>
               <Ionicons name="pencil-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.editBtnLabel}>Modifier</Text>
@@ -187,17 +240,35 @@ export default function RecommendationsAdmin() {
                 }
               </TouchableOpacity>
             </View>
-          )}
+          ))}
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Recommandations</Text>
           <Text style={styles.subtitle}>
             Le moteur propose 2 à 4 actions dont la somme fait 100 % du « À dépenser ».
-            {editMode ? ' Chaque palier doit totaliser exactement 100 %.' : ''}
+            {tab === 'paliers' && editMode ? ' Chaque palier doit totaliser exactement 100 %.' : ''}
           </Text>
 
-          {/* ── Types ── */}
+          {/* ── Onglets ── */}
+          <View style={styles.tabBar}>
+            {ADMIN_TABS.map((t) => {
+              const active = tab === t.key;
+              return (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[styles.tabBtn, active && styles.tabBtnActive]}
+                  onPress={() => setTab(t.key)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{t.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* ══════════ Onglet INFOS : types, modificateurs, règles ══════════ */}
+          {tab === 'infos' && (<>
           <Text style={styles.sectionTitle}>Types de recommandation</Text>
           {TYPES.map(type => (
             <View key={type} style={[styles.typeCard, { borderLeftColor: RECO_COLORS[type] }]}>
@@ -208,9 +279,11 @@ export default function RecommendationsAdmin() {
               <Text style={styles.typeDesc}>{RECO_DESC[type]}</Text>
             </View>
           ))}
+          </>)}
 
-          {/* ── Paliers ── */}
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Paliers d'allocation</Text>
+          {/* ══════════ Onglet PALIERS ══════════ */}
+          {tab === 'paliers' && (<>
+          <Text style={styles.sectionTitle}>Paliers d'allocation</Text>
           {isLoading || !draft ? (
             <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 16 }} />
           ) : (
@@ -268,9 +341,11 @@ export default function RecommendationsAdmin() {
               );
             })
           )}
+          </>)}
 
-          {/* ── Seuils d'affichage ── */}
-          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Seuils d'affichage</Text>
+          {/* ══════════ Onglet SEUILS ══════════ */}
+          {tab === 'seuils' && (<>
+          <Text style={styles.sectionTitle}>Seuils d'affichage</Text>
           <Text style={styles.typeDesc}>
             Une reco n'est affichée que si le « Budget libre à allouer » atteint son seuil.
           </Text>
@@ -303,8 +378,84 @@ export default function RecommendationsAdmin() {
           >
             <Text style={styles.seuilSaveLabel}>Enregistrer les seuils</Text>
           </TouchableOpacity>
+          </>)}
 
-          {/* ── Modificateurs ── */}
+          {/* ══════════ Onglet ORDRE de déduction (cascade de dépassement) ══════════ */}
+          {tab === 'ordre' && (<>
+          <Text style={styles.sectionTitle}>Ordre de déduction</Text>
+          <Text style={styles.typeDesc}>
+            Quand l'utilisateur dépasse ses dépenses variables habituelles, ses recommandations sont
+            grignotées une par une dans cet ordre (la 1ʳᵉ en premier), jusqu'à passer sous leur seuil
+            d'affichage. L'ordre dépend de la « prudence du budget » choisie en paramètres.
+          </Text>
+
+          {CONSUMPTION_MODES.map((mode) => (
+            <View key={mode} style={styles.tierCard}>
+              <Text style={[styles.tierName, { color: COLORS.text }]}>{CONSUMPTION_MODE_LABELS[mode]}</Text>
+              {orders[mode].map((type, i) => (
+                <View key={type} style={styles.orderRow}>
+                  <Text style={styles.orderRank}>{i + 1}</Text>
+                  <View style={[styles.allocDot, { backgroundColor: RECO_COLORS[type] }]} />
+                  <Text style={[styles.orderTypeLabel, { color: RECO_COLORS[type] }]}>{RECO_TYPE_LABELS[type]}</Text>
+                  <View style={styles.orderArrows}>
+                    <TouchableOpacity
+                      style={[styles.orderArrowBtn, i === 0 && styles.orderArrowDisabled]}
+                      onPress={() => moveInOrder(mode, i, -1)}
+                      disabled={i === 0}
+                    >
+                      <Ionicons name="chevron-up" size={16} color={i === 0 ? COLORS.cardBorder : COLORS.text} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.orderArrowBtn, i === orders[mode].length - 1 && styles.orderArrowDisabled]}
+                      onPress={() => moveInOrder(mode, i, 1)}
+                      disabled={i === orders[mode].length - 1}
+                    >
+                      <Ionicons name="chevron-down" size={16} color={i === orders[mode].length - 1 ? COLORS.cardBorder : COLORS.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ))}
+
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Mode « Auto » → profil</Text>
+          <Text style={styles.typeDesc}>
+            En prudence « Auto », l'ordre est dérivé du profil financier de l'utilisateur.
+          </Text>
+          {PROFILES.map((pid) => (
+            <View key={pid} style={[styles.typeCard, { borderLeftColor: COLORS.emerald }]}>
+              <Text style={[styles.typeTitle, { color: COLORS.text, marginBottom: 8 }]}>{PROFILE_LABELS_SHORT[pid]}</Text>
+              <View style={styles.modeChips}>
+                {CONSUMPTION_MODES.map((mode) => {
+                  const active = autoMap[pid] === mode;
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[styles.modeChip, active && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '1A' }]}
+                      onPress={() => setAutoMap((prev) => ({ ...prev, [pid]: mode }))}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.modeChipLabel, { color: active ? COLORS.emerald : COLORS.textSecondary }]}>
+                        {CONSUMPTION_MODE_LABELS[mode]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+
+          <TouchableOpacity
+            style={[styles.seuilSaveBtn, updateConsumption.isPending && { opacity: 0.6 }]}
+            onPress={saveOrder}
+            disabled={updateConsumption.isPending}
+          >
+            <Text style={styles.seuilSaveLabel}>Enregistrer l'ordre</Text>
+          </TouchableOpacity>
+          </>)}
+
+          {/* ── Modificateurs (onglet Infos) ── */}
+          {tab === 'infos' && (<>
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Modificateurs contextuels</Text>
           <Text style={styles.modNote}>Ces ajustements s'appliquent après les paliers et ne sont pas éditables ici.</Text>
           {MODIFIERS.map(m => (
@@ -324,7 +475,9 @@ export default function RecommendationsAdmin() {
             <Text style={styles.ruleItem}>• Total = toujours 100 % du « À dépenser »</Text>
             <Text style={styles.ruleItem}>• 2 à 4 recommandations affichées</Text>
             <Text style={styles.ruleItem}>• Les préférences utilisateur écrasent les paliers</Text>
+            <Text style={styles.ruleItem}>• En cas de dépassement des dépenses variables, les recos sont grignotées dans l'ordre de déduction (voir onglet « Ordre »)</Text>
           </View>
+          </>)}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -357,8 +510,26 @@ function makeStyles(c: any) {
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 16, lineHeight: 20 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 },
+
+  /* Onglets */
+  tabBar: { flexDirection: 'row', gap: 6, marginBottom: 20, flexWrap: 'wrap' },
+  tabBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
+  tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '1A' },
+  tabLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+  tabLabelActive: { color: c.emerald },
+
+  /* Ordre de déduction */
+  orderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  orderRank: { fontSize: 13, fontWeight: '800', color: c.textSecondary, width: 16 },
+  orderTypeLabel: { fontSize: 14, fontWeight: '700', flex: 1 },
+  orderArrows: { flexDirection: 'row', gap: 6 },
+  orderArrowBtn: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+  orderArrowDisabled: { opacity: 0.4 },
+  modeChips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  modeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
+  modeChipLabel: { fontSize: 12.5, fontWeight: '700' },
 
   typeCard: {
     backgroundColor: c.card,

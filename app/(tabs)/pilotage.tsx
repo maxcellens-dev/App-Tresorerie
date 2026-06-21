@@ -34,7 +34,7 @@ import PreSavingsModal from '../../components/PreSavingsModal';
 import CumulsPanel from '../../components/CumulsPanel';
 import CategoryDonut from '../../components/CategoryDonut';
 import { iconForTransaction, iconForCategory } from '../../lib/categoryIcons';
-import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../../lib/recommendationEngine';
+import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS, resolveConsumptionMode, getConsumptionOrder } from '../../lib/recommendationEngine';
 import type { SmartRecommendation } from '../../lib/recommendationEngine';
 import type { PreSavingType } from '../../types/database';
 import { useRecommendationTiers } from '../../hooks/useRecommendationTiers';
@@ -245,6 +245,22 @@ export default function PilotageScreen() {
   // SPÉCIFIQUEMENT de chaque catégorie ce qui y a déjà été affecté (`alreadyAllocated`).
   // → cumuler 411 € d'invest met la reco invest à 0 sans toucher la reco « plaisir ».
   const recoGrossBudget = Math.max(0, cashflowTrough - variableEnvelopeRemaining - safetyMarginDisplay);
+  // Dépassement de l'enveloppe variable : ce qui a été dépensé en plus des dépenses variables
+  // habituelles estimées (l'enveloppe restante est alors à 0). Ce surplus grignote les recos en
+  // cascade (« Confort » d'abord) au lieu de réduire toutes les recos au prorata.
+  const variableOverspend = Math.max(0,
+    (pilotageData?.variable_envelope_spent ?? 0) - (pilotageData?.variable_envelope_initial ?? 0),
+  );
+  // Budget « enveloppe juste atteinte » : on rajoute le dépassement (le moteur le re-déduira en
+  // cascade). Quand il n'y a pas de dépassement, ce budget est identique à recoGrossBudget.
+  const recoBaselineBudget = recoGrossBudget + variableOverspend;
+  // Ordre de consommation selon la prudence du budget (Auto → dérivé du profil financier).
+  const consumptionMode = resolveConsumptionMode(
+    ((profile as any)?.prudence_level ?? null) as number | null,
+    financialProfile?.profile_id as FinancialProfileId | undefined,
+    recoThresholds?.auto_profile_map,
+  );
+  const consumptionOrder = getConsumptionOrder(consumptionMode, recoThresholds?.consumption_orders);
   const recoAlreadyAllocated = {
     // Épargne / invest : virements prévus ce mois (non exécutés) + cumuls fléchés.
     save: savingsRemaining + preEpargneTotal,
@@ -266,9 +282,11 @@ export default function PilotageScreen() {
     ? computeRecommendations(pilotageData, {
         customTierAllocations: customTiers,
         financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
-        budget: recoGrossBudget,
+        budget: recoBaselineBudget,
         alreadyAllocated: recoAlreadyAllocated,
         thresholds: recoThresholds,
+        overspend: variableOverspend,
+        consumptionOrder,
       }).map((r) => ({
         ...r,
         color: recoColorByType[r.type] ?? r.color,

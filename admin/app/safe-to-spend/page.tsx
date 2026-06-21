@@ -229,7 +229,7 @@ export default function SafeToSpendAdmin() {
       >
         <p style={{ fontSize: 13, color: COLORS.textSecondary, lineHeight: 1.7, margin: 0 }}>
           Le montant « À dépenser » est le <strong style={{ color: COLORS.text }}>budget total</strong> que 
-          le moteur de recommandation répartit entre épargner, investir, se faire plaisir et conserver.
+          le moteur de recommandation répartit entre épargner, investir, confort et conserver.
           La répartition dépend du palier d&apos;épargne (critique / à renforcer / saine / confortable)
           et des modificateurs contextuels (tendance variables, santé courant, ratio investissement).
           <br /><br />

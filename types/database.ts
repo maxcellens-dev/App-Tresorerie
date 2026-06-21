@@ -262,6 +262,10 @@ export interface RecommendationSettings {
   seuil_reco_invest: number;
   seuil_reco_plaisir: number;
   seuil_reco_conserver: number;
+  /** Ordre de consommation des recos par mode de prudence (cascade de dépassement). */
+  consumption_orders?: Record<'prudent' | 'equilibre' | 'dynamique', Array<'save' | 'invest' | 'enjoy' | 'keep'>>;
+  /** Mode « Auto » : profil financier P1–P5 → mode de prudence. */
+  auto_profile_map?: Record<'P1' | 'P2' | 'P3' | 'P4' | 'P5', 'prudent' | 'equilibre' | 'dynamique'>;
   updated_at?: string;
 }
 

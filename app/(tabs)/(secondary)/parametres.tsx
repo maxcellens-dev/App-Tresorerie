@@ -23,6 +23,10 @@ import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
 import { usePilotageTips } from '../../../hooks/useUiPrefs';
+import { useRecoThresholds } from '../../../hooks/useRecoThresholds';
+import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
+import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
+import type { FinancialProfileId } from '../../../types/database';
 import { APP_VERSION } from '../../../lib/appVersion';
 
 export default function SettingsScreen() {
@@ -38,6 +42,20 @@ export default function SettingsScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled } = useCalculator();
   const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
+  const { data: recoThresholds } = useRecoThresholds();
+  const { data: financialProfile } = useFinancialProfile(user?.id);
+
+  // Ordre de déduction des recos selon la prudence active (Auto → dérivé du profil financier).
+  // Affiché sous le sélecteur pour expliquer dans quel ordre les recos sont grignotées en cas de
+  // dépassement des dépenses variables.
+  const deductionOrder = useMemo(() => {
+    const mode = resolveConsumptionMode(
+      ((profile as any)?.prudence_level ?? null) as number | null,
+      financialProfile?.profile_id as FinancialProfileId | undefined,
+      recoThresholds?.auto_profile_map,
+    );
+    return getConsumptionOrder(mode, recoThresholds?.consumption_orders);
+  }, [profile, financialProfile, recoThresholds]);
 
   const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
   const [safetyAmountInput, setSafetyAmountInput] = useState('');
@@ -243,6 +261,25 @@ export default function SettingsScreen() {
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
                 Détermine si vos revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de votre Relyka — le montant que vous pouvez allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur l'argent déja encaissé.
               </Text>
+              {/* Ordre de déduction : dans quel ordre les recos sont grignotées si vous dépassez vos dépenses variables. */}
+              <View style={{ paddingLeft: 30, gap: 6, marginTop: 2 }}>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 11 }}>
+                  Si vous dépassez vos dépenses variables habituelles, vos recommandations diminuent dans cet ordre :
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                  {deductionOrder.map((type, i) => (
+                    <View key={type} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: RECO_COLORS[type] + '55', backgroundColor: RECO_COLORS[type] + '14', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: RECO_COLORS[type] }} />
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: RECO_COLORS[type] }}>{RECO_TYPE_LABELS[type]}</Text>
+                      </View>
+                      {i < deductionOrder.length - 1 && (
+                        <Ionicons name="chevron-forward" size={12} color={COLORS.textSecondary} />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </View>
             </View>
           </View>
 
