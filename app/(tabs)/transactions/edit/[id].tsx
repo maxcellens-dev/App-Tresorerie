@@ -162,6 +162,11 @@ export default function EditTransactionScreen() {
 
   const isInstanceEdit = Boolean(instanceDate && tx?.is_recurring);
   const isInstanceOccurrenceEdit = isInstanceEdit && editMode === 'single';
+  // Occurrence MATÉRIALISÉE : ligne réelle d'une série récurrente (is_recurring=false mais
+  // materialized_from rempli → le modèle parent existe encore). La repasser en récurrente créerait
+  // un 2ᵉ modèle qui DOUBLERAIT le futur. On verrouille donc la récurrence sur cette ligne et on
+  // renvoie l'utilisateur vers une échéance à venir pour modifier la série.
+  const isMaterialized = !!(tx as any)?.materialized_from;
 
   function showError(msg: string, fields: string[] = []) {
     setFormError(msg);
@@ -565,6 +570,17 @@ export default function EditTransactionScreen() {
           )}
 
           <View style={styles.recurringSection}>
+            {isMaterialized ? (
+              /* Occurrence matérialisée : appartient déjà à une série → toggle verrouillé pour ne
+                 pas créer un doublon de récurrence. On édite ici uniquement cette opération. */
+              <View style={styles.recurringInfoBanner}>
+                <Ionicons name="repeat" size={20} color={COLORS.emerald} />
+                <Text style={styles.recurringInfoText}>
+                  Cette opération fait partie d'une série récurrente. Pour modifier la récurrence (montant, période, fin), ouvrez une échéance à venir.
+                </Text>
+              </View>
+            ) : (
+            <>
             <TouchableOpacity
               style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]}
               onPress={() => setIsRecurring(!isRecurring)}
@@ -659,6 +675,8 @@ export default function EditTransactionScreen() {
                   </>
                 )}
               </>
+            )}
+            </>
             )}
           </View>
 
@@ -841,6 +859,8 @@ function makeStyles(c: any) {
   chipText: { fontSize: 14, color: c.text },
   chipTextActive: { color: c.bg, fontWeight: '600' },
   recurringSection: { marginTop: 8, marginBottom: 16 },
+  recurringInfoBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
+  recurringInfoText: { flex: 1, fontSize: 13, lineHeight: 18, color: c.textSecondary },
   recurringToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 12 },
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontSize: 15, color: c.textSecondary },

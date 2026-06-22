@@ -647,7 +647,10 @@ export default function TransactionsListScreen() {
                         const effectiveDate = getEffectiveDate(item);
                         const isFuture = effectiveDate > todayStr;
                         const isProject = !!item.project_id || (rwTxIds?.has(item.id) ?? false);
-                        const isRecurring = item.is_recurring && !isProject;
+                        // Une occurrence matérialisée (ligne réelle issue d'un modèle récurrent,
+                        // is_recurring=false mais materialized_from rempli) fait partie d'une série :
+                        // on lui donne aussi le tag « récurrent » pour que l'utilisateur le sache.
+                        const isRecurring = (item.is_recurring || !!(item as any).materialized_from) && !isProject;
                         const isReservation = isProject && Number(item.amount) === 0;
                         const amt = Number(item.amount);
                         const acctType = item.account?.type ?? 'checking';

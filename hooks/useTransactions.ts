@@ -381,8 +381,14 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id, materialized_from').eq('id', input.id).eq('profile_id', profileId).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
+      // Garde anti-doublon : une occurrence MATÉRIALISÉE appartient déjà à une série récurrente
+      // (modèle parent = materialized_from). La repasser en récurrente créerait un 2ᵉ modèle qui
+      // doublerait le futur → on neutralise toute tentative d'activer la récurrence sur cette ligne.
+      if ((existing as { materialized_from?: string | null }).materialized_from) {
+        input = { ...input, is_recurring: false, recurrence_rule: null, recurrence_end_date: null };
+      }
       const oldAccId = (existing as { account_id: string }).account_id;
       const oldAmount = Number((existing as { amount: number }).amount);
       const wasInDraft = Boolean((existing as { is_draft?: boolean }).is_draft);
