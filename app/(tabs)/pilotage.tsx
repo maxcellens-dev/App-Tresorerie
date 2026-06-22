@@ -51,6 +51,40 @@ import { semanticText, pastelFill } from '../../theme/palette';
 import { CURRENCY_SYMBOL, floorToTen, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 
+/** Divise par 2 l'alpha d'une couleur rgb(a)/hex (#RRGGBBAA) — pour atténuer un fond translucide. */
+function halfAlpha(color: string): string {
+  const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(color);
+  if (rgba) {
+    const a = rgba[4] !== undefined ? parseFloat(rgba[4]) : 1;
+    return `rgba(${rgba[1]}, ${rgba[2]}, ${rgba[3]}, ${(a / 4).toFixed(3)})`;
+  }
+  const hex8 = /^(#[0-9A-Fa-f]{6})([0-9A-Fa-f]{2})$/.exec(color);
+  if (hex8) return hex8[1] + Math.round(parseInt(hex8[2], 16) / 4).toString(16).padStart(2, '0');
+  const hex6 = /^#[0-9A-Fa-f]{6}$/.test(color);
+  if (hex6) return color + '80'; // opaque → 50 %
+  return color;
+}
+
+/** Remplissage des curseurs « Dépenses » à opacité RÉDUITE de moitié (pastelFill ≈ 60 % → ~30 %). */
+function halfFill(hex: string): string {
+  const full = pastelFill(hex); // '#RRGGBBAA'
+  const m = /^(#[0-9A-Fa-f]{6})([0-9A-Fa-f]{2})$/.exec(full);
+  if (!m) return full;
+  const a = Math.round(parseInt(m[2], 16) / 4);
+  return m[1] + a.toString(16).padStart(2, '0');
+}
+
+/** Assombrit une couleur hex (#RRGGBB) vers le noir d'un facteur 0-1 (pour les encadrés « accent plus foncé »). */
+function darken(hex: string, factor: number): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  const f = Math.min(1, Math.max(0, factor));
+  const r = Math.round(parseInt(hex.slice(1, 3), 16) * (1 - f));
+  const g = Math.round(parseInt(hex.slice(3, 5), 16) * (1 - f));
+  const b = Math.round(parseInt(hex.slice(5, 7), 16) * (1 - f));
+  const h = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${h(r)}${h(g)}${h(b)}`;
+}
+
 export default function PilotageScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -126,6 +160,9 @@ export default function PilotageScreen() {
   const [showVariableModal, setShowVariableModal] = useState(false);
   const [weeklyVariableInput, setWeeklyVariableInput] = useState('');
   const updateProfileVar = useUpdateProfile(user?.id);
+  // Modale d'édition de la marge de sécurité (comme dans Paramètres → profiles.safety_margin_amount)
+  const [showMarginModal, setShowMarginModal] = useState(false);
+  const [marginInput, setMarginInput] = useState('');
 
   const fmtMain = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
   const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
@@ -620,7 +657,7 @@ export default function PilotageScreen() {
           <View style={styles.section} ref={suiviRef}>
             <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="wallet-outline" size={18} color={COLORS.emerald} />
+                <Ionicons name="wallet" size={18} color={COLORS.emerald} />
                 <Text style={styles.sectionTitle}>Suivi du mois</Text>
               </View>
               <View style={styles.monthPill}>
@@ -648,137 +685,136 @@ export default function PilotageScreen() {
               const recurTotal = suiviDetail.recurringTotal ?? 0;
               const recurPassed = suiviDetail.recurringPassed ?? 0;
               const recurRemaining = Math.max(0, recurTotal - recurPassed);
-              // Curseur « Dépensé ce mois » : vide = ce qui reste (récurrent à venir + variable restant).
-              const spentDenom = Math.max(1, depPast + recurRemaining + varRemaining);
 
               const rest = resteDisponible;
               const restNeg = rest < 0;
               const restLow = rest < pilotageData.committed_allocations;
               const restColor = restNeg ? COLORS.danger : restLow ? COLORS.yellow : COLORS.green;
 
+              // Accent « plus foncé » pour les encadrés (pills) : en clair on assombrit, en sombre on
+              // garde la teinte (déjà lisible sur fond sombre).
+              const isLight = COLORS.mode === 'light';
+              const accentDeep = isLight ? darken(COLORS.emerald, 0.18) : COLORS.emerald;
+              // « Ce mois » : % des DÉPENSES PRÉVUES ESTIMÉES (récurrentes du mois + enveloppe variable
+              // estimée). Part de 0 %, peut DÉPASSER 100 % (dépassement) ; le curseur reste plafonné à 100 %.
+              const plannedEstimated = recurTotal + varInitial;
+              const spentPctRaw = plannedEstimated > 0 ? (depPast / plannedEstimated) * 100 : 0;
+              const spentPct = Math.round(spentPctRaw);
+              const spentFillW = Math.min(100, spentPctRaw);
+
               return (
                 <View style={{ gap: 10 }}>
-                  {/* 1. Budget courant actuel — 1 bloc */}
+                  {/* 1. Solde courant actuel — label + « Prochaine recette » encadrés en accent foncé */}
                   <TouchableOpacity style={styles.suiviBlock} activeOpacity={0.7} onPress={() => setDetailKey('checking')}>
-                    <View style={styles.suiviBlockHead}>
-                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.checking + '22' }]}>
-                        <Ionicons name="wallet-outline" size={16} color={COLORS.checking} />
+                    <View style={styles.accentPillRow}>
+                      <View style={[styles.accentPill, { backgroundColor: accentDeep + '1F', borderColor: accentDeep + '55' }]}>
+                        <Ionicons name="wallet" size={13} color={accentDeep} />
+                        <Text style={[styles.accentPillText, { color: accentDeep, fontSize: 14 }]}>Solde courant actuel</Text>
                       </View>
-                      <Text style={styles.suiviBlockTitle}>Budget courant actuel</Text>
-                      <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />
                     </View>
                     <View style={styles.budgetValueRow}>
-                      <Text style={[styles.suiviBlockValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
+                      <Text style={[styles.suiviBlockValue, { color: accentDeep }]}>{fmt(checkingBalance)}</Text>
                       {(pilotageData.month_income_remaining ?? 0) > 0 && (
-                        <View style={styles.budgetIncome}>
-                          <Text style={styles.budgetIncomeLabel}>Recettes prévues</Text>
-                          <Text style={[styles.budgetIncomeValue, { color: semanticText(COLORS.green, COLORS) }]}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                        <View style={styles.incomeInline}>
+                          <Ionicons name="time" size={13} color={accentDeep} />
+                          <Text style={{ color: accentDeep, flexShrink: 1 }} numberOfLines={2}>
+                            <Text style={styles.accentPillText}>Prochaine recette </Text>
+                            <Text style={styles.accentPillStrong}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                          </Text>
                         </View>
                       )}
                     </View>
                   </TouchableOpacity>
 
-                  {/* 2. Épargne + Investissement — 2 blocs sur la même ligne */}
+                  {/* 2. Épargne + Investissement — icônes épurées, montants plus gros */}
                   <View style={styles.suiviRow2}>
                     {([
-                      { key: 'savings', label: 'Épargne', value: savings, icon: 'shield-outline', color: COLORS.green },
-                      { key: 'invest', label: 'Investissement', value: invest, icon: 'trending-up-outline', color: COLORS.violet },
+                      { key: 'savings', label: 'Épargne', value: savings, icon: 'shield', color: COLORS.green },
+                      { key: 'invest', label: 'Investissement', value: invest, icon: 'trending-up', color: COLORS.violet },
                     ] as const).map((b) => (
                       <TouchableOpacity key={b.key} style={styles.suiviMiniBlock} activeOpacity={0.7} onPress={() => setDetailKey(b.key)}>
                         <View style={styles.suiviMiniHead}>
-                          <View style={[styles.suiviIconSm, { backgroundColor: b.color + '22' }]}>
-                            <Ionicons name={b.icon as any} size={14} color={b.color} />
-                          </View>
+                          <Ionicons name={b.icon as any} size={16} color={b.color} />
                           <Text style={styles.suiviMiniLabel} numberOfLines={1}>{b.label}</Text>
                         </View>
-                        <Text style={[styles.suiviMiniValue, { color: semanticText(b.color, COLORS) }]}>{fmt(b.value)}</Text>
+                        <Text style={[styles.suiviMiniValue, { color: b.value > 0 ? semanticText(b.color, COLORS) : COLORS.textSecondary }]}>{fmt(b.value)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
 
-                  {/* 3. Dépenses — 3 bandes cliquables (texte + montant à l'intérieur, §N5) */}
+                  {/* 3. Dépenses — « Ce mois » (montant + % des dépenses prévues) puis récurrentes / variables */}
                   <View style={styles.suiviBlock}>
                     <View style={styles.suiviBlockHead}>
-                      <View style={[styles.suiviIcon, { backgroundColor: COLORS.danger + '22' }]}>
-                        <Ionicons name="card-outline" size={16} color={COLORS.danger} />
-                      </View>
+                      <Ionicons name="card" size={18} color={COLORS.danger} />
                       <Text style={styles.suiviBlockTitle}>Dépenses</Text>
                     </View>
-                    {/* 3 bandes : le remplissage = proportion, le texte est à l'intérieur de la bande. */}
-                    {/* Dépensé ce mois — rempli = part déjà dépensée / (dépensé + reste à dépenser) */}
-                    <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
-                      <View style={[styles.depBandFill, { width: `${Math.min(100, (depPast / spentDenom) * 100)}%`, backgroundColor: pastelFill(COLORS.danger) }]} />
-                      <View style={styles.depBandContent}>
-                        <View style={styles.depBandLabelRow}>
-                          <View style={[styles.depBandDot, { backgroundColor: COLORS.danger }]} />
-                          <Text style={styles.depBandLabel} numberOfLines={1}>Dépensé ce mois</Text>
-                        </View>
-                        <View style={styles.depBandValueRow}>
-                          <Text style={[styles.depBandValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
-                          <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
+                    {/* Ce mois : montant à gauche, % des dépenses prévues estimées à droite (curseur = % plafonné à 100 %) */}
+                    <TouchableOpacity style={styles.depBandBig} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
+                      <View style={[styles.depBandFill, { width: `${spentFillW}%`, backgroundColor: halfFill(COLORS.danger) }]} />
+                      <View style={styles.depBandBigContent}>
+                        <Text style={styles.depBandBigLabel}>Ce mois</Text>
+                        <View style={styles.depBandBigRow}>
+                          <Text style={[styles.depBandBigValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
+                          <Text style={styles.depBandBigPct} numberOfLines={2}>{spentPct}% des dépenses prévues estimées</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
-                    {/* Dépenses récurrentes restantes — rempli = restant / total (décroît, §N5) */}
-                    <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
-                      <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: pastelFill(COLORS.orange) }]} />
-                      <View style={styles.depBandContent}>
-                        <View style={styles.depBandLabelRow}>
-                          <View style={[styles.depBandDot, { backgroundColor: COLORS.orange }]} />
-                          <Text style={styles.depBandLabel} numberOfLines={1}>Récurrentes restantes</Text>
+                    {/* Récurrentes + Variables prévues : montant à gauche, /total à droite (curseur = restant / total) */}
+                    <View style={styles.suiviRow2}>
+                      <TouchableOpacity style={styles.depMini} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
+                        <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: halfFill(COLORS.orange) }]} />
+                        <View style={styles.depMiniContent}>
+                          <Text style={styles.depMiniLabel} numberOfLines={1}>Récurrentes</Text>
+                          <View style={styles.depMiniValueRow}>
+                            <Text style={[styles.depMiniValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)}</Text>
+                            <Text style={styles.depMiniTotal}>/ {fmt(recurTotal)}</Text>
+                          </View>
                         </View>
-                        <View style={styles.depBandValueRow}>
-                          <Text style={[styles.depBandValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)}</Text>
-                          <Text style={styles.depBandTotal}> / {fmt(recurTotal)}</Text>
-                          <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.depMini} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
+                        <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: halfFill(COLORS.yellow) }]} />
+                        <View style={styles.depMiniContent}>
+                          <Text style={styles.depMiniLabel} numberOfLines={1}>Variables prévues</Text>
+                          <View style={styles.depMiniValueRow}>
+                            <Text style={[styles.depMiniValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varRemaining)}</Text>
+                            <Text style={styles.depMiniTotal}>/ {fmt(varInitial)}</Text>
+                          </View>
                         </View>
-                      </View>
-                    </TouchableOpacity>
-                    {/* Dépenses variables prévues restantes — rempli = restant / estimé (décroît, §N5) */}
-                    <TouchableOpacity style={styles.depBand} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
-                      <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: pastelFill(COLORS.yellow) }]} />
-                      <View style={styles.depBandContent}>
-                        <View style={styles.depBandLabelRow}>
-                          <View style={[styles.depBandDot, { backgroundColor: COLORS.yellow }]} />
-                          <Text style={styles.depBandLabel} numberOfLines={1}>Variables prévues restantes</Text>
-                        </View>
-                        <View style={styles.depBandValueRow}>
-                          <Text style={[styles.depBandValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varRemaining)}</Text>
-                          <Text style={styles.depBandTotal}> / {fmt(varInitial)}</Text>
-                          <Ionicons name="chevron-forward" size={13} color={COLORS.textSecondary} />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* 4. Réserve & Marge de sécurité — 1 bloc, 1 ligne chacun */}
-                  <View style={styles.suiviBlock}>
-                    <Text style={[styles.suiviBlockTitle, { marginBottom: 4 }]}>Réserve & Marge de sécurité</Text>
-                    <TouchableOpacity ref={reservedRef} style={[styles.reserveLine, onbReserved ? onbGlow(COLORS, true) : null]} activeOpacity={0.7} onPress={openReservedModal}>
-                      <View style={[styles.suiviIconSm, { backgroundColor: COLORS.blue + '22' }]}>
-                        <Ionicons name="lock-closed-outline" size={14} color={COLORS.blue} />
-                      </View>
-                      <Text style={styles.reserveLineLabel}>Réservé</Text>
-                      <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} />
-                      <Text style={[styles.reserveLineValue, { color: semanticText(COLORS.blue, COLORS) }]}>{fmt(reserve)}</Text>
-                    </TouchableOpacity>
-                    <View style={styles.reserveLine}>
-                      <View style={[styles.suiviIconSm, { backgroundColor: COLORS.yellow + '22' }]}>
-                        <Ionicons name="shield-outline" size={14} color={COLORS.yellow} />
-                      </View>
-                      <Text style={styles.reserveLineLabel}>Marge de sécurité</Text>
-                      <Text style={[styles.reserveLineValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(safetyMargin)}</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
 
-                  {/* 5. Ton Relyka (Budget libre) */}
+                  {/* 4. Réserve & Marge de sécurité — 2 cartes */}
+                  <View style={styles.suiviBlock}>
+                    <Text style={[styles.suiviBlockTitle, { marginBottom: 2 }]}>Réserve & Marge de sécurité</Text>
+                    <View style={styles.suiviRow2}>
+                      <TouchableOpacity ref={reservedRef} style={[styles.suiviMiniBlock, onbReserved ? onbGlow(COLORS, true) : null]} activeOpacity={0.7} onPress={openReservedModal}>
+                        <View style={styles.suiviMiniHead}>
+                          <Ionicons name="lock-closed" size={16} color={COLORS.blue} />
+                          <Text style={styles.suiviMiniLabel} numberOfLines={1}>Réservé</Text>
+                        </View>
+                        <Text style={[styles.suiviMiniValue, { color: semanticText(COLORS.blue, COLORS) }]}>{fmt(reserve)}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.suiviMiniBlock} activeOpacity={0.7} onPress={() => { setMarginInput(String(Math.round(safetyMargin))); setShowMarginModal(true); }}>
+                        <View style={styles.suiviMiniHead}>
+                          <Ionicons name="shield" size={16} color={COLORS.yellow} />
+                          <Text style={styles.suiviMiniLabel} numberOfLines={1}>Marge sécu.</Text>
+                        </View>
+                        <Text style={[styles.suiviMiniValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(safetyMargin)}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* 5. Ton Relyka — « Budget libre » encadré en accent foncé */}
                   <TouchableOpacity style={[styles.suiviBlock, { borderColor: restColor + '55' }]} activeOpacity={0.7} onPress={() => setDetailKey('relyka')}>
                     <View style={styles.suiviBlockHead}>
-                      <View style={[styles.suiviIcon, { backgroundColor: restColor + '22' }]}>
-                        <Ionicons name="sparkles-outline" size={16} color={restColor} />
+                      <Ionicons name="sparkles" size={18} color={restColor} />
+                      <View style={styles.relykaTitleRow}>
+                        <View style={[styles.accentPill, { backgroundColor: accentDeep + '1F', borderColor: accentDeep + '55' }]}>
+                          <Text style={[styles.accentPillText, { color: accentDeep, fontSize: 14 }]} numberOfLines={1}>Ton Relyka</Text>
+                        </View>
+                        <Text style={[styles.relykaTitle, { flexShrink: 1, fontSize: 12 }]} numberOfLines={1}>Budget libre</Text>
                       </View>
-                      <Text style={styles.suiviBlockTitle}>Ton Relyka <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.textSecondary }}>(Budget libre)</Text></Text>
-                      <Ionicons name="chevron-forward" size={15} color={COLORS.textSecondary} />
                     </View>
                     {/* « Ton Relyka » arrondi à la dizaine inférieure (proposition générique). Le détail au clic montre le vrai calcul. */}
                     <Text style={[styles.suiviBlockValue, { color: semanticText(restColor, COLORS) }]}>{floorToTen(rest).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
@@ -1266,6 +1302,48 @@ export default function PilotageScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Modale : marge de sécurité (identique à Paramètres → profiles.safety_margin_amount) */}
+      <Modal visible={showMarginModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowMarginModal(false)}>
+        <Pressable style={styles.varModalOverlay} onPress={() => setShowMarginModal(false)}>
+          <Pressable style={styles.varModalBox} onPress={() => {}}>
+            <Text style={styles.varModalTitle}>Marge de sécurité</Text>
+            <Text style={styles.varModalHint}>
+              Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Il est déduit de votre « Budget libre ».
+            </Text>
+            <View style={styles.varModalInputRow}>
+              <TextInput
+                style={styles.varModalInput}
+                value={marginInput}
+                onChangeText={(v) => setMarginInput(v.replace(/[^0-9.,]/g, ''))}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={COLORS.textSecondary}
+                autoFocus
+              />
+              <Text style={styles.varModalUnit} numberOfLines={1}>{CURRENCY_SYMBOL}</Text>
+            </View>
+            <View style={styles.varModalActions}>
+              <TouchableOpacity style={styles.varModalCancel} onPress={() => setShowMarginModal(false)}>
+                <Text style={styles.varModalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.varModalSave}
+                onPress={async () => {
+                  const val = Math.max(0, parseFloat(marginInput.replace(',', '.')) || 0);
+                  try {
+                    await updateProfileVar.mutateAsync({ safety_margin_amount: val });
+                    await pilotageQuery.refetch?.();
+                  } catch (e) { console.warn('[pilotage] maj marge de sécurité échouée:', e); }
+                  setShowMarginModal(false);
+                }}
+              >
+                <Text style={styles.varModalSaveText}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1446,33 +1524,46 @@ function makeStyles(c: AppColors) {
     padding: 14, gap: 10,
   },
   suiviBlockHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  suiviBlockTitle: { flex: 1, fontSize: 14, color: c.text, fontWeight: '700' },
-  suiviBlockValue: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  budgetValueRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  budgetIncome: { alignItems: 'flex-end' },
-  budgetIncomeLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '600' },
-  budgetIncomeValue: { fontSize: 15, fontWeight: '700' },
+  suiviBlockTitle: { flex: 1, fontSize: 14, color: c.text, fontWeight: '600' },
+  // Montants « majeurs » (Solde courant actuel + Ton Relyka) : grande taille, identique.
+  suiviBlockValue: { fontSize: 28, fontWeight: '600', letterSpacing: -0.5 },
+  budgetValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  // Encadrés « accent foncé » (pills) : Solde courant actuel, Prochaine recette, Budget libre.
+  accentPillRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  accentPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
+  accentPillText: { fontSize: 12, fontWeight: '600' },
+  accentPillStrong: { fontSize: 13, fontWeight: '600' },
+  // Prochaine recette : en ligne, sans cadre ni fond. flex:1 → prend l'espace restant pour rester
+  // sur une ligne ; ne passe à la ligne (numberOfLines={2}) que si l'écran est trop étroit.
+  incomeInline: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5 },
+  relykaTitleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Titre « Ton Relyka » : taille de bloc sans flex (sinon il se réduit à 0 et disparaît à côté du pill).
+  relykaTitle: { flexShrink: 0, fontSize: 14, color: c.text, fontWeight: '600' },
   suiviRow2: { flexDirection: 'row', gap: 10 },
   suiviMiniBlock: {
     flex: 1, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 14, gap: 8,
   },
   suiviMiniHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  suiviMiniLabel: { flex: 1, fontSize: 12, color: c.textSecondary, fontWeight: '600' },
-  suiviMiniValue: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  // Bandes « Dépenses » : grande barre dont le remplissage = proportion, texte à l'intérieur.
-  depBand: { height: 46, borderRadius: 12, backgroundColor: c.cardBorder, overflow: 'hidden', justifyContent: 'center' },
+  suiviMiniLabel: { flex: 1, fontSize: 12, color: c.textSecondary, fontWeight: '500' },
+  // Montants « secondaires » (Épargne, Investissement, Réservé, Marge) : même taille, < majeurs.
+  suiviMiniValue: { fontSize: 15, fontWeight: '600', letterSpacing: -0.5 },
+  // « Dépenses » : remplissage (curseur) = proportion, texte par-dessus.
   depBandFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 12 },
-  depBandContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
-  depBandLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  depBandDot: { width: 8, height: 8, borderRadius: 4 },
-  depBandLabel: { flex: 1, fontSize: 13, color: c.text, fontWeight: '600' },
-  depBandValueRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  depBandValue: { fontSize: 15, fontWeight: '700' },
-  depBandTotal: { fontSize: 12, fontWeight: '600', color: c.text },
-  reserveLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
-  reserveLineLabel: { flex: 1, fontSize: 14, color: c.text, fontWeight: '600' },
-  reserveLineValue: { fontSize: 16, fontWeight: '700' },
+  // Ce mois — grande bande : libellé, puis montant à gauche + % à droite.
+  depBandBig: { minHeight: 54, borderRadius: 12, backgroundColor: halfAlpha(c.cardBorder), overflow: 'hidden', justifyContent: 'center' },
+  depBandBigContent: { paddingHorizontal: 14, paddingVertical: 9, gap: 2 },
+  depBandBigLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '500' },
+  depBandBigRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
+  depBandBigValue: { fontSize: 15, fontWeight: '600', letterSpacing: -0.5 },
+  depBandBigPct: { flexShrink: 1, fontSize: 11, fontWeight: '500', color: c.textSecondary, textAlign: 'right' },
+  // Récurrentes / Variables — mini-cartes : libellé, puis montant à gauche + /total à droite.
+  depMini: { flex: 1, minHeight: 54, borderRadius: 12, backgroundColor: halfAlpha(c.cardBorder), overflow: 'hidden', justifyContent: 'center' },
+  depMiniContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
+  depMiniLabel: { fontSize: 12, color: c.text, fontWeight: '500' },
+  depMiniValueRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 },
+  depMiniValue: { fontSize: 15, fontWeight: '600', letterSpacing: -0.5 },
+  depMiniTotal: { fontSize: 11, fontWeight: '500', color: c.textSecondary },
 
   // ── Modaux détail (centrés) ──
   detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },

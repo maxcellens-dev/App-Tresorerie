@@ -6,6 +6,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useStyleConfig } from '../hooks/useStyleConfig';
+import { injectGoogleFonts } from '../lib/webFonts';
 
 function fontFormat(url: string): string {
   return /\.woff2(\?.*)?$/i.test(url) ? 'woff2'
@@ -20,6 +21,13 @@ export default function FontApplier() {
   const appNameFont = styleConfig?.app_name_font?.trim() ?? '';
   const customFonts = styleConfig?.custom_fonts ?? [];
   const customFontsKey = JSON.stringify(customFonts);
+
+  // Polices Google prédéfinies (Inter, DM Sans, Plus Jakarta Sans…) : chargées à la demande sur web
+  // quand elles sont sélectionnées (police globale ou police du nom de l'app).
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    injectGoogleFonts('app-google-fonts', [font, appNameFont]);
+  }, [font, appNameFont]);
 
   // Polices téléversées (fichiers Supabase) → une règle @font-face par police. Web uniquement.
   useEffect(() => {
@@ -91,12 +99,54 @@ export default function FontApplier() {
       return;
     }
 
-    // Force la police sur tous les éléments texte de React Native Web.
+    // Force la police sur le texte de React Native Web — MAIS jamais sur les icônes
+    // @expo/vector-icons (sinon le !important écrase leur fontFamily 'Ionicons' → glyphes en carrés).
+    // On les exclut via : `.app-vicon` (classe posée au runtime par l'effet ci-dessous, fiable en
+    // dev ET en prod) + `[class*="r-fontFamily"]` (classe RNW, présente en dev → zéro flash).
     el.textContent = `
-      [data-testid], body, #root, .css-text-146c3p1, div, span, p, input, textarea, button {
+      [data-testid]:not(.app-vicon):not([class*="r-fontFamily"]),
+      body, #root,
+      .css-text-146c3p1:not(.app-vicon):not([class*="r-fontFamily"]),
+      div:not(.app-vicon):not([class*="r-fontFamily"]),
+      span:not(.app-vicon):not([class*="r-fontFamily"]),
+      p, input, textarea, button {
         font-family: ${font} !important;
       }
     `;
+  }, [font]);
+
+  // Marque les icônes vector (élément dont le texte est un SEUL glyphe en zone d'usage privé Unicode)
+  // d'une classe stable `app-vicon`, pour les exclure de la police globale quel que soit le build
+  // (en prod, les classes RNW deviennent `r-<hash>` et ne sont plus reconnaissables par leur nom).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    if (font === 'System') return; // pas de police globale appliquée → rien à protéger
+    const ICON_CLASS = 'app-vicon';
+    const isIconGlyph = (s: string | null): boolean => {
+      if (!s) return false;
+      const chars = Array.from(s.trim());
+      if (chars.length !== 1) return false;
+      const cp = chars[0].codePointAt(0) ?? 0;
+      return (cp >= 0xe000 && cp <= 0xf8ff)        // BMP Private Use Area
+        || (cp >= 0xf0000 && cp <= 0xffffd)        // Supplementary PUA-A
+        || (cp >= 0x100000 && cp <= 0x10fffd);     // Supplementary PUA-B
+    };
+    const tag = (el: Element) => {
+      if (!el.classList.contains(ICON_CLASS) && isIconGlyph(el.textContent)) el.classList.add(ICON_CLASS);
+    };
+    const scan = (root: Element) => { tag(root); root.querySelectorAll('*').forEach(tag); };
+    scan(document.body);
+    const obs = new MutationObserver((muts) => {
+      for (const m of muts) {
+        m.addedNodes.forEach((n) => { if (n.nodeType === 1) scan(n as Element); });
+        if (m.type === 'characterData') {
+          const parent = (m.target as CharacterData).parentElement;
+          if (parent) tag(parent);
+        }
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return () => obs.disconnect();
   }, [font]);
 
   return null;

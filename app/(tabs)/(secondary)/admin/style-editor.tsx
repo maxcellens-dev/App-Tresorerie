@@ -14,11 +14,14 @@ import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, t
 import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG } from '../../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
 import ColorPickerModal from '../../../../components/ColorPickerModal';
+import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/webFonts';
 
 
 const FONTS = [
   { id: 'System',           label: 'Système' },
   { id: 'Inter',            label: 'Inter' },
+  { id: 'DM Sans',          label: 'DM Sans' },
+  { id: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans' },
   { id: 'Roboto',           label: 'Roboto' },
   { id: 'Georgia',          label: 'Georgia' },
   { id: '"Helvetica Neue", Helvetica', label: 'Helvetica' },
@@ -149,6 +152,12 @@ export default function StyleEditor() {
       setLightSemanticInputs(lightSemInputs);
     }
   }, [styleConfig]);
+
+  // Charge les polices Google connues (web) pour que les aperçus « Aa » du sélecteur soient fidèles.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    injectGoogleFonts('admin-google-fonts-preview', Object.keys(GOOGLE_FONTS));
+  }, []);
 
   // Accents valides pour l'aperçu live
   const liveAccents: Record<string, string> = {};
