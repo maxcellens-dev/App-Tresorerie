@@ -3,7 +3,7 @@
     "name": "Relyka",
     "owner": "relykadevs-team",
     "slug": "relyka-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "scheme": "relyka-app",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
