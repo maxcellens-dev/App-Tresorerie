@@ -1,6 +1,6 @@
 /**
  * AnimatedSplash — splash React animé (natif uniquement) qui prend le relais du splash natif :
- *  1. démarre sur la couleur INTERMÉDIAIRE #808F88 (= splash natif après rebuild) ;
+ *  1. démarre sur la couleur du splash natif = crème #F4EFE6 (= fond de l'écran de chargement clair) ;
  *  2. fond enchaîné vers le thème ADMIN (clair = crème, sombre = teal) + apparition du loader ;
  *  3. tout le calque s'efface en fondu → révèle l'écran de chargement (même RelykaLoader) → seamless.
  *
@@ -16,9 +16,9 @@ import { useBrandColors } from '../hooks/useBrandColors';
 import { onAppReady } from '../lib/splashGate';
 import RelykaLoader from './RelykaLoader';
 
-// Fond du splash : couleur INTERMÉDIAIRE (milieu clair #F4EFE6 ↔ teal sombre #0D2E2A).
+// Fond du splash : crème, identique au fond de l'écran de chargement en thème clair.
 // Doit correspondre à app.json > expo-splash-screen > backgroundColor (transition invisible).
-const SPLASH_BG = '#808F88';
+const SPLASH_BG = '#F4EFE6';
 const BG_LIGHT = '#F4EFE6';
 const BG_DARK = '#0D2E2A';
 
