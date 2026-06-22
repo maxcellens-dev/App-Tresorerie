@@ -17,7 +17,7 @@ import { Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 
 /** Interrupteur principal. `false` = comportement actuel inchangé (no-op total). */
-export const OTA_UPDATE_ON_LAUNCH_ENABLED = false;
+export const OTA_UPDATE_ON_LAUNCH_ENABLED = true;
 
 let alreadyRan = false;
 
