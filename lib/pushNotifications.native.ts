@@ -36,9 +36,14 @@ export async function getDevicePushTokenAsync(): Promise<DevicePushToken | null>
       });
     }
 
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let status = existing;
-    if (existing !== 'granted') {
+    const perm = await Notifications.getPermissionsAsync();
+    let status = perm.status;
+    // On ne présente la permission système qu'UNE seule fois : à la première
+    // installation (statut « undetermined »). Si l'utilisateur l'a déjà refusée,
+    // on ne le redemande JAMAIS — il réactivera depuis les réglages de l'OS s'il
+    // change d'avis. (Le toggle in-app « notifications_enabled », lui, reste
+    // libre d'être recoché : l'envoi reprendra dès que la permission OS existe.)
+    if (status === 'undetermined' && perm.canAskAgain) {
       const res = await Notifications.requestPermissionsAsync();
       status = res.status;
     }
