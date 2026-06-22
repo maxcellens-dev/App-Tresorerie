@@ -270,7 +270,11 @@ export default function ProjectionScreen() {
     if (saved?.savingsSource) setPickedSource(saved.savingsSource);
     setSelectedAccId(investAccounts[0].id);
     setLoaded(true);
-  }, [investAccounts, loaded, user?.id, fiscalRates]);
+    // assumptionsQuery.isFetched/.data DOIVENT être dans les deps : sinon, si les comptes et les
+    // taux fiscaux sont prêts AVANT la requête des hypothèses, l'effet sort tôt (isFetched=false)
+    // et ne se relance jamais → les valeurs sauvegardées ne sont pas restaurées et l'UI retombe
+    // sur les défauts (« se remet par défaut parfois »).
+  }, [investAccounts, loaded, user?.id, fiscalRates, assumptionsQuery.isFetched, assumptionsQuery.data]);
 
   // Sauvegarde : voir l'effet plus bas (après la déclaration des états d'épargne « perso »).
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
