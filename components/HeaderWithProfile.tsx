@@ -93,7 +93,11 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { data: styleConfig } = useStyleConfig();
-  const avatarUrl = profile?.avatar_url ?? user?.user_metadata?.avatar_url;
+  // Source de vérité unique : profiles.avatar_url. PAS de repli sur l'avatar Google
+  // (user_metadata) — sinon une photo supprimée par l'utilisateur réafficherait l'image
+  // Google « par défaut ». L'avatar Google ne sert qu'à SEMER profiles.avatar_url à la
+  // création du compte (trigger handle_new_user) ; ensuite l'utilisateur est maître.
+  const avatarUrl = profile?.avatar_url ?? undefined;
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
 
   // Déterminer la page actuelle pour masquer les boutons

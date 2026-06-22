@@ -27,7 +27,8 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const { isPremium } = usePlan(user?.id);
   const { data: featureFlags } = useFeatureFlags();
 
-  const avatarUrl = profile?.avatar_url ?? user?.user_metadata?.avatar_url;
+  // Source de vérité unique : profiles.avatar_url (cf. HeaderWithProfile). Pas de repli Google.
+  const avatarUrl = profile?.avatar_url ?? undefined;
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Utilisateur';
   const isAdmin = (profile as any)?.is_admin === true;
   const supportUnread = useUserUnreadCount(user?.id);

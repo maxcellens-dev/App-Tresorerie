@@ -102,9 +102,8 @@ export default function ProfileScreen() {
     setAvatarLoading(true);
     try {
       const { data, mime } = await compressAvatarToWebP(source);
-      const rawUrl = await uploadAvatar(user.id, data, mime);
-      // Anti-cache : l'URL de stockage est identique à chaque upload → on force le rafraîchissement.
-      const url = rawUrl + (rawUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+      // uploadAvatar purge l'ancien fichier et renvoie déjà une URL anti-cache.
+      const url = await uploadAvatar(user.id, data, mime);
       await updateProfile.mutateAsync({ avatar_url: url });
       setAvatarUrl(url);
       await refetch?.();
@@ -190,6 +189,8 @@ export default function ProfileScreen() {
     if (!supabase) return;
     setDeleteLoading(true);
     try {
+      // Nettoyer le storage AVANT de supprimer le compte (le RPC ne touche pas au bucket).
+      if (user?.id) { try { await deleteAvatar(user.id); } catch { /* best-effort */ } }
       const { error } = await supabase.rpc('delete_own_account');
       if (error) throw error;
       setShowDeleteModal(false);
