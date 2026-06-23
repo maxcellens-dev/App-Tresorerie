@@ -119,6 +119,7 @@ export default function PreSavingsModal({
 
           {total > 0 && (
             <TouchableOpacity style={styles.resetBtn} onPress={confirmReset}>
+              <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
               <Text style={styles.resetLabel}>Remettre à 0</Text>
             </TouchableOpacity>
           )}
@@ -165,7 +166,11 @@ function makeStyles(c: any) {
       borderRadius: 12, paddingVertical: 13, borderWidth: 1,
     },
     secondaryLabel: { fontSize: 13, fontWeight: '700' },
-    resetBtn: { alignItems: 'center', paddingVertical: 8 },
-    resetLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '500', textDecorationLine: 'underline' },
+    resetBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+      alignSelf: 'center', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10,
+      borderWidth: 1, borderColor: c.danger + '44', backgroundColor: c.danger + '12',
+    },
+    resetLabel: { fontSize: 12, color: c.danger, fontWeight: '700' },
   });
 }
