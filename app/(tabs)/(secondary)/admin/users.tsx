@@ -4,6 +4,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -97,7 +98,7 @@ export default function AdminUsers() {
           )}
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {query.trim().length < 2 ? (
             <Text style={styles.hint}>Saisissez au moins 2 caractères pour rechercher.</Text>
           ) : search.isLoading ? (
@@ -137,7 +138,7 @@ export default function AdminUsers() {
               </View>
             ))
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

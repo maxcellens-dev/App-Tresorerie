@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
@@ -66,7 +67,7 @@ export default function AdminAppUpdate() {
         <Text style={styles.title}>Mise à jour de l'App</Text>
         <Text style={styles.subtitle}>Gérez le bandeau « mise à jour disponible » affiché aux utilisateurs.</Text>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {isLoading ? (
             <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 32 }} />
           ) : (
@@ -99,7 +100,7 @@ export default function AdminAppUpdate() {
               </Text>
             </View>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

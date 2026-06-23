@@ -5,6 +5,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -111,7 +112,7 @@ export default function AdminNotifications() {
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
           <Text style={styles.title}>Notifications</Text>
           <Text style={styles.subtitle}>
             Envoi manuel d'une notification push à tous les utilisateurs ayant activé les notifications dans leurs Paramètres.
@@ -170,7 +171,7 @@ export default function AdminNotifications() {
               </View>
             ))
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

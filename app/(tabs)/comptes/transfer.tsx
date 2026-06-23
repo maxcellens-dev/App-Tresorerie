@@ -32,11 +32,13 @@ import { useRecoDismissals } from '../../../hooks/useUiPrefs';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
+import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 
 
 export default function TransferScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
   const router = useRouter();
   const params = useLocalSearchParams<{
     from?: string; to?: string; amount?: string; label?: string; date?: string;
@@ -44,7 +46,6 @@ export default function TransferScreen() {
     releaseProject?: string;
   }>();
   const { user } = useAuth();
-  const { addCompleted: addRecoCompleted } = useRecoDismissals(user?.id);
   const { data: accounts = [] } = useAccounts(user?.id);
   const { data: allTransactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
@@ -173,10 +174,9 @@ export default function TransferScreen() {
       // L'apport « actuel » est dérivé des transactions (cf. computeContributed) :
       // l'ajout/suppression d'un virement est donc automatiquement répercuté, rien à mettre à jour ici.
 
-      // Virement validé depuis une reco → la marquer « traitée » (ne réapparaît pas)
-      if (params.recoComplete) {
-        addRecoCompleted(params.recoComplete as RecoType);
-      }
+      // Virement validé depuis une reco : on NE la marque PAS « traitée ». Le montant viré est
+      // déjà compté dans le suivi du mois (alreadyAllocated) → la reco se réduit naturellement du
+      // montant placé et réapparaît diminuée si un reste subsiste (ou pour le mois ciblé si futur).
       // Virement global d'un cumul → remettre le cumul à 0
       if (params.resetPreSaving) {
         await resetPreSaving.mutateAsync(params.resetPreSaving as PreSavingType);
@@ -248,7 +248,7 @@ export default function TransferScreen() {
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
           {/* Fil d'étapes */}
           <View style={styles.stepsRow}>
             <View style={[styles.stepDot, styles.stepDotActive]}><Text style={styles.stepDotText}>1</Text></View>
@@ -319,6 +319,7 @@ export default function TransferScreen() {
             // Changer le montant ENVOYÉ ré-active la proposition automatique du montant reçu
             // (au taux) → évite de garder un « reçu » figé, devenu incohérent, par oubli.
             onChangeText={(v) => { amountToTouched.current = false; setAmount(v); }}
+            onFocus={handleFocus}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
@@ -331,6 +332,7 @@ export default function TransferScreen() {
                 style={styles.input}
                 value={amountTo}
                 onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); }}
+                onFocus={handleFocus}
                 placeholder="0,00"
                 placeholderTextColor={COLORS.textSecondary}
                 keyboardType="decimal-pad"
@@ -372,6 +374,7 @@ export default function TransferScreen() {
                 if (parsed) setDate(parsed);
               }}
               onBlur={() => { if (date) setDateDisplay(formatDateFrench(date)); }}
+              onFocus={handleFocus}
               placeholder="jj-mm-aaaa"
               placeholderTextColor={COLORS.textSecondary}
             />
@@ -388,6 +391,7 @@ export default function TransferScreen() {
             style={styles.input}
             value={note}
             onChangeText={setNote}
+            onFocus={handleFocus}
             placeholder="Ex. Virement interne"
             placeholderTextColor={COLORS.textSecondary}
           />
@@ -423,6 +427,7 @@ export default function TransferScreen() {
                     style={[styles.input, { flex: 1, marginBottom: 0 }]}
                     value={recurrenceEndDateInput}
                     onChangeText={setRecurrenceEndDateInput}
+                    onFocus={handleFocus}
                     placeholder="jj-mm-aaaa ou vide"
                     placeholderTextColor={COLORS.textSecondary}
                   />

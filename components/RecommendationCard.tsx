@@ -70,7 +70,7 @@ export default function RecommendationCard({
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   // Masquages stockés par compte (profiles.ui_prefs) → réactifs et identiques sur tous les appareils.
-  const { ignored, completed, addIgnored, addCompleted } = useRecoDismissals(user?.id);
+  const { ignored, completed, addIgnored } = useRecoDismissals(user?.id);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [confirmReserve, setConfirmReserve] = useState(false);
   const [reserveAmount, setReserveAmount] = useState('');
@@ -82,9 +82,12 @@ export default function RecommendationCard({
 
   const handleConfirmReserve = (reco: SmartRecommendation) => {
     const parsed = parseFloat(reserveAmount.replace(',', '.'));
-    const amount = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : reco.amount;
-    onReserver?.(reco, amount);
-    addCompleted('keep');
+    // La saisie = montant COMPLÉMENTAIRE à conserver (à ajouter au déjà-conservé), pas le total.
+    const addition = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : reco.amount;
+    onReserver?.(reco, Math.round(reservedThisMonth + addition));
+    // On ne marque PAS « keep » comme traitée : la réservation est déjà comptée dans le suivi du
+    // mois (alreadyAllocated.keep) → la reco « Conserver » se réduit du montant réservé et
+    // réapparaît diminuée s'il reste un solde à conserver.
     setConfirmReserve(false);
     if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
@@ -248,7 +251,7 @@ export default function RecommendationCard({
         <View style={styles.confirmBox}>
           <Text style={styles.confirmText}>
             {reservedThisMonth > 0
-              ? `Déjà conservé ce mois : ${reservedThisMonth.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}. Valide le nouveau total à conserver ce mois-ci :`
+              ? `Déjà conservé ce mois : ${reservedThisMonth.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}. Montant supplémentaire à conserver ce mois-ci :`
               : 'Montant à conserver ce mois-ci ? Cette somme est déduite de ton reste disponible mais reste sur ton compte courant.'}
           </Text>
           <View style={styles.reserveAmountRow}>
@@ -263,6 +266,11 @@ export default function RecommendationCard({
             />
             <Text style={styles.reserveCurrency}>{CURRENCY_SYMBOL}</Text>
           </View>
+          {reservedThisMonth > 0 && (
+            <Text style={styles.confirmText}>
+              Nouveau total conservé : {Math.round(reservedThisMonth + (Math.max(0, parseFloat(reserveAmount.replace(',', '.'))) || 0)).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
+            </Text>
+          )}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.dismissBtn} onPress={() => setConfirmReserve(false)} activeOpacity={0.7}>
               <Text style={styles.dismissText}>Annuler</Text>
@@ -310,7 +318,7 @@ export default function RecommendationCard({
             {currentReco.type === 'keep' && (
               <TouchableOpacity
                 style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
-                onPress={() => { setReserveAmount(String(Math.round(reservedThisMonth + currentReco.amount))); setConfirmReserve(true); }}
+                onPress={() => { setReserveAmount(String(Math.round(currentReco.amount))); setConfirmReserve(true); }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="bookmark-outline" size={16} color={currentReco.color} />

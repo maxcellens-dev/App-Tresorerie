@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -268,7 +269,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
         />
-        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection} ref={avatarRef}>
             <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
               {avatarUrl ? (
@@ -387,7 +388,7 @@ export default function ProfileScreen() {
               <Text style={styles.deleteAccountLabel}>Supprimer mon compte</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* ── Modale de double confirmation ── */}
         <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>

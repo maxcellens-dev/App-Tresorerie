@@ -4,6 +4,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Switch, ActivityIndicator } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -81,7 +82,7 @@ export default function AdminConseils() {
         </View>
 
         {isLoading ? <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 24 }} /> : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
             {shown.map((c) => (
               <View key={c.id} style={[styles.card, !c.active && { opacity: 0.5 }]}>
                 <View style={styles.cardHead}>
@@ -106,7 +107,7 @@ export default function AdminConseils() {
                 </TouchableOpacity>
               </View>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
 

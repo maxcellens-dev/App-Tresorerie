@@ -77,6 +77,10 @@ export function useRecoDismissals(userId: string | undefined) {
     if (f.completed.includes(type)) return;
     patch({ reco_dismissals: { ...f, completed: [...f.completed, type] } });
   };
+  /** Relancer les recommandations : efface masquages (ignorées + complétées) du mois courant. */
+  const resetDismissals = () => {
+    patch({ reco_dismissals: { month: monthKey(), ignored: {}, completed: [] } });
+  };
 
-  return { ignored: current.ignored, completed: current.completed, addIgnored, addCompleted };
+  return { ignored: current.ignored, completed: current.completed, addIgnored, addCompleted, resetDismissals };
 }

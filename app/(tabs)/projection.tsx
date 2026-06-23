@@ -1020,7 +1020,7 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
     <View>
       <TouchableOpacity style={[styles.tresoDetailBtn, { marginTop: 0, marginBottom: 14 }]} onPress={onOpenDetail} activeOpacity={0.8}>
         <Ionicons name="grid-outline" size={16} color={COLORS.blue} />
-        <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]}>Voir le plan détaillé (tableau complet)</Text>
+        <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]}>Voir le plan de trésorerie détaillé</Text>
         <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
       </TouchableOpacity>
       <Text style={styles.sectionHint}>Soldes et flux prévus sur les 6 prochains mois</Text>

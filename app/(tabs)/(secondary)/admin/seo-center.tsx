@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -129,7 +130,7 @@ export default function SEOCenter() {
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>SEO Center</Text>
           <Text style={styles.subtitle}>Modifiez les titres, descriptions et mots-clés pour le référencement.</Text>
 
@@ -162,7 +163,7 @@ export default function SEOCenter() {
               </Text>
             )}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

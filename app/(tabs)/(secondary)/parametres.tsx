@@ -1,6 +1,7 @@
 ﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -22,7 +23,7 @@ import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
-import { usePilotageTips } from '../../../hooks/useUiPrefs';
+import { usePilotageTips, useRecoDismissals } from '../../../hooks/useUiPrefs';
 import { useRecoThresholds } from '../../../hooks/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
@@ -42,6 +43,8 @@ export default function SettingsScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled } = useCalculator();
   const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
+  const { resetDismissals } = useRecoDismissals(user?.id);
+  const [recosReset, setRecosReset] = useState(false);
   const { data: recoThresholds } = useRecoThresholds();
   const { data: financialProfile } = useFinancialProfile(user?.id);
 
@@ -163,7 +166,7 @@ export default function SettingsScreen() {
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
 
-        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <TouchableOpacity style={styles.backRow} onPress={goBack}>
@@ -299,6 +302,19 @@ export default function SettingsScreen() {
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
               Affiche le bandeau de conseils en haut de la page Pilotage. Désactivez-le pour un écran plus épuré.
             </Text>
+            <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+            <TouchableOpacity
+              style={[styles.row, { borderBottomWidth: 0 }]}
+              onPress={() => { resetDismissals(); setRecosReset(true); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={20} color={COLORS.emerald} />
+              <Text style={[styles.rowLabel, { color: COLORS.emerald }]}>Relancer les recommandations</Text>
+              {recosReset && <Ionicons name="checkmark-circle" size={20} color={COLORS.emerald} />}
+            </TouchableOpacity>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              Réaffiche dans le Pilotage toutes les recommandations ignorées ce mois-ci (selon ta situation actuelle).
+            </Text>
           </View>
 
           {/* ── Notifications ── */}
@@ -349,7 +365,7 @@ export default function SettingsScreen() {
               <Text style={styles.currencyHint}>Devise de tes totaux (Total liquidités, Pilotage, Projection…). Chaque compte garde sa propre devise ; les totaux y sont convertis au taux du jour (≈ si plusieurs devises).</Text>
             </View>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       <GuideOverlay

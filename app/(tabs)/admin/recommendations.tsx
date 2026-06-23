@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -243,7 +244,7 @@ export default function RecommendationsAdmin() {
           ))}
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.title}>Recommandations</Text>
           <Text style={styles.subtitle}>
             Le moteur propose 2 à 4 actions dont la somme fait 100 % du « À dépenser ».
@@ -478,7 +479,7 @@ export default function RecommendationsAdmin() {
             <Text style={styles.ruleItem}>• En cas de dépassement des dépenses variables, les recos sont grignotées dans l'ordre de déduction (voir onglet « Ordre »)</Text>
           </View>
           </>)}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

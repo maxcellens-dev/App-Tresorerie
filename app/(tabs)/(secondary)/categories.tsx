@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -230,7 +231,7 @@ export default function CategoriesScreen() {
         {!user ? (
           <Text style={styles.hint}>Connectez-vous pour gérer vos catégories.</Text>
         ) : (
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {categories.length === 0 && !isLoading && (
               <TouchableOpacity
                 style={styles.seedBtn}
@@ -418,7 +419,7 @@ export default function CategoriesScreen() {
                 </View>
               </>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
 

@@ -21,6 +21,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import ScreenGradient from './ScreenGradient';
 import ScreenHeader from './ScreenHeader';
 import CalendarWithPicker from './CalendarWithPicker';
+import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects, useAddProject, useUpdateProject, useDeleteProjectDissociating, useCheckProjectTransactions } from '../hooks/useProjects';
 import { useAccounts } from '../hooks/useAccounts';
@@ -518,7 +519,7 @@ export default function AddProjectModal() {
           <View style={styles.pageBody}>
             {!showAccountPicker ? (
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined} style={{ flex: 1 }}>
-              <ScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
                 {/* Bandeau erreur */}
                 {formError && (
                   <View style={[styles.errorBanner, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '1F' }]}>
@@ -906,7 +907,7 @@ export default function AddProjectModal() {
                   </TouchableOpacity>
                 )}
                 <View style={{ height: 24 }} />
-              </ScrollView>
+              </KeyboardAwareScrollView>
               </KeyboardAvoidingView>
             ) : (
               /* Account Picker */

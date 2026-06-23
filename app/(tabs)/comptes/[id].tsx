@@ -13,6 +13,7 @@ import {
   Pressable,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/ScreenHeader';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
@@ -380,7 +381,7 @@ export default function AccountDetailScreen() {
             </TouchableOpacity>
           }
         />
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
 
           <View style={styles.buttonRow}>
             {account.type === 'checking' ? (
@@ -560,7 +561,7 @@ export default function AccountDetailScreen() {
         )}
 
         <Text style={styles.hint}>Les écritures de ce compte apparaissent ici.</Text>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       {/* ── Solde modal ── */}

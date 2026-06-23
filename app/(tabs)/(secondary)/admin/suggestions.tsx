@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -128,7 +129,7 @@ export default function AdminSuggestions() {
           <Text style={styles.backLabel}>Retour</Text>
         </TouchableOpacity>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
           {/* ── Idées en cours de développement (visibles côté utilisateur) ── */}
           <Text style={styles.sectionLabel}>Idées en cours de développement</Text>
@@ -238,7 +239,7 @@ export default function AdminSuggestions() {
               </View>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

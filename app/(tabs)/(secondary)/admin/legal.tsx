@@ -4,6 +4,7 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +52,7 @@ export default function AdminLegal() {
         <Text style={styles.title}>Pages légales</Text>
         <Text style={styles.sub}>Remplace le texte affiché dans « Confidentialité » et « Mentions légales ». Laisser vide pour garder le contenu par défaut de l'app.</Text>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
           <Text style={styles.label}>Politique de confidentialité</Text>
           <TextInput
             style={styles.area}
@@ -78,7 +79,7 @@ export default function AdminLegal() {
             {save.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveLabel}>Enregistrer</Text>}
           </TouchableOpacity>
           {msg && <Text style={[styles.msg, { color: msg.includes('Erreur') ? COLORS.danger : COLORS.emerald }]}>{msg}</Text>}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

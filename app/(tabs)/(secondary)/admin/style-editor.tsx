@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -335,7 +336,7 @@ export default function StyleEditor() {
           </View>
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           {/* ══ Aperçu (toujours visible) ══ */}
           <View style={styles.preview}>
@@ -821,7 +822,7 @@ export default function StyleEditor() {
             Mode et accentuation : par utilisateur.{'\n'}
             Dégradé, transparence, police et palette : globaux.
           </Text>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       <ColorPickerModal

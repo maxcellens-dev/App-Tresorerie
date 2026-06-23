@@ -21,6 +21,7 @@ import { accountColor } from '../../../../theme/colors';
 import { supabase } from '../../../../lib/supabase';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
+import { useKeyboardAwareScroll } from '../../../../hooks/useKeyboardAwareScroll';
 
 
 export default function EditTransactionScreen() {
@@ -48,7 +49,7 @@ export default function EditTransactionScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
   const [showRecDelete, setShowRecDelete] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
 
   function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
     setConfirmModal(opts);
@@ -497,6 +498,7 @@ export default function EditTransactionScreen() {
             style={styles.input}
             value={note}
             onChangeText={setNote}
+            onFocus={handleFocus}
             placeholder="Ex. Courses, Salaire..."
             placeholderTextColor={COLORS.textSecondary}
             returnKeyType="next"
@@ -533,6 +535,7 @@ export default function EditTransactionScreen() {
             style={[styles.input, errorFields.includes('amount') && styles.inputError]}
             value={amount}
             onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }}
+            onFocus={handleFocus}
             placeholder="0,00"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
@@ -552,6 +555,7 @@ export default function EditTransactionScreen() {
                 if (parsed) setDate(parsed);
               }}
               onBlur={() => { if (date) setDateDisplay(formatDateFrench(date)); }}
+              onFocus={handleFocus}
               placeholder="jj-mm-aaaa"
               placeholderTextColor={COLORS.textSecondary}
             />
@@ -625,6 +629,7 @@ export default function EditTransactionScreen() {
                         style={[styles.input, { flex: 1, marginBottom: 0 }]}
                         value={recurrenceEndDateInput}
                         onChangeText={setRecurrenceEndDateInput}
+                        onFocus={handleFocus}
                         placeholder="jj-mm-aaaa ou vide"
                         placeholderTextColor={COLORS.textSecondary}
                         returnKeyType="done"
@@ -649,6 +654,7 @@ export default function EditTransactionScreen() {
                             const parsed = parseDateFromFrench(text);
                             if (parsed) setFutureAmountDate(parsed);
                           }}
+                          onFocus={handleFocus}
                           placeholder="jj-mm-aaaa"
                           placeholderTextColor={COLORS.textSecondary}
                         />
@@ -664,6 +670,7 @@ export default function EditTransactionScreen() {
                         style={styles.input}
                         value={futureAmount}
                         onChangeText={setFutureAmount}
+                        onFocus={handleFocus}
                         placeholder="0,00"
                         placeholderTextColor={COLORS.textSecondary}
                         keyboardType="decimal-pad"

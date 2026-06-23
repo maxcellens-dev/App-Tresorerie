@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -58,7 +59,7 @@ export default function FiscalRatesAdmin() {
           Taux par défaut dans la page Projection. Convention : taux « long terme » (PEA après 5 ans, AV après 8 ans = 17,2 % de prélèvements sociaux). L'utilisateur peut ajuster le % pour une projection courte.
         </Text>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {isLoading && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />}
           {rates.map((r) => (
             <View key={r.envelope} style={styles.card}>
@@ -98,7 +99,7 @@ export default function FiscalRatesAdmin() {
               </TouchableOpacity>
             </View>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

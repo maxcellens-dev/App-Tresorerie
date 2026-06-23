@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../../components/ScreenGradient';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/useAppColors';
@@ -139,7 +140,7 @@ export default function AddRwExpense() {
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title={editing ? 'Modifier la dépense' : 'Ajouter une dépense'} onBack={backToProject} />
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.label}>Icône</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               {EMOJIS.map((e) => (
@@ -210,7 +211,7 @@ export default function AddRwExpense() {
                 <Text style={styles.deleteBtnText}>Supprimer la dépense</Text>
               </TouchableOpacity>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
 

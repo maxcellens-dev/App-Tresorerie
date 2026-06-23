@@ -20,6 +20,7 @@ import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
+import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -66,7 +67,7 @@ export default function AddTransactionScreen() {
   const [errorFields, setErrorFields] = useState<string[]>([]);
   // Saisie en 2 étapes (style banque) : étape 1 = qui/quoi, étape 2 = quand/récurrence.
   const [step, setStep] = useState<1 | 2>(1);
-  const scrollRef = useRef<ScrollView>(null);
+  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
 
   const isExpense = transactionType === 'expense';
   const isIncome = transactionType === 'income';
@@ -397,7 +398,7 @@ export default function AddTransactionScreen() {
 
                 {/* Libellé */}
                 <Text style={styles.label}>Libellé (optionnel)</Text>
-                <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Ex. Courses, Salaire..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+                <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder="Ex. Courses, Salaire..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
 
                 {/* Sous-catégorie */}
                 <CategoryPicker
@@ -415,7 +416,7 @@ export default function AddTransactionScreen() {
 
                 {/* Montant */}
                 <Text style={styles.label}>Montant ({currencySymbolFor(accounts.find(a => a.id === accountId)?.currency)}) *</Text>
-                <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={goNext} />
+                <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={goNext} />
               </>
             )
           ) : (
@@ -430,13 +431,13 @@ export default function AddTransactionScreen() {
               {isTransfer && (
                 <>
                   <Text style={styles.label}>Libellé (optionnel)</Text>
-                  <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Ex. Virement épargne..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+                  <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder="Ex. Virement épargne..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
                   <Text style={styles.label}>Montant {isCross ? 'envoyé ' : ''}({currencySymbolFor(srcCurrency)}) *</Text>
-                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { amountToTouched.current = false; setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType={isCross ? 'next' : 'done'} onSubmitEditing={isCross ? undefined : () => handleSubmit()} />
+                  <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { amountToTouched.current = false; setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType={isCross ? 'next' : 'done'} onSubmitEditing={isCross ? undefined : () => handleSubmit()} />
                   {isCross && (
                     <>
                       <Text style={styles.label}>Montant reçu ({currencySymbolFor(dstCurrency)}) *</Text>
-                      <TextInput style={[styles.input, errorFields.includes('amountTo') && styles.inputError]} value={amountTo} onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); setErrorFields((p) => p.filter((f) => f !== 'amountTo')); setFormError(null); }} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
+                      <TextInput style={[styles.input, errorFields.includes('amountTo') && styles.inputError]} value={amountTo} onChangeText={(v) => { amountToTouched.current = true; setAmountTo(v); setErrorFields((p) => p.filter((f) => f !== 'amountTo')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
                       <Text style={styles.hint}>Proposé au taux du jour. Ajuste-le avec le montant RÉELLEMENT crédité sur ton relevé ({currencySymbolFor(srcCurrency)} → {currencySymbolFor(dstCurrency)}).</Text>
                     </>
                   )}
@@ -451,6 +452,7 @@ export default function AddTransactionScreen() {
                   value={dateDisplay}
                   onChangeText={(text) => { setDateDisplay(text); const parsed = parseDateFromFrench(text); if (parsed) setDate(parsed); }}
                   onBlur={() => { if (date) setDateDisplay(formatDateFrench(date)); }}
+                  onFocus={handleFocus}
                   placeholder="jj-mm-aaaa"
                   placeholderTextColor={COLORS.textSecondary}
                 />
@@ -479,7 +481,7 @@ export default function AddTransactionScreen() {
                     </View>
                     <Text style={styles.label}>Fin (optionnel, vide = sans fin)</Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                      <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={recurrenceEndDateInput} onChangeText={setRecurrenceEndDateInput} placeholder="jj-mm-aaaa ou vide" placeholderTextColor={COLORS.textSecondary} returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
+                      <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={recurrenceEndDateInput} onChangeText={setRecurrenceEndDateInput} onFocus={handleFocus} placeholder="jj-mm-aaaa ou vide" placeholderTextColor={COLORS.textSecondary} returnKeyType="done" onSubmitEditing={() => handleSubmit()} />
                       <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
                         <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
                       </TouchableOpacity>

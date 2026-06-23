@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator,
 } from 'react-native';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -620,12 +621,12 @@ export default function FinancialProfilesAdmin() {
           ))}
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {activeTab === 'simulate' && <SimulationSection userId={user.id} />}
           {activeTab === 'messages' && <MessagesSection userId={user.id} />}
           {activeTab === 'matrix'   && <MatrixSection userId={user.id} />}
           {activeTab === 'global'   && <GlobalSection userId={user.id} />}
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
       </SafeAreaView>
     </View>

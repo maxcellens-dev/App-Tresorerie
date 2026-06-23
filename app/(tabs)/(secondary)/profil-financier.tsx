@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import ScreenHeader from '../../../components/ScreenHeader';
+import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -210,7 +211,7 @@ export default function ProfilFinancierScreen() {
 
         <ScreenHeader title="Profil financier" onBack={goBack} />
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
           {/* ── Profil actuel ─────────────────────────────── */}
           {profile && profileId && alloc && !editing && (
@@ -423,7 +424,7 @@ export default function ProfilFinancierScreen() {
             </View>
           )}
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

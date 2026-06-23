@@ -13,6 +13,7 @@ import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
 import CurrencyPicker from '../../../components/CurrencyPicker';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
+import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 
 
 const TYPES = [
@@ -28,7 +29,7 @@ export default function AddAccountScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const addAccount = useAddAccount(user?.id);
-  const scrollRef = useRef<ScrollView>(null);
+  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
 
   const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
@@ -136,6 +137,7 @@ export default function AddAccountScreen() {
             style={[styles.input, errorFields.includes('name') && styles.inputError]}
             value={name}
             onChangeText={(v) => { setName(v); clearFieldError('name'); }}
+            onFocus={handleFocus}
             placeholder="Ex. Compte courant"
             placeholderTextColor={COLORS.textSecondary}
           />
@@ -183,6 +185,7 @@ export default function AddAccountScreen() {
                 style={styles.input}
                 value={initialContributed}
                 onChangeText={(v) => setInitialContributed(v.replace(/[^0-9.,]/g, ''))}
+                onFocus={handleFocus}
                 placeholder="Ex. 5000"
                 placeholderTextColor={COLORS.textSecondary}
                 keyboardType="decimal-pad"
@@ -199,6 +202,7 @@ export default function AddAccountScreen() {
             style={[styles.input, errorFields.includes('balance') && styles.inputError]}
             value={balance}
             onChangeText={(v) => { setBalance(v); clearFieldError('balance'); }}
+            onFocus={handleFocus}
             placeholder="0"
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
@@ -216,6 +220,7 @@ export default function AddAccountScreen() {
                 if (parsed) { setInitDate(parsed); clearFieldError('initDate'); }
               }}
               onBlur={() => { if (initDate) setInitDateDisplay(formatDateFrench(initDate)); }}
+              onFocus={handleFocus}
               placeholder="jj-mm-aaaa"
               placeholderTextColor={COLORS.textSecondary}
             />

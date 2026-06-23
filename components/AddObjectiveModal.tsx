@@ -16,6 +16,7 @@ import { useAccounts } from '../hooks/useAccounts';
 import type { Objective } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
+import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 
 
 interface AddObjectiveModalProps {
@@ -186,7 +187,7 @@ export default function AddObjectiveModal({
 
           {/* Form */}
           {!showAccountPicker ? (
-            <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               {/* Bandeau erreur */}
               {formError && (
                 <View style={[styles.errorBanner, { borderColor: COLORS.danger + '66', backgroundColor: COLORS.danger + '1F' }]}>
@@ -354,7 +355,7 @@ export default function AddObjectiveModal({
                   </Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           ) : (
             /* Account Picker */
             <View style={styles.form}>

@@ -5,6 +5,7 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
+import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -78,7 +79,7 @@ export default function AdminLanding() {
         <Text style={styles.title}>Page d'accueil (bureau)</Text>
         <Text style={styles.sub}>Affichée sur le web en grand écran. Sur mobile, l'accueil classique reste utilisé. Les boutons mènent aux pages de connexion / inscription.</Text>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
           {/* Général */}
           <View style={styles.card}>
             <View style={styles.rowBetween}>
@@ -191,7 +192,7 @@ export default function AdminLanding() {
             {save.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveLabel}>Enregistrer la page d'accueil</Text>}
           </TouchableOpacity>
           {msg && <Text style={[styles.msg, { color: msg.includes('Erreur') || msg.includes('Échec') ? COLORS.danger : COLORS.emerald }]}>{msg}</Text>}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

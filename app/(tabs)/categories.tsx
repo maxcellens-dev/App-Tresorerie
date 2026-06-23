@@ -13,6 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -180,7 +181,7 @@ export default function CategoriesScreen() {
         {!user ? (
           <Text style={styles.hint}>Connectez-vous pour gérer vos catégories.</Text>
         ) : (
-          <ScrollView
+          <KeyboardAwareScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -356,7 +357,7 @@ export default function CategoriesScreen() {
                 </View>
               </>
             )}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
 
