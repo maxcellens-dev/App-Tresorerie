@@ -432,6 +432,8 @@ export default function PilotageScreen() {
     };
     // On ne garde que les récurrences réellement actives CE mois (ex. une annuelle datée en juillet
     // ne compte pas en juin) → le modal et le curseur « dont récurrentes » affichent le même total.
+    // `_monthTotal` / `_monthPassed` : montant projeté du mois et part déjà échue (pour griser les
+    // occurrences à venir dans le modal et alimenter le filtre « À venir »).
     let recurringTotal = 0, recurringPassed = 0;
     const recurrentesApplicable: any[] = [];
     for (const t of recurrentes) {
@@ -439,15 +441,23 @@ export default function PilotageScreen() {
       if (r.total <= 0) continue;
       recurringTotal += r.total;
       recurringPassed += r.passed;
-      recurrentesApplicable.push(t);
+      // Date d'occurrence DANS le mois courant (le template d'une récurrente échue est avancé au mois
+      // suivant → sans ça le tri par date la renverrait tout en bas). Sert au tri ET à l'affichage.
+      const startDay = new Date((t.date ?? '').slice(0, 10) + 'T00:00:00').getDate() || 1;
+      const monthDate = `${y}-${String(mo).padStart(2, '0')}-${String(Math.min(startDay, daysInMonth)).padStart(2, '0')}`;
+      recurrentesApplicable.push({ ...t, _monthTotal: r.total, _monthPassed: r.passed, _monthDate: monthDate });
     }
+
+    // Virements épargne / invest récurrents : ne garder que ceux actifs ce mois (cohérence modal/curseur).
+    const transferAppliesThisMonth = (t: any) =>
+      !(Boolean(t.is_recurring) && Boolean(t.recurrence_rule)) || recurForMonth(t).total > 0;
 
     return {
       checking: accounts.filter((a) => a.type === 'checking'),
-      savings: savings.sort(byDateDesc),
-      invest: invest.sort(byDateDesc),
+      savings: savings.filter(transferAppliesThisMonth).sort(byDateDesc),
+      invest: invest.filter(transferAppliesThisMonth).sort(byDateDesc),
       spent: spent.sort(byDateDesc),
-      recurrentes: recurrentesApplicable.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount))),
+      recurrentes: recurrentesApplicable.sort((a, b) => (b._monthDate ?? '').localeCompare(a._monthDate ?? '')),
       recurringTotal,
       recurringPassed,
     };
@@ -1019,7 +1029,8 @@ export default function PilotageScreen() {
               const refCode = profile?.currency_code ?? 'EUR';
               const curByAcc: Record<string, string> = {};
               accounts.forEach((a) => { curByAcc[a.id] = a.currency; });
-              const toRef = (t: any) => convertAmount(Math.abs(Number(t.amount)), curByAcc[t.account_id] || refCode, refCode, rates) ?? Math.abs(Number(t.amount));
+              const toRefAmt = (amt: number, accountId: string) => convertAmount(amt, curByAcc[accountId] || refCode, refCode, rates) ?? amt;
+              const toRef = (t: any) => toRefAmt(Math.abs(Number(t.amount)), t.account_id);
               // Dépensé récurrent / variable du mois (mêmes valeurs que les curseurs « dont … »).
               const recurSpentMonth = Math.min(suiviDetail.recurringTotal ?? 0, suiviDetail.recurringPassed ?? 0);
               const varSpentMonth = Math.max(0, (pilotageData.month_expenses_past ?? 0) - recurSpentMonth);
@@ -1029,20 +1040,22 @@ export default function PilotageScreen() {
                 checking: 'Budget courant actuel', savings: 'Épargne du mois', invest: 'Investissement du mois',
                 spent: 'Dépensé ce mois', planned: 'Dépenses prévues restantes', relyka: 'Ton Relyka (Budget libre)',
               };
-              const txList = (list: any[], color: string, empty: string) => (
+              const txList = (list: any[], color: string, empty: string, dim?: (t: any) => boolean) => (
                 list.length === 0 ? <Text style={styles.detailEmpty}>{empty}</Text> :
                 list.map((t, i) => {
                   // Remboursement = montant positif (argent qui revient) → vert avec « + ».
                   const amt = Number(t.amount);
                   const isRefund = amt > 0;
-                  const valColor = isRefund ? semanticText(COLORS.green, COLORS) : color;
+                  // « Grisé » = occurrence à venir (non encore échue) → non comptée dans le total.
+                  const dimmed = dim ? dim(t) : false;
+                  const valColor = dimmed ? COLORS.textSecondary : (isRefund ? semanticText(COLORS.green, COLORS) : color);
                   return (
-                    <View key={t.id ?? i} style={styles.detailRow}>
-                      <Ionicons name={iconForTransaction(t) as any} size={16} color={isRefund ? semanticText(COLORS.green, COLORS) : COLORS.textSecondary} style={{ marginRight: 10 }} />
+                    <View key={t.id ?? i} style={[styles.detailRow, dimmed && { opacity: 0.5 }]}>
+                      <Ionicons name={iconForTransaction(t) as any} size={16} color={isRefund && !dimmed ? semanticText(COLORS.green, COLORS) : COLORS.textSecondary} style={{ marginRight: 10 }} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
                         {/* Date de la transaction (au lieu de la périodicité). */}
-                        <Text style={styles.detailRowSub}>{dts(t.date)}</Text>
+                        <Text style={styles.detailRowSub}>{dts(t._monthDate ?? t.date)}{dimmed ? ' · à venir' : ''}</Text>
                       </View>
                       <Text style={[styles.detailRowValue, { color: valColor }]}>{(isRefund ? '+' : '') + fmt(toRef(t))}</Text>
                     </View>
@@ -1136,35 +1149,52 @@ export default function PilotageScreen() {
                       <>
                         {plannedTab === 'recurrentes'
                           ? (() => {
-                            // Répartition par CATÉGORIE PARENTE (camembert cliquable → filtre la liste).
+                            // Échue (comptée) vs à venir (non échue ce mois) — `_monthPassed` = part déjà passée.
+                            const UPCOMING_KEY = '__upcoming__';
+                            const isUpcoming = (t: any) => (t._monthPassed ?? 0) <= 0;
+                            const parentName = (t: any) => catParentName[String(t.category?.name || 'Autre').toLowerCase()] || (t.category?.name || 'Autre');
+                            const viewingUpcoming = recurFilter === UPCOMING_KEY;
+                            // Montant compté (échu) / à venir (non échu) de chaque récurrence, en devise de réf.
+                            const passedAmt = (t: any) => toRefAmt(t._monthPassed ?? 0, t.account_id);
+                            const upcomingAmt = (t: any) => toRefAmt(Math.max(0, (t._monthTotal ?? 0) - (t._monthPassed ?? 0)), t.account_id);
+                            // Donut : par défaut les ÉCHUES (= ce qui est compté) ; les à-venir n'y figurent QUE
+                            // si l'on sélectionne le filtre « À venir ».
+                            const donutSource = suiviDetail.recurrentes.filter((t) => (viewingUpcoming ? isUpcoming(t) : !isUpcoming(t)));
+                            const amtOf = viewingUpcoming ? upcomingAmt : passedAmt;
                             const groups: Record<string, { key: string; total: number; icon: string; color: string }> = {};
-                            for (const t of suiviDetail.recurrentes) {
-                              const sub = t.category?.name || 'Autre';
-                              const key = catParentName[String(sub).toLowerCase()] || sub;
+                            for (const t of donutSource) {
+                              const key = parentName(t);
                               (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
-                              groups[key].total += toRef(t);
+                              groups[key].total += amtOf(t);
                             }
                             const palette = [COLORS.orange, COLORS.danger, COLORS.violet, COLORS.blue, COLORS.green, COLORS.teal, COLORS.yellow, COLORS.emerald, COLORS.checking];
-                            const arr = Object.values(groups).sort((a, b) => b.total - a.total);
+                            const arr = Object.values(groups).filter((g) => g.total > 0).sort((a, b) => b.total - a.total);
                             arr.forEach((g, i) => { g.color = palette[i % palette.length]; });
-                            const totalRecur = arr.reduce((s, g) => s + g.total, 0);
-                            const filtered = recurFilter
-                              ? suiviDetail.recurrentes.filter((t) => (catParentName[String(t.category?.name || 'Autre').toLowerCase()] || (t.category?.name || 'Autre')) === recurFilter)
-                              : suiviDetail.recurrentes;
+                            const totalDonut = arr.reduce((s, g) => s + g.total, 0);
+                            const upcomingTotal = suiviDetail.recurrentes.reduce((s, t) => s + upcomingAmt(t), 0);
+                            // Liste : « À venir » → seulement les non-échues ; catégorie → cette catégorie ; sinon tout.
+                            const list = viewingUpcoming
+                              ? suiviDetail.recurrentes.filter(isUpcoming)
+                              : recurFilter
+                                ? suiviDetail.recurrentes.filter((t) => parentName(t) === recurFilter)
+                                : suiviDetail.recurrentes;
+                            const centerVal = viewingUpcoming ? upcomingTotal : (recurFilter ? (groups[recurFilter]?.total ?? 0) : totalDonut);
                             return (
                               <>
                                 {arr.length > 0 && (
+                                  <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                                    <CategoryDonut
+                                      segments={arr.map((g) => ({ key: g.key, value: g.total, color: g.color }))}
+                                      size={150}
+                                      strokeWidth={20}
+                                      activeKey={viewingUpcoming ? null : recurFilter}
+                                      centerLabel={fmt(centerVal)}
+                                      centerColor={COLORS.text}
+                                    />
+                                  </View>
+                                )}
+                                {(arr.length > 0 || upcomingTotal > 0) && (
                                   <>
-                                    <View style={{ alignItems: 'center', marginBottom: 10 }}>
-                                      <CategoryDonut
-                                        segments={arr.map((g) => ({ key: g.key, value: g.total, color: g.color }))}
-                                        size={150}
-                                        strokeWidth={20}
-                                        activeKey={recurFilter}
-                                        centerLabel={fmt(recurFilter ? (groups[recurFilter]?.total ?? 0) : totalRecur)}
-                                        centerColor={COLORS.text}
-                                      />
-                                    </View>
                                     <View style={styles.pieLegend}>
                                       {arr.map((g) => {
                                         const active = recurFilter === g.key;
@@ -1182,11 +1212,23 @@ export default function PilotageScreen() {
                                           </TouchableOpacity>
                                         );
                                       })}
+                                      {/* Chip « À venir » : occurrences non encore échues (non comptées). Filtre au clic. */}
+                                      {upcomingTotal > 0 && (
+                                        <TouchableOpacity
+                                          style={[styles.pieLegendItem, viewingUpcoming && { borderColor: COLORS.textSecondary, backgroundColor: COLORS.textSecondary + '1A' }]}
+                                          onPress={() => setRecurFilter(viewingUpcoming ? null : UPCOMING_KEY)}
+                                          activeOpacity={0.7}
+                                        >
+                                          <Ionicons name="time-outline" size={13} color={COLORS.textSecondary} />
+                                          <Text style={styles.pieLegendText} numberOfLines={1}>À venir</Text>
+                                          <Text style={[styles.pieLegendVal, { color: COLORS.textSecondary }]}>{fmt(upcomingTotal)}</Text>
+                                        </TouchableOpacity>
+                                      )}
                                     </View>
                                     <View style={styles.suiviDivider} />
                                   </>
                                 )}
-                                {txList(filtered, semanticText(COLORS.orange, COLORS), 'Aucune dépense récurrente.')}
+                                {txList(list, semanticText(COLORS.orange, COLORS), 'Aucune dépense récurrente.', isUpcoming)}
                               </>
                             );
                           })()
