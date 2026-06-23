@@ -682,10 +682,13 @@ export default function PilotageScreen() {
               // Variables : reste estimé sur l'enveloppe (curseur inversé = restant / total estimé).
               const varRemaining = pilotageData.variable_envelope_remaining ?? 0;
               const varInitial = Math.max(varRemaining, pilotageData.variable_envelope_initial ?? 0);
-              // Récurrentes : total projeté du mois + part déjà passée (curseur passé / total).
+              // Récurrentes : total projeté du mois + part déjà DÉPENSÉE (curseur = dépensé / total, monte au
+              // fil du mois ; le dépensé ne peut pas dépasser le total attendu).
               const recurTotal = suiviDetail.recurringTotal ?? 0;
-              const recurPassed = suiviDetail.recurringPassed ?? 0;
-              const recurRemaining = Math.max(0, recurTotal - recurPassed);
+              const recurSpent = Math.min(recurTotal, suiviDetail.recurringPassed ?? 0);
+              // Variables : tout le dépensé NON récurrent (= total dépensé − récurrentes passées). Monte de 0
+              // jusqu'à l'estimé et peut le DÉPASSER (curseur plafonné à 100 %). Invariant : récur. + var. = total.
+              const varSpent = Math.max(0, depPast - recurSpent);
 
               const rest = resteDisponible;
 
@@ -748,13 +751,13 @@ export default function PilotageScreen() {
                   <View style={styles.suiviBlock}>
                     <View style={styles.suiviBlockHead}>
                       <Ionicons name="card" size={18} color={COLORS.danger} />
-                      <Text style={styles.suiviBlockTitle}>Dépensé</Text>
+                      <Text style={styles.suiviBlockTitle}>Dépenses du mois</Text>
                     </View>
                     {/* Ce mois : montant à gauche, % des dépenses prévues estimées à droite (curseur = % plafonné à 100 %) */}
                     <TouchableOpacity style={styles.depBandBig} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>
                       <View style={[styles.depBandFill, { width: `${spentFillW}%`, backgroundColor: halfFill(COLORS.danger) }]} />
                       <View style={styles.depBandBigContent}>
-                        <Text style={styles.depBandBigLabel}>Ce mois</Text>
+                        <Text style={styles.depBandBigLabel}>Total dépensé</Text>
                         <View style={styles.depBandBigRow}>
                           <Text style={[styles.depBandBigValue, { color: semanticText(COLORS.danger, COLORS) }]}>{fmt(depPast)}</Text>
                           <Text style={styles.depBandBigPct} numberOfLines={2}>{spentPct}% des dépenses prévues estimées</Text>
@@ -764,21 +767,21 @@ export default function PilotageScreen() {
                     {/* Récurrentes + Variables prévues : montant à gauche, /total à droite (curseur = restant / total) */}
                     <View style={styles.suiviRow2}>
                       <TouchableOpacity style={styles.depMini} activeOpacity={0.7} onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}>
-                        <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurRemaining / recurTotal) * 100) : 0}%`, backgroundColor: halfFill(COLORS.orange) }]} />
+                        <View style={[styles.depBandFill, { width: `${recurTotal > 0 ? Math.min(100, (recurSpent / recurTotal) * 100) : 0}%`, backgroundColor: halfFill(COLORS.orange) }]} />
                         <View style={styles.depMiniContent}>
-                          <Text style={styles.depMiniLabel} numberOfLines={1}>Récurrentes</Text>
+                          <Text style={styles.depMiniLabel} numberOfLines={1}>dont récurrentes</Text>
                           <View style={styles.depMiniValueRow}>
-                            <Text style={[styles.depMiniValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurRemaining)}</Text>
+                            <Text style={[styles.depMiniValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(recurSpent)}</Text>
                             <Text style={styles.depMiniTotal}>/ {fmt(recurTotal)}</Text>
                           </View>
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.depMini} activeOpacity={0.7} onPress={() => { setPlannedTab('variables'); setDetailKey('planned'); }}>
-                        <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varRemaining / varInitial) * 100) : 0}%`, backgroundColor: halfFill(COLORS.yellow) }]} />
+                        <View style={[styles.depBandFill, { width: `${varInitial > 0 ? Math.min(100, (varSpent / varInitial) * 100) : 0}%`, backgroundColor: halfFill(COLORS.yellow) }]} />
                         <View style={styles.depMiniContent}>
-                          <Text style={styles.depMiniLabel} numberOfLines={1}>Variables prévues</Text>
+                          <Text style={styles.depMiniLabel} numberOfLines={1}>dont variables</Text>
                           <View style={styles.depMiniValueRow}>
-                            <Text style={[styles.depMiniValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varRemaining)}</Text>
+                            <Text style={[styles.depMiniValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(varSpent)}</Text>
                             <Text style={styles.depMiniTotal}>/ {fmt(varInitial)}</Text>
                           </View>
                         </View>
