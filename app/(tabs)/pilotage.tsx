@@ -430,15 +430,24 @@ export default function PilotageScreen() {
       }
       return { total: 0, passed: 0 };
     };
+    // On ne garde que les récurrences réellement actives CE mois (ex. une annuelle datée en juillet
+    // ne compte pas en juin) → le modal et le curseur « dont récurrentes » affichent le même total.
     let recurringTotal = 0, recurringPassed = 0;
-    for (const t of recurrentes) { const r = recurForMonth(t); recurringTotal += r.total; recurringPassed += r.passed; }
+    const recurrentesApplicable: any[] = [];
+    for (const t of recurrentes) {
+      const r = recurForMonth(t);
+      if (r.total <= 0) continue;
+      recurringTotal += r.total;
+      recurringPassed += r.passed;
+      recurrentesApplicable.push(t);
+    }
 
     return {
       checking: accounts.filter((a) => a.type === 'checking'),
       savings: savings.sort(byDateDesc),
       invest: invest.sort(byDateDesc),
       spent: spent.sort(byDateDesc),
-      recurrentes: recurrentes.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount))),
+      recurrentes: recurrentesApplicable.sort((a, b) => Math.abs(Number(b.amount)) - Math.abs(Number(a.amount))),
       recurringTotal,
       recurringPassed,
     };
@@ -1004,6 +1013,16 @@ export default function PilotageScreen() {
           <Pressable style={styles.detailBox} onPress={() => {}}>
             {(() => {
               const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+              // Montant d'une transaction CONVERTI dans la devise de référence (comme les curseurs).
+              // Sans ça, un virement cross-devises (ex. −999,50 ¥) s'affichait « 1000 € » au lieu de ≈ 6 €,
+              // d'où l'écart modal/curseur sur Épargné / Investi / Dépensé.
+              const refCode = profile?.currency_code ?? 'EUR';
+              const curByAcc: Record<string, string> = {};
+              accounts.forEach((a) => { curByAcc[a.id] = a.currency; });
+              const toRef = (t: any) => convertAmount(Math.abs(Number(t.amount)), curByAcc[t.account_id] || refCode, refCode, rates) ?? Math.abs(Number(t.amount));
+              // Dépensé récurrent / variable du mois (mêmes valeurs que les curseurs « dont … »).
+              const recurSpentMonth = Math.min(suiviDetail.recurringTotal ?? 0, suiviDetail.recurringPassed ?? 0);
+              const varSpentMonth = Math.max(0, (pilotageData.month_expenses_past ?? 0) - recurSpentMonth);
               const dts = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
               const lbl = (t: any) => t.note || t.category?.name || 'Opération';
               const titles: Record<string, string> = {
@@ -1025,7 +1044,7 @@ export default function PilotageScreen() {
                         {/* Date de la transaction (au lieu de la périodicité). */}
                         <Text style={styles.detailRowSub}>{dts(t.date)}</Text>
                       </View>
-                      <Text style={[styles.detailRowValue, { color: valColor }]}>{(isRefund ? '+' : '') + fmt(Math.abs(amt))}</Text>
+                      <Text style={[styles.detailRowValue, { color: valColor }]}>{(isRefund ? '+' : '') + fmt(toRef(t))}</Text>
                     </View>
                   );
                 })
@@ -1067,7 +1086,7 @@ export default function PilotageScreen() {
                       for (const t of suiviDetail.spent) {
                         const key = parentOf(t);
                         (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
-                        groups[key].total += Math.abs(Number(t.amount));
+                        groups[key].total += toRef(t);
                       }
                       const palette = [COLORS.danger, COLORS.orange, COLORS.violet, COLORS.blue, COLORS.green, COLORS.teal, COLORS.yellow, COLORS.emerald, COLORS.checking];
                       const arr = Object.values(groups).sort((a, b) => b.total - a.total);
@@ -1085,7 +1104,6 @@ export default function PilotageScreen() {
                                   strokeWidth={20}
                                   activeKey={spentFilter}
                                   centerLabel={fmt(spentFilter ? (groups[spentFilter]?.total ?? 0) : totalSpent)}
-                                  centerSub={spentFilter ?? 'Total'}
                                   centerColor={COLORS.text}
                                 />
                               </View>
@@ -1124,7 +1142,7 @@ export default function PilotageScreen() {
                               const sub = t.category?.name || 'Autre';
                               const key = catParentName[String(sub).toLowerCase()] || sub;
                               (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
-                              groups[key].total += Math.abs(Number(t.amount));
+                              groups[key].total += toRef(t);
                             }
                             const palette = [COLORS.orange, COLORS.danger, COLORS.violet, COLORS.blue, COLORS.green, COLORS.teal, COLORS.yellow, COLORS.emerald, COLORS.checking];
                             const arr = Object.values(groups).sort((a, b) => b.total - a.total);
@@ -1144,7 +1162,6 @@ export default function PilotageScreen() {
                                         strokeWidth={20}
                                         activeKey={recurFilter}
                                         centerLabel={fmt(recurFilter ? (groups[recurFilter]?.total ?? 0) : totalRecur)}
-                                        centerSub={recurFilter ?? 'Total'}
                                         centerColor={COLORS.text}
                                       />
                                     </View>
@@ -1184,8 +1201,8 @@ export default function PilotageScreen() {
                               </Text>
                               {[
                                 { l: 'Enveloppe estimée', v: pilotageData.variable_envelope_initial, c: COLORS.text },
-                                { l: 'Déjà dépensé ce mois', v: pilotageData.variable_envelope_spent, c: COLORS.textSecondary },
-                                { l: 'Restant estimé', v: pilotageData.variable_envelope_remaining, c: semanticText(COLORS.orange, COLORS) },
+                                { l: 'Déjà dépensé ce mois', v: varSpentMonth, c: COLORS.textSecondary },
+                                { l: 'Restant estimé', v: Math.max(0, (pilotageData.variable_envelope_initial ?? 0) - varSpentMonth), c: semanticText(COLORS.orange, COLORS) },
                               ].map((r) => (
                                 <View key={r.l} style={styles.detailRow}>
                                   <Text style={[styles.detailRowLabel, { flex: 1 }]}>{r.l}</Text>

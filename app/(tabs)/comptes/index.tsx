@@ -288,7 +288,7 @@ export default function AccountsListScreen() {
                     </View>
                     {/* Solde */}
                     <View style={styles.accountBalanceWrap}>
-                      <Text style={styles.accountBalance}>
+                      <Text style={[styles.accountBalance, acc.balance < 0 && { color: COLORS.danger }]}>
                         {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
                       </Text>
                       <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
