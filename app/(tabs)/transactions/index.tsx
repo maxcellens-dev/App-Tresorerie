@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
@@ -95,7 +96,12 @@ export default function TransactionsListScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const onbRecurring = useOnbHighlight('recurring_tx');
   const router = useRouter();
+  const goBack = useNavBack();
   const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();
+  // Arrivée en deep-link depuis la Tréso (« voir transactions ») : focusMonth est posé par tous ces
+  // liens. Dans ce cas seulement, on affiche un bouton « Retour » vers la page précédente (Tréso).
+  // En arrivant par l'onglet Transactions du menu (aucun param), le bouton n'apparaît pas.
+  const cameFromDeepLink = !!params.focusMonth;
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -474,6 +480,12 @@ export default function TransactionsListScreen() {
       <PageIntroModal pageKey="transactions" />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+        {cameFromDeepLink && (
+          <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+            <Text style={styles.backText}>Retour</Text>
+          </TouchableOpacity>
+        )}
         {showPeriodNav && (
           <View style={styles.periodNav} ref={periodNavRef}>
             <TouchableOpacity
@@ -839,6 +851,8 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
+  backText: { fontSize: 14, fontWeight: '600', color: c.text },
   header: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
   title: { fontSize: 24, fontWeight: '700', color: c.text },
   addBtn: {

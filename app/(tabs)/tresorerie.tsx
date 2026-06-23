@@ -216,6 +216,12 @@ export default function TreasuryPlanScreen() {
     monthKey: string;
     mouvementType: 'epargne' | 'invest';
   } | null>(null);
+  const [virementChoiceModal, setVirementChoiceModal] = useState<{
+    visible: boolean;
+    monthKey: string;
+    mouvementType: 'epargne' | 'invest';
+    existingDrafts: TransactionWithDetails[];
+  } | null>(null);
   const [virementAmount, setVirementAmount] = useState('');
   const [virementNote, setVirementNote] = useState('');
   const [virementDestAccountId, setVirementDestAccountId] = useState('');
@@ -265,29 +271,36 @@ export default function TreasuryPlanScreen() {
     const mouvEpargne: Record<string, number> = {};
     const mouvInvest: Record<string, number> = {};
     const mouvProjets: Record<string, number> = {};
+    // Transactions par mois pour chaque type de mouvement (pour proposer « Voir les transactions »)
+    const mouvEpargneTx: Record<string, TransactionWithDetails[]> = {};
+    const mouvInvestTx: Record<string, TransactionWithDetails[]> = {};
     // Track regul by note (raw signed amounts) for the gray row under Frais variables
     const regulByMonth: Record<string, number> = {};
     months.forEach((m) => {
       mouvEpargne[m.key] = 0;
       mouvInvest[m.key] = 0;
       mouvProjets[m.key] = 0;
+      mouvEpargneTx[m.key] = [];
+      mouvInvestTx[m.key] = [];
       regulByMonth[m.key] = 0;
     });
 
     // Helper: accumulate a signed amount into a Mouvements bucket (handles recurring)
-    const addToMouv = (bucket: Record<string, number>, t: TransactionWithDetails, rawAmt: number) => {
+    const addToMouv = (bucket: Record<string, number>, t: TransactionWithDetails, rawAmt: number, txBucket?: Record<string, TransactionWithDetails[]>) => {
       if (t.is_recurring && t.recurrence_rule) {
         for (const m of months) {
           const calc = addRecurrenceToMonth(m.year, m.month, rawAmt, t.date, t.recurrence_rule as RecurrenceRule, t.recurrence_end_date ?? null, now);
           const key = getOverrideKey(t.id, m.year, m.month);
           const final = overridesMap[key] !== undefined ? overridesMap[key] : calc;
           bucket[m.key] = (bucket[m.key] ?? 0) + final;
+          if (txBucket && Math.abs(final) > 0) txBucket[m.key].push(t);
         }
       } else {
         const [y, mo] = t.date.split('-').map(Number);
         const mKey = getMonthKey(y, mo);
         if (months.some((m) => m.key === mKey)) {
           bucket[mKey] = (bucket[mKey] ?? 0) + rawAmt;
+          if (txBucket) txBucket[mKey].push(t);
         }
       }
     };
@@ -315,8 +328,8 @@ export default function TreasuryPlanScreen() {
       if (isProjectTx && (t as any).is_reserved) { addToMouv(mouvProjets, t, amount); continue; }
       // Les virements de projet vers épargne / investissement comptent comme de l'épargne / de l'invest
       // (comme un virement manuel) — qu'ils soient validés ou en brouillon.
-      if (isSavingsMove) { addToMouv(mouvEpargne, t, amount); continue; }
-      if (isInvestMove) { addToMouv(mouvInvest, t, amount); continue; }
+      if (isSavingsMove) { addToMouv(mouvEpargne, t, amount, mouvEpargneTx); continue; }
+      if (isInvestMove) { addToMouv(mouvInvest, t, amount, mouvInvestTx); continue; }
       // Réservations même-compte (projet) → Réservé.
       if (isProjectTx && isChecking) { addToMouv(mouvProjets, t, amount); continue; }
 
@@ -676,7 +689,10 @@ export default function TreasuryPlanScreen() {
     const mouvTotal: Record<string, number> = {};
     months.forEach((m) => {
       mouvTotal[m.key] = (mouvProjets[m.key] ?? 0) + (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
-      expenseCatTotals[m.key] += Math.abs(mouvTotal[m.key]);
+      // Coût NET signé : un virement SORTANT du courant (vers épargne/invest, montant négatif) est
+      // une dépense (+) ; un virement ENTRANT (retrait d'épargne vers le courant, montant positif)
+      // est une rentrée → réduit le total DÉPENSES. `-mouvTotal` donne ce signe.
+      expenseCatTotals[m.key] += -mouvTotal[m.key];
     });
 
     // DÉPENSES total header (inclut les mouvements)
@@ -695,7 +711,7 @@ export default function TreasuryPlanScreen() {
       if (regulRow) rows.push(regulRow);
     });
 
-    return { rows, months, txByMonthCategory };
+    return { rows, months, txByMonthCategory, mouvEpargneTx, mouvInvestTx };
   }, [transactions, months, incomeGrouped, expenseGrouped, overrides, checkingBalance, pilotage, currentYear, currentMonth]);
 
   const goToTransactions = (monthKey: string, categoryId: string | null) => {
@@ -742,6 +758,14 @@ export default function TreasuryPlanScreen() {
     setDraftNote('');
     setDraftAccountId(defaultAccount?.id ?? '');
     setDraftModal({ visible: true, monthKey, categoryId, categoryName: cat?.name ?? '', rowType });
+  };
+
+  const openVirementDraft = (monthKey: string, mouvementType: 'epargne' | 'invest') => {
+    const destAccounts = accounts.filter((a) => a.type === (mouvementType === 'epargne' ? 'savings' : 'investment'));
+    setVirementDestAccountId(destAccounts[0]?.id ?? '');
+    setVirementAmount('');
+    setVirementNote('');
+    setVirementDraftModal({ visible: true, monthKey, mouvementType });
   };
 
   const handleCreateDraft = async () => {
@@ -974,9 +998,11 @@ export default function TreasuryPlanScreen() {
                     const val = row.values[m.key] ?? 0;
                     const isPos = val >= 0;
                     const isBalance = row.type === 'balance';
-                    // Mouvements en positif (valeur absolue). Dépenses = coût NET signé (un
-                    // remboursement > dépense affiche un crédit négatif). Soldes gardent leur signe.
-                    const displayVal = row.type === 'mouvement' ? Math.abs(val) : val;
+                    // Mouvements = coût NET signé : un virement sortant (vers épargne/invest) est
+                    // positif (dépense) ; un virement entrant (retrait vers le courant) est négatif
+                    // (rentrée). Dépenses = coût NET signé (un remboursement > dépense affiche un
+                    // crédit négatif). Soldes gardent leur signe.
+                    const displayVal = row.type === 'mouvement' ? -val : val;
                     // Mois antérieurs = réalisé → recettes vertes / dépenses rouges.
                     // Mois en cours + futurs = projection → neutre (blanc), sauf brouillon (orange) / prévisionnel (gris).
                     const isPastMonth = m.key < getMonthKey(currentYear, currentMonth);
@@ -993,11 +1019,14 @@ export default function TreasuryPlanScreen() {
                         onPress={() => {
                           const isFuture = m.key > getMonthKey(currentYear, currentMonth);
                           if (isFuture && row.mouvementType) {
-                            const destAccounts = accounts.filter((a) => a.type === (row.mouvementType === 'epargne' ? 'savings' : 'investment'));
-                            setVirementDestAccountId(destAccounts[0]?.id ?? '');
-                            setVirementAmount('');
-                            setVirementNote('');
-                            setVirementDraftModal({ visible: true, monthKey: m.key, mouvementType: row.mouvementType });
+                            const txMap = row.mouvementType === 'epargne' ? planData.mouvEpargneTx : planData.mouvInvestTx;
+                            const allTx = txMap?.[m.key] ?? [];
+                            if (allTx.length > 0) {
+                              const existingDrafts = allTx.filter((t) => !!(t as any).is_draft);
+                              setVirementChoiceModal({ visible: true, monthKey: m.key, mouvementType: row.mouvementType, existingDrafts });
+                            } else {
+                              openVirementDraft(m.key, row.mouvementType);
+                            }
                           } else if (row.categoryId && !row.isTotalLine && !row.isSectionHeader) {
                             if (isFuture && row.isChild && (row.type === 'expense' || row.type === 'income')) {
                               const allTx = planData.txByMonthCategory?.[row.categoryId]?.[m.key] ?? [];
@@ -1033,7 +1062,9 @@ export default function TreasuryPlanScreen() {
                             isPastMonth && row.type === 'income' && styles.cellNumPositive,
                             isPastMonth && row.type === 'expense' && row.label !== 'Dépenses variables' && styles.cellNumNegative,
                             isBalance && (isPos ? styles.cellNumPositive : styles.cellNumNegative),
-                            isPastMonth && row.type === 'mouvement' && !row.isSectionHeader && styles.cellNumNegative,
+                            // Mouvement entrant (rentrée, displayVal < 0) → vert ; sortant réalisé → rouge
+                            row.type === 'mouvement' && !row.isSectionHeader && displayVal < 0 && styles.cellNumPositive,
+                            isPastMonth && row.type === 'mouvement' && !row.isSectionHeader && displayVal > 0 && styles.cellNumNegative,
                             row.isParentCategory && styles.cellNumTextParentCategory,
                             row.isSectionHeader && styles.cellNumTextSectionTotal,
                             row.isSectionHeader && row.type === 'mouvement' && styles.cellNumSectionMouvements,
@@ -1107,21 +1138,21 @@ export default function TreasuryPlanScreen() {
               style={styles.menuOption}
               onPress={() => {
                 setMenuModalState({ visible: false });
-                openEditModal(menuModalState.monthKey || '', menuModalState.categoryId ?? null, menuModalState.value || 0);
+                goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId ?? null);
               }}
             >
-              <Ionicons name="pencil" size={20} color={COLORS.green} />
-              <Text style={styles.menuOptionText}>Modifier montant</Text>
+              <Ionicons name="eye" size={20} color="#60a5fa" />
+              <Text style={styles.menuOptionText}>Voir transaction(s)</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.menuOption}
               onPress={() => {
                 setMenuModalState({ visible: false });
-                goToTransactions(menuModalState.monthKey || '', menuModalState.categoryId ?? null);
+                openEditModal(menuModalState.monthKey || '', menuModalState.categoryId ?? null, menuModalState.value || 0);
               }}
             >
-              <Ionicons name="eye" size={20} color="#60a5fa" />
-              <Text style={styles.menuOptionText}>Voir transaction</Text>
+              <Ionicons name="pencil" size={20} color={COLORS.green} />
+              <Text style={styles.menuOptionText}>Modifier montant</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -1165,7 +1196,7 @@ export default function TreasuryPlanScreen() {
               }}
             >
               <Ionicons name="eye-outline" size={20} color="#60a5fa" />
-              <Text style={styles.menuOptionText}>Voir les transactions</Text>
+              <Text style={styles.menuOptionText}>Voir transaction(s)</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.menuOption}
@@ -1176,7 +1207,7 @@ export default function TreasuryPlanScreen() {
               }}
             >
               <Ionicons name="add-circle-outline" size={20} color={COLORS.green} />
-              <Text style={styles.menuOptionText}>Créer une nouvelle</Text>
+              <Text style={styles.menuOptionText}>Créer une transaction prévisionnelle</Text>
             </TouchableOpacity>
             {draftChoiceModal?.existingDrafts.map((draft) => (
               <TouchableOpacity
@@ -1262,6 +1293,62 @@ export default function TreasuryPlanScreen() {
               <Ionicons name="time-outline" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
               <Text style={styles.draftSubmitLabel}>Enregistrer en brouillon</Text>
             </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Virement Choice Modal (Épargne / Investissements — mois futur avec mouvements) */}
+      <Modal
+        visible={!!virementChoiceModal?.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVirementChoiceModal(null)}
+      >
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => setVirementChoiceModal(null)} activeOpacity={1}>
+          <TouchableOpacity style={styles.menuContainer} onPress={() => {}} activeOpacity={1}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>{virementChoiceModal?.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'}</Text>
+              <TouchableOpacity onPress={() => setVirementChoiceModal(null)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.menuOption}
+              onPress={() => {
+                const c = virementChoiceModal;
+                setVirementChoiceModal(null);
+                if (c) router.push(`/(tabs)/transactions?focusMonth=${c.monthKey}&filterType=mouvements&singleMonth=1` as any);
+              }}
+            >
+              <Ionicons name="eye-outline" size={20} color="#60a5fa" />
+              <Text style={styles.menuOptionText}>Voir transaction(s)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuOption}
+              onPress={() => {
+                const c = virementChoiceModal;
+                setVirementChoiceModal(null);
+                if (c) openVirementDraft(c.monthKey, c.mouvementType);
+              }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.green} />
+              <Text style={styles.menuOptionText}>Créer un virement prévisionnel</Text>
+            </TouchableOpacity>
+            {virementChoiceModal?.existingDrafts.map((draft) => (
+              <TouchableOpacity
+                key={draft.id}
+                style={styles.menuOption}
+                onPress={() => {
+                  setVirementChoiceModal(null);
+                  router.push(`/(tabs)/transactions/edit/${draft.id}` as any);
+                }}
+              >
+                <Ionicons name="create-outline" size={20} color="#f59e0b" />
+                <Text style={styles.menuOptionText} numberOfLines={1}>
+                  Modifier · {draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>

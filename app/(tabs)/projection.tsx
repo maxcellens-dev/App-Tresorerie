@@ -25,6 +25,7 @@ import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } 
 import { useAuth } from '../../contexts/AuthContext';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useTransactions } from '../../hooks/useTransactions';
+import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
 import { useAppColors } from '../../hooks/useAppColors';
@@ -144,6 +145,7 @@ export default function ProjectionScreen() {
   const router = useRouter();
   const { data: pilotage } = usePilotageData(user?.id);
   const { data: rawTransactions = [] } = useTransactions(user?.id);
+  const { data: monthOverrides = [] } = useTransactionMonthOverrides(user?.id);
   const { data: answers } = useQuestionnaireAnswers(user?.id);
   const { data: rawAllAccounts = [] } = useAccounts(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
@@ -166,6 +168,22 @@ export default function ProjectionScreen() {
     () => rawTransactions.map((t) => ({ ...t, amount: convertAmount(Number(t.amount), (t as any).account?.currency || refCode, refCode, rates) ?? Number(t.amount) })),
     [rawTransactions, rates, refCode],
   );
+
+  // Overrides « échéance modifiée » (transaction_month_overrides) : montant FINAL signé d'un mois
+  // donné pour une récurrence. Converti dans la devise de référence (comme les transactions) et
+  // indexé `${transaction_id}:${year}:${month}` → utilisé par la trésorerie simplifiée pour que la
+  // Projection reflète les montants édités, comme le fait le plan de trésorerie.
+  const overridesMap = useMemo(() => {
+    const txById = new Map(rawTransactions.map((t) => [t.id, t]));
+    const map: Record<string, number> = {};
+    for (const o of monthOverrides) {
+      const t = txById.get(o.transaction_id);
+      const cur = (t as any)?.account?.currency || refCode;
+      const conv = convertAmount(Number(o.override_amount), cur, refCode, rates) ?? Number(o.override_amount);
+      map[`${o.transaction_id}:${o.year}:${o.month}`] = conv;
+    }
+    return map;
+  }, [monthOverrides, rawTransactions, rates, refCode]);
 
   const chartWidth = Math.min(width - 48, 560);
   const num = (s: string) => parseFloat(String(s).replace(/\s/g, '').replace(/,/g, '.')) || 0;
@@ -524,7 +542,7 @@ export default function ProjectionScreen() {
           {/* ═══════ INVESTISSEMENTS ═══════ */}
           {/* ═══════ TRÉSORERIE SIMPLIFIÉE ═══════ */}
           {activeTab === 'treso' && (
-            <TresoSimplified transactions={transactions} accounts={allAccounts} pilotage={pilotage} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} />
+            <TresoSimplified transactions={transactions} accounts={allAccounts} pilotage={pilotage} overridesMap={overridesMap} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} />
           )}
 
           {activeTab === 'invest' && (<>
@@ -849,8 +867,8 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0 }: {
 }
 
 // ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
-function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onOpenDetail }: {
-  transactions: any[]; accounts: any[]; pilotage: any; COLORS: any; styles: any; onOpenDetail: () => void;
+function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLORS, styles, onOpenDetail }: {
+  transactions: any[]; accounts: any[]; pilotage: any; overridesMap: Record<string, number>; COLORS: any; styles: any; onOpenDetail: () => void;
 }) {
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
   const { width: winW } = useWindowDimensions();
@@ -914,6 +932,11 @@ function TresoSimplified({ transactions, accounts, pilotage, COLORS, styles, onO
   };
 
   function recurrenceAmount(t: any, year: number, month: number): number {
+    // Échéance modifiée : un override remplace le montant calculé pour ce mois précis (signé),
+    // exactement comme dans le plan de trésorerie. Sans cela, la Projection garderait le montant
+    // récurrent de base et ignorerait l'édition d'une échéance.
+    const okey = `${t.id}:${year}:${month}`;
+    if (overridesMap[okey] !== undefined) return overridesMap[okey];
     const rule = t.recurrence_rule;
     const start = new Date(t.date);
     const end = t.recurrence_end_date ? new Date(t.recurrence_end_date) : new Date(year + 5, 0, 1);
