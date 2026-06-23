@@ -326,14 +326,13 @@ export default function StyleEditor() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-            <Ionicons name="chevron-back" size={22} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
+            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+            <Text style={styles.backLabel}>Retour</Text>
           </TouchableOpacity>
           <View>
             <Text style={styles.headerTitle}>Design System</Text>
             <Text style={styles.headerSub}>Identité visuelle de l'app</Text>
           </View>
-          <View style={{ width: 36 }} />
         </View>
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -873,10 +872,11 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: c.text, letterSpacing: -0.4, textAlign: 'center' },
-  headerSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, textAlign: 'center' },
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: c.text, letterSpacing: -0.4 },
+  headerSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
