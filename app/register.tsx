@@ -19,7 +19,7 @@ export default function RegisterScreen() {
   const COLORS = useBrandColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -65,7 +65,7 @@ export default function RegisterScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
+          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Vos données seront synchronisées et sauvegardées.</Text>
 

@@ -29,7 +29,7 @@ export default function AddAccountScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const addAccount = useAddAccount(user?.id);
-  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
 
   const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
@@ -123,7 +123,7 @@ export default function AddAccountScreen() {
         <Text style={styles.title}>Nouveau compte</Text>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
           {/* Bandeau d'erreur global */}
           {formError && (
             <View style={styles.errorBanner}>

@@ -67,7 +67,7 @@ export default function AddTransactionScreen() {
   const [errorFields, setErrorFields] = useState<string[]>([]);
   // Saisie en 2 étapes (style banque) : étape 1 = qui/quoi, étape 2 = quand/récurrence.
   const [step, setStep] = useState<1 | 2>(1);
-  const { scrollRef, handleFocus } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
 
   const isExpense = transactionType === 'expense';
   const isIncome = transactionType === 'income';
@@ -295,7 +295,7 @@ export default function AddTransactionScreen() {
       <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title="Nouvelle transaction" onBack={handleBack} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
               <Ionicons name="alert-circle" size={16} color={COLORS.danger} />

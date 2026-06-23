@@ -24,6 +24,8 @@ interface Props {
   trackColor?: string;           // Couleur de la partie « vide »
   /** Clic sur un segment → renvoie l'index de la reco (dans `segments`). */
   onSegmentPress?: (index: number) => void;
+  /** Clic au centre / sur la partie grise (delta non-reco) → ouvrir le détail « Ton Relyka ». */
+  onCenterPress?: () => void;
 }
 
 const BASE = 225;   // angle de départ (bas-gauche) en degrés, sens horaire depuis le haut
@@ -50,17 +52,17 @@ export default function RelykaGauge({
   strokeWidth = 18,
   trackColor = 'rgba(255,255,255,0.07)',
   onSegmentPress,
+  onCenterPress,
 }: Props) {
   const cx = size / 2;
   const cy = size / 2;
   const r = (size - strokeWidth) / 2 - 2;
 
-  // Le graphique représente la RÉPARTITION des recos visibles : on remplit tout l'anneau avec leurs
-  // proportions (dénominateur = somme des recos). On évite ainsi le vide dû à l'écart entre le
-  // montant central (arrondi à la dizaine inférieure) et la somme des recos. S'il n'y a aucune reco,
-  // l'anneau reste vide (track).
-  const segTotal = segments.reduce((sum, s) => sum + Math.max(0, s.amount), 0);
-  const denom = segTotal > 0 ? segTotal : Math.max(0, amount);
+  // Le graphique représente les recos rapportées au RELYKA (dénominateur = montant du Relyka). Ainsi,
+  // si la somme des recos est INFÉRIEURE au Relyka (recos ignorées ou sous le seuil d'affichage), le
+  // delta reste en GRIS (track) — on ne remplit pas tout l'anneau à tort. Si les recos dépassent le
+  // Relyka, le remplissage est plafonné à 100 %.
+  const denom = Math.max(0, amount);
   let cum = 0;
   const filled: { a1: number; a2: number; color: string; idx: number }[] = [];
   if (denom > 0) {
@@ -89,23 +91,30 @@ export default function RelykaGauge({
   // Détection du segment au tap : calcule l'angle depuis le centre (compatible web ET natif,
   // contrairement à onPress sur un <Path> SVG). N'agit que sur l'anneau (pas au centre).
   const handlePress = (e: GestureResponderEvent) => {
-    if (!onSegmentPress || filled.length === 0) return;
     const ne: any = e.nativeEvent;
     const x = ne.locationX ?? ne.offsetX;
     const y = ne.locationY ?? ne.offsetY;
-    if (typeof x !== 'number' || typeof y !== 'number') return;
+    if (typeof x !== 'number' || typeof y !== 'number') { onCenterPress?.(); return; }
     const dx = x - cx;
     const dy = y - cy;
     const radius = Math.sqrt(dx * dx + dy * dy);
-    // Ignore le centre et l'extérieur : on ne réagit que sur la bande de l'anneau.
-    if (radius < r - strokeWidth || radius > r + strokeWidth) return;
-    // Angle : 0° = haut, sens horaire (même convention que pt()).
-    let a = (Math.atan2(dx, -dy) * 180) / Math.PI;
-    if (a < 0) a += 360;
-    if (a < BASE) a += 360;            // ramène dans [BASE, BASE+360)
-    if (a > BASE + SWEEP) return;       // dans le « trou » du bas → rien
-    const hit = filled.find((seg) => a >= seg.a1 && a <= seg.a2);
-    if (hit) onSegmentPress(hit.idx);
+    // Centre de l'anneau → ouvrir le détail « Ton Relyka ».
+    if (radius < r - strokeWidth) { onCenterPress?.(); return; }
+    // Extérieur de l'anneau → rien.
+    if (radius > r + strokeWidth) return;
+    // Sur la bande : un segment coloré → la reco correspondante ; sinon (delta gris) → détail.
+    if (onSegmentPress && filled.length > 0) {
+      // Angle : 0° = haut, sens horaire (même convention que pt()).
+      let a = (Math.atan2(dx, -dy) * 180) / Math.PI;
+      if (a < 0) a += 360;
+      if (a < BASE) a += 360;            // ramène dans [BASE, BASE+360)
+      if (a <= BASE + SWEEP) {
+        const hit = filled.find((seg) => a >= seg.a1 && a <= seg.a2);
+        if (hit) { onSegmentPress(hit.idx); return; }
+      }
+    }
+    // Bande grise (delta non-reco) ou aucun segment → détail.
+    onCenterPress?.();
   };
 
   return (

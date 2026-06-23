@@ -328,7 +328,11 @@ export default function PilotageScreen() {
     enjoy:  COLORS.orange,
     keep:   COLORS.blue,
   };
-  // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
+  // Garde-fou : la SOMME des recos ne peut pas dépasser le reste réellement disponible (Ton Relyka).
+  // On plafonne le CUMUL au fil de l'eau (pas seulement chaque reco) — sinon 2-3 recos peuvent
+  // dépasser le Relyka et la jauge se remplit à 100 % alors qu'il reste de la place (delta gris).
+  const relykaCap = Math.max(0, floorToTen(resteDisponible));
+  let recoAllocated = 0;
   const recoList = pilotageData
     ? computeRecommendations(pilotageData, {
         customTierAllocations: customTiers,
@@ -338,13 +342,14 @@ export default function PilotageScreen() {
         thresholds: recoThresholds,
         overspend: variableOverspend,
         consumptionOrder,
-      }).map((r) => ({
-        ...r,
-        color: recoColorByType[r.type] ?? r.color,
-        // Plafonné au reste réellement disponible, lui aussi arrondi à la dizaine inférieure
-        // (cohérent avec l'affichage « Ton Relyka »). r.amount est déjà arrondi par le moteur.
-        amount: Math.min(r.amount, Math.max(0, floorToTen(resteDisponible))),
-      }))
+      })
+        .map((r) => {
+          const room = Math.max(0, relykaCap - recoAllocated);
+          const amount = Math.min(r.amount, room);
+          recoAllocated += amount;
+          return { ...r, color: recoColorByType[r.type] ?? r.color, amount };
+        })
+        .filter((r) => r.amount > 0)
     : [];
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
@@ -1274,35 +1279,61 @@ export default function PilotageScreen() {
                           )}
                       </>
                     )}
-                    {detailKey === 'relyka' && (
-                      <View>
-                        {[
-                          { l: 'Point bas de trésorerie', v: pilotageData.cashflow_trough ?? pilotageData.current_checking_balance },
-                          { l: 'Épargne à venir', v: -(pilotageData.month_savings_future ?? 0) },
-                          { l: 'Investissement à venir', v: -(pilotageData.month_invest_future ?? 0) },
-                          { l: 'Réservé (projets)', v: -(pilotageData.monthly_reserve_planned ?? 0) },
-                          { l: 'Conservé + cumuls', v: -(reservationsTotal + cumulsTotal) },
-                          { l: 'Dépenses variables estimées', v: -(pilotageData.variable_envelope_remaining ?? 0) },
-                          { l: 'Marge de sécurité', v: -(pilotageData.safety_margin_amount ?? 0) },
-                        ].filter((r) => Math.round(Math.abs(r.v)) > 0).map((r) => (
-                          <View key={r.l} style={styles.detailRow}>
+                    {detailKey === 'relyka' && (() => {
+                      const sFut = pilotageData.month_savings_future ?? 0;
+                      const iFut = pilotageData.month_invest_future ?? 0;
+                      // Le point bas ENGLOBE déjà : dépenses récurrentes du mois, dépenses variables déjà
+                      // dépensées, et épargne/invest déjà réalisés (sorties du solde courant). On les affiche
+                      // en INFO (gris) pour que le user voie tout, puis on déduit ce qui n'y est pas encore.
+                      const eiRealises = Math.max(0, (pilotageData.month_savings_total ?? 0) - sFut)
+                        + Math.max(0, (pilotageData.month_invest_total ?? 0) - iFut);
+                      const infos = [
+                        { l: 'Dépenses récurrentes', v: suiviDetail.recurringTotal ?? 0 },
+                        { l: 'Dépenses variables déjà dépensées', v: varSpentMonth },
+                        { l: 'Épargne & investissement réalisés', v: eiRealises },
+                      ];
+                      const deductions = [
+                        { l: 'Épargne & investissement à venir', v: sFut + iFut },
+                        { l: 'Dépenses variables restantes (estimées)', v: pilotageData.variable_envelope_remaining ?? 0 },
+                        { l: 'Somme réservée', v: (pilotageData.monthly_reserve_planned ?? 0) + reservationsTotal + cumulsTotal },
+                        { l: 'Marge de sécurité', v: pilotageData.safety_margin_amount ?? 0 },
+                      ];
+                      const pointBas = pilotageData.cashflow_trough ?? pilotageData.current_checking_balance ?? 0;
+                      return (
+                        <View>
+                          {/* Point bas (trajectoire) + note */}
+                          <View style={styles.detailRow}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
-                              <Text style={styles.detailRowLabel}>{r.l}</Text>
-                              {r.l === 'Point bas de trésorerie' && (
-                                <TouchableOpacity onPress={() => setShowTroughInfo(true)} hitSlop={8}>
-                                  <Ionicons name="information-circle-outline" size={16} color={COLORS.emerald} />
-                                </TouchableOpacity>
-                              )}
+                              <Text style={styles.detailRowLabel}>Point bas de trésorerie</Text>
+                              <TouchableOpacity onPress={() => setShowTroughInfo(true)} hitSlop={8}>
+                                <Ionicons name="information-circle-outline" size={16} color={COLORS.emerald} />
+                              </TouchableOpacity>
                             </View>
-                            <Text style={[styles.detailRowValue, { color: r.v < 0 ? COLORS.textSecondary : COLORS.text }]}>{fmt(r.v)}</Text>
+                            <Text style={[styles.detailRowValue, { color: COLORS.text }]}>{fmt(pointBas)}</Text>
                           </View>
-                        ))}
-                        <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, marginTop: 4 }]}>
-                          <Text style={[styles.detailRowLabel, { flex: 1, fontWeight: '800' }]}>Ton Relyka</Text>
-                          <Text style={[styles.detailRowValue, { color: semanticText(COLORS.emerald, COLORS), fontWeight: '800' }]}>{fmt(resteDisponible)}</Text>
+                          {/* Déjà compris dans le point bas (info, non redéduit) */}
+                          <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 2, marginBottom: 2 }]}>Déjà compris dans le point bas :</Text>
+                          {infos.map((r) => (
+                            <View key={r.l} style={[styles.detailRow, { paddingVertical: 3 }]}>
+                              <Text style={[styles.detailRowSub, { flex: 1, paddingLeft: 12 }]} numberOfLines={1}>· {r.l}</Text>
+                              <Text style={styles.detailRowSub}>{fmt(r.v)}</Text>
+                            </View>
+                          ))}
+                          {/* Déduits du point bas pour donner le Relyka */}
+                          <View style={{ height: 8 }} />
+                          {deductions.map((r) => (
+                            <View key={r.l} style={styles.detailRow}>
+                              <Text style={[styles.detailRowLabel, { flex: 1 }]}>{r.l}</Text>
+                              <Text style={[styles.detailRowValue, { color: COLORS.textSecondary }]}>{r.v > 0 ? '− ' + fmt(r.v) : fmt(0)}</Text>
+                            </View>
+                          ))}
+                          <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, marginTop: 4 }]}>
+                            <Text style={[styles.detailRowLabel, { flex: 1, fontWeight: '800' }]}>Ton Relyka</Text>
+                            <Text style={[styles.detailRowValue, { color: semanticText(COLORS.emerald, COLORS), fontWeight: '800' }]}>{fmt(resteDisponible)}</Text>
+                          </View>
                         </View>
-                      </View>
-                    )}
+                      );
+                    })()}
                   </ScrollView>
                 </>
               );
