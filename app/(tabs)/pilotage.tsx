@@ -377,9 +377,13 @@ export default function PilotageScreen() {
         // « Dépensé ce mois » = dépenses (catégorie de dépense) et remboursements (montant positif
         // sur une catégorie de dépense). Les recettes (catégorie income) sont exclues — §1.
         const isExpenseOrRefund = !cat || cat.type === 'expense';
-        const isRegul = !cat?.name || /r[ée]gularisation|ajustement de solde/i.test(cat.name) || (cat === null && (t.note ?? '').toLowerCase().includes('gul'));
+        // On NE doit PAS exclure les réguls : un « Solde initial » / « régularisation » qui RÉDUIT le
+        // solde (négatif) compte comme dépensé — exactement comme « Total dépensé » (month_expenses_past).
+        // Seul exclu : un régul qui AUGMENTE le solde (catégorie nulle, montant positif) → pas une dépense.
+        const isNamedRegul = !!(cat?.name && /r[ée]gularisation|ajustement de solde/i.test(cat.name));
+        const isNullCatIncome = !cat && amt > 0;
         const isInMonth = inMonth(t.date) && t.date <= todayStr;
-        if (isExpenseOrRefund && !isRegul) {
+        if (isExpenseOrRefund && !isNamedRegul && !isNullCatIncome) {
           // Récurrentes actives (template) → liste récurrentes (pour le modal plannifié)
           if (recurring && amt < 0) recurrentes.push(t);
           // Toute dépense/remboursement passé(e) dans le mois → liste spent (modal « Dépensé ce mois »)
