@@ -683,7 +683,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   let month_expenses_total = 0;       // dépenses du mois (passées + à venir) — affichage info
   let month_expenses_past = 0;        // dépenses validées déjà passées (déjà dans le solde)
   let month_expenses_remaining = 0;   // dépenses datées après aujourd'hui (encore à sortir → budget libre)
-  let recurring_expenses_past = 0;    // part RÉCURRENTE des dépenses passées (→ variables = total − récurrentes)
 
   for (const t of transactions) {
     const amt = Number(t.amount);
@@ -729,7 +728,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
         if (!isDraft) {
           month_expenses_past += pastAmt;
           month_expenses_remaining += Math.max(0, monthlyAmt - pastAmt);
-          if (isRecurring) recurring_expenses_past += pastAmt;
         }
       }
     }
@@ -857,17 +855,17 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     return !!(note && (/r[ée]gularisation/i.test(note) || note === 'Ajustement de solde'));
   };
   // Contribution d'une transaction aux dépenses variables (€), net signé.
-  // « Variable » = TOUTE dépense NON récurrente (plus seulement la catégorie « Frais variables »).
   const variableContribution = (t: TransactionWithCategory): number => {
     if (!isNonRecurringTx(t)) return 0;
     if (accountTypeById[t.account_id] !== 'checking') return 0;
     if ((t as any).linked_account_id || (t as any).project_id) return 0; // pas un virement / projet
     const amt = Number(t.amount);
     if (isRegulTx(t)) return -amt; // régul : dépense (−) → +, recette (+) → −
-    const cat = t.category;
-    const isExpenseOrRefund = !cat || cat.type === 'expense';
-    // Dépense (−) → + de dépensé ; remboursement (+) → − (net).
-    return isExpenseOrRefund ? -amt : 0;
+    if (t.category?.is_variable === true) {
+      // Catégorie variable : dépense (−) → + de dépensé ; remboursement (+) → − (net).
+      return -amt;
+    }
+    return 0;
   };
 
   // Historique des 6 mois précédents
@@ -879,16 +877,62 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const variableByPastMonth: Record<string, number> = {};
   pastMonths.forEach(m => { variableByPastMonth[m.key] = 0; });
 
-  // Historique (estimation) : on cumule par mois passé toutes les dépenses non récurrentes.
+  // Historique (estimation) : mois passés seulement (base catégorie « Frais variables »).
   for (const t of transactions) {
     if (!isNonRecurringTx(t)) continue;
     const [ty, tm] = t.date.split('-').map(Number);
     const key = `${ty}-${tm}`;
     if (key in variableByPastMonth) variableByPastMonth[key] += variableContribution(t);
   }
-  // Dépensé variable DU MOIS = total dépensé passé − part récurrente (= dépenses non récurrentes),
-  // strictement cohérent avec le curseur « dont variables ».
-  const variable_envelope_spent = Math.max(0, month_expenses_past - recurring_expenses_past);
+
+  // « Dépensé variable » DU MOIS = total dépensé passé − récurrentes passées (= toutes les dépenses
+  // NON récurrentes), cohérent avec le curseur « dont variables ». IMPORTANT : on compte les
+  // récurrentes passées via PROJECTION des templates (en incluant ceux « avancés » au mois suivant,
+  // dont l'occurrence de ce mois est déjà matérialisée). `recurrencePastInMonth` retourne 0 pour ces
+  // templates avancés → l'utiliser ici comptait à tort les récurrentes comme des variables.
+  const _mStart = new Date(currentYear, currentMonth - 1, 1);
+  const _mEnd = new Date(currentYear, currentMonth, 0);
+  const _daysInMo = _mEnd.getDate();
+  const _thisIdx = currentYear * 12 + (currentMonth - 1);
+  const _dToday = now.getDate();
+  const recurExpensePassed = (t: any): number => {
+    const amt = Math.abs(Number(t.amount));
+    const start = new Date((t.date ?? '').slice(0, 10) + 'T00:00:00');
+    const end = t.recurrence_end_date ? new Date(String(t.recurrence_end_date).slice(0, 10) + 'T00:00:00') : null;
+    if (end && end < _mStart) return 0;
+    const startIdx = start.getFullYear() * 12 + start.getMonth();
+    const day = Math.min(start.getDate(), _daysInMo);
+    const single = (periodMonths: number) => {
+      if (startIdx > _thisIdx + periodMonths) return 0;
+      return (startIdx > _thisIdx || day <= _dToday) ? amt : 0; // avancé = occurrence du mois déjà passée
+    };
+    switch (t.recurrence_rule) {
+      case 'monthly': return single(1);
+      case 'yearly': return start.getMonth() === currentMonth - 1 ? single(12) : 0;
+      case 'quarterly': return ((((_thisIdx - startIdx) % 3) + 3) % 3 === 0) ? single(3) : 0;
+      case 'weekly': {
+        let p = 0; const d = new Date(start);
+        while (d < _mStart) d.setDate(d.getDate() + 7);
+        while (d <= _mEnd && (!end || d <= end)) { if (d.getDate() <= _dToday) p += amt; d.setDate(d.getDate() + 7); }
+        if (p === 0 && startIdx > _thisIdx) p = amt * 4;
+        return p;
+      }
+      default: return 0;
+    }
+  };
+  let recurring_passed_current = 0;
+  for (const t of transactions as any[]) {
+    if (!(t.is_recurring && t.recurrence_rule)) continue;
+    if (Number(t.amount) >= 0) continue;                     // dépense (sortie)
+    if (t.linked_account_id || t.project_id) continue;        // pas un virement / projet
+    if (accountTypeById[t.account_id] !== 'checking') continue;
+    const cat = t.category;
+    const isExpenseCat = !cat || cat.type === 'expense';
+    const isRegul = !!(cat?.name && /r[ée]gularisation/i.test(cat.name));
+    if (!isExpenseCat || isRegul) continue;
+    recurring_passed_current += recurExpensePassed(t);
+  }
+  const variable_envelope_spent = Math.max(0, month_expenses_past - recurring_passed_current);
 
   // Historique = mois passés avec de vraies dépenses variables (> 0), pas toute transaction.
   const monthsWithData = pastMonths.filter(m => variableByPastMonth[m.key] > 0);

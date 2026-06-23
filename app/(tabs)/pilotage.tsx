@@ -328,11 +328,7 @@ export default function PilotageScreen() {
     enjoy:  COLORS.orange,
     keep:   COLORS.blue,
   };
-  // Garde-fou : la SOMME des recos ne peut pas dépasser le reste réellement disponible (Ton Relyka).
-  // On plafonne le CUMUL au fil de l'eau (pas seulement chaque reco) — sinon 2-3 recos peuvent
-  // dépasser le Relyka et la jauge se remplit à 100 % alors qu'il reste de la place (delta gris).
-  const relykaCap = Math.max(0, floorToTen(resteDisponible));
-  let recoAllocated = 0;
+  // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
   const recoList = pilotageData
     ? computeRecommendations(pilotageData, {
         customTierAllocations: customTiers,
@@ -342,14 +338,13 @@ export default function PilotageScreen() {
         thresholds: recoThresholds,
         overspend: variableOverspend,
         consumptionOrder,
-      })
-        .map((r) => {
-          const room = Math.max(0, relykaCap - recoAllocated);
-          const amount = Math.min(r.amount, room);
-          recoAllocated += amount;
-          return { ...r, color: recoColorByType[r.type] ?? r.color, amount };
-        })
-        .filter((r) => r.amount > 0)
+      }).map((r) => ({
+        ...r,
+        color: recoColorByType[r.type] ?? r.color,
+        // Plafonné au reste réellement disponible, lui aussi arrondi à la dizaine inférieure
+        // (cohérent avec l'affichage « Ton Relyka »). r.amount est déjà arrondi par le moteur.
+        amount: Math.min(r.amount, Math.max(0, floorToTen(resteDisponible))),
+      }))
     : [];
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
