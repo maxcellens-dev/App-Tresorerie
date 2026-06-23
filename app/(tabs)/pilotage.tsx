@@ -448,9 +448,10 @@ export default function PilotageScreen() {
       recurrentesApplicable.push({ ...t, _monthTotal: r.total, _monthPassed: r.passed, _monthDate: monthDate });
     }
 
-    // Virements épargne / invest récurrents : ne garder que ceux actifs ce mois (cohérence modal/curseur).
-    const transferAppliesThisMonth = (t: any) =>
-      !(Boolean(t.is_recurring) && Boolean(t.recurrence_rule)) || recurForMonth(t).total > 0;
+    // Virements épargne / invest : on ne garde que l'occurrence DU mois courant (date dans le mois).
+    // Un template récurrent dont la date est avancée au mois suivant (occurrence de ce mois déjà
+    // matérialisée et affichée à part) est ainsi exclu → cohérent avec le curseur « Épargné / Investi ».
+    const transferAppliesThisMonth = (t: any) => inMonth(t.date);
 
     return {
       checking: accounts.filter((a) => a.type === 'checking'),
