@@ -657,7 +657,7 @@ export default function PilotageScreen() {
           <View style={styles.section} ref={suiviRef}>
             <View style={[styles.sectionHeader, { justifyContent: 'space-between' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="wallet" size={18} color={COLORS.emerald} />
+                <Ionicons name="wallet" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Suivi du mois</Text>
               </View>
               <View style={styles.monthPill}>
@@ -668,6 +668,7 @@ export default function PilotageScreen() {
             </View>
             <View style={styles.sectionDivider} />
 
+            <View style={styles.suiviSingleCard}>
             {(() => {
               const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
               const savings = pilotageData.month_savings_total ?? 0;
@@ -687,9 +688,6 @@ export default function PilotageScreen() {
               const recurRemaining = Math.max(0, recurTotal - recurPassed);
 
               const rest = resteDisponible;
-              const restNeg = rest < 0;
-              const restLow = rest < pilotageData.committed_allocations;
-              const restColor = restNeg ? COLORS.danger : restLow ? COLORS.yellow : COLORS.green;
 
               // Accent « plus foncé » pour les encadrés (pills) : en clair on assombrit, en sombre on
               // garde la teinte (déjà lisible sur fond sombre).
@@ -708,16 +706,16 @@ export default function PilotageScreen() {
                   <TouchableOpacity style={styles.suiviBlock} activeOpacity={0.7} onPress={() => setDetailKey('checking')}>
                     <View style={styles.accentPillRow}>
                       <View style={[styles.accentPill, { backgroundColor: accentDeep + '1F', borderColor: accentDeep + '55' }]}>
-                        <Ionicons name="wallet" size={13} color={accentDeep} />
-                        <Text style={[styles.accentPillText, { color: accentDeep, fontSize: 14 }]}>Solde courant actuel</Text>
+                        <Ionicons name="wallet" size={13} color={COLORS.text} />
+                        <Text style={[styles.accentPillText, { color: COLORS.text, fontSize: 14 }]}>Solde courant actuel</Text>
                       </View>
                     </View>
                     <View style={styles.budgetValueRow}>
-                      <Text style={[styles.suiviBlockValue, { color: accentDeep }]}>{fmt(checkingBalance)}</Text>
+                      <Text style={[styles.suiviBlockValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
                       {(pilotageData.month_income_remaining ?? 0) > 0 && (
                         <View style={styles.incomeInline}>
-                          <Ionicons name="time" size={13} color={accentDeep} />
-                          <Text style={{ color: accentDeep, flexShrink: 1 }} numberOfLines={2}>
+                          <Ionicons name="time" size={13} color={COLORS.text} />
+                          <Text style={{ color: COLORS.text, flexShrink: 1 }} numberOfLines={2}>
                             <Text style={styles.accentPillText}>Prochaine recette </Text>
                             <Text style={styles.accentPillStrong}>+{fmt(pilotageData.month_income_remaining)}</Text>
                           </Text>
@@ -726,22 +724,26 @@ export default function PilotageScreen() {
                     </View>
                   </TouchableOpacity>
 
-                  {/* 2. Épargne + Investissement — icônes épurées, montants plus gros */}
+                  {/* 2. Épargné + Investi — mini-curseurs « identité » (couleur pleine si > 0 €, sinon gris clair) */}
                   <View style={styles.suiviRow2}>
                     {([
                       { key: 'savings', label: 'Épargné', value: savings, icon: 'shield', color: COLORS.green },
                       { key: 'invest', label: 'Investi', value: invest, icon: 'trending-up', color: COLORS.violet },
                     ] as const).map((b) => (
-                      <TouchableOpacity key={b.key} style={styles.suiviMiniBlock} activeOpacity={0.7} onPress={() => setDetailKey(b.key)}>
-                        <View style={styles.suiviMiniHead}>
-                          <Ionicons name={b.icon as any} size={16} color={b.color} />
-                          <Text style={styles.suiviMiniLabel} numberOfLines={1}>{b.label}</Text>
+                      <TouchableOpacity key={b.key} style={styles.suiviCursorMini} activeOpacity={0.7} onPress={() => setDetailKey(b.key)}>
+                        <View style={[styles.suiviCursorFill, { width: b.value > 0 ? '100%' : 0, backgroundColor: halfFill(b.color) }]} />
+                        <View style={styles.suiviCursorContent}>
+                          <View style={styles.suiviMiniHead}>
+                            <Ionicons name={b.icon as any} size={16} color={b.color} />
+                            <Text style={styles.suiviMiniLabel} numberOfLines={1}>{b.label}</Text>
+                          </View>
+                          <Text style={[styles.suiviMiniValue, { color: b.value > 0 ? semanticText(b.color, COLORS) : COLORS.textSecondary }]}>{fmt(b.value)}</Text>
                         </View>
-                        <Text style={[styles.suiviMiniValue, { color: b.value > 0 ? semanticText(b.color, COLORS) : COLORS.textSecondary }]}>{fmt(b.value)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
 
+                  <View style={styles.sectionDivider} />
                   {/* 3. Dépenses — « Ce mois » (montant + % des dépenses prévues) puis récurrentes / variables */}
                   <View style={styles.suiviBlock}>
                     <View style={styles.suiviBlockHead}>
@@ -784,44 +786,53 @@ export default function PilotageScreen() {
                     </View>
                   </View>
 
-                  {/* 4. Réserve & Marge de sécurité — 2 cartes */}
+                  <View style={styles.sectionDivider} />
+                  {/* 4. Réserve & Marge de sécurité — mini-curseurs « identité » */}
                   <View style={styles.suiviBlock}>
                     <Text style={[styles.suiviBlockTitle, { marginBottom: 2 }]}>Réserve & Marge de sécurité</Text>
                     <View style={styles.suiviRow2}>
-                      <TouchableOpacity ref={reservedRef} style={[styles.suiviMiniBlock, onbReserved ? onbGlow(COLORS, true) : null]} activeOpacity={0.7} onPress={openReservedModal}>
-                        <View style={styles.suiviMiniHead}>
-                          <Ionicons name="lock-closed" size={16} color={COLORS.blue} />
-                          <Text style={styles.suiviMiniLabel} numberOfLines={1}>Réservé</Text>
+                      <TouchableOpacity ref={reservedRef} style={[styles.suiviCursorMini, onbReserved ? onbGlow(COLORS, true) : null]} activeOpacity={0.7} onPress={openReservedModal}>
+                        <View style={[styles.suiviCursorFill, { width: reserve > 0 ? '100%' : 0, backgroundColor: halfFill(COLORS.blue) }]} />
+                        <View style={styles.suiviCursorContent}>
+                          <View style={styles.suiviMiniHead}>
+                            <Ionicons name="lock-closed" size={16} color={COLORS.blue} />
+                            <Text style={styles.suiviMiniLabel} numberOfLines={1}>Réservé</Text>
+                          </View>
+                          <Text style={[styles.suiviMiniValue, { color: reserve > 0 ? semanticText(COLORS.blue, COLORS) : COLORS.textSecondary }]}>{fmt(reserve)}</Text>
                         </View>
-                        <Text style={[styles.suiviMiniValue, { color: semanticText(COLORS.blue, COLORS) }]}>{fmt(reserve)}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.suiviMiniBlock} activeOpacity={0.7} onPress={() => { setMarginInput(String(Math.round(safetyMargin))); setShowMarginModal(true); }}>
-                        <View style={styles.suiviMiniHead}>
-                          <Ionicons name="shield" size={16} color={COLORS.yellow} />
-                          <Text style={styles.suiviMiniLabel} numberOfLines={1}>Marge sécu.</Text>
+                      <TouchableOpacity style={styles.suiviCursorMini} activeOpacity={0.7} onPress={() => { setMarginInput(String(Math.round(safetyMargin))); setShowMarginModal(true); }}>
+                        <View style={[styles.suiviCursorFill, { width: safetyMargin > 0 ? '100%' : 0, backgroundColor: halfFill(COLORS.teal) }]} />
+                        <View style={styles.suiviCursorContent}>
+                          <View style={styles.suiviMiniHead}>
+                            <Ionicons name="shield" size={16} color={COLORS.teal} />
+                            <Text style={styles.suiviMiniLabel} numberOfLines={1}>Marge sécu.</Text>
+                          </View>
+                          <Text style={[styles.suiviMiniValue, { color: safetyMargin > 0 ? semanticText(COLORS.teal, COLORS) : COLORS.textSecondary }]}>{fmt(safetyMargin)}</Text>
                         </View>
-                        <Text style={[styles.suiviMiniValue, { color: semanticText(COLORS.yellow, COLORS) }]}>{fmt(safetyMargin)}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
 
+                  <View style={styles.sectionDivider} />
                   {/* 5. Ton Relyka — « Budget libre » encadré en accent foncé */}
-                  <TouchableOpacity style={[styles.suiviBlock, { borderColor: restColor + '55' }]} activeOpacity={0.7} onPress={() => setDetailKey('relyka')}>
+                  <TouchableOpacity style={styles.suiviBlock} activeOpacity={0.7} onPress={() => setDetailKey('relyka')}>
                     <View style={styles.suiviBlockHead}>
-                      <Ionicons name="sparkles" size={18} color={restColor} />
                       <View style={styles.relykaTitleRow}>
                         <View style={[styles.accentPill, { backgroundColor: accentDeep + '1F', borderColor: accentDeep + '55' }]}>
-                          <Text style={[styles.accentPillText, { color: accentDeep, fontSize: 14 }]} numberOfLines={1}>Ton Relyka</Text>
+                          <Ionicons name="sparkles" size={13} color={COLORS.text} />
+                          <Text style={[styles.accentPillText, { color: COLORS.text, fontSize: 14 }]} numberOfLines={1}>Ton Relyka</Text>
                         </View>
                         <Text style={[styles.relykaTitle, { flexShrink: 1, fontSize: 12 }]} numberOfLines={1}>Budget libre</Text>
                       </View>
                     </View>
                     {/* « Ton Relyka » arrondi à la dizaine inférieure (proposition générique). Le détail au clic montre le vrai calcul. */}
-                    <Text style={[styles.suiviBlockValue, { color: semanticText(restColor, COLORS) }]}>{floorToTen(rest).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
+                    <Text style={[styles.suiviBlockValue, { color: COLORS.text }]}>{floorToTen(rest).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}</Text>
                   </TouchableOpacity>
                 </View>
               );
             })()}
+            </View>
           </View>
 
           {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
@@ -1518,15 +1529,20 @@ function makeStyles(c: AppColors) {
   },
   suiviIconSm: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 
-  // ── Suivi du mois : blocs cliquables (§3) ──
-  suiviBlock: {
+  // ── Suivi du mois : carte UNIQUE de fond + blocs internes (§3) ──
+  // Carte unique englobant tout le « Suivi du mois » (plus une carte par section).
+  suiviSingleCard: {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
-    padding: 14, gap: 10,
+    padding: 14, gap: 12,
+  },
+  // Blocs internes : plus de chrome propre (fond/bordure) — ils vivent dans la carte unique.
+  suiviBlock: {
+    gap: 10,
   },
   suiviBlockHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   suiviBlockTitle: { flex: 1, fontSize: 14, color: c.text, fontWeight: '600' },
   // Montants « majeurs » (Solde courant actuel + Ton Relyka) : grande taille, identique.
-  suiviBlockValue: { fontSize: 28, fontWeight: '600', letterSpacing: -0.5 },
+  suiviBlockValue: { fontSize: 28, fontWeight: '400', letterSpacing: -0.5 },
   budgetValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   // Encadrés « accent foncé » (pills) : Solde courant actuel, Prochaine recette, Budget libre.
   accentPillRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1540,6 +1556,11 @@ function makeStyles(c: AppColors) {
   // Titre « Ton Relyka » : taille de bloc sans flex (sinon il se réduit à 0 et disparaît à côté du pill).
   relykaTitle: { flexShrink: 0, fontSize: 14, color: c.text, fontWeight: '600' },
   suiviRow2: { flexDirection: 'row', gap: 10 },
+  // Mini-cartes « identité » (Épargné, Investi, Réservé, Marge) = curseurs : piste gris clair à 0 €,
+  // remplissage couleur du type (clair/atténué, même rendu que les curseurs Dépenses) sur 100 % dès > 0 €.
+  suiviCursorMini: { flex: 1, borderRadius: 16, backgroundColor: halfAlpha(c.cardBorder), overflow: 'hidden' },
+  suiviCursorFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 16 },
+  suiviCursorContent: { padding: 14, gap: 8 },
   suiviMiniBlock: {
     flex: 1, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 14, gap: 8,
@@ -1560,7 +1581,7 @@ function makeStyles(c: AppColors) {
   // Récurrentes / Variables — mini-cartes : libellé, puis montant à gauche + /total à droite.
   depMini: { flex: 1, minHeight: 54, borderRadius: 12, backgroundColor: halfAlpha(c.cardBorder), overflow: 'hidden', justifyContent: 'center' },
   depMiniContent: { paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
-  depMiniLabel: { fontSize: 12, color: c.text, fontWeight: '500' },
+  depMiniLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '500' },
   depMiniValueRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 },
   depMiniValue: { fontSize: 15, fontWeight: '600', letterSpacing: -0.5 },
   depMiniTotal: { fontSize: 11, fontWeight: '500', color: c.textSecondary },

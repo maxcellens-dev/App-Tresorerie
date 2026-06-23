@@ -11,7 +11,7 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { supabase } from '../../../../lib/supabase';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../../hooks/useStyleConfig';
-import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG } from '../../../../theme/palette';
+import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG, DEFAULT_INK } from '../../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
 import ColorPickerModal from '../../../../components/ColorPickerModal';
 import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/webFonts';
@@ -85,11 +85,13 @@ export default function StyleEditor() {
   const [darkCardAlpha,   setDarkCardAlpha]     = useState('8');
   const [darkHeaderAlpha,  setDarkHeaderAlpha]  = useState('0');
   const [darkBg,          setDarkBg]            = useState(DEFAULT_BG.dark);
+  const [darkInk,         setDarkInk]           = useState(DEFAULT_INK.dark);
   const [lightGradEnabled, setLightGradEnabled] = useState(true);
   const [lightStops,       setLightStops]       = useState<string[]>(['20', '12', '7', '3']);
   const [lightCardAlpha,   setLightCardAlpha]   = useState('88');
   const [lightHeaderAlpha, setLightHeaderAlpha] = useState('0');
   const [lightBg,          setLightBg]          = useState(DEFAULT_BG.light);
+  const [lightInk,         setLightInk]         = useState(DEFAULT_INK.light);
 
   const [fontFamily, setFontFamily] = useState('System');
   const [fontImportUrl, setFontImportUrl] = useState('');
@@ -128,11 +130,13 @@ export default function StyleEditor() {
       setDarkCardAlpha(String(styleConfig.dark.card_alpha));
       setDarkHeaderAlpha(String(styleConfig.dark.header_alpha ?? 0));
       setDarkBg(styleConfig.dark.bg_color ?? DEFAULT_BG.dark);
+      setDarkInk(styleConfig.dark.ink_color ?? DEFAULT_INK.dark);
       setLightGradEnabled(styleConfig.light.gradient_enabled);
       setLightStops(toStopStrings(styleConfig.light, 20));
       setLightCardAlpha(String(styleConfig.light.card_alpha));
       setLightHeaderAlpha(String(styleConfig.light.header_alpha ?? 0));
       setLightBg(styleConfig.light.bg_color ?? DEFAULT_BG.light);
+      setLightInk(styleConfig.light.ink_color ?? DEFAULT_INK.light);
       setFontFamily(styleConfig.font_family ?? 'System');
       setFontImportUrl(styleConfig.font_import_url ?? '');
       setAppNameFont(styleConfig.app_name_font ?? 'Arial Rounded MT Bold');
@@ -189,7 +193,8 @@ export default function StyleEditor() {
 
   const previewAlpha = previewMode === 'dark' ? Number(darkCardAlpha || 0) : Number(lightCardAlpha || 0);
   const previewBg = previewMode === 'dark' ? darkBg : lightBg;
-  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, lightSemanticColors: liveLightSemantics, bgColor: previewBg });
+  const previewInk = previewMode === 'dark' ? darkInk : lightInk;
+  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, lightSemanticColors: liveLightSemantics, bgColor: previewBg, inkColor: previewInk });
   const curGradEnabled = previewMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const curStops = (previewMode === 'dark' ? darkStops : lightStops).map(s => Math.min(100, Math.max(0, Number(s) || 0)) / 100);
 
@@ -273,8 +278,8 @@ export default function StyleEditor() {
       SEMANTIC_KEYS.forEach(k => { const v = lightSemanticInputs[k] ?? ''; if (isValidHex(v)) validatedLightSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
-        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg)  ? darkBg.toUpperCase()  : DEFAULT_BG.dark,  header_alpha: clampPct(Number(darkHeaderAlpha)  || 0) },
-        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light, header_alpha: clampPct(Number(lightHeaderAlpha) || 0) },
+        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg)  ? darkBg.toUpperCase()  : DEFAULT_BG.dark,  ink_color: isValidHex(darkInk)  ? darkInk.toUpperCase()  : DEFAULT_INK.dark,  header_alpha: clampPct(Number(darkHeaderAlpha)  || 0) },
+        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light, ink_color: isValidHex(lightInk) ? lightInk.toUpperCase() : DEFAULT_INK.light, header_alpha: clampPct(Number(lightHeaderAlpha) || 0) },
         font_family: fontFamily,
         font_import_url: fontImportUrl.trim(),
         app_name_font: appNameFont.trim(),
@@ -511,6 +516,14 @@ export default function StyleEditor() {
                 const setInputs = previewMode === 'dark' ? setSemanticInputs : setLightSemanticInputs;
                 const defaults = previewMode === 'dark' ? SEMANTIC_DEFAULTS : SEMANTIC_DEFAULTS_LIGHT;
                 const modeLabel = previewMode === 'dark' ? 'Sombre 🌙' : 'Clair ☀️';
+                // Couleur « encre » de base (texte principal / contraste) : blanc en sombre, noir en clair.
+                const inkVal = previewMode === 'dark' ? darkInk : lightInk;
+                const setInk = previewMode === 'dark' ? setDarkInk : setLightInk;
+                const inkDefault = DEFAULT_INK[previewMode];
+                const inkValid = isValidHex(inkVal);
+                const inkCol = inkValid ? inkVal : inkDefault;
+                const inkIsDefault = inkVal.toUpperCase() === inkDefault.toUpperCase();
+                const inkLabel = previewMode === 'dark' ? '⚪ Blanc (texte de base)' : '⚫ Noir (texte de base)';
                 return (
                   <Section label={`Couleurs principales — Thème ${modeLabel}`} icon="brush-outline" COLORS={COLORS}>
                     <Text style={styles.hint}>
@@ -519,6 +532,29 @@ export default function StyleEditor() {
                         : 'Palette indépendante pour le thème clair — couleurs plus sombres pour le contraste sur fond pâle.'}
                     </Text>
                     <View style={{ gap: 10 }}>
+                      {/* Encre de base (blanc/noir de l'app) — texte principal partout où COLORS.text est utilisé. */}
+                      <View style={styles.accentItem}>
+                        <TouchableOpacity
+                          style={[styles.swatch, { backgroundColor: inkCol, borderWidth: 1, borderColor: COLORS.cardBorder }]}
+                          onPress={() => setColorPicker({ value: inkCol, onPick: (picked) => setInk(picked) })}
+                          activeOpacity={0.8}
+                        />
+                        <Text style={styles.accentLabel}>{inkLabel}</Text>
+                        <TextInput
+                          style={[styles.hexInput, { width: 84 }, !inkValid && { borderColor: COLORS.danger }]}
+                          value={inkVal}
+                          onChangeText={setInk}
+                          placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                          maxLength={7} autoCapitalize="characters"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setInk(inkDefault)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          disabled={inkIsDefault}
+                        >
+                          <Ionicons name="refresh-outline" size={20} color={inkIsDefault ? COLORS.cardBorder : COLORS.emerald} />
+                        </TouchableOpacity>
+                      </View>
                       {SEMANTIC_KEYS.map(k => {
                         const inputHex = inputs[k] ?? defaults[k];
                         const valid = isValidHex(inputHex);

@@ -181,7 +181,7 @@ export default function RecommendationCard({
           <View style={styles.leadCompactRow}>
             <Text style={styles.leadTitle}>Ton Relyka</Text>
             <View style={styles.leadCompactRight}>
-              <Text style={[styles.leadCompactAmount, { color: relykaColor ?? COLORS.emerald }]}>
+              <Text style={[styles.leadCompactAmount, { color: COLORS.text }]}>
                 {Math.round(relykaAmount).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
               </Text>
               {onOpenRelyka && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
@@ -199,7 +199,7 @@ export default function RecommendationCard({
           <RelykaGauge
             amount={relykaAmount}
             segments={visible.map(r => ({ amount: r.amount, color: r.color }))}
-            amountColor={relykaColor ?? COLORS.emerald}
+            amountColor={COLORS.text}
             // Partie vide visible dans les deux thèmes (gris transparent : sombre sur fond clair,
             // clair sur fond sombre) — sinon le track blanc disparaît en thème clair.
             trackColor={COLORS.mode === 'light' ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)'}
@@ -466,7 +466,7 @@ function makeStyles(c: any) {
   leadCompact: { gap: 6 },
   leadCompactRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   leadCompactRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  leadCompactAmount: { fontSize: 22, fontWeight: '900' },
+  leadCompactAmount: { fontSize: 22, fontWeight: '400' },
   leadCompactMsg: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'left' },
   recoSlide: { flex: 1, justifyContent: 'space-between', gap: 10 },
   // Groupe haut : titre section + icône/titre/montant + textes, collés en haut (position fixe au swipe).

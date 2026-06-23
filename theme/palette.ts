@@ -162,10 +162,15 @@ export interface BuildColorsOptions {
   bgColor?: string;
   /** Opacité de l'entête (0-100). 0 = couleur de fond, 100 = couleur d'accent. */
   headerAlpha?: number;
+  /** Couleur « encre » de base (texte principal / contraste) pour le mode courant : blanc en sombre, noir en clair. */
+  inkColor?: string;
 }
 
 /** Couleurs de fond par défaut par mode (modifiables via le Style Editor). */
 export const DEFAULT_BG: Record<ThemeMode, string> = { dark: '#000000', light: '#F4EFE6' };
+
+/** Couleur « encre » par défaut par mode (texte principal / contraste). Modifiable via le Style Editor. */
+export const DEFAULT_INK: Record<ThemeMode, string> = { dark: '#FFFFFF', light: '#191C1F' };
 
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
 export function resolveAccent(mode: ThemeMode, preset: string, opts?: BuildColorsOptions): string {
@@ -193,6 +198,8 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const accent = resolveAccent(mode, preset, opts);
   const isLight = mode === 'light';
   const bg = (opts?.bgColor && /^#[0-9A-Fa-f]{6}$/.test(opts.bgColor)) ? opts.bgColor : base.bg;
+  // Couleur « encre » (texte principal) configurable : blanc en sombre, noir en clair, surchargeable en admin.
+  const ink = (opts?.inkColor && /^#[0-9A-Fa-f]{6}$/.test(opts.inkColor)) ? opts.inkColor : base.text;
 
   // Transparence des cartes configurable. Défaut clair : 88% (cartes blanches bien visibles sur fond coloré).
   const alpha = Math.min(100, Math.max(0, opts?.cardAlpha ?? (isLight ? 88 : 8))) / 100;
@@ -236,7 +243,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     card,
     cardSolid: base.cardSolid,
     cardBorder,
-    text: base.text,
+    text: ink,
     textSecondary,
     danger,
     emerald: accent,

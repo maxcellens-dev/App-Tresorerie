@@ -39,17 +39,21 @@ export function useAppColors(): AppColors {
   const headerAlpha = mode === 'light'
     ? styleConfig?.light.header_alpha
     : styleConfig?.dark.header_alpha;
+  const inkColor = mode === 'light'
+    ? styleConfig?.light.ink_color
+    : styleConfig?.dark.ink_color;
 
   return useMemo(
     () => buildColors(mode, preset, {
       cardAlpha,
       bgColor,
       headerAlpha,
+      inkColor,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
       semanticColors: styleConfig?.semantic_colors,
       lightSemanticColors: styleConfig?.light_semantic_colors,
     }),
-    [mode, preset, cardAlpha, bgColor, headerAlpha, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors, styleConfig?.light_semantic_colors]
+    [mode, preset, cardAlpha, bgColor, headerAlpha, inkColor, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors, styleConfig?.light_semantic_colors]
   );
 }
