@@ -1,23 +1,24 @@
 /**
- * OTA — application de la mise à jour Expo dès la PREMIÈRE réouverture (Option B).
+ * OTA — application de la mise à jour Expo au lancement.
  * ──────────────────────────────────────────────────────────────────────────────
- * Par défaut DÉSACTIVÉ. Tant que `OTA_UPDATE_ON_LAUNCH_ENABLED` vaut `false`, cette
- * fonction ne fait STRICTEMENT RIEN (retour immédiat à la 1ʳᵉ ligne) → aucun impact
- * sur les builds et OTA actuels, aucun risque de crash.
+ * ⚠️ DÉSACTIVÉ volontairement (`OTA_UPDATE_ON_LAUNCH_ENABLED = false`).
  *
- * Quand activé : au lancement, on vérifie s'il existe une mise à jour OTA, on la télécharge
- * et on recharge l'app — le tout DERRIÈRE le splash animé, donc transition invisible (l'app
- * apparaît directement sur la nouvelle version). Ne s'exécute qu'en build natif de production
- * (`Updates.isEnabled`), jamais sur le web ni en dev (Expo Go / dev client).
+ * Pourquoi : recharger l'app depuis le JS (`reloadAsync`) en parallèle du téléchargement
+ * natif déclenché au lancement provoquait la FERMETURE de l'app (deux mécanismes de mise à
+ * jour concurrents + reload en plein boot). C'est désormais le NATIF qui gère tout, via
+ * `updates.fallbackToCacheTimeout` dans app.json : au lancement, le natif attend (derrière le
+ * splash) qu'une éventuelle mise à jour soit téléchargée puis démarre directement dessus →
+ * mise à jour appliquée DÈS la 1ʳᵉ ouverture, sans reload JS, sans crash.
  *
- * ⚠️ NE PAS activer tant qu'un build natif contenant ce code n'a pas été publié puis testé.
- *    Pour activer : passer `OTA_UPDATE_ON_LAUNCH_ENABLED` à `true` (ça part ensuite en OTA).
+ * Cette fonction reste un no-op (filet de sécurité). NE PAS la réactiver : elle réintroduirait
+ * le conflit de reload. Le réglage du délai d'attente se fait dans app.json (côté natif, donc
+ * effectif au prochain build).
  */
 import { Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 
-/** Interrupteur principal. `false` = comportement actuel inchangé (no-op total). */
-export const OTA_UPDATE_ON_LAUNCH_ENABLED = true;
+/** `false` = aucun reload JS (le natif gère la mise à jour au lancement). NE PAS repasser à `true`. */
+export const OTA_UPDATE_ON_LAUNCH_ENABLED = false;
 
 let alreadyRan = false;
 
