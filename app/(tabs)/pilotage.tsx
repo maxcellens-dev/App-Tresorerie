@@ -163,6 +163,9 @@ export default function PilotageScreen() {
   // Modale d'édition de la marge de sécurité (comme dans Paramètres → profiles.safety_margin_amount)
   const [showMarginModal, setShowMarginModal] = useState(false);
   const [marginInput, setMarginInput] = useState('');
+  // Conservation manuelle (sans passer par la recommandation « Conserver »).
+  const [showConserveModal, setShowConserveModal] = useState(false);
+  const [conserveInput, setConserveInput] = useState('');
 
   const fmtMain = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
   const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
@@ -919,29 +922,35 @@ export default function PilotageScreen() {
             </View>
 
             <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-              {/* Conservé du mois (recommandations) */}
+              {/* Conservé du mois — même forme que les cumuls, tap → saisie manuelle (0 pour libérer). */}
+              <Text style={styles.reservedSectionLabel}>Conservé ce mois</Text>
+              <TouchableOpacity
+                style={styles.reservedItem}
+                activeOpacity={0.7}
+                onPress={() => { setConserveInput(reservationsTotal > 0 ? String(Math.round(reservationsTotal)) : ''); setShowReservedModal(false); setShowConserveModal(true); }}
+              >
+                <View style={[styles.reservedItemIcon, { backgroundColor: COLORS.blue + '22' }]}>
+                  <Ionicons name="hourglass-outline" size={16} color={COLORS.blue} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reservedItemName}>Conservé sur le compte courant</Text>
+                  <Text style={styles.reservedItemHint}>
+                    {reservationsTotal > 0 ? 'Se réinitialise chaque mois · appuyez pour modifier' : 'Appuyez pour conserver un montant'}
+                  </Text>
+                </View>
+                <Text style={[styles.reservedItemAmount, { color: reservationsTotal > 0 ? COLORS.blue : COLORS.textSecondary }]}>{fmtMain(reservationsTotal)}</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
               {reservationsTotal > 0 && (
-                <View style={styles.reservedProjectBlock}>
-                  <View style={styles.reservedItem}>
-                    <View style={[styles.reservedItemIcon, { backgroundColor: COLORS.yellow + '22' }]}>
-                      <Ionicons name="hourglass-outline" size={16} color={COLORS.yellow} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.reservedItemName}>Conservé ce mois (recommandations)</Text>
-                      <Text style={styles.reservedItemHint}>Se réinitialise chaque mois</Text>
-                    </View>
-                    <Text style={[styles.reservedItemAmount, { color: COLORS.yellow }]}>{fmtMain(reservationsTotal)}</Text>
-                  </View>
-                  <View style={styles.reservedActions}>
-                    <TouchableOpacity
-                      style={styles.reservedReleaseBtn}
-                      activeOpacity={0.7}
-                      onPress={() => { setMonthlyReservation.mutate({ montant: 0 }); }}
-                    >
-                      <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
-                      <Text style={styles.reservedReleaseText}>Libérer</Text>
-                    </TouchableOpacity>
-                  </View>
+                <View style={styles.reservedActions}>
+                  <TouchableOpacity
+                    style={styles.reservedReleaseBtn}
+                    activeOpacity={0.7}
+                    onPress={() => { setMonthlyReservation.mutate({ montant: 0 }); }}
+                  >
+                    <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
+                    <Text style={styles.reservedReleaseText}>Libérer</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -1440,6 +1449,45 @@ export default function PilotageScreen() {
                     await pilotageQuery.refetch?.();
                   } catch (e) { console.warn('[pilotage] maj marge de sécurité échouée:', e); }
                   setShowMarginModal(false);
+                }}
+              >
+                <Text style={styles.varModalSaveText}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Conserver manuellement un montant ce mois (déduit du Relyka, reste sur le compte courant). */}
+      <Modal visible={showConserveModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowConserveModal(false)}>
+        <Pressable style={styles.varModalOverlay} onPress={() => setShowConserveModal(false)}>
+          <Pressable style={styles.varModalBox} onPress={() => {}}>
+            <Text style={styles.varModalTitle}>Conserver ce mois</Text>
+            <Text style={styles.varModalHint}>
+              Montant à garder en réserve sur ton compte courant ce mois-ci. Il est déduit de ton « Budget libre » (Relyka) mais reste sur ton compte. Se réinitialise chaque mois.
+            </Text>
+            <View style={styles.varModalInputRow}>
+              <TextInput
+                style={styles.varModalInput}
+                value={conserveInput}
+                onChangeText={(v) => setConserveInput(v.replace(/[^0-9.,]/g, ''))}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={COLORS.textSecondary}
+                autoFocus
+              />
+              <Text style={styles.varModalUnit} numberOfLines={1}>{CURRENCY_SYMBOL}</Text>
+            </View>
+            <View style={styles.varModalActions}>
+              <TouchableOpacity style={styles.varModalCancel} onPress={() => setShowConserveModal(false)}>
+                <Text style={styles.varModalCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.varModalSave}
+                onPress={() => {
+                  const val = Math.max(0, Math.round(parseFloat(conserveInput.replace(',', '.')) || 0));
+                  setMonthlyReservation.mutate({ montant: val, libelle: `Réservé ${monthYearLabel()}` });
+                  setShowConserveModal(false);
                 }}
               >
                 <Text style={styles.varModalSaveText}>Enregistrer</Text>
