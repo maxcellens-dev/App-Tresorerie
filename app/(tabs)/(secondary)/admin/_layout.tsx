@@ -21,6 +21,7 @@ export default function AdminLayout() {
       <Stack.Screen name="landing" options={{ title: "Page d'accueil" }} />
       <Stack.Screen name="users" options={{ title: 'Utilisateurs' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+      <Stack.Screen name="app-update" options={{ title: "Mise à jour de l'App" }} />
     </Stack>
   );
 }

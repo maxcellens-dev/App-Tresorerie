@@ -729,8 +729,8 @@ export default function PilotageScreen() {
                   {/* 2. Épargne + Investissement — icônes épurées, montants plus gros */}
                   <View style={styles.suiviRow2}>
                     {([
-                      { key: 'savings', label: 'Épargne', value: savings, icon: 'shield', color: COLORS.green },
-                      { key: 'invest', label: 'Investissement', value: invest, icon: 'trending-up', color: COLORS.violet },
+                      { key: 'savings', label: 'Épargné', value: savings, icon: 'shield', color: COLORS.green },
+                      { key: 'invest', label: 'Investi', value: invest, icon: 'trending-up', color: COLORS.violet },
                     ] as const).map((b) => (
                       <TouchableOpacity key={b.key} style={styles.suiviMiniBlock} activeOpacity={0.7} onPress={() => setDetailKey(b.key)}>
                         <View style={styles.suiviMiniHead}>
@@ -746,7 +746,7 @@ export default function PilotageScreen() {
                   <View style={styles.suiviBlock}>
                     <View style={styles.suiviBlockHead}>
                       <Ionicons name="card" size={18} color={COLORS.danger} />
-                      <Text style={styles.suiviBlockTitle}>Dépenses</Text>
+                      <Text style={styles.suiviBlockTitle}>Dépensé</Text>
                     </View>
                     {/* Ce mois : montant à gauche, % des dépenses prévues estimées à droite (curseur = % plafonné à 100 %) */}
                     <TouchableOpacity style={styles.depBandBig} activeOpacity={0.7} onPress={() => { setSpentFilter(null); setDetailKey('spent'); }}>

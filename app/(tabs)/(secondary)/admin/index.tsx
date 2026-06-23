@@ -32,12 +32,20 @@ export default function AdminHub() {
 
   const sections = [
     {
-      category: 'Moteur financier',
+      category: 'Système',
       items: [
-        { href: '/(tabs)/admin/financial-profiles', icon: 'person-outline', title: 'Profils financiers', desc: 'P1-P5 · messages · seuils', color: '#a78bfa' },
-        { href: '/(tabs)/admin/recommendations', icon: 'bulb-outline', title: 'Recommandations', desc: 'Moteur & paliers', color: COLORS.green },
-        { href: '/(tabs)/admin/safe-to-spend', icon: 'calculator-outline', title: 'Formule À dépenser', desc: 'Calcul détaillé', color: '#60a5fa' },
-        { href: '/(tabs)/admin/fiscal-rates', icon: 'cash-outline', title: 'Fiscalité', desc: 'Taux par enveloppe (PEA, AV…)', color: '#fbbf24' },
+        { href: '/(tabs)/(secondary)/admin/features', icon: 'flask-outline', title: 'Fonctionnalités', desc: 'Clôture · Premium · Pubs', color: '#f43f5e' },
+        { href: '/(tabs)/(secondary)/admin/app-update', icon: 'cloud-download-outline', title: "Mise à jour de l'App", desc: 'Bandeau de mise à jour & versions', color: '#0ea5e9' },
+      ],
+    },
+    {
+      category: 'Utilisateurs & support',
+      items: [
+        { href: '/(tabs)/(secondary)/admin/assistance', icon: 'headset-outline', title: 'Assistance', desc: 'Demandes de support', color: '#22d3ee' },
+        { href: '/(tabs)/(secondary)/admin/suggestions', icon: 'chatbubbles-outline', title: 'Suggestions', desc: 'Idées utilisateurs', color: '#eab308' },
+        { href: '/(tabs)/(secondary)/admin/notifications', icon: 'notifications-outline', title: 'Notifications', desc: 'Envoi manuel à tous les utilisateurs', color: '#ef4444' },
+        { href: '/(tabs)/(secondary)/admin/stats-hub', icon: 'bar-chart-outline', title: 'Stats Hub', desc: 'Métriques & activité', color: '#f97316' },
+        { href: '/(tabs)/(secondary)/admin/users', icon: 'people-outline', title: 'Utilisateurs', desc: 'Recherche + passage Premium', color: '#22c55e' },
       ],
     },
     {
@@ -52,19 +60,12 @@ export default function AdminHub() {
       ],
     },
     {
-      category: 'Utilisateurs & support',
+      category: 'Moteur financier',
       items: [
-        { href: '/(tabs)/(secondary)/admin/assistance', icon: 'headset-outline', title: 'Assistance', desc: 'Demandes de support', color: '#22d3ee' },
-        { href: '/(tabs)/(secondary)/admin/suggestions', icon: 'chatbubbles-outline', title: 'Suggestions', desc: 'Idées utilisateurs', color: '#eab308' },
-        { href: '/(tabs)/(secondary)/admin/notifications', icon: 'notifications-outline', title: 'Notifications', desc: 'Envoi manuel à tous les utilisateurs', color: '#ef4444' },
-        { href: '/(tabs)/(secondary)/admin/stats-hub', icon: 'bar-chart-outline', title: 'Stats Hub', desc: 'Métriques & activité', color: '#f97316' },
-        { href: '/(tabs)/(secondary)/admin/users', icon: 'people-outline', title: 'Utilisateurs', desc: 'Recherche + passage Premium', color: '#22c55e' },
-      ],
-    },
-    {
-      category: 'Système',
-      items: [
-        { href: '/(tabs)/(secondary)/admin/features', icon: 'flask-outline', title: 'Fonctionnalités', desc: 'Clôture · Premium · Pubs', color: '#f43f5e' },
+        { href: '/(tabs)/admin/financial-profiles', icon: 'person-outline', title: 'Profils financiers', desc: 'P1-P5 · messages · seuils', color: '#a78bfa' },
+        { href: '/(tabs)/admin/recommendations', icon: 'bulb-outline', title: 'Recommandations', desc: 'Moteur & paliers', color: COLORS.green },
+        { href: '/(tabs)/admin/safe-to-spend', icon: 'calculator-outline', title: 'Formule À dépenser', desc: 'Calcul détaillé', color: '#60a5fa' },
+        { href: '/(tabs)/admin/fiscal-rates', icon: 'cash-outline', title: 'Fiscalité', desc: 'Taux par enveloppe (PEA, AV…)', color: '#fbbf24' },
       ],
     },
   ];

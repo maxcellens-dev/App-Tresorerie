@@ -239,7 +239,6 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <Text style={styles.avatarHint}>WebP/JPEG, max 30 Ko</Text>
           </View>
 
           <Text style={styles.label}>Nom</Text>

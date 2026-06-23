@@ -1,8 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Platform } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -39,32 +38,6 @@ export default function AdminFeatures() {
   const adsOn = Boolean(flags?.ads_enabled);
   const reportingOn = Boolean(flags?.reporting_enabled);
   const recoContextOn = flags?.reco_context_enabled !== false; // défaut activé
-
-  // ── Mise à jour de l'app (bandeau « mise à jour disponible ») ──
-  const installedVersion = Constants.expoConfig?.version ?? '—';
-  const [latestVersion, setLatestVersion] = useState('');
-  const [minVersion, setMinVersion] = useState('');
-  const [urlAndroid, setUrlAndroid] = useState('');
-  const [urlIos, setUrlIos] = useState('');
-  const [updateSaved, setUpdateSaved] = useState(false);
-
-  useEffect(() => {
-    if (!flags) return;
-    setLatestVersion(flags.latest_version ?? '');
-    setMinVersion(flags.min_version ?? '');
-    setUrlAndroid(flags.update_url_android ?? '');
-    setUrlIos(flags.update_url_ios ?? '');
-  }, [flags]);
-
-  const saveUpdateConfig = () => {
-    // Vide → undefined : le champ est retiré de la config (JSON), donc le bandeau cesse de s'afficher.
-    save.mutate({
-      latest_version: latestVersion.trim() || undefined,
-      min_version: minVersion.trim() || undefined,
-      update_url_android: urlAndroid.trim() || undefined,
-      update_url_ios: urlIos.trim() || undefined,
-    }, { onSuccess: () => { setUpdateSaved(true); setTimeout(() => setUpdateSaved(false), 1500); } });
-  };
 
   const Toggle = ({ label, desc, value, onToggle }: { label: string; desc: string; value: boolean; onToggle: () => void }) => (
     <View style={styles.card}>
@@ -130,36 +103,6 @@ export default function AdminFeatures() {
               value={myPremium}
               onToggle={() => setPremium.mutate(!myPremium)}
             />
-
-            {/* ── Mise à jour de l'app ── */}
-            <View style={styles.updateCard}>
-              <Text style={styles.cardTitle}>Mise à jour de l'app</Text>
-              <Text style={styles.cardDesc}>
-                Affiche un bandeau « mise à jour disponible » (natif) quand la version publiée est supérieure à celle installée.
-                Version installée sur cet appareil : <Text style={{ fontWeight: '800', color: COLORS.text }}>{installedVersion}</Text>.
-              </Text>
-
-              <Text style={styles.inputLabel}>Dernière version publiée (bandeau fermable)</Text>
-              <TextInput style={styles.input} value={latestVersion} onChangeText={setLatestVersion} placeholder="ex. 1.0.2" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" />
-
-              <Text style={styles.inputLabel}>Version minimale requise (bandeau OBLIGATOIRE)</Text>
-              <TextInput style={styles.input} value={minVersion} onChangeText={setMinVersion} placeholder="ex. 1.0.1 (laisser vide si non requis)" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} keyboardType="numbers-and-punctuation" />
-
-              <Text style={styles.inputLabel}>Lien store Android (optionnel)</Text>
-              <TextInput style={styles.input} value={urlAndroid} onChangeText={setUrlAndroid} placeholder="https://play.google.com/store/apps/details?id=…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-
-              <Text style={styles.inputLabel}>Lien store iOS (optionnel)</Text>
-              <TextInput style={styles.input} value={urlIos} onChangeText={setUrlIos} placeholder="https://apps.apple.com/app/…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-
-              <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={saveUpdateConfig} disabled={save.isPending} activeOpacity={0.85}>
-                {save.isPending
-                  ? <ActivityIndicator color={COLORS.bg} size="small" />
-                  : <Text style={styles.saveBtnText}>{updateSaved ? 'Enregistré ✓' : 'Enregistrer la version'}</Text>}
-              </TouchableOpacity>
-              <Text style={styles.updateHint}>
-                Astuce : à chaque publication sur le store, mettez « Dernière version publiée » au numéro de la nouvelle version. Les utilisateurs encore sur l'ancienne verront le bandeau à leur prochaine ouverture.
-              </Text>
-            </View>
             </>
           )}
         </ScrollView>
@@ -184,11 +127,5 @@ function makeStyles(c: any) {
     knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff' },
     knobOn: { alignSelf: 'flex-end' },
     text: { color: c.text, padding: 20 },
-    updateCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
-    inputLabel: { fontSize: 12, fontWeight: '600', color: c.textSecondary, marginTop: 12, marginBottom: 5 },
-    input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 13, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
-    saveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 16 },
-    saveBtnText: { color: c.bg, fontWeight: '800', fontSize: 14 },
-    updateHint: { fontSize: 11, color: c.textSecondary, marginTop: 10, lineHeight: 15, fontStyle: 'italic' },
   });
 }
