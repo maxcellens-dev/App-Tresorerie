@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { usePilotageData } from '../../hooks/usePilotageData';
@@ -706,7 +706,7 @@ export default function PilotageScreen() {
                   <TouchableOpacity style={styles.suiviBlock} activeOpacity={0.7} onPress={() => setDetailKey('checking')}>
                     <View style={styles.accentPillRow}>
                       <View style={[styles.accentPill, { backgroundColor: accentDeep + '1F', borderColor: accentDeep + '55' }]}>
-                        <Ionicons name="wallet" size={13} color={COLORS.text} />
+                        <MaterialCommunityIcons name="scale-balance" size={13} color={COLORS.text} />
                         <Text style={[styles.accentPillText, { color: COLORS.text, fontSize: 14 }]}>Solde courant actuel</Text>
                       </View>
                     </View>

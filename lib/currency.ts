@@ -142,9 +142,13 @@ export const DEFAULT_CURRENCY = 'EUR';
  * montants de recommandations (épargner, investir, plaisir, conserver) afin d'afficher des
  * montants génériques et non au centime/à l'euro près (864 € ou 869 € → 860 €).
  * NB : ne pas utiliser dans le détail « Ton Relyka » qui montre le vrai calcul.
+ *
+ * Tolérance de 0,1 : on n'arrondit à la dizaine inférieure que si le reste est ≤ 9,9 ; au-delà
+ * (reste > 9,9 — ex. 699,99 qui « vaut » 700 mais traîne une erreur de virgule flottante) on
+ * remonte à la dizaine supérieure. Évite qu'un montant censé valoir pile 700 € s'affiche 690 €.
  */
 export function floorToTen(n: number): number {
-  return Math.floor(n / 10) * 10;
+  return Math.floor((n + 0.1) / 10) * 10;
 }
 
 // ── Conversion multi-devises ──────────────────────────────────
