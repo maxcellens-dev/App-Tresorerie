@@ -64,11 +64,31 @@ function isRecurringDue(s: any, now: Date): boolean {
   return true;
 }
 
-async function sendPushToAll(supabase: any, title: string, body: string): Promise<number> {
-  const { data } = await supabase
+// profile_ids correspondant à la cible d'une planif, ou null = pas de filtre (Tous).
+async function profileIdsForTarget(supabase: any, s: any): Promise<string[] | null> {
+  const kind = s.target_kind || 'all';
+  if (kind === 'all') return null;
+  if (kind === 'group') {
+    if (!s.target_group_id) return [];
+    const { data } = await supabase.from('user_group_members').select('profile_id').eq('group_id', s.target_group_id);
+    return (data ?? []).map((r: any) => r.profile_id);
+  }
+  const { data } = await supabase.from('profiles').select('id').eq('is_premium', kind === 'premium');
+  return (data ?? []).map((r: any) => r.id);
+}
+
+async function sendPushToTarget(supabase: any, s: any): Promise<number> {
+  const ids = await profileIdsForTarget(supabase, s);
+  let query = supabase
     .from('push_tokens')
-    .select('token, profiles!inner(notifications_enabled)')
+    .select('token, profile_id, profiles!inner(notifications_enabled)')
     .eq('profiles.notifications_enabled', true);
+  if (ids !== null) {
+    if (ids.length === 0) return 0;
+    query = query.in('profile_id', ids);
+  }
+  const { data } = await query;
+  const title = s.title; const body = s.body;
   const tokens = [...new Set((data ?? []).map((r: any) => r.token))]
     .filter((t: any) => typeof t === 'string' && t.startsWith('ExponentPushToken')) as string[];
   for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
@@ -116,10 +136,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         : isRecurringDue(s, now);
       if (!due) continue;
 
-      const devices = await sendPushToAll(supabase, s.title, s.body);
+      const devices = await sendPushToTarget(supabase, s);
+      let targetLabel = 'Tous';
+      if (s.target_kind === 'premium') targetLabel = 'Premium';
+      else if (s.target_kind === 'normal') targetLabel = 'Normal';
+      else if (s.target_kind === 'group') {
+        const { data: g } = await supabase.from('user_groups').select('name').eq('id', s.target_group_id).maybeSingle();
+        targetLabel = g?.name ? `Groupe : ${g.name}` : 'Groupe';
+      }
       await supabase.from('admin_notifications').insert({
         title: s.title, body: s.body, sent_count: devices,
-        created_by: s.created_by ?? null, scheduled_id: s.id, source: s.kind,
+        created_by: s.created_by ?? null, scheduled_id: s.id, source: s.kind, target_label: targetLabel,
       });
       const patch: Record<string, unknown> = { last_sent_at: now.toISOString() };
       if (s.kind === 'once') patch.active = false;   // ponctuel → une seule fois

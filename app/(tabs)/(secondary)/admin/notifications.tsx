@@ -18,10 +18,18 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
-import { sendPushToAll } from '../../../../lib/pushSend';
+import { sendPushToTarget, type NotifTarget } from '../../../../lib/pushSend';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
 
-interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null }
+interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null; target_label: string | null }
+interface GroupRow { id: string; name: string }
+
+function targetLabelOf(t: NotifTarget, groups: GroupRow[]): string {
+  if (t.kind === 'premium') return 'Premium';
+  if (t.kind === 'normal') return 'Normal';
+  if (t.kind === 'group') return `Groupe : ${groups.find((g) => g.id === t.groupId)?.name ?? '?'}`;
+  return 'Tous';
+}
 
 function sourceLabel(source: string | null): string {
   if (source === 'once') return 'Ponctuelle';
@@ -35,6 +43,7 @@ interface ScheduledNotif {
   trigger_at: string | null; recurrence: Recurrence | null; time_of_day: string | null;
   day_of_week: number | null; day_of_month: number | null; timezone: string;
   active: boolean; last_sent_at: string | null; created_at: string;
+  target_kind: NotifTarget['kind']; target_group_id: string | null;
 }
 
 const WEEKDAYS = [
@@ -63,6 +72,7 @@ function scheduleSummary(s: ScheduledNotif): string {
 const EMPTY_FORM = {
   id: null as string | null, title: '', body: '', kind: 'recurring' as 'once' | 'recurring',
   recurrence: 'daily' as Recurrence, timeOfDay: '09:00', dayOfWeek: 1, dayOfMonth: '1', dateInput: '',
+  targetKind: 'all' as NotifTarget['kind'], targetGroupId: null as string | null,
 };
 
 export default function AdminNotifications() {
@@ -77,9 +87,40 @@ export default function AdminNotifications() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [sendTarget, setSendTarget] = useState<NotifTarget>({ kind: 'all' });
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  const { data: groups = [] } = useQuery({
+    queryKey: ['user_groups_min'],
+    queryFn: async (): Promise<GroupRow[]> => {
+      if (!supabase) return [];
+      const { data, error } = await supabase.from('user_groups').select('id, name').order('name', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as GroupRow[];
+    },
+    enabled: isAdmin,
+  });
+
+  // Sélecteur de cible (chips) — réutilisé pour l'envoi immédiat et le formulaire de planification.
+  const renderTargetChips = (value: NotifTarget, onChange: (t: NotifTarget) => void) => (
+    <View style={styles.chipRow}>
+      {([['all', 'Tous'], ['premium', 'Premium'], ['normal', 'Normal']] as const).map(([k, lbl]) => (
+        <TouchableOpacity key={k} style={[styles.chip, value.kind === k && styles.chipActive]} onPress={() => onChange({ kind: k })}>
+          <Text style={[styles.chipText, value.kind === k && styles.chipTextActive]}>{lbl}</Text>
+        </TouchableOpacity>
+      ))}
+      {groups.map((g) => {
+        const on = value.kind === 'group' && value.groupId === g.id;
+        return (
+          <TouchableOpacity key={g.id} style={[styles.chip, on && styles.chipActive]} onPress={() => onChange({ kind: 'group', groupId: g.id })}>
+            <Text style={[styles.chipText, on && styles.chipTextActive]}>{g.name}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 
   const { data: history = [] } = useQuery({
     queryKey: ['admin_notifications'],
@@ -108,8 +149,8 @@ export default function AdminNotifications() {
       if (!supabase) throw new Error('Backend indisponible');
       const t = title.trim(); const b = body.trim();
       if (!t || !b) throw new Error('Titre et message requis');
-      const sentCount = await sendPushToAll(t, b);
-      const { error } = await supabase.from('admin_notifications').insert({ title: t, body: b, sent_count: sentCount, created_by: user?.id ?? null, source: 'manual' });
+      const sentCount = await sendPushToTarget(sendTarget, t, b);
+      const { error } = await supabase.from('admin_notifications').insert({ title: t, body: b, sent_count: sentCount, created_by: user?.id ?? null, source: 'manual', target_label: targetLabelOf(sendTarget, groups) });
       if (error) throw error;
       return sentCount;
     },
@@ -128,7 +169,11 @@ export default function AdminNotifications() {
       if (!t || !b) throw new Error('Titre et message requis');
       if (!/^\d{2}:\d{2}$/.test(form.timeOfDay)) throw new Error('Heure invalide (HH:MM)');
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris';
-      let row: any = { title: t, body: b, timezone: tz, active: true };
+      if (form.targetKind === 'group' && !form.targetGroupId) throw new Error('Choisis un groupe cible');
+      let row: any = {
+        title: t, body: b, timezone: tz, active: true,
+        target_kind: form.targetKind, target_group_id: form.targetKind === 'group' ? form.targetGroupId : null,
+      };
       if (form.kind === 'once') {
         const parsed = parseDateFromFrench(form.dateInput); // YYYY-MM-DD
         if (!parsed) throw new Error('Date invalide (jj-mm-aaaa)');
@@ -179,8 +224,9 @@ export default function AdminNotifications() {
   const sendNow = useMutation({
     mutationFn: async (s: ScheduledNotif) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const count = await sendPushToAll(s.title, s.body);
-      await supabase.from('admin_notifications').insert({ title: s.title, body: s.body, sent_count: count, created_by: user?.id ?? null, scheduled_id: s.id, source: s.kind });
+      const target: NotifTarget = { kind: s.target_kind ?? 'all', groupId: s.target_group_id };
+      const count = await sendPushToTarget(target, s.title, s.body);
+      await supabase.from('admin_notifications').insert({ title: s.title, body: s.body, sent_count: count, created_by: user?.id ?? null, scheduled_id: s.id, source: s.kind, target_label: targetLabelOf(target, groups) });
       return count;
     },
     onSuccess: (count) => { Alert.alert('Envoyée', `Notification envoyée à ${count} appareil${count > 1 ? 's' : ''}.`); qc.invalidateQueries({ queryKey: ['admin_notifications'] }); },
@@ -204,12 +250,13 @@ export default function AdminNotifications() {
       recurrence: s.recurrence ?? 'daily', timeOfDay: s.time_of_day ?? '09:00',
       dayOfWeek: s.day_of_week ?? 1, dayOfMonth: String(s.day_of_month ?? 1),
       dateInput: s.trigger_at ? formatDateFrench(s.trigger_at.slice(0, 10)) : '',
+      targetKind: s.target_kind ?? 'all', targetGroupId: s.target_group_id ?? null,
     });
     setShowForm(true);
   };
   const confirmSend = () => {
     setMsg(null);
-    Alert.alert('Confirmer l\'envoi', 'Envoyer cette notification à tous les utilisateurs ayant activé les notifications ?', [
+    Alert.alert('Confirmer l\'envoi', `Envoyer à « ${targetLabelOf(sendTarget, groups)} » (utilisateurs ayant activé les notifications) ?`, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Envoyer', onPress: () => sendMutation.mutate() },
     ]);
@@ -265,9 +312,11 @@ export default function AdminNotifications() {
             <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Ex. Nouveauté Relyka 🎉" placeholderTextColor={COLORS.textSecondary} maxLength={80} />
             <Text style={styles.fieldLabel}>Message</Text>
             <TextInput style={[styles.input, { minHeight: 90, textAlignVertical: 'top' }]} value={body} onChangeText={setBody} placeholder="Le corps de la notification…" placeholderTextColor={COLORS.textSecondary} multiline maxLength={400} />
+            <Text style={styles.fieldLabel}>Cible</Text>
+            {renderTargetChips(sendTarget, setSendTarget)}
             <TouchableOpacity style={[styles.sendBtn, !canSend && { opacity: 0.5 }]} onPress={confirmSend} disabled={!canSend} activeOpacity={0.85}>
               {sendMutation.isPending ? <ActivityIndicator size="small" color={COLORS.bg} /> : <Ionicons name="paper-plane-outline" size={16} color={COLORS.bg} />}
-              <Text style={styles.sendBtnText}>Envoyer à tous</Text>
+              <Text style={styles.sendBtnText}>Envoyer ({targetLabelOf(sendTarget, groups)})</Text>
             </TouchableOpacity>
             {msg && <Text style={[styles.msg, { color: msg.startsWith('Échec') ? COLORS.danger : COLORS.emerald }]}>{msg}</Text>}
           </View>
@@ -291,7 +340,7 @@ export default function AdminNotifications() {
                 <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.7} onPress={() => openEdit(s)}>
                   <Text style={styles.histTitle} numberOfLines={1}>{s.title}</Text>
                   <Text style={styles.histBody} numberOfLines={2}>{s.body}</Text>
-                  <Text style={styles.histMeta}>{scheduleSummary(s)}</Text>
+                  <Text style={styles.histMeta}>{scheduleSummary(s)} · {targetLabelOf({ kind: s.target_kind ?? 'all', groupId: s.target_group_id }, groups)}</Text>
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center', gap: 8 }}>
                   <Switch value={s.active} onValueChange={() => toggleActive.mutate(s)} trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }} thumbColor="#fff" />
@@ -334,7 +383,7 @@ export default function AdminNotifications() {
                       <Text style={[styles.histTitle, { flex: 1 }]} numberOfLines={1}>{n.title}</Text>
                     </View>
                     <Text style={styles.histBody} numberOfLines={3}>{n.body}</Text>
-                    <Text style={styles.histMeta}>{formatDate(n.created_at)} · {n.sent_count} appareil{n.sent_count > 1 ? 's' : ''}</Text>
+                    <Text style={styles.histMeta}>{n.target_label ? n.target_label + ' · ' : ''}{formatDate(n.created_at)} · {n.sent_count} appareil{n.sent_count > 1 ? 's' : ''}</Text>
                   </View>
                 </View>
               );
@@ -404,6 +453,9 @@ export default function AdminNotifications() {
                   )}
                 </>
               )}
+
+              <Text style={styles.fieldLabel}>Cible</Text>
+              {renderTargetChips({ kind: form.targetKind, groupId: form.targetGroupId }, (t) => setForm((f) => ({ ...f, targetKind: t.kind, targetGroupId: t.groupId ?? null })))}
 
               <Text style={styles.fieldLabel}>Heure (HH:MM)</Text>
               <TextInput style={styles.input} value={form.timeOfDay} onChangeText={(v) => setForm((f) => ({ ...f, timeOfDay: v.replace(/[^0-9:]/g, '') }))} placeholder="09:00" placeholderTextColor={COLORS.textSecondary} maxLength={5} />
