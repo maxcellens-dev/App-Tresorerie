@@ -499,7 +499,7 @@ export default function EditTransactionScreen() {
             value={note}
             onChangeText={setNote}
             onFocus={handleFocus}
-            placeholder="Ex. Courses, Salaire..."
+            placeholder="....."
             placeholderTextColor={COLORS.textSecondary}
             returnKeyType="next"
           />

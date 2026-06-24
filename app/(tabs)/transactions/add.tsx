@@ -398,7 +398,7 @@ export default function AddTransactionScreen() {
 
                 {/* Libellé */}
                 <Text style={styles.label}>Libellé (optionnel)</Text>
-                <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder="Ex. Courses, Salaire..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+                <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder="....." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
 
                 {/* Sous-catégorie */}
                 <CategoryPicker
