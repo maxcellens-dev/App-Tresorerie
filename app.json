@@ -3,7 +3,7 @@
     "name": "Relyka",
     "owner": "relykadevs-team",
     "slug": "relyka-app",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "scheme": "relyka-app",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp",
-      "versionCode": 31
+      "versionCode": 33
     },
     "plugins": [
       "./plugins/withJitpackAuth",
