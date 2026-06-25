@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import CalculatorButton from '../../../components/CalculatorButton';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { createTransferLegs, useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/useTransactions';
@@ -495,6 +496,7 @@ export default function TransferScreen() {
           </Pressable>
         </Modal>
       </SafeAreaView>
+      <CalculatorButton />
     </View>
   );
 }

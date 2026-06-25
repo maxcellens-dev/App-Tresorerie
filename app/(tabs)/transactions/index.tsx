@@ -20,6 +20,7 @@ import { useAccounts } from '../../../hooks/useAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideOverlay from '../../../components/GuideOverlay';
+import CalculatorButton from '../../../components/CalculatorButton';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
@@ -849,6 +850,7 @@ export default function TransactionsListScreen() {
         onSkip={guide.skip}
         screenTitle="Transactions"
       />
+      <CalculatorButton />
     </View>
   );
 }
