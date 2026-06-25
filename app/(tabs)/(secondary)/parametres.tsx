@@ -1,5 +1,5 @@
 ﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch, Linking, Alert } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +29,19 @@ import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { APP_VERSION } from '../../../lib/appVersion';
+
+const ANDROID_PACKAGE = 'com.relyka.myapp';
+/** Renvoie true si `a` est une version plus récente que `b` ("1.0.2" > "1.0.1"). */
+function isNewerVersion(a: string, b: string): boolean {
+  const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0, y = pb[i] ?? 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return false;
+}
 
 export default function SettingsScreen() {
   const appNameFont = useAppNameFont();
@@ -69,6 +82,18 @@ export default function SettingsScreen() {
   const tour = useTour();
   const { data: featureFlags } = useFeatureFlags();
   const closureEnabled = Boolean(featureFlags?.monthly_closure_enabled);
+  // Bouton « Mise à jour » : compare la version installée à la dernière publiée (config admin).
+  const updateAvailable = !!featureFlags?.latest_version && isNewerVersion(featureFlags.latest_version, APP_VERSION);
+  const checkUpdate = () => {
+    if (updateAvailable) {
+      const url = Platform.OS === 'ios'
+        ? (featureFlags?.update_url_ios || 'https://apps.apple.com/')
+        : (featureFlags?.update_url_android || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`);
+      Linking.openURL(url).catch(() => {});
+    } else {
+      Alert.alert('À jour', `Tu es bien sur la dernière version (v${APP_VERSION}).`);
+    }
+  };
 
   // Liste complète des presets : natifs (avec surcharge hex éventuelle) + presets personnalisés
   const { data: styleConfig } = useStyleConfig();
@@ -286,8 +311,8 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* ── Conseils (affichage en haut du Pilotage) ── */}
-          <Text style={styles.sectionTitle}>Conseils</Text>
+          {/* ── Affichage & aides (conseils Pilotage + calculatrice) ── */}
+          <Text style={styles.sectionTitle}>Affichage & aides</Text>
           <View style={styles.card}>
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
               <Ionicons name="bulb-outline" size={20} color={COLORS.textSecondary} />
@@ -315,29 +340,7 @@ export default function SettingsScreen() {
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
               Réaffiche dans le Pilotage toutes les recommandations ignorées ce mois-ci (selon ta situation actuelle).
             </Text>
-          </View>
-
-          {/* ── Notifications ── */}
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          <View style={styles.card}>
-            <View style={[styles.row, { borderBottomWidth: 0 }]}>
-              <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
-              <Text style={styles.rowLabel}>Activer les notifications</Text>
-              <Switch
-                value={(profile as any)?.notifications_enabled ?? true}
-                onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
-                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
-                thumbColor="#ffffff"
-              />
-            </View>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka).
-            </Text>
-          </View>
-
-          {/* ── Calculatrice ── */}
-          <Text style={styles.sectionTitle}>Calculatrice</Text>
-          <View style={styles.card}>
+            <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
               <Ionicons name="calculator-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Afficher la calculatrice</Text>
@@ -364,6 +367,35 @@ export default function SettingsScreen() {
               />
               <Text style={styles.currencyHint}>Devise de tes totaux (Total liquidités, Pilotage, Projection…). Chaque compte garde sa propre devise ; les totaux y sont convertis au taux du jour (≈ si plusieurs devises).</Text>
             </View>
+          </View>
+
+          {/* ── Application (notifications + mise à jour) ── */}
+          <Text style={styles.sectionTitle}>Application</Text>
+          <View style={styles.card}>
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
+              <Text style={styles.rowLabel}>Activer les notifications</Text>
+              <Switch
+                value={(profile as any)?.notifications_enabled ?? true}
+                onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
+                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka).
+            </Text>
+            <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={checkUpdate} activeOpacity={0.7}>
+              <Ionicons name={updateAvailable ? 'arrow-up-circle' : 'checkmark-circle-outline'} size={20} color={updateAvailable ? COLORS.emerald : COLORS.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>Mise à jour</Text>
+                <Text style={{ color: updateAvailable ? COLORS.emerald : COLORS.textSecondary, fontSize: 12, marginTop: 1 }}>
+                  {updateAvailable ? 'Nouvelle version disponible · appuyez pour l\'installer' : `Version installée v${APP_VERSION}`}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
           </View>
         </KeyboardAwareScrollView>
       </SafeAreaView>

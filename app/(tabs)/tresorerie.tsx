@@ -1027,6 +1027,12 @@ export default function TreasuryPlanScreen() {
                             } else {
                               openVirementDraft(m.key, row.mouvementType);
                             }
+                          } else if (row.type === 'mouvement' && row.isChild && !row.isSectionHeader) {
+                            // Ligne Mouvement (Épargne / Investissements / Projets) — les virements ont
+                            // category_id NULL, donc on filtre par TYPE de mouvement (linked_account), pas
+                            // par catégorie. Mois en cours / passé → transactions filtrées correspondantes.
+                            const mt = row.mouvementType ?? (row.isProjectRow ? 'projets' : '');
+                            router.push(`/(tabs)/transactions?focusMonth=${m.key}&filterType=mouvements${mt ? `&mouvType=${mt}` : ''}&singleMonth=1` as any);
                           } else if (row.categoryId && !row.isTotalLine && !row.isSectionHeader) {
                             if (isFuture && row.isChild && (row.type === 'expense' || row.type === 'income')) {
                               const allTx = planData.txByMonthCategory?.[row.categoryId]?.[m.key] ?? [];
@@ -1036,7 +1042,10 @@ export default function TreasuryPlanScreen() {
                               } else {
                                 openDraftModal(m.key, row.categoryId, row.type as 'income' | 'expense');
                               }
-                            } else if (val === 0) {
+                            } else if (val === 0 || m.key === highlightMonthKey) {
+                              // Mois en cours (ou cellule à 0) → directement les transactions filtrées.
+                              // « Modifier le montant » (override) ne sert qu'à projeter un montant FUTUR,
+                              // donc inutile sur le mois en cours.
                               goToTransactions(m.key, row.categoryId);
                             } else {
                               showCellMenu(m.key, row.categoryId, val);

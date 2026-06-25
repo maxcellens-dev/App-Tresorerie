@@ -59,3 +59,46 @@ export async function getDevicePushTokenAsync(): Promise<DevicePushToken | null>
     return null;
   }
 }
+
+/** Diagnostic lisible (admin) : explique étape par étape pourquoi le jeton ne se crée pas. */
+export async function diagnosePushRegistration(): Promise<string> {
+  const lines: string[] = [`Plateforme : ${Platform.OS}`];
+  try {
+    lines.push(`Appareil réel : ${Device.isDevice ? 'oui' : 'NON (simulateur → pas de push)'}`);
+    if (!Device.isDevice) return lines.join('\n');
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Notifications Relyka', importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
+
+    const perm = await Notifications.getPermissionsAsync();
+    lines.push(`Permission OS : ${perm.status} (peut redemander : ${perm.canAskAgain})`);
+    let status = perm.status;
+    if (status === 'undetermined' && perm.canAskAgain) {
+      const res = await Notifications.requestPermissionsAsync();
+      status = res.status;
+      lines.push(`Après demande : ${status}`);
+    }
+    if (status !== 'granted') {
+      lines.push('→ Permission NON accordée. Réglages → Relyka → Notifications → Autoriser.');
+      return lines.join('\n');
+    }
+
+    const projectId = (Constants?.expoConfig as any)?.extra?.eas?.projectId
+      ?? (Constants as any)?.easConfig?.projectId;
+    lines.push(`projectId : ${projectId ?? 'MANQUANT'}`);
+    try {
+      const tokenRes = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined as any);
+      lines.push(`Jeton : ${String(tokenRes.data).slice(0, 28)}…`);
+      lines.push('OK — le jeton devrait s\'enregistrer au prochain lancement.');
+    } catch (e: any) {
+      lines.push(`getExpoPushTokenAsync a ECHOUE : ${e?.message ?? String(e)}`);
+      lines.push('→ Souvent : credentials FCM (Android) / APNs (iOS) non configurés dans EAS, ou build sans push.');
+    }
+  } catch (e: any) {
+    lines.push(`Erreur : ${e?.message ?? String(e)}`);
+  }
+  return lines.join('\n');
+}

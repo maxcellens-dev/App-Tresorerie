@@ -97,7 +97,7 @@ export default function TransactionsListScreen() {
   const onbRecurring = useOnbHighlight('recurring_tx');
   const router = useRouter();
   const goBack = useNavBack();
-  const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string }>();
+  const params = useLocalSearchParams<{ month?: string; focusMonth?: string; categoryId?: string; singleMonth?: string; filterType?: string; mouvType?: string }>();
   // Arrivée en deep-link depuis la Tréso (« voir transactions ») : focusMonth est posé par tous ces
   // liens. Dans ce cas seulement, on affiche un bouton « Retour » vers la page précédente (Tréso).
   // En arrivant par l'onglet Transactions du menu (aucun param), le bouton n'apparaît pas.
@@ -177,6 +177,7 @@ export default function TransactionsListScreen() {
   const [categoryFilterId, setCategoryFilterId] = useState<string | null>(params.categoryId ?? null);
   const [regulFilter, setRegulFilter] = useState(params.filterType === 'regul');
   const [mouvementsFilter, setMouvementsFilter] = useState(params.filterType === 'mouvements');
+  const [mouvTypeFilter, setMouvTypeFilter] = useState<string | null>(params.mouvType ?? null);
   const [recettesFilter, setRecettesFilter] = useState(params.filterType === 'recettes');
   const [depensesFilter, setDepensesFilter] = useState(params.filterType === 'depenses');
 
@@ -187,9 +188,10 @@ export default function TransactionsListScreen() {
   useEffect(() => {
     setRegulFilter(params.filterType === 'regul');
     setMouvementsFilter(params.filterType === 'mouvements');
+    setMouvTypeFilter(params.mouvType ?? null);
     setRecettesFilter(params.filterType === 'recettes');
     setDepensesFilter(params.filterType === 'depenses');
-  }, [params.filterType]);
+  }, [params.filterType, params.mouvType]);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -299,12 +301,16 @@ export default function TransactionsListScreen() {
     if (regulFilter) {
       list = list.filter((t) => t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde');
     }
-    // Filtre Mouvements (virements épargne/invest + transactions projet)
+    // Filtre Mouvements (virements épargne/invest + transactions projet).
+    // `mouvTypeFilter` affine selon la ligne cliquée dans la Tréso : épargne / invest / projets.
     if (mouvementsFilter) {
       list = list.filter((t) => {
         const isChecking = t.account?.type === 'checking';
         const linkedType = t.linked_account?.type;
         const isProjectTx = !!(t as any).project_id;
+        if (mouvTypeFilter === 'epargne') return isChecking && linkedType === 'savings' && !isProjectTx;
+        if (mouvTypeFilter === 'invest') return isChecking && linkedType === 'investment' && !isProjectTx;
+        if (mouvTypeFilter === 'projets') return isProjectTx;
         return isChecking && (linkedType === 'savings' || linkedType === 'investment' || isProjectTx);
       });
     }
@@ -321,7 +327,7 @@ export default function TransactionsListScreen() {
       list = list.filter((t) => accountFilterIds.includes(t.account_id));
     }
     return list;
-  }, [displayedTransactions, categoryFilterId, categories, accountFilterIds, regulFilter, mouvementsFilter, recettesFilter, depensesFilter]);
+  }, [displayedTransactions, categoryFilterId, categories, accountFilterIds, regulFilter, mouvementsFilter, mouvTypeFilter, recettesFilter, depensesFilter]);
 
   const byMonth = useMemo(() => {
     const map: Record<string, TransactionWithDetails[]> = {};

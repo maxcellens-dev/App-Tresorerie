@@ -65,13 +65,13 @@ function scheduleSummary(s: ScheduledNotif): string {
   }
   if (s.recurrence === 'daily') return `Tous les jours à ${t}`;
   if (s.recurrence === 'weekly') return `Tous les ${WEEKDAY_NAMES[s.day_of_week ?? 1]}s à ${t}`;
-  if (s.recurrence === 'monthly') return `Le ${s.day_of_month} de chaque mois à ${t}`;
+  if (s.recurrence === 'monthly') return s.day_of_month === 0 ? `Le dernier jour de chaque mois à ${t}` : `Le ${s.day_of_month} de chaque mois à ${t}`;
   return 'Périodique';
 }
 
 const EMPTY_FORM = {
   id: null as string | null, title: '', body: '', kind: 'recurring' as 'once' | 'recurring',
-  recurrence: 'daily' as Recurrence, timeOfDay: '09:00', dayOfWeek: 1, dayOfMonth: '1', dateInput: '',
+  recurrence: 'daily' as Recurrence, timeOfDay: '09:00', dayOfWeek: 1, dayOfMonth: '1', lastDay: false, dateInput: '',
   targetKind: 'all' as NotifTarget['kind'], targetGroupId: null as string | null,
 };
 
@@ -183,7 +183,8 @@ export default function AdminNotifications() {
         if (Number.isNaN(dt.getTime())) throw new Error('Date/heure invalide');
         row = { ...row, kind: 'once', trigger_at: dt.toISOString(), recurrence: null, time_of_day: null, day_of_week: null, day_of_month: null, last_sent_at: null };
       } else {
-        const dom = Math.min(31, Math.max(1, parseInt(form.dayOfMonth, 10) || 1));
+        // day_of_month = 0 → « dernier jour du mois » (l'Edge Function le résout au dernier jour réel).
+        const dom = form.lastDay ? 0 : Math.min(31, Math.max(1, parseInt(form.dayOfMonth, 10) || 1));
         row = {
           ...row, kind: 'recurring', trigger_at: null, recurrence: form.recurrence, time_of_day: form.timeOfDay,
           day_of_week: form.recurrence === 'weekly' ? form.dayOfWeek : null,
@@ -248,7 +249,7 @@ export default function AdminNotifications() {
     setForm({
       id: s.id, title: s.title, body: s.body, kind: s.kind,
       recurrence: s.recurrence ?? 'daily', timeOfDay: s.time_of_day ?? '09:00',
-      dayOfWeek: s.day_of_week ?? 1, dayOfMonth: String(s.day_of_month ?? 1),
+      dayOfWeek: s.day_of_week ?? 1, dayOfMonth: String(s.day_of_month && s.day_of_month > 0 ? s.day_of_month : 1), lastDay: s.day_of_month === 0,
       dateInput: s.trigger_at ? formatDateFrench(s.trigger_at.slice(0, 10)) : '',
       targetKind: s.target_kind ?? 'all', targetGroupId: s.target_group_id ?? null,
     });
@@ -447,8 +448,19 @@ export default function AdminNotifications() {
                   )}
                   {form.recurrence === 'monthly' && (
                     <>
-                      <Text style={styles.fieldLabel}>Jour du mois (1–31)</Text>
-                      <TextInput style={styles.input} value={form.dayOfMonth} onChangeText={(v) => setForm((f) => ({ ...f, dayOfMonth: v.replace(/[^0-9]/g, '') }))} keyboardType="number-pad" placeholder="1" placeholderTextColor={COLORS.textSecondary} maxLength={2} />
+                      <Text style={styles.fieldLabel}>Jour du mois</Text>
+                      <View style={styles.chipRow}>
+                        <TouchableOpacity style={[styles.chip, !form.lastDay && styles.chipActive]} onPress={() => setForm((f) => ({ ...f, lastDay: false }))}>
+                          <Text style={[styles.chipText, !form.lastDay && styles.chipTextActive]}>Jour précis</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.chip, form.lastDay && styles.chipActive]} onPress={() => setForm((f) => ({ ...f, lastDay: true }))}>
+                          <Text style={[styles.chipText, form.lastDay && styles.chipTextActive]}>Dernier jour du mois</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {!form.lastDay && (
+                        <TextInput style={styles.input} value={form.dayOfMonth} onChangeText={(v) => setForm((f) => ({ ...f, dayOfMonth: v.replace(/[^0-9]/g, '') }))} keyboardType="number-pad" placeholder="1 à 31" placeholderTextColor={COLORS.textSecondary} maxLength={2} />
+                      )}
+                      <Text style={styles.note}>« Dernier jour » s'adapte automatiquement (28/29/30/31 selon le mois).</Text>
                     </>
                   )}
                 </>
@@ -497,6 +509,8 @@ function makeStyles(c: any) {
     sendBtnText: { fontSize: 15, fontWeight: '700', color: c.bg },
     addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12 },
     addBtnText: { fontSize: 13, fontWeight: '700', color: c.bg },
+    diagBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
+    diagBtnText: { fontSize: 13, fontWeight: '700', color: c.text },
     clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12, borderWidth: 1, borderColor: c.danger + '44', backgroundColor: c.danger + '12' },
     clearBtnText: { fontSize: 13, fontWeight: '700', color: c.danger },
     histTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },

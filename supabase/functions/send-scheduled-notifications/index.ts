@@ -55,7 +55,8 @@ function isRecurringDue(s: any, now: Date): boolean {
   if (p.hour * 60 + p.minute < targetMin) return false;          // heure cible pas encore atteinte
   if (s.recurrence === 'weekly' && p.weekday !== s.day_of_week) return false;
   if (s.recurrence === 'monthly') {
-    const dom = Math.min(s.day_of_month || 1, daysInMonth(p.year, p.month));
+    // day_of_month = 0 → « dernier jour du mois » (résolu au dernier jour réel).
+    const dom = s.day_of_month === 0 ? daysInMonth(p.year, p.month) : Math.min(s.day_of_month || 1, daysInMonth(p.year, p.month));
     if (p.day !== dom) return false;
   }
   if (s.last_sent_at) {                                           // déjà envoyé aujourd'hui ?

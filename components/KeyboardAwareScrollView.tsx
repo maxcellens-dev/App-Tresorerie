@@ -1,21 +1,17 @@
 /**
- * KeyboardAwareScrollView — ScrollView « drop-in » qui remonte le champ saisi au-dessus du clavier.
+ * KeyboardAwareScrollView — ScrollView « drop-in » qui remonte le champ saisi EN HAUT de la zone
+ * visible (au-dessus du clavier) et laisse assez d'espace en bas pour atteindre tous les champs.
  *
- * Problème résolu : en tapant dans une zone de saisie (montant, libellé, recherche…), le clavier
- * mobile masque le champ + les boutons qui suivent. Ici on REMONTE le contenu pour garder le champ
- * visible, juste au-dessus du clavier.
+ * Deux mécaniques :
+ *  1. Au focus / ouverture clavier → on mesure la position écran du ScrollView et du champ, et on
+ *     scrolle pour amener le champ tout en haut de la zone visible (on voit alors les champs en
+ *     dessous, plus besoin de scroller à la main).
+ *  2. Quand le clavier est ouvert, on ajoute un padding bas = hauteur du clavier → on peut scroller
+ *     jusqu'aux derniers champs (sinon ils restent coincés sous le clavier).
  *
- * Calcul MANUEL et fiable (l'API native `scrollResponderScrollNativeHandleToKeyboard` suppose un
- * ScrollView plein écran — faux dès qu'il y a un en-tête au-dessus, ce qui faisait scroller le champ
- * DANS le clavier au lieu de l'en remonter) :
- *   1. on suit l'offset de scroll courant (`onScroll`) ;
- *   2. au focus / à l'ouverture du clavier, on mesure la position ÉCRAN réelle du champ
- *      (`measureInWindow`) et le haut du clavier (`Keyboard.metrics`) ;
- *   3. si le bas du champ passe sous le clavier, on scrolle vers le HAUT du delta nécessaire (+ marge).
- *
- * Usage : remplacer `<ScrollView>` par `<KeyboardAwareScrollView>`. Aucun changement sur les TextInput.
+ * Usage : remplacer `<ScrollView>` par `<KeyboardAwareScrollView>`. Rien à changer sur les TextInput.
  */
-import React, { forwardRef, useCallback, useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   Keyboard,
@@ -26,13 +22,14 @@ import {
   type ScrollViewProps,
 } from 'react-native';
 
-/** Marge laissée entre le bas du champ et le haut du clavier. */
-const EXTRA_OFFSET = 24;
+/** Marge entre le haut de la zone visible et le champ remonté. */
+const TOP_MARGIN = 12;
 
 const KeyboardAwareScrollView = forwardRef<ScrollView, ScrollViewProps>(
-  ({ keyboardShouldPersistTaps = 'handled', onScroll, scrollEventThrottle, ...props }, forwardedRef) => {
+  ({ keyboardShouldPersistTaps = 'handled', onScroll, scrollEventThrottle, contentContainerStyle, ...props }, forwardedRef) => {
     const innerRef = useRef<ScrollView | null>(null);
     const scrollY = useRef(0);
+    const [kbHeight, setKbHeight] = useState(0);
 
     const setRefs = useCallback(
       (node: ScrollView | null) => {
@@ -51,29 +48,41 @@ const KeyboardAwareScrollView = forwardRef<ScrollView, ScrollViewProps>(
       [onScroll],
     );
 
-    // Remonte le champ focalisé au-dessus du clavier s'il est (partiellement) masqué.
+    // Remonte le champ focalisé tout en haut de la zone visible (au-dessus du clavier).
     const ensureVisible = useCallback(() => {
       const sv = innerRef.current;
       const input: any = TextInput.State.currentlyFocusedInput?.();
       if (!sv || !input || typeof input.measureInWindow !== 'function') return;
-      const kb = Keyboard.metrics?.();
-      const keyboardTop = kb ? kb.screenY : Dimensions.get('window').height;
-      input.measureInWindow((_x: number, y: number, _w: number, h: number) => {
-        const desiredBottom = keyboardTop - EXTRA_OFFSET;
-        const inputBottom = y + h;
-        if (inputBottom > desiredBottom) {
-          sv.scrollTo({ y: scrollY.current + (inputBottom - desiredBottom), animated: true });
-        }
+      const svNode: any = (sv as any).getNativeScrollRef?.() ?? sv;
+      const measureSv = (cb: (sy: number, sh: number) => void) => {
+        if (typeof svNode.measureInWindow === 'function') svNode.measureInWindow((_x: number, y: number, _w: number, h: number) => cb(y, h));
+        else cb(0, Dimensions.get('window').height);
+      };
+      measureSv((svTop, svH) => {
+        input.measureInWindow((_ix: number, iy: number, _iw: number, ih: number) => {
+          const kb = Keyboard.metrics?.();
+          const keyboardTop = kb ? kb.screenY : Dimensions.get('window').height;
+          const visibleBottom = Math.min(svTop + svH, keyboardTop);
+          const targetTop = svTop + TOP_MARGIN;
+          // On remonte si le champ est masqué (sous le clavier) OU plus bas que la cible haute.
+          if (iy + ih > visibleBottom || iy > targetTop + 4) {
+            const delta = iy - targetTop;
+            if (delta > 4) sv.scrollTo({ y: Math.max(0, scrollY.current + delta), animated: true });
+          }
+        });
       });
     }, []);
 
-    // Première ouverture : le clavier n'est mesurable qu'une fois affiché.
     useEffect(() => {
-      const sub = Keyboard.addListener('keyboardDidShow', ensureVisible);
-      return () => sub.remove();
+      const show = Keyboard.addListener('keyboardDidShow', (e) => {
+        setKbHeight(e.endCoordinates?.height ?? 0);
+        ensureVisible();
+      });
+      const hide = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
+      return () => { show.remove(); hide.remove(); };
     }, [ensureVisible]);
 
-    // Passage d'un champ à l'autre clavier déjà ouvert : on revérifie après que le focus se pose.
+    // Passage d'un champ à l'autre clavier déjà ouvert.
     const handleTouchCapture = useCallback(() => {
       setTimeout(ensureVisible, 80);
       return false;
@@ -86,6 +95,7 @@ const KeyboardAwareScrollView = forwardRef<ScrollView, ScrollViewProps>(
         onStartShouldSetResponderCapture={handleTouchCapture}
         onScroll={handleScroll}
         scrollEventThrottle={scrollEventThrottle ?? 16}
+        contentContainerStyle={[contentContainerStyle, kbHeight > 0 ? { paddingBottom: kbHeight + 24 } : null]}
         {...props}
       />
     );

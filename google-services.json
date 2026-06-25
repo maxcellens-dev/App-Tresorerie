@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "899528880786",
+    "project_id": "relyka-69a32",
+    "storage_bucket": "relyka-69a32.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:899528880786:android:aba1a5c23cd6111887ac4b",
+        "android_client_info": {
+          "package_name": "com.relyka.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCw2BjMf7IQhMllyh4v6AOBzfiJAWhnyjg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -18,3 +18,8 @@ export interface DevicePushToken {
 export async function getDevicePushTokenAsync(): Promise<DevicePushToken | null> {
   return null;
 }
+
+/** Diagnostic (web) — pas de push web. */
+export async function diagnosePushRegistration(): Promise<string> {
+  return 'Web : notifications push non supportées (uniquement sur l\'app mobile).';
+}
