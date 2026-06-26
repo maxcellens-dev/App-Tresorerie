@@ -151,11 +151,58 @@ export function useTransactions(profileId: string | undefined) {
         .from('transactions')
         .select(`
           *,
-          account:accounts!account_id(name, type, currency),
+          account:accounts!account_id(name, type, currency, profile_id, is_joint),
           category:categories!category_id(name, type),
           linked_account:accounts!linked_account_id(name, type, currency)
         `)
         .eq('profile_id', profileId)
+        .order('date', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      // Vue PERSO : uniquement mes transactions sur MES comptes non joints (mon argent). On exclut donc
+      // mes écritures sur un compte partagé reçu (account.profile_id ≠ moi) et sur mes comptes joints.
+      return (data ?? [])
+        .filter((r: any) => r.account && r.account.profile_id === profileId && !r.account.is_joint)
+        .map((r: any) => ({
+          ...r,
+          amount: Number(r.amount),
+          account: r.account ?? null,
+          category: r.category ?? null,
+          linked_account: r.linked_account ?? null,
+        })) as TransactionWithDetails[];
+    },
+    enabled: !!profileId,
+  });
+
+  return query;
+}
+
+/**
+ * TOUTES les transactions accessibles : mes comptes perso + comptes joints + comptes partagés reçus
+ * (y compris les legs créés par d'autres membres sur un compte joint). À n'utiliser QUE sur la page
+ * Transactions et le détail d'un compte. Jamais pour des agrégats perso (pilotage/projection).
+ */
+export function useAllTransactions(profileId: string | undefined) {
+  return useQuery({
+    queryKey: [KEY, profileId, 'all'],
+    enabled: !!profileId,
+    queryFn: async (): Promise<TransactionWithDetails[]> => {
+      if (!supabase || !profileId) return [];
+      // La RLS de `accounts` renvoie mes comptes accessibles → on charge les transactions de ces comptes
+      // (donc aussi celles des autres membres sur un compte joint).
+      const { data: accs, error: accErr } = await supabase.from('accounts').select('id');
+      if (accErr) throw accErr;
+      const accountIds = (accs ?? []).map((a: any) => a.id);
+      if (accountIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          account:accounts!account_id(name, type, currency, profile_id, is_joint),
+          category:categories!category_id(name, type),
+          linked_account:accounts!linked_account_id(name, type, currency)
+        `)
+        .in('account_id', accountIds)
         .order('date', { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -167,10 +214,7 @@ export function useTransactions(profileId: string | undefined) {
         linked_account: r.linked_account ?? null,
       })) as TransactionWithDetails[];
     },
-    enabled: !!profileId,
   });
-
-  return query;
 }
 
 export function useAddTransaction(profileId: string | undefined) {
@@ -381,7 +425,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
       recurrence_end_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
-      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id, materialized_from').eq('id', input.id).eq('profile_id', profileId).single();
+      const { data: existing, error: fetchErr } = await supabase.from('transactions').select('account_id, amount, is_draft, is_recurring, linked_account_id, date, note, project_id, transfer_group_id, materialized_from').eq('id', input.id).single();
       if (fetchErr || !existing) throw fetchErr || new Error('Transaction introuvable');
       // Garde anti-doublon : une occurrence MATÉRIALISÉE appartient déjà à une série récurrente
       // (modèle parent = materialized_from). La repasser en récurrente créerait un 2ᵉ modèle qui
@@ -428,14 +472,13 @@ export function useUpdateTransaction(profileId: string | undefined) {
       const oldDelta = await effectiveBalanceDelta(oldAccId, oldDate ?? '', oldNote, oldContribution);
       const newDelta = await effectiveBalanceDelta(newAccId, newDate, newNote, newContribution);
 
-      const { data, error } = await supabase.from('transactions').update(updates).eq('id', input.id).eq('profile_id', profileId).select().single();
+      const { data, error } = await supabase.from('transactions').update(updates).eq('id', input.id).select().single();
       if (error) throw error;
 
-      const adjustBalance = async (accId: string, delta: number) => {
-        if (delta === 0) return;
-        const { data: acc } = await supabase!.from('accounts').select('balance').eq('id', accId).single();
-        if (acc) await supabase!.from('accounts').update({ balance: Number(acc.balance) + delta }).eq('id', accId);
-      };
+      // No-op : le solde est recalculé par recomputeBalances() plus bas (source de vérité unique,
+      // SECURITY DEFINER). L'ancien update incrémental est retiré car redondant ET bloqué par la RLS
+      // pour un membre écrivant sur un compte joint/partagé qu'il ne possède pas (accounts UPDATE = owner).
+      const adjustBalance = async (_accId: string, _delta: number) => {};
       if (newAccId === oldAccId) {
         await adjustBalance(oldAccId, newDelta - oldDelta);
       } else {
@@ -460,7 +503,6 @@ export function useUpdateTransaction(profileId: string | undefined) {
           const { data: byGroup } = await supabase
             .from('transactions')
             .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
-            .eq('profile_id', profileId)
             .eq('transfer_group_id', oldGroupId)
             .neq('id', input.id);
           pairedList = (byGroup ?? []) as PairedRow[];
@@ -468,7 +510,6 @@ export function useUpdateTransaction(profileId: string | undefined) {
           const { data: byHeur } = await supabase
             .from('transactions')
             .select('id, account_id, amount, is_draft, is_recurring, date, linked_account_id')
-            .eq('profile_id', profileId)
             .eq('account_id', oldLinkedAccId)
             .eq('date', oldDate ?? '')
             .eq('amount', -oldAmount)
@@ -560,16 +601,10 @@ export function useUpdateTransaction(profileId: string | undefined) {
           if (input.is_draft !== undefined) pairedUpdates.is_draft = input.is_draft;
           pairedUpdates.posted = pairedNewContribution !== 0;
           if (Object.keys(pairedUpdates).length > 0) {
-            await supabase.from('transactions').update(pairedUpdates).eq('id', (paired as any).id).eq('profile_id', profileId);
+            await supabase.from('transactions').update(pairedUpdates).eq('id', (paired as any).id);
           }
-          // Réajuster le solde du compte opposé via la contribution « à date ».
-          const pairedDelta = pairedNewContribution - pairedOldContribution;
-          if (pairedDelta !== 0) {
-            const { data: pacc } = await supabase.from('accounts').select('balance').eq('id', pairedAccId).single();
-            if (pacc) {
-              await supabase.from('accounts').update({ balance: Number(pacc.balance) + pairedDelta }).eq('id', pairedAccId);
-            }
-          }
+          // Solde du compte opposé : recalculé par recomputeBalances() plus bas (l'update incrémental
+          // est retiré — redondant et bloqué par la RLS pour un membre non-propriétaire).
         }
       }
       // Solde = recalcul depuis les faits sur tous les comptes touchés (ancien/nouveau + jambe paire).
@@ -594,8 +629,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
         .from('transactions')
         .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id, transfer_group_id')
         .eq('id', id)
-        .eq('profile_id', profileId)
-        .single();
+        .single(); // pas de filtre profile_id : la RLS autorise mes lignes + celles d'un compte où je suis owner/write
       if (fetchErr) throw fetchErr;
 
       const isDraft = !!(row as any).is_draft;
@@ -622,7 +656,6 @@ export function useDeleteTransaction(profileId: string | undefined) {
         const { data: byGroup } = await supabase
           .from('transactions')
           .select('id')
-          .eq('profile_id', profileId)
           .eq('transfer_group_id', txGroupId)
           .neq('id', id);
         pairedId = ((byGroup ?? [])[0] as any)?.id ?? null;
@@ -633,7 +666,6 @@ export function useDeleteTransaction(profileId: string | undefined) {
           let q = supabase
             .from('transactions')
             .select('id, amount, is_draft, linked_account_id, account_id')
-            .eq('profile_id', profileId)
             .eq('date', txDate)
             .eq('amount', -txAmount)
             .is('category_id', null)
@@ -647,8 +679,8 @@ export function useDeleteTransaction(profileId: string | undefined) {
         }
       }
 
-      // Supprimer la transaction principale
-      const { error: delErr } = await supabase.from('transactions').delete().eq('id', id).eq('profile_id', profileId);
+      // Supprimer la transaction principale (RLS : ma ligne OU compte où je suis owner/write).
+      const { error: delErr } = await supabase.from('transactions').delete().eq('id', id);
       if (delErr) throw delErr;
 
       // On ne retire du solde que ce qui y avait effectivement été ajouté
@@ -663,10 +695,9 @@ export function useDeleteTransaction(profileId: string | undefined) {
           .from('transactions')
           .select('account_id')
           .eq('id', pairedId)
-          .eq('profile_id', profileId)
           .maybeSingle();
         if (pairedRow) {
-          await supabase.from('transactions').delete().eq('id', pairedId).eq('profile_id', profileId);
+          await supabase.from('transactions').delete().eq('id', pairedId);
           await recomputeBalances([(pairedRow as any).account_id as string]);
         }
       }
@@ -801,11 +832,8 @@ export function useValidateProjectDraft(profileId: string | undefined) {
         .eq('id', debitTx.id)
         .eq('profile_id', profileId);
 
-      // Mettre à jour le solde du compte source (seulement si l'échéance est échue)
-      if (debitPosted) {
-        const { data: srcAcc } = await supabase.from('accounts').select('balance').eq('id', sourceId).single();
-        if (srcAcc) await supabase.from('accounts').update({ balance: Number(srcAcc.balance) + debitAmt }).eq('id', sourceId);
-      }
+      // Soldes recalculés par recomputeBalances() en fin de mutation (updates incrémentaux retirés —
+      // redondants et bloqués par la RLS pour un membre non-propriétaire).
 
       // 2. Créer le crédit sur le compte de destination
       await supabase.from('transactions').insert({
@@ -824,13 +852,7 @@ export function useValidateProjectDraft(profileId: string | undefined) {
         posted: debitPosted,
       });
 
-      // Mettre à jour le solde du compte destination (seulement si l'échéance est échue)
-      if (debitPosted) {
-        const { data: dstAcc } = await supabase.from('accounts').select('balance').eq('id', linkedId).single();
-        if (dstAcc) await supabase.from('accounts').update({ balance: Number(dstAcc.balance) + creditAmt }).eq('id', linkedId);
-      }
-
-      // Solde = recalcul depuis les faits sur les deux comptes du virement (anti-dérive).
+      // Solde = recalcul depuis les faits sur les deux comptes du virement (anti-dérive, SECURITY DEFINER).
       await recomputeBalances([sourceId, linkedId]);
     },
     onSuccess: () => {

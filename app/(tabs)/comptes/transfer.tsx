@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import CalculatorButton from '../../../components/CalculatorButton';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAccounts } from '../../../hooks/useAccounts';
+import { useAllAccounts } from '../../../hooks/useAccounts';
 import { createTransferLegs, useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/useTransactions';
 import { computeContributed } from '../../../lib/contributed';
 import { useResetPreSaving } from '../../../hooks/usePreSavings';
@@ -47,7 +47,10 @@ export default function TransferScreen() {
     releaseProject?: string;
   }>();
   const { user } = useAuth();
-  const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: allAccounts = [] } = useAllAccounts(user?.id);
+  // On ne peut virer que vers/depuis des comptes où l'on a le droit d'ÉCRIRE (perso, joint, ou partagé
+  // en écriture) — pas les comptes reçus en consultation seule.
+  const accounts = allAccounts.filter((a) => a._role !== 'read');
   const { data: allTransactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);

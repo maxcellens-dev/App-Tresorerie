@@ -5,6 +5,22 @@ import { todayISO } from '../lib/dateUtils';
 
 const KEY = 'accounts';
 
+const mapAccount = (r: any, profileId: string, roleById: Record<string, string>): Account => ({
+  ...r,
+  balance: Number(r.balance),
+  initial_contributed: r.initial_contributed != null ? Number(r.initial_contributed) : null,
+  current_contributed: r.current_contributed != null ? Number(r.current_contributed) : null,
+  is_joint: !!r.is_joint,
+  // 'owner' si c'est mon compte, sinon le rôle de membership (write/read).
+  _role: r.profile_id === profileId ? 'owner' : ((roleById[r.id] as any) ?? 'read'),
+});
+
+/**
+ * Comptes PERSONNELS (mes comptes non joints). C'est la vue « mon argent » : utilisée par le pilotage,
+ * la projection, le reporting, les objectifs, les totaux… Les comptes JOINTS et les comptes PARTAGÉS
+ * reçus d'autres utilisateurs en sont volontairement EXCLUS (aucun impact sur les agrégats perso).
+ * → Pour la vue complète (page Comptes / virements / détail), utiliser useAllAccounts.
+ */
 export function useAccounts(profileId: string | undefined) {
   const query = useQuery({
     queryKey: [KEY, profileId],
@@ -15,14 +31,50 @@ export function useAccounts(profileId: string | undefined) {
         .select('*')
         .eq('profile_id', profileId)
         .eq('is_active', true)
+        .eq('is_joint', false)
         .order('name');
       if (error) throw error;
-      return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance), initial_contributed: r.initial_contributed != null ? Number(r.initial_contributed) : null, current_contributed: r.current_contributed != null ? Number(r.current_contributed) : null }));
+      return (data ?? []).map((r) => mapAccount(r, profileId, {}));
     },
     enabled: !!profileId,
   });
 
   return query;
+}
+
+/**
+ * TOUS les comptes accessibles : mes comptes perso + mes comptes joints + les comptes partagés reçus
+ * d'autres utilisateurs (avec `_role` = owner/write/read et `is_joint`). À n'utiliser QUE là où l'on
+ * veut voir les comptes partagés/joints (page Comptes, virements, détail de compte). Ne JAMAIS l'utiliser
+ * pour des agrégats perso (pilotage/projection) → ça réintègrerait les comptes partagés.
+ */
+export function useAllAccounts(profileId: string | undefined) {
+  return useQuery({
+    queryKey: [KEY, profileId, 'all'],
+    enabled: !!profileId,
+    queryFn: async (): Promise<Account[]> => {
+      if (!supabase || !profileId) return [];
+      const ownP = supabase.from('accounts').select('*').eq('profile_id', profileId).eq('is_active', true);
+      const memP = supabase.from('account_members').select('account_id, role').eq('user_id', profileId);
+      const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
+      if (ownErr) throw ownErr;
+
+      const roleById: Record<string, string> = {};
+      const memberIds: string[] = [];
+      for (const m of (memRes?.data ?? []) as any[]) { roleById[m.account_id] = m.role; memberIds.push(m.account_id); }
+
+      let memberAccounts: any[] = [];
+      if (memberIds.length > 0) {
+        const { data: ma } = await supabase
+          .from('accounts').select('*').in('id', memberIds).eq('is_active', true).order('name');
+        memberAccounts = (ma ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
+      }
+
+      const ownMapped = (own ?? []).map((r) => mapAccount(r, profileId, roleById));
+      const memMapped = memberAccounts.map((r) => mapAccount(r, profileId, roleById));
+      return [...ownMapped, ...memMapped];
+    },
+  });
 }
 
 /** Comptes archivés (fermés), non utilisables pour virements ou nouvelles transactions. */
@@ -85,7 +137,7 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
 export function useAddAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null }) => {
+    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null; is_joint?: boolean }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom du compte est requis.');
@@ -106,6 +158,7 @@ export function useAddAccount(profileId: string | undefined) {
           type: input.type || 'checking',
           currency: input.currency || 'EUR',
           balance: 0,
+          ...(input.is_joint ? { is_joint: true } : {}),
           ...(input.type === 'investment' && input.fiscal_envelope ? { fiscal_envelope: input.fiscal_envelope } : {}),
           ...(input.type === 'investment' && input.initial_contributed != null ? { initial_contributed: input.initial_contributed, current_contributed: input.initial_contributed } : {}),
           ...(input.init_date ? { init_date: input.init_date } : {}),
@@ -114,9 +167,10 @@ export function useAddAccount(profileId: string | undefined) {
         .single();
       if (error) throw error;
 
-      // Le solde est désormais DÉRIVÉ des transactions (recompute_account_balance). Un solde initial
-      // doit donc être adossé à une vraie transaction « Solde initial », sinon le recalcul (déclenché
-      // par la 1ʳᵉ écriture) le remettrait à zéro.
+      // Le solde est désormais DÉRIVÉ des transactions (recompute_account_balance). Le solde initial est
+      // adossé à une transaction d'ANCRE DE RÉGULARISATION (même nature qu'une régul de solde) :
+      // category_id NULL + note « Régularisation » + regul_target. Avantages : (a) traitée comme une
+      // régul (pas de sous-catégorie exigée à l'édition), (b) solde déterministe dès le départ (ancre).
       const initBal = input.balance ?? 0;
       if (data && initBal !== 0) {
         const accId = (data as any).id as string;
@@ -127,7 +181,8 @@ export function useAddAccount(profileId: string | undefined) {
           category_id: null,
           amount: initBal,
           date: initDate,
-          note: 'Solde initial',
+          note: 'Régularisation solde initial',
+          regul_target: initBal,
           is_draft: false,
           is_recurring: false,
           posted: true,

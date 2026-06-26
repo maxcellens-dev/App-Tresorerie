@@ -147,15 +147,23 @@ async function fetchPilotageData(profileId: string): Promise<{
   const rates: RatesMap = { EUR: 1 };
   for (const r of (ratesRes.data ?? []) as { code: string; rate: number }[]) rates[r.code] = Number(r.rate);
 
+  // Comptes JOINTS exclus du pilotage/projection (décision : aucun impact sur les agrégats perso),
+  // ainsi que leurs transactions. Les comptes partagés REÇUS d'un autre user ne sont déjà pas ici
+  // (requête filtrée par profile_id = moi).
+  const allAccounts = (accountsRes.data ?? []) as Account[];
+  const jointAccountIds = new Set(allAccounts.filter((a) => (a as any).is_joint).map((a) => a.id));
+
   return {
     profile: (profileRes.data as Profile) || null,
-    accounts: (accountsRes.data ?? []) as Account[],
-    transactions: (transactionsRes.data ?? []).map((t: any) => ({
-      ...t,
-      amount: Number(t.amount),
-      account: t.account,
-      category: t.category,
-    })) as TransactionWithCategory[],
+    accounts: allAccounts.filter((a) => !(a as any).is_joint),
+    transactions: (transactionsRes.data ?? [])
+      .filter((t: any) => !jointAccountIds.has(t.account_id))
+      .map((t: any) => ({
+        ...t,
+        amount: Number(t.amount),
+        account: t.account,
+        category: t.category,
+      })) as TransactionWithCategory[],
     projects: (projectsRes.data ?? []).map((p: any) => ({
       ...p,
       target_amount: Number(p.target_amount),
@@ -686,7 +694,25 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   for (const t of transactions) {
     const amt = Number(t.amount);
-    if (amt >= 0) continue; // sorties uniquement
+    if (amt >= 0) {
+      // Remboursement de dépense = entrée d'argent (montant +) sur une catégorie de DÉPENSE, depuis un
+      // compte courant, hors virement/projet/régul. Il s'impute en NÉGATIF sur les dépenses du mois →
+      // réduit donc les dépenses variables (ex. 300 de variables − 10 de remboursement = 290).
+      const rcat = (t as TransactionWithCategory).category;
+      const rIsExpenseCat = !rcat || rcat.type === 'expense';
+      const rIsRegul = !!(rcat?.name && /r[ée]gularisation/i.test(rcat.name));
+      const rIsRefund = rIsExpenseCat && !rIsRegul && !t.linked_account_id && !(t as any).project_id
+        && accountTypeById[t.account_id] === 'checking' && !Boolean((t as any).is_recurring);
+      if (rIsRefund && !Boolean((t as any).is_draft)) {
+        const [rY, rM] = t.date.split('-').map(Number);
+        if (rY === currentYear && rM === currentMonth) {
+          month_expenses_total -= amt;
+          if (t.date <= todayStr) month_expenses_past -= amt;
+          else month_expenses_remaining -= amt;
+        }
+      }
+      continue; // les autres entrées (vraies recettes) ne concernent pas les dépenses
+    }
     const [tY, tM] = t.date.split('-').map(Number);
     const isThisMonth = tY === currentYear && tM === currentMonth;
     const isRecurring = Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule);

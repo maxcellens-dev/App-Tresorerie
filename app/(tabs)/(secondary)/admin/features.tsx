@@ -38,6 +38,9 @@ export default function AdminFeatures() {
   const adsOn = Boolean(flags?.ads_enabled);
   const reportingOn = Boolean(flags?.reporting_enabled);
   const recoContextOn = flags?.reco_context_enabled !== false; // défaut activé
+  const persoSharingOn = Boolean(flags?.perso_account_sharing_enabled);
+  const quickAddOn = flags?.quick_add_enabled !== false; // défaut activé
+  const quickAddMode = (flags?.quick_add_mode ?? 'tabbar') as 'tabbar' | 'bubble';
 
   const Toggle = ({ label, desc, value, onToggle }: { label: string; desc: string; value: boolean; onToggle: () => void }) => (
     <View style={styles.card}>
@@ -97,6 +100,38 @@ export default function AdminFeatures() {
               value={recoContextOn}
               onToggle={() => save.mutate({ reco_context_enabled: !recoContextOn })}
             />
+            <Toggle
+              label="Partage de comptes perso"
+              desc="Permet d'inviter un autre utilisateur en consultation ou écriture sur un compte perso. N'affecte pas les comptes joints dédiés. Désactivé = le bouton « Partager » est masqué et aucun nouveau partage perso n'est possible ; les partages déjà créés continuent de fonctionner."
+              value={persoSharingOn}
+              onToggle={() => save.mutate({ perso_account_sharing_enabled: !persoSharingOn })}
+            />
+            <Toggle
+              label="Bouton de saisie rapide"
+              desc="Affiche le bouton « + » de saisie rapide (virement / dépense / recette). Désactivé = aucun bouton."
+              value={quickAddOn}
+              onToggle={() => save.mutate({ quick_add_enabled: !quickAddOn })}
+            />
+            {quickAddOn && (
+              <View style={[styles.card, { flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+                <Text style={styles.cardTitle}>Mode d'affichage du bouton « + »</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {([['tabbar', 'Barre d\'onglets'], ['bubble', 'Bulle (Pilotage)']] as const).map(([val, lbl]) => (
+                    <TouchableOpacity
+                      key={val}
+                      style={[{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' }, quickAddMode === val && { backgroundColor: COLORS.emerald + '18', borderColor: COLORS.emerald }]}
+                      onPress={() => save.mutate({ quick_add_mode: val })}
+                      disabled={save.isPending}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: quickAddMode === val ? '700' : '600', color: quickAddMode === val ? COLORS.emerald : COLORS.textSecondary }}>{lbl}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.cardDesc}>
+                  Barre d'onglets : gros bouton surélevé entre les onglets (l'utilisateur choisit gauche/droite/masqué). Bulle : bouton volant en bas à droite, uniquement sur l'écran Pilotage (l'utilisateur peut juste l'afficher/masquer).
+                </Text>
+              </View>
+            )}
             <Toggle
               label="Mon compte : Premium (test)"
               desc="Active le droit Premium sur VOTRE compte pour tester (remise boutique, zéro pub). Sera normalement géré par le paiement."

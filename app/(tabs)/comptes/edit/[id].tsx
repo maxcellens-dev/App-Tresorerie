@@ -7,9 +7,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useAccounts, useUpdateAccount, useCloseAccount } from '../../../../hooks/useAccounts';
+import { useAllAccounts, useUpdateAccount, useCloseAccount } from '../../../../hooks/useAccounts';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
+import AccountShareSection from '../../../../components/AccountShareSection';
 
 
 const TYPES = [
@@ -26,7 +27,7 @@ export default function EditAccountScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
-  const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: accounts = [] } = useAllAccounts(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
   const closeAccount = useCloseAccount(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
@@ -94,9 +95,12 @@ export default function EditAccountScreen() {
     if (!id) return;
     const closeMessage =
       "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l\u2019utiliser pour des virements ou nouvelles transactions. Confirmer ?";
+    const isJoint = !!(account as any)?.is_joint;
     Alert.alert(
-      'Fermer le compte',
-      "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
+      isJoint ? 'Fermer le compte joint' : 'Fermer le compte',
+      isJoint
+        ? "Ce compte joint sera fermé pour TOUS les membres. S'il contient des écritures, il sera archivé (plus utilisable) ; vide, il sera supprimé. Pour le supprimer définitivement, supprimez d'abord toutes ses transactions. Confirmer ?"
+        : "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -174,18 +178,30 @@ export default function EditAccountScreen() {
             <Text style={styles.balanceInfoText}>Le solde ne peut être modifié que via des transactions.</Text>
           </View>
 
-          <TouchableOpacity style={[styles.submitBtn, updateAccount.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateAccount.isPending} accessibilityRole="button">
-            {updateAccount.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
-          </TouchableOpacity>
+          {/* Partage / membres (owner uniquement ; gate flag pour les comptes perso) */}
+          <AccountShareSection account={account} />
 
-          <TouchableOpacity
-            style={[styles.closeBtn, closeAccount.isPending && styles.submitBtnDisabled]}
-            onPress={handleClose}
-            disabled={closeAccount.isPending}
-            accessibilityRole="button"
-          >
-            {closeAccount.isPending ? <ActivityIndicator color={COLORS.danger} /> : <Text style={styles.closeBtnLabel}>Fermer le compte</Text>}
-          </TouchableOpacity>
+          {account._role === 'owner' ? (
+            <>
+              <TouchableOpacity style={[styles.submitBtn, updateAccount.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateAccount.isPending} accessibilityRole="button">
+                {updateAccount.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.closeBtn, closeAccount.isPending && styles.submitBtnDisabled]}
+                onPress={handleClose}
+                disabled={closeAccount.isPending}
+                accessibilityRole="button"
+              >
+                {closeAccount.isPending ? <ActivityIndicator color={COLORS.danger} /> : <Text style={styles.closeBtnLabel}>Fermer le compte</Text>}
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={[styles.balanceInfo, { marginTop: 8 }]}>
+              <Ionicons name="lock-closed-outline" size={16} color={COLORS.textSecondary} />
+              <Text style={styles.balanceInfoText}>Compte partagé : seul son propriétaire peut le renommer ou le fermer. Tu peux saisir/éditer des transactions selon ton rôle.</Text>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>

@@ -24,8 +24,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
-import { useTransactions, useAddTransaction } from '../../../hooks/useTransactions';
+import { useAllAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
+import { useAccountParticipants } from '../../../hooks/useSharedAccounts';
+import { useAllTransactions, useAddTransaction } from '../../../hooks/useTransactions';
 import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
@@ -78,12 +79,24 @@ export default function AccountDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
-  const { data: accounts = [] } = useAccounts(user?.id);
-  const { data: transactions = [], isLoading: txLoading } = useTransactions(user?.id);
+  const { data: accounts = [] } = useAllAccounts(user?.id);
+  const { data: transactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
 
   const account = accounts.find((a) => a.id === id);
+
+  // Compte partagé/joint : on identifie l'AUTEUR de chaque transaction (sans exposer les comptes
+  // personnels des autres membres). isSharedView = joint, OU compte reçu d'un autre utilisateur.
+  const isSharedView = !!(account as any)?.is_joint || (!!account && account._role !== 'owner');
+  const { data: participants = [] } = useAccountParticipants(isSharedView ? id : undefined);
+  const nameByUser = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of participants) m[p.user_id] = p.display_name;
+    return m;
+  }, [participants]);
+  const authorOf = (t: any): string =>
+    t?.profile_id === user?.id ? 'Vous' : (nameByUser[t?.profile_id] ?? 'Un membre');
 
   const [showApport, setShowApport] = useState(false);
   const [apportAmount, setApportAmount] = useState('');
@@ -369,20 +382,25 @@ export default function AccountDetailScreen() {
           title={account.name}
           onBack={() => router.back()}
           right={
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => router.push(`/(tabs)/comptes/edit/${id}`)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Modifier le compte"
-            >
-              <Ionicons name="pencil" size={20} color={COLORS.text} />
-              <Text style={styles.editBtnLabel}>Modifier</Text>
-            </TouchableOpacity>
+            // En consultation seule : pas de bouton « Modifier » (le membre ne peut rien éditer).
+            account._role === 'read' ? undefined : (
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => router.push(`/(tabs)/comptes/edit/${id}`)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Modifier le compte"
+              >
+                <Ionicons name="pencil" size={20} color={COLORS.text} />
+                <Text style={styles.editBtnLabel}>Modifier</Text>
+              </TouchableOpacity>
+            )
           }
         />
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
 
+          {/* Actions d'écriture masquées pour un membre en consultation (rôle read). */}
+          {account._role !== 'read' && (
           <View style={styles.buttonRow}>
             {account.type === 'checking' ? (
               <TouchableOpacity
@@ -441,6 +459,7 @@ export default function AccountDetailScreen() {
               <Text style={[styles.editBtnLabel, { color: COLORS.emerald }]}>Virement</Text>
             </TouchableOpacity>
           </View>
+          )}
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Solde</Text>
@@ -521,7 +540,10 @@ export default function AccountDetailScreen() {
                       Number(p.amount) === -amount
                   ) ?? null)
                 : null;
-              const otherAccountName = pair ? accounts.find((a) => a.id === pair.account_id)?.name ?? 'Compte' : 'Compte';
+              // Confidentialité : si le compte d'en face n'est pas accessible (compte perso d'un autre
+              // membre), on n'affiche PAS son nom → libellé générique « compte de {auteur} ».
+              const counterpartName = pair ? (accounts.find((a) => a.id === pair.account_id)?.name ?? null) : null;
+              const otherAccountName = counterpartName ?? (isSharedView ? `compte de ${authorOf(t)}` : 'Compte');
               const label = isTransfer
                 ? (isTransferNote(t.note ?? null)
                     ? (amount > 0 ? `Depuis ${otherAccountName}` : `Vers ${otherAccountName}`)
@@ -538,6 +560,7 @@ export default function AccountDetailScreen() {
                   <View style={styles.transferLeft}>
                     <Text style={styles.transferDate}>
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {isSharedView ? ` — par ${authorOf(t)}` : ''}
                     </Text>
                     <Text style={[styles.transferLabel, t.category?.name === 'Projets' && { color: COLORS.blue }]}>{label}</Text>
                     {isRegulRow(t) && (t as any).regul_target != null && (
@@ -1080,7 +1103,9 @@ export default function AccountDetailScreen() {
                       p.date === selectedTx.date && Number(p.amount) === -amt
                   )
                 : null;
-              const otherName = pairTx ? accounts.find((a) => a.id === pairTx.account_id)?.name ?? 'Compte' : null;
+              const otherAccName = pairTx ? (accounts.find((a) => a.id === pairTx.account_id)?.name ?? null) : null;
+              // Compte d'en face inaccessible (compte perso d'un autre membre) → libellé générique.
+              const otherName = otherAccName ?? (isSharedView ? `compte de ${authorOf(selectedTx)}` : null);
               const label = isTransfer
                 ? (isTransferNote(selectedTx.note ?? null)
                     ? (isIncoming ? `Depuis ${otherName ?? 'Compte'}` : `Vers ${otherName ?? 'Compte'}`)
@@ -1107,6 +1132,8 @@ export default function AccountDetailScreen() {
                 { key: 'Date', value: new Date(selectedTx.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) },
                 { key: 'Montant', value: `${isIncoming ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL}` },
               ];
+              // Sur un compte partagé/joint : qui a saisi cette transaction.
+              if (isSharedView) rows.push({ key: 'Par', value: authorOf(selectedTx) });
               if (isVirement) {
                 const srcName = isIncoming ? (linkedAccount?.name ?? otherName ?? '—') : (account?.name ?? '—');
                 const dstName = isIncoming ? (account?.name ?? '—') : (linkedAccount?.name ?? otherName ?? '—');
@@ -1135,16 +1162,18 @@ export default function AccountDetailScreen() {
                     <TouchableOpacity style={txDetailStyles.closeBtn} onPress={() => setSelectedTx(null)}>
                       <Text style={txDetailStyles.closeBtnText}>Fermer</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={txDetailStyles.editBtn}
-                      onPress={() => {
-                        setSelectedTx(null);
-                        router.push(`/(tabs)/transactions/edit/${selectedTx!.id}` as any);
-                      }}
-                    >
-                      <Ionicons name="pencil" size={16} color={COLORS.emerald} />
-                      <Text style={txDetailStyles.editBtnText}>Modifier</Text>
-                    </TouchableOpacity>
+                    {account?._role !== 'read' && (
+                      <TouchableOpacity
+                        style={txDetailStyles.editBtn}
+                        onPress={() => {
+                          setSelectedTx(null);
+                          router.push(`/(tabs)/transactions/edit/${selectedTx!.id}` as any);
+                        }}
+                      >
+                        <Ionicons name="pencil" size={16} color={COLORS.emerald} />
+                        <Text style={txDetailStyles.editBtnText}>Modifier</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </>
               );

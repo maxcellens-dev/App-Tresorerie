@@ -136,6 +136,8 @@ export interface UiPrefs {
   pilotage_tips_enabled?: boolean;
   /** Accès rapide à la calculatrice flottante (défaut : activé). */
   calculator_enabled?: boolean;
+  /** Position du bouton « + » de saisie rapide dans la barre d'onglets (défaut : 'right'). */
+  quick_add_position?: 'right' | 'left' | 'hidden';
   /** Recommandations ignorées / complétées du mois courant. */
   reco_dismissals?: RecoDismissals;
 }
@@ -155,6 +157,13 @@ export interface Account {
   initial_contributed?: number | null;
   /** Investissement : apport « actuel » (capital injecté net des retraits, modifiable). */
   current_contributed?: number | null;
+  /** Compte joint dédié (partagé entre plusieurs utilisateurs). */
+  is_joint?: boolean;
+  /**
+   * Rôle de l'utilisateur courant sur ce compte (calculé côté client par useAccounts) :
+   * 'owner' = mon compte ; 'write'/'read' = compte partagé reçu d'un autre utilisateur.
+   */
+  _role?: 'owner' | 'write' | 'read';
   created_at: string;
   updated_at: string;
 }

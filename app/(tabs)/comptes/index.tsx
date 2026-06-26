@@ -10,7 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAccounts, useArchivedAccounts } from '../../../hooks/useAccounts';
+import { useAllAccounts, useArchivedAccounts } from '../../../hooks/useAccounts';
+import { useAccountInvitations, useRespondAccountInvitation } from '../../../hooks/useSharedAccounts';
 import { ACCOUNT_ICONS } from '../../../theme/colors';
 import { semanticText } from '../../../theme/palette';
 import GuideOverlay from '../../../components/GuideOverlay';
@@ -40,8 +41,10 @@ export default function AccountsListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const accountsQuery = useAccounts(user?.id);
+  const accountsQuery = useAllAccounts(user?.id);
   const archivedQuery = useArchivedAccounts(user?.id);
+  const { data: acctInvitations = [] } = useAccountInvitations(user?.id);
+  const respondInvite = useRespondAccountInvitation(user?.id);
 
   // ── Guide "bulles" ──
   const insets = useSafeAreaInsets();
@@ -75,17 +78,26 @@ export default function AccountsListScreen() {
     },
   ];
   
-  const { data: accounts = [], isLoading } = accountsQuery;
+  const { data: allAccounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
 
+  // Comptes PERSO (mon argent : owner + non joint) vs comptes PARTAGÉS (joints + reçus d'autres users).
+  // Les totaux/agrégats ne portent QUE sur les comptes perso (décision : les partagés/joints n'impactent
+  // pas mes finances). Les comptes partagés s'affichent dans une section dédiée.
+  const accounts = allAccounts.filter((a) => a._role === 'owner' && !a.is_joint);
+  const sharedAccounts = allAccounts.filter((a) => a._role !== 'owner' || a.is_joint);
+
   const TYPE_ORDER: Record<string, number> = { checking: 0, savings: 1, investment: 2, other: 3 };
-  const sortedAccounts = useMemo(() =>
-    [...accounts].sort((a, b) => {
+  const sortAccts = (list: typeof allAccounts) =>
+    [...list].sort((a, b) => {
       const typeA = TYPE_ORDER[a.type] ?? 4;
       const typeB = TYPE_ORDER[b.type] ?? 4;
       if (typeA !== typeB) return typeA - typeB;
       return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
-    }),
+    });
+  const sharedSorted = useMemo(() => sortAccts(sharedAccounts), [allAccounts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sortedAccounts = useMemo(() =>
+    sortAccts(accounts),
     [accounts]
   );
 
@@ -299,6 +311,80 @@ export default function AccountsListScreen() {
             </View>
           )}
 
+          {/* ── Comptes partagés (joints + reçus d'autres utilisateurs) ── */}
+          {(sharedSorted.length > 0 || acctInvitations.length > 0) && (
+            <View style={{ marginTop: 18 }}>
+              <Text style={styles.overviewTitle}>Comptes partagés</Text>
+              {sharedSorted.length > 0 && (
+              <View style={styles.accountList}>
+                {sharedSorted.map((acc, idx) => {
+                  const color = accountColor(acc.type);
+                  const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
+                  const isLast = idx === sharedSorted.length - 1;
+                  const tag = acc.is_joint ? 'Joint' : acc._role === 'read' ? 'Consultation' : 'Écriture';
+                  return (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountRow, !isLast && styles.accountRowBorder]}
+                      onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                    >
+                      <View style={[styles.accountIconCircle, { backgroundColor: color + '1A' }]}>
+                        <Ionicons name={(acc.is_joint ? 'people' : iconName) as any} size={18} color={color} />
+                      </View>
+                      <View style={styles.accountInfo}>
+                        <Text style={styles.accountName}>{acc.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
+                          <View style={styles.sharedTag}><Text style={styles.sharedTagText}>{tag}</Text></View>
+                        </View>
+                      </View>
+                      <View style={styles.accountBalanceWrap}>
+                        <Text style={[styles.accountBalance, acc.balance < 0 && { color: COLORS.danger }]}>
+                          {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbolFor(acc.currency)}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              )}
+              {/* Invitations en attente — sous les comptes partagés (la section apparaît même sans
+                  compte partagé tant qu'il y a une invitation, et disparaît une fois traitée). */}
+              {acctInvitations.map((inv) => (
+                <View key={inv.invite_id} style={[styles.inviteCard, { marginTop: 8 }]}>
+                  <View style={[styles.accountIconCircle, { backgroundColor: COLORS.emerald + '1A' }]}>
+                    <Ionicons name={inv.is_joint ? 'people-outline' : 'wallet-outline'} size={18} color={COLORS.emerald} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inviteName} numberOfLines={1}>{inv.account_name}</Text>
+                    <Text style={styles.inviteSub} numberOfLines={1}>
+                      {inv.from_name} t'invite · {inv.is_joint ? 'compte joint' : 'compte partagé'} · {inv.role === 'read' ? 'consultation' : 'écriture'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.inviteDecline}
+                    onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: false })}
+                    disabled={respondInvite.isPending}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="close" size={18} color={COLORS.danger} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.inviteAccept}
+                    onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: true })}
+                    disabled={respondInvite.isPending}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="checkmark" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
           {archivedAccounts.length > 0 && (
             <View style={styles.archivedSection}>
               {/* En-tête repliable : masqué tant qu'il n'y a aucun compte archivé (cf. guard ci-dessus). */}
@@ -439,6 +525,17 @@ function makeStyles(c: any) {
     borderBottomWidth: 0.5,
     borderBottomColor: c.cardBorder,
   },
+  inviteCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.emerald + '55',
+    borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
+  },
+  inviteName: { fontSize: 14.5, fontWeight: '700', color: c.text },
+  inviteSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
+  inviteDecline: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.danger + '55' },
+  inviteAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald },
+  sharedTag: { paddingHorizontal: 7, paddingVertical: 1, borderRadius: 6, backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '44' },
+  sharedTagText: { fontSize: 10, fontWeight: '700', color: c.emerald },
   accountIconCircle: {
     width: 42,
     height: 42,

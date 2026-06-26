@@ -9,9 +9,9 @@ import CalendarWithPicker from '../../../../components/CalendarWithPicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useMonthlyClosure } from '../../../../hooks/useMonthlyClosure';
-import { useAccounts } from '../../../../hooks/useAccounts';
+import { useAllAccounts } from '../../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../../hooks/useCategories';
-import { useTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../../hooks/useTransactions';
+import { useAllTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../../hooks/useTransactions';
 import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../../hooks/useTransactionMonthOverrides';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/CategoryPicker';
 import { isRegulRow } from '../../../../lib/txOrder';
@@ -33,8 +33,8 @@ export default function EditTransactionScreen() {
   const instanceDate = Array.isArray(params.instanceDate) ? params.instanceDate[0] : params.instanceDate;
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { data: transactions = [] } = useTransactions(user?.id);
-  const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: transactions = [] } = useAllTransactions(user?.id);
+  const { data: accounts = [] } = useAllAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
   // Verrou de clôture gaté par le flag (null si Clôture désactivée → édition libre).
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);

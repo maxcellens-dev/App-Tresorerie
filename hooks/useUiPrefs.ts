@@ -59,6 +59,15 @@ export function useCalculatorEnabledPref(userId: string | undefined) {
   };
 }
 
+/** Position du bouton « + » de saisie rapide (droite par défaut, gauche, ou masqué). */
+export function useQuickAddPref(userId: string | undefined) {
+  const { prefs, patch } = useUiPrefs(userId);
+  return {
+    position: (prefs.quick_add_position ?? 'right') as 'right' | 'left' | 'hidden',
+    setPosition: (v: 'right' | 'left' | 'hidden') => patch({ quick_add_position: v }),
+  };
+}
+
 /** Masquages de recommandations du mois (ignorées / complétées), par compte. */
 export function useRecoDismissals(userId: string | undefined) {
   const qc = useQueryClient();

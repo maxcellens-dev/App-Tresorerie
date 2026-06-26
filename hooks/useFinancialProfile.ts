@@ -311,7 +311,8 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         .from('accounts')
         .select('id, type, balance')
         .eq('profile_id', userId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_joint', false); // comptes joints exclus des agrégats perso
 
       const accountTypeMap: Record<string, string> = {};
       let savingsBalance = 0;

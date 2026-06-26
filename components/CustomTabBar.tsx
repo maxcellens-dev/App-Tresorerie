@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useRwInvitations } from '../hooks/useRelykaWorld';
+import { useAccountInvitations, useSharedAccountsRealtime } from '../hooks/useSharedAccounts';
 import { UnreadBadge } from './HeaderWithProfile';
 
 type TabName = 'comptes' | 'projects' | 'pilotage' | 'transactions' | 'projection';
@@ -34,6 +35,9 @@ export default function CustomTabBar({ state }: any) {
   const { user } = useAuth();
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const rwInviteCount = rwInvitations.length;
+  const { data: acctInvitations = [] } = useAccountInvitations(user?.id);
+  const acctInviteCount = acctInvitations.length;
+  useSharedAccountsRealtime(user?.id); // sync live des comptes partagés/joints + invitations
 
   return (
     // paddingBottom = inset système (barre de navigation / gestes) → le contenu remonte
@@ -60,6 +64,8 @@ export default function CustomTabBar({ state }: any) {
               )}
               {/* Badge invitations Relyka World en attente sur l'onglet Projets */}
               {it.name === 'projects' && rwInviteCount > 0 && <UnreadBadge count={rwInviteCount} style={{ top: -4, right: -8 }} />}
+              {/* Badge invitations de compte partagé/joint en attente sur l'onglet Comptes */}
+              {it.name === 'comptes' && acctInviteCount > 0 && <UnreadBadge count={acctInviteCount} style={{ top: -4, right: -8 }} />}
             </View>
             <Text style={[styles.label, { color }]}>{it.label}</Text>
           </TouchableOpacity>

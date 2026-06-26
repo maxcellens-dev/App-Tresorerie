@@ -34,6 +34,7 @@ export default function AddAccountScreen() {
   const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
+  const [isJoint, setIsJoint] = useState(false);
   // Devise du compte : par défaut celle de l'utilisateur (devise de référence), modifiable.
   const [currency, setCurrency] = useState('EUR');
   const currencyTouched = useRef(false);
@@ -82,17 +83,24 @@ export default function AddAccountScreen() {
     }
 
     try {
-      await addAccount.mutateAsync({
+      const created = await addAccount.mutateAsync({
         name: trimmed,
         type,
         currency: currency || 'EUR',
         balance: num,
+        is_joint: isJoint,
         fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
         initial_contributed: type === 'investment' && initialContributed.trim() ? parseFloat(initialContributed.replace(',', '.')) : null,
         init_date: initDate,
       });
 
-      router.back();
+      // Compte joint → on file directement vers l'écran de partage pour envoyer les invitations.
+      const newId = (created as any)?.id as string | undefined;
+      if (isJoint && newId) {
+        router.replace(`/(tabs)/comptes/edit/${newId}?share=1` as any);
+      } else {
+        router.back();
+      }
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : "Impossible d'enregistrer.", []);
     }
@@ -141,6 +149,24 @@ export default function AddAccountScreen() {
             placeholder="Ex. Compte courant"
             placeholderTextColor={COLORS.textSecondary}
           />
+
+          {/* Compte joint (partagé entre plusieurs utilisateurs) — avant le type. */}
+          <TouchableOpacity
+            style={[styles.jointToggle, isJoint && styles.jointToggleActive]}
+            onPress={() => setIsJoint((v) => !v)}
+            activeOpacity={0.7}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isJoint }}
+          >
+            <Ionicons name={isJoint ? 'people' : 'people-outline'} size={20} color={isJoint ? COLORS.emerald : COLORS.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.jointToggleLabel}>Compte joint</Text>
+              <Text style={styles.jointToggleHint}>Partagé avec d'autres utilisateurs. Après création, tu pourras envoyer les invitations.</Text>
+            </View>
+            <View style={[styles.jointCheck, isJoint && styles.jointCheckOn]}>
+              {isJoint && <Ionicons name="checkmark" size={14} color={COLORS.bg} />}
+            </View>
+          </TouchableOpacity>
 
           <Text style={styles.label}>Type</Text>
           <View style={styles.chipRow}>
@@ -320,6 +346,12 @@ function makeStyles(c: any) {
     marginBottom: 20,
   },
   inputError: { borderColor: c.danger },
+  jointToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 18 },
+  jointToggleActive: { borderColor: c.emerald, backgroundColor: c.emerald + '12' },
+  jointToggleLabel: { fontSize: 14.5, fontWeight: '700', color: c.text },
+  jointToggleHint: { fontSize: 11.5, color: c.textSecondary, marginTop: 1, lineHeight: 15 },
+  jointCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+  jointCheckOn: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
   chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },

@@ -7,9 +7,9 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAccounts } from '../../../hooks/useAccounts';
+import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
-import { createTransferLegs, useAddTransaction, useDeleteTransaction, useTransactions } from '../../../hooks/useTransactions';
+import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions } from '../../../hooks/useTransactions';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
@@ -31,9 +31,11 @@ export default function AddTransactionScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ type?: string }>();
   const { user } = useAuth();
-  const { data: accounts = [] } = useAccounts(user?.id);
+  // Comptes où je peux ÉCRIRE (perso + joints + partagés écriture) — pas les comptes en consultation.
+  const { data: allAccounts = [] } = useAllAccounts(user?.id);
+  const accounts = useMemo(() => allAccounts.filter((a) => a._role !== 'read'), [allAccounts]);
   const { data: categories = [] } = useCategories(user?.id);
-  const { data: transactions = [] } = useTransactions(user?.id);
+  const { data: transactions = [] } = useAllTransactions(user?.id);
   // Verrou de clôture gaté par le flag de fonctionnalité (null si Clôture désactivée).
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);

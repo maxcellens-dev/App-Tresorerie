@@ -13,10 +13,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
+import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../../hooks/useCategories';
-import { useAccounts } from '../../../hooks/useAccounts';
+import { useAllAccounts } from '../../../hooks/useAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideOverlay from '../../../components/GuideOverlay';
@@ -136,14 +136,14 @@ export default function TransactionsListScreen() {
   const initializedAccountsSig = useRef<string | null>(null);
   const [showAccountFilter, setShowAccountFilter] = useState(false);
 
-  const transactionsQuery = useTransactions(user?.id);
+  const transactionsQuery = useAllTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
   const validateProjectDraft = useValidateProjectDraft(user?.id);
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: overrides = [] } = overridesQuery;
-  const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: accounts = [] } = useAllAccounts(user?.id);
   // Transactions liées à une dépense de projet PARTAGÉ (Relyka World) : pas de project_id, on les
   // repère via ce set pour leur donner la même pastille « projet » que les projets personnels.
   const { data: rwTxIds } = useRwLinkedTransactionIds(user?.id);
@@ -156,7 +156,11 @@ export default function TransactionsListScreen() {
     if (accounts.length === 0) return;
     if (initializedAccountsSig.current === accountsSig) return;
     initializedAccountsSig.current = accountsSig;
-    const checkingIds = accounts.filter((a: any) => a.type === 'checking').map((a: any) => a.id);
+    // Filtre par défaut = mes comptes courants PERSO uniquement (les comptes joints/partagés sont
+    // exclus de la sélection par défaut ; l'utilisateur peut les ajouter manuellement).
+    const checkingIds = accounts
+      .filter((a: any) => a.type === 'checking' && a._role === 'owner' && !a.is_joint)
+      .map((a: any) => a.id);
     setDefaultCheckingIds(checkingIds);
     setAccountFilterIds(checkingIds);
   }, [accountsSig, accounts]);

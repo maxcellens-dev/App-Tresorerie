@@ -6,6 +6,7 @@ import TabBarBackground from '../../components/TabBarBackground';
 import HeaderWithProfile from '../../components/HeaderWithProfile';
 import CustomTabBar from '../../components/CustomTabBar';
 import OnboardingGate from '../../components/OnboardingGate';
+import QuickAddButton from '../../components/QuickAddButton';
 import { useAppColors } from '../../hooks/useAppColors';
 import { View } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
@@ -158,6 +159,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="reporting" options={{ href: null, title: 'Reporting' }} />
     </Tabs>
     <OnboardingGate />
+    <QuickAddButton />
     </View>
   );
 }
