@@ -116,6 +116,22 @@ export function useAccountParticipants(accountId: string | undefined) {
   });
 }
 
+/**
+ * Participants de TOUS mes comptes accessibles (propriétaires + membres) → map globale pour afficher
+ * l'auteur d'une transaction dans la page Transactions (qui mélange plusieurs comptes).
+ */
+export function useAllParticipants(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['acct_all_participants', userId],
+    enabled: !!userId && ok(),
+    queryFn: async (): Promise<{ user_id: string; display_name: string }[]> => {
+      const { data, error } = await supabase!.rpc('acct_all_participants');
+      if (error) throw error;
+      return (data ?? []) as { user_id: string; display_name: string }[];
+    },
+  });
+}
+
 /** Membres d'un compte (pour l'écran de gestion / partage côté owner). */
 export function useAccountMembers(accountId: string | undefined) {
   return useQuery({

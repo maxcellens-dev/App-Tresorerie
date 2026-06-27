@@ -307,6 +307,11 @@ export default function AddTransactionScreen() {
           {/* Sélecteur de type — étape 1 uniquement */}
           {step === 1 && (
             <View style={styles.typeSelector}>
+              {/* Ordre unifié avec la page Transactions : Virement, Dépense, Recette. */}
+              <TouchableOpacity style={[styles.typeBtn, isTransfer && styles.typeBtnActive]} onPress={() => changeType('transfer')} accessibilityRole="button">
+                <Ionicons name="swap-horizontal" size={18} color={isTransfer ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
+                <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={[styles.typeBtn, isExpense && styles.typeBtnActive]} onPress={() => changeType('expense')} accessibilityRole="button">
                 <Ionicons name="arrow-down" size={18} color={isExpense ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
                 <Text style={[styles.typeBtnLabel, isExpense && styles.typeBtnLabelActive]}>Dépense</Text>
@@ -314,10 +319,6 @@ export default function AddTransactionScreen() {
               <TouchableOpacity style={[styles.typeBtn, isIncome && styles.typeBtnActive]} onPress={() => changeType('income')} accessibilityRole="button">
                 <Ionicons name="arrow-up" size={18} color={isIncome ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
                 <Text style={[styles.typeBtnLabel, isIncome && styles.typeBtnLabelActive]}>Recette</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.typeBtn, isTransfer && styles.typeBtnActive]} onPress={() => changeType('transfer')} accessibilityRole="button">
-                <Ionicons name="swap-horizontal" size={18} color={isTransfer ? COLORS.bg : COLORS.textSecondary} style={{ marginRight: 6 }} />
-                <Text style={[styles.typeBtnLabel, isTransfer && styles.typeBtnLabelActive]}>Virement</Text>
               </TouchableOpacity>
             </View>
           )}

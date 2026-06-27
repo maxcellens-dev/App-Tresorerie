@@ -17,6 +17,7 @@ import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useVali
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../../hooks/useCategories';
 import { useAllAccounts } from '../../../hooks/useAccounts';
+import { useAccountParticipants, useAllParticipants } from '../../../hooks/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideOverlay from '../../../components/GuideOverlay';
@@ -144,6 +145,25 @@ export default function TransactionsListScreen() {
   const { data: transactions = [], isLoading } = transactionsQuery;
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAllAccounts(user?.id);
+  // Map account_id → compte (avec _role / is_joint / profile_id) pour distinguer les comptes
+  // partagés/joints et le rôle (consultation) sur chaque ligne de transaction.
+  const accountById = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const a of accounts) m[a.id] = a;
+    return m;
+  }, [accounts]);
+  // Transaction détaillée en lecture seule (compte reçu en consultation) → ouvre une feuille du bas.
+  const [detailTx, setDetailTx] = useState<any | null>(null);
+  const { data: detailParticipants = [] } = useAccountParticipants(detailTx?.account_id);
+  // Auteur des transactions des comptes partagés (map globale user_id → nom).
+  const { data: allParticipants = [] } = useAllParticipants(user?.id);
+  const authorNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of allParticipants) m[p.user_id] = p.display_name;
+    return m;
+  }, [allParticipants]);
+  const authorLabel = (t: any): string =>
+    t?.profile_id === user?.id ? 'Vous' : (authorNameById[t?.profile_id] ?? 'Un membre');
   // Transactions liées à une dépense de projet PARTAGÉ (Relyka World) : pas de project_id, on les
   // repère via ce set pour leur donner la même pastille « projet » que les projets personnels.
   const { data: rwTxIds } = useRwLinkedTransactionIds(user?.id);
@@ -553,6 +573,7 @@ export default function TransactionsListScreen() {
           </ScrollView>
         )}
         <View style={[styles.header, onbRecurring ? onbGlow(COLORS, true) : null]} ref={actionsRef}>
+          {/* Ordre : Virement, Dépense, Recette (identique à l'écran de création). */}
           <TouchableOpacity
             ref={transferBtnRef}
             style={styles.addBtn}
@@ -571,7 +592,7 @@ export default function TransactionsListScreen() {
             accessibilityRole="button"
           >
             <Ionicons name="arrow-down" size={20} color={COLORS.danger} />
-            <Text style={[styles.addBtnLabel, { color: COLORS.danger }]}>Dépenses</Text>
+            <Text style={[styles.addBtnLabel, { color: COLORS.danger }]}>Dépense</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={incomeBtnRef}
@@ -670,6 +691,10 @@ export default function TransactionsListScreen() {
                         const effectiveDate = getEffectiveDate(item);
                         const isFuture = effectiveDate > todayStr;
                         const isProject = !!item.project_id || (rwTxIds?.has(item.id) ?? false);
+                        // Compte partagé/joint (vs mon compte perso) + rôle consultation.
+                        const acctMeta = accountById[item.account_id];
+                        const isSharedAcct = !!acctMeta?.is_joint || (!!acctMeta?.profile_id && acctMeta.profile_id !== user?.id);
+                        const isReadOnlyAcct = acctMeta?._role === 'read';
                         // Une occurrence matérialisée (ligne réelle issue d'un modèle récurrent,
                         // is_recurring=false mais materialized_from rempli) fait partie d'une série :
                         // on lui donne aussi le tag « récurrent » pour que l'utilisateur le sache.
@@ -731,7 +756,7 @@ export default function TransactionsListScreen() {
                                     )}
                                   </View>
                                   <Text style={styles.rowMeta}>
-                                    {item.account?.name ?? ''} · {formatDate(effectiveDate)}
+                                    {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
                                   </Text>
                                 </TouchableOpacity>
                                 <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
@@ -771,7 +796,7 @@ export default function TransactionsListScreen() {
                           <TouchableOpacity
                             key={`${item.id}-${item.displayDate || ''}`}
                             style={rowBaseStyle}
-                            onPress={navigateToEdit}
+                            onPress={isReadOnlyAcct ? () => setDetailTx(item) : navigateToEdit}
                             activeOpacity={0.7}
                             accessibilityRole="button"
                           >
@@ -780,6 +805,7 @@ export default function TransactionsListScreen() {
                               <View style={styles.rowLabelRow}>
                                 <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
                                 {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
+                                {isSharedAcct && <View style={[styles.projectDot, { backgroundColor: COLORS.textSecondary }]} />}
                                 <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
                                   {item.note || item.category?.name || 'Sans libellé'}
                                 </Text>
@@ -793,7 +819,7 @@ export default function TransactionsListScreen() {
                                 )}
                               </View>
                               <Text style={styles.rowMeta}>
-                                {item.account?.name ?? ''} · {formatDate(effectiveDate)}
+                                {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
                               </Text>
                             </View>
                             {isReservation ? (
@@ -841,6 +867,47 @@ export default function TransactionsListScreen() {
                   <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? COLORS.green }]}>{confirmModal?.confirmLabel}</Text>
                 </TouchableOpacity>
               </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Détail d'une transaction sur un compte reçu en CONSULTATION : lecture seule, pas de
+            « Modifier ». S'ouvre par le bas comme depuis la page du compte. */}
+        <Modal visible={!!detailTx} transparent animationType="slide" onRequestClose={() => setDetailTx(null)}>
+          <TouchableOpacity style={styles.detailOverlay} activeOpacity={1} onPress={() => setDetailTx(null)}>
+            <TouchableOpacity style={styles.detailSheet} activeOpacity={1} onPress={() => {}}>
+              {detailTx && (() => {
+                const amt = Number(detailTx.amount);
+                const inc = amt >= 0;
+                const author = detailTx.profile_id === user?.id ? 'Vous' : (detailParticipants.find((p) => p.user_id === detailTx.profile_id)?.display_name ?? 'Un membre');
+                const sym = currencySymbolFor(detailTx.account?.currency);
+                const lbl = detailTx.note?.trim() || detailTx.category?.name || 'Transaction';
+                const rows: [string, string][] = [
+                  ['Date', new Date(detailTx.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
+                  ['Montant', `${inc ? '+' : '−'} ${Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${sym}`],
+                  ['Compte', detailTx.account?.name ?? ''],
+                  ['Par', author],
+                ];
+                if (detailTx.category?.name) rows.push(['Catégorie', detailTx.category.name]);
+                return (
+                  <>
+                    <View style={styles.detailHandle} />
+                    <Text style={[styles.detailAmount, { color: inc ? COLORS.green : COLORS.danger }]}>{inc ? '+' : '−'} {Math.abs(amt).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {sym}</Text>
+                    <Text style={styles.detailLabelText}>{lbl}</Text>
+                    <View style={styles.detailDivider} />
+                    {rows.map(([k, v]) => (
+                      <View key={k} style={styles.detailRow}>
+                        <Text style={styles.detailKey}>{k}</Text>
+                        <Text style={styles.detailVal}>{v}</Text>
+                      </View>
+                    ))}
+                    <Text style={styles.detailReadOnly}>Compte en consultation — lecture seule.</Text>
+                    <TouchableOpacity style={styles.detailCloseBtn} onPress={() => setDetailTx(null)}>
+                      <Text style={styles.detailCloseText}>Fermer</Text>
+                    </TouchableOpacity>
+                  </>
+                );
+              })()}
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
@@ -1044,6 +1111,18 @@ function makeStyles(c: any) {
   },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
+  detailOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
+  detailSheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  detailHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, marginBottom: 14 },
+  detailAmount: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
+  detailLabelText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },
+  detailDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 14 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
+  detailKey: { fontSize: 13.5, color: c.textSecondary },
+  detailVal: { fontSize: 13.5, fontWeight: '600', color: c.text, flexShrink: 1, textAlign: 'right', marginLeft: 12 },
+  detailReadOnly: { fontSize: 12, color: c.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: 10 },
+  detailCloseBtn: { marginTop: 14, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
+  detailCloseText: { fontSize: 15, fontWeight: '700', color: c.text },
   confirmTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
   confirmMessage: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 20 },
   confirmBtns: { flexDirection: 'row', gap: 10 },

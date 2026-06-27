@@ -560,7 +560,7 @@ export default function AccountDetailScreen() {
                   <View style={styles.transferLeft}>
                     <Text style={styles.transferDate}>
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {isSharedView ? ` — par ${authorOf(t)}` : ''}
+                      {isSharedView ? ` - par ${authorOf(t)}` : ''}
                     </Text>
                     <Text style={[styles.transferLabel, t.category?.name === 'Projets' && { color: COLORS.blue }]}>{label}</Text>
                     {isRegulRow(t) && (t as any).regul_target != null && (
