@@ -71,6 +71,16 @@ export default function AddTransactionScreen() {
   const [step, setStep] = useState<1 | 2>(1);
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
 
+  // Le bouton « + » (ou un lien) peut rouvrir cet écran DÉJÀ monté avec un type différent : expo-router
+  // ne réinitialise alors pas le useState → on resynchronise le type sur le param à chaque changement.
+  useEffect(() => {
+    const t = params.type;
+    if (t === 'income' || t === 'transfer' || t === 'expense') {
+      setTransactionType(t as TransactionType);
+      setStep(1);
+    }
+  }, [params.type]);
+
   const isExpense = transactionType === 'expense';
   const isIncome = transactionType === 'income';
   const isTransfer = transactionType === 'transfer';

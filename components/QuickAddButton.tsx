@@ -34,19 +34,24 @@ export default function QuickAddButton() {
   const { data: flags } = useFeatureFlags();
 
   const [open, setOpen] = useState(false);
+  // `mounted` garde les boutons d'action dans l'arbre PENDANT l'animation, puis les démonte à la
+  // fermeture → sinon leur ombre (elevation Android) reste visible même à opacity 0.
+  const [mounted, setMounted] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
 
-  const run = (to: number, cb?: () => void) =>
+  const run = (to: number, cb?: (result: { finished: boolean }) => void) =>
     Animated.spring(anim, { toValue: to, useNativeDriver: true, friction: 6, tension: 90 }).start(cb);
-  const toggle = () => { const n = !open; setOpen(n); run(n ? 1 : 0); };
-  const close = () => { setOpen(false); run(0); };
+  const openMenu = () => { setMounted(true); setOpen(true); run(1); };
+  const close = () => { setOpen(false); run(0, ({ finished }) => { if (finished) setMounted(false); }); };
+  const toggle = () => { if (open) close(); else openMenu(); };
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
   const enabled = flags?.quick_add_enabled !== false;      // admin : défaut activé
   const isBubble = (flags?.quick_add_mode ?? 'tabbar') === 'bubble';
   if (!enabled || position === 'hidden') return null;
-  // Mode bulle : visible UNIQUEMENT sur l'écran Pilotage.
-  if (isBubble && !(pathname ?? '').includes('pilotage')) return null;
+  // Mode bulle : visible sur le Pilotage — y compris l'écran d'accueil « home » (entête « Bonjour … »)
+  // sur lequel on atterrit au démarrage, qui est une variante de la page Pilotage.
+  if (isBubble && !/(pilotage|home)/.test(pathname ?? '')) return null;
 
   const barHeight = BAR_CONTENT + Math.max(insets.bottom, 8);
   // Placement de l'ancre selon le mode.
@@ -77,7 +82,7 @@ export default function QuickAddButton() {
 
       {/* Ancre carrée à l'emplacement du FAB ; box-none → seuls les boutons captent les taps */}
       <View pointerEvents="box-none" style={[styles.anchor, { bottom: anchorBottom, left: anchorLeft }]}>
-        {ACTIONS.map((a) => {
+        {mounted && ACTIONS.map((a) => {
           const rad = (a.deg * Math.PI) / 180;
           // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
           const left = FAB_SIZE / 2 + RADIUS * Math.cos(rad) - ACTION_W / 2;

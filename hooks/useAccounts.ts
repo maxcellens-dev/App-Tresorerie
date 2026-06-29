@@ -138,13 +138,19 @@ export function useAddAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null; is_joint?: boolean }) => {
-      if (!supabase || !profileId) throw new Error('Non connecté');
+      if (!supabase) throw new Error('Backend indisponible');
+      // SOURCE DE VÉRITÉ = l'utilisateur réellement authentifié (auth.uid()), pas le profileId du
+      // contexte (qui peut être désynchronisé). La RLS exige profile_id = auth.uid() → on garantit
+      // que le compte est créé pour le bon propriétaire, sinon « violates RLS » à coup sûr.
+      const { data: sess } = await supabase.auth.getSession();
+      const ownerId = sess?.session?.user?.id ?? profileId;
+      if (!ownerId) throw new Error('Session expirée — déconnecte-toi puis reconnecte-toi.');
       const nameNorm = normalizeName(input.name);
       if (!nameNorm) throw new Error('Le nom du compte est requis.');
       const { data: existing } = await supabase
         .from('accounts')
         .select('id, name')
-        .eq('profile_id', profileId)
+        .eq('profile_id', ownerId)
         .eq('is_active', true);
       const hasDuplicate = (existing ?? []).some(
         (r) => normalizeName((r as { name?: string }).name ?? '') === nameNorm
@@ -153,7 +159,7 @@ export function useAddAccount(profileId: string | undefined) {
       const { data, error } = await supabase
         .from('accounts')
         .insert({
-          profile_id: profileId,
+          profile_id: ownerId,
           name: input.name.trim(),
           type: input.type || 'checking',
           currency: input.currency || 'EUR',
@@ -165,7 +171,7 @@ export function useAddAccount(profileId: string | undefined) {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) throw new Error([error.message, (error as any).details, (error as any).hint].filter(Boolean).join(' — ') || 'Erreur base de données');
 
       // Le solde est désormais DÉRIVÉ des transactions (recompute_account_balance). Le solde initial est
       // adossé à une transaction d'ANCRE DE RÉGULARISATION (même nature qu'une régul de solde) :
@@ -175,8 +181,8 @@ export function useAddAccount(profileId: string | undefined) {
       if (data && initBal !== 0) {
         const accId = (data as any).id as string;
         const initDate = input.init_date ?? todayISO();
-        await supabase.from('transactions').insert({
-          profile_id: profileId,
+        const { error: regErr } = await supabase.from('transactions').insert({
+          profile_id: ownerId,
           account_id: accId,
           category_id: null,
           amount: initBal,
@@ -187,7 +193,9 @@ export function useAddAccount(profileId: string | undefined) {
           is_recurring: false,
           posted: true,
         });
-        await supabase.rpc('recompute_account_balance', { p_account: accId, p_today: todayISO() });
+        if (regErr) throw new Error('Solde initial : ' + [regErr.message, (regErr as any).details, (regErr as any).hint].filter(Boolean).join(' — '));
+        const { error: recErr } = await supabase.rpc('recompute_account_balance', { p_account: accId, p_today: todayISO() });
+        if (recErr) throw new Error('Recalcul du solde : ' + recErr.message);
       }
       return data;
     },

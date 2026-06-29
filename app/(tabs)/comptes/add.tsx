@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Activi
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAddAccount } from '../../../hooks/useAccounts';
@@ -27,6 +27,7 @@ export default function AddAccountScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ joint?: string }>();
   const { user } = useAuth();
   const addAccount = useAddAccount(user?.id);
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
@@ -34,7 +35,8 @@ export default function AddAccountScreen() {
   const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
-  const [isJoint, setIsJoint] = useState(false);
+  // Le type (personnel/joint) est choisi AVANT via le modal → on lit le param, plus de toggle ici.
+  const isJoint = params.joint === '1';
   // Devise du compte : par défaut celle de l'utilisateur (devise de référence), modifiable.
   const [currency, setCurrency] = useState('EUR');
   const currencyTouched = useRef(false);
@@ -150,23 +152,16 @@ export default function AddAccountScreen() {
             placeholderTextColor={COLORS.textSecondary}
           />
 
-          {/* Compte joint (partagé entre plusieurs utilisateurs) — avant le type. */}
-          <TouchableOpacity
-            style={[styles.jointToggle, isJoint && styles.jointToggleActive]}
-            onPress={() => setIsJoint((v) => !v)}
-            activeOpacity={0.7}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: isJoint }}
-          >
-            <Ionicons name={isJoint ? 'people' : 'people-outline'} size={20} color={isJoint ? COLORS.emerald : COLORS.textSecondary} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.jointToggleLabel}>Compte joint</Text>
-              <Text style={styles.jointToggleHint}>Partagé avec d'autres utilisateurs. Après création, tu pourras envoyer les invitations.</Text>
+          {/* Type choisi avant via le modal : bandeau lecture seule si compte joint. */}
+          {isJoint && (
+            <View style={[styles.jointToggle, styles.jointToggleActive]}>
+              <Ionicons name="people" size={20} color={COLORS.emerald} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.jointToggleLabel}>Compte joint</Text>
+                <Text style={styles.jointToggleHint}>Partagé avec d'autres utilisateurs. Après création, tu pourras envoyer les invitations.</Text>
+              </View>
             </View>
-            <View style={[styles.jointCheck, isJoint && styles.jointCheckOn]}>
-              {isJoint && <Ionicons name="checkmark" size={14} color={COLORS.bg} />}
-            </View>
-          </TouchableOpacity>
+          )}
 
           <Text style={styles.label}>Type</Text>
           <View style={styles.chipRow}>

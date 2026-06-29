@@ -94,8 +94,9 @@ DROP POLICY IF EXISTS accounts_select ON public.accounts;
 DROP POLICY IF EXISTS accounts_insert ON public.accounts;
 DROP POLICY IF EXISTS accounts_update ON public.accounts;
 DROP POLICY IF EXISTS accounts_delete ON public.accounts;
--- SELECT : owner OU membre.
-CREATE POLICY accounts_select ON public.accounts FOR SELECT USING (acct_can_access(id));
+-- SELECT : owner (branche DIRECTE en premier, indispensable pour la relecture d'un INSERT...RETURNING
+-- — sinon acct_can_access() STABLE ne voit pas la ligne juste insérée → « violates RLS ») OU membre.
+CREATE POLICY accounts_select ON public.accounts FOR SELECT USING (profile_id = auth.uid() OR acct_can_access(id));
 -- INSERT/UPDATE/DELETE : owner uniquement. (Le recalcul du solde par un membre passe par une fonction
 -- SECURITY DEFINER, donc les membres n'ont PAS besoin d'UPDATE direct ici.)
 CREATE POLICY accounts_insert ON public.accounts FOR INSERT WITH CHECK (profile_id = auth.uid());

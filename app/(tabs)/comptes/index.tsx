@@ -1,5 +1,5 @@
 ﻿import { useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
@@ -45,6 +45,9 @@ export default function AccountsListScreen() {
   const archivedQuery = useArchivedAccounts(user?.id);
   const { data: acctInvitations = [] } = useAccountInvitations(user?.id);
   const respondInvite = useRespondAccountInvitation(user?.id);
+  // Choix du type de compte à la création (comme les projets) : personnel ou partagé/joint.
+  const [showCreateType, setShowCreateType] = useState(false);
+  const openCreate = (joint: boolean) => { setShowCreateType(false); router.push(`/(tabs)/comptes/add${joint ? '?joint=1' : ''}` as any); };
 
   // ── Guide "bulles" ──
   const insets = useSafeAreaInsets();
@@ -171,7 +174,7 @@ export default function AccountsListScreen() {
           {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
           {accounts.length > 0 && (
             <View>
-            <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
+            <Text style={styles.overviewTitle}>Patrimoine</Text>
             <View style={styles.overviewRow}>
               {(() => {
                 // Agrégats convertis dans la devise de référence (multi-devises).
@@ -222,7 +225,7 @@ export default function AccountsListScreen() {
                   ref={addBtnRef}
                   style={styles.quickBtn}
                   activeOpacity={0.75}
-                  onPress={() => router.push('/(tabs)/comptes/add')}
+                  onPress={() => setShowCreateType(true)}
                 >
                   <View style={styles.quickIcon}>
                     <Ionicons name="add" size={22} color={COLORS.emerald} />
@@ -262,7 +265,7 @@ export default function AccountsListScreen() {
               </View>
               <TouchableOpacity
                 style={styles.welcomeBannerBtn}
-                onPress={() => { setWelcomeDismissed(true); router.push('/(tabs)/comptes/add'); }}
+                onPress={() => { setWelcomeDismissed(true); setShowCreateType(true); }}
               >
                 <Ionicons name="add" size={16} color={COLORS.bg} />
                 <Text style={styles.welcomeBannerBtnLabel}>Ajouter mon premier compte</Text>
@@ -435,6 +438,35 @@ export default function AccountsListScreen() {
         scrollRef={scrollRef}
         screenTitle="Comptes"
       />
+
+      {/* Choix du type de compte — MÊME forme que le modal « Quel type de projet ? » */}
+      <Modal visible={showCreateType} transparent animationType="fade" onRequestClose={() => setShowCreateType(false)}>
+        <TouchableOpacity style={styles.createOverlay} activeOpacity={1} onPress={() => setShowCreateType(false)}>
+          <TouchableOpacity style={styles.createCard} activeOpacity={1} onPress={() => {}}>
+            <Text style={styles.createTitle}>Quel type de compte ?</Text>
+            <TouchableOpacity style={styles.createOpt} onPress={() => openCreate(false)} activeOpacity={0.85}>
+              <View style={[styles.createOptIcon, { backgroundColor: COLORS.emerald + '22' }]}>
+                <Ionicons name="person" size={22} color={COLORS.emerald} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.createOptTitle}>Personnel</Text>
+                <Text style={styles.createOptSub}>Un compte à toi (courant, épargne, investissement…)</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.createOpt} onPress={() => openCreate(true)} activeOpacity={0.85}>
+              <View style={[styles.createOptIcon, { backgroundColor: '#3b82f6' + '22' }]}>
+                <Ionicons name="people" size={22} color="#3b82f6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.createOptTitle}>Partagé (joint)</Text>
+                <Text style={styles.createOptSub}>Partagé avec d'autres utilisateurs. Tu enverras les invitations après création.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -536,6 +568,13 @@ function makeStyles(c: any) {
   inviteAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald },
   sharedTag: { paddingHorizontal: 7, paddingVertical: 1, borderRadius: 6, backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '44' },
   sharedTagText: { fontSize: 10, fontWeight: '700', color: c.emerald },
+  createOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
+  createCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 12 },
+  createTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+  createOpt: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14 },
+  createOptIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  createOptTitle: { fontSize: 15, fontWeight: '800', color: c.text },
+  createOptSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   accountIconCircle: {
     width: 42,
     height: 42,

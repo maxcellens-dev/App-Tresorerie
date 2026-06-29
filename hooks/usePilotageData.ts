@@ -123,11 +123,12 @@ async function fetchPilotageData(profileId: string): Promise<{
   questionnaireAnswers: any | null;
   projects: Project[];
   objectives: Objective[];
+  monthOverrides: { transaction_id: string; year: number; month: number; override_amount: number }[];
   rates: RatesMap;
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
-  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes] = await Promise.all([
+  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
     supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
@@ -135,6 +136,7 @@ async function fetchPilotageData(profileId: string): Promise<{
     supabase.from('objectives').select('*').eq('profile_id', profileId),
     supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
     supabase.from('currency_rates').select('code, rate'),
+    supabase.from('transaction_month_overrides').select('transaction_id, year, month, override_amount').eq('profile_id', profileId),
   ]);
 
   if (profileRes.error) throw profileRes.error;
@@ -174,6 +176,7 @@ async function fetchPilotageData(profileId: string): Promise<{
       target_yearly_amount: Number(o.target_yearly_amount),
     })) as Objective[],
     questionnaireAnswers: qaRes.data ?? null,
+    monthOverrides: (overridesRes.data ?? []) as { transaction_id: string; year: number; month: number; override_amount: number }[],
     rates,
   };
 }
@@ -448,6 +451,14 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const safety_margin_percent = profile?.safety_margin_percent ?? 10; // conservé pour rétrocompatibilité
   const safety_margin_amount = profile?.safety_margin_amount ?? 0;
   const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // Overrides du mois courant : montant modifié d'une occurrence récurrente pour CE mois. Les
+  // indicateurs (dépensé, épargné, investi) doivent refléter ce RÉEL, pas le montant figé du template.
+  const ovrByTx: Record<string, number> = {};
+  for (const o of (data as any).monthOverrides ?? []) {
+    if (o.year === currentYear && o.month === currentMonth) ovrByTx[o.transaction_id] = Math.abs(Number(o.override_amount));
+  }
+  /** Montant d'une transaction pour le mois courant : override mensuel s'il existe, sinon le montant du modèle. */
+  const effAbs = (t: any) => ovrByTx[t.id] ?? Math.abs(Number(t.amount));
   const checkingIds = new Set(accounts.filter(a => a.type === 'checking').map(a => a.id));
   const prudence = profilePrudence(profile);
 
@@ -698,10 +709,12 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       // Remboursement de dépense = entrée d'argent (montant +) sur une catégorie de DÉPENSE, depuis un
       // compte courant, hors virement/projet/régul. Il s'impute en NÉGATIF sur les dépenses du mois →
       // réduit donc les dépenses variables (ex. 300 de variables − 10 de remboursement = 290).
+      // Un VRAI remboursement de dépense a TOUJOURS une catégorie de DÉPENSE (saisi via le toggle
+      // « Remboursement » sur une catégorie de dépense). On EXIGE donc une vraie catégorie de dépense :
+      // ça exclut d'office les montants positifs SANS catégorie (régularisation de solde, solde initial,
+      // apport…) qui sinon étaient soustraits à tort des dépenses → « Total dépensé » négatif.
       const rcat = (t as TransactionWithCategory).category;
-      const rIsExpenseCat = !rcat || rcat.type === 'expense';
-      const rIsRegul = !!(rcat?.name && /r[ée]gularisation/i.test(rcat.name));
-      const rIsRefund = rIsExpenseCat && !rIsRegul && !t.linked_account_id && !(t as any).project_id
+      const rIsRefund = !!rcat && rcat.type === 'expense' && !t.linked_account_id && !(t as any).project_id
         && accountTypeById[t.account_id] === 'checking' && !Boolean((t as any).is_recurring);
       if (rIsRefund && !Boolean((t as any).is_draft)) {
         const [rY, rM] = t.date.split('-').map(Number);
@@ -718,16 +731,18 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     const isRecurring = Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule);
     const isDraft = Boolean((t as any).is_draft);
 
-    // Montant projeté sur le mois courant (récurrent → projection, sinon ponctuel du mois)
+    // Montant projeté sur le mois courant (récurrent → projection, sinon ponctuel du mois).
+    // effAbs = override mensuel s'il existe (occurrence modifiée pour CE mois) sinon le montant du modèle.
+    const _abs = effAbs(t);
     const monthlyAmt = isRecurring
-      ? addRecurrenceToMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
-      : (isThisMonth ? Math.abs(amt) : 0);
+      ? addRecurrenceToMonth(currentYear, currentMonth, _abs, t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
+      : (isThisMonth ? _abs : 0);
     if (monthlyAmt <= 0) continue;
 
     const pastAmt = isDraft ? 0 : (
       isRecurring
-        ? recurrencePastInMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
-        : (isThisMonth && t.date <= todayStr ? Math.abs(amt) : 0)
+        ? recurrencePastInMonth(currentYear, currentMonth, _abs, t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
+        : (isThisMonth && t.date <= todayStr ? _abs : 0)
     );
 
     const srcType = accountTypeById[t.account_id];
@@ -781,13 +796,15 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     const isRecurring = Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule);
     const [tY, tM] = t.date.split('-').map(Number);
     const isThisMonth = tY === currentYear && tM === currentMonth;
+    // effAbs = override mensuel s'il existe (épargne/invest récurrent modifié pour CE mois) sinon le modèle.
+    const _abs = effAbs(t);
     const monthlyAmt = isRecurring
-      ? addRecurrenceToMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
-      : (isThisMonth ? Math.abs(amt) : 0);
+      ? addRecurrenceToMonth(currentYear, currentMonth, _abs, t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, now)
+      : (isThisMonth ? _abs : 0);
     if (monthlyAmt <= 0) continue;
     const pastAmt = isRecurring
-      ? recurrencePastInMonth(currentYear, currentMonth, Math.abs(amt), t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
-      : (isThisMonth && t.date <= todayStr ? Math.abs(amt) : 0);
+      ? recurrencePastInMonth(currentYear, currentMonth, _abs, t.date, (t as any).recurrence_rule, (t as any).recurrence_end_date ?? null, todayStr, now)
+      : (isThisMonth && t.date <= todayStr ? _abs : 0);
     // Part « à venir » (non encore sortie du solde) → déduite du budget libre (resteDisponible),
     // donc des recommandations. Les virements de projet en brouillon comptent ici comme s'ils
     // étaient saisis manuellement : la reco s'adapte sans attendre la validation.
