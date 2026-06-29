@@ -208,13 +208,17 @@ export default function AddTransactionScreen() {
     }
   }, [transactionType, accounts, accountId, isTransfer]);
 
-  // Pré-sélection du compte source quand on ouvre la saisie DEPUIS un compte (param `account`) :
-  // le compte courant où on était devient le compte source par défaut (virement/dépense/recette).
-  const didPreselect = useRef(false);
+  // Pré-sélection du compte source quand on ouvre la saisie DEPUIS un compte (param `account`).
+  // On réagit à CHAQUE changement de `params.account` (et pas une seule fois) : l'écran de saisie peut
+  // être RÉUTILISÉ d'un compte à l'autre sans remontage → un garde one-shot garderait le 1ᵉʳ compte.
+  // `lastAppliedAccount` évite de réécraser une sélection manuelle tant que le param ne change pas.
+  const lastAppliedAccount = useRef<string | null>(null);
   useEffect(() => {
-    if (didPreselect.current) return;
     const a = params.account;
-    if (a && accounts.some(acc => acc.id === a)) { setAccountId(a); didPreselect.current = true; }
+    if (a && a !== lastAppliedAccount.current && accounts.some(acc => acc.id === a)) {
+      setAccountId(a);
+      lastAppliedAccount.current = a;
+    }
   }, [params.account, accounts]);
 
   // Sélection automatique du dernier compte courant utilisé.
