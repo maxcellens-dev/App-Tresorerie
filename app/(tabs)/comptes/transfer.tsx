@@ -64,6 +64,16 @@ export default function TransferScreen() {
 
   const [fromAccountId, setFromAccountId] = useState(params.from || '');
   const [toAccountId, setToAccountId] = useState(params.to || '');
+  // Rendre VISIBLE le compte sélectionné dans les listes horizontales (sinon il reste hors écran à droite).
+  const srcScrollRef = useRef<ScrollView>(null);
+  const dstScrollRef = useRef<ScrollView>(null);
+  const srcPos = useRef<Record<string, number>>({});
+  const dstPos = useRef<Record<string, number>>({});
+  const scrollChipInto = (r: React.RefObject<ScrollView | null>, x: number | undefined, animated: boolean) => {
+    if (x != null) r.current?.scrollTo({ x: Math.max(0, x - 40), animated });
+  };
+  useEffect(() => { scrollChipInto(srcScrollRef, srcPos.current[fromAccountId], true); }, [fromAccountId]);
+  useEffect(() => { scrollChipInto(dstScrollRef, dstPos.current[toAccountId], true); }, [toAccountId]);
   const [amount, setAmount] = useState(params.amount || '');
   // Virement cross-devises : montant réellement reçu sur la destination (devise dest).
   const [amountTo, setAmountTo] = useState('');
@@ -264,10 +274,11 @@ export default function TransferScreen() {
           {step === 1 ? (
           <>
           <Text style={styles.label}>Compte source (débit)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+          <ScrollView ref={srcScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
             {accounts.map((acc) => (
               <TouchableOpacity
                 key={acc.id}
+                onLayout={(e) => { srcPos.current[acc.id] = e.nativeEvent.layout.x; if (acc.id === fromAccountId) scrollChipInto(srcScrollRef, e.nativeEvent.layout.x, false); }}
                 style={[styles.chip, fromAccountId === acc.id && styles.chipActive]}
                 onPress={() => setFromAccountId(acc.id)}
                 accessibilityRole="button"
@@ -284,10 +295,11 @@ export default function TransferScreen() {
           )}
 
           <Text style={styles.label}>Compte cible (crédit)</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+          <ScrollView ref={dstScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
             {destAccounts.map((acc) => (
               <TouchableOpacity
                 key={acc.id}
+                onLayout={(e) => { dstPos.current[acc.id] = e.nativeEvent.layout.x; if (acc.id === toAccountId) scrollChipInto(dstScrollRef, e.nativeEvent.layout.x, false); }}
                 style={[styles.chip, toAccountId === acc.id && styles.chipActive]}
                 onPress={() => setToAccountId(acc.id)}
                 accessibilityRole="button"

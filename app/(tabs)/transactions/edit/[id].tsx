@@ -71,6 +71,9 @@ export default function EditTransactionScreen() {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [dateDisplay, setDateDisplay] = useState('');
+  // Date de l'échéance au chargement → sert à détecter un changement EXPLICITE de date (#2) sans
+  // confondre avec l'ancre avancée par la matérialisation.
+  const initialDateRef = useRef('');
   const [note, setNote] = useState('');
   const [accountId, setAccountId] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -98,12 +101,13 @@ export default function EditTransactionScreen() {
 
   useEffect(() => {
     if (tx) {
-      const initialAmount = currentInstanceOverride ? currentInstanceOverride.override_amount : Number(tx.amount);
+      const initialAmount = currentInstanceOverride?.override_amount != null ? currentInstanceOverride.override_amount : Number(tx.amount);
       setAmount(Math.abs(initialAmount).toString());
       // `instanceDate` peut être un mois (YYYY-MM) pour une occurrence récurrente → date complète.
       const occ = instanceDate ? occurrenceFullDate() : tx.date;
       setDate(occ);
       setDateDisplay(formatDateFrench(occ));
+      initialDateRef.current = occ;
       setNote(tx.note ?? '');
       setAccountId(tx.account_id);
       setCategoryId(tx.category_id ?? '');
@@ -220,24 +224,33 @@ export default function EditTransactionScreen() {
       const currentOverrideAmount = currentInstanceOverride?.override_amount;
 
       const amountUnchanged =
-        (currentOverrideAmount !== undefined && Math.abs(finalAmount - currentOverrideAmount) < 0.01) ||
-        (currentOverrideAmount === undefined && Math.abs(finalAmount - originalAmount) < 0.01);
+        (currentOverrideAmount != null && Math.abs(finalAmount - currentOverrideAmount) < 0.01) ||
+        (currentOverrideAmount == null && Math.abs(finalAmount - originalAmount) < 0.01);
       const categoryChanged = categoryId !== (tx.category_id ?? '');
       // Le libellé est une propriété de la SÉRIE (pas d'override par occurrence) → un renommage
       // s'applique à toutes les occurrences (on met à jour le modèle récurrent).
       const noteChanged = (note || '') !== ((tx as any).note ?? '');
+      // #2 — changement de date de CETTE échéance uniquement (décorrélée) → override_date.
+      const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date);
+      const dateChanged = dateValid && date !== initialDateRef.current;
 
-      if (amountUnchanged && !categoryChanged && !noteChanged) {
+      if (amountUnchanged && !categoryChanged && !noteChanged && !dateChanged) {
         closeEditor();
         return;
       }
 
       try {
-        if (!amountUnchanged) {
-          if (currentOverrideAmount !== undefined && Math.abs(finalAmount - originalAmount) < 0.01) {
+        // Override de montant ET/OU de date sur la même ligne (upsert mois/transaction).
+        if (!amountUnchanged || dateChanged) {
+          const backToTemplateAmount = currentOverrideAmount != null && Math.abs(finalAmount - originalAmount) < 0.01;
+          if (!amountUnchanged && backToTemplateAmount && !dateChanged) {
             await deleteOverride.mutateAsync({ transaction_id: id, year, month });
           } else {
-            await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: finalAmount });
+            await setOverride.mutateAsync({
+              transaction_id: id, year, month,
+              ...(amountUnchanged ? {} : { override_amount: finalAmount }),
+              ...(dateChanged ? { override_date: date } : {}),
+            });
           }
         }
         if (categoryChanged || noteChanged) {
@@ -308,10 +321,10 @@ export default function EditTransactionScreen() {
         account_id: accountId,
         category_id: categoryId ? categoryId : null,
         amount: finalAmount,
-        // « Modifier la récurrence » : on met à jour la série EN PLACE (on garde la date
-        // d'ancrage d'origine) au lieu de déplacer le départ vers la date de l'échéance,
-        // ce qui faisait apparaître une nouvelle transaction récurrente.
-        date: (isInstanceEdit && editMode === 'future') ? tx.date : date,
+        // « Modifier la récurrence » : on garde l'ancre d'origine SAUF si l'utilisateur a EXPLICITEMENT
+        // changé la date (#2) → on déplace alors le jour/anchor de toute la série (occurrences non échues).
+        // Sans changement explicite, on garde tx.date pour ne pas reculer l'ancre avancée par la matérialisation.
+        date: (isInstanceEdit && editMode === 'future' && date === initialDateRef.current) ? tx.date : date,
         note: note || undefined,
         is_draft: isDraft,
         is_recurring: isRecurring,

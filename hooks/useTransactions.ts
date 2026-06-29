@@ -240,6 +240,8 @@ export function useAddTransaction(profileId: string | undefined) {
       checkRegulConflict?: boolean;
       /** Pour une ligne de régularisation : solde cible saisi (affichage). */
       regul_target?: number | null;
+      /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
+      on_behalf_member_id?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
@@ -286,12 +288,22 @@ export function useAddTransaction(profileId: string | undefined) {
           posted: contribution !== 0,
           regul_covered: regulCovered,
           regul_target: input.regul_target ?? null,
+          ...(input.on_behalf_member_id ? { on_behalf_member_id: input.on_behalf_member_id } : {}),
         })
         .select()
         .single();
       if (error) throw error;
       // Solde = recalcul depuis les faits (source de vérité, anti-dérive).
       await recomputeBalances([input.account_id]);
+      // §P30 — Récurrente dont la 1ʳᵉ échéance est PASSÉE : on matérialise tout de suite les occurrences
+      // dues (mars→aujourd'hui) au lieu d'attendre le prochain démarrage. Sinon une seule échéance est
+      // déduite et l'historique/le solde/le « total dépensé » ignorent les suivantes jusqu'à déco/reco.
+      if ((input.is_recurring ?? false) && input.recurrence_rule && input.date <= localTodayISO()) {
+        try {
+          await supabase.rpc('materialize_due_recurring', { p_profile: profileId, p_today: localTodayISO() });
+          await recomputeBalances([input.account_id]);
+        } catch { /* best effort : le démarrage suivant rattrapera */ }
+      }
       return data;
     },
     onSuccess: () => {
@@ -319,6 +331,8 @@ export interface CreateTransferLegsInput {
   /** Saisie interactive : demander, pour chaque jambe, si l'opération est déjà incluse dans une
    *  régularisation de solde du même jour (cf. addTransaction.checkRegulConflict). */
   checkRegulConflict?: boolean;
+  /** #4bis — virement saisi « au nom de » ce membre (non-user) d'un compte joint. */
+  onBehalfMemberId?: string | null;
 }
 
 /**
@@ -347,6 +361,7 @@ export async function createTransferLegs(
     transfer_group_id: groupId,
     // Chaque jambe vérifie sa propre date vs une éventuelle régul sur SON compte.
     checkRegulConflict: p.checkRegulConflict ?? false,
+    on_behalf_member_id: p.onBehalfMemberId ?? null,
   };
   const firstLeg = await add.mutateAsync({
     account_id: p.fromAccountId,

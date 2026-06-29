@@ -17,7 +17,7 @@ import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useVali
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../../hooks/useCategories';
 import { useAllAccounts } from '../../../hooks/useAccounts';
-import { useAccountParticipants, useAllParticipants } from '../../../hooks/useSharedAccounts';
+import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideOverlay from '../../../components/GuideOverlay';
@@ -157,13 +157,16 @@ export default function TransactionsListScreen() {
   const { data: detailParticipants = [] } = useAccountParticipants(detailTx?.account_id);
   // Auteur des transactions des comptes partagés (map globale user_id → nom).
   const { data: allParticipants = [] } = useAllParticipants(user?.id);
+  const { data: memberNameById = {} } = useAllMemberNames(user?.id);
   const authorNameById = useMemo(() => {
     const m: Record<string, string> = {};
     for (const p of allParticipants) m[p.user_id] = p.display_name;
     return m;
   }, [allParticipants]);
+  // #4bis — opération « au nom de » un membre (on_behalf_member_id) → attribuée à ce membre.
   const authorLabel = (t: any): string =>
-    t?.profile_id === user?.id ? 'Vous' : (authorNameById[t?.profile_id] ?? 'Un membre');
+    (t?.on_behalf_member_id && memberNameById[t.on_behalf_member_id]) ? memberNameById[t.on_behalf_member_id]
+    : (t?.profile_id === user?.id ? 'Vous' : (authorNameById[t?.profile_id] ?? 'Un membre'));
   // Transactions liées à une dépense de projet PARTAGÉ (Relyka World) : pas de project_id, on les
   // repère via ce set pour leur donner la même pastille « projet » que les projets personnels.
   const { data: rwTxIds } = useRwLinkedTransactionIds(user?.id);
@@ -250,9 +253,9 @@ export default function TransactionsListScreen() {
   const displayMonths = useMemo(() => getMonthsFromOffset(periodOffset, displayMonthCount), [periodOffset, displayMonthCount]);
 
   const overrideMap = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { amount: number | null; date?: string | null }> = {};
     overrides.forEach((o) => {
-      map[`${o.transaction_id}:${o.year}:${o.month}`] = o.override_amount;
+      map[`${o.transaction_id}:${o.year}:${o.month}`] = { amount: o.override_amount, date: o.override_date };
     });
     return map;
   }, [overrides]);
@@ -276,13 +279,16 @@ export default function TransactionsListScreen() {
         for (const m of displayMonths) {
           const appliedAmount = addRecurrenceToMonth(m.year, m.month, Number(t.amount), t.date, t.recurrence_rule, t.recurrence_end_date ?? null, now);
           const overrideKey = `${t.id}:${m.year}:${m.month}`;
-          const finalAmount = overrideMap[overrideKey] !== undefined ? overrideMap[overrideKey] : appliedAmount;
+          const ovr = overrideMap[overrideKey];
+          const finalAmount = ovr && ovr.amount != null ? ovr.amount : appliedAmount;
           if (Math.abs(finalAmount) > 0) {
-            // Créer une instance de la transaction pour ce mois
+            // Créer une instance de la transaction pour ce mois. #2 : si la date de CETTE échéance a
+            // été déplacée (override_date), l'occurrence s'affiche et se trie à la nouvelle date.
             result.push({
               ...t,
               displayDate: getMonthKey(m.year, m.month),
               amount: finalAmount,
+              ...(ovr?.date ? { date: ovr.date } : {}),
             });
           }
         }

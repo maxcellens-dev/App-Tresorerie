@@ -93,7 +93,9 @@ export default function AccountShareSection({ account }: { account: Account }) {
               ) : (
                 <>
                   <Text style={styles.memberName} numberOfLines={1}>{m.display_name}</Text>
-                  <Text style={styles.memberSub}>{m.user_id ? 'Membre' : 'En attente'}</Text>
+                  {/* Un membre RÉEL (compte) a un statut + un mode d'accès. Un « simple nom » (user_id null)
+                      n'est pas un utilisateur : ni « en attente », ni rôle d'accès — juste un participant. */}
+                  <Text style={styles.memberSub}>{m.user_id ? 'Membre' : 'Participant (hors app)'}</Text>
                 </>
               )}
             </View>
@@ -103,15 +105,18 @@ export default function AccountShareSection({ account }: { account: Account }) {
                 <Ionicons name="pencil" size={15} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}
-            {/* Rôle cliquable : bascule consultation <-> écriture sans ré-inviter */}
-            <TouchableOpacity
-              style={styles.roleBadge}
-              onPress={() => setRole.mutate({ memberId: m.id, role: m.role === 'read' ? 'write' : 'read' })}
-              disabled={setRole.isPending}
-            >
-              <Text style={styles.roleBadgeText}>{m.role === 'read' ? 'Consultation' : 'Écriture'}</Text>
-              <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
-            </TouchableOpacity>
+            {/* Rôle cliquable (écriture/consultation) UNIQUEMENT pour un membre réel : un « simple nom »
+                n'accède pas à l'app, il n'a donc pas de mode d'accès. */}
+            {m.user_id && (
+              <TouchableOpacity
+                style={styles.roleBadge}
+                onPress={() => setRole.mutate({ memberId: m.id, role: m.role === 'read' ? 'write' : 'read' })}
+                disabled={setRole.isPending}
+              >
+                <Text style={styles.roleBadgeText}>{m.role === 'read' ? 'Consultation' : 'Écriture'}</Text>
+                <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemove(m.id, m.display_name)}>
               <Ionicons name="close" size={16} color={COLORS.danger} />
             </TouchableOpacity>

@@ -25,11 +25,53 @@ import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 
 type TransactionType = 'expense' | 'income' | 'transfer';
 
+/**
+ * Ligne horizontale de comptes (chips) qui défile automatiquement pour rendre VISIBLE le compte
+ * sélectionné — sinon, si le compte actif est loin dans la liste, il reste hors écran à droite.
+ */
+function AccountChipRow({ accounts, activeId, disabledId, onSelect, styles, COLORS }: {
+  accounts: { id: string; name: string; type: string }[];
+  activeId: string | null;
+  disabledId?: string | null;
+  onSelect: (id: string) => void;
+  styles: any;
+  COLORS: any;
+}) {
+  const ref = useRef<ScrollView>(null);
+  const posRef = useRef<Record<string, number>>({});
+  const scrollToActive = (animated: boolean) => {
+    if (activeId != null && posRef.current[activeId] != null) {
+      ref.current?.scrollTo({ x: Math.max(0, posRef.current[activeId] - 40), animated });
+    }
+  };
+  useEffect(() => { scrollToActive(true); }, [activeId]);
+  return (
+    <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+      {accounts.map((acc) => {
+        const color = accountColor(acc.type as any);
+        const isActive = activeId === acc.id;
+        const isDisabled = disabledId === acc.id;
+        return (
+          <TouchableOpacity
+            key={acc.id}
+            onLayout={(e) => { posRef.current[acc.id] = e.nativeEvent.layout.x; if (acc.id === activeId) scrollToActive(false); }}
+            style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent', opacity: isDisabled ? 0.35 : 1 }]}
+            onPress={() => onSelect(acc.id)}
+            disabled={isDisabled}
+          >
+            <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 export default function AddTransactionScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: string }>();
+  const params = useLocalSearchParams<{ type?: string; account?: string; on_behalf?: string; on_behalf_name?: string }>();
   const { user } = useAuth();
   // Comptes où je peux ÉCRIRE (perso + joints + partagés écriture) — pas les comptes en consultation.
   const { data: allAccounts = [] } = useAllAccounts(user?.id);
@@ -166,9 +208,22 @@ export default function AddTransactionScreen() {
     }
   }, [transactionType, accounts, accountId, isTransfer]);
 
-  // Sélection automatique du dernier compte courant utilisé
+  // Pré-sélection du compte source quand on ouvre la saisie DEPUIS un compte (param `account`) :
+  // le compte courant où on était devient le compte source par défaut (virement/dépense/recette).
+  const didPreselect = useRef(false);
+  useEffect(() => {
+    if (didPreselect.current) return;
+    const a = params.account;
+    if (a && accounts.some(acc => acc.id === a)) { setAccountId(a); didPreselect.current = true; }
+  }, [params.account, accounts]);
+
+  // Sélection automatique du dernier compte courant utilisé.
+  // IMPORTANT : si on est arrivé DEPUIS un compte (param `account` valide), on NE choisit PAS le défaut
+  // — sinon, comme les deux effets tournent dans le même commit avec `accountId` encore vide, l'auto-
+  // sélection écraserait la pré-sélection. On laisse l'effet de pré-sélection ci-dessus décider.
   useEffect(() => {
     if (accountId || !accounts.length) return;
+    if (params.account && accounts.some(a => a.id === params.account)) return;
     const checkingAccounts = accounts.filter(a => a.type === 'checking');
     if (!checkingAccounts.length) {
       setAccountId(accounts[0].id);
@@ -179,7 +234,7 @@ export default function AddTransactionScreen() {
       .sort((a, b) => b.date.localeCompare(a.date))
       .find(t => checkingIds.has(t.account_id));
     setAccountId(lastUsed ? lastUsed.account_id : checkingAccounts[0].id);
-  }, [accounts, transactions]);
+  }, [accounts, transactions, params.account]);
 
   function showError(msg: string, fields: string[] = []) {
     setFormError(msg);
@@ -264,6 +319,7 @@ export default function AddTransactionScreen() {
           recurrenceRule,
           recurrenceEndDate: endDateISO,
           checkRegulConflict: true,
+          onBehalfMemberId: params.on_behalf || null,
         });
       } else {
         await addTransaction.mutateAsync({
@@ -278,6 +334,7 @@ export default function AddTransactionScreen() {
           recurrence_rule: isRecurring ? recurrenceRule : null,
           recurrence_end_date: endDateISO,
           checkRegulConflict: true,
+          on_behalf_member_id: params.on_behalf || null,
         });
       }
 
@@ -312,6 +369,15 @@ export default function AddTransactionScreen() {
             <View style={styles.errorBanner}>
               <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
               <Text style={styles.errorBannerText}>{formError}</Text>
+            </View>
+          )}
+          {/* #4bis — saisie « au nom de » un membre (compte joint) : bandeau d'info. */}
+          {!!params.on_behalf && (
+            <View style={[styles.errorBanner, { backgroundColor: COLORS.blue + '14', borderColor: COLORS.blue + '44' }]}>
+              <Ionicons name="people-circle-outline" size={16} color={COLORS.blue} />
+              <Text style={[styles.errorBannerText, { color: COLORS.blue }]}>
+                Saisie au nom de {params.on_behalf_name ? decodeURIComponent(String(params.on_behalf_name)) : 'ce membre'}
+              </Text>
             </View>
           )}
           {/* Sélecteur de type — étape 1 uniquement */}
@@ -350,31 +416,10 @@ export default function AddTransactionScreen() {
               <>
                 {/* Compte source */}
                 <Text style={styles.label}>Depuis quel compte ?</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {accounts.map((acc) => {
-                    const color = accountColor(acc.type);
-                    const isActive = accountId === acc.id;
-                    return (
-                      <TouchableOpacity key={acc.id} style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]} onPress={() => setAccountId(acc.id)}>
-                        <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                <AccountChipRow accounts={accounts} activeId={accountId} onSelect={setAccountId} styles={styles} COLORS={COLORS} />
                 {/* Compte cible */}
                 <Text style={styles.label}>Vers quel compte ?</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                  {accounts.map((acc) => {
-                    const color = accountColor(acc.type);
-                    const isActive = targetAccountId === acc.id;
-                    const isDisabled = acc.id === accountId;
-                    return (
-                      <TouchableOpacity key={acc.id} style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent', opacity: isDisabled ? 0.35 : 1 }]} onPress={() => setTargetAccountId(acc.id)} disabled={isDisabled}>
-                        <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                <AccountChipRow accounts={accounts} activeId={targetAccountId} disabledId={accountId} onSelect={setTargetAccountId} styles={styles} COLORS={COLORS} />
                 {accounts.length < 2 && <Text style={styles.hint}>Il faut au moins deux comptes pour faire un virement.</Text>}
               </>
             ) : (
@@ -383,17 +428,7 @@ export default function AddTransactionScreen() {
                 {selectableAccounts.length > 1 && (
                   <>
                     <Text style={styles.label}>Compte</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
-                      {selectableAccounts.map((acc) => {
-                        const color = accountColor(acc.type);
-                        const isActive = accountId === acc.id;
-                        return (
-                          <TouchableOpacity key={acc.id} style={[styles.chip, { borderColor: isActive ? color : COLORS.cardBorder, backgroundColor: isActive ? color + '22' : 'transparent' }]} onPress={() => setAccountId(acc.id)}>
-                            <Text style={[styles.chipText, { color: isActive ? color : COLORS.text }]}>{acc.name}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
+                    <AccountChipRow accounts={selectableAccounts} activeId={accountId} onSelect={setAccountId} styles={styles} COLORS={COLORS} />
                   </>
                 )}
                 {selectableAccounts.length === 0 && <Text style={styles.hint}>Aucun compte courant. Ajoutez-en un dans l'onglet Comptes.</Text>}

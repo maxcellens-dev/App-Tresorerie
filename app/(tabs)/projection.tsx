@@ -25,6 +25,7 @@ import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } 
 import { useAuth } from '../../contexts/AuthContext';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useTransactions } from '../../hooks/useTransactions';
+import { useSharedContribution } from '../../hooks/useSharedContribution';
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
@@ -144,11 +145,15 @@ export default function ProjectionScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { data: pilotage } = usePilotageData(user?.id);
-  const { data: rawTransactions = [] } = useTransactions(user?.id);
+  const { data: rawTransactionsPerso = [] } = useTransactions(user?.id);
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(user?.id);
   const { data: answers } = useQuestionnaireAnswers(user?.id);
-  const { data: rawAllAccounts = [] } = useAccounts(user?.id);
+  const { data: rawAccountsPerso = [] } = useAccounts(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
+  // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
+  const { data: sharedContrib } = useSharedContribution(user?.id);
+  const rawTransactions = useMemo(() => [...rawTransactionsPerso, ...(sharedContrib?.transactions ?? [])], [rawTransactionsPerso, sharedContrib]);
+  const rawAllAccounts = useMemo(() => [...rawAccountsPerso, ...(sharedContrib?.accounts ?? [])], [rawAccountsPerso, sharedContrib]);
 
   // ── Multi-devises : la projection raisonne dans la devise de RÉFÉRENCE. On convertit comptes
   // (solde + apport investissement) et transactions (par la devise de leur compte).
@@ -177,6 +182,7 @@ export default function ProjectionScreen() {
     const txById = new Map(rawTransactions.map((t) => [t.id, t]));
     const map: Record<string, number> = {};
     for (const o of monthOverrides) {
+      if (o.override_amount == null) continue; // override date-only (#2) → pas de montant
       const t = txById.get(o.transaction_id);
       const cur = (t as any)?.account?.currency || refCode;
       const conv = convertAmount(Number(o.override_amount), cur, refCode, rates) ?? Number(o.override_amount);

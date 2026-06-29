@@ -14,6 +14,7 @@ import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
 import { usePilotageData } from '../../hooks/usePilotageData';
+import { useSharedContribution } from '../../hooks/useSharedContribution';
 import { useCategories, useSeedDefaultCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
@@ -89,9 +90,10 @@ function groupCategories(categories: Category[]) {
 }
 
 // Créer un map des overrides pour accès rapide
-function createOverridesMap(overrides: Array<{ transaction_id: string; year: number; month: number; override_amount: number }>) {
+function createOverridesMap(overrides: Array<{ transaction_id: string; year: number; month: number; override_amount: number | null }>) {
   const map: Record<string, number> = {};
   overrides.forEach((o) => {
+    if (o.override_amount == null) return; // override date-only (#2) → pas de montant à appliquer
     const key = `${o.transaction_id}:${o.year}:${o.month}`;
     map[key] = o.override_amount;
   });
@@ -146,11 +148,16 @@ export default function TreasuryPlanScreen() {
   const overridesQuery = useTransactionMonthOverrides(user?.id);
   const accountsQuery = useAccounts(user?.id);
   const { data: pilotage } = usePilotageData(user?.id);
+  const sharedContribQuery = useSharedContribution(user?.id);
+  const { data: sharedContrib } = sharedContribQuery;
 
-  const { data: transactions = [], isLoading } = transactionsQuery;
+  const { data: transactionsPerso = [], isLoading } = transactionsQuery;
   const { data: categories = [], isLoading: categoriesLoading } = categoriesQuery;
   const { data: overrides = [] } = overridesQuery;
-  const { data: accounts = [] } = accountsQuery;
+  const { data: accountsPerso = [] } = accountsQuery;
+  // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
+  const transactions = useMemo(() => [...transactionsPerso, ...(sharedContrib?.transactions ?? [])], [transactionsPerso, sharedContrib]);
+  const accounts = useMemo(() => [...accountsPerso, ...(sharedContrib?.accounts ?? [])], [accountsPerso, sharedContrib]);
   const addTransaction = useAddTransaction(user?.id);
 
   // Filet de sécurité : créer les catégories par défaut si l'utilisateur n'en a aucune
@@ -742,7 +749,7 @@ export default function TreasuryPlanScreen() {
       originalAmount: Math.abs(Number(tx.amount)),
       currentOverrideAmount: overrides.find(
         (o) => o.transaction_id === tx.id && o.year === year && o.month === month
-      )?.override_amount,
+      )?.override_amount ?? undefined,
     });
   };
 

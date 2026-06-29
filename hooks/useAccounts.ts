@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Account } from '../types/database';
 import { todayISO } from '../lib/dateUtils';
+import { effectiveImpactPct } from '../lib/sharedImpact';
 
 const KEY = 'accounts';
 
@@ -72,7 +73,27 @@ export function useAllAccounts(profileId: string | undefined) {
 
       const ownMapped = (own ?? []).map((r) => mapAccount(r, profileId, roleById));
       const memMapped = memberAccounts.map((r) => mapAccount(r, profileId, roleById));
-      return [...ownMapped, ...memMapped];
+      const all = [...ownMapped, ...memMapped];
+
+      // #5 — % d'impact effectif par compte partagé/joint. On compte TOUS les participants (owner +
+      // tous les membres) pour la part égale auto (100/N), et on lit le % explicite du participant courant.
+      const sharedIds = all.filter((a) => a.is_joint || a._role !== 'owner').map((a) => a.id);
+      if (sharedIds.length > 0) {
+        const { data: allMembers } = await supabase
+          .from('account_members').select('account_id, user_id, impact_pct').in('account_id', sharedIds);
+        const membersByAcct: Record<string, any[]> = {};
+        for (const m of (allMembers ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
+        for (const a of all) {
+          if (!sharedIds.includes(a.id)) continue;
+          const members = membersByAcct[a.id] ?? [];
+          const N = 1 + members.length; // owner + membres (users ou non)
+          const myExplicit = a._role === 'owner'
+            ? (a.owner_impact_pct ?? null)
+            : (members.find((m) => m.user_id === profileId)?.impact_pct ?? null);
+          a._impact_pct = effectiveImpactPct(myExplicit, N);
+        }
+      }
+      return all;
     },
   });
 }

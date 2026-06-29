@@ -159,11 +159,15 @@ export interface Account {
   current_contributed?: number | null;
   /** Compte joint dédié (partagé entre plusieurs utilisateurs). */
   is_joint?: boolean;
+  /** #5 — % d'impact de l'OWNER sur ce compte dans SON app (0..100). NULL = part égale auto (100/N). */
+  owner_impact_pct?: number | null;
   /**
    * Rôle de l'utilisateur courant sur ce compte (calculé côté client par useAccounts) :
    * 'owner' = mon compte ; 'write'/'read' = compte partagé reçu d'un autre utilisateur.
    */
   _role?: 'owner' | 'write' | 'read';
+  /** #5 — % d'impact EFFECTIF de l'utilisateur courant sur ce compte (calculé : explicite ou 100/N). */
+  _impact_pct?: number;
   created_at: string;
   updated_at: string;
 }
@@ -212,6 +216,8 @@ export interface Transaction {
   regul_covered?: boolean;
   /** Pour une ligne de régularisation : solde cible saisi par l'utilisateur (affichage). */
   regul_target?: number | null;
+  /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
+  on_behalf_member_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -230,7 +236,9 @@ export interface TransactionMonthOverride {
   transaction_id: string;
   year: number;
   month: number;
-  override_amount: number;
+  override_amount: number | null;
+  /** #2 — déplace l'occurrence de ce mois à une autre date (ISO) sans toucher la série. */
+  override_date?: string | null;
   created_at: string;
   updated_at: string;
 }

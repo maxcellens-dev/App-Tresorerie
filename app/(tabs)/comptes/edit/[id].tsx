@@ -11,6 +11,7 @@ import { useAllAccounts, useUpdateAccount, useCloseAccount } from '../../../../h
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
 import AccountShareSection from '../../../../components/AccountShareSection';
+import AccountImpactSection from '../../../../components/AccountImpactSection';
 
 
 const TYPES = [
@@ -180,6 +181,9 @@ export default function EditAccountScreen() {
 
           {/* Partage / membres (owner uniquement ; gate flag pour les comptes perso) */}
           <AccountShareSection account={account} />
+
+          {/* #5 — % d'impact de chaque participant (visible par tout participant) */}
+          <AccountImpactSection account={account} />
 
           {account._role === 'owner' ? (
             <>

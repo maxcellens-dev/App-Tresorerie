@@ -122,9 +122,13 @@ export default function AccountsListScreen() {
   // Taux manquant → on garde la valeur brute (rare ; agrégat alors indicatif).
   const toRef = (a: { balance: number; currency?: string }) =>
     convertAmount(Number(a.balance), a.currency || 'EUR', refCode, rates) ?? Number(a.balance);
-  const sumRef = (filter: (a: any) => boolean) => accounts.filter(filter).reduce((s, a) => s + toRef(a), 0);
+  // #5 — Dans les AGRÉGATS (patrimoine, total liquidités), un compte partagé compte à hauteur de mon %
+  // d'impact (la LISTE garde le solde réel par compte). _impact_pct = undefined → 100% (compte perso).
+  const impactFactor = (a: any) => (a._impact_pct != null ? a._impact_pct / 100 : 1);
+  const toRefWeighted = (a: any) => toRef(a) * impactFactor(a);
+  const sumRef = (filter: (a: any) => boolean) => accounts.filter(filter).reduce((s, a) => s + toRefWeighted(a), 0);
 
-  const total = accounts.reduce((s, a) => s + toRef(a), 0);
+  const total = accounts.reduce((s, a) => s + toRefWeighted(a), 0);
   const totalChecking = sumRef((a) => a.type === 'checking');
   const totalSavings = sumRef((a) => a.type === 'savings');
   const totalInvested = sumRef((a) => a.type === 'investment');

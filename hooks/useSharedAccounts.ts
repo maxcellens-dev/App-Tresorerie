@@ -35,6 +35,8 @@ export interface AccountMember {
   user_id: string | null;       // NULL = invité en attente / externe non inscrit
   display_name: string;
   role: AccountRole;
+  /** #5 — % d'impact explicite du membre (NULL = part égale auto 100/N). */
+  impact_pct?: number | null;
   created_at: string;
 }
 
@@ -117,6 +119,25 @@ export function useAccountParticipants(accountId: string | undefined) {
 }
 
 /**
+ * #4bis — map {member_id → display_name} de TOUS les membres de mes comptes accessibles (y compris les
+ * membres NON-user). Sert à afficher « par {nom} » pour une opération saisie au nom d'un membre
+ * (on_behalf_member_id). La RLS de account_members ne renvoie que les comptes auxquels j'ai accès.
+ */
+export function useAllMemberNames(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['all_member_names', userId],
+    enabled: !!userId && ok(),
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data, error } = await supabase!.from('account_members').select('id, display_name');
+      if (error) throw error;
+      const m: Record<string, string> = {};
+      for (const r of (data ?? []) as any[]) m[r.id] = r.display_name;
+      return m;
+    },
+  });
+}
+
+/**
  * Participants de TOUS mes comptes accessibles (propriétaires + membres) → map globale pour afficher
  * l'auteur d'une transaction dans la page Transactions (qui mélange plusieurs comptes).
  */
@@ -140,7 +161,7 @@ export function useAccountMembers(accountId: string | undefined) {
     queryFn: async (): Promise<AccountMember[]> => {
       const { data, error } = await supabase!
         .from('account_members')
-        .select('id, account_id, user_id, display_name, role, created_at')
+        .select('id, account_id, user_id, display_name, role, impact_pct, created_at')
         .eq('account_id', accountId!)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -169,6 +190,28 @@ export function useInviteToAccount(accountId: string | undefined) {
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['account_members', accountId] }); },
+  });
+}
+
+/**
+ * #5 — Régler le % d'impact d'un participant. p_member null = part de l'OWNER (accounts.owner_impact_pct),
+ * sinon part du membre visé. Autorisé à tout participant réel (ou admin). pct null = retour à l'auto (100/N).
+ */
+export function useSetAccountImpact(accountId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { memberId: string | null; pct: number | null }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.rpc('acct_set_impact', {
+        p_account: accountId, p_member_id: input.memberId, p_pct: input.pct,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['account_members', accountId] });
+      qc.invalidateQueries({ queryKey: ['accounts'] });
+      qc.invalidateQueries({ queryKey: ['pilotage_data'] });
+    },
   });
 }
 

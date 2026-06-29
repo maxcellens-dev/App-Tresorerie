@@ -25,7 +25,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
-import { useAccountParticipants } from '../../../hooks/useSharedAccounts';
+import { useAccountParticipants, useAccountMembers } from '../../../hooks/useSharedAccounts';
 import { useAllTransactions, useAddTransaction } from '../../../hooks/useTransactions';
 import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
@@ -90,14 +90,23 @@ export default function AccountDetailScreen() {
   // personnels des autres membres). isSharedView = joint, OU compte reçu d'un autre utilisateur.
   const isSharedView = !!(account as any)?.is_joint || (!!account && account._role !== 'owner');
   const { data: participants = [] } = useAccountParticipants(isSharedView ? id : undefined);
+  const { data: acctMembers = [] } = useAccountMembers(isSharedView ? id : undefined);
   const nameByUser = useMemo(() => {
     const m: Record<string, string> = {};
     for (const p of participants) m[p.user_id] = p.display_name;
     return m;
   }, [participants]);
+  const nameByMember = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const mm of acctMembers) m[mm.id] = mm.display_name;
+    return m;
+  }, [acctMembers]);
+  // #4bis — une opération « au nom de » un membre (on_behalf_member_id) est attribuée à ce membre.
   const authorOf = (t: any): string =>
-    t?.profile_id === user?.id ? 'Vous' : (nameByUser[t?.profile_id] ?? 'Un membre');
+    (t?.on_behalf_member_id && nameByMember[t.on_behalf_member_id]) ? nameByMember[t.on_behalf_member_id]
+    : (t?.profile_id === user?.id ? 'Vous' : (nameByUser[t?.profile_id] ?? 'Un membre'));
 
+  const [showOnBehalf, setShowOnBehalf] = useState(false);
   const [showApport, setShowApport] = useState(false);
   const [apportAmount, setApportAmount] = useState('');
   const [apportNote, setApportNote] = useState('Apport');
@@ -458,6 +467,19 @@ export default function AccountDetailScreen() {
               <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
               <Text style={[styles.editBtnLabel, { color: COLORS.emerald }]}>Virement</Text>
             </TouchableOpacity>
+            {/* #4bis — compte joint : saisir une opération « au nom de » un membre non-user (simuler sa participation). */}
+            {!!(account as any).is_joint && acctMembers.some((m) => !m.user_id) && (
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => setShowOnBehalf(true)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Au nom d'un membre"
+              >
+                <Ionicons name="people-circle-outline" size={20} color={COLORS.blue} />
+                <Text style={[styles.editBtnLabel, { color: COLORS.blue }]}>Au nom de…</Text>
+              </TouchableOpacity>
+            )}
           </View>
           )}
 
@@ -754,6 +776,30 @@ export default function AccountDetailScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* #4bis — picker : choisir le membre non-user au nom duquel saisir l'opération sur le compte joint. */}
+      <Modal visible={showOnBehalf} transparent animationType="fade" onRequestClose={() => setShowOnBehalf(false)}>
+        <TouchableOpacity style={modalStyles.overlay} activeOpacity={1} onPress={() => setShowOnBehalf(false)}>
+          <TouchableOpacity style={modalStyles.container} activeOpacity={1} onPress={() => {}}>
+            <Text style={modalStyles.title}>Saisir au nom de…</Text>
+            <Text style={[modalStyles.label, { marginBottom: 12 }]}>Choisis le membre dont tu veux simuler la participation (virement, recette ou dépense sur ce compte).</Text>
+            {acctMembers.filter((m) => !m.user_id).map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: COLORS.cardBorder }}
+                onPress={() => {
+                  setShowOnBehalf(false);
+                  router.push(`/(tabs)/transactions/add?account=${id}&on_behalf=${m.id}&on_behalf_name=${encodeURIComponent(m.display_name)}` as any);
+                }}
+              >
+                <Ionicons name="person-circle-outline" size={22} color={COLORS.blue} />
+                <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: COLORS.text }}>{m.display_name}</Text>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       <Modal visible={showGainLoss} transparent animationType="fade" onRequestClose={() => {

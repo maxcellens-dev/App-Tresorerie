@@ -1044,7 +1044,11 @@ export default function PilotageScreen() {
               const curByAcc: Record<string, string> = {};
               accounts.forEach((a) => { curByAcc[a.id] = a.currency; });
               const toRefAmt = (amt: number, accountId: string) => convertAmount(amt, curByAcc[accountId] || refCode, refCode, rates) ?? amt;
-              const toRef = (t: any) => toRefAmt(Math.abs(Number(t.amount)), t.account_id);
+              // Montant affiché = override mensuel du template s'il existe (occurrence modifiée pour CE
+              // mois), sinon le montant brut. Sans ça le modal Épargne/Investi/Dépensé garde l'ancien
+              // montant figé alors que le curseur (et les transactions) montrent déjà le bon.
+              const ovrMap: Record<string, number> = (pilotageData as any).monthOverrides ?? {};
+              const toRef = (t: any) => toRefAmt(ovrMap[t.id] != null ? ovrMap[t.id] : Math.abs(Number(t.amount)), t.account_id);
               // Dépensé récurrent / variable du mois (mêmes valeurs que les curseurs « dont … »).
               const recurSpentMonth = Math.min(suiviDetail.recurringTotal ?? 0, suiviDetail.recurringPassed ?? 0);
               const varSpentMonth = Math.max(0, (pilotageData.month_expenses_past ?? 0) - recurSpentMonth);

@@ -16,7 +16,7 @@ export function useTransactionMonthOverrides(profileId: string | undefined, year
       if (error) throw error;
       return (data ?? []).map((r) => ({
         ...r,
-        override_amount: Number(r.override_amount),
+        override_amount: r.override_amount == null ? null : Number(r.override_amount),
       }));
     },
     enabled: !!profileId,
@@ -31,7 +31,9 @@ export function useSetTransactionMonthOverride(profileId: string | undefined) {
       transaction_id: string;
       year: number;
       month: number;
-      override_amount: number;
+      override_amount?: number | null;
+      /** #2 — déplace l'occurrence de CE mois à une autre date (ISO), sans toucher la série. */
+      override_date?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data, error } = await supabase
@@ -41,7 +43,8 @@ export function useSetTransactionMonthOverride(profileId: string | undefined) {
           transaction_id: input.transaction_id,
           year: input.year,
           month: input.month,
-          override_amount: input.override_amount,
+          ...(input.override_amount !== undefined ? { override_amount: input.override_amount } : {}),
+          ...(input.override_date !== undefined ? { override_date: input.override_date } : {}),
         })
         .select()
         .single();

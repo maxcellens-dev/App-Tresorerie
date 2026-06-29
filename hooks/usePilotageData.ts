@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
 import { convertAmount, type RatesMap } from '../lib/currency';
+import { fetchSharedContribution } from './useSharedContribution';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -113,6 +114,8 @@ export interface PilotageData {
   safety_threshold_optimal: number;
   safety_threshold_comfort: number;
   current_savings: number;
+  /** Overrides du mois courant (montant modifié d'une occurrence récurrente) : transaction_id → montant absolu. */
+  monthOverrides?: Record<string, number>;
 }
 
 // Fetch multiple data types
@@ -123,7 +126,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   questionnaireAnswers: any | null;
   projects: Project[];
   objectives: Objective[];
-  monthOverrides: { transaction_id: string; year: number; month: number; override_amount: number }[];
+  monthOverrides: { transaction_id: string; year: number; month: number; override_amount: number | null }[];
   rates: RatesMap;
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
@@ -149,23 +152,22 @@ async function fetchPilotageData(profileId: string): Promise<{
   const rates: RatesMap = { EUR: 1 };
   for (const r of (ratesRes.data ?? []) as { code: string; rate: number }[]) rates[r.code] = Number(r.rate);
 
-  // Comptes JOINTS exclus du pilotage/projection (décision : aucun impact sur les agrégats perso),
-  // ainsi que leurs transactions. Les comptes partagés REÇUS d'un autre user ne sont déjà pas ici
-  // (requête filtrée par profile_id = moi).
+  // #5 — Comptes partagés/joints : PONDÉRÉS au % d'impact (au lieu d'être exclus). On prend les données
+  // PERSO (hors comptes partagés) + la contribution des comptes partagés (toutes les tx de tous les
+  // participants), soldes & montants ×facteur. Plus de doublon : on retire les comptes partagés du perso.
   const allAccounts = (accountsRes.data ?? []) as Account[];
-  const jointAccountIds = new Set(allAccounts.filter((a) => (a as any).is_joint).map((a) => a.id));
+  const shared = await fetchSharedContribution(profileId);
+  const sharedIdSet = new Set(Object.keys(shared.factorByAccount));
+  const persoAccounts = allAccounts.filter((a) => !sharedIdSet.has(a.id) && !(a as any).is_joint);
+  const persoTransactions = (transactionsRes.data ?? []).filter((t: any) => !sharedIdSet.has(t.account_id));
 
   return {
     profile: (profileRes.data as Profile) || null,
-    accounts: allAccounts.filter((a) => !(a as any).is_joint),
-    transactions: (transactionsRes.data ?? [])
-      .filter((t: any) => !jointAccountIds.has(t.account_id))
-      .map((t: any) => ({
-        ...t,
-        amount: Number(t.amount),
-        account: t.account,
-        category: t.category,
-      })) as TransactionWithCategory[],
+    accounts: [...persoAccounts, ...shared.accounts],
+    transactions: [
+      ...persoTransactions.map((t: any) => ({ ...t, amount: Number(t.amount), account: t.account, category: t.category })),
+      ...shared.transactions,
+    ] as TransactionWithCategory[],
     projects: (projectsRes.data ?? []).map((p: any) => ({
       ...p,
       target_amount: Number(p.target_amount),
@@ -176,7 +178,7 @@ async function fetchPilotageData(profileId: string): Promise<{
       target_yearly_amount: Number(o.target_yearly_amount),
     })) as Objective[],
     questionnaireAnswers: qaRes.data ?? null,
-    monthOverrides: (overridesRes.data ?? []) as { transaction_id: string; year: number; month: number; override_amount: number }[],
+    monthOverrides: (overridesRes.data ?? []) as { transaction_id: string; year: number; month: number; override_amount: number | null }[],
     rates,
   };
 }
@@ -455,7 +457,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // indicateurs (dépensé, épargné, investi) doivent refléter ce RÉEL, pas le montant figé du template.
   const ovrByTx: Record<string, number> = {};
   for (const o of (data as any).monthOverrides ?? []) {
-    if (o.year === currentYear && o.month === currentMonth) ovrByTx[o.transaction_id] = Math.abs(Number(o.override_amount));
+    if (o.year === currentYear && o.month === currentMonth && o.override_amount != null) ovrByTx[o.transaction_id] = Math.abs(Number(o.override_amount));
   }
   /** Montant d'une transaction pour le mois courant : override mensuel s'il existe, sinon le montant du modèle. */
   const effAbs = (t: any) => ovrByTx[t.id] ?? Math.abs(Number(t.amount));
@@ -1063,6 +1065,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     safety_threshold_optimal,
     safety_threshold_comfort,
     current_savings,
+    // Overrides du mois courant exposés à l'écran (modaux Épargne/Investi/Dépensé) pour qu'ils
+    // affichent le même montant RÉEL que les curseurs (et non le montant figé du template).
+    monthOverrides: ovrByTx,
   };
 }
 

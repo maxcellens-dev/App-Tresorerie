@@ -50,8 +50,12 @@ export default function QuickAddButton() {
   const isBubble = (flags?.quick_add_mode ?? 'tabbar') === 'bubble';
   if (!enabled || position === 'hidden') return null;
   // Mode bulle : visible sur le Pilotage — y compris l'écran d'accueil « home » (entête « Bonjour … »)
-  // sur lequel on atterrit au démarrage, qui est une variante de la page Pilotage.
-  if (isBubble && !/(pilotage|home)/.test(pathname ?? '')) return null;
+  // sur lequel on atterrit au démarrage — ET sur les écrans « Comptes » (liste + détail d'un compte).
+  if (isBubble && !/(pilotage|home|comptes)/.test(pathname ?? '')) return null;
+
+  // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
+  const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);
+  const acctParam = acctMatch ? `&account=${acctMatch[1]}` : '';
 
   const barHeight = BAR_CONTENT + Math.max(insets.bottom, 8);
   // Placement de l'ancre selon le mode.
@@ -63,9 +67,9 @@ export default function QuickAddButton() {
     ? { transfer: 180, expense: 138, income: 96 }
     : { transfer: 150, expense: 90, income: 30 };
   const ACTIONS = [
-    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, color: COLORS.blue, route: '/(tabs)/transactions/add?type=transfer' },
-    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, color: COLORS.danger, route: '/(tabs)/transactions/add?type=expense' },
-    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, color: COLORS.emerald, route: '/(tabs)/transactions/add?type=income' },
+    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}` },
+    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}` },
+    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}` },
   ] as const;
 
   const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
