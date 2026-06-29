@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
 import { convertAmount, type RatesMap } from '../lib/currency';
 import { fetchSharedContribution } from './useSharedContribution';
+import { buildCreditPilotTx } from './useCreditFlows';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -131,7 +132,7 @@ async function fetchPilotageData(profileId: string): Promise<{
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
-  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes] = await Promise.all([
+  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
     supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
@@ -140,6 +141,8 @@ async function fetchPilotageData(profileId: string): Promise<{
     supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
     supabase.from('currency_rates').select('code, rate'),
     supabase.from('transaction_month_overrides').select('transaction_id, year, month, override_amount').eq('profile_id', profileId),
+    supabase.from('credits').select('*').eq('profile_id', profileId),
+    supabase.from('credit_events').select('*').eq('profile_id', profileId),
   ]);
 
   if (profileRes.error) throw profileRes.error;
@@ -161,12 +164,22 @@ async function fetchPilotageData(profileId: string): Promise<{
   const persoAccounts = allAccounts.filter((a) => !sharedIdSet.has(a.id) && !(a as any).is_joint);
   const persoTransactions = (transactionsRes.data ?? []).filter((t: any) => !sharedIdSet.has(t.account_id));
 
+  // Crédit (Pilotage) — mensualités en dépense récurrente synthétique (cohérent avec tréso/projection).
+  const curByAcct: Record<string, string> = {};
+  [...persoAccounts, ...shared.accounts].forEach((a: any) => { curByAcct[a.id] = a.currency; });
+  const evtByCredit: Record<string, any[]> = {};
+  for (const e of (creditEvtRes.data ?? []) as any[]) (evtByCredit[e.credit_id] ??= []).push(e);
+  const creditPilotTx = ((creditsRes.data ?? []) as any[])
+    .map((c) => buildCreditPilotTx(c as any, evtByCredit[c.id], curByAcct[c.account_id] || 'EUR'))
+    .filter(Boolean);
+
   return {
     profile: (profileRes.data as Profile) || null,
     accounts: [...persoAccounts, ...shared.accounts],
     transactions: [
       ...persoTransactions.map((t: any) => ({ ...t, amount: Number(t.amount), account: t.account, category: t.category })),
       ...shared.transactions,
+      ...creditPilotTx,
     ] as TransactionWithCategory[],
     projects: (projectsRes.data ?? []).map((p: any) => ({
       ...p,

@@ -22,6 +22,7 @@ import { signalAppReady } from '../../lib/splashGate';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useSharedContribution } from '../../hooks/useSharedContribution';
+import { useCreditPilotTemplates } from '../../hooks/useCreditFlows';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../../hooks/usePreSavings';
 import { useReservations, useSetMonthlyReservation } from '../../hooks/useReservations';
 import { useReleaseReservedByProject } from '../../hooks/useTransactions';
@@ -116,9 +117,11 @@ export default function PilotageScreen() {
   // #2/#5 — les modaux (Dépensé/Épargné/Investi/récurrentes) doivent inclure les opérations des comptes
   // partagés/joints, mises à l'échelle du % d'impact (et annotées du %). Exclues si 0%.
   const { data: sharedContrib } = useSharedContribution(user?.id);
+  // C3/Pilotage — mensualités de crédit en dépense récurrente synthétique (cohérent avec les cursors).
+  const creditPilotTx = useCreditPilotTemplates(user?.id);
   const txForConseils = useMemo(
-    () => [...txPersoForConseils, ...(sharedContrib?.transactions ?? [])],
-    [txPersoForConseils, sharedContrib],
+    () => [...txPersoForConseils, ...(sharedContrib?.transactions ?? []), ...creditPilotTx],
+    [txPersoForConseils, sharedContrib, creditPilotTx],
   );
   const { data: categoriesList = [] } = useCategories(user?.id);
   // Map nom de (sous-)catégorie → nom de la catégorie PARENTE (pour regrouper les récurrentes par catégorie).

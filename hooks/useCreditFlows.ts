@@ -7,9 +7,54 @@
 import { useMemo } from 'react';
 import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
-import { useAllCreditEvents } from './useCreditEvents';
+import { useAllCreditEvents, type CreditEventRow } from './useCreditEvents';
 import { computeAmortization } from '../lib/amortization';
 import { todayISO } from '../lib/dateUtils';
+import type { Credit } from '../types/database';
+
+/**
+ * Représentation du crédit pour le PILOTAGE : UNE transaction récurrente mensuelle synthétique (dépense
+ * fixe « Crédit »), bornée par la durée. Montant = mensualité du mois courant (capital+intérêts+assurance).
+ * Renvoie null si le crédit n'impacte pas (inactif, sans compte, soldé). Pure → réutilisable client+fetch.
+ */
+export function buildCreditPilotTx(c: Credit, events: CreditEventRow[] | undefined, currency: string): any | null {
+  if (!c.is_active || !c.account_id) return null;
+  const amort = computeAmortization({ ...c, events: events ?? null });
+  if (!amort.schedule.length) return null;
+  const firstDate = amort.schedule[0].date;
+  const lastDate = amort.schedule[amort.schedule.length - 1].date;
+  const horizon = todayISO().slice(0, 8) + '01';
+  const cur = amort.schedule.find((r) => r.date >= horizon) ?? amort.schedule[amort.schedule.length - 1];
+  const out = cur.payment + cur.insurance;
+  if (out <= 0) return null;
+  return {
+    id: `creditpilot-${c.id}`,
+    account_id: c.account_id,
+    amount: -out,
+    date: firstDate,
+    is_recurring: true,
+    recurrence_rule: 'monthly',
+    recurrence_end_date: lastDate,
+    category: { name: 'Crédit', type: 'expense', is_variable: false },
+    is_credit_flow: true,
+    credit_id: c.id,
+    account: { currency },
+  };
+}
+
+/** Templates récurrents de crédit pour le PILOTAGE (cursors + modaux). */
+export function useCreditPilotTemplates(profileId: string | undefined) {
+  const { data: credits = [] } = useCredits(profileId);
+  const { data: accounts = [] } = useAllAccounts(profileId);
+  const { data: eventsByCredit = {} } = useAllCreditEvents(profileId);
+  return useMemo(() => {
+    const curByAcct: Record<string, string> = {};
+    accounts.forEach((a) => { curByAcct[a.id] = a.currency; });
+    return credits
+      .map((c) => buildCreditPilotTx(c, eventsByCredit[c.id], curByAcct[c.account_id ?? ''] || 'EUR'))
+      .filter(Boolean);
+  }, [credits, accounts, eventsByCredit]);
+}
 
 /** Transactions virtuelles (sorties) des mensualités de crédit, sur un horizon raisonnable. */
 export function useCreditFlows(profileId: string | undefined) {

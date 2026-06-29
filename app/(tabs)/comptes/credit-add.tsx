@@ -35,7 +35,7 @@ const FEES: { key: string; label: string }[] = [
   { key: 'fees_guarantee', label: 'Frais de garantie' },
   { key: 'personal_contribution', label: 'Apport personnel' },
   { key: 'interim_interest', label: 'Intérêts intercalaires' },
-  { key: 'management_fees', label: 'Frais de gestion' },
+  { key: 'management_fees', label: 'Intérêts de gestion' },
   { key: 'other_fees', label: 'Autres frais' },
 ];
 
@@ -295,8 +295,8 @@ export default function CreditAddScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1 },
-    scroll: { flex: 1, paddingHorizontal: 16 },
+    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+    scroll: { flex: 1 },
     errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '44', borderRadius: 12, padding: 12, marginBottom: 12 },
     errorText: { color: c.danger, fontSize: 13, flex: 1 },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 12 },

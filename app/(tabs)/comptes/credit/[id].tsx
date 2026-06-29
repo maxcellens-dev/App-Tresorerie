@@ -190,8 +190,8 @@ export default function CreditDetailScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1 },
-    scroll: { flex: 1, paddingHorizontal: 16 },
+    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+    scroll: { flex: 1 },
     empty: { textAlign: 'center', color: c.textSecondary, marginTop: 40 },
     card: { padding: 16, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, marginTop: 12 },
     crdLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
