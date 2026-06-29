@@ -71,7 +71,7 @@ export default function AddTransactionScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: string; account?: string; on_behalf?: string; on_behalf_name?: string }>();
+  const params = useLocalSearchParams<{ type?: string; account?: string; on_behalf?: string; on_behalf_name?: string; origin?: string }>();
   const { user } = useAuth();
   // Comptes où je peux ÉCRIRE (perso + joints + partagés écriture) — pas les comptes en consultation.
   const { data: allAccounts = [] } = useAllAccounts(user?.id);
@@ -150,8 +150,11 @@ export default function AddTransactionScreen() {
   // plutôt que de quitter l'écran.
   const handleBack = useCallback(() => {
     if (step === 2) { setStep(1); setFormError(null); setErrorFields([]); return; }
+    // Saisie ouverte via la saisie rapide (FAB) → revenir à l'écran d'ORIGINE et non à la pile
+    // Transactions (cf. navigation inter-onglets). Sinon retour normal.
+    if (params.origin) { router.replace(decodeURIComponent(String(params.origin)) as any); return; }
     router.back();
-  }, [step, router]);
+  }, [step, router, params.origin]);
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android') return;
@@ -342,7 +345,8 @@ export default function AddTransactionScreen() {
         });
       }
 
-      router.back();
+      if (params.origin) { router.replace(decodeURIComponent(String(params.origin)) as any); }
+      else router.back();
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     }

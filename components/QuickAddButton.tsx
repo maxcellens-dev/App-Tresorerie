@@ -56,6 +56,9 @@ export default function QuickAddButton() {
   // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
   const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);
   const acctParam = acctMatch ? `&account=${acctMatch[1]}` : '';
+  // La saisie est poussée dans l'onglet Transactions (navigation inter-onglets) → le « Retour » in-app
+  // remonterait la pile Transactions au lieu de l'écran d'origine. On transmet donc l'origine.
+  const originParam = pathname ? `&origin=${encodeURIComponent(pathname)}` : '';
 
   const barHeight = BAR_CONTENT + Math.max(insets.bottom, 8);
   // Placement de l'ancre selon le mode.
@@ -67,9 +70,9 @@ export default function QuickAddButton() {
     ? { transfer: 180, expense: 138, income: 96 }
     : { transfer: 150, expense: 90, income: 30 };
   const ACTIONS = [
-    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}` },
-    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}` },
-    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}` },
+    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
+    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
+    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
   ] as const;
 
   const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });

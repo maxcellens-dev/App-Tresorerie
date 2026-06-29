@@ -55,10 +55,14 @@ export function useSharedAccountsRealtime(userId: string | undefined) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts' }, () => {
         qc.invalidateQueries({ queryKey: ['accounts'] });
         qc.invalidateQueries({ queryKey: ['transactions'] });
+        qc.invalidateQueries({ queryKey: ['shared_contribution'] });
+        qc.invalidateQueries({ queryKey: ['pilotage_data'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'account_members' }, () => {
         qc.invalidateQueries({ queryKey: ['accounts'] });
         qc.invalidateQueries({ queryKey: ['account_members'] });
+        qc.invalidateQueries({ queryKey: ['shared_contribution'] });
+        qc.invalidateQueries({ queryKey: ['pilotage_data'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'account_invitations', filter: `to_user_id=eq.${userId}` }, () => {
         qc.invalidateQueries({ queryKey: ['acct_invitations', userId] });
@@ -211,6 +215,7 @@ export function useSetAccountImpact(accountId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['account_members', accountId] });
       qc.invalidateQueries({ queryKey: ['accounts'] });
       qc.invalidateQueries({ queryKey: ['pilotage_data'] });
+      qc.invalidateQueries({ queryKey: ['shared_contribution'] }); // tréso + projection
     },
   });
 }

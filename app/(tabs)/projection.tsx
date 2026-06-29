@@ -26,6 +26,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useSharedContribution } from '../../hooks/useSharedContribution';
+import { useCreditFlows } from '../../hooks/useCreditFlows';
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
@@ -152,7 +153,9 @@ export default function ProjectionScreen() {
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
   // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
   const { data: sharedContrib } = useSharedContribution(user?.id);
-  const rawTransactions = useMemo(() => [...rawTransactionsPerso, ...(sharedContrib?.transactions ?? [])], [rawTransactionsPerso, sharedContrib]);
+  // C3 — flux dérivé des mensualités de crédit (sorties virtuelles sur le compte de prélèvement).
+  const creditFlows = useCreditFlows(user?.id);
+  const rawTransactions = useMemo(() => [...rawTransactionsPerso, ...(sharedContrib?.transactions ?? []), ...creditFlows], [rawTransactionsPerso, sharedContrib, creditFlows]);
   const rawAllAccounts = useMemo(() => [...rawAccountsPerso, ...(sharedContrib?.accounts ?? [])], [rawAccountsPerso, sharedContrib]);
 
   // ── Multi-devises : la projection raisonne dans la devise de RÉFÉRENCE. On convertit comptes

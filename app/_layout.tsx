@@ -144,10 +144,12 @@ function RouteHistoryTracker() {
 }
 
 function RecurringMaterializer() {
-  const { user, isImpersonating } = useAuth();
-  // En mode « connecté en tant que », on NE matérialise/reconcilie PAS : consulter un compte
-  // ne doit pas écrire dans les données de l'utilisateur (avancer ses récurrences, etc.).
-  useMaterializeRecurring(isImpersonating ? undefined : user?.id);
+  const { user } = useAuth();
+  // On matérialise AUSSI en mode admin « connecté en tant que » : sinon les occurrences récurrentes
+  // passées ne deviennent pas de vraies transactions → le SOLDE des comptes (page Comptes) ne les
+  // inclut pas, alors que le suivi/les transactions les projettent (incohérence épargne/invest). Les
+  // écritures admin sont autorisées (migration 102 : is_app_admin), donc consulter reflète le réel.
+  useMaterializeRecurring(user?.id);
   return null;
 }
 

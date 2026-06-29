@@ -60,29 +60,36 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
     .select('*, account:accounts!account_id(name, currency, is_joint, profile_id), category:categories!category_id(*)')
     .in('account_id', sharedIds);
 
-  const accounts = sharedAccounts.map((a) => {
-    const f = factorByAccount[a.id] ?? 1;
-    return {
-      ...a,
-      balance: Number(a.balance) * f,
-      initial_contributed: a.initial_contributed != null ? Number(a.initial_contributed) * f : null,
-      current_contributed: a.current_contributed != null ? Number(a.current_contributed) * f : null,
-      regul_target: a.regul_target != null ? Number(a.regul_target) * f : a.regul_target,
-      _role: a.profile_id === profileId ? 'owner' : 'write',
-      _impact_pct: Math.round(f * 100),
-    } as Account;
-  });
+  // À 0% d'impact, le compte partagé n'a AUCUN effet (soldes + transactions exclus de l'app).
+  const accounts = sharedAccounts
+    .filter((a) => (factorByAccount[a.id] ?? 1) > 0)
+    .map((a) => {
+      const f = factorByAccount[a.id] ?? 1;
+      return {
+        ...a,
+        balance: Number(a.balance) * f,
+        initial_contributed: a.initial_contributed != null ? Number(a.initial_contributed) * f : null,
+        current_contributed: a.current_contributed != null ? Number(a.current_contributed) * f : null,
+        regul_target: a.regul_target != null ? Number(a.regul_target) * f : a.regul_target,
+        _role: a.profile_id === profileId ? 'owner' : 'write',
+        _impact_pct: Math.round(f * 100),
+      } as Account;
+    });
 
-  const transactions = (tx ?? []).map((t: any) => {
-    const f = factorByAccount[t.account_id] ?? 1;
-    return {
-      ...t,
-      amount: Number(t.amount) * f,
-      regul_target: t.regul_target != null ? Number(t.regul_target) * f : t.regul_target,
-      account: t.account,
-      category: t.category,
-    };
-  });
+  const transactions = (tx ?? [])
+    .filter((t: any) => (factorByAccount[t.account_id] ?? 1) > 0) // 0% → non affichées / non comptées
+    .map((t: any) => {
+      const f = factorByAccount[t.account_id] ?? 1;
+      return {
+        ...t,
+        amount: Number(t.amount) * f,
+        regul_target: t.regul_target != null ? Number(t.regul_target) * f : t.regul_target,
+        account: t.account,
+        category: t.category,
+        // #2 — % d'impact de CE compte partagé (annoté sur la ligne dans les modaux ; <100 = partagé).
+        _impact_pct: Math.round(f * 100),
+      };
+    });
 
   return { accounts, transactions, factorByAccount };
 }

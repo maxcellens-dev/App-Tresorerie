@@ -1213,7 +1213,7 @@ export default function AccountDetailScreen() {
                         style={txDetailStyles.editBtn}
                         onPress={() => {
                           setSelectedTx(null);
-                          router.push(`/(tabs)/transactions/edit/${selectedTx!.id}` as any);
+                          router.push(`/(tabs)/transactions/edit/${selectedTx!.id}?origin=${encodeURIComponent(`/comptes/${id}`)}` as any);
                         }}
                       >
                         <Ionicons name="pencil" size={16} color={COLORS.emerald} />

@@ -28,9 +28,10 @@ export default function EditTransactionScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string; instanceDate?: string }>();
+  const params = useLocalSearchParams<{ id: string; instanceDate?: string; origin?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const instanceDate = Array.isArray(params.instanceDate) ? params.instanceDate[0] : params.instanceDate;
+  const origin = Array.isArray(params.origin) ? params.origin[0] : params.origin;
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: transactions = [] } = useAllTransactions(user?.id);
@@ -158,6 +159,9 @@ export default function EditTransactionScreen() {
   }
 
   const closeEditor = () => {
+    // Ouverte depuis un autre onglet (détail compte) → revenir à l'ORIGINE plutôt que de remonter la
+    // pile Transactions (qui pouvait retomber sur l'écran de création).
+    if (origin) { router.replace(decodeURIComponent(origin) as any); return; }
     if (typeof router.canGoBack === 'function' && router.canGoBack()) {
       router.back();
       return;

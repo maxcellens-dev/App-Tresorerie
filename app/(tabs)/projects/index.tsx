@@ -35,6 +35,9 @@ import {
 import { usePilotageData } from '../../../hooks/usePilotageData';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { useCredits } from '../../../hooks/useCredits';
+import { computeAmortization } from '../../../lib/amortization';
+import { todayISO } from '../../../lib/dateUtils';
 import { useProfile } from '../../../hooks/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation } from '../../../hooks/useRelykaWorld';
@@ -88,6 +91,17 @@ export default function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const projectsQuery = useProjects(user?.id || '');
   const { data: projects = [], isLoading, refetch } = projectsQuery;
+  // C4 — crédits liés à un projet : map projectId → [{ label, crd }].
+  const { data: creditsList = [] } = useCredits(user?.id);
+  const today = todayISO();
+  const creditsByProject = useMemo(() => {
+    const m: Record<string, { label: string; crd: number }[]> = {};
+    for (const c of creditsList) {
+      if (!c.project_id) continue;
+      (m[c.project_id] ??= []).push({ label: c.label, crd: computeAmortization(c).crdAtDate(today) });
+    }
+    return m;
+  }, [creditsList, today]);
   const deleteFullMutation = useDeleteProjectFull(user?.id || '');
   const archiveMutation = useArchiveProject(user?.id || '');
   const deleteFromDateMutation = useDeleteProjectFromDate(user?.id || '');
@@ -263,6 +277,15 @@ export default function ProjectsScreen() {
             <Text style={[styles.projectDescription, { color: COLORS.textSecondary }]}>
               {project.description || 'Pas de description'}
             </Text>
+            {/* C4 — crédit(s) liés au projet */}
+            {(creditsByProject[project.id] ?? []).map((cr, i) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                <Ionicons name="card-outline" size={12} color={COLORS.blue} />
+                <Text style={{ fontSize: 11.5, color: COLORS.blue, fontWeight: '600' }} numberOfLines={1}>
+                  Financé par crédit · {cr.label} · {Math.round(cr.crd).toLocaleString('fr-FR')} € dû
+                </Text>
+              </View>
+            ))}
           </View>
           <View
             style={[

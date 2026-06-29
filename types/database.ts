@@ -138,6 +138,8 @@ export interface UiPrefs {
   calculator_enabled?: boolean;
   /** Position du bouton « + » de saisie rapide dans la barre d'onglets (défaut : 'right'). */
   quick_add_position?: 'right' | 'left' | 'hidden';
+  /** #2 — Filtre des totaux de la page Comptes : tout / perso / partagés. */
+  accounts_totals_filter?: 'all' | 'perso' | 'shared';
   /** Recommandations ignorées / complétées du mois courant. */
   reco_dismissals?: RecoDismissals;
 }
@@ -228,6 +230,46 @@ export interface TransactionWithDetails extends Transaction {
   linked_account?: { name: string; type: string; currency?: string } | null;
   /** Mois d'affichage (YYYY-MM) pour les écritures récurrentes projetées. */
   displayDate?: string;
+}
+
+export type CreditType = 'immobilier' | 'consommation' | 'auto' | 'autre';
+
+/** Module Crédit — paramètres d'un crédit (le tableau d'amortissement est calculé côté client). */
+export interface Credit {
+  id: string;
+  profile_id: string;
+  type: CreditType;
+  label: string;
+  lender?: string | null;
+  account_id?: string | null;
+  project_id?: string | null;
+  principal: number;
+  start_date: string;
+  first_payment_date?: string | null;
+  duration_months: number;
+  rate_annual: number;
+  rate_type: 'fixe' | 'variable' | 'mixte';
+  insurance_monthly?: number | null;
+  fees_file?: number | null;
+  fees_guarantee?: number | null;
+  fees_bank?: number | null;
+  fees_notary?: number | null;
+  personal_contribution?: number | null;
+  interim_interest?: number | null;
+  management_fees?: number | null;
+  other_fees?: number | null;
+  /** #5 — assurance mensuelle par année (index 0 = an 1). */
+  insurance_yearly?: (number | null)[] | null;
+  /** #6 — mensualité forcée par année (index 0 = an 1). */
+  payment_yearly?: (number | null)[] | null;
+  early_repayment_penalty_pct?: number | null;
+  deferral_months?: number | null;
+  deferral_type?: 'none' | 'partial' | 'total' | null;
+  is_simulation: boolean;
+  is_active: boolean;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TransactionMonthOverride {

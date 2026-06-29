@@ -15,6 +15,7 @@ import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useSharedContribution } from '../../hooks/useSharedContribution';
+import { useCreditFlows } from '../../hooks/useCreditFlows';
 import { useCategories, useSeedDefaultCategories } from '../../hooks/useCategories';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
@@ -156,7 +157,9 @@ export default function TreasuryPlanScreen() {
   const { data: overrides = [] } = overridesQuery;
   const { data: accountsPerso = [] } = accountsQuery;
   // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
-  const transactions = useMemo(() => [...transactionsPerso, ...(sharedContrib?.transactions ?? [])], [transactionsPerso, sharedContrib]);
+  // C3 — flux dérivé des mensualités de crédit (sorties virtuelles sur le compte de prélèvement).
+  const creditFlows = useCreditFlows(user?.id);
+  const transactions = useMemo(() => [...transactionsPerso, ...(sharedContrib?.transactions ?? []), ...creditFlows], [transactionsPerso, sharedContrib, creditFlows]);
   const accounts = useMemo(() => [...accountsPerso, ...(sharedContrib?.accounts ?? [])], [accountsPerso, sharedContrib]);
   const addTransaction = useAddTransaction(user?.id);
 

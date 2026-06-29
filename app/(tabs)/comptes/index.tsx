@@ -15,12 +15,14 @@ import { useAccountInvitations, useRespondAccountInvitation } from '../../../hoo
 import { ACCOUNT_ICONS } from '../../../theme/colors';
 import { semanticText } from '../../../theme/palette';
 import GuideOverlay from '../../../components/GuideOverlay';
+import CreditsTab from '../../../components/CreditsTab';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useProfile } from '../../../hooks/useProfile';
+import { useAccountsTotalsFilter } from '../../../hooks/useUiPrefs';
 import { useSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
 
 
@@ -47,6 +49,8 @@ export default function AccountsListScreen() {
   const respondInvite = useRespondAccountInvitation(user?.id);
   // Choix du type de compte à la création (comme les projets) : personnel ou partagé/joint.
   const [showCreateType, setShowCreateType] = useState(false);
+  // #6 — onglets de la page : « Comptes » (actuel) / « Crédits » (module crédit).
+  const [tab, setTab] = useState<'comptes' | 'credits'>('comptes');
   const openCreate = (joint: boolean) => { setShowCreateType(false); router.push(`/(tabs)/comptes/add${joint ? '?joint=1' : ''}` as any); };
 
   // ── Guide "bulles" ──
@@ -126,9 +130,13 @@ export default function AccountsListScreen() {
   // d'impact (la LISTE garde le solde réel par compte). _impact_pct = undefined → 100% (compte perso).
   const impactFactor = (a: any) => (a._impact_pct != null ? a._impact_pct / 100 : 1);
   const toRefWeighted = (a: any) => toRef(a) * impactFactor(a);
-  const sumRef = (filter: (a: any) => boolean) => accounts.filter(filter).reduce((s, a) => s + toRefWeighted(a), 0);
+  // #2 — Filtre persistant des totaux : tout / perso / partagés.
+  const { filter: totalsFilter, setFilter: setTotalsFilter } = useAccountsTotalsFilter(user?.id);
+  const isShared = (a: any) => !!a.is_joint || a._role !== 'owner';
+  const matchesFilter = (a: any) => totalsFilter === 'all' ? true : (totalsFilter === 'shared' ? isShared(a) : !isShared(a));
+  const sumRef = (filter: (a: any) => boolean) => accounts.filter((a) => matchesFilter(a) && filter(a)).reduce((s, a) => s + toRefWeighted(a), 0);
 
-  const total = accounts.reduce((s, a) => s + toRefWeighted(a), 0);
+  const total = accounts.filter(matchesFilter).reduce((s, a) => s + toRefWeighted(a), 0);
   const totalChecking = sumRef((a) => a.type === 'checking');
   const totalSavings = sumRef((a) => a.type === 'savings');
   const totalInvested = sumRef((a) => a.type === 'investment');
@@ -178,7 +186,19 @@ export default function AccountsListScreen() {
           {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
           {accounts.length > 0 && (
             <View>
-            <Text style={styles.overviewTitle}>Patrimoine</Text>
+            <View style={styles.overviewHeaderRow}>
+              <Text style={styles.overviewTitle}>Patrimoine</Text>
+              {/* #2 — filtre persistant des totaux (visible s'il y a des comptes partagés) */}
+              {accounts.some(isShared) && (
+                <View style={styles.totalsFilterRow}>
+                  {(['all', 'perso', 'shared'] as const).map((f) => (
+                    <TouchableOpacity key={f} onPress={() => setTotalsFilter(f)} style={[styles.totalsFilterChip, totalsFilter === f && styles.totalsFilterChipActive]}>
+                      <Text style={[styles.totalsFilterText, totalsFilter === f && styles.totalsFilterTextActive]}>{f === 'all' ? 'Tout' : f === 'perso' ? 'Perso' : 'Partagés'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
             <View style={styles.overviewRow}>
               {(() => {
                 // Agrégats convertis dans la devise de référence (multi-devises).
@@ -209,18 +229,28 @@ export default function AccountsListScreen() {
                 ));
               })()}
             </View>
+            {/* #6c — Total liquidités : petit, aligné à droite, SANS libellé (sous la vue d'ensemble). */}
+            <Text style={styles.totalLiquidSmall}>
+              {approx}{totalFormatted.sign}{totalFormatted.int},{totalFormatted.dec} {refSymbol}
+            </Text>
             </View>
           )}
 
-          {/* ── Hero : solde total ── */}
+          {/* ── Onglets Comptes / Crédits (#6b : à la place de l'ancien « Total Liquidités ») ── */}
+          <View style={styles.tabsRow}>
+            {(['comptes', 'credits'] as const).map((t) => (
+              <TouchableOpacity key={t} style={[styles.tabItem, tab === t && styles.tabItemActive]} onPress={() => setTab(t)} activeOpacity={0.8} accessibilityRole="button">
+                <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>{t === 'comptes' ? 'Comptes' : 'Crédits'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {tab === 'credits' ? (
+            <CreditsTab userId={user?.id} />
+          ) : (
+          <>
+          {/* ── Actions rapides du compte ── */}
           <View style={styles.hero}>
-            <Text style={styles.heroLabel}>Total liquidités</Text>
-            <View style={styles.heroAmountRow}>
-              <Text style={styles.heroAmount}>
-                {approx}{totalFormatted.sign}{totalFormatted.int}
-                <Text style={styles.heroDec}>,{totalFormatted.dec} {refSymbol}</Text>
-              </Text>
-            </View>
 
             {/* Quick actions + zone pub compacte (maison) à droite, gérable en admin */}
             <View style={styles.quickActions}>
@@ -430,6 +460,8 @@ export default function AccountsListScreen() {
           <View style={{ paddingHorizontal: 16 }}>
             <AdSlot placement="comptes" />
           </View>
+          </>
+          )}
         </ScrollView>
       </SafeAreaView>
 
@@ -483,6 +515,18 @@ function makeStyles(c: any) {
   scrollContent: { paddingBottom: 100 },
   loader: { marginVertical: 40 },
   overviewTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, paddingHorizontal: 24, marginBottom: 8, marginTop: 4 },
+  overviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 },
+  totalLiquidSmall: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'right', paddingHorizontal: 24, marginTop: 6 },
+  tabsRow: { flexDirection: 'row', gap: 22, paddingHorizontal: 24, marginTop: 14, marginBottom: 0, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
+  tabItem: { paddingBottom: 8, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabItemActive: { borderBottomColor: c.text },
+  tabLabel: { fontSize: 17, fontWeight: '700', color: c.textSecondary },
+  tabLabelActive: { color: c.text, fontWeight: '800' },
+  totalsFilterRow: { flexDirection: 'row', gap: 4, marginBottom: 8, marginTop: 4 },
+  totalsFilterChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder },
+  totalsFilterChipActive: { backgroundColor: c.text + '12', borderColor: c.text },
+  totalsFilterText: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
+  totalsFilterTextActive: { color: c.text, fontWeight: '700' },
   overviewRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 24, marginBottom: 0 },
   overviewCard: { flex: 1, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, borderLeftWidth: 3, padding: 10 },
   overviewLabel: { fontSize: 10, fontWeight: '600', color: c.textSecondary, marginBottom: 2 },
@@ -492,8 +536,8 @@ function makeStyles(c: any) {
   // ── Hero ──
   hero: {
     paddingHorizontal: 24,
-    paddingTop: 18,
-    paddingBottom: 28,
+    paddingTop: 8,
+    paddingBottom: 20,
   },
   heroLabel: {
     fontSize: 13,

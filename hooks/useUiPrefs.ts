@@ -68,6 +68,15 @@ export function useQuickAddPref(userId: string | undefined) {
   };
 }
 
+/** #2 — Filtre persistant des TOTAUX de la page Comptes : tout / comptes perso / comptes partagés. */
+export function useAccountsTotalsFilter(userId: string | undefined) {
+  const { prefs, patch } = useUiPrefs(userId);
+  return {
+    filter: (prefs.accounts_totals_filter ?? 'all') as 'all' | 'perso' | 'shared',
+    setFilter: (v: 'all' | 'perso' | 'shared') => patch({ accounts_totals_filter: v }),
+  };
+}
+
 /** Masquages de recommandations du mois (ignorées / complétées), par compte. */
 export function useRecoDismissals(userId: string | undefined) {
   const qc = useQueryClient();

@@ -21,6 +21,7 @@ import { usePilotageData } from '../../hooks/usePilotageData';
 import { signalAppReady } from '../../lib/splashGate';
 import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useAccounts } from '../../hooks/useAccounts';
+import { useSharedContribution } from '../../hooks/useSharedContribution';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../../hooks/usePreSavings';
 import { useReservations, useSetMonthlyReservation } from '../../hooks/useReservations';
 import { useReleaseReservedByProject } from '../../hooks/useTransactions';
@@ -111,7 +112,14 @@ export default function PilotageScreen() {
     }, [user?.id, queryClient]),
   );
   const { data: projectsForConseils = [] } = useProjects(user?.id);
-  const { data: txForConseils = [] } = useTransactions(user?.id);
+  const { data: txPersoForConseils = [] } = useTransactions(user?.id);
+  // #2/#5 — les modaux (Dépensé/Épargné/Investi/récurrentes) doivent inclure les opérations des comptes
+  // partagés/joints, mises à l'échelle du % d'impact (et annotées du %). Exclues si 0%.
+  const { data: sharedContrib } = useSharedContribution(user?.id);
+  const txForConseils = useMemo(
+    () => [...txPersoForConseils, ...(sharedContrib?.transactions ?? [])],
+    [txPersoForConseils, sharedContrib],
+  );
   const { data: categoriesList = [] } = useCategories(user?.id);
   // Map nom de (sous-)catégorie → nom de la catégorie PARENTE (pour regrouper les récurrentes par catégorie).
   const catParentName = useMemo(() => {
@@ -131,7 +139,12 @@ export default function PilotageScreen() {
   const autoEval = useAutoProfileEvaluation(user?.id);
 
   // ── Données recos évoluées : cumuls, réservations, seuils, comptes ──
-  const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: accountsPerso = [] } = useAccounts(user?.id);
+  // Inclure les comptes partagés (pondérés) pour que les modaux du suivi connaissent leurs types.
+  const accounts = useMemo(
+    () => [...accountsPerso, ...(sharedContrib?.accounts ?? [])],
+    [accountsPerso, sharedContrib],
+  );
   const { data: preSavings } = usePreSavings(user?.id);
   const { data: reservations = [] } = useReservations(user?.id);
   const { data: recoThresholds } = useRecoThresholds();
@@ -1070,10 +1083,18 @@ export default function PilotageScreen() {
                   return (
                     <View key={t.id ?? i} style={[styles.detailRow, dimmed && { opacity: 0.5 }]}>
                       <Ionicons name={iconForTransaction(t) as any} size={16} color={isRefund && !dimmed ? semanticText(COLORS.green, COLORS) : COLORS.textSecondary} style={{ marginRight: 10 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
-                        {/* Date de la transaction (au lieu de la périodicité). */}
-                        <Text style={styles.detailRowSub}>{dts(t._monthDate ?? t.date)}{dimmed ? ' · à venir' : ''}</Text>
+                      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.detailRowLabel} numberOfLines={1}>{lbl(t)}</Text>
+                          {/* Date de la transaction (au lieu de la périodicité). */}
+                          <Text style={styles.detailRowSub}>{dts(t._monthDate ?? t.date)}{dimmed ? ' · à venir' : ''}</Text>
+                        </View>
+                        {/* #2 — opération d'un compte partagé : mini-bulle indiquant le % d'impact appliqué. */}
+                        {t._impact_pct != null && t._impact_pct < 100 && (
+                          <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: COLORS.blue + '1A', borderWidth: 1, borderColor: COLORS.blue + '44' }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.blue }}>{t._impact_pct}%</Text>
+                          </View>
+                        )}
                       </View>
                       <Text style={[styles.detailRowValue, { color: valColor }]}>{(isRefund ? '+' : '') + fmt(toRef(t))}</Text>
                     </View>
