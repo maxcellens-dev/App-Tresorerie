@@ -39,39 +39,45 @@ export function useSeedDefaultCategories(profileId: string | undefined) {
   return useMutation({
     mutationFn: async () => {
       if (!supabase || !profileId) throw new Error('Non connecté');
+      // Seed depuis le RÉFÉRENTIEL admin (base_categories) si disponible → les copies sont liées (base_id)
+      // pour recevoir les futures propagations. Repli sur le template code si le référentiel est vide.
+      const { data: baseCats } = await supabase.from('base_categories').select('*').eq('is_active', true);
+      if (baseCats && baseCats.length > 0) {
+        const baseParents = baseCats.filter((b: any) => !b.parent_id);
+        const userIdByBase: Record<string, string> = {};
+        for (const b of baseParents) {
+          const { data, error } = await supabase.from('categories').insert({
+            profile_id: profileId, name: b.name, type: b.type, parent_id: null,
+            is_default: true, is_variable: b.is_variable, sort_order: b.sort_order, base_id: b.id, user_renamed: false,
+          }).select('id').single();
+          if (error) throw error;
+          userIdByBase[b.id] = (data as { id: string }).id;
+        }
+        for (const b of baseCats.filter((x: any) => x.parent_id)) {
+          const parentUserId = userIdByBase[(b as any).parent_id];
+          if (!parentUserId) continue;
+          const { error } = await supabase.from('categories').insert({
+            profile_id: profileId, name: b.name, type: b.type, parent_id: parentUserId,
+            is_default: true, is_variable: b.is_variable, sort_order: b.sort_order, base_id: b.id, user_renamed: false,
+          });
+          if (error) throw error;
+        }
+        return;
+      }
+      // Repli : template code.
       const flat = getDefaultCategoriesFlat();
       const parentIds: Record<string, string> = {};
-      // 1) Insérer les parents (sans parentName)
       for (const item of flat) {
         if (item.parentName) continue;
-        const { data, error } = await supabase
-          .from('categories')
-          .insert({
-            profile_id: profileId,
-            name: item.name,
-            type: item.type,
-            parent_id: null,
-            is_default: true,
-            is_variable: item.is_variable ?? false,
-            sort_order: item.sort_order,
-          })
-          .select('id, name')
-          .single();
+        const { data, error } = await supabase.from('categories')
+          .insert({ profile_id: profileId, name: item.name, type: item.type, parent_id: null, is_default: true, is_variable: item.is_variable ?? false, sort_order: item.sort_order })
+          .select('id, name').single();
         if (error) throw error;
         if (data) parentIds[item.name] = (data as { id: string }).id;
       }
-      // 2) Insérer les sous-catégories
       for (const item of flat) {
         if (!item.parentName || !parentIds[item.parentName]) continue;
-        const { error } = await supabase.from('categories').insert({
-          profile_id: profileId,
-          name: item.name,
-          type: item.type,
-          parent_id: parentIds[item.parentName],
-          is_default: true,
-          is_variable: item.is_variable ?? false,
-          sort_order: item.sort_order,
-        });
+        const { error } = await supabase.from('categories').insert({ profile_id: profileId, name: item.name, type: item.type, parent_id: parentIds[item.parentName], is_default: true, is_variable: item.is_variable ?? false, sort_order: item.sort_order });
         if (error) throw error;
       }
     },
@@ -149,6 +155,8 @@ export function useUpdateCategory(profileId: string | undefined) {
         .from('categories')
         .update({
           name: input.name.trim(),
+          // L'utilisateur a renommé/édité SA copie → on protège son nom de la propagation du référentiel.
+          user_renamed: true,
           ...(input.type != null && { type: input.type }),
           ...(input.parent_id !== undefined && { parent_id: input.parent_id }),
           ...(input.is_variable !== undefined && { is_variable: input.is_variable }),

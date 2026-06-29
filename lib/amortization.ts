@@ -33,6 +33,40 @@ export interface CreditEvent {
 /** Indice d'année (0-based) d'une échéance (1-based). */
 function yearIndex(period: number): number { return Math.floor((period - 1) / 12); }
 
+/**
+ * #8b — Mensualité SEMI-FIXE par PALIERS. Chaque palier commence à une année donnée et a une mensualité
+ * FIXE. Une mensualité vide est AUTO-calculée pour amortir le capital restant dû au début du palier sur la
+ * durée restante du prêt. Renvoie un tableau `payment_yearly` (mensualité forcée par année) prêt pour
+ * computeAmortization, et les mensualités résolues par palier (pour l'affichage).
+ */
+export function resolvePaliers(
+  C: number, rateAnnual: number, n: number,
+  segments: { startYear: number; payment?: number | null }[],
+): { paymentYearly: (number | null)[]; resolved: number[] } {
+  const t = (rateAnnual || 0) / 100 / 12;
+  const years = Math.max(1, Math.ceil(n / 12));
+  const sorted = [...segments].filter((s) => s.startYear >= 0).sort((a, b) => a.startYear - b.startYear);
+  if (sorted.length === 0 || sorted[0].startYear !== 0) sorted.unshift({ startYear: 0 });
+  const out: (number | null)[] = Array(years).fill(null);
+  const resolved: number[] = [];
+  let crd = Math.max(0, C);
+  for (let si = 0; si < sorted.length; si++) {
+    const startMonth = Math.max(0, Math.round(sorted[si].startYear * 12));
+    const endMonth = si + 1 < sorted.length ? Math.round(sorted[si + 1].startYear * 12) : n;
+    const segMonths = endMonth - startMonth;
+    if (segMonths <= 0) { resolved.push(0); continue; }
+    let pay = sorted[si].payment;
+    if (pay == null || Number.isNaN(pay) || pay <= 0) {
+      const remaining = n - startMonth;
+      pay = t > 0 ? (crd * t) / (1 - Math.pow(1 + t, -remaining)) : crd / Math.max(1, remaining);
+    }
+    resolved.push(Math.round(pay));
+    for (let y = Math.floor(startMonth / 12); y < Math.ceil(endMonth / 12) && y < years; y++) out[y] = Math.round(pay);
+    for (let m = 0; m < segMonths; m++) { const interest = crd * t; crd = Math.max(0, crd - (pay - interest)); }
+  }
+  return { paymentYearly: out, resolved };
+}
+
 export interface AmortRow {
   period: number;             // n° d'échéance (1..n)
   date: string;               // ISO (YYYY-MM-DD)

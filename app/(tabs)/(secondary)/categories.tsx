@@ -223,7 +223,16 @@ export default function CategoriesScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-        <ScreenHeader title="Catégories" onBack={goBack} />
+        <ScreenHeader
+          title="Catégories"
+          onBack={goBack}
+          right={isAdmin ? (
+            <TouchableOpacity onPress={() => router.push('/(tabs)/(secondary)/admin/categories' as any)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="construct-outline" size={16} color={COLORS.blue} />
+              <Text style={{ color: COLORS.blue, fontWeight: '700', fontSize: 13 }}>Base (admin)</Text>
+            </TouchableOpacity>
+          ) : undefined}
+        />
         <Text style={styles.subtitle}>
           Recettes et dépenses par défaut. Modifiez, ajoutez ou supprimez des postes.
         </Text>

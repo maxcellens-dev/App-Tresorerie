@@ -17,7 +17,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useProjects } from '../../../hooks/useProjects';
 import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/useCredits';
-import { computeAmortization } from '../../../lib/amortization';
+import { computeAmortization, resolvePaliers } from '../../../lib/amortization';
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
 
@@ -75,6 +75,9 @@ export default function CreditAddScreen() {
   const [showYearly, setShowYearly] = useState(false);
   const [insYear, setInsYear] = useState<Record<number, string>>({});
   const [payYear, setPayYear] = useState<Record<number, string>>({});
+  // #8b — mensualité : standard (calculée) OU semi-fixe par paliers (auto-calc d'un palier à l'autre).
+  const [paymentMode, setPaymentMode] = useState<'standard' | 'paliers'>('standard');
+  const [segments, setSegments] = useState<{ startYear: number; payment: string }[]>([{ startYear: 0, payment: '' }]);
   const [showCal, setShowCal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -108,6 +111,21 @@ export default function CreditAddScreen() {
   const numOr0 = (s: string | undefined) => { const v = num(s); return Number.isNaN(v) ? 0 : v; };
   const years = useMemo(() => { const n = parseInt(duration, 10); return n > 0 ? Math.ceil(n / 12) : 0; }, [duration]);
 
+  // #8b — paliers résolus (mensualités auto-calculées d'un palier à l'autre).
+  const paliers = useMemo(() => {
+    const C = num(principal), n = parseInt(duration, 10), r = num(rate);
+    if (paymentMode !== 'paliers' || !C || !n || Number.isNaN(C) || Number.isNaN(n)) return null;
+    return resolvePaliers(C, Number.isNaN(r) ? 0 : r, n, segments.map((s) => ({ startYear: s.startYear, payment: num(s.payment) })));
+  }, [paymentMode, segments, principal, duration, rate]);
+
+  const buildInsArray = (): (number | null)[] =>
+    Array.from({ length: years }, (_, y) => { const v = num(insYear[y]); return Number.isNaN(v) ? numOr0(insurance) : v; });
+  const buildPayArray = (): (number | null)[] =>
+    Array.from({ length: years }, (_, y) => { const v = num(payYear[y]); return Number.isNaN(v) || v <= 0 ? null : v; });
+  // payment_yearly effectif : paliers (si actif) sinon l'éditeur par année.
+  const effPaymentYearly = (): (number | null)[] | null =>
+    paymentMode === 'paliers' && paliers ? paliers.paymentYearly : (showYearly && years > 0 ? buildPayArray() : null);
+
   const amort = useMemo(() => {
     const C = num(principal), n = parseInt(duration, 10), r = num(rate);
     if (!C || !n || Number.isNaN(C) || Number.isNaN(n)) return null;
@@ -115,16 +133,9 @@ export default function CreditAddScreen() {
       principal: C, rate_annual: Number.isNaN(r) ? 0 : r, duration_months: n,
       start_date: startDate, insurance_monthly: numOr0(insurance),
       insurance_yearly: showYearly && years > 0 ? buildInsArray() : null,
-      payment_yearly: showYearly && years > 0 ? buildPayArray() : null,
+      payment_yearly: effPaymentYearly(),
     });
-  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years]);
-
-  function buildInsArray(): (number | null)[] {
-    return Array.from({ length: years }, (_, y) => { const v = num(insYear[y]); return Number.isNaN(v) ? numOr0(insurance) : v; });
-  }
-  function buildPayArray(): (number | null)[] {
-    return Array.from({ length: years }, (_, y) => { const v = num(payYear[y]); return Number.isNaN(v) || v <= 0 ? null : v; });
-  }
+  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers]);
 
   const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
   const stdPayment = amort ? Math.round(amort.monthlyPayment) : 0;
@@ -146,7 +157,7 @@ export default function CreditAddScreen() {
       interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
       interest_total_manual: Number.isNaN(num(interestManual)) ? null : num(interestManual),
       insurance_yearly: showYearly && years > 0 ? buildInsArray() : null,
-      payment_yearly: showYearly && years > 0 ? buildPayArray() : null,
+      payment_yearly: effPaymentYearly(),
     };
     try {
       if (editId) await updateCredit.mutateAsync({ id: editId, ...payload });
@@ -278,9 +289,47 @@ export default function CreditAddScreen() {
             </View>
           )}
 
-          {/* #5/#6 — Montants par année (assurance + mensualité qui évoluent) */}
+          {/* #8b — Mensualité : standard (calculée) OU semi-fixe par paliers (auto-calculés). */}
           {years > 0 && (
             <>
+              <View style={styles.section}>
+                <Ionicons name="trending-up-outline" size={18} color={COLORS.text} />
+                <Text style={styles.sectionTitle}>Mensualité</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                {([['standard', 'Calculée'], ['paliers', 'Par paliers']] as const).map(([m, lbl]) => (
+                  <TouchableOpacity key={m} style={[styles.modeChip, paymentMode === m && styles.modeChipActive]} onPress={() => setPaymentMode(m)}>
+                    <Text style={[styles.modeText, paymentMode === m && { color: COLORS.blue }]}>{lbl}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {paymentMode === 'paliers' && (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={styles.hint}>Mensualité FIXE par période. Laisse une mensualité vide → calcul auto pour solder le prêt sur la durée restante.</Text>
+                  {segments.map((s, i) => (
+                    <View key={i} style={styles.segRow}>
+                      <Text style={styles.segFrom}>À partir de l'an</Text>
+                      <TextInput
+                        style={styles.segYear} keyboardType="number-pad"
+                        value={i === 0 ? '1' : String(s.startYear + 1)} editable={i !== 0}
+                        onChangeText={(v) => { const y = Math.max(1, parseInt(v, 10) || 1) - 1; setSegments((p) => p.map((seg, j) => j === i ? { ...seg, startYear: y } : seg)); }}
+                      />
+                      <TextInput
+                        style={styles.segPay} keyboardType="decimal-pad"
+                        value={s.payment} onChangeText={(v) => setSegments((p) => p.map((seg, j) => j === i ? { ...seg, payment: v } : seg))}
+                        placeholder={paliers ? String(paliers.resolved[i] ?? '') + ' (auto)' : 'auto'} placeholderTextColor={COLORS.textSecondary}
+                      />
+                      {i > 0 && (
+                        <TouchableOpacity onPress={() => setSegments((p) => p.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.segAdd} onPress={() => setSegments((p) => [...p, { startYear: Math.min(years - 1, (p[p.length - 1]?.startYear ?? 0) + 1), payment: '' }])}>
+                    <Ionicons name="add" size={16} color={COLORS.blue} />
+                    <Text style={styles.segAddText}>Ajouter un palier</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <TouchableOpacity style={styles.section} onPress={() => setShowYearly((v) => !v)} activeOpacity={0.7}>
                 <Ionicons name="calendar-number-outline" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Montants par année ({years} ans)</Text>
@@ -388,6 +437,15 @@ function makeStyles(c: any) {
     feeSubHint: { fontSize: 10.5, color: c.textSecondary, marginTop: 1 },
     feeGroup: { fontSize: 12, fontWeight: '800', color: c.text, marginTop: 8 },
     feeGroupHint: { fontSize: 11, fontWeight: '500', color: c.textSecondary },
+    modeChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+    modeChipActive: { borderColor: c.blue, backgroundColor: c.blue + '12' },
+    modeText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    segRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 },
+    segFrom: { fontSize: 12.5, color: c.textSecondary },
+    segYear: { width: 46, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 6, fontSize: 13.5, color: c.text, textAlign: 'center' },
+    segPay: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
+    segAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+    segAddText: { color: c.blue, fontWeight: '700', fontSize: 13 },
     feeInput: { width: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: c.text, textAlign: 'right' },
     hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
     yRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
