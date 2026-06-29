@@ -78,6 +78,9 @@ export default function CreditAddScreen() {
   // #8b — mensualité : standard (calculée) OU semi-fixe par paliers (auto-calc d'un palier à l'autre).
   const [paymentMode, setPaymentMode] = useState<'standard' | 'paliers'>('standard');
   const [segments, setSegments] = useState<{ startYear: number; payment: string }[]>([{ startYear: 0, payment: '' }]);
+  // Assurance par paliers (montant mensuel FIXE par période).
+  const [insMode, setInsMode] = useState<'flat' | 'paliers'>('flat');
+  const [insSegments, setInsSegments] = useState<{ startYear: number; amount: string }[]>([{ startYear: 0, amount: '' }]);
   const [showCal, setShowCal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -122,9 +125,20 @@ export default function CreditAddScreen() {
     Array.from({ length: years }, (_, y) => { const v = num(insYear[y]); return Number.isNaN(v) ? numOr0(insurance) : v; });
   const buildPayArray = (): (number | null)[] =>
     Array.from({ length: years }, (_, y) => { const v = num(payYear[y]); return Number.isNaN(v) || v <= 0 ? null : v; });
+  // Assurance par paliers : chaque année prend le montant du palier actif (montant FIXE, pas d'auto-calc).
+  const buildInsFromSegments = (): (number | null)[] => {
+    const sorted = [...insSegments].sort((a, b) => a.startYear - b.startYear);
+    return Array.from({ length: years }, (_, y) => {
+      let amt = numOr0(insurance);
+      for (const s of sorted) { if (s.startYear <= y) amt = numOr0(s.amount); }
+      return amt;
+    });
+  };
   // payment_yearly effectif : paliers (si actif) sinon l'éditeur par année.
   const effPaymentYearly = (): (number | null)[] | null =>
     paymentMode === 'paliers' && paliers ? paliers.paymentYearly : (showYearly && years > 0 ? buildPayArray() : null);
+  const effInsuranceYearly = (): (number | null)[] | null =>
+    insMode === 'paliers' && years > 0 ? buildInsFromSegments() : (showYearly && years > 0 ? buildInsArray() : null);
 
   const amort = useMemo(() => {
     const C = num(principal), n = parseInt(duration, 10), r = num(rate);
@@ -132,10 +146,10 @@ export default function CreditAddScreen() {
     return computeAmortization({
       principal: C, rate_annual: Number.isNaN(r) ? 0 : r, duration_months: n,
       start_date: startDate, insurance_monthly: numOr0(insurance),
-      insurance_yearly: showYearly && years > 0 ? buildInsArray() : null,
+      insurance_yearly: effInsuranceYearly(),
       payment_yearly: effPaymentYearly(),
     });
-  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers]);
+  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments]);
 
   const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
   const stdPayment = amort ? Math.round(amort.monthlyPayment) : 0;
@@ -156,7 +170,7 @@ export default function CreditAddScreen() {
       fees_guarantee: numOr0(fees.fees_guarantee), personal_contribution: numOr0(fees.personal_contribution),
       interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
       interest_total_manual: Number.isNaN(num(interestManual)) ? null : num(interestManual),
-      insurance_yearly: showYearly && years > 0 ? buildInsArray() : null,
+      insurance_yearly: effInsuranceYearly(),
       payment_yearly: effPaymentYearly(),
     };
     try {
@@ -330,6 +344,47 @@ export default function CreditAddScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Assurance : fixe OU par paliers (montant mensuel fixe par période). */}
+              <View style={styles.section}>
+                <Ionicons name="shield-outline" size={18} color={COLORS.text} />
+                <Text style={styles.sectionTitle}>Assurance</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                {([['flat', 'Fixe'], ['paliers', 'Par paliers']] as const).map(([m, lbl]) => (
+                  <TouchableOpacity key={m} style={[styles.modeChip, insMode === m && styles.modeChipActive]} onPress={() => setInsMode(m)}>
+                    <Text style={[styles.modeText, insMode === m && { color: COLORS.blue }]}>{lbl}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {insMode === 'paliers' && (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={styles.hint}>Assurance mensuelle FIXE par période (vide = montant « Assurance (€/mois) » saisi plus haut).</Text>
+                  {insSegments.map((s, i) => (
+                    <View key={i} style={styles.segRow}>
+                      <Text style={styles.segFrom}>À partir de l'an</Text>
+                      <TextInput
+                        style={styles.segYear} keyboardType="number-pad"
+                        value={i === 0 ? '1' : String(s.startYear + 1)} editable={i !== 0}
+                        onChangeText={(v) => { const y = Math.max(1, parseInt(v, 10) || 1) - 1; setInsSegments((p) => p.map((seg, j) => j === i ? { ...seg, startYear: y } : seg)); }}
+                      />
+                      <TextInput
+                        style={styles.segPay} keyboardType="decimal-pad"
+                        value={s.amount} onChangeText={(v) => setInsSegments((p) => p.map((seg, j) => j === i ? { ...seg, amount: v } : seg))}
+                        placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary}
+                      />
+                      {i > 0 && (
+                        <TouchableOpacity onPress={() => setInsSegments((p) => p.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  <TouchableOpacity style={styles.segAdd} onPress={() => setInsSegments((p) => [...p, { startYear: Math.min(years - 1, (p[p.length - 1]?.startYear ?? 0) + 1), amount: '' }])}>
+                    <Ionicons name="add" size={16} color={COLORS.blue} />
+                    <Text style={styles.segAddText}>Ajouter un palier</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <TouchableOpacity style={styles.section} onPress={() => setShowYearly((v) => !v)} activeOpacity={0.7}>
                 <Ionicons name="calendar-number-outline" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Montants par année ({years} ans)</Text>

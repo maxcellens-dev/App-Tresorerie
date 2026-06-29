@@ -34,6 +34,8 @@ export default function CreditDetailScreen() {
   const delEvent = useDeleteCreditEvent(user?.id);
   const credit = credits.find((c) => c.id === id);
 
+  const [editTable, setEditTable] = useState(false);
+  const [edits, setEdits] = useState<Record<number, { p?: string; i?: string }>>({});
   const [showEvt, setShowEvt] = useState(false);
   const [evtKind, setEvtKind] = useState<'early_repayment' | 'rate_change'>('early_repayment');
   const [evtAmount, setEvtAmount] = useState('');
@@ -49,6 +51,22 @@ export default function CreditDetailScreen() {
   const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
   const today = todayISO();
   const amort = useMemo(() => (credit ? computeAmortization({ ...credit, events }) : null), [credit, events]);
+
+  // Enregistre les overrides manuels du tableau (mensualité hors assurance « p » + assurance « i »).
+  const saveTable = async () => {
+    if (!credit) return;
+    const next: Record<string, { p?: number | null; i?: number | null }> = { ...(credit.schedule_overrides ?? {}) };
+    for (const [periodStr, e] of Object.entries(edits)) {
+      const cur: { p?: number | null; i?: number | null } = { ...(next[periodStr] ?? {}) };
+      const p = e.p != null && e.p.trim() !== '' ? parseFloat(e.p.replace(',', '.')) : undefined;
+      const iv = e.i != null && e.i.trim() !== '' ? parseFloat(e.i.replace(',', '.')) : undefined;
+      if (p != null && !Number.isNaN(p)) cur.p = p; else if (e.p === '') delete cur.p;
+      if (iv != null && !Number.isNaN(iv)) cur.i = iv; else if (e.i === '') delete cur.i;
+      if (cur.p == null && cur.i == null) delete next[periodStr]; else next[periodStr] = cur;
+    }
+    await update.mutateAsync({ id: credit.id, schedule_overrides: Object.keys(next).length ? next : null } as any);
+    setEdits({}); setEditTable(false);
+  };
 
   const saveEvent = async () => {
     const v = parseFloat(evtAmount.replace(',', '.'));
@@ -163,30 +181,61 @@ export default function CreditDetailScreen() {
             ))}
           </View>
 
-          {/* Tableau d'amortissement — mensualité décomposée (intérêts décroissants, capital croissant). */}
-          <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
-          <View style={styles.card}>
-            <View style={[styles.tRow, styles.tHead]}>
-              <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
-              <Text style={[styles.tc, styles.tHeadText]}>Mensualité</Text>
-              <Text style={[styles.tc, styles.tHeadText]}>Intérêts</Text>
-              <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>
-              <Text style={[styles.tc, styles.tHeadText]}>Restant dû</Text>
-            </View>
-            {(() => { const nextIdx = amort.schedule.findIndex((r) => r.date >= today); return amort.schedule.map((r, i) => {
-              const past = r.date < today;
-              const isNext = i === nextIdx;
-              return (
-                <View key={r.period} style={[styles.tRow, past && { opacity: 0.5 }, isNext && styles.tRowNext]}>
-                  <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
-                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.payment + r.insurance)}</Text>
-                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.interest)}</Text>
-                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.principalPart)}</Text>
-                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.crdAfter)}</Text>
-                </View>
-              );
-            }); })()}
+          {/* Tableau d'amortissement — éditable manuellement par échéance (mensualité + assurance). */}
+          <View style={styles.evtHead}>
+            <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
+            {editTable ? (
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity onPress={() => { setEdits({}); setEditTable(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600', fontSize: 13 }}>Annuler</Text></TouchableOpacity>
+                <TouchableOpacity onPress={saveTable}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Enregistrer</Text></TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.evtAdd} onPress={() => setEditTable(true)}>
+                <Ionicons name="create-outline" size={16} color={COLORS.blue} /><Text style={styles.evtAddText}>Modifier</Text>
+              </TouchableOpacity>
+            )}
           </View>
+          {(() => {
+            const hasInsurance = editTable || amort.schedule.some((r) => r.insurance > 0);
+            const nextIdx = amort.schedule.findIndex((r) => r.date >= today);
+            return (
+              <View style={styles.card}>
+                <View style={[styles.tRow, styles.tHead]}>
+                  <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
+                  <Text style={[styles.tc, styles.tHeadText]}>Mensualité</Text>
+                  {hasInsurance && <Text style={[styles.tc, styles.tHeadText]}>Assur.</Text>}
+                  {!editTable && <Text style={[styles.tc, styles.tHeadText]}>Intérêts</Text>}
+                  {!editTable && <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>}
+                  <Text style={[styles.tc, styles.tHeadText]}>Restant dû</Text>
+                </View>
+                {amort.schedule.map((r, i) => {
+                  const past = r.date < today;
+                  const isNext = i === nextIdx;
+                  return (
+                    <View key={r.period} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext]}>
+                      <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
+                      {editTable ? (
+                        <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={String(Math.round(r.payment))}
+                          onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], p: v } }))} />
+                      ) : (
+                        <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.payment)}</Text>
+                      )}
+                      {hasInsurance && (editTable ? (
+                        <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={String(Math.round(r.insurance))}
+                          onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], i: v } }))} />
+                      ) : (
+                        <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.insurance)}</Text>
+                      ))}
+                      {!editTable && <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.interest)}</Text>}
+                      {!editTable && <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.principalPart)}</Text>}
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.crdAfter)}</Text>
+                    </View>
+                  );
+                })}
+                <Text style={styles.tNote}>{editTable ? 'Saisis le montant exact de chaque échéance (mensualité hors assurance + assurance). Le capital restant dû se recalcule.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
+              </View>
+            );
+          })()}
 
           {/* Activer / désactiver (utile pour une simulation : compté ou non en projection/tréso) */}
           <TouchableOpacity style={styles.toggleBtn} onPress={() => update.mutate({ id: credit.id, is_active: !credit.is_active })} activeOpacity={0.8}>
@@ -270,8 +319,10 @@ function makeStyles(c: any) {
     tNextText: { color: c.blue, fontWeight: '800' },
     tHead: { borderBottomWidth: 1 },
     tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 10 },
-    tcDate: { width: 60, fontSize: 10.5, color: c.text },
-    tc: { flex: 1, textAlign: 'right', fontSize: 10.5, color: c.text },
+    tcDate: { width: 52, fontSize: 10, color: c.text },
+    tc: { flex: 1, textAlign: 'right', fontSize: 10, color: c.text, paddingLeft: 2 },
+    tNote: { fontSize: 10.5, color: c.textSecondary, marginTop: 8, lineHeight: 14 },
+    tInput: { flex: 1, marginLeft: 2, borderWidth: 1, borderColor: c.blue + '66', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 4, fontSize: 10, color: c.text, textAlign: 'right' },
     toggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 18, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '55' },
     toggleLabel: { color: c.blue, fontWeight: '700', fontSize: 13 },
     delBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: c.danger + '55' },

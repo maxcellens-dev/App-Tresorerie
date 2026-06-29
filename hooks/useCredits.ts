@@ -23,6 +23,7 @@ const mapCredit = (r: any): Credit => ({
   interest_total_manual: r.interest_total_manual != null ? Number(r.interest_total_manual) : null,
   insurance_yearly: Array.isArray(r.insurance_yearly) ? r.insurance_yearly : null,
   payment_yearly: Array.isArray(r.payment_yearly) ? r.payment_yearly : null,
+  schedule_overrides: r.schedule_overrides && typeof r.schedule_overrides === 'object' ? r.schedule_overrides : null,
   early_repayment_penalty_pct: r.early_repayment_penalty_pct != null ? Number(r.early_repayment_penalty_pct) : 0,
   deferral_months: r.deferral_months != null ? Number(r.deferral_months) : 0,
 });

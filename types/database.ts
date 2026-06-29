@@ -264,6 +264,8 @@ export interface Credit {
   insurance_yearly?: (number | null)[] | null;
   /** #6 — mensualité forcée par année (index 0 = an 1). */
   payment_yearly?: (number | null)[] | null;
+  /** Overrides manuels du tableau d'amortissement par échéance : { "<n°>": { p?, i? } }. */
+  schedule_overrides?: Record<string, { p?: number | null; i?: number | null }> | null;
   early_repayment_penalty_pct?: number | null;
   deferral_months?: number | null;
   deferral_type?: 'none' | 'partial' | 'total' | null;

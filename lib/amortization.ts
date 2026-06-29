@@ -20,6 +20,8 @@ export interface CreditParams {
   payment_yearly?: (number | null)[] | null;
   /** C5 — événements (remboursement anticipé, changement de taux) appliqués chronologiquement. */
   events?: CreditEvent[] | null;
+  /** Overrides MANUELS par échéance : { "<n°>": { p: mensualité hors assurance, i: assurance } }. */
+  schedule_overrides?: Record<string, { p?: number | null; i?: number | null }> | null;
 }
 
 export interface CreditEvent {
@@ -149,13 +151,20 @@ export function computeAmortization(p: CreditParams): AmortResult {
     }
     if (crd <= 0.005 && !(i <= defN)) break; // crédit soldé (ex. après remboursement anticipé total)
 
+    // Override MANUEL de cette échéance (édition du tableau) : prime sur tout.
+    const so = p.schedule_overrides?.[String(i)];
     const interest = tCur > 0 ? crd * tCur : 0;
-    const insI = insForPeriod(i);
+    const insI = so?.i != null && !Number.isNaN(so.i) ? Math.max(0, so.i) : insForPeriod(i);
     let payment: number;
     let principalPart: number;
     const inDeferral = i <= defN;
 
-    if (inDeferral && defType === 'total') {
+    if (so?.p != null && !Number.isNaN(so.p)) {
+      // Mensualité (hors assurance) forcée manuellement pour cette échéance.
+      payment = Math.max(0, so.p);
+      principalPart = payment - interest;
+      if (principalPart > crd) { principalPart = crd; payment = principalPart + interest; }
+    } else if (inDeferral && defType === 'total') {
       // Différé total : on ne paie rien ; les intérêts se capitalisent (s'ajoutent au CRD).
       payment = 0;
       principalPart = -interest; // CRD augmente des intérêts non payés
