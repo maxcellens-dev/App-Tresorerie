@@ -20,6 +20,7 @@ const mapCredit = (r: any): Credit => ({
   interim_interest: r.interim_interest != null ? Number(r.interim_interest) : 0,
   management_fees: r.management_fees != null ? Number(r.management_fees) : 0,
   other_fees: r.other_fees != null ? Number(r.other_fees) : 0,
+  interest_total_manual: r.interest_total_manual != null ? Number(r.interest_total_manual) : null,
   insurance_yearly: Array.isArray(r.insurance_yearly) ? r.insurance_yearly : null,
   payment_yearly: Array.isArray(r.payment_yearly) ? r.payment_yearly : null,
   early_repayment_penalty_pct: r.early_repayment_penalty_pct != null ? Number(r.early_repayment_penalty_pct) : 0,

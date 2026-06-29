@@ -1,8 +1,9 @@
 /**
  * Détail d'un crédit (module Crédit, Lot C2) : synthèse (CRD, mensualité, coût) + tableau d'amortissement.
  */
-import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, BackHandler, Platform } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -37,6 +38,13 @@ export default function CreditDetailScreen() {
   const [evtKind, setEvtKind] = useState<'early_repayment' | 'rate_change'>('early_repayment');
   const [evtAmount, setEvtAmount] = useState('');
   const [evtDate, setEvtDate] = useState(todayISO());
+
+  // #3 — retour matériel (Android) : revenir à la page précédente plutôt que de quitter.
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { router.back(); return true; });
+    return () => sub.remove();
+  }, [router]));
 
   const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
   const today = todayISO();
@@ -76,7 +84,16 @@ export default function CreditDetailScreen() {
       <ScreenGradient />
       <StatusBar style="dark" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScreenHeader title={credit.label} onBack={() => router.back()} />
+        <ScreenHeader
+          title={credit.label}
+          onBack={() => router.back()}
+          right={(
+            <TouchableOpacity onPress={() => router.push(`/(tabs)/comptes/credit-add?id=${credit.id}` as any)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="pencil" size={16} color={COLORS.blue} />
+              <Text style={{ color: COLORS.blue, fontWeight: '700', fontSize: 14 }}>Modifier</Text>
+            </TouchableOpacity>
+          )}
+        />
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Synthèse */}
           <View style={styles.card}>
@@ -94,10 +111,35 @@ export default function CreditDetailScreen() {
           <View style={styles.card}>
             {credit.lender ? <Row k="Prêteur" v={credit.lender} /> : null}
             {acctName ? <Row k="Prélèvement" v={acctName} /> : null}
-            <Row k="Déblocage" v={formatDateFrench(credit.start_date)} />
+            <Row k="1ʳᵉ échéance" v={formatDateFrench((credit.first_payment_date as string) || credit.start_date)} />
             {credit.insurance_monthly ? <Row k="Assurance" v={`${fmt(credit.insurance_monthly)}/mois`} /> : null}
             {credit.is_simulation ? <Row k="Statut" v="Simulation" /> : null}
           </View>
+
+          {/* #5 — Décomposition des coûts */}
+          {(() => {
+            const interest = credit.interest_total_manual != null ? credit.interest_total_manual : amort.totalInterest;
+            const loanFees = (credit.fees_guarantee ?? 0) + (credit.fees_notary ?? 0) + (credit.interim_interest ?? 0) + (credit.management_fees ?? 0);
+            const extraFees = (credit.fees_file ?? 0) + (credit.fees_bank ?? 0) + (credit.other_fees ?? 0);
+            const coutPret = interest + loanFees;
+            const coutTotal = coutPret + amort.totalInsurance + extraFees;
+            return (
+              <>
+                <Text style={styles.sectionTitle}>Coûts</Text>
+                <View style={styles.card}>
+                  <Row k={`Intérêts${credit.interest_total_manual != null ? ' (manuel)' : ''}`} v={fmt(interest)} />
+                  {loanFees > 0 ? <Row k="Frais du prêt" v={fmt(loanFees)} /> : null}
+                  <Row k="Coût du prêt" v={fmt(coutPret)} />
+                  {amort.totalInsurance > 0 ? <Row k="Assurance (totale)" v={fmt(amort.totalInsurance)} /> : null}
+                  {extraFees > 0 ? <Row k="Frais à part" v={fmt(extraFees)} /> : null}
+                  {(credit.personal_contribution ?? 0) > 0 ? <Row k="Apport personnel" v={fmt(credit.personal_contribution!)} /> : null}
+                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 4 }}>
+                    <View style={styles.infoRow}><Text style={[styles.infoK, { fontWeight: '800', color: COLORS.text }]}>Coût total</Text><Text style={[styles.infoV, { color: COLORS.danger, fontWeight: '800' }]}>{fmt(coutTotal)}</Text></View>
+                  </View>
+                </View>
+              </>
+            );
+          })()}
 
           {/* C5 — Événements (remboursement anticipé, changement de taux) */}
           <View style={styles.evtHead}>
@@ -121,26 +163,29 @@ export default function CreditDetailScreen() {
             ))}
           </View>
 
-          {/* Tableau d'amortissement */}
+          {/* Tableau d'amortissement — mensualité décomposée (intérêts décroissants, capital croissant). */}
           <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
           <View style={styles.card}>
             <View style={[styles.tRow, styles.tHead]}>
               <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
-              <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>
+              <Text style={[styles.tc, styles.tHeadText]}>Mensualité</Text>
               <Text style={[styles.tc, styles.tHeadText]}>Intérêts</Text>
+              <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>
               <Text style={[styles.tc, styles.tHeadText]}>Restant dû</Text>
             </View>
-            {amort.schedule.map((r) => {
-              const past = r.date <= today;
+            {(() => { const nextIdx = amort.schedule.findIndex((r) => r.date >= today); return amort.schedule.map((r, i) => {
+              const past = r.date < today;
+              const isNext = i === nextIdx;
               return (
-                <View key={r.period} style={[styles.tRow, past && { opacity: 0.5 }]}>
-                  <Text style={styles.tcDate}>{formatDateFrench(r.date).slice(3)}</Text>
-                  <Text style={styles.tc}>{Math.round(r.principalPart)}</Text>
-                  <Text style={styles.tc}>{Math.round(r.interest)}</Text>
-                  <Text style={styles.tc}>{Math.round(r.crdAfter)}</Text>
+                <View key={r.period} style={[styles.tRow, past && { opacity: 0.5 }, isNext && styles.tRowNext]}>
+                  <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
+                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.payment + r.insurance)}</Text>
+                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.interest)}</Text>
+                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.principalPart)}</Text>
+                  <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.crdAfter)}</Text>
                 </View>
               );
-            })}
+            }); })()}
           </View>
 
           {/* Activer / désactiver (utile pour une simulation : compté ou non en projection/tréso) */}
@@ -220,11 +265,13 @@ function makeStyles(c: any) {
     mLabel: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, marginBottom: 5, marginTop: 8 },
     mInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: c.text },
     mBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-    tRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
+    tRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
+    tRowNext: { backgroundColor: c.blue + '1A', borderRadius: 6 },
+    tNextText: { color: c.blue, fontWeight: '800' },
     tHead: { borderBottomWidth: 1 },
-    tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 11 },
-    tcDate: { width: 78, fontSize: 11.5, color: c.text },
-    tc: { flex: 1, textAlign: 'right', fontSize: 11.5, color: c.text },
+    tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 10 },
+    tcDate: { width: 60, fontSize: 10.5, color: c.text },
+    tc: { flex: 1, textAlign: 'right', fontSize: 10.5, color: c.text },
     toggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 18, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '55' },
     toggleLabel: { color: c.blue, fontWeight: '700', fontSize: 13 },
     delBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 10, borderRadius: 12, borderWidth: 1, borderColor: c.danger + '55' },

@@ -3,7 +3,7 @@
  * Saisie des paramètres (avec calendrier pour les dates), frais détaillés, et montants ANNUELS
  * (assurance + mensualité qui peuvent évoluer chaque année). Prévisualise l'amortissement.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useProjects } from '../../../hooks/useProjects';
-import { useAddCredit } from '../../../hooks/useCredits';
+import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/useCredits';
 import { computeAmortization } from '../../../lib/amortization';
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
@@ -28,14 +28,17 @@ const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'autre', label: 'Autre', icon: 'ellipsis-horizontal' },
 ];
 
-const FEES: { key: string; label: string }[] = [
-  { key: 'fees_file', label: 'Frais de dossier' },
-  { key: 'fees_bank', label: 'Frais de banque' },
-  { key: 'fees_notary', label: 'Frais de notaire' },
+// Frais COMPTÉS dans le coût du prêt (s'ajoutent aux intérêts).
+const LOAN_FEES: { key: string; label: string }[] = [
   { key: 'fees_guarantee', label: 'Frais de garantie' },
-  { key: 'personal_contribution', label: 'Apport personnel' },
+  { key: 'fees_notary', label: 'Frais de notaire' },
   { key: 'interim_interest', label: 'Intérêts intercalaires' },
   { key: 'management_fees', label: 'Intérêts de gestion' },
+];
+// Frais à payer À PART (hors coût du prêt / mensualité).
+const EXTRA_FEES: { key: string; label: string }[] = [
+  { key: 'fees_file', label: 'Frais de dossier' },
+  { key: 'fees_bank', label: 'Frais de banque' },
   { key: 'other_fees', label: 'Autres frais' },
 ];
 
@@ -43,9 +46,13 @@ export default function CreditAddScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const params = useLocalSearchParams<{ simulation?: string }>();
+  const params = useLocalSearchParams<{ simulation?: string; id?: string }>();
+  const editId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
   const addCredit = useAddCredit(user?.id);
+  const updateCredit = useUpdateCredit(user?.id);
+  const { data: allCredits = [] } = useCredits(user?.id);
+  const editing = editId ? allCredits.find((c) => c.id === editId) : undefined;
   const { data: accounts = [] } = useAllAccounts(user?.id);
   const checking = accounts.filter((a) => a.type === 'checking');
   const { data: projects = [] } = useProjects(user?.id);
@@ -63,6 +70,7 @@ export default function CreditAddScreen() {
   const [startDate, setStartDate] = useState(todayISO());
   const [isSimulation, setIsSimulation] = useState(params.simulation === '1');
   const [fees, setFees] = useState<Record<string, string>>({});
+  const [interestManual, setInterestManual] = useState('');
   const [showFees, setShowFees] = useState(false);
   const [showYearly, setShowYearly] = useState(false);
   const [insYear, setInsYear] = useState<Record<number, string>>({});
@@ -70,6 +78,31 @@ export default function CreditAddScreen() {
   const [showCal, setShowCal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Édition : pré-remplir le formulaire une fois le crédit chargé.
+  const [prefilled, setPrefilled] = useState(false);
+  useEffect(() => {
+    if (!editing || prefilled) return;
+    setType(editing.type); setLabel(editing.label); setLender(editing.lender ?? '');
+    setAccountId(editing.account_id ?? null); setProjectId(editing.project_id ?? null);
+    setPrincipal(String(editing.principal)); setRate(String(editing.rate_annual));
+    setDuration(String(editing.duration_months)); setInsurance(editing.insurance_monthly ? String(editing.insurance_monthly) : '');
+    setStartDate((editing.first_payment_date as string) || editing.start_date);
+    setIsSimulation(editing.is_simulation);
+    setFees({
+      fees_file: String(editing.fees_file ?? ''), fees_bank: String(editing.fees_bank ?? ''), fees_notary: String(editing.fees_notary ?? ''),
+      fees_guarantee: String(editing.fees_guarantee ?? ''), personal_contribution: String(editing.personal_contribution ?? ''),
+      interim_interest: String(editing.interim_interest ?? ''), management_fees: String(editing.management_fees ?? ''), other_fees: String(editing.other_fees ?? ''),
+    });
+    if (editing.interest_total_manual != null) setInterestManual(String(editing.interest_total_manual));
+    if (Array.isArray(editing.insurance_yearly) || Array.isArray(editing.payment_yearly)) {
+      const ins: Record<number, string> = {}; const pay: Record<number, string> = {};
+      (editing.insurance_yearly ?? []).forEach((v, i) => { if (v != null) ins[i] = String(v); });
+      (editing.payment_yearly ?? []).forEach((v, i) => { if (v != null) pay[i] = String(v); });
+      setInsYear(ins); setPayYear(pay); setShowYearly(true);
+    }
+    setPrefilled(true);
+  }, [editing, prefilled]);
 
   const num = (s: string | undefined) => (s ? parseFloat(s.replace(',', '.')) : NaN);
   const numOr0 = (s: string | undefined) => { const v = num(s); return Number.isNaN(v) ? 0 : v; };
@@ -103,17 +136,21 @@ export default function CreditAddScreen() {
     if (!C || C <= 0) return setError('Renseigne le capital emprunté.');
     if (!n || n <= 0) return setError('Renseigne la durée (en mois).');
     setSaving(true);
+    const payload: any = {
+      type, label: label.trim(), lender: lender.trim() || null, account_id: accountId, project_id: projectId,
+      principal: C, duration_months: n, rate_annual: numOr0(rate), rate_type: 'fixe',
+      insurance_monthly: numOr0(insurance), start_date: startDate, first_payment_date: startDate,
+      is_simulation: isSimulation,
+      fees_file: numOr0(fees.fees_file), fees_bank: numOr0(fees.fees_bank), fees_notary: numOr0(fees.fees_notary),
+      fees_guarantee: numOr0(fees.fees_guarantee), personal_contribution: numOr0(fees.personal_contribution),
+      interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
+      interest_total_manual: Number.isNaN(num(interestManual)) ? null : num(interestManual),
+      insurance_yearly: showYearly && years > 0 ? buildInsArray() : null,
+      payment_yearly: showYearly && years > 0 ? buildPayArray() : null,
+    };
     try {
-      await addCredit.mutateAsync({
-        type, label: label.trim(), lender: lender.trim() || null, account_id: accountId, project_id: projectId,
-        principal: C, duration_months: n, rate_annual: numOr0(rate), rate_type: 'fixe',
-        insurance_monthly: numOr0(insurance), start_date: startDate, is_simulation: isSimulation, is_active: true,
-        fees_file: numOr0(fees.fees_file), fees_bank: numOr0(fees.fees_bank), fees_notary: numOr0(fees.fees_notary),
-        fees_guarantee: numOr0(fees.fees_guarantee), personal_contribution: numOr0(fees.personal_contribution),
-        interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
-        insurance_yearly: showYearly && years > 0 ? buildInsArray() : null,
-        payment_yearly: showYearly && years > 0 ? buildPayArray() : null,
-      } as any);
+      if (editId) await updateCredit.mutateAsync({ id: editId, ...payload });
+      else await addCredit.mutateAsync({ ...payload, is_active: true });
       router.back();
     } catch (e: any) {
       setError(e?.message ?? 'Impossible d\'enregistrer.');
@@ -126,7 +163,7 @@ export default function CreditAddScreen() {
       <ScreenGradient />
       <StatusBar style="dark" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScreenHeader title="Nouveau crédit" onBack={() => router.back()} />
+        <ScreenHeader title={editId ? 'Modifier le crédit' : 'Nouveau crédit'} onBack={() => router.back()} />
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {error && <View style={styles.errorBanner}><Ionicons name="alert-circle" size={16} color={COLORS.danger} /><Text style={styles.errorText}>{error}</Text></View>}
 
@@ -168,7 +205,7 @@ export default function CreditAddScreen() {
             </View>
           </View>
 
-          <Text style={styles.label}>Date de déblocage</Text>
+          <Text style={styles.label}>Date de 1ʳᵉ échéance</Text>
           <TouchableOpacity style={[styles.input, styles.dateBtn]} onPress={() => setShowCal(true)} activeOpacity={0.7}>
             <Text style={{ color: COLORS.text, fontSize: 15 }}>{formatDateFrench(startDate)}</Text>
             <Ionicons name="calendar-outline" size={18} color={COLORS.blue} />
@@ -200,7 +237,7 @@ export default function CreditAddScreen() {
             </>
           )}
 
-          {/* #4 — Frais & apport (repliable) */}
+          {/* #5 — Frais & apport (repliable) : 2 groupes distincts + intérêts manuels. */}
           <TouchableOpacity style={styles.section} onPress={() => setShowFees((v) => !v)} activeOpacity={0.7}>
             <Ionicons name="receipt-outline" size={18} color={COLORS.text} />
             <Text style={styles.sectionTitle}>Frais & apport</Text>
@@ -208,12 +245,36 @@ export default function CreditAddScreen() {
           </TouchableOpacity>
           {showFees && (
             <View style={{ gap: 8, marginTop: 4 }}>
-              {FEES.map((f) => (
+              {/* Intérêts : calculés depuis le taux, bypassables manuellement. */}
+              <View style={styles.feeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.feeLabel}>Intérêts (total)</Text>
+                  <Text style={styles.feeSubHint}>Calculé : {amort ? fmt(amort.totalInterest) : '—'}. Laisse vide pour l'auto.</Text>
+                </View>
+                <TextInput style={styles.feeInput} value={interestManual} onChangeText={setInterestManual} keyboardType="decimal-pad" placeholder={amort ? String(Math.round(amort.totalInterest)) : '0'} placeholderTextColor={COLORS.textSecondary} />
+              </View>
+
+              <Text style={styles.feeGroup}>Intérêts & frais du prêt <Text style={styles.feeGroupHint}>(comptés dans le coût du prêt)</Text></Text>
+              {LOAN_FEES.map((f) => (
                 <View key={f.key} style={styles.feeRow}>
                   <Text style={styles.feeLabel}>{f.label}</Text>
                   <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
                 </View>
               ))}
+
+              <Text style={styles.feeGroup}>Frais à payer à part <Text style={styles.feeGroupHint}>(hors coût du prêt)</Text></Text>
+              {EXTRA_FEES.map((f) => (
+                <View key={f.key} style={styles.feeRow}>
+                  <Text style={styles.feeLabel}>{f.label}</Text>
+                  <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
+                </View>
+              ))}
+
+              <Text style={styles.feeGroup}>Apport</Text>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Apport personnel</Text>
+                <TextInput style={styles.feeInput} value={fees.personal_contribution ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, personal_contribution: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
+              </View>
             </View>
           )}
 
@@ -254,17 +315,27 @@ export default function CreditAddScreen() {
             <View style={[styles.check, isSimulation && { backgroundColor: COLORS.orange, borderColor: COLORS.orange }]}>{isSimulation && <Ionicons name="checkmark" size={14} color={COLORS.bg} />}</View>
           </TouchableOpacity>
 
-          {amort && (
-            <View style={styles.preview}>
-              <Text style={styles.previewTitle}>Estimation</Text>
-              <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (hors assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyPayment)}</Text></View>
-              <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (1ʳᵉ année, avec assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
-              <View style={styles.previewRow}><Text style={styles.previewK}>Coût total du crédit</Text><Text style={[styles.previewV, { color: COLORS.danger }]}>{fmt(amort.totalCost)}</Text></View>
-            </View>
-          )}
+          {amort && (() => {
+            // #5 — décomposition des coûts.
+            const interest = !Number.isNaN(num(interestManual)) ? num(interestManual) : amort.totalInterest;
+            const loanFees = LOAN_FEES.reduce((s, f) => s + numOr0(fees[f.key]), 0);
+            const extraFees = EXTRA_FEES.reduce((s, f) => s + numOr0(fees[f.key]), 0);
+            const coutPret = interest + loanFees;                          // constitue la mensualité (hors assurance)
+            const coutTotal = coutPret + amort.totalInsurance + extraFees; // 100% des coûts
+            return (
+              <View style={styles.preview}>
+                <Text style={styles.previewTitle}>Estimation</Text>
+                <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (hors assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyPayment)}</Text></View>
+                <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (1ʳᵉ année, avec assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
+                <View style={[styles.previewRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, paddingTop: 8, marginTop: 2 }]}><Text style={styles.previewK}>Intérêts{!Number.isNaN(num(interestManual)) ? ' (manuel)' : ''}</Text><Text style={styles.previewV}>{fmt(interest)}</Text></View>
+                <View style={styles.previewRow}><Text style={styles.previewK}>Coût du prêt (intérêts + frais du prêt)</Text><Text style={styles.previewV}>{fmt(coutPret)}</Text></View>
+                <View style={styles.previewRow}><Text style={styles.previewK}>Coût total (tout compris)</Text><Text style={[styles.previewV, { color: COLORS.danger }]}>{fmt(coutTotal)}</Text></View>
+              </View>
+            );
+          })()}
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveLabel}>Enregistrer le crédit</Text>}
+            {saving ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveLabel}>{editId ? 'Enregistrer les modifications' : 'Enregistrer le crédit'}</Text>}
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
@@ -275,7 +346,7 @@ export default function CreditAddScreen() {
           <View style={styles.calCard}>
             <View style={styles.calHead}>
               <TouchableOpacity onPress={() => setShowCal(false)}><Text style={{ color: COLORS.emerald, fontWeight: '600' }}>Fermer</Text></TouchableOpacity>
-              <Text style={{ fontWeight: '700', color: COLORS.text }}>Date de déblocage</Text>
+              <Text style={{ fontWeight: '700', color: COLORS.text }}>Date de 1ʳᵉ échéance</Text>
               <View style={{ width: 50 }} />
             </View>
             <CalendarWithPicker
@@ -314,6 +385,9 @@ function makeStyles(c: any) {
     sectionTitle: { flex: 1, fontSize: 14.5, fontWeight: '700', color: c.text },
     feeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     feeLabel: { flex: 1, fontSize: 13.5, color: c.text },
+    feeSubHint: { fontSize: 10.5, color: c.textSecondary, marginTop: 1 },
+    feeGroup: { fontSize: 12, fontWeight: '800', color: c.text, marginTop: 8 },
+    feeGroupHint: { fontSize: 11, fontWeight: '500', color: c.textSecondary },
     feeInput: { width: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: c.text, textAlign: 'right' },
     hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
     yRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },

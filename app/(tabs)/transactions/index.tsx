@@ -14,6 +14,7 @@ import { useNavBack } from '../../../hooks/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
+import { useCreditFlows } from '../../../hooks/useCreditFlows';
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
 import { useCategories } from '../../../hooks/useCategories';
 import { useAllAccounts } from '../../../hooks/useAccounts';
@@ -142,7 +143,10 @@ export default function TransactionsListScreen() {
   const updateTx = useUpdateTransaction(user?.id);
   const deleteTx = useDeleteTransaction(user?.id);
   const validateProjectDraft = useValidateProjectDraft(user?.id);
-  const { data: transactions = [], isLoading } = transactionsQuery;
+  const { data: transactionsReal = [], isLoading } = transactionsQuery;
+  // #2 — mensualités de crédit (remboursement + assurance) rendues visibles dans la liste, catégorisées.
+  const creditFlows = useCreditFlows(user?.id);
+  const transactions = useMemo(() => [...transactionsReal, ...creditFlows], [transactionsReal, creditFlows]);
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAllAccounts(user?.id);
   // Map account_id → compte (avec _role / is_joint / profile_id) pour distinguer les comptes
@@ -716,6 +720,8 @@ export default function TransactionsListScreen() {
                         // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
                         const isDraftQuickAction = isDraft;
                         const navigateToEdit = () => {
+                          // #2 — une mensualité de crédit (flux synthétique) renvoie au crédit, pas à l'édition de tx.
+                          if ((item as any).is_credit_flow) { router.push(`/(tabs)/comptes/credit/${(item as any).credit_id}` as any); return; }
                           const route = item.displayDate
                             ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
                             : `/(tabs)/transactions/edit/${item.id}`;

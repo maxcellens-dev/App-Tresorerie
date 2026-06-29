@@ -71,9 +71,10 @@ export function computeAmortization(p: CreditParams): AmortResult {
   const ins = Math.max(0, Number(p.insurance_monthly) || 0);
   const defN = Math.max(0, Math.round(Number(p.deferral_months) || 0));
   const defType = p.deferral_type ?? 'none';
+  // La 1ʳᵉ échéance EST la date saisie (plus de décalage à m+1) : period 1 = first_payment_date (sinon start_date).
   const firstDate = p.first_payment_date && /^\d{4}-\d{2}-\d{2}$/.test(p.first_payment_date)
     ? p.first_payment_date
-    : addMonthsISO(p.start_date, 1);
+    : p.start_date;
 
   // Mensualité hors différé sur le nombre d'échéances « amortissantes » restant après le différé.
   const amortN = Math.max(1, n - defN);

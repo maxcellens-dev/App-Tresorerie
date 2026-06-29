@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
 import { convertAmount, type RatesMap } from '../lib/currency';
 import { fetchSharedContribution } from './useSharedContribution';
-import { buildCreditPilotTx } from './useCreditFlows';
+import { buildCreditPilotTxs } from './useCreditFlows';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -164,14 +164,14 @@ async function fetchPilotageData(profileId: string): Promise<{
   const persoAccounts = allAccounts.filter((a) => !sharedIdSet.has(a.id) && !(a as any).is_joint);
   const persoTransactions = (transactionsRes.data ?? []).filter((t: any) => !sharedIdSet.has(t.account_id));
 
-  // Crédit (Pilotage) — mensualités en dépense récurrente synthétique (cohérent avec tréso/projection).
-  const curByAcct: Record<string, string> = {};
-  [...persoAccounts, ...shared.accounts].forEach((a: any) => { curByAcct[a.id] = a.currency; });
+  // Crédit (Pilotage) — mensualités en récurrentes synthétiques (remboursement + assurance, catégorisées,
+  // pondérées par le % d'impact du compte si partagé). Cohérent avec tréso/projection.
+  const acctById: Record<string, any> = {};
+  [...persoAccounts, ...shared.accounts].forEach((a: any) => { acctById[a.id] = a; });
   const evtByCredit: Record<string, any[]> = {};
   for (const e of (creditEvtRes.data ?? []) as any[]) (evtByCredit[e.credit_id] ??= []).push(e);
   const creditPilotTx = ((creditsRes.data ?? []) as any[])
-    .map((c) => buildCreditPilotTx(c as any, evtByCredit[c.id], curByAcct[c.account_id] || 'EUR'))
-    .filter(Boolean);
+    .flatMap((c) => buildCreditPilotTxs(c as any, evtByCredit[c.id], acctById[c.account_id]));
 
   return {
     profile: (profileRes.data as Profile) || null,

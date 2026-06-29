@@ -258,6 +258,8 @@ export interface Credit {
   interim_interest?: number | null;
   management_fees?: number | null;
   other_fees?: number | null;
+  /** Intérêts totaux saisis manuellement (bypass du calcul par le taux) pour la décomposition des coûts. */
+  interest_total_manual?: number | null;
   /** #5 — assurance mensuelle par année (index 0 = an 1). */
   insurance_yearly?: (number | null)[] | null;
   /** #6 — mensualité forcée par année (index 0 = an 1). */
