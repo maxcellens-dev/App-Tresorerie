@@ -77,7 +77,7 @@ export default function CreditDetailScreen() {
       <StatusBar style="dark" />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScreenHeader title={credit.label} onBack={() => router.back()} />
-        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Synthèse */}
           <View style={styles.card}>
             <Text style={styles.crdLabel}>Capital restant dû</Text>
