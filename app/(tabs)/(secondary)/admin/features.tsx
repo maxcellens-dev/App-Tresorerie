@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -42,6 +42,9 @@ export default function AdminFeatures() {
   const quickAddOn = flags?.quick_add_enabled !== false; // défaut activé
   const quickAddMode = (flags?.quick_add_mode ?? 'tabbar') as 'tabbar' | 'bubble';
 
+  type FeatTab = 'general' | 'ai';
+  const [tab, setTab] = useState<FeatTab>('general');
+
   const Toggle = ({ label, desc, value, onToggle }: { label: string; desc: string; value: boolean; onToggle: () => void }) => (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
@@ -65,9 +68,34 @@ export default function AdminFeatures() {
         <Text style={styles.title}>Fonctionnalités</Text>
         <Text style={styles.subtitle}>Activez/désactivez des fonctionnalités expérimentales pour tous les utilisateurs.</Text>
 
+        <View style={styles.tabs}>
+          {([['general', 'Général'], ['ai', 'Conseils IA']] as [typeof tab, string][]).map(([t, lbl]) => (
+            <TouchableOpacity key={t} style={[styles.tab, tab === t && styles.tabOn]} onPress={() => setTab(t)}>
+              <Text style={[styles.tabTxt, tab === t && styles.tabTxtOn]}>{lbl}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {isLoading ? (
             <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 32 }} />
+          ) : tab === 'ai' ? (
+            <>
+              <View style={styles.card}>
+                <Ionicons name="information-circle-outline" size={20} color={COLORS.emerald} />
+                <Text style={[styles.cardDesc, { flex: 1, marginTop: 0 }]}>
+                  Le bouton « Conseils IA » est toujours visible dans le menu. C'est l'ACCÈS qui change : réservé aux abonnés Premium par défaut, ou ouvert à tous via « Ouvrir à tous » dans la configuration avancée.
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/(secondary)/admin/ai' as any)}>
+                <Ionicons name="sparkles-outline" size={20} color={COLORS.emerald} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>Configuration avancée</Text>
+                  <Text style={styles.cardDesc}>Ouverture à tous, modèles, prompts, quotas, consentement, tickets.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </>
           ) : (
             <>
             <Toggle
@@ -154,6 +182,12 @@ function makeStyles(c: any) {
     backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
     title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 6 },
     subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
+    tabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    tab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+    tabOn: { backgroundColor: c.emerald + '18', borderColor: c.emerald },
+    tabTxt: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    tabTxtOn: { color: c.emerald, fontWeight: '700' },
+    linkCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
     card: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 16, marginBottom: 12 },
     cardTitle: { fontSize: 15, fontWeight: '700', color: c.text },
     cardDesc: { fontSize: 12, color: c.textSecondary, marginTop: 3, lineHeight: 16 },

@@ -198,6 +198,11 @@ export default function CreditDetailScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={styles.tDisclaimer}>
+            Ce tableau est fourni à titre indicatif : il ne saurait se substituer à l'échéancier officiel
+            établi par l'organisme prêteur, qui applique ses propres méthodes de calcul (notamment pour la
+            répartition des intérêts) et fait seul foi.
+          </Text>
           {(() => {
             // Vue = échéancier RÉEL (remboursement + assurance décalée). Édition = par période (schedule).
             const rows = editTable ? amort.schedule : amort.displaySchedule;
@@ -332,6 +337,7 @@ function makeStyles(c: any) {
     tcDate: { width: 52, fontSize: 10, color: c.text },
     tc: { flex: 1, textAlign: 'right', fontSize: 10, color: c.text, paddingLeft: 2 },
     tNote: { fontSize: 10.5, color: c.textSecondary, marginTop: 8, lineHeight: 14 },
+    tDisclaimer: { fontSize: 11, fontStyle: 'italic', color: c.textSecondary, lineHeight: 15, marginTop: 6, marginBottom: 8, paddingHorizontal: 4 },
     tInput: { flex: 1, marginLeft: 2, borderWidth: 1, borderColor: c.blue + '66', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 4, fontSize: 10, color: c.text, textAlign: 'right' },
     toggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, marginTop: 18, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '55' },
     toggleLabel: { color: c.blue, fontWeight: '700', fontSize: 13 },

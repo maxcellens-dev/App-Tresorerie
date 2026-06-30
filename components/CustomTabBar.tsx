@@ -7,6 +7,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useRwInvitations } from '../hooks/useRelykaWorld';
 import { useAccountInvitations, useSharedAccountsRealtime } from '../hooks/useSharedAccounts';
+import { useCreditInvitations, useSharedCreditsRealtime } from '../hooks/useSharedCredits';
 import { UnreadBadge } from './HeaderWithProfile';
 
 type TabName = 'comptes' | 'projects' | 'pilotage' | 'transactions' | 'projection';
@@ -36,8 +37,11 @@ export default function CustomTabBar({ state }: any) {
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const rwInviteCount = rwInvitations.length;
   const { data: acctInvitations = [] } = useAccountInvitations(user?.id);
-  const acctInviteCount = acctInvitations.length;
+  const { data: creditInvitations = [] } = useCreditInvitations(user?.id);
+  // Badge « Comptes » = invitations de comptes partagés/joints + invitations de crédits partagés.
+  const acctInviteCount = acctInvitations.length + creditInvitations.length;
   useSharedAccountsRealtime(user?.id); // sync live des comptes partagés/joints + invitations
+  useSharedCreditsRealtime(user?.id);  // sync live des crédits partagés + invitations
 
   return (
     // paddingBottom = inset système (barre de navigation / gestes) → le contenu remonte

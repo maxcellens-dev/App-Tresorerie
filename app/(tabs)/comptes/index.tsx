@@ -38,7 +38,7 @@ export default function AccountsListScreen() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const onbAccount = useOnbHighlight('account_initialized');
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { welcome } = useLocalSearchParams<{ welcome?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
@@ -404,7 +404,7 @@ export default function AccountsListScreen() {
                   <TouchableOpacity
                     style={styles.inviteDecline}
                     onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: false })}
-                    disabled={respondInvite.isPending}
+                    disabled={respondInvite.isPending || isImpersonating}
                     accessibilityRole="button"
                   >
                     <Ionicons name="close" size={18} color={COLORS.danger} />
@@ -412,7 +412,7 @@ export default function AccountsListScreen() {
                   <TouchableOpacity
                     style={styles.inviteAccept}
                     onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: true })}
-                    disabled={respondInvite.isPending}
+                    disabled={respondInvite.isPending || isImpersonating}
                     accessibilityRole="button"
                   >
                     <Ionicons name="checkmark" size={18} color="#fff" />

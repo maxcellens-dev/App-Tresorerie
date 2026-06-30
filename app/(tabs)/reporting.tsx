@@ -651,6 +651,12 @@ export default function ReportingScreen() {
         <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} />
         <ScreenGradient />
         <SafeAreaView style={s.safe} edges={['left', 'right']}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8 }}>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack} accessibilityRole="button">
+              <Ionicons name="arrow-back" size={22} color={C.text} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>Retour</Text>
+            </TouchableOpacity>
+          </View>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
             <Ionicons name="star-outline" size={48} color={C.amber} />
             <Text style={{ color: C.text, marginTop: 14, fontSize: 17, fontWeight: '800', textAlign: 'center' }}>Reporting réservé aux abonnés Premium</Text>
@@ -664,9 +670,6 @@ export default function ReportingScreen() {
             >
               <Ionicons name="star" size={16} color="#0f172a" />
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#0f172a' }}>Passer Premium</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 16, padding: 8 }} onPress={goBack} activeOpacity={0.7}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: C.textSecondary }}>Retour</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>

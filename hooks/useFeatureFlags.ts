@@ -12,6 +12,8 @@ export interface FeatureFlags {
   ads_enabled?: boolean;
   /** Page Reporting accessible aux utilisateurs (sinon : masquée du menu). */
   reporting_enabled?: boolean;
+  /** Page Conseils IA accessible (gate Premium + flag ai_open_to_all dans ai_config). */
+  ai_advice_enabled?: boolean;
   /** Messages contextuels sous les recommandations (projection invest, économie…). Défaut : activé. */
   reco_context_enabled?: boolean;
   /** Dernière version publiée sur le store (ex. "1.0.2"). Si > version installée → bandeau « mise à jour ». */
@@ -48,7 +50,11 @@ export function useFeatureFlags() {
       const { data } = await supabase.from('app_config').select('features').eq('id', 'default').single();
       return (((data as any)?.features) ?? {}) as FeatureFlags;
     },
-    staleTime: 5 * 60 * 1000,
+    // Flags = visibilité de fonctionnalités : on veut une propagation quasi immédiate quand l'admin
+    // active/désactive (sans attendre). Cache court + refetch au retour sur l'app.
+    staleTime: 20 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 }
 

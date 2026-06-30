@@ -17,7 +17,9 @@ export function useCreditInvitations(userId: string | undefined) {
     queryKey: ['credit_invitations', userId],
     enabled: !!userId && ok(),
     queryFn: async (): Promise<CreditInvitation[]> => {
-      const { data, error } = await supabase!.rpc('credit_my_invitations');
+      // p_user = user consulté → l'admin en impersonation voit les invitations du user visité (sinon
+      // auth.uid() = l'admin). Un user normal ne peut viser que lui-même (gardé côté RPC).
+      const { data, error } = await supabase!.rpc('credit_my_invitations', { p_user: userId });
       if (error) throw error;
       return (data ?? []) as CreditInvitation[];
     },

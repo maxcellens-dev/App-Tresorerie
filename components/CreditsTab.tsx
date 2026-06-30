@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
+import { useAuth } from '../contexts/AuthContext';
 import { useCredits } from '../hooks/useCredits';
 import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealtime } from '../hooks/useSharedCredits';
 import { computeAmortization } from '../lib/amortization';
@@ -24,6 +25,7 @@ export default function CreditsTab({ userId }: { userId?: string }) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
+  const { isImpersonating } = useAuth();
   const { data: credits = [], isLoading } = useCredits(userId);
   const { data: invitations = [] } = useCreditInvitations(userId);
   const respond = useRespondCreditInvitation(userId);
@@ -67,16 +69,24 @@ export default function CreditsTab({ userId }: { userId?: string }) {
         </View>
       )}
 
-      {/* Invitations en attente */}
+      {/* Invitations en attente — même forme que les invitations de comptes partagés/joints. */}
       {invitations.map((inv) => (
         <View key={inv.invite_id} style={styles.inviteCard}>
-          <Ionicons name="card-outline" size={20} color={COLORS.blue} />
+          <View style={[styles.inviteIcon, { backgroundColor: COLORS.emerald + '1A' }]}>
+            <Ionicons name="card-outline" size={18} color={COLORS.emerald} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.inviteName} numberOfLines={1}>{inv.credit_label}</Text>
-            <Text style={styles.inviteSub}>{inv.from_name} t'invite ({inv.role === 'read' ? 'consultation' : 'écriture'})</Text>
+            <Text style={styles.inviteSub} numberOfLines={1}>{inv.from_name} t'invite · crédit partagé · {inv.role === 'read' ? 'consultation' : 'écriture'}</Text>
           </View>
-          <TouchableOpacity onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: true })}><Ionicons name="checkmark-circle" size={26} color={COLORS.emerald} /></TouchableOpacity>
-          <TouchableOpacity onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: false })}><Ionicons name="close-circle" size={26} color={COLORS.danger} /></TouchableOpacity>
+          {/* En consultation admin, les boutons restent visibles (harmonisé avec les comptes) mais
+              l'acceptation se fait côté user (le serveur n'accepte qu'au nom de l'invité réel). */}
+          <TouchableOpacity style={styles.inviteDecline} onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: false })} disabled={respond.isPending || isImpersonating}>
+            <Ionicons name="close" size={18} color={COLORS.danger} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.inviteAccept} onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: true })} disabled={respond.isPending || isImpersonating}>
+            <Ionicons name="checkmark" size={18} color="#fff" />
+          </TouchableOpacity>
         </View>
       ))}
 
@@ -144,9 +154,12 @@ function makeStyles(c: any) {
     simTagText: { fontSize: 9.5, fontWeight: '700', color: c.orange },
     shareTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.blue + '1A', borderWidth: 1, borderColor: c.blue + '44' },
     shareTagText: { fontSize: 9.5, fontWeight: '700', color: c.blue },
-    inviteCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '55', backgroundColor: c.blue + '0D', marginBottom: 10 },
-    inviteName: { fontSize: 14, fontWeight: '700', color: c.text },
-    inviteSub: { fontSize: 11.5, color: c.textSecondary },
+    inviteCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
+    inviteIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    inviteName: { fontSize: 14.5, fontWeight: '700', color: c.text },
+    inviteSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
+    inviteDecline: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.danger + '55' },
+    inviteAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald },
     emptyCard: { alignItems: 'center', padding: 24, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, gap: 8 },
     emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
     emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text },

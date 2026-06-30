@@ -35,6 +35,7 @@ function TabsHeader({ route }: { route: any }) {
     '(tabs)/comptes': 'Comptes',
     '(tabs)/projects': 'Projets',
     '(tabs)/reporting': 'Reporting',
+    '(tabs)/conseils-ia': 'Conseils IA',
     '(tabs)/tresorerie': 'Plan de trésorerie',
     '(tabs)/(secondary)/parametres': 'Paramètres',
     '(tabs)/(secondary)/categories': 'Catégories',
@@ -157,6 +158,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="tresorerie" options={{ href: null, title: 'Trésorerie' }} />
       <Tabs.Screen name="objectives" options={{ href: null, title: 'Objectifs' }} />
       <Tabs.Screen name="reporting" options={{ href: null, title: 'Reporting' }} />
+      <Tabs.Screen name="conseils-ia" options={{ href: null, title: 'Conseils IA' }} />
     </Tabs>
     <OnboardingGate />
     <QuickAddButton />
