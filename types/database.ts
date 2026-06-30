@@ -246,6 +246,8 @@ export interface Credit {
   principal: number;
   start_date: string;
   first_payment_date?: string | null;
+  /** Date de 1ʳᵉ échéance de l'ASSURANCE (peut différer du remboursement). NULL → first_payment_date. */
+  first_insurance_date?: string | null;
   duration_months: number;
   rate_annual: number;
   rate_type: 'fixe' | 'variable' | 'mixte';
@@ -264,14 +266,17 @@ export interface Credit {
   insurance_yearly?: (number | null)[] | null;
   /** #6 — mensualité forcée par année (index 0 = an 1). */
   payment_yearly?: (number | null)[] | null;
-  /** Overrides manuels du tableau d'amortissement par échéance : { "<n°>": { p?, i? } }. */
-  schedule_overrides?: Record<string, { p?: number | null; i?: number | null }> | null;
+  /** Overrides manuels du tableau d'amortissement par échéance (toutes colonnes) :
+   *  { "<n°>": { p?, i?, int?, cap?, rd?, d? } } (mensualité, assurance, intérêts, capital, restant dû, date). */
+  schedule_overrides?: Record<string, { p?: number | null; i?: number | null; int?: number | null; cap?: number | null; rd?: number | null; d?: string | null }> | null;
   early_repayment_penalty_pct?: number | null;
   deferral_months?: number | null;
   deferral_type?: 'none' | 'partial' | 'total' | null;
   is_simulation: boolean;
   is_active: boolean;
   notes?: string | null;
+  /** Rôle de l'utilisateur courant sur ce crédit : 'owner' (le mien) ou 'write'/'read' (crédit partagé reçu). */
+  _role?: 'owner' | 'write' | 'read';
   created_at: string;
   updated_at: string;
 }

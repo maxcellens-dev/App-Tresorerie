@@ -20,8 +20,9 @@ export interface CreditParams {
   payment_yearly?: (number | null)[] | null;
   /** C5 — événements (remboursement anticipé, changement de taux) appliqués chronologiquement. */
   events?: CreditEvent[] | null;
-  /** Overrides MANUELS par échéance : { "<n°>": { p: mensualité hors assurance, i: assurance } }. */
-  schedule_overrides?: Record<string, { p?: number | null; i?: number | null }> | null;
+  /** Overrides MANUELS par échéance (édition du tableau, toutes colonnes) :
+   *  p = mensualité hors assurance, i = assurance, int = intérêts, cap = capital, rd = restant dû, d = date. */
+  schedule_overrides?: Record<string, { p?: number | null; i?: number | null; int?: number | null; cap?: number | null; rd?: number | null; d?: string | null }> | null;
 }
 
 export interface CreditEvent {
@@ -92,7 +93,7 @@ export interface AmortResult {
   paidCountAtDate: (isoDate: string) => number;
 }
 
-function addMonthsISO(iso: string, months: number): string {
+export function addMonthsISO(iso: string, months: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   const base = new Date(Date.UTC(y, (m - 1) + months, 1));
   const day = Math.min(d, new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate());
@@ -140,8 +141,12 @@ export function computeAmortization(p: CreditParams): AmortResult {
   let tCur = t;                 // taux mensuel courant (modifiable par rate_change)
   let modPayment: number | null = null; // mensualité forcée par une modulation
 
+  const ov = (i: number) => p.schedule_overrides?.[String(i)];
+  const onum = (v: number | null | undefined) => (v != null && !Number.isNaN(v) ? v : undefined);
+
   for (let i = 1; i <= n; i++) {
-    const date = addMonthsISO(firstDate, i - 1);
+    const so = ov(i);
+    const date = (so?.d && /^\d{4}-\d{2}-\d{2}$/.test(so.d)) ? so.d : addMonthsISO(firstDate, i - 1);
     // Appliquer les événements dont la date est <= date de cette échéance.
     while (evIdx < events.length && events[evIdx].date <= date) {
       const ev = events[evIdx++];
@@ -151,36 +156,37 @@ export function computeAmortization(p: CreditParams): AmortResult {
     }
     if (crd <= 0.005 && !(i <= defN)) break; // crédit soldé (ex. après remboursement anticipé total)
 
-    // Override MANUEL de cette échéance (édition du tableau) : prime sur tout.
-    const so = p.schedule_overrides?.[String(i)];
-    const interest = tCur > 0 ? crd * tCur : 0;
-    const insI = so?.i != null && !Number.isNaN(so.i) ? Math.max(0, so.i) : insForPeriod(i);
+    // Overrides MANUELS de cette échéance (édition du tableau, toutes colonnes) : priment sur le calcul.
+    const interest = onum(so?.int) ?? (tCur > 0 ? crd * tCur : 0);
+    const insI = onum(so?.i) != null ? Math.max(0, onum(so?.i)!) : insForPeriod(i);
     let payment: number;
     let principalPart: number;
     const inDeferral = i <= defN;
 
-    if (so?.p != null && !Number.isNaN(so.p)) {
+    if (onum(so?.cap) != null) {
+      // Capital forcé manuellement → la mensualité suit (sauf si forcée aussi).
+      principalPart = onum(so?.cap)!;
+      payment = onum(so?.p) ?? (principalPart + interest);
+    } else if (onum(so?.p) != null) {
       // Mensualité (hors assurance) forcée manuellement pour cette échéance.
-      payment = Math.max(0, so.p);
+      payment = Math.max(0, onum(so?.p)!);
       principalPart = payment - interest;
-      if (principalPart > crd) { principalPart = crd; payment = principalPart + interest; }
+      if (principalPart > crd && onum(so?.rd) == null) { principalPart = crd; payment = principalPart + interest; }
     } else if (inDeferral && defType === 'total') {
-      // Différé total : on ne paie rien ; les intérêts se capitalisent (s'ajoutent au CRD).
       payment = 0;
       principalPart = -interest; // CRD augmente des intérêts non payés
     } else if (inDeferral && defType === 'partial') {
-      // Différé partiel : on ne paie que les intérêts.
       payment = interest;
       principalPart = 0;
     } else {
       // Priorité : modulation > mensualité forcée par année (#6) > mensualité standard.
       payment = modPayment ?? payOverride(i) ?? monthlyPayment;
       principalPart = payment - interest;
-      // Dernière échéance / solde résiduel.
       if (i === n || principalPart > crd) { principalPart = crd; payment = principalPart + interest; }
     }
 
-    crd = Math.max(0, crd - principalPart);
+    // Restant dû : override manuel sinon calcul.
+    crd = onum(so?.rd) != null ? Math.max(0, onum(so?.rd)!) : Math.max(0, crd - principalPart);
     totalInterest += Math.max(0, interest);
     totalInsurance += insI;
     schedule.push({ period: i, date, payment, insurance: insI, interest: Math.max(0, interest), principalPart, crdAfter: crd });

@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
 import { useAllCreditEvents, type CreditEventRow } from './useCreditEvents';
-import { computeAmortization } from '../lib/amortization';
+import { computeAmortization, addMonthsISO } from '../lib/amortization';
 import { todayISO } from '../lib/dateUtils';
 import type { Credit } from '../types/database';
 
@@ -34,14 +34,19 @@ export function useCreditFlows(profileId: string | undefined) {
     for (const c of credits) {
       if (!c.is_active || !c.account_id) continue;
       const acc = acctById[c.account_id];
+      if (!acc) continue; // crédit partagé reçu sur un compte non accessible → pas d'impact tréso pour moi
       const f = accountFactor(acc);
       if (f <= 0) continue;
       const cur = acc?.currency || 'EUR';
       const amort = computeAmortization({ ...c, events: eventsByCredit[c.id] ?? null });
+      // L'assurance peut être prélevée à une date différente du remboursement → date dédiée.
+      const insFirst = c.first_insurance_date || c.first_payment_date || c.start_date;
       for (const r of amort.schedule) {
-        if (r.date < horizonStart) continue;
-        if (r.payment > 0) flows.push(mkFlow(c, r.period, 'pay', -(r.payment * f), r.date, CAT_REPAY, cur));
-        if (r.insurance > 0) flows.push(mkFlow(c, r.period, 'ins', -(r.insurance * f), r.date, CAT_INSURANCE, cur));
+        if (r.payment > 0 && r.date >= horizonStart) flows.push(mkFlow(c, r.period, 'pay', -(r.payment * f), r.date, CAT_REPAY, cur));
+        if (r.insurance > 0) {
+          const insDate = addMonthsISO(insFirst, r.period - 1);
+          if (insDate >= horizonStart) flows.push(mkFlow(c, r.period, 'ins', -(r.insurance * f), insDate, CAT_INSURANCE, cur));
+        }
       }
     }
     return flows;
@@ -70,24 +75,27 @@ function mkFlow(c: Credit, period: number, kind: string, amount: number, date: s
  * Pure → réutilisable client + fetch pilotage.
  */
 export function buildCreditPilotTxs(c: Credit, events: CreditEventRow[] | undefined, account: any): any[] {
-  if (!c.is_active || !c.account_id) return [];
+  if (!c.is_active || !c.account_id || !account) return []; // compte non accessible → pas d'impact
   const f = accountFactor(account);
   if (f <= 0) return [];
   const currency = account?.currency || 'EUR';
   const amort = computeAmortization({ ...c, events: events ?? null });
   if (!amort.schedule.length) return [];
+  const n = amort.schedule.length;
   const firstDate = amort.schedule[0].date;
-  const lastDate = amort.schedule[amort.schedule.length - 1].date;
+  const lastDate = amort.schedule[n - 1].date;
+  const insFirst = c.first_insurance_date || c.first_payment_date || c.start_date;
+  const insLast = addMonthsISO(insFirst, n - 1);
   const horizon = todayISO().slice(0, 8) + '01';
-  const cur = amort.schedule.find((r) => r.date >= horizon) ?? amort.schedule[amort.schedule.length - 1];
-  const mk = (kind: string, amt: number, category: any) => ({
-    id: `creditpilot-${c.id}-${kind}`, account_id: c.account_id, amount: -(amt * f), date: firstDate,
-    is_recurring: true, recurrence_rule: 'monthly', recurrence_end_date: lastDate,
-    category, is_credit_flow: true, credit_id: c.id, note: `${category.name} — ${c.label}`, account: { currency: cur },
+  const row = amort.schedule.find((r) => r.date >= horizon) ?? amort.schedule[n - 1];
+  const mk = (kind: string, amt: number, category: any, date: string, end: string) => ({
+    id: `creditpilot-${c.id}-${kind}`, account_id: c.account_id, amount: -(amt * f), date,
+    is_recurring: true, recurrence_rule: 'monthly', recurrence_end_date: end,
+    category, is_credit_flow: true, credit_id: c.id, note: `${category.name} — ${c.label}`, account: { currency },
   });
   const out: any[] = [];
-  if (cur.payment > 0) out.push(mk('pay', cur.payment, CAT_REPAY));
-  if (cur.insurance > 0) out.push(mk('ins', cur.insurance, CAT_INSURANCE));
+  if (row.payment > 0) out.push(mk('pay', row.payment, CAT_REPAY, firstDate, lastDate));
+  if (row.insurance > 0) out.push(mk('ins', row.insurance, CAT_INSURANCE, insFirst, insLast));
   return out;
 }
 

@@ -46,7 +46,7 @@ export default function CreditAddScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
-  const params = useLocalSearchParams<{ simulation?: string; id?: string }>();
+  const params = useLocalSearchParams<{ simulation?: string; id?: string; shared?: string }>();
   const editId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
   const addCredit = useAddCredit(user?.id);
@@ -68,6 +68,8 @@ export default function CreditAddScreen() {
   const [duration, setDuration] = useState('');
   const [insurance, setInsurance] = useState('');
   const [startDate, setStartDate] = useState(todayISO());
+  const [insDate, setInsDate] = useState('');       // 1ʳᵉ échéance d'assurance (vide = même que remboursement)
+  const [showInsCal, setShowInsCal] = useState(false);
   const [isSimulation, setIsSimulation] = useState(params.simulation === '1');
   const [fees, setFees] = useState<Record<string, string>>({});
   const [interestManual, setInterestManual] = useState('');
@@ -94,6 +96,7 @@ export default function CreditAddScreen() {
     setPrincipal(String(editing.principal)); setRate(String(editing.rate_annual));
     setDuration(String(editing.duration_months)); setInsurance(editing.insurance_monthly ? String(editing.insurance_monthly) : '');
     setStartDate((editing.first_payment_date as string) || editing.start_date);
+    if (editing.first_insurance_date) setInsDate(editing.first_insurance_date as string);
     setIsSimulation(editing.is_simulation);
     setFees({
       fees_file: String(editing.fees_file ?? ''), fees_bank: String(editing.fees_bank ?? ''), fees_notary: String(editing.fees_notary ?? ''),
@@ -169,14 +172,21 @@ export default function CreditAddScreen() {
       fees_file: numOr0(fees.fees_file), fees_bank: numOr0(fees.fees_bank), fees_notary: numOr0(fees.fees_notary),
       fees_guarantee: numOr0(fees.fees_guarantee), personal_contribution: numOr0(fees.personal_contribution),
       interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
-      interest_total_manual: Number.isNaN(num(interestManual)) ? null : num(interestManual),
       insurance_yearly: effInsuranceYearly(),
       payment_yearly: effPaymentYearly(),
+      // Colonnes des migrations récentes : envoyées seulement si renseignées → l'enregistrement ne casse
+      // pas si une migration tarde (107 = interest_total_manual, 109 = first_insurance_date).
+      ...(insDate ? { first_insurance_date: insDate } : {}),
+      ...(!Number.isNaN(num(interestManual)) ? { interest_total_manual: num(interestManual) } : {}),
     };
     try {
-      if (editId) await updateCredit.mutateAsync({ id: editId, ...payload });
-      else await addCredit.mutateAsync({ ...payload, is_active: true });
-      router.back();
+      if (editId) { await updateCredit.mutateAsync({ id: editId, ...payload }); router.back(); }
+      else {
+        const created = await addCredit.mutateAsync({ ...payload, is_active: true });
+        // Crédit « partagé » → on ouvre son détail pour envoyer les invitations.
+        if (params.shared === '1' && created?.id) router.replace(`/(tabs)/comptes/credit/${created.id}` as any);
+        else router.back();
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Impossible d\'enregistrer.');
       setSaving(false);
@@ -249,7 +259,8 @@ export default function CreditAddScreen() {
             </>
           )}
 
-          {activeProjects.length > 0 && (
+          {/* Affectation à un projet masquée pour le moment (peu utile). */}
+          {false && activeProjects.length > 0 && (
             <>
               <Text style={styles.label}>Financer un projet (optionnel)</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
@@ -357,6 +368,14 @@ export default function CreditAddScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              {/* Date de 1ʳᵉ échéance d'assurance (peut différer du remboursement). */}
+              <Text style={styles.label}>1ʳᵉ échéance d'assurance</Text>
+              <TouchableOpacity style={[styles.input, styles.dateBtn]} onPress={() => setShowInsCal(true)} activeOpacity={0.7}>
+                <Text style={{ color: insDate ? COLORS.text : COLORS.textSecondary, fontSize: 15 }}>
+                  {insDate ? formatDateFrench(insDate) : `Même que le remboursement (${formatDateFrench(startDate)})`}
+                </Text>
+                <Ionicons name="calendar-outline" size={18} color={COLORS.blue} />
+              </TouchableOpacity>
               {insMode === 'paliers' && (
                 <View style={{ marginBottom: 10 }}>
                   <Text style={styles.hint}>Assurance mensuelle FIXE par période (vide = montant « Assurance (€/mois) » saisi plus haut).</Text>
@@ -458,6 +477,26 @@ export default function CreditAddScreen() {
               maxDate="2060-12-31"
               onDayPress={(day: any) => { setStartDate(day.dateString); setShowCal(false); }}
               markedDates={{ [startDate]: { selected: true, selectedColor: COLORS.blue, selectedTextColor: '#fff' } }}
+              accentColor={COLORS.blue}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Calendrier (1ʳᵉ échéance d'assurance) */}
+      <Modal visible={showInsCal} transparent animationType="fade" onRequestClose={() => setShowInsCal(false)}>
+        <View style={styles.calOverlay}>
+          <View style={styles.calCard}>
+            <View style={styles.calHead}>
+              <TouchableOpacity onPress={() => { setInsDate(''); setShowInsCal(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600' }}>Réinit.</Text></TouchableOpacity>
+              <Text style={{ fontWeight: '700', color: COLORS.text }}>1ʳᵉ échéance d'assurance</Text>
+              <TouchableOpacity onPress={() => setShowInsCal(false)}><Text style={{ color: COLORS.emerald, fontWeight: '600' }}>Fermer</Text></TouchableOpacity>
+            </View>
+            <CalendarWithPicker
+              current={insDate || startDate}
+              maxDate="2060-12-31"
+              onDayPress={(day: any) => { setInsDate(day.dateString); setShowInsCal(false); }}
+              markedDates={{ [insDate || startDate]: { selected: true, selectedColor: COLORS.blue, selectedTextColor: '#fff' } }}
               accentColor={COLORS.blue}
             />
           </View>

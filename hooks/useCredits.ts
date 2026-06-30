@@ -34,10 +34,21 @@ export function useCredits(profileId: string | undefined) {
     enabled: !!profileId,
     queryFn: async (): Promise<Credit[]> => {
       if (!supabase || !profileId) return [];
-      const { data, error } = await supabase
-        .from('credits').select('*').eq('profile_id', profileId).order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []).map(mapCredit);
+      // Mes crédits + les crédits PARTAGÉS reçus (où je suis membre). `_role` = owner / write / read.
+      const ownP = supabase.from('credits').select('*').eq('profile_id', profileId).order('created_at', { ascending: false });
+      const memP = supabase.from('credit_members').select('credit_id, role').eq('user_id', profileId);
+      const [{ data: own, error: ownErr }, memRes] = await Promise.all([ownP, memP]);
+      if (ownErr) throw ownErr;
+      const roleById: Record<string, string> = {};
+      const memberIds: string[] = [];
+      for (const m of (memRes?.data ?? []) as any[]) { roleById[m.credit_id] = m.role; memberIds.push(m.credit_id); }
+      let memberCredits: any[] = [];
+      if (memberIds.length > 0) {
+        const { data } = await supabase.from('credits').select('*').in('id', memberIds);
+        memberCredits = (data ?? []).filter((c: any) => c.profile_id !== profileId);
+      }
+      const map = (r: any): Credit => ({ ...mapCredit(r), _role: r.profile_id === profileId ? 'owner' : ((roleById[r.id] as any) ?? 'read') });
+      return [...(own ?? []).map(map), ...memberCredits.map(map)];
     },
   });
 }

@@ -15,6 +15,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useCredits, useDeleteCredit, useUpdateCredit } from '../../../../hooks/useCredits';
 import { useAllAccounts } from '../../../../hooks/useAccounts';
 import { useCreditEvents, useAddCreditEvent, useDeleteCreditEvent } from '../../../../hooks/useCreditEvents';
+import CreditShareSection from '../../../../components/CreditShareSection';
 import { computeAmortization } from '../../../../lib/amortization';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 
@@ -35,7 +36,7 @@ export default function CreditDetailScreen() {
   const credit = credits.find((c) => c.id === id);
 
   const [editTable, setEditTable] = useState(false);
-  const [edits, setEdits] = useState<Record<number, { p?: string; i?: string }>>({});
+  const [edits, setEdits] = useState<Record<number, { p?: string; i?: string; int?: string; cap?: string; rd?: string }>>({});
   const [showEvt, setShowEvt] = useState(false);
   const [evtKind, setEvtKind] = useState<'early_repayment' | 'rate_change'>('early_repayment');
   const [evtAmount, setEvtAmount] = useState('');
@@ -55,14 +56,17 @@ export default function CreditDetailScreen() {
   // Enregistre les overrides manuels du tableau (mensualité hors assurance « p » + assurance « i »).
   const saveTable = async () => {
     if (!credit) return;
-    const next: Record<string, { p?: number | null; i?: number | null }> = { ...(credit.schedule_overrides ?? {}) };
+    const next: Record<string, any> = { ...(credit.schedule_overrides ?? {}) };
     for (const [periodStr, e] of Object.entries(edits)) {
-      const cur: { p?: number | null; i?: number | null } = { ...(next[periodStr] ?? {}) };
-      const p = e.p != null && e.p.trim() !== '' ? parseFloat(e.p.replace(',', '.')) : undefined;
-      const iv = e.i != null && e.i.trim() !== '' ? parseFloat(e.i.replace(',', '.')) : undefined;
-      if (p != null && !Number.isNaN(p)) cur.p = p; else if (e.p === '') delete cur.p;
-      if (iv != null && !Number.isNaN(iv)) cur.i = iv; else if (e.i === '') delete cur.i;
-      if (cur.p == null && cur.i == null) delete next[periodStr]; else next[periodStr] = cur;
+      const cur: any = { ...(next[periodStr] ?? {}) };
+      for (const key of ['p', 'i', 'int', 'cap', 'rd'] as const) {
+        const raw = (e as any)[key];
+        if (raw == null) continue;
+        if (raw.trim() === '') { delete cur[key]; continue; }
+        const v = parseFloat(raw.replace(',', '.'));
+        if (!Number.isNaN(v)) cur[key] = v;
+      }
+      if (Object.keys(cur).length === 0) delete next[periodStr]; else next[periodStr] = cur;
     }
     await update.mutateAsync({ id: credit.id, schedule_overrides: Object.keys(next).length ? next : null } as any);
     setEdits({}); setEditTable(false);
@@ -86,6 +90,7 @@ export default function CreditDetailScreen() {
     );
   }
 
+  const canWrite = credit._role !== 'read'; // membre en consultation → lecture seule
   const crd = amort.crdAtDate(today);
   const paid = amort.paidCountAtDate(today);
   const acctName = accounts.find((a) => a.id === credit.account_id)?.name;
@@ -105,12 +110,12 @@ export default function CreditDetailScreen() {
         <ScreenHeader
           title={credit.label}
           onBack={() => router.back()}
-          right={(
+          right={canWrite ? (
             <TouchableOpacity onPress={() => router.push(`/(tabs)/comptes/credit-add?id=${credit.id}` as any)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="pencil" size={16} color={COLORS.blue} />
               <Text style={{ color: COLORS.blue, fontWeight: '700', fontSize: 14 }}>Modifier</Text>
             </TouchableOpacity>
-          )}
+          ) : undefined}
         />
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Synthèse */}
@@ -162,10 +167,12 @@ export default function CreditDetailScreen() {
           {/* C5 — Événements (remboursement anticipé, changement de taux) */}
           <View style={styles.evtHead}>
             <Text style={styles.sectionTitle}>Événements</Text>
-            <TouchableOpacity style={styles.evtAdd} onPress={() => setShowEvt(true)}>
-              <Ionicons name="add" size={16} color={COLORS.blue} />
-              <Text style={styles.evtAddText}>Ajouter</Text>
-            </TouchableOpacity>
+            {canWrite && (
+              <TouchableOpacity style={styles.evtAdd} onPress={() => setShowEvt(true)}>
+                <Ionicons name="add" size={16} color={COLORS.blue} />
+                <Text style={styles.evtAddText}>Ajouter</Text>
+              </TouchableOpacity>
+            )}
           </View>
           <View style={styles.card}>
             {events.length === 0 ? (
@@ -189,64 +196,69 @@ export default function CreditDetailScreen() {
                 <TouchableOpacity onPress={() => { setEdits({}); setEditTable(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600', fontSize: 13 }}>Annuler</Text></TouchableOpacity>
                 <TouchableOpacity onPress={saveTable}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Enregistrer</Text></TouchableOpacity>
               </View>
-            ) : (
+            ) : (canWrite && (
               <TouchableOpacity style={styles.evtAdd} onPress={() => setEditTable(true)}>
                 <Ionicons name="create-outline" size={16} color={COLORS.blue} /><Text style={styles.evtAddText}>Modifier</Text>
               </TouchableOpacity>
-            )}
+            ))}
           </View>
           {(() => {
             const hasInsurance = editTable || amort.schedule.some((r) => r.insurance > 0);
             const nextIdx = amort.schedule.findIndex((r) => r.date >= today);
             return (
-              <View style={styles.card}>
+              <ScrollView horizontal={editTable} showsHorizontalScrollIndicator={editTable}>
+              <View style={[styles.card, editTable && { minWidth: 460 }]}>
                 <View style={[styles.tRow, styles.tHead]}>
                   <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Mensualité</Text>
-                  {hasInsurance && <Text style={[styles.tc, styles.tHeadText]}>Assur.</Text>}
-                  {!editTable && <Text style={[styles.tc, styles.tHeadText]}>Intérêts</Text>}
-                  {!editTable && <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>}
+                  {(hasInsurance) && <Text style={[styles.tc, styles.tHeadText]}>Assur.</Text>}
+                  <Text style={[styles.tc, styles.tHeadText]}>Intérêts</Text>
+                  <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Restant dû</Text>
                 </View>
                 {amort.schedule.map((r, i) => {
                   const past = r.date < today;
                   const isNext = i === nextIdx;
+                  const cell = (key: 'p' | 'i' | 'int' | 'cap' | 'rd', value: number) => editTable ? (
+                    <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={String(Math.round(value))}
+                      onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], [key]: v } }))} />
+                  ) : (
+                    <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(value)}</Text>
+                  );
                   return (
                     <View key={r.period} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext]}>
                       <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
-                      {editTable ? (
-                        <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={String(Math.round(r.payment))}
-                          onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], p: v } }))} />
-                      ) : (
-                        <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.payment)}</Text>
-                      )}
-                      {hasInsurance && (editTable ? (
-                        <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={String(Math.round(r.insurance))}
-                          onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], i: v } }))} />
-                      ) : (
-                        <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.insurance)}</Text>
-                      ))}
-                      {!editTable && <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.interest)}</Text>}
-                      {!editTable && <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.principalPart)}</Text>}
-                      <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(r.crdAfter)}</Text>
+                      {cell('p', r.payment)}
+                      {hasInsurance && cell('i', r.insurance)}
+                      {cell('int', r.interest)}
+                      {cell('cap', r.principalPart)}
+                      {cell('rd', r.crdAfter)}
                     </View>
                   );
                 })}
-                <Text style={styles.tNote}>{editTable ? 'Saisis le montant exact de chaque échéance (mensualité hors assurance + assurance). Le capital restant dû se recalcule.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
+                <Text style={styles.tNote}>{editTable ? 'Édite n\'importe quelle colonne (mensualité, assurance, intérêts, capital, restant dû). Une valeur saisie prime sur le calcul automatique.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
               </View>
+              </ScrollView>
             );
           })()}
 
           {/* Activer / désactiver (utile pour une simulation : compté ou non en projection/tréso) */}
+          {canWrite && (
           <TouchableOpacity style={styles.toggleBtn} onPress={() => update.mutate({ id: credit.id, is_active: !credit.is_active })} activeOpacity={0.8}>
             <Ionicons name={credit.is_active ? 'pause-circle-outline' : 'play-circle-outline'} size={18} color={COLORS.blue} />
             <Text style={styles.toggleLabel}>{credit.is_active ? 'Désactiver (retirer de la projection/tréso)' : 'Activer (compter en projection/tréso)'}</Text>
           </TouchableOpacity>
+          )}
 
-          <TouchableOpacity style={styles.delBtn} onPress={confirmDelete}>
-            <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
-            <Text style={styles.delLabel}>Supprimer ce crédit</Text>
-          </TouchableOpacity>
+          {/* Partage (propriétaire uniquement) */}
+          <CreditShareSection credit={credit} />
+
+          {credit._role === 'owner' && (
+            <TouchableOpacity style={styles.delBtn} onPress={confirmDelete}>
+              <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+              <Text style={styles.delLabel}>Supprimer ce crédit</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </SafeAreaView>
 
