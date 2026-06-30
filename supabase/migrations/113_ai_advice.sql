@@ -9,10 +9,11 @@ CREATE TABLE IF NOT EXISTS public.ai_config (
   id text PRIMARY KEY DEFAULT 'default',
   -- Liste ORDONNÉE des modèles (bascule auto dans cet ordre). [{ id, label, enabled }]
   models jsonb NOT NULL DEFAULT '[
+    {"id":"gemini-2.5-flash","label":"Gemini 2.5 Flash","enabled":true},
+    {"id":"gemini-2.5-flash-lite","label":"Gemini 2.5 Flash-Lite","enabled":true},
+    {"id":"gemini-flash-latest","label":"Gemini Flash (latest)","enabled":true},
     {"id":"gemini-2.0-flash","label":"Gemini 2.0 Flash","enabled":true},
-    {"id":"gemini-2.0-flash-lite","label":"Gemini 2.0 Flash-Lite","enabled":true},
-    {"id":"gemini-1.5-flash","label":"Gemini 1.5 Flash","enabled":true},
-    {"id":"gemini-1.5-pro","label":"Gemini 1.5 Pro","enabled":true}
+    {"id":"gemini-2.5-pro","label":"Gemini 2.5 Pro","enabled":true}
   ]'::jsonb,
   free_monthly_limit integer NOT NULL DEFAULT 1,     -- requêtes/mois user gratuit
   premium_monthly_limit integer NOT NULL DEFAULT 10, -- requêtes/mois Premium

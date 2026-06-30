@@ -33,11 +33,27 @@ export function useAdminUnreadCount(isAdmin: boolean) {
     queryKey: ['unread_badges', 'admin'],
     queryFn: async (): Promise<number> => {
       if (!supabase) return 0;
-      const [reqs, ideas] = await Promise.all([
+      const [reqs, ideas, aiTickets] = await Promise.all([
         supabase.from('support_requests').select('id', { count: 'exact', head: true }).eq('admin_unread', true),
         supabase.from('suggestions').select('id', { count: 'exact', head: true }).eq('admin_unread', true),
+        supabase.from('ai_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
       ]);
-      return (reqs.count ?? 0) + (ideas.count ?? 0);
+      return (reqs.count ?? 0) + (ideas.count ?? 0) + (aiTickets.count ?? 0);
+    },
+    enabled: isAdmin,
+    refetchInterval: 30000,
+  });
+  return data ?? 0;
+}
+
+/** Nombre de tickets Conseils IA ouverts (badge sur l'entrée admin « Conseils IA »). */
+export function useAiTicketsCount(isAdmin: boolean) {
+  const { data } = useQuery({
+    queryKey: ['unread_badges', 'ai_tickets'],
+    queryFn: async (): Promise<number> => {
+      if (!supabase) return 0;
+      const { count } = await supabase.from('ai_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open');
+      return count ?? 0;
     },
     enabled: isAdmin,
     refetchInterval: 30000,

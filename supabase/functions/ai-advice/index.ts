@@ -19,31 +19,45 @@ const json = (body: unknown, status = 200) =>
 const URL = Deno.env.get('SUPABASE_URL')!;
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY')!;
+// Multi-clés : on peut configurer 2 (ou plus) clés API Gemini. On alterne pour répartir la charge et
+// on bascule si l'une est épuisée/HS. Secrets : GEMINI_API_KEY (+ GEMINI_API_KEY_2 optionnelle).
+const GEMINI_KEYS = [Deno.env.get('GEMINI_API_KEY'), Deno.env.get('GEMINI_API_KEY_2')].filter(Boolean) as string[];
 
-// Notifie les admins (push Expo) qu'un conseil IA a échoué et attend une relance.
-async function notifyAdmins(admin: any, body: string) {
+// Notifie les ADMINS UNIQUEMENT (push Expo) qu'un conseil IA a échoué, et trace l'alerte dans
+// l'historique admin (admin_notifications) pour qu'elle soit visible/gérable côté admin.
+async function notifyAdmins(admin: any, body: string, pushEnabled: boolean) {
+  const title = 'Conseils IA — ticket';
   try {
-    const { data: admins } = await admin.from('profiles').select('id').eq('is_admin', true);
-    const ids = (admins ?? []).map((a: any) => a.id);
-    if (!ids.length) return;
-    const { data: toks } = await admin.from('push_tokens').select('token').in('profile_id', ids);
-    const tokens = [...new Set((toks ?? []).map((t: any) => t.token))].filter((t: any) => typeof t === 'string' && t.startsWith('ExponentPushToken'));
-    if (!tokens.length) return;
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(tokens.map((to) => ({ to, title: 'Conseils IA — ticket', body, sound: 'default' }))),
-    });
+    let sent = 0;
+    if (pushEnabled) {
+      const { data: admins } = await admin.from('profiles').select('id').eq('is_admin', true);
+      const ids = (admins ?? []).map((a: any) => a.id);
+      if (ids.length) {
+        const { data: toks } = await admin.from('push_tokens').select('token').in('profile_id', ids);
+        const tokens = [...new Set((toks ?? []).map((t: any) => t.token))].filter((t: any) => typeof t === 'string' && t.startsWith('ExponentPushToken'));
+        sent = tokens.length;
+        if (tokens.length) {
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: 'default' }))),
+          });
+        }
+      }
+    }
+    // Historique admin (toujours, même push coupé). Le badge in-app vient du compte de tickets ouverts.
+    await admin.from('admin_notifications').insert({ title, body, sent_count: sent, source: 'ai_ticket', target_label: 'Admins' });
   } catch { /* best effort */ }
 }
 
-async function callGemini(model: string, prompt: string): Promise<string> {
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+async function callGemini(model: string, prompt: string, key: string): Promise<string> {
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
+      // thinkingBudget:0 → désactive la « réflexion » des modèles 2.5 (sinon elle mange tout le budget
+      // de tokens et la réponse est tronquée). maxOutputTokens large pour des analyses complètes.
+      generationConfig: { temperature: 0.7, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 0 } },
     }),
   });
   if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 300)}`);
@@ -51,6 +65,22 @@ async function callGemini(model: string, prompt: string): Promise<string> {
   const text = j?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') ?? '';
   if (!text.trim()) throw new Error('empty response');
   return text.trim();
+}
+
+// Essaie les modèles (ordre = bascule) × les clés API (alternées au hasard pour répartir la charge ;
+// si une clé est épuisée/HS on passe à la suivante, puis au modèle suivant).
+async function generateWithFallback(models: any[], prompt: string): Promise<{ reply: string; model: string; lastErr: string }> {
+  const n = Math.max(1, GEMINI_KEYS.length);
+  const start = Math.floor(Math.random() * n);
+  let lastErr = 'no model';
+  for (const m of models) {
+    for (let k = 0; k < GEMINI_KEYS.length; k++) {
+      const key = GEMINI_KEYS[(start + k) % GEMINI_KEYS.length];
+      try { return { reply: await callGemini(m.id, prompt, key), model: m.id, lastErr: '' }; }
+      catch (e) { lastErr = String(e); }
+    }
+  }
+  return { reply: '', model: '', lastErr };
 }
 
 serve(async (req) => {
@@ -71,6 +101,27 @@ serve(async (req) => {
   const snapshot: string = String(body.snapshot ?? '').slice(0, 20000);
   const wantedModel: string | undefined = body.model || undefined; // choix éventuel du user
 
+  // ── Test ADMIN : ping chaque modèle pour connaître sa disponibilité en temps réel (OK / 429 / 404…).
+  if (body.admin_check_models === true) {
+    const { data: callerIsAdmin } = await asUser.rpc('is_app_admin');
+    if (!callerIsAdmin) return json({ error: 'forbidden' }, 403);
+    const { data: acfg } = await admin.from('ai_config').select('models').single();
+    const results: { id: string; ok: boolean; status: number; reason: string }[] = [];
+    for (const m of (acfg!.models as any[])) {
+      let ok = false, status = 0, reason = 'Erreur';
+      for (const key of GEMINI_KEYS) {
+        try { await callGemini(m.id, 'ping', key); ok = true; reason = 'OK'; break; }
+        catch (e) {
+          const code = Number(String(e).match(/HTTP (\d+)/)?.[1] ?? 0);
+          status = code;
+          reason = code === 429 ? 'Quota épuisé' : code === 404 ? 'Modèle introuvable' : code === 503 ? 'Surchargé' : code === 403 ? 'Clé/API refusée' : 'Erreur';
+        }
+      }
+      results.push({ id: m.id, ok, status: ok ? 200 : status, reason });
+    }
+    return json({ ok: true, results });
+  }
+
   // ── Relance ADMIN : l'admin rejoue une requête échouée pour un user cible, SANS quota ni décompte.
   const adminRelaunch = body.admin_relaunch === true;
   if (adminRelaunch) {
@@ -84,10 +135,7 @@ serve(async (req) => {
     if (!pr) return json({ error: 'prompt_missing' }, 500);
     const fp = pr.prompt_template.replaceAll('{{SNAPSHOT}}', snapshot).replaceAll('{{QUESTION}}', question);
     const { data: acfg } = await admin.from('ai_config').select('models').single();
-    let rep = '', mdl = '', le = '';
-    for (const m of (acfg!.models as any[]).filter((x) => x.enabled)) {
-      try { rep = await callGemini(m.id, fp); mdl = m.id; break; } catch (e) { le = String(e); }
-    }
+    const { reply: rep, model: mdl, lastErr: le } = await generateWithFallback((acfg!.models as any[]).filter((x) => x.enabled), fp);
     if (!rep) return json({ ok: false, queued: true, error: le });
     await admin.from('ai_messages').insert({ profile_id: targetUser, role: 'assistant', content: rep, model: mdl });
     if (body.ticket_id) await admin.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', body.ticket_id);
@@ -133,24 +181,19 @@ serve(async (req) => {
     .eq('role', 'assistant').gte('created_at', dayStart);
   const overGlobal = (globalToday ?? 0) >= cfg.daily_global_cap;
 
-  // 6) Appel modèle avec bascule (modèle choisi en tête s'il est fourni & actif).
-  let reply = '', modelUsed = '', lastErr = '';
+  // 6) Appel modèle avec bascule modèles × clés (modèle choisi en tête s'il est fourni & actif).
   let models = (cfg.models as any[]).filter((m) => m.enabled);
   if (wantedModel) models = [...models.filter((m) => m.id === wantedModel), ...models.filter((m) => m.id !== wantedModel)];
-  if (!overGlobal) {
-    for (const m of models) {
-      try { reply = await callGemini(m.id, finalPrompt); modelUsed = m.id; break; }
-      catch (e) { lastErr = String(e); }
-    }
-  } else { lastErr = 'daily_global_cap'; }
+  const gen = overGlobal ? { reply: '', model: '', lastErr: 'daily_global_cap' } : await generateWithFallback(models, finalPrompt);
+  const reply = gen.reply, modelUsed = gen.model;
 
   // 7a) Échec → ticket admin (relance gratuite plus tard), le user sera notifié. Pas de décompte.
   if (!reply) {
     await admin.from('ai_tickets').insert({
       profile_id: user.id, user_message_id: userMsg?.id ?? null,
-      request: { kind, analysis_key: analysisKey, question, snapshot }, error: lastErr, status: 'open',
+      request: { kind, analysis_key: analysisKey, question, snapshot }, error: gen.lastErr, status: 'open',
     });
-    await notifyAdmins(admin, 'Une demande de conseil a échoué et attend une relance.');
+    await notifyAdmins(admin, 'Une demande de conseil a échoué et attend une relance.', cfg.notify_admins_push !== false);
     return json({ ok: false, queued: true });
   }
 

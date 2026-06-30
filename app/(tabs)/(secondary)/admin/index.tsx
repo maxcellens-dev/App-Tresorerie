@@ -8,6 +8,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
+import { useAiTicketsCount } from '../../../../hooks/useUnreadBadges';
 
 
 export default function AdminHub() {
@@ -18,6 +19,7 @@ export default function AdminHub() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const aiTickets = useAiTicketsCount(!!isAdmin);
 
   if (!isAdmin) {
     return (
@@ -89,7 +91,9 @@ export default function AdminHub() {
             <View key={section.category} style={{ marginBottom: 12 }}>
               <Text style={styles.categoryTitle}>{section.category}</Text>
               <View style={styles.grid}>
-                {section.items.map((item) => (
+                {section.items.map((item) => {
+                  const badge = item.href.endsWith('/admin/ai') ? aiTickets : 0;
+                  return (
                   <TouchableOpacity
                     key={item.href}
                     style={styles.itemBtn}
@@ -103,8 +107,12 @@ export default function AdminHub() {
                       <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
                       <Text style={styles.itemDesc} numberOfLines={2}>{item.desc}</Text>
                     </View>
+                    {badge > 0 && (
+                      <View style={styles.badge}><Text style={styles.badgeTxt}>{badge > 99 ? '99+' : badge}</Text></View>
+                    )}
                   </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             </View>
           ))}
@@ -141,6 +149,8 @@ function makeStyles(c: any) {
     borderColor: c.cardBorder,
   },
   iconBox: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  badge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeTxt: { color: '#fff', fontSize: 11, fontWeight: '800' },
   itemTitle: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 2 },
   itemDesc: { fontSize: 12, color: c.textSecondary, lineHeight: 15 },
   text: { color: c.text },

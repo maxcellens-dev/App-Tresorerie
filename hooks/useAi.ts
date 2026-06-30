@@ -1,5 +1,6 @@
 // Conseils IA — hooks de données (config, prompts, quota, historique). L'APPEL au modèle est dans
 // l'Edge Function (useAskAi, fichier séparé) — la clé API n'est jamais côté client.
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { sendPushToProfile } from '../lib/pushSend';
@@ -16,6 +17,8 @@ export interface AiConfig {
   pay_to_use_price_cents: number;
   consent_text: string;
   predefined_questions: string[];
+  /** Couper la notification PUSH admin des tickets (badges/historique restent actifs). */
+  notify_admins_push?: boolean;
 }
 export interface AiPrompt { key: string; title: string; prompt_template: string; sort_order: number; is_active: boolean }
 export interface AiMessage { id: string; profile_id: string; role: 'user' | 'assistant' | 'admin'; content: string; model: string | null; kind: string | null; analysis_key: string | null; counted: boolean; created_at: string }
@@ -97,6 +100,22 @@ export function useAiMessages(userId: string | undefined) {
   });
 }
 
+/** Rafraîchit le fil en TEMPS RÉEL (réponses admin, relances…) sans recharger la page. */
+export function useAiMessagesRealtime(userId: string | undefined) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    const channel = supabase
+      .channel(`ai_messages_${userId}_${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_messages', filter: `profile_id=eq.${userId}` }, () => {
+        qc.invalidateQueries({ queryKey: ['ai_messages', userId] });
+        qc.invalidateQueries({ queryKey: ['ai_quota', userId] });
+      })
+      .subscribe();
+    return () => { supabase!.removeChannel(channel); };
+  }, [userId, qc]);
+}
+
 /** Purge tout l'historique de l'utilisateur (autorisé même en non-Premium). */
 export function useDeleteAiHistory(userId: string | undefined) {
   const qc = useQueryClient();
@@ -153,6 +172,19 @@ export function useAiTickets() {
   });
 }
 
+export interface AiModelStatus { id: string; ok: boolean; status: number; reason: string }
+/** Teste en direct la disponibilité de chaque modèle configuré (admin). */
+export function useCheckAiModels() {
+  return useMutation({
+    mutationFn: async (): Promise<AiModelStatus[]> => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data, error } = await supabase.functions.invoke('ai-advice', { body: { admin_check_models: true } });
+      if (error) throw new Error(error.message || 'Échec du test');
+      return (data?.results ?? []) as AiModelStatus[];
+    },
+  });
+}
+
 /** Marque un ticket résolu (sans réponse, ou après une réponse manuelle/relance). */
 export function useResolveAiTicket() {
   const qc = useQueryClient();
@@ -162,7 +194,10 @@ export function useResolveAiTicket() {
       const { error } = await supabase.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', ticketId);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai_tickets'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ai_tickets'] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
+    },
   });
 }
 
@@ -181,6 +216,7 @@ export function useAdminReplyAi() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['ai_tickets'] });
       qc.invalidateQueries({ queryKey: ['ai_messages', v.profileId] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
     },
   });
 }
@@ -203,6 +239,7 @@ export function useAdminRelaunchAi() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['ai_tickets'] });
       qc.invalidateQueries({ queryKey: ['ai_messages', v.profileId] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
     },
   });
 }

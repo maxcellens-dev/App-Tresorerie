@@ -4,7 +4,7 @@
  * (relance sans quota / réponse manuelle dans le fil du user / résolution).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,8 +14,10 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import {
   useAiConfig, useUpdateAiConfig, useAiPrompts, useUpdateAiPrompt, useAiTickets,
-  useResolveAiTicket, useAdminReplyAi, useAdminRelaunchAi, type AiModel,
+  useResolveAiTicket, useAdminReplyAi, useAdminRelaunchAi, useCheckAiModels,
+  type AiModel, type AiModelStatus,
 } from '../../../../hooks/useAi';
+import * as Clipboard from 'expo-clipboard';
 
 type Tab = 'settings' | 'models' | 'prompts' | 'tickets';
 
@@ -67,7 +69,7 @@ export default function AdminAi() {
             {tab === 'settings' && <SettingsTab c={c} s={s} cfg={cfg} updateCfg={updateCfg} />}
             {tab === 'models' && <ModelsTab c={c} s={s} models={cfg.models} updateCfg={updateCfg} />}
             {tab === 'prompts' && <PromptsTab c={c} s={s} cfg={cfg} prompts={prompts ?? []} updatePrompt={updatePrompt} updateCfg={updateCfg} />}
-            {tab === 'tickets' && <TicketsTab c={c} s={s} tickets={tickets ?? []} resolveTicket={resolveTicket} adminReply={adminReply} relaunch={relaunch} />}
+            {tab === 'tickets' && <TicketsTab c={c} s={s} tickets={tickets ?? []} prompts={prompts ?? []} resolveTicket={resolveTicket} adminReply={adminReply} relaunch={relaunch} />}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -114,6 +116,8 @@ function SettingsTab({ c, s, cfg, updateCfg }: any) {
         <TextInput style={s.num} value={cap} onChangeText={setCap} keyboardType="number-pad" onBlur={() => updateCfg.mutate({ daily_global_cap: Math.max(0, parseInt(cap) || 0) })} />
       </View>
 
+      <Toggle label="Notif push des tickets" desc="Envoyer une notification mobile aux admins quand un conseil échoue. Désactivé = pas de push, mais le badge et l'historique restent." value={cfg.notify_admins_push !== false} onToggle={() => updateCfg.mutate({ notify_admins_push: !(cfg.notify_admins_push !== false) })} />
+
       <Toggle label="Paiement à l'usage (anticipé)" desc="Permettre d'acheter des requêtes supplémentaires. PRÉVU mais NON ACTIVÉ pour l'instant." value={cfg.pay_to_use_enabled} onToggle={() => updateCfg.mutate({ pay_to_use_enabled: !cfg.pay_to_use_enabled })} />
       <View style={s.card}>
         <View style={{ flex: 1 }}><Text style={s.cardTitle}>Prix / requête (centimes)</Text><Text style={s.cardDesc}>Tarif unitaire si le paiement à l'usage est activé.</Text></View>
@@ -129,27 +133,58 @@ function SettingsTab({ c, s, cfg, updateCfg }: any) {
   );
 }
 
-/* ── Modèles (ordre = ordre de bascule) ── */
+/* ── Modèles (ordre = ordre de bascule), éditables ── */
 function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiModel[]; updateCfg: any }) {
-  const save = (next: AiModel[]) => updateCfg.mutate({ models: next });
-  const toggle = (i: number) => { const n = models.map((m, j) => j === i ? { ...m, enabled: !m.enabled } : m); save(n); };
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir; if (j < 0 || j >= models.length) return;
-    const n = [...models]; [n[i], n[j]] = [n[j], n[i]]; save(n);
+  const [list, setList] = useState<AiModel[]>(models);
+  useEffect(() => { setList(models); }, [models]);
+  const dirty = JSON.stringify(list) !== JSON.stringify(models);
+
+  const check = useCheckAiModels();
+  const [statuses, setStatuses] = useState<Record<string, AiModelStatus>>({});
+  const runCheck = () => check.mutate(undefined, { onSuccess: (res) => setStatuses(Object.fromEntries(res.map((r) => [r.id, r]))) });
+  const badge = (m: AiModel) => {
+    const st = statuses[m.id]; if (!st) return null;
+    const col = st.ok ? c.green : (st.status === 429 ? c.amber : c.danger);
+    return <View style={[s.statusBadge, { backgroundColor: col + '22', borderColor: col }]}><Text style={[s.statusTxt, { color: col }]}>{st.ok ? 'OK' : st.reason}</Text></View>;
   };
+
+  const setField = (i: number, k: keyof AiModel, v: any) => setList((l) => l.map((m, j) => j === i ? { ...m, [k]: v } : m));
+  const move = (i: number, dir: -1 | 1) => setList((l) => { const j = i + dir; if (j < 0 || j >= l.length) return l; const n = [...l]; [n[i], n[j]] = [n[j], n[i]]; return n; });
+  const remove = (i: number) => setList((l) => l.filter((_, j) => j !== i));
+  const add = () => setList((l) => [...l, { id: '', label: '', enabled: true }]);
+  const saveAll = () => updateCfg.mutate({ models: list.filter((m) => m.id.trim()).map((m) => ({ id: m.id.trim(), label: (m.label || m.id).trim(), enabled: m.enabled })) });
+
   return (
     <>
-      <Text style={s.hint}>Les modèles sont essayés de haut en bas : si le 1ᵉ échoue, on bascule sur le suivant. Désactive ceux que tu ne veux pas utiliser.</Text>
-      {models.map((m, i) => (
-        <View key={m.id} style={s.card}>
-          <View style={{ marginRight: 8 }}>
-            <TouchableOpacity onPress={() => move(i, -1)} disabled={i === 0}><Ionicons name="chevron-up" size={18} color={i === 0 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
-            <TouchableOpacity onPress={() => move(i, 1)} disabled={i === models.length - 1}><Ionicons name="chevron-down" size={18} color={i === models.length - 1 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
+      <Text style={s.hint}>Les modèles sont essayés de haut en bas : si le 1ᵉ échoue (épuisé, retiré…), on bascule sur le suivant. L'ID doit correspondre EXACTEMENT au nom Gemini (ex. « gemini-2.5-flash »). Désactive ou supprime ceux que tu ne veux pas.</Text>
+      <TouchableOpacity style={[s.checkBtn, check.isPending && { opacity: 0.6 }]} onPress={runCheck} disabled={check.isPending}>
+        {check.isPending ? <ActivityIndicator size="small" color={c.emerald} /> : <Ionicons name="pulse-outline" size={16} color={c.emerald} />}
+        <Text style={s.checkTxt}>{check.isPending ? 'Test en cours…' : 'Tester la disponibilité en direct'}</Text>
+      </TouchableOpacity>
+      <Text style={[s.hint, { marginBottom: 10 }]}>Google n'expose pas le quota restant chiffré : ce test ping chaque modèle et renvoie son état réel (OK / épuisé / introuvable). Consomme une mini‑requête par modèle.</Text>
+      {list.map((m, i) => (
+        <View key={i} style={s.promptCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View>
+              <TouchableOpacity onPress={() => move(i, -1)} disabled={i === 0}><Ionicons name="chevron-up" size={18} color={i === 0 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => move(i, 1)} disabled={i === list.length - 1}><Ionicons name="chevron-down" size={18} color={i === list.length - 1 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <TextInput style={[s.input, { flex: 1, marginBottom: 0 }]} value={m.id} onChangeText={(v) => setField(i, 'id', v)} placeholder="ID (ex. gemini-2.5-flash)" autoCapitalize="none" autoCorrect={false} />
+                {badge(m)}
+              </View>
+              <TextInput style={[s.input, { marginBottom: 0 }]} value={m.label} onChangeText={(v) => setField(i, 'label', v)} placeholder="Nom affiché" />
+            </View>
+            <View style={{ alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity style={[s.switch, m.enabled && s.switchOn]} onPress={() => setField(i, 'enabled', !m.enabled)}><View style={[s.knob, m.enabled && s.knobOn]} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => remove(i)}><Ionicons name="trash-outline" size={18} color={c.danger} /></TouchableOpacity>
+            </View>
           </View>
-          <View style={{ flex: 1 }}><Text style={s.cardTitle}>{m.label}</Text><Text style={s.cardDesc}>{m.id}</Text></View>
-          <TouchableOpacity style={[s.switch, m.enabled && s.switchOn]} onPress={() => toggle(i)}><View style={[s.knob, m.enabled && s.knobOn]} /></TouchableOpacity>
         </View>
       ))}
+      <TouchableOpacity style={s.addRow} onPress={add}><Ionicons name="add" size={18} color={c.emerald} /><Text style={{ color: c.emerald, fontWeight: '700' }}>Ajouter un modèle</Text></TouchableOpacity>
+      <TouchableOpacity style={[s.saveBtn, !dirty && { opacity: 0.4 }]} disabled={!dirty || updateCfg.isPending} onPress={saveAll}><Text style={s.saveTxt}>Enregistrer les modèles</Text></TouchableOpacity>
     </>
   );
 }
@@ -204,14 +239,20 @@ function QuestionsEditor({ c, s, cfg, updateCfg }: any) {
 }
 
 /* ── Tickets ── */
-function TicketsTab({ c, s, tickets, resolveTicket, adminReply, relaunch }: any) {
+function TicketsTab({ c, s, tickets, prompts, resolveTicket, adminReply, relaunch }: any) {
   if (!tickets.length) return <Text style={s.hint}>Aucun ticket en attente. 🎉</Text>;
-  return tickets.map((t: any) => <TicketCard key={t.id} c={c} s={s} t={t} resolveTicket={resolveTicket} adminReply={adminReply} relaunch={relaunch} />);
+  return tickets.map((t: any) => <TicketCard key={t.id} c={c} s={s} t={t} prompts={prompts} resolveTicket={resolveTicket} adminReply={adminReply} relaunch={relaunch} />);
 }
 
-function TicketCard({ c, s, t, resolveTicket, adminReply, relaunch }: any) {
+function TicketCard({ c, s, t, prompts, resolveTicket, adminReply, relaunch }: any) {
   const [reply, setReply] = useState('');
+  const [showPrompt, setShowPrompt] = useState(false);
   const req = t.request ?? {};
+  // Reconstitue le PROMPT RÉEL envoyé au modèle (template admin + valeurs réelles), pour copier-coller.
+  const tplKey = req.kind === 'analysis' ? req.analysis_key : 'chat_system';
+  const tpl = (prompts ?? []).find((p: any) => p.key === tplKey)?.prompt_template ?? '';
+  const fullPrompt = tpl.replaceAll('{{SNAPSHOT}}', req.snapshot ?? '(instantané non enregistré)').replaceAll('{{QUESTION}}', req.question ?? '');
+  const copyPrompt = async () => { await Clipboard.setStringAsync(fullPrompt); Alert.alert('Copié', 'Le prompt complet a été copié.'); };
   const doRelaunch = () => {
     if (!req.snapshot) { Alert.alert('Relance impossible', "L'instantané n'a pas été enregistré pour ce ticket. Réponds manuellement."); return; }
     relaunch.mutate(
@@ -223,18 +264,64 @@ function TicketCard({ c, s, t, resolveTicket, adminReply, relaunch }: any) {
     const v = reply.trim(); if (!v) return;
     adminReply.mutate({ profileId: t.profile_id, content: v, ticketId: t.id }, { onSuccess: () => setReply('') });
   };
+  const date = t.created_at ? new Date(t.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
   return (
-    <View style={s.promptCard}>
-      <Text style={s.keyTag}>{req.kind === 'analysis' ? `Analyse · ${req.analysis_key}` : 'Question'}</Text>
-      {req.question ? <Text style={s.cardDesc}>« {req.question} »</Text> : null}
-      <Text style={[s.cardDesc, { marginTop: 4 }]}>User : {t.profile_id}</Text>
-      {t.error ? <Text style={[s.cardDesc, { color: c.danger, marginTop: 2 }]} numberOfLines={2}>Erreur : {t.error}</Text> : null}
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-        <TouchableOpacity style={[s.miniBtn, { backgroundColor: c.emerald }]} onPress={doRelaunch} disabled={relaunch.isPending}><Text style={s.miniTxt}>Relancer (sans quota)</Text></TouchableOpacity>
-        <TouchableOpacity style={[s.miniBtn, { borderWidth: 1, borderColor: c.cardBorder }]} onPress={() => resolveTicket.mutate(t.id)} disabled={resolveTicket.isPending}><Text style={[s.miniTxt, { color: c.textSecondary }]}>Résoudre</Text></TouchableOpacity>
+    <View style={s.ticketCard}>
+      {/* En-tête : type + date */}
+      <View style={s.ticketHead}>
+        <View style={s.ticketPill}>
+          <Ionicons name={req.kind === 'analysis' ? 'document-text-outline' : 'chatbubble-ellipses-outline'} size={12} color={c.emerald} />
+          <Text style={s.ticketPillTxt}>{req.kind === 'analysis' ? 'Analyse' : 'Question'}</Text>
+        </View>
+        {!!date && <Text style={s.ticketDate}>{date}</Text>}
       </View>
-      <TextInput style={[s.area, { minHeight: 70, marginTop: 10 }]} value={reply} onChangeText={setReply} multiline placeholder="Réponse manuelle (postée dans le fil du user)…" />
-      <TouchableOpacity style={[s.saveBtn, !reply.trim() && { opacity: 0.4 }]} disabled={!reply.trim() || adminReply.isPending} onPress={doReply}><Text style={s.saveTxt}>Répondre & résoudre</Text></TouchableOpacity>
+
+      {/* Contenu de la demande */}
+      {req.kind === 'analysis' && req.analysis_key ? <Text style={s.ticketField}>{req.analysis_key}</Text> : null}
+      {req.question ? <Text style={s.ticketQuote}>« {req.question} »</Text> : null}
+      <Text style={s.ticketMeta}>User : {t.profile_id}</Text>
+      {t.error ? (
+        <View style={s.ticketError}>
+          <Ionicons name="warning-outline" size={13} color={c.danger} />
+          <Text style={s.ticketErrorTxt} numberOfLines={2}>{String(t.error).replace(/\s+/g, ' ').slice(0, 160)}</Text>
+        </View>
+      ) : null}
+
+      {/* Prompt réel : voir / copier (largeur égale, pas de chevauchement) */}
+      <View style={s.ticketRow}>
+        <TouchableOpacity style={s.ghostBtn} onPress={() => setShowPrompt((v) => !v)}>
+          <Ionicons name={showPrompt ? 'eye-off-outline' : 'eye-outline'} size={15} color={c.textSecondary} />
+          <Text style={s.ghostTxt} numberOfLines={1}>{showPrompt ? 'Masquer' : 'Voir le prompt'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.ghostBtn, { borderColor: c.emerald }]} onPress={copyPrompt}>
+          <Ionicons name="copy-outline" size={15} color={c.emerald} />
+          <Text style={[s.ghostTxt, { color: c.emerald }]} numberOfLines={1}>Copier</Text>
+        </TouchableOpacity>
+      </View>
+      {showPrompt && (
+        <ScrollView style={s.promptBox} nestedScrollEnabled>
+          <Text style={s.promptText} selectable>{fullPrompt}</Text>
+        </ScrollView>
+      )}
+
+      <View style={s.ticketDivider} />
+
+      {/* Actions */}
+      <TouchableOpacity style={[s.primaryBtn, relaunch.isPending && { opacity: 0.5 }]} onPress={doRelaunch} disabled={relaunch.isPending}>
+        <Ionicons name="refresh" size={15} color="#fff" />
+        <Text style={s.primaryTxt}>Relancer (sans quota)</Text>
+      </TouchableOpacity>
+
+      <TextInput style={[s.area, { minHeight: 70, marginTop: 10 }]} value={reply} onChangeText={setReply} multiline placeholder="Réponse manuelle (postée dans le fil du user)…" placeholderTextColor={c.textSecondary} />
+      <View style={s.ticketRow}>
+        <TouchableOpacity style={[s.ghostBtn, !reply.trim() && { opacity: 0.4 }]} disabled={!reply.trim() || adminReply.isPending} onPress={doReply}>
+          <Text style={[s.ghostTxt, { color: c.emerald }]} numberOfLines={1}>Répondre &amp; résoudre</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.ghostBtn} onPress={() => resolveTicket.mutate(t.id)} disabled={resolveTicket.isPending}>
+          <Ionicons name="checkmark-done-outline" size={15} color={c.textSecondary} />
+          <Text style={s.ghostTxt} numberOfLines={1}>Résoudre</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -270,6 +357,29 @@ function makeStyles(c: any) {
     addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
     miniBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     miniTxt: { color: '#fff', fontWeight: '700', fontSize: 12.5 },
+    checkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: c.emerald, borderRadius: 10, paddingVertical: 11, marginBottom: 8 },
+    checkTxt: { color: c.emerald, fontWeight: '700', fontSize: 13.5 },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+    statusTxt: { fontSize: 10.5, fontWeight: '800' },
+    promptBox: { maxHeight: 220, marginTop: 8, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, padding: 10 },
+    promptText: { color: c.text, fontSize: 11.5, lineHeight: 16, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+    // Carte ticket
+    ticketCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
+    ticketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    ticketPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.emerald + '18', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 },
+    ticketPillTxt: { fontSize: 11.5, fontWeight: '800', color: c.emerald },
+    ticketDate: { fontSize: 11, color: c.textSecondary },
+    ticketField: { fontSize: 12, fontWeight: '700', color: c.text, marginBottom: 2 },
+    ticketQuote: { fontSize: 13, color: c.text, fontStyle: 'italic', marginBottom: 4, lineHeight: 18 },
+    ticketMeta: { fontSize: 11, color: c.textSecondary },
+    ticketError: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: c.danger + '12', borderRadius: 8, padding: 8, marginTop: 8 },
+    ticketErrorTxt: { flex: 1, fontSize: 11, color: c.danger, lineHeight: 15 },
+    ticketRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    ticketDivider: { height: 1, backgroundColor: c.cardBorder, marginTop: 12 },
+    ghostBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8 },
+    ghostTxt: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    primaryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, marginTop: 12 },
+    primaryTxt: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
     text: { color: c.text, padding: 20 },
   });
 }

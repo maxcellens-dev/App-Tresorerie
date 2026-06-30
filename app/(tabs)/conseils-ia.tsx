@@ -24,7 +24,7 @@ import { computeAmortization } from '../../lib/amortization';
 import { todayISO } from '../../lib/dateUtils';
 import { buildSnapshot } from '../../lib/aiSnapshot';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAskAi, useDeleteAiHistory, type AiMessage } from '../../hooks/useAi';
+import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, useDeleteAiHistory, type AiMessage } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
   const c = useAppColors();
@@ -43,6 +43,7 @@ export default function ConseilsIaScreen() {
   const { data: quota } = useAiQuota(uid);
   const { data: prompts } = useAiPrompts();
   const { data: history } = useAiMessages(uid);
+  useAiMessagesRealtime(uid);
   const ask = useAskAi(uid);
   const delHistory = useDeleteAiHistory(uid);
 
@@ -116,7 +117,7 @@ export default function ConseilsIaScreen() {
       } else if (!res.ok) {
         if (res.error === 'quota_exceeded') Alert.alert('Quota atteint', `Tu as utilisé tes ${res.limit} requête(s) ce mois-ci.`);
         else if (res.error === 'premium_required') Alert.alert('Réservé Premium', 'Cette fonctionnalité est réservée aux abonnés Premium.');
-        else Alert.alert('Indisponible', "Le service de conseils est momentanément indisponible.");
+        else Alert.alert('Indisponible', `Le service de conseils est momentanément indisponible.${res.error ? `\n\n(détail : ${res.error})` : ''}`);
       }
     } catch (e: any) {
       Alert.alert('Erreur', e?.message ?? 'Échec de la requête.');
