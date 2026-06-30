@@ -112,10 +112,19 @@ export default function CreditAddScreen() {
       arr.forEach((v, y) => { if (v == null) return; const n = Math.round(Number(v)); if (n !== prev) { segs.push({ startYear: y, [key]: String(n) }); prev = n; } });
       return segs.length ? segs : null;
     };
-    const paySegs = toSegs(editing.payment_yearly, 'payment');
-    if (paySegs) { setSegments(paySegs); setPaymentMode('paliers'); }
-    const insSegs = toSegs(editing.insurance_yearly, 'amount');
-    if (insSegs) { setInsSegments(insSegs); setInsMode('paliers'); }
+    // Priorité aux PALIERS STOCKÉS tels quels (restitution exacte) ; sinon reconstruction heuristique.
+    // On n'utilise les paliers stockés que si les montants annuels existent aussi (sinon = paliers obsolètes
+    // après bascule en mode standard).
+    const storedPay = Array.isArray(editing.payment_yearly) && Array.isArray(editing.payment_paliers) && editing.payment_paliers.length
+      ? editing.payment_paliers.map((s: any) => ({ startYear: Number(s.startYear) || 0, payment: String(s.payment ?? '') }))
+      : null;
+    const storedIns = Array.isArray(editing.insurance_yearly) && Array.isArray(editing.insurance_paliers) && editing.insurance_paliers.length
+      ? editing.insurance_paliers.map((s: any) => ({ startYear: Number(s.startYear) || 0, amount: String(s.amount ?? '') }))
+      : null;
+    const paySegs = storedPay ?? toSegs(editing.payment_yearly, 'payment');
+    if (paySegs) { setSegments(paySegs as any); setPaymentMode('paliers'); }
+    const insSegs = storedIns ?? toSegs(editing.insurance_yearly, 'amount');
+    if (insSegs) { setInsSegments(insSegs as any); setInsMode('paliers'); }
     // Éditeur « Montants par année » : on remplit les valeurs (utile si on bascule en mode par année),
     // mais on ne l'OUVRE automatiquement que si AUCUN palier n'a été reconstruit (sinon il masque/double
     // la section paliers, donnant l'impression que les paliers ne sont pas conservés).
@@ -198,6 +207,10 @@ export default function CreditAddScreen() {
       interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
       insurance_yearly: effInsuranceYearly(),
       payment_yearly: effPaymentYearly(),
+      // Paliers bruts (restitution exacte) — envoyés seulement en mode paliers (migration 111). Omis sinon
+      // pour ne pas exiger la colonne sur les crédits sans paliers (anti « column not found »).
+      ...(paymentMode === 'paliers' ? { payment_paliers: segments } : {}),
+      ...(insMode === 'paliers' ? { insurance_paliers: insSegments } : {}),
       // Colonnes des migrations récentes : envoyées seulement si renseignées → l'enregistrement ne casse
       // pas si une migration tarde (107 = interest_total_manual, 109 = first_insurance_date).
       ...(insDate ? { first_insurance_date: insDate } : {}),

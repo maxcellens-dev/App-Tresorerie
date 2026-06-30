@@ -266,6 +266,9 @@ export interface Credit {
   insurance_yearly?: (number | null)[] | null;
   /** #6 — mensualité forcée par année (index 0 = an 1). */
   payment_yearly?: (number | null)[] | null;
+  /** Paliers bruts (pour restitution exacte). */
+  payment_paliers?: { startYear: number; payment: string }[] | null;
+  insurance_paliers?: { startYear: number; amount: string }[] | null;
   /** Overrides manuels du tableau d'amortissement par échéance (toutes colonnes) :
    *  { "<n°>": { p?, i?, int?, cap?, rd?, d? } } (mensualité, assurance, intérêts, capital, restant dû, date). */
   schedule_overrides?: Record<string, { p?: number | null; i?: number | null; int?: number | null; cap?: number | null; rd?: number | null; d?: string | null }> | null;
