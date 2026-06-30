@@ -71,3 +71,6 @@ DROP POLICY IF EXISTS credit_events_all ON public.credit_events;
 CREATE POLICY credit_events_all ON public.credit_events FOR ALL
   USING (profile_id = auth.uid() OR is_app_admin())
   WITH CHECK (profile_id = auth.uid() OR is_app_admin());
+
+-- Recharge le cache de schéma PostgREST (sinon « column not found in schema cache » côté API).
+NOTIFY pgrst, 'reload schema';

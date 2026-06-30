@@ -51,6 +51,9 @@ GRANT EXECUTE ON FUNCTION public.credit_role(uuid) TO authenticated;
 DROP POLICY IF EXISTS credits_all ON public.credits;
 DROP POLICY IF EXISTS credits_select ON public.credits;
 DROP POLICY IF EXISTS credits_cud ON public.credits;
+DROP POLICY IF EXISTS credits_insert ON public.credits;
+DROP POLICY IF EXISTS credits_update ON public.credits;
+DROP POLICY IF EXISTS credits_delete ON public.credits;
 CREATE POLICY credits_select ON public.credits FOR SELECT USING (profile_id = auth.uid() OR credit_can_access(id) OR is_app_admin());
 CREATE POLICY credits_insert ON public.credits FOR INSERT WITH CHECK (profile_id = auth.uid() OR is_app_admin());
 CREATE POLICY credits_update ON public.credits FOR UPDATE
@@ -170,3 +173,6 @@ GRANT EXECUTE ON FUNCTION public.credit_my_invitations() TO authenticated;
 -- Realtime.
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.credit_members; EXCEPTION WHEN duplicate_object THEN NULL; WHEN undefined_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.credit_invitations; EXCEPTION WHEN duplicate_object THEN NULL; WHEN undefined_object THEN NULL; END $$;
+
+-- Recharge le cache de schéma PostgREST (sinon « column not found in schema cache » côté API).
+NOTIFY pgrst, 'reload schema';

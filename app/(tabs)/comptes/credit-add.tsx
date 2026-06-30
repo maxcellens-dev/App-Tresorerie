@@ -3,7 +3,7 @@
  * Saisie des paramètres (avec calendrier pour les dates), frais détaillés, et montants ANNUELS
  * (assurance + mensualité qui peuvent évoluer chaque année). Prévisualise l'amortissement.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -104,14 +104,38 @@ export default function CreditAddScreen() {
       interim_interest: String(editing.interim_interest ?? ''), management_fees: String(editing.management_fees ?? ''), other_fees: String(editing.other_fees ?? ''),
     });
     if (editing.interest_total_manual != null) setInterestManual(String(editing.interest_total_manual));
+    // Reconstruire les PALIERS depuis les montants annuels enregistrés (regroupe les années consécutives
+    // de même montant en un palier) → la saisie par palier est restituée à la réouverture.
+    const toSegs = (arr: any[] | null | undefined, key: 'payment' | 'amount') => {
+      if (!Array.isArray(arr)) return null;
+      const segs: any[] = []; let prev: number | undefined;
+      arr.forEach((v, y) => { if (v == null) return; const n = Math.round(Number(v)); if (n !== prev) { segs.push({ startYear: y, [key]: String(n) }); prev = n; } });
+      return segs.length ? segs : null;
+    };
+    const paySegs = toSegs(editing.payment_yearly, 'payment');
+    if (paySegs) { setSegments(paySegs); setPaymentMode('paliers'); }
+    const insSegs = toSegs(editing.insurance_yearly, 'amount');
+    if (insSegs) { setInsSegments(insSegs); setInsMode('paliers'); }
+    // Éditeur « Montants par année » : on remplit les valeurs (utile si on bascule en mode par année),
+    // mais on ne l'OUVRE automatiquement que si AUCUN palier n'a été reconstruit (sinon il masque/double
+    // la section paliers, donnant l'impression que les paliers ne sont pas conservés).
     if (Array.isArray(editing.insurance_yearly) || Array.isArray(editing.payment_yearly)) {
       const ins: Record<number, string> = {}; const pay: Record<number, string> = {};
       (editing.insurance_yearly ?? []).forEach((v, i) => { if (v != null) ins[i] = String(v); });
       (editing.payment_yearly ?? []).forEach((v, i) => { if (v != null) pay[i] = String(v); });
-      setInsYear(ins); setPayYear(pay); setShowYearly(true);
+      setInsYear(ins); setPayYear(pay);
+      if (!paySegs && !insSegs) setShowYearly(true);
     }
     setPrefilled(true);
   }, [editing, prefilled]);
+
+  // Rendre VISIBLE le compte de prélèvement sélectionné (sinon il reste hors écran à droite).
+  const acctScrollRef = useRef<ScrollView>(null);
+  const acctPos = useRef<Record<string, number>>({});
+  const scrollToAcct = (animated: boolean) => {
+    if (accountId && acctPos.current[accountId] != null) acctScrollRef.current?.scrollTo({ x: Math.max(0, acctPos.current[accountId] - 40), animated });
+  };
+  useEffect(() => { scrollToAcct(true); }, [accountId]);
 
   const num = (s: string | undefined) => (s ? parseFloat(s.replace(',', '.')) : NaN);
   const numOr0 = (s: string | undefined) => { const v = num(s); return Number.isNaN(v) ? 0 : v; };
@@ -249,9 +273,14 @@ export default function CreditAddScreen() {
           {checking.length > 0 && (
             <>
               <Text style={styles.label}>Compte de prélèvement</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+              <ScrollView ref={acctScrollRef} horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
                 {checking.map((a) => (
-                  <TouchableOpacity key={a.id} style={[styles.acctChip, accountId === a.id && styles.acctChipActive]} onPress={() => setAccountId(accountId === a.id ? null : a.id)}>
+                  <TouchableOpacity
+                    key={a.id}
+                    onLayout={(e) => { acctPos.current[a.id] = e.nativeEvent.layout.x; if (a.id === accountId) scrollToAcct(false); }}
+                    style={[styles.acctChip, accountId === a.id && styles.acctChipActive]}
+                    onPress={() => setAccountId(accountId === a.id ? null : a.id)}
+                  >
                     <Text style={[styles.acctChipText, accountId === a.id && { color: COLORS.blue }]}>{a.name}</Text>
                   </TouchableOpacity>
                 ))}

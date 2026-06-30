@@ -4,3 +4,6 @@
 -- NULL → on utilise la date de 1ʳᵉ échéance du remboursement (first_payment_date).
 -- ============================================================================
 ALTER TABLE public.credits ADD COLUMN IF NOT EXISTS first_insurance_date date;
+
+-- Recharge le cache de schéma PostgREST (sinon « column not found in schema cache » côté API).
+NOTIFY pgrst, 'reload schema';

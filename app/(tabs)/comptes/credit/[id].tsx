@@ -95,6 +95,13 @@ export default function CreditDetailScreen() {
   const paid = amort.paidCountAtDate(today);
   const acctName = accounts.find((a) => a.id === credit.account_id)?.name;
 
+  // Décomposition des coûts (utilisée par la synthèse EN HAUT et la section « Coûts » → mêmes montants).
+  const cInterest = credit.interest_total_manual != null ? credit.interest_total_manual : amort.totalInterest;
+  const cLoanFees = (credit.fees_guarantee ?? 0) + (credit.fees_notary ?? 0) + (credit.interim_interest ?? 0) + (credit.management_fees ?? 0);
+  const cExtraFees = (credit.fees_file ?? 0) + (credit.fees_bank ?? 0) + (credit.other_fees ?? 0);
+  const cCoutPret = cInterest + cLoanFees;
+  const cCoutTotal = cCoutPret + amort.totalInsurance + cExtraFees;
+
   const confirmDelete = () => {
     Alert.alert('Supprimer le crédit', `Supprimer « ${credit.label} » ?`, [
       { text: 'Annuler', style: 'cancel' },
@@ -126,7 +133,7 @@ export default function CreditDetailScreen() {
             <View style={styles.statRow}>
               <View style={styles.stat}><Text style={styles.statK}>Mensualité</Text><Text style={styles.statV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
               <View style={styles.stat}><Text style={styles.statK}>Taux</Text><Text style={styles.statV}>{credit.rate_annual}%</Text></View>
-              <View style={styles.stat}><Text style={styles.statK}>Coût total</Text><Text style={[styles.statV, { color: COLORS.danger }]}>{fmt(amort.totalCost)}</Text></View>
+              <View style={styles.stat}><Text style={styles.statK}>Coût total</Text><Text style={[styles.statV, { color: COLORS.danger }]}>{fmt(cCoutTotal)}</Text></View>
             </View>
           </View>
 
@@ -139,30 +146,19 @@ export default function CreditDetailScreen() {
             {credit.is_simulation ? <Row k="Statut" v="Simulation" /> : null}
           </View>
 
-          {/* #5 — Décomposition des coûts */}
-          {(() => {
-            const interest = credit.interest_total_manual != null ? credit.interest_total_manual : amort.totalInterest;
-            const loanFees = (credit.fees_guarantee ?? 0) + (credit.fees_notary ?? 0) + (credit.interim_interest ?? 0) + (credit.management_fees ?? 0);
-            const extraFees = (credit.fees_file ?? 0) + (credit.fees_bank ?? 0) + (credit.other_fees ?? 0);
-            const coutPret = interest + loanFees;
-            const coutTotal = coutPret + amort.totalInsurance + extraFees;
-            return (
-              <>
-                <Text style={styles.sectionTitle}>Coûts</Text>
-                <View style={styles.card}>
-                  <Row k={`Intérêts${credit.interest_total_manual != null ? ' (manuel)' : ''}`} v={fmt(interest)} />
-                  {loanFees > 0 ? <Row k="Frais du prêt" v={fmt(loanFees)} /> : null}
-                  <Row k="Coût du prêt" v={fmt(coutPret)} />
-                  {amort.totalInsurance > 0 ? <Row k="Assurance (totale)" v={fmt(amort.totalInsurance)} /> : null}
-                  {extraFees > 0 ? <Row k="Frais à part" v={fmt(extraFees)} /> : null}
-                  {(credit.personal_contribution ?? 0) > 0 ? <Row k="Apport personnel" v={fmt(credit.personal_contribution!)} /> : null}
-                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 4 }}>
-                    <View style={styles.infoRow}><Text style={[styles.infoK, { fontWeight: '800', color: COLORS.text }]}>Coût total</Text><Text style={[styles.infoV, { color: COLORS.danger, fontWeight: '800' }]}>{fmt(coutTotal)}</Text></View>
-                  </View>
-                </View>
-              </>
-            );
-          })()}
+          {/* #5 — Décomposition des coûts (mêmes montants que la synthèse en haut) */}
+          <Text style={styles.sectionTitle}>Coûts</Text>
+          <View style={styles.card}>
+            <Row k={`Intérêts${credit.interest_total_manual != null ? ' (manuel)' : ''}`} v={fmt(cInterest)} />
+            {cLoanFees > 0 ? <Row k="Frais du prêt" v={fmt(cLoanFees)} /> : null}
+            <Row k="Coût du prêt" v={fmt(cCoutPret)} />
+            {amort.totalInsurance > 0 ? <Row k="Assurance (totale)" v={fmt(amort.totalInsurance)} /> : null}
+            {cExtraFees > 0 ? <Row k="Frais à part" v={fmt(cExtraFees)} /> : null}
+            {(credit.personal_contribution ?? 0) > 0 ? <Row k="Apport personnel" v={fmt(credit.personal_contribution!)} /> : null}
+            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, marginTop: 4, paddingTop: 4 }}>
+              <View style={styles.infoRow}><Text style={[styles.infoK, { fontWeight: '800', color: COLORS.text }]}>Coût total</Text><Text style={[styles.infoV, { color: COLORS.danger, fontWeight: '800' }]}>{fmt(cCoutTotal)}</Text></View>
+            </View>
+          </View>
 
           {/* C5 — Événements (remboursement anticipé, changement de taux) */}
           <View style={styles.evtHead}>
@@ -203,8 +199,10 @@ export default function CreditDetailScreen() {
             ))}
           </View>
           {(() => {
-            const hasInsurance = editTable || amort.schedule.some((r) => r.insurance > 0);
-            const nextIdx = amort.schedule.findIndex((r) => r.date >= today);
+            // Vue = échéancier RÉEL (remboursement + assurance décalée). Édition = par période (schedule).
+            const rows = editTable ? amort.schedule : amort.displaySchedule;
+            const hasInsurance = editTable || rows.some((r) => r.insurance > 0);
+            const nextIdx = rows.findIndex((r) => r.date >= today);
             return (
               <ScrollView horizontal={editTable} showsHorizontalScrollIndicator={editTable}>
               <View style={[styles.card, editTable && { minWidth: 460 }]}>
@@ -216,7 +214,7 @@ export default function CreditDetailScreen() {
                   <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Restant dû</Text>
                 </View>
-                {amort.schedule.map((r, i) => {
+                {rows.map((r, i) => {
                   const past = r.date < today;
                   const isNext = i === nextIdx;
                   const cell = (key: 'p' | 'i' | 'int' | 'cap' | 'rd', value: number) => editTable ? (
@@ -226,7 +224,7 @@ export default function CreditDetailScreen() {
                     <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(value)}</Text>
                   );
                   return (
-                    <View key={r.period} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext]}>
+                    <View key={`${r.date}-${i}`} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext]}>
                       <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
                       {cell('p', r.payment)}
                       {hasInsurance && cell('i', r.insurance)}

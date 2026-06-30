@@ -15,3 +15,6 @@ ALTER TABLE public.credits ADD COLUMN IF NOT EXISTS other_fees numeric DEFAULT 0
 -- payment_yearly   : mensualité (capital+intérêts) forcée pour chaque année (vide/null → calcul standard).
 ALTER TABLE public.credits ADD COLUMN IF NOT EXISTS insurance_yearly jsonb;
 ALTER TABLE public.credits ADD COLUMN IF NOT EXISTS payment_yearly jsonb;
+
+-- Recharge le cache de schéma PostgREST (sinon « column not found in schema cache » côté API).
+NOTIFY pgrst, 'reload schema';

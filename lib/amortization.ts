@@ -10,6 +10,8 @@ export interface CreditParams {
   rate_annual: number;        // %
   duration_months: number;
   first_payment_date?: string | null;
+  /** Date de 1ʳᵉ échéance d'ASSURANCE (peut différer du remboursement). NULL → first_payment_date. */
+  first_insurance_date?: string | null;
   start_date: string;
   insurance_monthly?: number | null;
   deferral_months?: number | null;
@@ -86,7 +88,10 @@ export interface AmortResult {
   totalInterest: number;
   totalInsurance: number;
   totalCost: number;          // intérêts + assurance (coût du crédit)
-  schedule: AmortRow[];
+  schedule: AmortRow[];       // échéancier de REMBOURSEMENT (n lignes, par période)
+  /** Échéancier RÉEL fusionné (remboursement + assurance à leurs dates respectives, possiblement décalées
+   *  → plus de lignes que la durée). Pour l'affichage du tableau. Une ligne peut n'avoir que l'assurance. */
+  displaySchedule: AmortRow[];
   /** Capital restant dû à une date donnée (la 1ʳᵉ échéance > date). */
   crdAtDate: (isoDate: string) => number;
   /** Nb d'échéances déjà passées à une date donnée. */
@@ -200,6 +205,31 @@ export function computeAmortization(p: CreditParams): AmortResult {
   };
   const paidCountAtDate = (isoDate: string) => schedule.filter((r) => r.date <= isoDate).length;
 
+  // Échéancier RÉEL : remboursement et assurance peuvent partir à des dates différentes, chacun sur la
+  // durée TOTALE → on fusionne les deux flux par date. Si l'assurance est décalée, le tableau a plus de
+  // lignes (certaines n'ont QUE l'assurance ; leur « restant dû » reprend celui du dernier remboursement).
+  const insFirst = (p.first_insurance_date && /^\d{4}-\d{2}-\d{2}$/.test(p.first_insurance_date)) ? p.first_insurance_date : firstDate;
+  let displaySchedule: AmortRow[];
+  if (insFirst === firstDate) {
+    displaySchedule = schedule; // mêmes dates → l'échéancier de remboursement porte déjà l'assurance
+  } else {
+    const byDate = new Map<string, AmortRow>();
+    // 1) Remboursement (sans assurance sur ces lignes — l'assurance a sa propre date).
+    for (const r of schedule) byDate.set(r.date, { ...r, insurance: 0 });
+    // 2) Assurance à sa propre date (montant de la période correspondante).
+    for (const r of schedule) {
+      if (r.insurance <= 0) continue;
+      const d = addMonthsISO(insFirst, r.period - 1);
+      const ex = byDate.get(d);
+      if (ex) ex.insurance += r.insurance;
+      else byDate.set(d, { period: r.period, date: d, payment: 0, insurance: r.insurance, interest: 0, principalPart: 0, crdAfter: NaN });
+    }
+    displaySchedule = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+    // 3) Restant dû des lignes assurance-seules = CRD du dernier remboursement antérieur.
+    let lastCrd = C;
+    for (const r of displaySchedule) { if (!Number.isNaN(r.crdAfter)) lastCrd = r.crdAfter; else r.crdAfter = lastCrd; }
+  }
+
   return {
     monthlyPayment,
     monthlyWithInsurance: monthlyPayment + insForPeriod(Math.min(defN + 1, n)),
@@ -207,6 +237,7 @@ export function computeAmortization(p: CreditParams): AmortResult {
     totalInsurance,
     totalCost: totalInterest + totalInsurance,
     schedule,
+    displaySchedule,
     crdAtDate,
     paidCountAtDate,
   };
