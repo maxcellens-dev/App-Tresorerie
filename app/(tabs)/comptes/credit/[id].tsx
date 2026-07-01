@@ -93,6 +93,10 @@ export default function CreditDetailScreen() {
   const canWrite = credit._role !== 'read'; // membre en consultation → lecture seule
   const crd = amort.crdAtDate(today);
   const paid = amort.paidCountAtDate(today);
+  // Capital déjà remboursé (hors intérêts) = emprunté − capital restant dû (= somme de la colonne Capital
+  // du tableau déjà payée). Pourcentage sur le capital emprunté.
+  const repaidPrincipal = Math.max(0, credit.principal - crd);
+  const repaidPct = credit.principal > 0 ? (repaidPrincipal / credit.principal) * 100 : 0;
   const acctName = accounts.find((a) => a.id === credit.account_id)?.name;
 
   // Décomposition des coûts (utilisée par la synthèse EN HAUT et la section « Coûts » → mêmes montants).
@@ -134,6 +138,10 @@ export default function CreditDetailScreen() {
               <View style={styles.stat}><Text style={styles.statK}>Mensualité</Text><Text style={styles.statV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
               <View style={styles.stat}><Text style={styles.statK}>Taux</Text><Text style={styles.statV}>{credit.rate_annual}%</Text></View>
               <View style={styles.stat}><Text style={styles.statK}>Coût total</Text><Text style={[styles.statV, { color: COLORS.danger }]}>{fmt(cCoutTotal)}</Text></View>
+            </View>
+            <View style={styles.repaidRow}>
+              <Text style={styles.repaidLabel}>Remboursé</Text>
+              <Text style={styles.repaidValue}>{Math.round(repaidPct)}% · {fmt(repaidPrincipal)}</Text>
             </View>
           </View>
 
@@ -374,6 +382,9 @@ function makeStyles(c: any) {
     stat: { flex: 1 },
     statK: { fontSize: 11, color: c.textSecondary },
     statV: { fontSize: 15, fontWeight: '700', color: c.text, marginTop: 2 },
+    repaidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.cardBorder },
+    repaidLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    repaidValue: { fontSize: 15, fontWeight: '800', color: c.emerald },
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
     infoK: { fontSize: 13, color: c.textSecondary },
     infoV: { fontSize: 13, fontWeight: '600', color: c.text },

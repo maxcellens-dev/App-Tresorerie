@@ -286,6 +286,8 @@ export default function TreasuryPlanScreen() {
     const mouvInvestTx: Record<string, TransactionWithDetails[]> = {};
     // Track regul by note (raw signed amounts) for the gray row under Frais variables
     const regulByMonth: Record<string, number> = {};
+    // Ids des comptes COURANTS (perso + joints) → pour détecter un virement interne courant↔courant.
+    const checkingAccountIds = new Set(accounts.filter((a) => a.type === 'checking').map((a) => a.id));
     months.forEach((m) => {
       mouvEpargne[m.key] = 0;
       mouvInvest[m.key] = 0;
@@ -340,6 +342,10 @@ export default function TreasuryPlanScreen() {
       // (comme un virement manuel) — qu'ils soient validés ou en brouillon.
       if (isSavingsMove) { addToMouv(mouvEpargne, t, amount, mouvEpargneTx); continue; }
       if (isInvestMove) { addToMouv(mouvInvest, t, amount, mouvInvestTx); continue; }
+      // Virement entre comptes COURANTS (perso↔perso ou perso↔joint) → EXCLU du tableau recettes/
+      // dépenses (sinon doublon avec la part du crédit sur le joint). Le SOLDE reste juste : il est
+      // calculé séparément (checkingNetByMonth) et compte déjà toutes les jambes.
+      if (isChecking && t.linked_account_id && checkingAccountIds.has(t.linked_account_id)) continue;
       // Réservations même-compte (projet) → Réservé.
       if (isProjectTx && isChecking) { addToMouv(mouvProjets, t, amount); continue; }
 

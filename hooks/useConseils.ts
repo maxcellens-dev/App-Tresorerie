@@ -33,7 +33,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // ── Évaluation des critères contextuels ──────────────────────────────────────
 
-export function evalCriteres(pilotage: PilotageData, transactions: any[], projects: any[], accounts: any[] = []): {
+export function evalCriteres(pilotage: PilotageData, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = []): {
   key: string;
   vars: Record<string, string | number>;
 }[] {
@@ -49,6 +49,7 @@ export function evalCriteres(pilotage: PilotageData, transactions: any[], projec
       variableMonthly: pilotage.variable_envelope_initial ?? 0,
       variableRemaining: pilotage.variable_envelope_remaining ?? 0,
       monthsCount: 6,
+      monthOverrides,
     });
     const currentBalance = pilotage.total_checking;
     const nextMonth = forecast[1];
@@ -145,6 +146,7 @@ export function evalCriteres(pilotage: PilotageData, transactions: any[], projec
       variableMonthly: pilotage.variable_envelope_initial ?? 0,
       variableRemaining: pilotage.variable_envelope_remaining ?? 0,
       monthsCount: 6,
+      monthOverrides,
     });
     const lastMonth = forecast[forecast.length - 1];
     const currentBalance = pilotage.total_checking;
@@ -199,7 +201,7 @@ export function useMarkConseilSeen(userId: string | undefined) {
 }
 
 /** Hook principal : renvoie le conseil du jour (général + contextuel) + actions. */
-export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[], accounts: any[] = []): {
+export function useConseilDuJour(userId: string | undefined, pilotage: PilotageData | undefined, transactions: any[], projects: any[], accounts: any[] = [], monthOverrides: any[] = []): {
   general: (Conseil & { vars: Record<string, string | number> }) | null;
   contextuel: (Conseil & { vars: Record<string, string | number> }) | null;
   dismiss: (id: string) => void;
@@ -229,7 +231,7 @@ export function useConseilDuJour(userId: string | undefined, pilotage: PilotageD
   // ne le remplace pas par un autre — il disparaît jusqu'au lendemain.
   let contextuel: (Conseil & { vars: Record<string, string | number> }) | null = null;
   if (pilotage) {
-    const activeCriteres = evalCriteres(pilotage, transactions, projects, accounts);
+    const activeCriteres = evalCriteres(pilotage, transactions, projects, accounts, monthOverrides);
     const contextuelsAll = all.filter((c) => c.type === 'contextuel');
     for (const { key, vars } of activeCriteres) {
       const match = contextuelsAll.find((c) => c.critere_key === key);

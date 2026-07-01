@@ -72,8 +72,12 @@ export default function CreditAddScreen() {
   // Résolution des catégories par NOM (les sous-catégories de base sont éditées via admin).
   const findCat = (names: string[]): string => {
     const nm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-    const wanted = names.map(nm);
-    return categories.find((c) => c.type === 'expense' && c.parent_id && wanted.includes(nm(c.name)))?.id ?? '';
+    // Respecte l'ORDRE de priorité des noms : on teste le 1ᵉ nom, puis le 2ᵉ, etc.
+    for (const name of names) {
+      const hit = categories.find((c) => c.type === 'expense' && c.parent_id && nm(c.name) === nm(name));
+      if (hit) return hit.id;
+    }
+    return '';
   };
   // Défaut mensualité selon le type : immo → « Prêt immobilier », sinon → « Crédits (auto, consommation) ».
   const defaultCatId = useMemo(() => type === 'immobilier'
@@ -538,6 +542,7 @@ export default function CreditAddScreen() {
                 <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (hors assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyPayment)}</Text></View>
                 <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (1ʳᵉ année, avec assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
                 <View style={[styles.previewRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, paddingTop: 8, marginTop: 2 }]}><Text style={styles.previewK}>Intérêts{!Number.isNaN(num(interestManual)) ? ' (manuel)' : ''}</Text><Text style={styles.previewV}>{fmt(interest)}</Text></View>
+                <View style={styles.previewRow}><Text style={styles.previewK}>Frais (dossier, garantie, notaire…)</Text><Text style={styles.previewV}>{fmt(loanFees + extraFees)}</Text></View>
                 <View style={styles.previewRow}><Text style={styles.previewK}>Coût du prêt (intérêts + frais du prêt)</Text><Text style={styles.previewV}>{fmt(coutPret)}</Text></View>
                 <View style={styles.previewRow}><Text style={styles.previewK}>Coût total (tout compris)</Text><Text style={[styles.previewV, { color: COLORS.danger }]}>{fmt(coutTotal)}</Text></View>
               </View>

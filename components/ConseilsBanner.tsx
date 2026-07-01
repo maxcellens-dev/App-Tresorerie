@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder } from
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useConseilDuJour, interpolate } from '../hooks/useConseils';
+import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
 import type { PilotageData } from '../hooks/usePilotageData';
 
 interface Props {
@@ -23,7 +24,8 @@ interface Slide { id: string; label: string; icon: string; iconColor: string; te
 export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [], accounts = [] }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts);
+  const { data: monthOverrides = [] } = useTransactionMonthOverrides(userId);
+  const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides);
 
   // Liste ordonnée : "Pour vous" puis général.
   const slides: Slide[] = [];

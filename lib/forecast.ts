@@ -32,6 +32,8 @@ interface ForecastParams {
   monthsCount?: number;
   /** Date de référence (défaut : maintenant). */
   now?: Date;
+  /** Overrides mensuels (montant réel modifié d'une occurrence) — pour projeter le RÉEL, pas le figé. */
+  monthOverrides?: { transaction_id: string; year: number; month: number; override_amount: number | null }[];
 }
 
 export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] {
@@ -51,6 +53,21 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
   const isTransfer = (t: any) => !!t.linked_account_id;
   const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
   const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft;
+  // RENTRÉE réelle sur le courant depuis un compte NON courant (épargne, invest, externe) → à compter
+  // comme une entrée (ex. virement d'épargne pour couvrir une grosse dépense). Entre courants = exclu.
+  const isIncomingExternal = (t: any) =>
+    onChecking(t) && !!t.linked_account_id && !t.is_draft && Number(t.amount) > 0
+    && accountTypeById[t.linked_account_id] !== 'checking';
+
+  // Overrides mensuels : montant réel d'une occurrence pour un mois donné (signe repris du modèle).
+  const ovr: Record<string, number> = {};
+  for (const o of params.monthOverrides ?? []) {
+    if (o.override_amount != null) ovr[`${o.transaction_id}:${o.year}:${o.month}`] = Math.abs(Number(o.override_amount));
+  }
+  const realSigned = (t: any, year: number, month: number, base: number): number => {
+    const o = ovr[`${t.id}:${year}:${month}`];
+    return o != null ? (base < 0 ? -o : o) : base;
+  };
 
   const isOtherOutflow = (t: any) => {
     const isChecking = onChecking(t);
@@ -124,13 +141,17 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
     let expense = 0;
 
     for (const t of transactions) {
-      if (!usable(t)) continue;
+      // Recettes/dépenses réelles (hors virements) + RENTRÉES depuis hors-courant (virement entrant).
+      const external = isIncomingExternal(t);
+      if (!usable(t) && !external) continue;
       const amt = Number(t.amount);
       let monthAmt: number;
       if (t.is_recurring && t.recurrence_rule) monthAmt = recurrenceAmount(t, year, month);
       else if (t.date.startsWith(prefix)) monthAmt = amt;
       else continue;
       if (monthAmt === 0) continue;
+      monthAmt = realSigned(t, year, month, monthAmt); // montant RÉEL (override du mois si présent)
+      if (external) { income += Math.abs(monthAmt); continue; } // rentrée d'épargne = entrée
       if (monthAmt > 0) { if (!isRegul(t)) income += monthAmt; }
       else { expense += monthAmt; }
     }
@@ -143,14 +164,17 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
     if (isCurrent) {
       let upcoming = 0;
       for (const t of transactions) {
-        if (!usable(t)) continue;
+        const external = isIncomingExternal(t);
+        if (!usable(t) && !external) continue;
         const amt = Number(t.amount);
         if (t.is_recurring && t.recurrence_rule) {
-          const occ = recurrenceAmount(t, year, month);
+          const occ = realSigned(t, year, month, recurrenceAmount(t, year, month));
           const recDay = new Date(t.date).getDate();
-          if (occ !== 0 && recDay >= now.getDate()) upcoming += occ;
+          if (occ !== 0 && recDay >= now.getDate()) upcoming += external ? Math.abs(occ) : occ;
         } else if (t.date.startsWith(prefix) && t.date > todayStr) {
-          if (!(amt > 0 && isRegul(t))) upcoming += amt;
+          const real = realSigned(t, year, month, amt);
+          if (external) upcoming += Math.abs(real);
+          else if (!(real > 0 && isRegul(t))) upcoming += real;
         }
       }
       runningBalance = checkingBalance + upcoming - variableRemaining - otherRemaining;
