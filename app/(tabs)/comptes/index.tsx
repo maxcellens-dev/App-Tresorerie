@@ -1,5 +1,6 @@
-﻿import { useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal } from 'react-native';
+﻿import { useState, useMemo, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter } from 'react-native';
+import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
@@ -51,6 +52,12 @@ export default function AccountsListScreen() {
   const [showCreateType, setShowCreateType] = useState(false);
   // #6 — onglets de la page : « Comptes » (actuel) / « Crédits » (module crédit).
   const [tab, setTab] = useState<'comptes' | 'credits'>('comptes');
+  // Retaper l'onglet « Comptes » du menu → toujours revenir au sous-onglet « Comptes » (pas « Crédits »).
+  // Le retour-arrière depuis un détail crédit passe par router.back → ne déclenche pas ce reset.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(COMPTES_TAB_PRESSED, () => setTab('comptes'));
+    return () => sub.remove();
+  }, []);
   const openCreate = (joint: boolean) => { setShowCreateType(false); router.push(`/(tabs)/comptes/add${joint ? '?joint=1' : ''}` as any); };
 
   // ── Guide "bulles" ──

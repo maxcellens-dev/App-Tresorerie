@@ -1,5 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Platform, DeviceEventEmitter } from 'react-native';
+
+/** Événement émis quand on tape l'onglet « Comptes » → la page réinitialise son sous-onglet sur « Comptes ». */
+export const COMPTES_TAB_PRESSED = 'comptesTabPressed';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,7 +58,7 @@ export default function CustomTabBar({ state }: any) {
           <TouchableOpacity
             key={it.name}
             style={styles.item}
-            onPress={() => router.push(`/(tabs)/${it.name}` as any)}
+            onPress={() => { if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED); router.push(`/(tabs)/${it.name}` as any); }}
             accessibilityRole="button"
           >
             <View>

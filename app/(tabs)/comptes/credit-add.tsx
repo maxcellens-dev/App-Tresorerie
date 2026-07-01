@@ -100,10 +100,11 @@ export default function CreditAddScreen() {
   const [isSimulation, setIsSimulation] = useState(params.simulation === '1');
   const [fees, setFees] = useState<Record<string, string>>({});
   const [interestManual, setInterestManual] = useState('');
-  const [showFees, setShowFees] = useState(false);
-  const [showYearly, setShowYearly] = useState(false);
-  const [showPayment, setShowPayment] = useState(true);
-  const [showInsurance, setShowInsurance] = useState(true);
+  // Création : sections dépliées (on guide la saisie). Édition/consultation : repliées (gagner de la place).
+  const [showFees, setShowFees] = useState(!editId);
+  const [showYearly, setShowYearly] = useState(false); // toggle de MODE (par année) → géré séparément
+  const [showPayment, setShowPayment] = useState(!editId);
+  const [showInsurance, setShowInsurance] = useState(!editId);
   const [insYear, setInsYear] = useState<Record<number, string>>({});
   const [payYear, setPayYear] = useState<Record<number, string>>({});
   // #8b — mensualité : standard (calculée) OU semi-fixe par paliers (auto-calc d'un palier à l'autre).
@@ -511,18 +512,22 @@ export default function CreditAddScreen() {
               {showYearly && (
                 <View style={{ marginTop: 4 }}>
                   <Text style={styles.hint}>Vide = valeur standard (mensualité calculée, assurance ci-dessus). Renseigne pour faire varier une année.</Text>
-                  <View style={[styles.yRow, { borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder }]}>
-                    <Text style={[styles.yHead, { width: 48 }]}>Année</Text>
-                    <Text style={[styles.yHead, { flex: 1 }]}>Mensualité</Text>
-                    <Text style={[styles.yHead, { flex: 1 }]}>Assurance</Text>
-                  </View>
-                  {Array.from({ length: years }, (_, y) => (
-                    <View key={y} style={styles.yRow}>
-                      <Text style={[styles.yYear, { width: 48 }]}>{y + 1}</Text>
-                      <TextInput style={styles.yInput} value={payYear[y] ?? ''} onChangeText={(v) => setPayYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={stdPayment ? stdPayment.toFixed(2) : '—'} placeholderTextColor={COLORS.textSecondary} />
-                      <TextInput style={styles.yInput} value={insYear[y] ?? ''} onChangeText={(v) => setInsYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary} />
+                  <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
+                    <View>
+                      <View style={[styles.yRow, { borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder }]}>
+                        <Text style={[styles.yHead, { width: 55 }]}>Année</Text>
+                        <Text style={[styles.yHead, { width: 140 }]}>Mensualité</Text>
+                        <Text style={[styles.yHead, { width: 140 }]}>Assurance</Text>
+                      </View>
+                      {Array.from({ length: years }, (_, y) => (
+                        <View key={y} style={styles.yRow}>
+                          <Text style={[styles.yYear, { width: 55 }]}>{y + 1}</Text>
+                          <TextInput style={[styles.yInput, { width: 140 }]} value={payYear[y] ?? ''} onChangeText={(v) => setPayYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={stdPayment ? stdPayment.toFixed(2) : '—'} placeholderTextColor={COLORS.textSecondary} />
+                          <TextInput style={[styles.yInput, { width: 140 }]} value={insYear[y] ?? ''} onChangeText={(v) => setInsYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary} />
+                        </View>
+                      ))}
                     </View>
-                  ))}
+                  </ScrollView>
                 </View>
               )}
             </>
@@ -645,7 +650,7 @@ function makeStyles(c: any) {
     yRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
     yHead: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
     yYear: { fontSize: 13, fontWeight: '700', color: c.text },
-    yInput: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
+    yInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
     simRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 16 },
     simLabel: { fontSize: 14.5, fontWeight: '700', color: c.text },
     simHint: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },

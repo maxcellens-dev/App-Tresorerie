@@ -215,8 +215,12 @@ export default function CreditDetailScreen() {
             const hasInsurance = editTable || rows.some((r) => r.insurance > 0);
             const nextIdx = rows.findIndex((r) => r.date >= today);
             const overridden = (r: any) => !!(credit.schedule_overrides ?? {})[String(r.period)];
+            // Largeur mini pour que toutes les colonnes soient lisibles : le tableau glisse horizontalement
+            // sur les petits écrans (scroll latéral).
+            const tableMinW = 150 + (hasInsurance ? 5 : 4) * 96; // Échéance + N colonnes chiffrées
             return (
-              <View style={styles.card}>
+              <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
+              <View style={[styles.card, { minWidth: tableMinW }]}>
                 <View style={[styles.tRow, styles.tHead]}>
                   <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Mensualité</Text>
@@ -245,6 +249,7 @@ export default function CreditDetailScreen() {
                 })}
                 <Text style={styles.tNote}>{editTable ? 'Touche une ligne pour l\'éditer dans une fenêtre : chaque enregistrement est immédiat. « Terminé » ferme le mode édition.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
               </View>
+              </ScrollView>
             );
           })()}
 
@@ -409,9 +414,9 @@ function makeStyles(c: any) {
     tRowEditing: { backgroundColor: c.emerald + '18', borderRadius: 6, borderWidth: 1, borderColor: c.emerald + '66' },
     tNextText: { color: c.blue, fontWeight: '800' },
     tHead: { borderBottomWidth: 1 },
-    tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 10 },
-    tcDate: { width: 52, fontSize: 10, color: c.text },
-    tc: { flex: 1, textAlign: 'right', fontSize: 10, color: c.text, paddingLeft: 2 },
+    tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 12.5 },
+    tcDate: { width: 64, fontSize: 12.5, color: c.text },
+    tc: { flex: 1, textAlign: 'right', fontSize: 12.5, color: c.text, paddingLeft: 6 },
     tNote: { fontSize: 10.5, color: c.textSecondary, marginTop: 8, lineHeight: 14 },
     tDisclaimer: { fontSize: 11, fontStyle: 'italic', color: c.textSecondary, lineHeight: 15, marginTop: 6, marginBottom: 8, paddingHorizontal: 4 },
     tInput: { flex: 1, marginLeft: 2, borderWidth: 1, borderColor: c.blue + '66', borderRadius: 6, paddingVertical: 3, paddingHorizontal: 4, fontSize: 10, color: c.text, textAlign: 'right' },
