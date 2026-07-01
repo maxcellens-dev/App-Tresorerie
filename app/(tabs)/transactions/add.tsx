@@ -231,17 +231,13 @@ export default function AddTransactionScreen() {
   useEffect(() => {
     if (accountId || !accounts.length) return;
     if (params.account && accounts.some(a => a.id === params.account)) return;
+    // Défaut = 1er compte courant PERSO (propriétaire, non joint) — jamais le compte joint ni un
+    // compte partagé reçu. Repli : autre compte courant, sinon 1er compte.
+    const persoChecking = accounts.filter(a => a.type === 'checking' && a._role === 'owner' && !a.is_joint);
+    if (persoChecking.length) { setAccountId(persoChecking[0].id); return; }
     const checkingAccounts = accounts.filter(a => a.type === 'checking');
-    if (!checkingAccounts.length) {
-      setAccountId(accounts[0].id);
-      return;
-    }
-    const checkingIds = new Set(checkingAccounts.map(a => a.id));
-    const lastUsed = [...transactions]
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .find(t => checkingIds.has(t.account_id));
-    setAccountId(lastUsed ? lastUsed.account_id : checkingAccounts[0].id);
-  }, [accounts, transactions, params.account]);
+    setAccountId(checkingAccounts.length ? checkingAccounts[0].id : accounts[0].id);
+  }, [accounts, params.account]);
 
   function showError(msg: string, fields: string[] = []) {
     setFormError(msg);
