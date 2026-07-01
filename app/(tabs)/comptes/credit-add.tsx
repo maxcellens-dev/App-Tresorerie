@@ -102,6 +102,8 @@ export default function CreditAddScreen() {
   const [interestManual, setInterestManual] = useState('');
   const [showFees, setShowFees] = useState(false);
   const [showYearly, setShowYearly] = useState(false);
+  const [showPayment, setShowPayment] = useState(true);
+  const [showInsurance, setShowInsurance] = useState(true);
   const [insYear, setInsYear] = useState<Record<number, string>>({});
   const [payYear, setPayYear] = useState<Record<number, string>>({});
   // #8b — mensualité : standard (calculée) OU semi-fixe par paliers (auto-calc d'un palier à l'autre).
@@ -408,10 +410,12 @@ export default function CreditAddScreen() {
           {/* #8b — Mensualité : standard (calculée) OU semi-fixe par paliers (auto-calculés). */}
           {years > 0 && (
             <>
-              <View style={styles.section}>
+              <TouchableOpacity style={styles.section} onPress={() => setShowPayment((v) => !v)} activeOpacity={0.7}>
                 <Ionicons name="trending-up-outline" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Mensualité</Text>
-              </View>
+                <Ionicons name={showPayment ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              {showPayment && (<>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                 {([['standard', 'Calculée'], ['paliers', 'Par paliers']] as const).map(([m, lbl]) => (
                   <TouchableOpacity key={m} style={[styles.modeChip, paymentMode === m && styles.modeChipActive]} onPress={() => setPaymentMode(m)}>
@@ -446,12 +450,15 @@ export default function CreditAddScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+              </>)}
 
               {/* Assurance : fixe OU par paliers (montant mensuel fixe par période). */}
-              <View style={styles.section}>
+              <TouchableOpacity style={styles.section} onPress={() => setShowInsurance((v) => !v)} activeOpacity={0.7}>
                 <Ionicons name="shield-outline" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Assurance</Text>
-              </View>
+                <Ionicons name={showInsurance ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              {showInsurance && (<>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                 {([['flat', 'Fixe'], ['paliers', 'Par paliers']] as const).map(([m, lbl]) => (
                   <TouchableOpacity key={m} style={[styles.modeChip, insMode === m && styles.modeChipActive]} onPress={() => setInsMode(m)}>
@@ -494,6 +501,7 @@ export default function CreditAddScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+              </>)}
 
               <TouchableOpacity style={styles.section} onPress={() => setShowYearly((v) => !v)} activeOpacity={0.7}>
                 <Ionicons name="calendar-number-outline" size={18} color={COLORS.text} />
