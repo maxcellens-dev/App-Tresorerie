@@ -1,7 +1,7 @@
 /**
  * Détail d'un crédit (module Crédit, Lot C2) : synthèse (CRD, mensualité, coût) + tableau d'amortissement.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, BackHandler, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import ScreenGradient from '../../../../components/ScreenGradient';
@@ -36,9 +36,8 @@ export default function CreditDetailScreen() {
   const credit = credits.find((c) => c.id === id);
 
   const [editTable, setEditTable] = useState(false);
-  const [edits, setEdits] = useState<Record<number, { p?: string; i?: string; int?: string; cap?: string; rd?: string }>>({});
-  // Édition ligne-par-ligne : une seule échéance éditable à la fois (sinon des centaines de TextInput
-  // figent l'app sur mobile). On tape une ligne pour l'éditer.
+  // Édition ligne-par-ligne via un MODAL (sinon des centaines de TextInput figent l'app sur mobile) :
+  // on tape une ligne → un modal s'ouvre pour éditer/enregistrer cette échéance.
   const [editRowPeriod, setEditRowPeriod] = useState<number | null>(null);
   const [showEvt, setShowEvt] = useState(false);
   const [evtKind, setEvtKind] = useState<'early_repayment' | 'rate_change'>('early_repayment');
@@ -52,27 +51,25 @@ export default function CreditDetailScreen() {
     return () => sub.remove();
   }, [router]));
 
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const today = todayISO();
   const amort = useMemo(() => (credit ? computeAmortization({ ...credit, events }) : null), [credit, events]);
 
-  // Enregistre les overrides manuels du tableau (mensualité hors assurance « p » + assurance « i »).
-  const saveTable = async () => {
+  // Enregistre DIRECTEMENT les overrides manuels d'UNE échéance (via le modal). Une valeur vide efface
+  // l'override de cette colonne. Persiste immédiatement dans schedule_overrides.
+  const saveRow = async (period: number, fields: { p?: string; i?: string; int?: string; cap?: string; rd?: string }) => {
     if (!credit) return;
     const next: Record<string, any> = { ...(credit.schedule_overrides ?? {}) };
-    for (const [periodStr, e] of Object.entries(edits)) {
-      const cur: any = { ...(next[periodStr] ?? {}) };
-      for (const key of ['p', 'i', 'int', 'cap', 'rd'] as const) {
-        const raw = (e as any)[key];
-        if (raw == null) continue;
-        if (raw.trim() === '') { delete cur[key]; continue; }
-        const v = parseFloat(raw.replace(',', '.'));
-        if (!Number.isNaN(v)) cur[key] = v;
-      }
-      if (Object.keys(cur).length === 0) delete next[periodStr]; else next[periodStr] = cur;
+    const cur: any = { ...(next[String(period)] ?? {}) };
+    for (const key of ['p', 'i', 'int', 'cap', 'rd'] as const) {
+      const raw = fields[key];
+      if (raw == null) continue;
+      if (raw.trim() === '') { delete cur[key]; continue; }
+      const v = parseFloat(raw.replace(',', '.'));
+      if (!Number.isNaN(v)) cur[key] = v;
     }
+    if (Object.keys(cur).length === 0) delete next[String(period)]; else next[String(period)] = cur;
     await update.mutateAsync({ id: credit.id, schedule_overrides: Object.keys(next).length ? next : null } as any);
-    setEdits({}); setEditTable(false);
   };
 
   const saveEvent = async () => {
@@ -191,10 +188,7 @@ export default function CreditDetailScreen() {
           <View style={styles.evtHead}>
             <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
             {editTable ? (
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity onPress={() => { setEdits({}); setEditRowPeriod(null); setEditTable(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600', fontSize: 13 }}>Annuler</Text></TouchableOpacity>
-                <TouchableOpacity onPress={saveTable}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Enregistrer</Text></TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => { setEditRowPeriod(null); setEditTable(false); }}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Terminé</Text></TouchableOpacity>
             ) : (canWrite && (
               <TouchableOpacity style={styles.evtAdd} onPress={() => { setEditRowPeriod(null); setEditTable(true); }}>
                 <Ionicons name="create-outline" size={16} color={COLORS.blue} /><Text style={styles.evtAddText}>Modifier</Text>
@@ -211,9 +205,9 @@ export default function CreditDetailScreen() {
             const rows = editTable ? amort.schedule : amort.displaySchedule;
             const hasInsurance = editTable || rows.some((r) => r.insurance > 0);
             const nextIdx = rows.findIndex((r) => r.date >= today);
+            const overridden = (r: any) => !!(credit.schedule_overrides ?? {})[String(r.period)];
             return (
-              <ScrollView horizontal={editTable} showsHorizontalScrollIndicator={editTable}>
-              <View style={[styles.card, editTable && { minWidth: 460 }]}>
+              <View style={styles.card}>
                 <View style={[styles.tRow, styles.tHead]}>
                   <Text style={[styles.tcDate, styles.tHeadText]}>Échéance</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Mensualité</Text>
@@ -225,35 +219,23 @@ export default function CreditDetailScreen() {
                 {rows.map((r, i) => {
                   const past = r.date < today;
                   const isNext = i === nextIdx;
-                  const editingThis = editTable && r.period === editRowPeriod;
-                  // Seule la ligne active affiche des TextInput ; les autres restent en Texte (perf mobile),
-                  // mais montrent la valeur éventuellement déjà saisie.
-                  const cell = (key: 'p' | 'i' | 'int' | 'cap' | 'rd', value: number) => {
-                    const pending = edits[r.period]?.[key];
-                    if (editingThis) return (
-                      <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={pending ?? String(Math.round(value))}
-                        onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], [key]: v } }))} />
-                    );
-                    return <Text style={[styles.tc, isNext && styles.tNextText]}>{pending != null ? pending : Math.round(value)}</Text>;
-                  };
                   const rowInner = (
-                    <View key={`${r.date}-${i}`} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext, editingThis && styles.tRowEditing]}>
+                    <View style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext, editTable && overridden(r) && styles.tRowEditing]}>
                       <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
-                      {cell('p', r.payment)}
-                      {hasInsurance && cell('i', r.insurance)}
-                      {cell('int', r.interest)}
-                      {cell('cap', r.principalPart)}
-                      {cell('rd', r.crdAfter)}
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.payment.toFixed(2)}</Text>
+                      {hasInsurance && <Text style={[styles.tc, isNext && styles.tNextText]}>{r.insurance.toFixed(2)}</Text>}
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.interest.toFixed(2)}</Text>
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.principalPart.toFixed(2)}</Text>
+                      <Text style={[styles.tc, isNext && styles.tNextText]}>{r.crdAfter.toFixed(2)}</Text>
+                      {editTable && <Ionicons name="chevron-forward" size={13} color={COLORS.blue} style={{ marginLeft: 2 }} />}
                     </View>
                   );
-                  // En mode édition, taper une ligne non active la rend éditable.
-                  return editTable && !editingThis
+                  return editTable
                     ? <TouchableOpacity key={`${r.date}-${i}`} activeOpacity={0.6} onPress={() => setEditRowPeriod(r.period)}>{rowInner}</TouchableOpacity>
-                    : rowInner;
+                    : <View key={`${r.date}-${i}`}>{rowInner}</View>;
                 })}
-                <Text style={styles.tNote}>{editTable ? 'Touche une ligne pour l\'éditer, puis modifie n\'importe quelle colonne (mensualité, assurance, intérêts, capital, restant dû). Une valeur saisie prime sur le calcul automatique. « Enregistrer » valide toutes tes modifications.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
+                <Text style={styles.tNote}>{editTable ? 'Touche une ligne pour l\'éditer dans une fenêtre : chaque enregistrement est immédiat. « Terminé » ferme le mode édition.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
               </View>
-              </ScrollView>
             );
           })()}
 
@@ -300,12 +282,81 @@ export default function CreditDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal édition d'UNE échéance du tableau d'amortissement (saisie directe + ligne suivante). */}
+      <RowEditModal
+        visible={editRowPeriod != null}
+        period={editRowPeriod ?? 0}
+        schedule={amort.schedule}
+        overrides={credit.schedule_overrides ?? {}}
+        hasNext={editRowPeriod != null && amort.schedule.some((r) => r.period === (editRowPeriod + 1))}
+        onSave={saveRow}
+        onNext={() => setEditRowPeriod((p) => (p != null ? p + 1 : null))}
+        onClose={() => setEditRowPeriod(null)}
+        c={COLORS}
+        styles={styles}
+      />
     </View>
   );
 
   function Row({ k, v }: { k: string; v: string }) {
     return <View style={styles.infoRow}><Text style={styles.infoK}>{k}</Text><Text style={styles.infoV}>{v}</Text></View>;
   }
+}
+
+/** Modal d'édition d'une échéance : champs pré-remplis par les overrides existants (vide = calcul auto,
+ *  la date sert de placeholder), enregistrement immédiat, et « Ligne suivante » pour enchaîner. */
+function RowEditModal({ visible, period, schedule, overrides, hasNext, onSave, onNext, onClose, c, styles }: {
+  visible: boolean; period: number; schedule: any[]; overrides: Record<string, any>; hasNext: boolean;
+  onSave: (period: number, fields: { p?: string; i?: string; int?: string; cap?: string; rd?: string }) => Promise<void>;
+  onNext: () => void; onClose: () => void; c: any; styles: any;
+}) {
+  const [p, setP] = useState(''); const [i, setI] = useState(''); const [int, setInt] = useState('');
+  const [cap, setCap] = useState(''); const [rd, setRd] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const o = overrides[String(period)] ?? {};
+    setP(o.p != null ? String(o.p) : ''); setI(o.i != null ? String(o.i) : ''); setInt(o.int != null ? String(o.int) : '');
+    setCap(o.cap != null ? String(o.cap) : ''); setRd(o.rd != null ? String(o.rd) : '');
+  }, [period, visible]);
+
+  const row = schedule.find((r) => r.period === period);
+  if (!row) return null;
+  const submit = async (goNext: boolean) => {
+    setBusy(true);
+    try { await onSave(period, { p, i, int, cap, rd }); if (goNext && hasNext) onNext(); else onClose(); }
+    finally { setBusy(false); }
+  };
+  const field = (label: string, value: string, setter: (v: string) => void, computed: number) => (
+    <View style={{ marginBottom: 10 }}>
+      <Text style={styles.mLabel}>{label}</Text>
+      <TextInput style={styles.mInput} value={value} onChangeText={setter} keyboardType="decimal-pad"
+        placeholder={computed.toFixed(2)} placeholderTextColor={c.textSecondary} />
+    </View>
+  );
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Échéance {formatDateFrench(row.date)}</Text>
+          <Text style={[styles.tNote, { marginTop: 0, marginBottom: 10 }]}>Laisse vide pour garder le calcul automatique (la valeur grisée). Une valeur saisie prime.</Text>
+          {field('Mensualité (hors assurance)', p, setP, row.payment)}
+          {field('Assurance', i, setI, row.insurance)}
+          {field('Intérêts', int, setInt, row.interest)}
+          {field('Capital', cap, setCap, row.principalPart)}
+          {field('Restant dû', rd, setRd, row.crdAfter)}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+            <TouchableOpacity style={[styles.mBtn, { borderWidth: 1, borderColor: c.cardBorder }]} onPress={onClose} disabled={busy}><Text style={{ color: c.text, fontWeight: '600' }}>Fermer</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.mBtn, { backgroundColor: c.emerald }]} onPress={() => submit(false)} disabled={busy}><Text style={{ color: c.bg, fontWeight: '700' }}>Enregistrer</Text></TouchableOpacity>
+          </View>
+          {hasNext && (
+            <TouchableOpacity style={[styles.mBtn, { backgroundColor: c.blue, marginTop: 10 }]} onPress={() => submit(true)} disabled={busy}>
+              <Text style={{ color: c.bg, fontWeight: '700' }}>Enregistrer + ligne suivante ›</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 function makeStyles(c: any) {

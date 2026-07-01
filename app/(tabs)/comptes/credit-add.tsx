@@ -109,7 +109,7 @@ export default function CreditAddScreen() {
     const toSegs = (arr: any[] | null | undefined, key: 'payment' | 'amount') => {
       if (!Array.isArray(arr)) return null;
       const segs: any[] = []; let prev: number | undefined;
-      arr.forEach((v, y) => { if (v == null) return; const n = Math.round(Number(v)); if (n !== prev) { segs.push({ startYear: y, [key]: String(n) }); prev = n; } });
+      arr.forEach((v, y) => { if (v == null) return; const n = Math.round(Number(v) * 100) / 100; if (n !== prev) { segs.push({ startYear: y, [key]: String(n) }); prev = n; } });
       return segs.length ? segs : null;
     };
     // Priorité aux PALIERS STOCKÉS tels quels (restitution exacte) ; sinon reconstruction heuristique.
@@ -187,8 +187,8 @@ export default function CreditAddScreen() {
     });
   }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments]);
 
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
-  const stdPayment = amort ? Math.round(amort.monthlyPayment) : 0;
+  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const stdPayment = amort ? amort.monthlyPayment : 0;
 
   const save = async () => {
     setError(null);
@@ -329,7 +329,7 @@ export default function CreditAddScreen() {
                   <Text style={styles.feeLabel}>Intérêts (total)</Text>
                   <Text style={styles.feeSubHint}>Calculé : {amort ? fmt(amort.totalInterest) : '—'}. Laisse vide pour l'auto.</Text>
                 </View>
-                <TextInput style={styles.feeInput} value={interestManual} onChangeText={setInterestManual} keyboardType="decimal-pad" placeholder={amort ? String(Math.round(amort.totalInterest)) : '0'} placeholderTextColor={COLORS.textSecondary} />
+                <TextInput style={styles.feeInput} value={interestManual} onChangeText={setInterestManual} keyboardType="decimal-pad" placeholder={amort ? amort.totalInterest.toFixed(2) : '0'} placeholderTextColor={COLORS.textSecondary} />
               </View>
 
               <Text style={styles.feeGroup}>Intérêts & frais du prêt <Text style={styles.feeGroupHint}>(comptés dans le coût du prêt)</Text></Text>
@@ -462,7 +462,7 @@ export default function CreditAddScreen() {
                   {Array.from({ length: years }, (_, y) => (
                     <View key={y} style={styles.yRow}>
                       <Text style={[styles.yYear, { width: 48 }]}>{y + 1}</Text>
-                      <TextInput style={styles.yInput} value={payYear[y] ?? ''} onChangeText={(v) => setPayYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={stdPayment ? String(stdPayment) : '—'} placeholderTextColor={COLORS.textSecondary} />
+                      <TextInput style={styles.yInput} value={payYear[y] ?? ''} onChangeText={(v) => setPayYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={stdPayment ? stdPayment.toFixed(2) : '—'} placeholderTextColor={COLORS.textSecondary} />
                       <TextInput style={styles.yInput} value={insYear[y] ?? ''} onChangeText={(v) => setInsYear((p) => ({ ...p, [y]: v }))} keyboardType="decimal-pad" placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary} />
                     </View>
                   ))}

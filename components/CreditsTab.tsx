@@ -31,7 +31,7 @@ export default function CreditsTab({ userId }: { userId?: string }) {
   const respond = useRespondCreditInvitation(userId);
   useSharedCreditsRealtime(userId);
   const [showType, setShowType] = useState(false);
-  const fmt = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+  const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const today = todayISO();
 
   const own = credits.filter((c) => !c._role || c._role === 'owner');
