@@ -474,6 +474,17 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   }
   /** Montant d'une transaction pour le mois courant : override mensuel s'il existe, sinon le montant du modèle. */
   const effAbs = (t: any) => ovrByTx[t.id] ?? Math.abs(Number(t.amount));
+  // Overrides TOUS MOIS (pour projeter le RÉEL au-delà du mois courant : creux, prochaines recettes).
+  const ovrByTxMonth: Record<string, number> = {};
+  for (const o of (data as any).monthOverrides ?? []) {
+    if (o.override_amount != null) ovrByTxMonth[`${o.transaction_id}:${o.year}:${o.month}`] = Math.abs(Number(o.override_amount));
+  }
+  /** Montant SIGNÉ réel d'une occurrence à sa date (override du mois de l'occurrence s'il existe). */
+  const realSignedAt = (t: any, occ: string): number => {
+    const ov = ovrByTxMonth[`${t.id}:${Number(occ.slice(0, 4))}:${Number(occ.slice(5, 7))}`];
+    const base = Number(t.amount);
+    return ov != null ? (base < 0 ? -ov : ov) : base;
+  };
   const checkingIds = new Set(accounts.filter(a => a.type === 'checking').map(a => a.id));
   const prudence = profilePrudence(profile);
 
@@ -524,16 +535,20 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   if (horizonEnd < addDaysIso(todayStr, 7)) horizonEnd = addDaysIso(todayStr, 7);
   if (horizonEnd > addDaysIso(todayStr, 45)) horizonEnd = addDaysIso(todayStr, 45);
 
-  // Événements futurs sur comptes courants : revenus + dépenses RÉELLES (hors virements internes,
-  // projets, réservés, brouillons). Les virements épargne/invest sont déduits séparément (affichage).
+  // Événements futurs sur comptes courants : revenus + dépenses RÉELLES + RENTRÉES d'argent réelles.
+  // Un VIREMENT n'est retenu QUE s'il ENTRE sur le courant depuis un compte NON courant (épargne, invest,
+  // externe) → c'est une vraie rentrée sur le pot courant. Les virements entre comptes courants (net nul)
+  // et les SORTIES vers épargne/invest (déduites séparément) sont exclus. Montants = RÉEL (overrides).
   const events: { date: string; amount: number }[] = [];
   for (const t of transactions) {
-    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id || t.linked_account_id) continue;
-    const amt = Number(t.amount);
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id) continue;
+    if (t.linked_account_id) {
+      if (Number(t.amount) <= 0 || checkingIds.has(t.linked_account_id)) continue; // garder les seules entrées depuis hors-courant
+    }
     if (t.is_recurring && t.recurrence_rule) {
-      for (const occ of recurrenceOccurrencesBetween(t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null, todayStr, horizonEnd)) events.push({ date: occ, amount: amt });
+      for (const occ of recurrenceOccurrencesBetween(t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null, todayStr, horizonEnd)) events.push({ date: occ, amount: realSignedAt(t, occ) });
     } else if (t.date > todayStr && t.date <= horizonEnd) {
-      events.push({ date: t.date, amount: amt });
+      events.push({ date: t.date, amount: realSignedAt(t, t.date) });
     }
   }
   // Revenu INFÉRÉ (non saisi) : ajouté à sa date, pondéré par confiance × (1 − prudence).
@@ -545,12 +560,27 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   events.sort((a, b) => a.date.localeCompare(b.date));
   let running = current_checking_balance;
   let trough = current_checking_balance;
-  let month_income_remaining = 0;   // recettes à venir (info / affichage)
   let outflow_remaining = 0;
   for (const e of events) {
     running += e.amount;
-    if (e.amount > 0) month_income_remaining += e.amount; else outflow_remaining += -e.amount;
+    if (e.amount < 0) outflow_remaining += -e.amount;
     if (running < trough) trough = running;
+  }
+
+  // « Prochaine recette » = total des RECETTES réelles restantes du MOIS EN COURS (hors virements
+  // rentrants). Simple indicateur, basé sur le réel (occurrences + overrides), pas sur un montant figé.
+  const curMonthEnd = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(new Date(currentYear, currentMonth, 0).getDate()).padStart(2, '0')}`;
+  let month_income_remaining = 0;
+  for (const t of transactions) {
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id || t.linked_account_id) continue;
+    if (Number(t.amount) <= 0) continue; // recettes uniquement
+    if (t.is_recurring && t.recurrence_rule) {
+      for (const occ of recurrenceOccurrencesBetween(t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null, todayStr, curMonthEnd)) {
+        if (occ > todayStr) month_income_remaining += realSignedAt(t, occ);
+      }
+    } else if (t.date > todayStr && t.date <= curMonthEnd) {
+      month_income_remaining += realSignedAt(t, t.date);
+    }
   }
   const remaining_fixed_expenses = outflow_remaining;
 
