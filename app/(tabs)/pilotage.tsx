@@ -1199,15 +1199,14 @@ export default function PilotageScreen() {
                             // Montant compté (échu) / à venir (non échu) de chaque récurrence, en devise de réf.
                             const passedAmt = (t: any) => toRefAmt(t._monthPassed ?? 0, t.account_id);
                             const upcomingAmt = (t: any) => toRefAmt(Math.max(0, (t._monthTotal ?? 0) - (t._monthPassed ?? 0)), t.account_id);
-                            // Donut : par défaut les ÉCHUES (= ce qui est compté) ; les à-venir n'y figurent QUE
-                            // si l'on sélectionne le filtre « À venir ».
-                            const donutSource = suiviDetail.recurrentes.filter((t) => (viewingUpcoming ? isUpcoming(t) : !isUpcoming(t)));
-                            const amtOf = viewingUpcoming ? upcomingAmt : passedAmt;
+                            // Donut = répartition de TOUTES les récurrentes du mois (échues + à venir) → toujours
+                            // visible dès qu'il y a ≥1 récurrente, et filtrable par catégorie même si tout est à venir.
+                            const amtOfTotal = (t: any) => passedAmt(t) + upcomingAmt(t);
                             const groups: Record<string, { key: string; total: number; icon: string; color: string }> = {};
-                            for (const t of donutSource) {
+                            for (const t of suiviDetail.recurrentes) {
                               const key = parentName(t);
                               (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
-                              groups[key].total += amtOf(t);
+                              groups[key].total += amtOfTotal(t);
                             }
                             const palette = [COLORS.orange, COLORS.danger, COLORS.violet, COLORS.blue, COLORS.green, COLORS.teal, COLORS.yellow, COLORS.emerald, COLORS.checking];
                             const arr = Object.values(groups).filter((g) => g.total > 0).sort((a, b) => b.total - a.total);

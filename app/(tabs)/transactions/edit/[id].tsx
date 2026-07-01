@@ -461,15 +461,21 @@ export default function EditTransactionScreen() {
                 <Text style={styles.virementBadgeText}>Virement</Text>
               </View>
               <Text style={styles.label}>Compte source → destination</Text>
-              <View style={styles.virementAccounts}>
-                <Text style={styles.virementAccountText}>
-                  {accounts.find((a) => a.id === (tx as any).account_id)?.name ?? '—'}
-                </Text>
-                <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} style={{ marginHorizontal: 8 }} />
-                <Text style={styles.virementAccountText}>
-                  {accounts.find((a) => a.id === (tx as any).linked_account_id)?.name ?? '—'}
-                </Text>
-              </View>
+              {(() => {
+                // Un virement a 2 jambes : la SORTANTE (montant < 0) porte account_id = source, l'ENTRANTE
+                // (montant ≥ 0) porte account_id = destination. On oriente donc selon le SIGNE pour ne pas
+                // inverser source/destination quand on édite la jambe entrante (ex. alimentation d'un joint).
+                const amt = Number((tx as any).amount);
+                const srcId = amt < 0 ? (tx as any).account_id : (tx as any).linked_account_id;
+                const dstId = amt < 0 ? (tx as any).linked_account_id : (tx as any).account_id;
+                return (
+                  <View style={styles.virementAccounts}>
+                    <Text style={styles.virementAccountText}>{accounts.find((a) => a.id === srcId)?.name ?? '—'}</Text>
+                    <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} style={{ marginHorizontal: 8 }} />
+                    <Text style={styles.virementAccountText}>{accounts.find((a) => a.id === dstId)?.name ?? '—'}</Text>
+                  </View>
+                );
+              })()}
             </>
           ) : (
             /* ── Dépense / Recette ── (type figé à la création : badge en lecture seule, comme le virement) */

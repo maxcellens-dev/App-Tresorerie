@@ -15,6 +15,14 @@ import type { Credit } from '../types/database';
 const CAT_REPAY = { name: 'Crédits', type: 'expense', is_variable: false };
 const CAT_INSURANCE = { name: 'Assurance Crédit', type: 'expense', is_variable: false };
 
+function toCat(cat: any, fallback: any): any {
+  return cat ? { id: cat.id, name: cat.name, type: 'expense', is_variable: !!cat.is_variable, parent_id: cat.parent_id ?? null } : fallback;
+}
+/** Catégorie de la MENSUALITÉ : celle choisie sur le crédit (jointure) sinon défaut « Crédits ». */
+function repayCategory(c: Credit): any { return toCat((c as any).category, CAT_REPAY); }
+/** Catégorie de l'ASSURANCE : celle choisie sinon défaut « Assurance Crédit ». */
+function insuranceCategory(c: Credit): any { return toCat((c as any).insurance_category, CAT_INSURANCE); }
+
 /** Facteur d'impact d'un compte (1 = perso/100%, sinon _impact_pct/100 pour un compte partagé). */
 function accountFactor(a: any): number {
   return a && a._impact_pct != null ? a._impact_pct / 100 : 1;
@@ -45,14 +53,16 @@ export function useCreditFlows(profileId: string | undefined, scaled: boolean = 
       const f = scaled ? accountFactor(acc) : 1;
       if (scaled && f <= 0) continue;
       const cur = acc?.currency || 'EUR';
+      const repayCat = repayCategory(c);
+      const insCat = insuranceCategory(c);
       const amort = computeAmortization({ ...c, events: eventsByCredit[c.id] ?? null });
       // L'assurance peut être prélevée à une date différente du remboursement → date dédiée.
       const insFirst = c.first_insurance_date || c.first_payment_date || c.start_date;
       for (const r of amort.schedule) {
-        if (r.payment > 0 && r.date >= horizonStart) flows.push(mkFlow(c, r.period, 'pay', -(r.payment * f), r.date, CAT_REPAY, cur));
+        if (r.payment > 0 && r.date >= horizonStart) flows.push(mkFlow(c, r.period, 'pay', -(r.payment * f), r.date, repayCat, cur));
         if (r.insurance > 0) {
           const insDate = addMonthsISO(insFirst, r.period - 1);
-          if (insDate >= horizonStart) flows.push(mkFlow(c, r.period, 'ins', -(r.insurance * f), insDate, CAT_INSURANCE, cur));
+          if (insDate >= horizonStart) flows.push(mkFlow(c, r.period, 'ins', -(r.insurance * f), insDate, insCat, cur));
         }
       }
     }
@@ -68,6 +78,7 @@ function mkFlow(c: Credit, period: number, kind: string, amount: number, date: s
     date,
     note: `${category.name} — ${c.label}`,
     category,
+    category_id: category.id ?? null,   // pour le regroupement par catégorie (suivi/reporting)
     is_draft: false,
     is_recurring: false,
     is_credit_flow: true,
@@ -98,11 +109,13 @@ export function buildCreditPilotTxs(c: Credit, events: CreditEventRow[] | undefi
   const mk = (kind: string, amt: number, category: any, date: string, end: string) => ({
     id: `creditpilot-${c.id}-${kind}`, account_id: c.account_id, amount: -(amt * f), date,
     is_recurring: true, recurrence_rule: 'monthly', recurrence_end_date: end,
-    category, is_credit_flow: true, credit_id: c.id, note: `${category.name} — ${c.label}`, account: { currency },
+    category, category_id: category.id ?? null, is_credit_flow: true, credit_id: c.id, note: `${category.name} — ${c.label}`, account: { currency },
+    // Compte partagé → badge du % d'impact dans le suivi (comme les autres opérations partagées).
+    _impact_pct: account._impact_pct ?? null,
   });
   const out: any[] = [];
-  if (row.payment > 0) out.push(mk('pay', row.payment, CAT_REPAY, firstDate, lastDate));
-  if (row.insurance > 0) out.push(mk('ins', row.insurance, CAT_INSURANCE, insFirst, insLast));
+  if (row.payment > 0) out.push(mk('pay', row.payment, repayCategory(c), firstDate, lastDate));
+  if (row.insurance > 0) out.push(mk('ins', row.insurance, insuranceCategory(c), insFirst, insLast));
   return out;
 }
 

@@ -141,6 +141,7 @@ export default function CreditDetailScreen() {
           <View style={styles.card}>
             {credit.lender ? <Row k="Prêteur" v={credit.lender} /> : null}
             {acctName ? <Row k="Prélèvement" v={acctName} /> : null}
+            <Row k="Catégorie" v={(credit as any).category?.name ?? 'Crédits'} />
             <Row k="1ʳᵉ échéance" v={formatDateFrench((credit.first_payment_date as string) || credit.start_date)} />
             {credit.insurance_monthly ? <Row k="Assurance" v={`${fmt(credit.insurance_monthly)}/mois`} /> : null}
             {credit.is_simulation ? <Row k="Statut" v="Simulation" /> : null}

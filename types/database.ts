@@ -243,6 +243,13 @@ export interface Credit {
   lender?: string | null;
   account_id?: string | null;
   project_id?: string | null;
+  /** Catégorie de dépense choisie pour la mensualité (remboursement). NULL → défaut « Crédits ». */
+  category_id?: string | null;
+  /** Catégorie résolue (jointure) pour l'affichage/regroupement. */
+  category?: { id: string; name: string; is_variable?: boolean; parent_id?: string | null } | null;
+  /** Catégorie de dépense choisie pour l'assurance. NULL → défaut « Assurance Crédit ». */
+  insurance_category_id?: string | null;
+  insurance_category?: { id: string; name: string; is_variable?: boolean; parent_id?: string | null } | null;
   principal: number;
   start_date: string;
   first_payment_date?: string | null;

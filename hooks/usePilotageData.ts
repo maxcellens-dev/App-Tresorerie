@@ -141,7 +141,7 @@ async function fetchPilotageData(profileId: string): Promise<{
     supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
     supabase.from('currency_rates').select('code, rate'),
     supabase.from('transaction_month_overrides').select('transaction_id, year, month, override_amount').eq('profile_id', profileId),
-    supabase.from('credits').select('*').eq('profile_id', profileId),
+    supabase.from('credits').select('*, category:categories!category_id(id, name, is_variable, parent_id), insurance_category:categories!insurance_category_id(id, name, is_variable, parent_id)').eq('profile_id', profileId),
     supabase.from('credit_events').select('*').eq('profile_id', profileId),
   ]);
 

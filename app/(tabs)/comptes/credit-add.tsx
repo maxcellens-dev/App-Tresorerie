@@ -15,6 +15,8 @@ import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
+import { useCategories } from '../../../hooks/useCategories';
+import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import { useProjects } from '../../../hooks/useProjects';
 import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/useCredits';
 import { computeAmortization, resolvePaliers } from '../../../lib/amortization';
@@ -58,8 +60,29 @@ export default function CreditAddScreen() {
   const { data: projects = [] } = useProjects(user?.id);
   const activeProjects = projects.filter((p) => p.status === 'active');
   const [projectId, setProjectId] = useState<string | null>(null);
+  const { data: categories = [] } = useCategories(user?.id);
+  const catGroups = useSubCategoriesGrouped(categories as any, 'expense');
+  const catParents = useMemo(() => categories.filter((c) => c.type === 'expense' && !c.parent_id).map((c) => ({ id: c.id, name: c.name })), [categories]);
+  const [catId, setCatId] = useState('');           // mensualité
+  const [insCatId, setInsCatId] = useState('');     // assurance
+  const [catTouched, setCatTouched] = useState(false);
+  const [insCatTouched, setInsCatTouched] = useState(false);
 
   const [type, setType] = useState<CreditType>('immobilier');
+  // Résolution des catégories par NOM (les sous-catégories de base sont éditées via admin).
+  const findCat = (names: string[]): string => {
+    const nm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    const wanted = names.map(nm);
+    return categories.find((c) => c.type === 'expense' && c.parent_id && wanted.includes(nm(c.name)))?.id ?? '';
+  };
+  // Défaut mensualité selon le type : immo → « Prêt immobilier », sinon → « Crédits (auto, consommation) ».
+  const defaultCatId = useMemo(() => type === 'immobilier'
+    ? findCat(['Prêt immobilier', 'Crédits (auto, consommation)', 'Crédits'])
+    : findCat(['Crédits (auto, consommation)', 'Crédits']), [type, categories]);
+  const defaultInsCatId = useMemo(() => findCat(['Assurance Crédit']), [categories]);
+  // En création, tant que l'utilisateur n'a pas choisi manuellement, on applique le défaut (suit le type).
+  useEffect(() => { if (!editing && !catTouched) setCatId(defaultCatId); }, [defaultCatId, editing, catTouched]);
+  useEffect(() => { if (!editing && !insCatTouched) setInsCatId(defaultInsCatId); }, [defaultInsCatId, editing, insCatTouched]);
   const [label, setLabel] = useState('');
   const [lender, setLender] = useState('');
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -93,6 +116,7 @@ export default function CreditAddScreen() {
     if (!editing || prefilled) return;
     setType(editing.type); setLabel(editing.label); setLender(editing.lender ?? '');
     setAccountId(editing.account_id ?? null); setProjectId(editing.project_id ?? null);
+    setCatId(editing.category_id ?? ''); setInsCatId(editing.insurance_category_id ?? ''); setCatTouched(true); setInsCatTouched(true);
     setPrincipal(String(editing.principal)); setRate(String(editing.rate_annual));
     setDuration(String(editing.duration_months)); setInsurance(editing.insurance_monthly ? String(editing.insurance_monthly) : '');
     setStartDate((editing.first_payment_date as string) || editing.start_date);
@@ -199,6 +223,7 @@ export default function CreditAddScreen() {
     setSaving(true);
     const payload: any = {
       type, label: label.trim(), lender: lender.trim() || null, account_id: accountId, project_id: projectId,
+      category_id: catId || null, insurance_category_id: insCatId || null,
       principal: C, duration_months: n, rate_annual: numOr0(rate), rate_type: 'fixe',
       insurance_monthly: numOr0(insurance), start_date: startDate, first_payment_date: startDate,
       is_simulation: isSimulation,
@@ -298,6 +323,26 @@ export default function CreditAddScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+            </>
+          )}
+
+          {catGroups.length > 0 && (
+            <>
+              <CategoryPicker
+                label="Catégorie de la mensualité"
+                groups={catGroups}
+                selectedCategoryId={catId}
+                onSelect={(id) => { setCatId(id); setCatTouched(true); }}
+                parents={catParents}
+              />
+              <CategoryPicker
+                label="Catégorie de l'assurance"
+                groups={catGroups}
+                selectedCategoryId={insCatId}
+                onSelect={(id) => { setInsCatId(id); setInsCatTouched(true); }}
+                parents={catParents}
+              />
+              <Text style={styles.hint}>La mensualité et l'assurance sont comptées dans ces catégories de dépense — au prorata du % d'impact si le compte est partagé.</Text>
             </>
           )}
 
