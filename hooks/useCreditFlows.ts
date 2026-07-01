@@ -20,8 +20,13 @@ function accountFactor(a: any): number {
   return a && a._impact_pct != null ? a._impact_pct / 100 : 1;
 }
 
-/** Transactions virtuelles (sorties mensuelles) des crédits, à partir du mois courant. */
-export function useCreditFlows(profileId: string | undefined) {
+/**
+ * Transactions virtuelles (sorties mensuelles) des crédits, à partir du mois courant.
+ * @param scaled  true (défaut) : montants pondérés par le % d'impact du compte → vue AGRÉGATS PERSO
+ *                (pilotage/projection/tréso). false : montant RÉEL complet → vue COMPTE / liste des
+ *                transactions (le compte représente ce qu'il est, indépendamment de ma part d'impact).
+ */
+export function useCreditFlows(profileId: string | undefined, scaled: boolean = true) {
   const { data: credits = [] } = useCredits(profileId);
   const { data: accounts = [] } = useAllAccounts(profileId);
   const { data: eventsByCredit = {} } = useAllCreditEvents(profileId);
@@ -34,9 +39,11 @@ export function useCreditFlows(profileId: string | undefined) {
     for (const c of credits) {
       if (!c.is_active || !c.account_id) continue;
       const acc = acctById[c.account_id];
-      if (!acc) continue; // crédit partagé reçu sur un compte non accessible → pas d'impact tréso pour moi
-      const f = accountFactor(acc);
-      if (f <= 0) continue;
+      if (!acc) continue; // compte non accessible → pas d'affichage possible
+      // Affichage compte (non scaled) : montant complet, TOUJOURS visible (même si mon impact = 0 %).
+      // Agrégats perso (scaled) : pondéré par l'impact ; impact 0 % → n'impacte pas mes agrégats.
+      const f = scaled ? accountFactor(acc) : 1;
+      if (scaled && f <= 0) continue;
       const cur = acc?.currency || 'EUR';
       const amort = computeAmortization({ ...c, events: eventsByCredit[c.id] ?? null });
       // L'assurance peut être prélevée à une date différente du remboursement → date dédiée.
@@ -50,7 +57,7 @@ export function useCreditFlows(profileId: string | undefined) {
       }
     }
     return flows;
-  }, [credits, accounts, eventsByCredit]);
+  }, [credits, accounts, eventsByCredit, scaled]);
 }
 
 function mkFlow(c: Credit, period: number, kind: string, amount: number, date: string, category: any, currency: string) {

@@ -145,7 +145,9 @@ export default function TransactionsListScreen() {
   const validateProjectDraft = useValidateProjectDraft(user?.id);
   const { data: transactionsReal = [], isLoading } = transactionsQuery;
   // #2 — mensualités de crédit (remboursement + assurance) rendues visibles dans la liste, catégorisées.
-  const creditFlows = useCreditFlows(user?.id);
+  // Liste des transactions = vue COMPTE : montant RÉEL complet, non pondéré par le % d'impact (le compte
+  // représente ce qu'il est). Le % d'impact ne joue que sur les agrégats perso (pilotage/projection/tréso).
+  const creditFlows = useCreditFlows(user?.id, false);
   const transactions = useMemo(() => [...transactionsReal, ...creditFlows], [transactionsReal, creditFlows]);
   const { data: overrides = [] } = overridesQuery;
   const { data: accounts = [] } = useAllAccounts(user?.id);
