@@ -18,8 +18,11 @@ import {
   type AiModel, type AiModelStatus,
 } from '../../../../hooks/useAi';
 import * as Clipboard from 'expo-clipboard';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../../../../lib/supabase';
+import { useUserSnapshot } from '../../../../hooks/useUserSnapshot';
 
-type Tab = 'settings' | 'models' | 'prompts' | 'tickets';
+type Tab = 'settings' | 'models' | 'prompts' | 'tickets' | 'snapshot';
 
 export default function AdminAi() {
   const c = useAppColors();
@@ -55,7 +58,7 @@ export default function AdminAi() {
 
         {/* Onglets */}
         <View style={s.tabs}>
-          {([['settings', 'Réglages'], ['models', 'Modèles'], ['prompts', 'Prompts'], ['tickets', `Tickets${tickets?.length ? ` (${tickets.length})` : ''}`]] as [Tab, string][]).map(([t, lbl]) => (
+          {([['settings', 'Réglages'], ['models', 'Modèles'], ['prompts', 'Prompts'], ['tickets', `Tickets${tickets?.length ? ` (${tickets.length})` : ''}`], ['snapshot', 'Snapshot']] as [Tab, string][]).map(([t, lbl]) => (
             <TouchableOpacity key={t} style={[s.tab, tab === t && s.tabOn]} onPress={() => setTab(t)}>
               <Text style={[s.tabTxt, tab === t && s.tabTxtOn]}>{lbl}</Text>
             </TouchableOpacity>
@@ -70,6 +73,7 @@ export default function AdminAi() {
             {tab === 'models' && <ModelsTab c={c} s={s} models={cfg.models} updateCfg={updateCfg} />}
             {tab === 'prompts' && <PromptsTab c={c} s={s} cfg={cfg} prompts={prompts ?? []} updatePrompt={updatePrompt} updateCfg={updateCfg} />}
             {tab === 'tickets' && <TicketsTab c={c} s={s} tickets={tickets ?? []} prompts={prompts ?? []} resolveTicket={resolveTicket} adminReply={adminReply} relaunch={relaunch} />}
+            {tab === 'snapshot' && <SnapshotTab c={c} s={s} />}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -326,6 +330,63 @@ function TicketCard({ c, s, t, prompts, resolveTicket, adminReply, relaunch }: a
   );
 }
 
+/* ── Snapshot admin : instantané réel d'un user choisi ── */
+function SnapshotTab({ c, s }: { c: any; s: any }) {
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
+  const search = useQuery({
+    queryKey: ['ai_snapshot_user_search', query],
+    queryFn: async (): Promise<{ id: string; full_name: string | null; email: string | null }[]> => {
+      if (!supabase || query.trim().length < 2) return [];
+      const q = `%${query.trim()}%`;
+      const { data } = await supabase.from('profiles').select('id, full_name, email').or(`email.ilike.${q},full_name.ilike.${q}`).limit(20);
+      return (data ?? []) as any;
+    },
+    enabled: query.trim().length >= 2 && !selected,
+  });
+  const { text, ready } = useUserSnapshot(selected?.id);
+  const copy = async () => { if (text) { await Clipboard.setStringAsync(text); Alert.alert('Copié', 'Snapshot copié.'); } };
+
+  return (
+    <>
+      <Text style={s.hint}>Génère l'instantané financier ANONYMISÉ d'un utilisateur (le texte réel envoyé à l'IA), à date. Admin, lecture seule.</Text>
+      {!selected ? (
+        <>
+          <TextInput style={s.input} value={query} onChangeText={setQuery} placeholder="Rechercher un utilisateur (nom ou email)…" placeholderTextColor={c.textSecondary} autoCapitalize="none" autoCorrect={false} />
+          {search.isFetching && <ActivityIndicator color={c.emerald} style={{ marginTop: 8 }} />}
+          {(search.data ?? []).map((u) => (
+            <TouchableOpacity key={u.id} style={s.card} onPress={() => setSelected({ id: u.id, label: u.full_name || u.email || u.id })}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.cardTitle}>{u.full_name || '(sans nom)'}</Text>
+                <Text style={s.cardDesc}>{u.email}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={c.textSecondary} />
+            </TouchableOpacity>
+          ))}
+          {query.trim().length >= 2 && !search.isFetching && (search.data ?? []).length === 0 && <Text style={s.hint}>Aucun utilisateur trouvé.</Text>}
+        </>
+      ) : (
+        <>
+          <View style={[s.card, { marginBottom: 10 }]}>
+            <View style={{ flex: 1 }}><Text style={s.cardTitle}>{selected.label}</Text><Text style={s.cardDesc}>{selected.id}</Text></View>
+            <TouchableOpacity onPress={() => setSelected(null)}><Ionicons name="close-circle" size={22} color={c.danger} /></TouchableOpacity>
+          </View>
+          {!ready ? <ActivityIndicator color={c.emerald} style={{ marginTop: 20 }} /> : (
+            <>
+              <TouchableOpacity style={[s.ghostBtn, { borderColor: c.emerald, marginBottom: 8 }]} onPress={copy}>
+                <Ionicons name="copy-outline" size={15} color={c.emerald} /><Text style={[s.ghostTxt, { color: c.emerald }]}>Copier le snapshot</Text>
+              </TouchableOpacity>
+              <ScrollView style={[s.promptBox, { maxHeight: 460 }]} nestedScrollEnabled>
+                <Text style={s.promptText} selectable>{text}</Text>
+              </ScrollView>
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
@@ -333,8 +394,8 @@ function makeStyles(c: any) {
     backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
     title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 12 },
-    tabs: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-    tab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+    tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+    tab: { flexGrow: 1, minWidth: 88, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     tabOn: { backgroundColor: c.emerald + '18', borderColor: c.emerald },
     tabTxt: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
     tabTxtOn: { color: c.emerald, fontWeight: '700' },

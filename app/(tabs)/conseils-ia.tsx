@@ -16,16 +16,7 @@ import { useNavBack } from '../../hooks/useNavBack';
 import { useRouter } from 'expo-router';
 import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { useTransactions } from '../../hooks/useTransactions';
-import { useCategories } from '../../hooks/useCategories';
-import { useCredits } from '../../hooks/useCredits';
-import { useAllAccounts } from '../../hooks/useAccounts';
-import { useProjects } from '../../hooks/useProjects';
-import { computeAmortization } from '../../lib/amortization';
-import { todayISO } from '../../lib/dateUtils';
-import { buildSnapshot } from '../../lib/aiSnapshot';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { useUserSnapshot } from '../../hooks/useUserSnapshot';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, useDeleteAiHistory, type AiMessage } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
@@ -53,86 +44,8 @@ export default function ConseilsIaScreen() {
   const readOnly = isImpersonating || (!isPremium && !isAdmin && !cfg?.open_to_all); // consultation : pas d'envoi
   const remaining = quota?.remaining ?? 0;
 
-  // ── Données pour l'instantané (anonymisé) ──
-  const { data: pilotage } = usePilotageData(uid);
-  const { data: transactions } = useTransactions(uid);
-  const { data: categories } = useCategories(uid);
-  const { data: credits } = useCredits(uid);
-  const { data: allAccounts } = useAllAccounts(uid);
-  const { data: projects } = useProjects(uid);
-
-  const catById = useMemo(() => {
-    const m = new Map<string, { name: string; parent_id?: string | null }>();
-    for (const cat of categories ?? []) m.set(cat.id, { name: cat.name, parent_id: cat.parent_id });
-    return m;
-  }, [categories]);
-  const grandCat = (id: string | null | undefined): string => {
-    if (!id) return 'Sans catégorie';
-    const cat = catById.get(id);
-    if (!cat) return 'Sans catégorie';
-    return cat.parent_id ? (catById.get(cat.parent_id)?.name ?? cat.name) : cat.name;
-  };
-
-  const expensesByCategory = useMemo(() => {
-    if (!transactions) return [];
-    const curYm = todayISO().slice(0, 7);
-    const acc: Record<string, number> = {};
-    for (const t of transactions) {
-      if (t.linked_account_id || t.is_draft) continue;
-      if (Number(t.amount) >= 0) continue;
-      if (t.date.slice(0, 7) !== curYm) continue;
-      const name = grandCat(t.category_id);
-      acc[name] = (acc[name] ?? 0) + Math.abs(Number(t.amount));
-    }
-    return Object.entries(acc).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
-  }, [transactions, catById]);
-
-  const creditsSummary = useMemo(() => {
-    const today = todayISO();
-    const acctById: Record<string, any> = {};
-    for (const a of allAccounts ?? []) acctById[a.id] = a;
-    return (credits ?? []).filter((cr) => cr.is_active && !cr.is_simulation).map((cr) => {
-      const a = computeAmortization({ ...cr });
-      const last = a.schedule[a.schedule.length - 1];
-      // % d'impact = part réellement à la charge de l'utilisateur (compte perso = 100 %).
-      const acc = cr.account_id ? acctById[cr.account_id] : null;
-      const impactPct = acc && acc._impact_pct != null ? acc._impact_pct : 100;
-      const monthlyFull = a.monthlyWithInsurance;
-      return {
-        principal: cr.principal, ratePct: cr.rate_annual, crd: a.crdAtDate(today),
-        endYM: last ? last.date.slice(0, 7) : null,
-        impactPct, monthly: monthlyFull * (impactPct / 100),
-      };
-    });
-  }, [credits, allAccounts]);
-
-  const projectsSummary = useMemo(() => {
-    const byId: Record<string, any> = {};
-    for (const pr of projects ?? []) byId[pr.id] = pr;
-    return (pilotage?.projects_with_progress ?? []).map((pr) => {
-      const src = byId[pr.id];
-      return {
-        target: pr.target_amount, monthly: pr.monthly_allocation, progressPct: pr.progress_percentage,
-        status: pr.status,
-        startISO: (src?.first_payment_date || src?.created_at || '').slice(0, 10) || null,
-      };
-    });
-  }, [pilotage, projects]);
-
-  const snapshotReady = !!pilotage;
-  const buildSnap = () => {
-    const now = new Date();
-    return buildSnapshot({
-      currencySymbol: CURRENCY_SYMBOL,
-      today: todayISO(),
-      dayOfMonth: now.getDate(),
-      daysInMonth: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
-      pilotage: pilotage!,
-      expensesByCategory,
-      credits: creditsSummary,
-      projects: projectsSummary,
-    });
-  };
+  // ── Instantané financier anonymisé (même logique partagée avec l'onglet Snapshot admin) ──
+  const { ready: snapshotReady, build: buildSnap } = useUserSnapshot(uid);
 
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
