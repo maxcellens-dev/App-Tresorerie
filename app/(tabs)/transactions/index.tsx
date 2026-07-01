@@ -305,7 +305,9 @@ export default function TransactionsListScreen() {
     }
     
     return result;
-  }, [transactions, displayMonths, now]);
+    // overrideMap DOIT être une dépendance : sinon, quand les overrides se chargent (ou changent) après
+    // le 1er calcul, la liste garde l'ANCIEN montant jusqu'à un autre déclencheur (mois/filtre).
+  }, [transactions, displayMonths, now, overrideMap]);
 
   // Récupérer les categories pour filtrer par parent/enfant
   const { data: categories = [] } = useCategories(user?.id);

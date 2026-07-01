@@ -14,7 +14,7 @@ import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
-import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/useBaseCategories';
+import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorderBaseCategories, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/useBaseCategories';
 
 export default function AdminCategoriesScreen() {
   const COLORS = useAppColors();
@@ -25,6 +25,7 @@ export default function AdminCategoriesScreen() {
   const { data: cats = [], isLoading } = useBaseCategories();
   const add = useAddBaseCategory();
   const upd = useUpdateBaseCategory();
+  const reorder = useReorderBaseCategories();
   const apply = useApplyBaseCategories();
 
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -43,11 +44,22 @@ export default function AdminCategoriesScreen() {
     );
   }
 
-  const parents = cats.filter((c) => c.type === type && !c.parent_id);
-  const childrenOf = (pid: string) => cats.filter((c) => c.parent_id === pid).sort((a, b) => a.name.localeCompare(b.name));
+  const bySort = (a: BaseCategory, b: BaseCategory) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name);
+  const parents = cats.filter((c) => c.type === type && !c.parent_id).sort(bySort);
+  const childrenOf = (pid: string) => cats.filter((c) => c.parent_id === pid).sort(bySort);
 
   const saveName = (c: BaseCategory) => { if (editName.trim()) upd.mutate({ id: c.id, name: editName.trim() }); setEditingId(null); };
-  const move = (c: BaseCategory, dir: -1 | 1) => upd.mutate({ id: c.id, sort_order: (c.sort_order ?? 0) + dir * 10 });
+  // Déplace en réécrivant TOUT le groupe (frères/sœurs) en sort_order séquentiel → robuste aux égalités.
+  const move = (c: BaseCategory, dir: -1 | 1) => {
+    const group = (c.parent_id ? childrenOf(c.parent_id) : parents);
+    const i = group.findIndex((x) => x.id === c.id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= group.length) return;
+    const arr = [...group];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    const items = arr.map((x, idx) => ({ id: x.id, sort_order: idx * 10 })).filter((it, idx) => (arr[idx].sort_order ?? 0) !== it.sort_order);
+    if (items.length) reorder.mutate(items);
+  };
   const toggleArchive = (c: BaseCategory) => upd.mutate({ id: c.id, is_active: !c.is_active });
 
   const doApply = () => {

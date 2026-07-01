@@ -37,6 +37,9 @@ export default function CreditDetailScreen() {
 
   const [editTable, setEditTable] = useState(false);
   const [edits, setEdits] = useState<Record<number, { p?: string; i?: string; int?: string; cap?: string; rd?: string }>>({});
+  // Édition ligne-par-ligne : une seule échéance éditable à la fois (sinon des centaines de TextInput
+  // figent l'app sur mobile). On tape une ligne pour l'éditer.
+  const [editRowPeriod, setEditRowPeriod] = useState<number | null>(null);
   const [showEvt, setShowEvt] = useState(false);
   const [evtKind, setEvtKind] = useState<'early_repayment' | 'rate_change'>('early_repayment');
   const [evtAmount, setEvtAmount] = useState('');
@@ -189,11 +192,11 @@ export default function CreditDetailScreen() {
             <Text style={styles.sectionTitle}>Tableau d'amortissement</Text>
             {editTable ? (
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity onPress={() => { setEdits({}); setEditTable(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600', fontSize: 13 }}>Annuler</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => { setEdits({}); setEditRowPeriod(null); setEditTable(false); }}><Text style={{ color: COLORS.textSecondary, fontWeight: '600', fontSize: 13 }}>Annuler</Text></TouchableOpacity>
                 <TouchableOpacity onPress={saveTable}><Text style={{ color: COLORS.emerald, fontWeight: '800', fontSize: 13 }}>Enregistrer</Text></TouchableOpacity>
               </View>
             ) : (canWrite && (
-              <TouchableOpacity style={styles.evtAdd} onPress={() => setEditTable(true)}>
+              <TouchableOpacity style={styles.evtAdd} onPress={() => { setEditRowPeriod(null); setEditTable(true); }}>
                 <Ionicons name="create-outline" size={16} color={COLORS.blue} /><Text style={styles.evtAddText}>Modifier</Text>
               </TouchableOpacity>
             ))}
@@ -222,14 +225,19 @@ export default function CreditDetailScreen() {
                 {rows.map((r, i) => {
                   const past = r.date < today;
                   const isNext = i === nextIdx;
-                  const cell = (key: 'p' | 'i' | 'int' | 'cap' | 'rd', value: number) => editTable ? (
-                    <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={String(Math.round(value))}
-                      onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], [key]: v } }))} />
-                  ) : (
-                    <Text style={[styles.tc, isNext && styles.tNextText]}>{Math.round(value)}</Text>
-                  );
-                  return (
-                    <View key={`${r.date}-${i}`} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext]}>
+                  const editingThis = editTable && r.period === editRowPeriod;
+                  // Seule la ligne active affiche des TextInput ; les autres restent en Texte (perf mobile),
+                  // mais montrent la valeur éventuellement déjà saisie.
+                  const cell = (key: 'p' | 'i' | 'int' | 'cap' | 'rd', value: number) => {
+                    const pending = edits[r.period]?.[key];
+                    if (editingThis) return (
+                      <TextInput style={styles.tInput} keyboardType="decimal-pad" defaultValue={pending ?? String(Math.round(value))}
+                        onChangeText={(v) => setEdits((p) => ({ ...p, [r.period]: { ...p[r.period], [key]: v } }))} />
+                    );
+                    return <Text style={[styles.tc, isNext && styles.tNextText]}>{pending != null ? pending : Math.round(value)}</Text>;
+                  };
+                  const rowInner = (
+                    <View key={`${r.date}-${i}`} style={[styles.tRow, past && !editTable && { opacity: 0.5 }, isNext && styles.tRowNext, editingThis && styles.tRowEditing]}>
                       <Text style={[styles.tcDate, isNext && styles.tNextText]}>{formatDateFrench(r.date).slice(3)}</Text>
                       {cell('p', r.payment)}
                       {hasInsurance && cell('i', r.insurance)}
@@ -238,8 +246,12 @@ export default function CreditDetailScreen() {
                       {cell('rd', r.crdAfter)}
                     </View>
                   );
+                  // En mode édition, taper une ligne non active la rend éditable.
+                  return editTable && !editingThis
+                    ? <TouchableOpacity key={`${r.date}-${i}`} activeOpacity={0.6} onPress={() => setEditRowPeriod(r.period)}>{rowInner}</TouchableOpacity>
+                    : rowInner;
                 })}
-                <Text style={styles.tNote}>{editTable ? 'Édite n\'importe quelle colonne (mensualité, assurance, intérêts, capital, restant dû). Une valeur saisie prime sur le calcul automatique.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
+                <Text style={styles.tNote}>{editTable ? 'Touche une ligne pour l\'éditer, puis modifie n\'importe quelle colonne (mensualité, assurance, intérêts, capital, restant dû). Une valeur saisie prime sur le calcul automatique. « Enregistrer » valide toutes tes modifications.' : (hasInsurance ? '« Mensualité » = hors assurance (intérêts + capital). Total prélevé = mensualité + assurance.' : '')}</Text>
               </View>
               </ScrollView>
             );
@@ -331,6 +343,7 @@ function makeStyles(c: any) {
     mBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
     tRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.cardBorder },
     tRowNext: { backgroundColor: c.blue + '1A', borderRadius: 6 },
+    tRowEditing: { backgroundColor: c.emerald + '18', borderRadius: 6, borderWidth: 1, borderColor: c.emerald + '66' },
     tNextText: { color: c.blue, fontWeight: '800' },
     tHead: { borderBottomWidth: 1 },
     tHeadText: { fontWeight: '700', color: c.textSecondary, fontSize: 10 },

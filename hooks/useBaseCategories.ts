@@ -55,6 +55,21 @@ export function useUpdateBaseCategory() {
   });
 }
 
+/** Réordonne un groupe (frères/sœurs) en réécrivant leurs sort_order en une passe. */
+export function useReorderBaseCategories() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { id: string; sort_order: number }[]) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const now = new Date().toISOString();
+      const res = await Promise.all(items.map((it) => supabase!.from('base_categories').update({ sort_order: it.sort_order, updated_at: now }).eq('id', it.id)));
+      const err = res.find((r) => r.error)?.error;
+      if (err) throw new Error(err.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
 /** Propage le référentiel à TOUS les utilisateurs (ajoute, replace le placement, renomme si non renommé). */
 export function useApplyBaseCategories() {
   const qc = useQueryClient();

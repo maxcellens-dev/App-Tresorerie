@@ -158,8 +158,9 @@ serve(async (req) => {
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
   const dayStart = new Date(new Date().setUTCHours(0, 0, 0, 0)).toISOString();
   const limit = isPremium ? cfg.premium_monthly_limit : cfg.free_monthly_limit;
-  const { count: used } = await admin.from('ai_messages').select('id', { count: 'exact', head: true })
-    .eq('profile_id', user.id).eq('role', 'user').eq('counted', true).gte('created_at', monthStart);
+  // Décompte lu depuis le REGISTRE (non effaçable) → effacer l'historique ne rend pas de quota.
+  const { count: used } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
+    .eq('profile_id', user.id).gte('created_at', monthStart);
   if ((used ?? 0) >= limit) return json({ error: 'quota_exceeded', used, limit }, 429);
 
   // 3) Prompt : template admin + instantané (déjà anonymisé côté client).
@@ -177,8 +178,8 @@ serve(async (req) => {
     .select('id').single();
 
   // 5) Cap global du jour (garde-fou quota gratuit Gemini). Dépassé → on file en mode « ticket ».
-  const { count: globalToday } = await admin.from('ai_messages').select('id', { count: 'exact', head: true })
-    .eq('role', 'assistant').gte('created_at', dayStart);
+  const { count: globalToday } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
+    .gte('created_at', dayStart);
   const overGlobal = (globalToday ?? 0) >= cfg.daily_global_cap;
 
   // 6) Appel modèle avec bascule modèles × clés (modèle choisi en tête s'il est fourni & actif).
@@ -197,8 +198,9 @@ serve(async (req) => {
     return json({ ok: false, queued: true });
   }
 
-  // 7b) Succès → réponse + décompte de la requête user.
+  // 7b) Succès → réponse + décompte de la requête user (registre d'usage NON effaçable + flag legacy).
   await admin.from('ai_messages').insert({ profile_id: user.id, role: 'assistant', content: reply, model: modelUsed });
   await admin.from('ai_messages').update({ counted: true }).eq('id', userMsg!.id);
+  await admin.from('ai_usage').insert({ profile_id: user.id, kind });
   return json({ ok: true, reply, model: modelUsed, used: (used ?? 0) + 1, limit });
 });
