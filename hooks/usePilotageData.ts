@@ -992,7 +992,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     const day = Math.min(start.getDate(), _daysInMo);
     const single = (periodMonths: number) => {
       if (startIdx > _thisIdx + periodMonths) return 0;
-      return (startIdx > _thisIdx || day <= _dToday) ? amt : 0; // avancé = occurrence du mois déjà passée
+      const advanced = startIdx > _thisIdx;
+      // Template au mois suivant + jour non encore échu → récurrente qui démarre plus tard : pas passée ce mois.
+      if (advanced && day > _dToday) return 0;
+      return (advanced || day <= _dToday) ? amt : 0;
     };
     switch (t.recurrence_rule) {
       case 'monthly': return single(1);
@@ -1002,7 +1005,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
         let p = 0; const d = new Date(start);
         while (d < _mStart) d.setDate(d.getDate() + 7);
         while (d <= _mEnd && (!end || d <= end)) { if (d.getDate() <= _dToday) p += amt; d.setDate(d.getDate() + 7); }
-        if (p === 0 && startIdx > _thisIdx) p = amt * 4;
+        // Avancé au mois suivant → ~4 passées, mais seulement si le jour de départ est déjà échu ce mois
+        // (sinon récurrente qui démarre plus tard, pas passée ce mois).
+        if (p === 0 && startIdx > _thisIdx && day <= _dToday) p = amt * 4;
         return p;
       }
       default: return 0;

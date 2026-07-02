@@ -196,6 +196,10 @@ export default function TransactionsListScreen() {
   
   // -2 → fenêtre [m-2, m-1, m] ; l'affichage trié décroissant montre M, m-1, m-2 de haut en bas
   const [periodOffset, setPeriodOffset] = useState(-2);
+  // Mois courant : les transactions À VENIR (date > aujourd'hui) sont repliées par défaut pour qu'on voie
+  // d'emblée ce qui est réellement passé. Naviguer dans les périodes les déplie ; « revenir » les replie.
+  const [showFutureThisMonth, setShowFutureThisMonth] = useState(false);
+  const goPeriod = (delta: number) => { setPeriodOffset((o) => o + delta); setShowFutureThisMonth(true); };
 
   // Swipe horizontal sur la liste → navigation de période (±1 mois). Ne capture que les
   // gestes nettement horizontaux pour laisser le défilement vertical intact.
@@ -203,8 +207,8 @@ export default function TransactionsListScreen() {
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
       onPanResponderRelease: (_e, g) => {
-        if (g.dx <= -50) setPeriodOffset((o) => o + 1);
-        else if (g.dx >= 50) setPeriodOffset((o) => o - 1);
+        if (g.dx <= -50) goPeriod(1);
+        else if (g.dx >= 50) goPeriod(-1);
       },
     })
   ).current;
@@ -518,6 +522,162 @@ export default function TransactionsListScreen() {
     });
   }
 
+  // Rendu d'une ligne de transaction. `count` = nb d'éléments de la liste conteneur (pour retirer la
+  // bordure du dernier). Extrait pour être réutilisé par les listes « passé » et « à venir » du mois.
+  const renderRow = (
+    item: TransactionWithDetails & { displayDate?: string },
+    index: number,
+    count: number,
+  ) => {
+    const effectiveDate = getEffectiveDate(item);
+    const isFuture = effectiveDate > todayStr;
+    const isProject = !!item.project_id || (rwTxIds?.has(item.id) ?? false);
+    // Compte partagé/joint (vs mon compte perso) + rôle consultation.
+    const acctMeta = accountById[item.account_id];
+    const isSharedAcct = !!acctMeta?.is_joint || (!!acctMeta?.profile_id && acctMeta.profile_id !== user?.id);
+    const isReadOnlyAcct = acctMeta?._role === 'read';
+    // Une occurrence matérialisée (ligne réelle issue d'un modèle récurrent,
+    // is_recurring=false mais materialized_from rempli) fait partie d'une série :
+    // on lui donne aussi le tag « récurrent » pour que l'utilisateur le sache.
+    const isRecurring = (item.is_recurring || !!(item as any).materialized_from) && !isProject;
+    const isReservation = isProject && Number(item.amount) === 0;
+    const amt = Number(item.amount);
+    const acctType = item.account?.type ?? 'checking';
+    const acctCol = accountColor(acctType);
+
+    const isDraft = !!(item as any).is_draft;
+    const isProjectDraft = isDraft && isProject;
+    const isReserved = !!(item as any).is_reserved;
+    // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
+    const isDraftQuickAction = isDraft;
+    const navigateToEdit = () => {
+      // #2 — une mensualité de crédit (flux synthétique) renvoie au crédit, pas à l'édition de tx.
+      if ((item as any).is_credit_flow) { router.push(`/(tabs)/comptes/credit/${(item as any).credit_id}` as any); return; }
+      const route = item.displayDate
+        ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
+        : `/(tabs)/transactions/edit/${item.id}`;
+      router.push(route as any);
+    };
+    const accentStyle = isProject
+      ? { backgroundColor: COLORS.teal + '50' }
+      : amt > 0
+        ? { backgroundColor: acctCol + '50' }
+        : { backgroundColor: acctCol + '25' };
+    const rowBaseStyle = [
+      styles.row,
+      isDraftQuickAction && styles.rowAlignStart,
+      index === count - 1 && styles.rowLast,
+      isFuture && styles.rowFuture,
+      isDraft && (isProjectDraft ? styles.rowDraftProject : styles.rowDraft),
+    ];
+
+    if (isDraftQuickAction) {
+      return (
+        <View key={`${item.id}-${item.displayDate || ''}`} style={[styles.row, styles.rowDraftColumn, index === count - 1 && styles.rowLast, isFuture && styles.rowFuture, isDraft && (isProjectDraft ? styles.rowDraftProject : styles.rowDraft)]}>
+          <View style={[styles.rowAccent, accentStyle]} />
+          {/* Ligne 1 : libellé + montant */}
+          <View style={styles.draftTopRow}>
+            <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
+              <View style={styles.rowLabelRow}>
+                <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
+                {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
+                <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
+                  {item.note || item.category?.name || 'Sans libellé'}
+                </Text>
+                {isReserved ? (
+                  <View style={styles.reservedBadge}>
+                    <Ionicons name="bookmark" size={9} color={COLORS.blue} />
+                    <Text style={styles.reservedBadgeText}>Réservé</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
+                    <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
+                  </View>
+                )}
+                {isRecurring && (
+                  <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
+                )}
+              </View>
+              <Text style={styles.rowMeta}>
+                {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
+              </Text>
+            </TouchableOpacity>
+            <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
+              {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
+            </Text>
+          </View>
+          {/* Ligne 2 : actions */}
+          <View style={styles.draftActionRow}>
+            {isReserved ? (
+              <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmLiberateReserved(item)} activeOpacity={0.7}>
+                <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
+                <Text style={[styles.draftActionValidateText, { color: COLORS.danger }]}>Libérer</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity style={styles.draftActionValidate} onPress={() => confirmValidateDraft(item)} activeOpacity={0.7}>
+                  <Ionicons name="checkmark" size={14} color={COLORS.green} />
+                  <Text style={styles.draftActionValidateText}>Valider</Text>
+                </TouchableOpacity>
+                {isProjectDraft && (
+                  <TouchableOpacity style={styles.draftActionConserve} onPress={() => confirmConserveDraft(item)} activeOpacity={0.7}>
+                    <Ionicons name="bookmark-outline" size={14} color={COLORS.blue} />
+                    <Text style={styles.draftActionConserveText}>Conserver</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmDeleteDraft(item)} activeOpacity={0.7}>
+                  <Ionicons name="trash-outline" size={14} color={COLORS.danger} />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        key={`${item.id}-${item.displayDate || ''}`}
+        style={rowBaseStyle}
+        onPress={isReadOnlyAcct ? () => setDetailTx(item) : navigateToEdit}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+      >
+        <View style={[styles.rowAccent, accentStyle]} />
+        <View style={styles.rowLeft}>
+          <View style={styles.rowLabelRow}>
+            <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
+            {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
+            {isSharedAcct && <View style={[styles.projectDot, { backgroundColor: COLORS.textSecondary }]} />}
+            <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
+              {item.note || item.category?.name || 'Sans libellé'}
+            </Text>
+            {isDraft && (
+              <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
+                <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
+              </View>
+            )}
+            {isRecurring && (
+              <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
+            )}
+          </View>
+          <Text style={styles.rowMeta}>
+            {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
+          </Text>
+        </View>
+        {isReservation ? (
+          <View style={styles.reservationBadge}>
+            <Text style={styles.reservationText}>Réservé</Text>
+          </View>
+        ) : (
+          <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg]}>
+            {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
@@ -535,18 +695,18 @@ export default function TransactionsListScreen() {
           <View style={styles.periodNav} ref={periodNavRef}>
             <TouchableOpacity
               style={styles.periodBtn}
-              onPress={() => setPeriodOffset(periodOffset - 1)}
+              onPress={() => goPeriod(-1)}
               activeOpacity={0.7}
             >
               <Ionicons name="chevron-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.periodLabel} onPress={() => setPeriodOffset(-2)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.periodLabel} onPress={() => { setPeriodOffset(-2); setShowFutureThisMonth(false); }} activeOpacity={0.7}>
               <Text style={styles.periodText}>{monthRangeText}</Text>
               {periodOffset !== -2 && <Text style={styles.periodLabelHint}>Appuyer pour revenir</Text>}
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.periodBtn} 
-              onPress={() => setPeriodOffset(periodOffset + 1)}
+            <TouchableOpacity
+              style={styles.periodBtn}
+              onPress={() => goPeriod(1)}
               activeOpacity={0.7}
             >
               <Ionicons name="chevron-forward" size={24} color={COLORS.text} />
@@ -692,7 +852,12 @@ export default function TransactionsListScreen() {
                   <Text style={styles.empty}>Aucune transaction{hasFilter ? ' pour ce filtre' : ''}.</Text>
                 </View>
               ) : (
-                byMonth.map(({ key, year, month, items }, monthIndex) => (
+                byMonth.map(({ key, year, month, items }, monthIndex) => {
+                  // Mois courant : on scinde passé / à venir. Les autres mois s'affichent en entier (déplié).
+                  const isCurrentMonth = key === currentMonthKey;
+                  const pastItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) <= todayStr) : items;
+                  const futureItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) > todayStr) : [];
+                  return (
                   <React.Fragment key={key}>
                   {/* Bandeau pub entre le 1er et le 2e mois affiché */}
                   {monthIndex === 1 && <AdSlot placement="transactions_mois" />}
@@ -700,160 +865,39 @@ export default function TransactionsListScreen() {
                     <View style={styles.monthHeader}>
                       <Text style={styles.monthHeaderText}>{formatMonthHeader(year, month)}</Text>
                     </View>
-                    <View style={styles.card}>
-                      {items.map((item, index) => {
-                        const effectiveDate = getEffectiveDate(item);
-                        const isFuture = effectiveDate > todayStr;
-                        const isProject = !!item.project_id || (rwTxIds?.has(item.id) ?? false);
-                        // Compte partagé/joint (vs mon compte perso) + rôle consultation.
-                        const acctMeta = accountById[item.account_id];
-                        const isSharedAcct = !!acctMeta?.is_joint || (!!acctMeta?.profile_id && acctMeta.profile_id !== user?.id);
-                        const isReadOnlyAcct = acctMeta?._role === 'read';
-                        // Une occurrence matérialisée (ligne réelle issue d'un modèle récurrent,
-                        // is_recurring=false mais materialized_from rempli) fait partie d'une série :
-                        // on lui donne aussi le tag « récurrent » pour que l'utilisateur le sache.
-                        const isRecurring = (item.is_recurring || !!(item as any).materialized_from) && !isProject;
-                        const isReservation = isProject && Number(item.amount) === 0;
-                        const amt = Number(item.amount);
-                        const acctType = item.account?.type ?? 'checking';
-                        const acctCol = accountColor(acctType);
-
-                        const isDraft = !!(item as any).is_draft;
-                        const isProjectDraft = isDraft && isProject;
-                        const isReserved = !!(item as any).is_reserved;
-                        // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
-                        const isDraftQuickAction = isDraft;
-                        const navigateToEdit = () => {
-                          // #2 — une mensualité de crédit (flux synthétique) renvoie au crédit, pas à l'édition de tx.
-                          if ((item as any).is_credit_flow) { router.push(`/(tabs)/comptes/credit/${(item as any).credit_id}` as any); return; }
-                          const route = item.displayDate
-                            ? `/(tabs)/transactions/edit/${item.id}?instanceDate=${item.displayDate}`
-                            : `/(tabs)/transactions/edit/${item.id}`;
-                          router.push(route as any);
-                        };
-                        const accentStyle = isProject
-                          ? { backgroundColor: COLORS.teal + '50' }
-                          : amt > 0
-                            ? { backgroundColor: acctCol + '50' }
-                            : { backgroundColor: acctCol + '25' };
-                        const rowBaseStyle = [
-                          styles.row,
-                          isDraftQuickAction && styles.rowAlignStart,
-                          index === items.length - 1 && styles.rowLast,
-                          isFuture && styles.rowFuture,
-                          isDraft && (isProjectDraft ? styles.rowDraftProject : styles.rowDraft),
-                        ];
-
-                        if (isDraftQuickAction) {
-                          return (
-                            <View key={`${item.id}-${item.displayDate || ''}`} style={[styles.row, styles.rowDraftColumn, index === items.length - 1 && styles.rowLast, isFuture && styles.rowFuture, isDraft && (isProjectDraft ? styles.rowDraftProject : styles.rowDraft)]}>
-                              <View style={[styles.rowAccent, accentStyle]} />
-                              {/* Ligne 1 : libellé + montant */}
-                              <View style={styles.draftTopRow}>
-                                <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
-                                  <View style={styles.rowLabelRow}>
-                                    <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-                                    {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
-                                    <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
-                                      {item.note || item.category?.name || 'Sans libellé'}
-                                    </Text>
-                                    {isReserved ? (
-                                      <View style={styles.reservedBadge}>
-                                        <Ionicons name="bookmark" size={9} color={COLORS.blue} />
-                                        <Text style={styles.reservedBadgeText}>Réservé</Text>
-                                      </View>
-                                    ) : (
-                                      <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
-                                        <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
-                                      </View>
-                                    )}
-                                    {isRecurring && (
-                                      <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
-                                    )}
-                                  </View>
-                                  <Text style={styles.rowMeta}>
-                                    {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
-                                  </Text>
-                                </TouchableOpacity>
-                                <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg, { textAlign: 'right' }]}>
-                                  {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
-                                </Text>
-                              </View>
-                              {/* Ligne 2 : actions */}
-                              <View style={styles.draftActionRow}>
-                                {isReserved ? (
-                                  <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmLiberateReserved(item)} activeOpacity={0.7}>
-                                    <Ionicons name="lock-open-outline" size={14} color={COLORS.danger} />
-                                    <Text style={[styles.draftActionValidateText, { color: COLORS.danger }]}>Libérer</Text>
-                                  </TouchableOpacity>
-                                ) : (
-                                  <>
-                                    <TouchableOpacity style={styles.draftActionValidate} onPress={() => confirmValidateDraft(item)} activeOpacity={0.7}>
-                                      <Ionicons name="checkmark" size={14} color={COLORS.green} />
-                                      <Text style={styles.draftActionValidateText}>Valider</Text>
-                                    </TouchableOpacity>
-                                    {isProjectDraft && (
-                                      <TouchableOpacity style={styles.draftActionConserve} onPress={() => confirmConserveDraft(item)} activeOpacity={0.7}>
-                                        <Ionicons name="bookmark-outline" size={14} color={COLORS.blue} />
-                                        <Text style={styles.draftActionConserveText}>Conserver</Text>
-                                      </TouchableOpacity>
-                                    )}
-                                    <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmDeleteDraft(item)} activeOpacity={0.7}>
-                                      <Ionicons name="trash-outline" size={14} color={COLORS.danger} />
-                                    </TouchableOpacity>
-                                  </>
-                                )}
-                              </View>
-                            </View>
-                          );
-                        }
-
-                        return (
-                          <TouchableOpacity
-                            key={`${item.id}-${item.displayDate || ''}`}
-                            style={rowBaseStyle}
-                            onPress={isReadOnlyAcct ? () => setDetailTx(item) : navigateToEdit}
-                            activeOpacity={0.7}
-                            accessibilityRole="button"
-                          >
-                            <View style={[styles.rowAccent, accentStyle]} />
-                            <View style={styles.rowLeft}>
-                              <View style={styles.rowLabelRow}>
-                                <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-                                {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
-                                {isSharedAcct && <View style={[styles.projectDot, { backgroundColor: COLORS.textSecondary }]} />}
-                                <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
-                                  {item.note || item.category?.name || 'Sans libellé'}
-                                </Text>
-                                {isDraft && (
-                                  <View style={[styles.draftBadge, isProjectDraft && styles.draftBadgeProject]}>
-                                    <Text style={[styles.draftBadgeText, isProjectDraft && styles.draftBadgeTextProject]}>Brouillon</Text>
-                                  </View>
-                                )}
-                                {isRecurring && (
-                                  <Ionicons name="repeat" size={11} color={COLORS.textSecondary} style={{ marginLeft: 6, opacity: 0.6 }} />
-                                )}
-                              </View>
-                              <Text style={styles.rowMeta}>
-                                {item.account?.name ?? ''} · {formatDate(effectiveDate)}{isSharedAcct ? ` - par ${authorLabel(item)}` : ''}
-                              </Text>
-                            </View>
-                            {isReservation ? (
-                              <View style={styles.reservationBadge}>
-                                <Text style={styles.reservationText}>Réservé</Text>
-                              </View>
-                            ) : (
-                              <Text style={[styles.rowAmount, amt > 0 ? { color: COLORS.green } : styles.rowAmountNeg]}>
-                                {amt > 0 ? '+' : ''}{amt.toFixed(2)} {currencySymbolFor(item.account?.currency)}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                    {/* Mois courant : les transactions À VENIR sont placées AU-DESSUS du passé et repliées
+                        par défaut, pour ne pas parasiter la lecture de ce qui est réellement passé. */}
+                    {isCurrentMonth && futureItems.length > 0 && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.futureToggle}
+                          onPress={() => setShowFutureThisMonth((v) => !v)}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons name={showFutureThisMonth ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
+                          <Text style={styles.futureToggleText}>À venir ce mois ({futureItems.length})</Text>
+                        </TouchableOpacity>
+                        {showFutureThisMonth && (
+                          <View style={[styles.card, styles.futureCard]}>
+                            {futureItems.map((item, index) => renderRow(item, index, futureItems.length))}
+                          </View>
+                        )}
+                      </>
+                    )}
+                    {pastItems.length > 0 ? (
+                      <View style={styles.card}>
+                        {pastItems.map((item, index) => renderRow(item, index, pastItems.length))}
+                      </View>
+                    ) : isCurrentMonth ? (
+                      <View style={styles.card}>
+                        <Text style={styles.empty}>Aucune transaction passée pour l'instant ce mois.</Text>
+                      </View>
+                    ) : null}
                   </View>
                   </React.Fragment>
-                ))
+                  );
+                })
               )}
               <Text style={styles.hint}>Appuyez sur une ligne pour modifier ou supprimer.</Text>
             </>
@@ -1054,6 +1098,9 @@ function makeStyles(c: any) {
     fontWeight: '600',
   },
   empty: { padding: 24, color: c.textSecondary, textAlign: 'center' },
+  futureToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8, paddingVertical: 9, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
+  futureToggleText: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  futureCard: { marginBottom: 8 },
   hint: { marginTop: 16, fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   periodNav: {
     flexDirection: 'row',

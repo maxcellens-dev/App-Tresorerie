@@ -258,12 +258,28 @@ function Bubble({ m, s, c }: { m: AiMessage; s: any; c: any }) {
     );
   }
   const isAdminMsg = m.role === 'admin';
+  const stamp = formatStamp(m.created_at);
   return (
     <View style={s.bubbleAssistant}>
+      {!!stamp && (
+        <View style={s.bubbleHeader}>
+          <Text style={s.stamp}>{stamp}</Text>
+        </View>
+      )}
       <Text style={s.bubbleAssistantTxt}>{m.content}</Text>
       <Text style={s.modelTag}>{isAdminMsg ? 'Réponse de l\'équipe Relyka' : (m.model ?? 'IA')}</Text>
     </View>
   );
+}
+
+/** Date + heure d'une réponse (« 2 juil. · 14:32 »). Vide si date invalide. */
+function formatStamp(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const date = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `${date} · ${time}`;
 }
 
 function makeStyles(c: any) {
@@ -289,6 +305,8 @@ function makeStyles(c: any) {
     bubbleUser: { maxWidth: '85%', backgroundColor: c.emerald, borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10 },
     bubbleUserTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
     bubbleAssistant: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, borderBottomLeftRadius: 4, padding: 14 },
+    bubbleHeader: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 6 },
+    stamp: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600' },
     bubbleAssistantTxt: { color: c.text, fontSize: 14, lineHeight: 21 },
     modelTag: { fontSize: 10.5, color: c.textSecondary, marginTop: 8, fontWeight: '600' },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

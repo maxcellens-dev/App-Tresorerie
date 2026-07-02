@@ -1070,7 +1070,7 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
               <Text style={[styles.tresoVal, { color: COLORS.orange }]}>−{fmt(r.variable)} {CURRENCY_SYMBOL}</Text>
             </View>
             <View style={styles.tresoMonthRow}>
-              <Text style={styles.tresoKey}>Autre (épargne, invest., projets)</Text>
+              <Text style={styles.tresoKey}>Autre (épargne, invest, projets)</Text>
               <Text style={[styles.tresoVal, { color: r.other > 0 ? COLORS.green : COLORS.violet }]}>
                 {r.other > 0 ? '+' : '−'}{fmt(Math.abs(r.other))} {CURRENCY_SYMBOL}
               </Text>

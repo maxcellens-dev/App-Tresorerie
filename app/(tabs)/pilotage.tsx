@@ -432,7 +432,10 @@ export default function PilotageScreen() {
       const single = (periodMonths: number) => {
         // Démarre trop loin dans le futur (au-delà d'une période = pas une avance de matérialisation).
         if (startIdx > thisIdx + periodMonths) return { total: 0, passed: 0 };
-        const advanced = startIdx > thisIdx; // template avancé → occurrence de ce mois déjà passée
+        const advanced = startIdx > thisIdx; // template au mois suivant : soit avancé (occurrence de ce
+        // mois déjà passée/matérialisée), soit récurrente qui DÉMARRE plus tard. On ne distingue que par
+        // le jour : jour non encore échu ce mois → la récurrente n'a pas commencé → on l'ignore ce mois.
+        if (advanced && day > dToday) return { total: 0, passed: 0 };
         return { total: amt, passed: advanced || day <= dToday ? amt : 0 };
       };
       if (rule === 'monthly') return single(1);
@@ -448,7 +451,9 @@ export default function PilotageScreen() {
         let total = 0, passed = 0; const d = new Date(start);
         while (d < monthStart) d.setDate(d.getDate() + 7);
         while (d <= monthEnd && (!end || d <= end)) { total += amt; if (d.getDate() <= dToday) passed += amt; d.setDate(d.getDate() + 7); }
-        if (total === 0 && startIdx > thisIdx) { total = amt * 4; passed = amt * 4; } // avancé hors du mois → ~4 passées
+        // Template avancé au mois suivant (≈4 occurrences déjà passées ce mois) → uniquement si le jour de
+        // départ est déjà échu ce mois ; sinon la récurrente DÉMARRE plus tard (pas ce mois).
+        if (total === 0 && startIdx > thisIdx && day <= dToday) { total = amt * 4; passed = amt * 4; }
         return { total, passed };
       }
       return { total: 0, passed: 0 };
