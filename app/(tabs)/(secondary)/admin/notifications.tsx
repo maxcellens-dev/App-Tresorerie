@@ -97,6 +97,8 @@ export default function AdminNotifications() {
   // Notifications automatiques (système) : activation par identifiant (app_config.system_notifications).
   const { data: sysNotifCfg } = useSystemNotificationsConfig();
   const saveSysNotif = useSaveSystemNotificationsConfig();
+  // Onglet : automatiques (système) vs manuelles (envoi immédiat / planifié / historique).
+  const [tab, setTab] = useState<'auto' | 'manuel'>('auto');
 
   const { data: groups = [] } = useQuery({
     queryKey: ['user_groups_min'],
@@ -312,8 +314,22 @@ export default function AdminNotifications() {
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
           <Text style={styles.title}>Notifications</Text>
 
-          {/* ── Notifications AUTOMATIQUES (système) — catalogue documenté, activables une à une ── */}
-          <Text style={styles.sectionLabel}>Notifications automatiques (système)</Text>
+          {/* ── Onglets : Automatiques (système) / Manuelles ── */}
+          <View style={styles.tabBar}>
+            {([['auto', 'Automatiques'], ['manuel', 'Manuelles']] as const).map(([k, lbl]) => (
+              <TouchableOpacity key={k} style={[styles.tab, tab === k && styles.tabActive]} onPress={() => setTab(k)} activeOpacity={0.8}>
+                <Ionicons
+                  name={k === 'auto' ? 'flash-outline' : 'paper-plane-outline'}
+                  size={15}
+                  color={tab === k ? COLORS.bg : COLORS.textSecondary}
+                />
+                <Text style={[styles.tabText, tab === k && styles.tabTextActive]}>{lbl}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {tab === 'auto' ? (
+          /* ── Notifications AUTOMATIQUES (système) — catalogue documenté, activables une à une ── */
           <View style={[styles.card, { gap: 10 }]}>
             <Text style={styles.sysIntro}>
               Déclenchées automatiquement dans l'app par le moteur d'état (bandeau « prochain geste »).
@@ -339,7 +355,8 @@ export default function AdminNotifications() {
               );
             })}
           </View>
-
+          ) : (
+          <>
           {/* ── Envoi immédiat ── */}
           <Text style={styles.sectionLabel}>Envoi immédiat</Text>
           <View style={styles.card}>
@@ -423,6 +440,8 @@ export default function AdminNotifications() {
                 </View>
               );
             })
+          )}
+          </>
           )}
         </KeyboardAwareScrollView>
       </SafeAreaView>
@@ -530,6 +549,12 @@ function makeStyles(c: any) {
     title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 16 },
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, marginTop: 8 },
     sectionLabel: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
+    /* Onglets Automatiques / Manuelles */
+    tabBar: { flexDirection: 'row', gap: 8, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 4, marginBottom: 16 },
+    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 9 },
+    tabActive: { backgroundColor: c.emerald },
+    tabText: { fontSize: 13.5, fontWeight: '700', color: c.textSecondary },
+    tabTextActive: { color: c.bg },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 8 },
     /* Notifications automatiques (système) */
     sysIntro: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },

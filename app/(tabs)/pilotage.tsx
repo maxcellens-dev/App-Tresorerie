@@ -1461,7 +1461,11 @@ export default function PilotageScreen() {
               const cur = accounts.find((a) => a.id === t.account_id)?.currency ?? refCode;
               const raw = Number(t.amount);
               const conv = convertAmount(Math.abs(raw), cur, refCode, rates) ?? Math.abs(raw);
-              const isIncome = raw > 0;
+              // Virement vers un compte d'ÉPARGNE / d'INVESTISSEMENT : ici on se place du point de vue du
+              // compte de DESTINATION (l'argent y ENTRE) → montant affiché en POSITIF (épargné/investi).
+              const linkedType = accounts.find((a) => a.id === t.linked_account_id)?.type;
+              const isToSavInv = linkedType === 'savings' || linkedType === 'investment';
+              const isIncome = isToSavInv ? true : raw > 0;
               const dateStr = new Date(t._monthDate ?? t.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
               const isCredit = !!t.is_credit_flow;
               const isMine = !t.profile_id || t.profile_id === user?.id;

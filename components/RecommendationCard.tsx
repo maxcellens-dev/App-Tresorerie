@@ -263,9 +263,19 @@ export default function RecommendationCard({
       {/* Groupe HAUT : titre section + icône/titre/montant + textes — toujours collés en haut,
           donc icône/titre/montant ne bougent pas d'une reco à l'autre (§N3). */}
       <View style={styles.recoTop}>
-      {/* Titre « Recommandations » + navigation — aligné avec la slide « Ton Relyka » (§N3) */}
+      {/* Titre « Recommandations » + navigation — aligné avec la slide « Ton Relyka » (§N3).
+          Cliquable → retour à la slide 1 « Ton Relyka » (uniquement si cette slide existe). */}
       <View style={styles.leadTopRow}>
-        <Text style={styles.leadTitle}>Recommandations</Text>
+        <TouchableOpacity
+          onPress={() => lead === 1 && setCurrentIndex(0)}
+          disabled={lead !== 1}
+          activeOpacity={0.6}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+        >
+          {lead === 1 && <Ionicons name="chevron-back" size={14} color={COLORS.textSecondary} />}
+          <Text style={styles.leadTitle}>Recommandations</Text>
+        </TouchableOpacity>
         {count > 1 ? navControls : <View />}
       </View>
       {/* Contenu : icône + titre/montant (position fixe) puis description + texte contextuel à la suite */}
