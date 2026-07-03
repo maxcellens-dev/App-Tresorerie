@@ -59,7 +59,7 @@ export default function NextActionBanner() {
         accessibilityRole="button"
       >
         <View style={[styles.iconWrap, { backgroundColor: accent + '22' }]}>
-          <Ionicons name={ICONS[action.type] as any} size={18} color={accent} />
+          <Ionicons name={ICONS[action.type] as any} size={23} color={accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title} numberOfLines={1}>{action.title}</Text>
@@ -82,19 +82,19 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     wrap: { position: 'absolute', left: 12, right: 12, zIndex: 50, elevation: 50 },
     banner: {
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderRadius: 16,
-      paddingVertical: 11, paddingHorizontal: 12,
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.cardSolid ?? c.card, borderWidth: 1.5, borderRadius: 18,
+      paddingVertical: 16, paddingHorizontal: 16,
       ...Platform.select({
-        ios: { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-        android: { elevation: 6 },
-        default: {},
+        ios: { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
+        android: { elevation: 9 },
+        default: { boxShadow: '0 6px 18px rgba(0,0,0,0.18)' } as any,
       }),
     },
-    bannerPositive: { opacity: 0.96 },
-    iconWrap: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    title: { fontSize: 14, fontWeight: '800', color: c.text },
-    reason: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
-    close: { padding: 2, marginLeft: 2 },
+    bannerPositive: { opacity: 0.97 },
+    iconWrap: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+    title: { fontSize: 16, fontWeight: '800', color: c.text },
+    reason: { fontSize: 13, color: c.textSecondary, marginTop: 2, lineHeight: 18 },
+    close: { padding: 4, marginLeft: 2 },
   });
 }

@@ -1,6 +1,6 @@
 import {
   buildPerimeterCtx, fluxFactor, inPerimeter, transferLegFlux, effectiveSharedMode,
-  transformFluxTransactions, splitPerimeterAccounts, FOYER_EXPENSE_NOTE,
+  transformFluxTransactions, splitPerimeterAccounts, SHARED_TRANSFER_EXPENSE_NOTE,
 } from '../lib/perimeter';
 
 const PERSO = 'perso';
@@ -50,15 +50,12 @@ describe('transferLegFlux — virement trans-frontière (pas de double comptage)
     expect(persoLeg.amount + jointLeg.amount).toBe(500);
   });
 
-  it('Tracked 50% : perso→joint 500 = complément 250 en dépense, jambe joint neutre (compté 1×)', () => {
+  it('Tracked (suivi partagé) : perso→joint = NEUTRE (mouvement interne au périmètre)', () => {
     const ctx = ctxWith('tracked', 0.5);
-    const persoLeg = transferLegFlux(-500, PERSO, JOINT, ctx);
-    const jointLeg = transferLegFlux(+500, JOINT, PERSO, ctx);
-    // La part du user (250) reste neutre ; seul le complément (250) est compté comme dépense.
-    // La jambe côté joint (compte DANS le périmètre en mode tracked) est neutre → effet flux nul.
-    expect(persoLeg).toEqual({ kind: 'expense', amount: 250 });
-    expect(jointLeg.amount).toBe(0);
-    expect(persoLeg.amount + jointLeg.amount).toBe(250); // compté une seule fois
+    // Le joint « suivi » est DANS le périmètre → le virement ne compte PAS (ni dépense, ni prorata).
+    // Ce sont les flux internes du joint qui comptent, à hauteur de la part.
+    expect(transferLegFlux(-500, PERSO, JOINT, ctx).kind).toBe('neutral');
+    expect(transferLegFlux(+500, JOINT, PERSO, ctx).kind).toBe('neutral');
   });
 
   it('Contribution : joint→perso 500 = 100% recette', () => {
@@ -90,36 +87,45 @@ describe('transferLegFlux — virement trans-frontière (pas de double comptage)
     const c2 = transferLegFlux(-500, PERSO, JOINT, ctxWith('contribution', 0.5));
     expect(c1).toEqual(c2);
     expect(c1.amount).toBe(500);
-    expect(t.amount).toBe(250);
+    expect(t.kind).toBe('neutral'); // tracked = neutre
   });
 });
 
 describe('transformFluxTransactions', () => {
-  it('Contribution : dépense interne du joint retirée, virement perso→joint = dépense foyer', () => {
+  it('Contribution : interne du joint retirée, virement perso→joint = dépense (libellé D’ORIGINE conservé)', () => {
     const ctx = ctxWith('contribution', 0.5);
     const txs = [
       { id: 'a', account_id: PERSO, amount: -30, note: 'Courses' },                 // perso normale
       { id: 'b', account_id: JOINT, amount: -100, note: 'Crédit' },                 // interne joint → exclue
-      { id: 'c', account_id: PERSO, linked_account_id: JOINT, amount: -500, note: 'Virement' }, // frontière
+      { id: 'c', account_id: PERSO, linked_account_id: JOINT, amount: -500, note: 'Loyer commun' }, // frontière
       { id: 'd', account_id: JOINT, linked_account_id: PERSO, amount: 500, note: 'Virement' },  // jambe joint → exclue
     ];
     const out = transformFluxTransactions(txs, ctx);
     expect(out.map((t) => t.id)).toEqual(['a', 'c']);
-    const foyer = out.find((t) => t.id === 'c')!;
-    expect(foyer.amount).toBe(-500);
-    expect(foyer.linked_account_id).toBeNull();
-    expect(foyer.note).toBe(FOYER_EXPENSE_NOTE);
+    const shared = out.find((t) => t.id === 'c')!;
+    expect(shared.amount).toBe(-500);
+    expect(shared.linked_account_id).toBeNull();
+    expect(shared.note).toBe('Loyer commun');                          // libellé d'origine conservé
+    expect((shared as any)._perimeter_synthetic).toBe(true);           // marqueur mouvement partagé
   });
 
-  it('Tracked 50% : virement perso→joint = dépense foyer du complément (250), interne joint conservé', () => {
+  it('Contribution : repli sur le libellé générique si le virement n’a pas de note', () => {
+    const ctx = ctxWith('contribution', 0.5);
+    const out = transformFluxTransactions([{ id: 'c', account_id: PERSO, linked_account_id: JOINT, amount: -500 } as any], ctx);
+    expect((out.find((t) => t.id === 'c') as any).note).toBe(SHARED_TRANSFER_EXPENSE_NOTE);
+  });
+
+  it('Tracked (suivi partagé) : virement perso→joint reste NEUTRE (conservé tel quel), interne joint conservé', () => {
     const ctx = ctxWith('tracked', 0.5);
     const txs = [
       { id: 'b', account_id: JOINT, amount: -100, note: 'Crédit' },                 // interne joint → conservé (au %)
-      { id: 'c', account_id: PERSO, linked_account_id: JOINT, amount: -500 },        // frontière → 250
+      { id: 'c', account_id: PERSO, linked_account_id: JOINT, amount: -500 },        // frontière → NEUTRE (inchangé)
     ];
     const out = transformFluxTransactions(txs, ctx);
     expect(out.find((t) => t.id === 'b')).toBeTruthy();
-    expect(out.find((t) => t.id === 'c')!.amount).toBe(-250);
+    const c = out.find((t) => t.id === 'c')!;
+    expect(c.amount).toBe(-500);                 // montant inchangé
+    expect(c.linked_account_id).toBe(JOINT);      // reste un virement interne neutre
   });
 
   it('splitPerimeterAccounts : le joint contribution sort du flux', () => {

@@ -90,11 +90,12 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
     };
   }
 
-  // 4) Confiance basse → vérifier le solde.
+  // 4) Chiffres en fourchette (confiance moyenne/basse) → vérifier le solde. On ne dit JAMAIS
+  //    « tout est à jour » tant que le Relyka s'affiche en fourchette.
   if (i.confidenceLow) {
     return {
-      type: 'check_balance', title: 'Mettez à jour votre solde',
-      reason: `non vérifié depuis ${i.daysSinceVerification} j — vos chiffres redeviennent fiables`,
+      type: 'check_balance', title: 'Vérifiez votre solde',
+      reason: `non vérifié depuis ${i.daysSinceVerification} j — vos chiffres sont affichés en fourchette`,
       eta: '~30 s', deeplink: '/(tabs)/comptes', dismissKey: 'check_balance',
     };
   }
@@ -109,10 +110,11 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
     };
   }
 
-  // 6) Rien à signaler → état positif discret.
+  // 6) Rien à signaler → état positif discret. `relykaText` = MÊME montant que la carte « Ton Relyka »
+  //    (même formule, même arrondi) — atteint uniquement en confiance haute (pas de fourchette).
   return {
     type: 'ok', title: 'Tout est à jour',
-    reason: i.relykaText ? `il vous reste ${i.relykaText} ce mois` : 'vos chiffres sont fiables',
+    reason: i.relykaText ? `ton Relyka est bien de ${i.relykaText}` : 'vos chiffres sont fiables',
     dismissKey: 'ok', positive: true,
   };
 }

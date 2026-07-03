@@ -25,6 +25,7 @@ import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
+import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -159,8 +160,19 @@ export default function TreasuryPlanScreen() {
   // #5 — Comptes partagés/joints pondérés (toutes les tx de tous les participants, ×mon % d'impact).
   // C3 — flux dérivé des mensualités de crédit (sorties virtuelles sur le compte de prélèvement).
   const creditFlows = useCreditFlows(user?.id);
-  const transactions = useMemo(() => [...transactionsPerso, ...(sharedContrib?.transactions ?? []), ...creditFlows], [transactionsPerso, sharedContrib, creditFlows]);
-  const accounts = useMemo(() => [...accountsPerso, ...(sharedContrib?.accounts ?? [])], [accountsPerso, sharedContrib]);
+  const transactionsRaw = useMemo(() => [...transactionsPerso, ...(sharedContrib?.transactions ?? []), ...creditFlows], [transactionsPerso, sharedContrib, creditFlows]);
+  const accountsRaw = useMemo(() => [...accountsPerso, ...(sharedContrib?.accounts ?? [])], [accountsPerso, sharedContrib]);
+  // Périmètre quotidien : les joints « contribution » sortent des flux (leur activité n'impacte plus
+  // la trésorerie), et les virements vers eux deviennent des mouvements « Versé/Reçu au compte partagé ».
+  const perimeterCtx = useMemo(() => buildPerimeterCtx(accountsRaw.map((a: any) => ({
+    id: a.id,
+    isShared: !!(sharedContrib?.factorByAccount && a.id in sharedContrib.factorByAccount),
+    shared_mode: sharedContrib?.modeByAccount?.[a.id] ?? null,
+    factor: sharedContrib?.factorByAccount?.[a.id] ?? 1,
+    type: a.type,
+  }))), [accountsRaw, sharedContrib]);
+  const transactions = useMemo(() => transformFluxTransactions(transactionsRaw as any[], perimeterCtx), [transactionsRaw, perimeterCtx]);
+  const accounts = useMemo(() => splitPerimeterAccounts(accountsRaw, perimeterCtx).perimeter, [accountsRaw, perimeterCtx]);
   const addTransaction = useAddTransaction(user?.id);
 
   // Filet de sécurité : créer les catégories par défaut si l'utilisateur n'en a aucune
@@ -281,6 +293,7 @@ export default function TreasuryPlanScreen() {
     const mouvEpargne: Record<string, number> = {};
     const mouvInvest: Record<string, number> = {};
     const mouvProjets: Record<string, number> = {};
+    const mouvShared: Record<string, number> = {}; // virements vers comptes partagés « contribution » (courant)
     // Transactions par mois pour chaque type de mouvement (pour proposer « Voir les transactions »)
     const mouvEpargneTx: Record<string, TransactionWithDetails[]> = {};
     const mouvInvestTx: Record<string, TransactionWithDetails[]> = {};
@@ -292,6 +305,7 @@ export default function TreasuryPlanScreen() {
       mouvEpargne[m.key] = 0;
       mouvInvest[m.key] = 0;
       mouvProjets[m.key] = 0;
+      mouvShared[m.key] = 0;
       mouvEpargneTx[m.key] = [];
       mouvInvestTx[m.key] = [];
       regulByMonth[m.key] = 0;
@@ -319,6 +333,14 @@ export default function TreasuryPlanScreen() {
 
     for (const t of transactions as TransactionWithDetails[]) {
       const amount = Number(t.amount);
+      // Mouvement synthétique vers/depuis un compte partagé « contribution » (périmètre) → ligne dédiée
+      // selon le TYPE du compte cible : épargne/invest → mouvements existants ; sinon « Comptes partagés ».
+      const sharedTargetType = (t as any)._perimeter_synthetic ? (t as any)._shared_target_type : null;
+      if (sharedTargetType) {
+        if (sharedTargetType === 'savings') { addToMouv(mouvEpargne, t, amount, mouvEpargneTx); continue; }
+        if (sharedTargetType === 'investment') { addToMouv(mouvInvest, t, amount, mouvInvestTx); continue; }
+        addToMouv(mouvShared, t, amount); continue;
+      }
       const isChecking = t.account?.type === 'checking';
       const linkedType = t.linked_account?.type;
 
@@ -704,7 +726,7 @@ export default function TreasuryPlanScreen() {
     // donc INTÉGRÉS au total DÉPENSES (en valeur absolue).
     const mouvTotal: Record<string, number> = {};
     months.forEach((m) => {
-      mouvTotal[m.key] = (mouvProjets[m.key] ?? 0) + (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0);
+      mouvTotal[m.key] = (mouvProjets[m.key] ?? 0) + (mouvEpargne[m.key] ?? 0) + (mouvInvest[m.key] ?? 0) + (mouvShared[m.key] ?? 0);
       // Coût NET signé : un virement SORTANT du courant (vers épargne/invest, montant négatif) est
       // une dépense (+) ; un virement ENTRANT (retrait d'épargne vers le courant, montant positif)
       // est une rentrée → réduit le total DÉPENSES. `-mouvTotal` donne ce signe.
@@ -719,6 +741,9 @@ export default function TreasuryPlanScreen() {
     rows.push({ label: 'Projets', categoryId: null, type: 'mouvement', values: mouvProjets, isChild: true, isProjectRow: true, hasForecast: hasDraftProjets });
     rows.push({ label: 'Épargne', categoryId: null, type: 'mouvement', values: mouvEpargne, isChild: true, mouvementType: 'epargne', hasDraft: hasDraftEpargne });
     rows.push({ label: 'Investissements', categoryId: null, type: 'mouvement', values: mouvInvest, isChild: true, mouvementType: 'invest', hasDraft: hasDraftInvest });
+    if (months.some((m) => Math.abs(mouvShared[m.key] ?? 0) > 0.005)) {
+      rows.push({ label: 'Comptes partagés', categoryId: null, type: 'mouvement', values: mouvShared, isChild: true });
+    }
 
     // Détail des dépenses par catégorie
     expenseBlocks.forEach(({ parentRow, childRows, regulRow }) => {

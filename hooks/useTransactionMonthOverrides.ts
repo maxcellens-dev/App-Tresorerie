@@ -45,10 +45,16 @@ export function useSetTransactionMonthOverride(profileId: string | undefined) {
           month: input.month,
           ...(input.override_amount !== undefined ? { override_amount: input.override_amount } : {}),
           ...(input.override_date !== undefined ? { override_date: input.override_date } : {}),
+        }, {
+          // La table est unique sur (transaction_id, year, month) — sans onConflict, l'upsert résout
+          // sur la PK id et toute RE-modification d'une échéance déjà overridée partait en violation
+          // d'unicité (« Impossible d'enregistrer »).
+          onConflict: 'transaction_id,year,month',
         })
         .select()
         .single();
-      if (error) throw error;
+      // PostgrestError n'est pas une instance d'Error → on wrappe pour que l'UI affiche le vrai message.
+      if (error) throw new Error(error.message || "Impossible d'enregistrer l'échéance.");
       return data;
     },
     onSuccess: () => {
@@ -70,7 +76,7 @@ export function useDeleteTransactionMonthOverride(profileId: string | undefined)
         .eq('transaction_id', input.transaction_id)
         .eq('year', input.year)
         .eq('month', input.month);
-      if (error) throw error;
+      if (error) throw new Error(error.message || "Impossible de retirer l'échéance modifiée.");
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY] });

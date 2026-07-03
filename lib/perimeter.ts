@@ -30,6 +30,8 @@ export interface PerimeterAccountMeta {
   mode: SharedMode;
   /** Facteur d'impact 0..1 (% de part du user). 1 pour un compte perso. */
   factor: number;
+  /** Type du compte (checking/savings/investment/other) — pour router les mouvements. */
+  type?: string;
 }
 
 export interface PerimeterCtx {
@@ -38,7 +40,7 @@ export interface PerimeterCtx {
 
 /** Construit le contexte depuis une liste de comptes annotés (perso + partagés). */
 export function buildPerimeterCtx(
-  accounts: Array<{ id: string; isShared: boolean; shared_mode?: string | null; factor?: number }>,
+  accounts: Array<{ id: string; isShared: boolean; shared_mode?: string | null; factor?: number; type?: string }>,
 ): PerimeterCtx {
   const byId: Record<string, PerimeterAccountMeta> = {};
   for (const a of accounts) {
@@ -46,6 +48,7 @@ export function buildPerimeterCtx(
       isShared: a.isShared,
       mode: effectiveSharedMode(a.shared_mode),
       factor: a.isShared ? (a.factor ?? 1) : 1,
+      type: a.type,
     };
   }
   return { byId };
@@ -102,25 +105,21 @@ export function transferLegFlux(
   otherId: string,
   ctx: PerimeterCtx,
 ): LegFlux {
-  // Jambe hors périmètre → l'autre jambe (côté périmètre) porte tout l'effet.
+  // Jambe sur un compte HORS périmètre (joint « contribution ») → l'autre jambe porte l'effet.
   if (fluxFactor(ctx, ownId) === 0) return { kind: 'excluded', amount: 0 };
-
-  const other = ctx.byId[otherId];
-  // L'autre compte est-il un joint (frontière) ? Sinon virement interne classique.
-  if (!other || !other.isShared) return { kind: 'neutral', amount: 0 };
-
-  const complement = 1 - fluxFactor(ctx, otherId); // part qui quitte réellement le périmètre du user
-  if (complement <= 0) return { kind: 'neutral', amount: 0 };
-
-  const amount = Math.abs(legAmount) * complement;
-  // legAmount < 0 : l'argent SORT du compte du user vers le joint → dépense.
-  // legAmount > 0 : l'argent ENTRE depuis le joint → recette.
+  // L'autre compte est DANS le périmètre (perso OU joint « suivi partagé ») → mouvement interne NEUTRE.
+  // En « suivi partagé » le joint fait partie du périmètre : le virement ne compte pas (ce sont les
+  // flux internes du joint qui comptent, à hauteur de la part) → surtout PAS de dépense au prorata.
+  if (inPerimeter(ctx, otherId)) return { kind: 'neutral', amount: 0 };
+  // L'autre compte est HORS périmètre (joint « contribution ») → TOUT le montant franchit la frontière.
+  const amount = Math.abs(legAmount);
+  // legAmount < 0 : l'argent SORT vers le compte partagé → dépense. > 0 : ENTRE → recette.
   return { kind: legAmount < 0 ? 'expense' : 'income', amount };
 }
 
-/** Libellés des mouvements trans-frontière (mode Contribution / complément Suivi partagé). */
-export const FOYER_EXPENSE_NOTE = 'Versé au foyer';
-export const FOYER_INCOME_NOTE = 'Reçu du foyer';
+/** Libellés des mouvements vers/depuis un compte partagé hors périmètre (mode Contribution). */
+export const SHARED_TRANSFER_EXPENSE_NOTE = 'Versé au compte partagé';
+export const SHARED_TRANSFER_INCOME_NOTE = 'Reçu du compte partagé';
 
 /** Transaction minimale manipulée par la transformation de flux (les autres champs sont préservés). */
 export interface FluxTxLike {
@@ -160,11 +159,19 @@ export function transformFluxTransactions<T extends FluxTxLike>(txs: T[], ctx: P
           linked_account_id: null,
           category_id: null,
           category: null,
-          note: leg.kind === 'expense' ? FOYER_EXPENSE_NOTE : FOYER_INCOME_NOTE,
+          // On GARDE le libellé d'origine du virement (comme toute transaction) ; repli générique
+          // seulement si la transaction n'avait aucun libellé.
+          note: t.note ?? (leg.kind === 'expense' ? SHARED_TRANSFER_EXPENSE_NOTE : SHARED_TRANSFER_INCOME_NOTE),
           _perimeter_synthetic: true,
+          // Type du compte partagé cible (checking/savings/investment) → permet aux écrans de router
+          // ce mouvement (dépense « Comptes partagés » vs « Autre (épargne/invest) »).
+          _shared_target_type: ctx.byId[other]?.type ?? 'checking',
         } as unknown as T);
+        continue;
       }
-      // kind 'neutral' → la part du user reste neutre : rien à compter (aucune tx ajoutée).
+      // kind 'neutral' → joint « suivi partagé » (dans le périmètre) : on GARDE la jambe telle quelle
+      // (virement interne neutre, exactement comme le comportement historique).
+      out.push(t);
       continue;
     }
     out.push(t);

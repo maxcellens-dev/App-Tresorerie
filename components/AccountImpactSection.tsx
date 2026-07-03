@@ -48,9 +48,8 @@ export default function AccountImpactSection({ account }: { account: Account }) 
         <Text style={styles.title}>Impact dans l'app (%)</Text>
       </View>
       <Text style={styles.hint}>
-        Part de l'activité de ce compte (soldes, dépenses, virements…) prise en compte dans l'app de chacun.
-        Vide = part égale automatique ({auto}% pour {N} {N > 1 ? 'participants' : 'participant'}).
-      </Text>
+        Part de l'activité de ce compte (soldes, dépenses, virements…) prise en compte dans l'app de chacun (Relyka, Suivi du mois, Projection).
+          </Text>
       {rows.map((r) => {
         const eff = effectiveImpactPct(r.explicit, N);
         return (

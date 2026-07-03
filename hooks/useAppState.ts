@@ -6,10 +6,12 @@ import { useAllAccounts } from './useAccounts';
 import { useTransactions } from './useTransactions';
 import { useMonthlyClosure } from './useMonthlyClosure';
 import { useSharedContribution } from './useSharedContribution';
+import { usePreSavings } from './usePreSavings';
+import { useReservations } from './useReservations';
 import { useReliabilityConfig, deriveRelykaConfidence } from './useReliability';
 import { isRegul } from '../lib/regul';
 import { getCurrentAction, type AppAction } from '../lib/appStateEngine';
-import { CURRENCY_SYMBOL } from '../lib/currency';
+import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
 
 export function useAppState(): AppAction | null {
   const { user } = useAuth();
@@ -18,11 +20,30 @@ export function useAppState(): AppAction | null {
   const { data: transactions = [] } = useTransactions(user?.id);
   const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
   const { data: sharedContrib } = useSharedContribution(user?.id);
+  const { data: preSavings } = usePreSavings(user?.id);
+  const { data: reservations = [] } = useReservations(user?.id);
   const { data: relCfg } = useReliabilityConfig();
 
   return useMemo(() => {
     if (!pilotage) return null;
-    const relyka = Math.max(0, pilotage.safe_to_spend);
+    // Relyka AFFICHÉ = même formule que le Pilotage (« Ton Relyka » / budget libre) — pas safe_to_spend,
+    // qui est un agrégat différent : le bandeau doit annoncer le MÊME montant que la carte.
+    const monthKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; })();
+    const reservationsTotal = (reservations as any[])
+      .filter((r) => (r.created_at ?? '').slice(0, 7) === monthKey)
+      .reduce((s, r) => s + Number(r.montant), 0);
+    const cumulsTotal = (preSavings?.epargne.total_cumule ?? 0) + (preSavings?.invest.total_cumule ?? 0);
+    const cashflowTrough = pilotage.cashflow_trough ?? pilotage.current_checking_balance ?? 0;
+    const relyka = Math.max(0,
+      cashflowTrough
+      - (pilotage.month_savings_future ?? 0)
+      - (pilotage.month_invest_future ?? 0)
+      - (pilotage.monthly_reserve_planned ?? 0)
+      - reservationsTotal
+      - cumulsTotal
+      - (pilotage.variable_envelope_remaining ?? 0)
+      - (pilotage.safety_margin_amount ?? 0)
+    );
     const conf = relCfg ? deriveRelykaConfidence(pilotage, relyka, relCfg) : null;
 
     const txs = transactions as any[];
@@ -65,11 +86,14 @@ export function useAppState(): AppAction | null {
       hasFixed,
       pendingClosureMonth: pendingMonths[0] ?? null,
       sharedModePrompt,
-      confidenceLow: conf?.result.level === 'low',
+      // Dès que les chiffres sont en FOURCHETTE (confiance moyenne OU basse), on ne dit pas
+      // « tout est à jour » : on invite à vérifier le solde.
+      confidenceLow: conf != null && conf.result.level !== 'high',
       daysSinceVerification: conf?.result.daysSinceVerification ?? 0,
       jointLow,
-      relykaText: `~${Math.round(relyka).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`,
+      // Même arrondi que la carte (dizaine inférieure) → le bandeau annonce le même chiffre.
+      relykaText: `${floorToTen(relyka).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`,
       closureEnabled,
     });
-  }, [pilotage, accounts, transactions, pendingMonths, relCfg, closureEnabled, sharedContrib, user?.id]);
+  }, [pilotage, accounts, transactions, pendingMonths, relCfg, closureEnabled, sharedContrib, preSavings, reservations, user?.id]);
 }

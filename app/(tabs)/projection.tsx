@@ -21,7 +21,7 @@ import { tabRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { computeContributed } from '../../lib/contributed';
 import { useRouter } from 'expo-router';
-import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Line, Circle, Rect, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useTransactions } from '../../hooks/useTransactions';
@@ -41,6 +41,7 @@ import {
 
 import { semanticText } from '../../theme/palette';
 import { computeConfidence, resolveReliabilityConfig } from '../../lib/confidenceEngine';
+import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -177,6 +178,19 @@ export default function ProjectionScreen() {
     () => rawTransactions.map((t) => ({ ...t, amount: convertAmount(Number(t.amount), (t as any).account?.currency || refCode, refCode, rates) ?? Number(t.amount) })),
     [rawTransactions, rates, refCode],
   );
+
+  // Périmètre quotidien pour la VUE FLUX (courbe de solde / trésorerie simplifiée) UNIQUEMENT : les
+  // joints « contribution » sortent, leurs virements deviennent des mouvements « compte partagé ».
+  // Le patrimoine (graphe épargne/invest) garde `allAccounts`/`transactions` complets.
+  const perimeterCtx = useMemo(() => buildPerimeterCtx(allAccounts.map((a: any) => ({
+    id: a.id,
+    isShared: !!(sharedContrib?.factorByAccount && a.id in sharedContrib.factorByAccount),
+    shared_mode: sharedContrib?.modeByAccount?.[a.id] ?? null,
+    factor: sharedContrib?.factorByAccount?.[a.id] ?? 1,
+    type: a.type,
+  }))), [allAccounts, sharedContrib]);
+  const fluxTransactions = useMemo(() => transformFluxTransactions(transactions as any[], perimeterCtx), [transactions, perimeterCtx]);
+  const fluxAccounts = useMemo(() => splitPerimeterAccounts(allAccounts, perimeterCtx).perimeter, [allAccounts, perimeterCtx]);
 
   // Overrides « échéance modifiée » (transaction_month_overrides) : montant FINAL signé d'un mois
   // donné pour une récurrence. Converti dans la devise de référence (comme les transactions) et
@@ -552,7 +566,7 @@ export default function ProjectionScreen() {
           {/* ═══════ INVESTISSEMENTS ═══════ */}
           {/* ═══════ TRÉSORERIE SIMPLIFIÉE ═══════ */}
           {activeTab === 'treso' && (
-            <TresoSimplified transactions={transactions} accounts={allAccounts} pilotage={pilotage} overridesMap={overridesMap} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} />
+            <TresoSimplified transactions={fluxTransactions} accounts={fluxAccounts} pilotage={pilotage} overridesMap={overridesMap} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} />
           )}
 
           {activeTab === 'invest' && (<>
@@ -816,92 +830,166 @@ export default function ProjectionScreen() {
   );
 }
 
-/* ── Courbe des soldes prévus en CÔNE d'incertitude (ligne médiane + bande) sur 6 mois ──
+/** Chemin LISSÉ (spline Catmull-Rom → béziers cubiques) passant par les points. */
+function smoothLine(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return pts.length ? `M ${pts[0].x} ${pts[0].y}` : '';
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+/** Pas d'échelle « joli » (1 / 2 / 5 × 10ⁿ) pour ~6 graduations. */
+function niceStep(range: number): number {
+  const rough = Math.max(1, range) / 6;
+  const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / pow;
+  const m = n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10;
+  return m * pow;
+}
+
+/* ── Courbe des soldes prévus en CÔNE d'incertitude (ligne médiane lissée + bande ±σ) ──
  * incertitude(mois m) = σ_variables × √m × facteur_confiance. La bande s'élargit avec l'horizon. */
 function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confidenceFactor = 1 }: {
   rows: { label: string; balance: number; isCurrent: boolean }[];
   width: number;
   COLORS: any;
   marginAmount?: number;
-  /** Écart-type des dépenses variables (ou fraction de l'enveloppe si historique insuffisant). */
   sigma?: number;
-  /** Facteur de confiance (haute = 1, moyenne/basse = élargi). */
   confidenceFactor?: number;
 }) {
+  const [sel, setSel] = React.useState<number | null>(null);
   if (rows.length < 2 || width <= 0) return null;
-  const h = 188;
-  const padL = 12, padR = 14, padT = 30, padB = 26;
+  const h = 220;
+  const padL = 34, padR = 12, padT = 8, padB = 22;
   const usableW = width - padL - padR;
   const usableH = h - padT - padB;
   const uncAt = (i: number) => (sigma > 0 && i > 0 ? sigma * Math.sqrt(i) * confidenceFactor : 0);
   const upperV = rows.map((r, i) => r.balance + uncAt(i));
   const lowerV = rows.map((r, i) => r.balance - uncAt(i));
   const hasBand = sigma > 0;
-  const vals = rows.map((r) => r.balance);
   const hasMargin = marginAmount > 0;
-  let minV = Math.min(...vals, ...lowerV, 0, hasMargin ? marginAmount : Infinity);
-  let maxV = Math.max(...vals, ...upperV, hasMargin ? marginAmount : -Infinity);
-  if (maxV === minV) maxV = minV + 1;
-  const pad = (maxV - minV) * 0.12;
-  minV -= pad; maxV += pad;
+
+  // Échelle Y « propre » (graduations rondes).
+  const rawMin = Math.min(0, ...lowerV, hasMargin ? marginAmount : Infinity);
+  const rawMax = Math.max(...upperV, hasMargin ? marginAmount : -Infinity, 1);
+  const step = niceStep(rawMax - rawMin);
+  const yMin = Math.floor(rawMin / step) * step;
+  const yMax = Math.ceil(rawMax / step) * step || step;
+  const ticks: number[] = [];
+  for (let v = yMin; v <= yMax + 1e-6; v += step) ticks.push(v);
+
   const x = (i: number) => padL + (i / (rows.length - 1)) * usableW;
-  const y = (v: number) => padT + (1 - (v - minV) / (maxV - minV)) * usableH;
-  const line = rows.map((r, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(r.balance)}`).join(' ');
-  // Bande = borne haute (aller) + borne basse (retour).
-  const bandPath = hasBand
-    ? upperV.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`).join(' ')
-      + ' ' + lowerV.map((_, idx) => { const i = rows.length - 1 - idx; return `L ${x(i)} ${y(lowerV[i])}`; }).join(' ') + ' Z'
+  const y = (v: number) => padT + (1 - (v - yMin) / (yMax - yMin)) * usableH;
+
+  const centralPts = rows.map((r, i) => ({ x: x(i), y: y(r.balance) }));
+  const upperPts = upperV.map((v, i) => ({ x: x(i), y: y(v) }));
+  const lowerPts = lowerV.map((v, i) => ({ x: x(i), y: y(v) }));
+  const centralD = smoothLine(centralPts);
+  // Bande = borne haute lissée (aller) + borne basse lissée (retour).
+  const bandD = hasBand
+    ? `${smoothLine(upperPts)} L ${lowerPts[lowerPts.length - 1].x} ${lowerPts[lowerPts.length - 1].y} `
+      + `${smoothLine([...lowerPts].reverse()).replace(/^M/, 'L')} Z`
     : '';
-  const zeroVisible = minV < 0 && maxV > 0;
   const shortMonth = (lbl: string) => lbl.split(' ')[0].slice(0, 4);
-  // Le scénario le plus bas croise-t-il la marge ?
   const crossIdx = hasMargin && hasBand ? rows.findIndex((_r, i) => lowerV[i] < marginAmount && i > 0) : -1;
+
+  const LegendItem = ({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+      <View style={{ width: 14, height: dashed ? 0 : 10, borderRadius: 3, backgroundColor: dashed ? undefined : color,
+        borderTopWidth: dashed ? 2 : 0, borderTopColor: color, borderStyle: 'dashed' }} />
+      <Text style={{ fontSize: 10.5, color: COLORS.textSecondary, fontWeight: '600' }}>{label}</Text>
+    </View>
+  );
+
+  const h100 = (n: number) => Math.round(n / 100) * 100;
+  const tipFor = (i: number) => {
+    const b = rows[i].balance, u = uncAt(i);
+    return u > 0.5
+      ? `${h100(b - u).toLocaleString('fr-FR')}–${h100(b + u).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`
+      : `${Math.round(b).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
+  };
+
   return (
     <View>
-      <Svg width={width} height={h}>
-        <Defs>
-          <LinearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={COLORS.blue} stopOpacity="0.28" />
-            <Stop offset="1" stopColor={COLORS.blue} stopOpacity="0.02" />
-          </LinearGradient>
-        </Defs>
-        {zeroVisible && (
-          <Line x1={padL} y1={y(0)} x2={width - padR} y2={y(0)} stroke={COLORS.cardBorder} strokeWidth={1} strokeDasharray="3 3" />
-        )}
-        {hasMargin && (
-          <>
-            <Line x1={padL} y1={y(marginAmount)} x2={width - padR} y2={y(marginAmount)} stroke={COLORS.yellow} strokeWidth={1.5} strokeDasharray="5 3" opacity={0.9} />
-            <SvgText x={padL + 2} y={y(marginAmount) - 4} fill={COLORS.yellow} fontSize="9" fontWeight="400" textAnchor="start" opacity={0.9}>{`Marge de sécurité (${fmt(marginAmount)})`}</SvgText>
-          </>
-        )}
-        {/* Cône d'incertitude */}
-        {hasBand && <Path d={bandPath} fill={COLORS.blue} opacity={0.12} />}
-        <Path d={area(line, x, padT + usableH, rows.length)} fill="url(#balGrad)" />
-        <Path d={line} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      <View style={{ width, height: h }}>
+        <Svg width={width} height={h}>
+          {/* Grille + graduations Y */}
+          {ticks.map((t, i) => (
+            <React.Fragment key={`t${i}`}>
+              <Line x1={padL} y1={y(t)} x2={width - padR} y2={y(t)} stroke={COLORS.cardBorder} strokeWidth={1} opacity={0.4} />
+              <SvgText x={padL - 6} y={y(t) + 3} fill={COLORS.textSecondary} fontSize="9" textAnchor="end">{fmtK(t)}</SvgText>
+            </React.Fragment>
+          ))}
+          {/* Cône d'incertitude */}
+          {hasBand && <Path d={bandD} fill={COLORS.blue} opacity={0.16} />}
+          {/* Marge de sécurité */}
+          {hasMargin && (
+            <Line x1={padL} y1={y(marginAmount)} x2={width - padR} y2={y(marginAmount)} stroke={COLORS.orange} strokeWidth={1.5} strokeDasharray="5 4" opacity={0.95} />
+          )}
+          {/* Ligne médiane lissée */}
+          <Path d={centralD} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+          {rows.map((r, i) => {
+            const cx = x(i), cy = y(r.balance);
+            const selected = sel === i;
+            return (
+              <React.Fragment key={i}>
+                <Circle cx={cx} cy={cy} r={selected ? 6 : r.isCurrent ? 4.5 : 3} fill={selected || r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} />
+                <SvgText x={cx} y={h - 6} fill={r.isCurrent ? COLORS.blue : COLORS.textSecondary} fontSize="10" fontWeight={r.isCurrent ? '800' : '600'} textAnchor="middle">
+                  {shortMonth(r.label)}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
+          {/* Tooltip (montant / fourchette) du point sélectionné — un seul à la fois */}
+          {sel != null && (() => {
+            const cx = x(sel), cy = y(rows[sel].balance);
+            const label = tipFor(sel);
+            const w = Math.max(48, label.length * 6.3);
+            const bx = Math.min(Math.max(cx - w / 2, padL), width - padR - w);
+            const by = Math.max(padT, cy - 26);
+            return (
+              <React.Fragment>
+                <Rect x={bx} y={by} width={w} height={18} rx={5} fill={COLORS.cardSolid ?? COLORS.card} stroke={COLORS.cardBorder} strokeWidth={1} />
+                <SvgText x={bx + w / 2} y={by + 12.5} fill={COLORS.text} fontSize="10.5" fontWeight="800" textAnchor="middle">{label}</SvgText>
+              </React.Fragment>
+            );
+          })()}
+        </Svg>
+        {/* Zones tactiles NATIVES par-dessus les points (les événements SVG sont peu fiables web/natif). */}
         {rows.map((r, i) => (
-          <React.Fragment key={i}>
-            <Circle cx={x(i)} cy={y(r.balance)} r={r.isCurrent ? 5 : 3.5} fill={r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} />
-            <SvgText x={x(i)} y={y(r.balance) - 10} fill={r.balance >= 0 ? COLORS.text : COLORS.danger} fontSize="10" fontWeight="700" textAnchor="middle">
-              {fmtK(r.balance)}
-            </SvgText>
-            <SvgText x={x(i)} y={h - 8} fill={r.isCurrent ? COLORS.blue : COLORS.textSecondary} fontSize="10" fontWeight={r.isCurrent ? '800' : '600'} textAnchor="middle">
-              {shortMonth(r.label)}
-            </SvgText>
-          </React.Fragment>
+          <TouchableOpacity
+            key={`hit${i}`}
+            style={{ position: 'absolute', left: x(i) - 18, top: y(r.balance) - 18, width: 36, height: 36 }}
+            activeOpacity={0.6}
+            onPress={() => setSel(sel === i ? null : i)}
+            accessibilityRole="button"
+            accessibilityLabel={`Solde prévu ${r.label} : ${tipFor(i)}`}
+          />
         ))}
-      </Svg>
+      </View>
+
+      {/* Légende SOUS le graphe (sous les mois) */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 8, paddingLeft: 4 }}>
+        <LegendItem color={COLORS.blue} label="Solde prévu" />
+        {hasBand && <LegendItem color={COLORS.blue + '55'} label="Fourchette probable (±1σ)" />}
+        {hasMargin && <LegendItem color={COLORS.orange} label={`Marge de sécurité (${fmt(marginAmount)})`} dashed />}
+      </View>
+
       {crossIdx > 0 && (
-        <Text style={{ fontSize: 11.5, color: COLORS.yellow, fontWeight: '600', marginTop: 4, paddingHorizontal: 4, lineHeight: 16 }}>
-          Dans le scénario le plus bas, vous passez sous votre marge en {rows[crossIdx].label}.
+        <Text style={{ fontSize: 11.5, color: COLORS.orange, fontWeight: '600', marginTop: 4, paddingHorizontal: 4, lineHeight: 16 }}>
+          ⚠️ Dans le scénario le plus bas, vous passez sous votre marge en {rows[crossIdx].label}.
         </Text>
       )}
     </View>
   );
-}
-
-/** Aire sous la ligne médiane. */
-function area(line: string, x: (i: number) => number, bottomY: number, n: number): string {
-  return `${line} L ${x(n - 1)} ${bottomY} L ${x(0)} ${bottomY} Z`;
 }
 
 // ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
@@ -928,7 +1016,13 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
   const onChecking = (t: any) => checkingIds.has(t.account_id);
   const isTransfer = (t: any) => !!t.linked_account_id;
   const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
-  const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft && !t.is_reserved;
+  // Virement synthétique vers/depuis un compte partagé « contribution » (périmètre) :
+  //   • cible ÉPARGNE/INVEST partagée → « Autre (épargne, invest…) » comme un virement épargne classique ;
+  //   • cible COURANTE (charges communes) → dépense/recette NORMALE (récurrent → dépenses prévues,
+  //     ponctuel → comme toute transaction), exactement comme dans le Pilotage.
+  const isSharedToSavInv = (t: any) => !!t._perimeter_synthetic
+    && (t._shared_target_type === 'savings' || t._shared_target_type === 'investment');
+  const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft && !t.is_reserved && !isSharedToSavInv(t);
 
   // « Autre » = virements entre le compte courant et l'épargne/investissement, DANS LES 2 SENS
   // (courant→épargne = sortie négative ; épargne→courant = entrée positive).
@@ -937,6 +1031,7 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
   const isOtherFlow = (t: any) => {
     if (t.is_reserved) return false;
     if (t.is_draft && !t.project_id) return false; // brouillons hors projet : exclus
+    if (isSharedToSavInv(t)) return onChecking(t); // virement vers épargne/invest PARTAGÉE → « Autre »
     if (!onChecking(t)) return false; // on ne garde que la jambe côté compte courant
     if (!t.linked_account_id) return false; // doit être un virement (pas une réservation)
     const linkedType = accountTypeById[t.linked_account_id] ?? null;

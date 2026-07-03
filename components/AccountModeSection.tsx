@@ -15,12 +15,12 @@ import type { Account } from '../types/database';
 const OPTIONS: { mode: SharedMode; icon: string; title: string; desc: string }[] = [
   {
     mode: 'contribution', icon: 'home-outline',
-    title: 'On y verse de l’argent pour les charges communes',
+    title: 'Pour les charges communes',
     desc: 'Loyer, crédits, copro… Vos virements vers ce compte comptent comme des dépenses ; ce qui s’y passe ensuite n’encombre pas votre budget.',
   },
   {
     mode: 'tracked', icon: 'cart-outline',
-    title: 'On l’utilise tous les jours',
+    title: 'Au quotidien',
     desc: 'Courses, sorties… Ses dépenses et recettes comptent dans votre budget, à hauteur de votre part.',
   },
 ];

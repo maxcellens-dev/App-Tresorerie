@@ -159,6 +159,7 @@ export default function PilotageScreen() {
       isShared: !!(sharedContrib?.factorByAccount && a.id in sharedContrib.factorByAccount),
       shared_mode: sharedContrib?.modeByAccount?.[a.id] ?? null,
       factor: sharedContrib?.factorByAccount?.[a.id] ?? 1,
+      type: a.type,
     }))),
     [accounts, sharedContrib],
   );
@@ -689,7 +690,7 @@ export default function PilotageScreen() {
                   ? (Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
                       ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
                       : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
-                  : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant tes recommandations ;)'
+                  : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant les recommandations.'
               }
               recommendations={recoList}
               doneByType={{
@@ -721,17 +722,6 @@ export default function PilotageScreen() {
                 setMonthlyReservation.mutate({ montant: newTotal, libelle: `Réservé ${monthYear}` });
               }}
             />
-
-            {/* Périmètre : part patrimoniale des comptes communs « contribution » (hors budget). */}
-            {Math.round(pilotageData?.joint_share_outside_perimeter ?? 0) > 0 && (
-              <View style={styles.jointShareLine}>
-                <Ionicons name="people-outline" size={14} color={COLORS.textSecondary} />
-                <Text style={styles.jointShareText}>
-                  + votre part du compte commun : {Math.round(pilotageData!.joint_share_outside_perimeter).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
-                  <Text style={styles.jointShareSub}>  (patrimoine, hors budget)</Text>
-                </Text>
-              </View>
-            )}
 
             {/* Cumuls en attente — bandeau (ouvre « Réservé » où on gère/saisit les cumuls, §N).
                 Plus de bouton « Gérer » : tout le bandeau est cliquable. */}
@@ -811,15 +801,29 @@ export default function PilotageScreen() {
                     </View>
                     <View style={styles.budgetValueRow}>
                       <Text style={[styles.suiviBlockValue, { color: COLORS.text }]}>{fmt(checkingBalance)}</Text>
-                      {(pilotageData.month_income_remaining ?? 0) > 0 && (
-                        <View style={styles.incomeInline}>
-                          <Ionicons name="time" size={13} color={COLORS.text} />
-                          <Text style={{ color: COLORS.text, flexShrink: 1 }} numberOfLines={2}>
-                            <Text style={styles.accentPillText}>Prochaine recette </Text>
-                            <Text style={styles.accentPillStrong}>+{fmt(pilotageData.month_income_remaining)}</Text>
-                          </Text>
-                        </View>
-                      )}
+                      <View style={{ alignItems: 'flex-end', gap: 3, flexShrink: 1 }}>
+                        {/* Part des comptes partagés « quotidien » INCLUSE dans le solde ci-contre.
+                            Affichée seulement dans ce mode (le montant impacte le budget) ; en mode
+                            « contribution » le joint est hors budget → aucune ligne. */}
+                        {Math.round(pilotageData.joint_share_in_checking ?? 0) !== 0 && (
+                          <View style={styles.incomeInline}>
+                            <Ionicons name="people-outline" size={13} color={COLORS.textSecondary} />
+                            <Text style={{ color: COLORS.textSecondary, flexShrink: 1 }} numberOfLines={1}>
+                              <Text style={styles.accentPillText}>Part comptes partagés </Text>
+                              <Text style={styles.accentPillStrong}>{fmt(pilotageData.joint_share_in_checking)}</Text>
+                            </Text>
+                          </View>
+                        )}
+                        {(pilotageData.month_income_remaining ?? 0) > 0 && (
+                          <View style={styles.incomeInline}>
+                            <Ionicons name="time" size={13} color={COLORS.text} />
+                            <Text style={{ color: COLORS.text, flexShrink: 1 }} numberOfLines={2}>
+                              <Text style={styles.accentPillText}>Prochaine recette </Text>
+                              <Text style={styles.accentPillStrong}>+{fmt(pilotageData.month_income_remaining)}</Text>
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </TouchableOpacity>
 

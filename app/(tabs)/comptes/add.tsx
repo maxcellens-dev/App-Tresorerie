@@ -171,7 +171,7 @@ export default function AddAccountScreen() {
             <View style={{ marginBottom: 18 }}>
               <Text style={styles.label}>Comment utilisez-vous ce compte ?</Text>
               {([
-                { m: 'contribution', icon: 'home-outline', t: 'Pour les charges communes', d: 'Loyer, crédits… Tes virements = dépenses ; les prélèvements internes n’encombrent pas ton budget.' },
+                { m: 'contribution', icon: 'home-outline', t: 'Pour les charges communes', d: 'Loyer, crédits… Tes virements vers ce compte comptent comme des dépenses ; les prélèvements internes à ce compte n’encombrent pas ton budget.' },
                 { m: 'tracked', icon: 'cart-outline', t: 'Au quotidien', d: 'Courses, sorties… Ses dépenses comptent dans ton budget, à hauteur de ta part.' },
               ] as const).map((o) => {
                 const active = sharedMode === o.m;

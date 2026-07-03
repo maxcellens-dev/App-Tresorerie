@@ -122,8 +122,11 @@ export interface PilotageData {
   monthOverrides?: Record<string, number>;
 
   // ── Périmètre quotidien & confiance ──
-  /** Part patrimoniale des joints « contribution » (hors périmètre flux) — ligne info du Suivi. */
+  /** Part patrimoniale des joints « contribution » (hors périmètre flux). */
   joint_share_outside_perimeter: number;
+  /** Part (pondérée au %) des comptes partagés « quotidien » INCLUSE dans le solde courant affiché —
+   *  ligne info du Suivi (n'a de sens que dans ce mode : le montant impacte le budget). */
+  joint_share_in_checking: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
   confidence_inputs: { lastVerifiedAt: string | null; calibration: DriftCalibration | null; floorBase: number };
 }
@@ -463,12 +466,18 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       isShared: a.id in sharedFactor,
       shared_mode: sharedModeById[a.id] ?? null,
       factor: sharedFactor[a.id] ?? 1,
+      type: (a as any).type,
     })),
   );
   const { perimeter: accounts, outside: outsidePerimeterAccounts } = splitPerimeterAccounts(accountsAll, perimeterCtx);
   const transactions = transformFluxTransactions(transactionsAll, perimeterCtx) as typeof transactionsAll;
-  // Part patrimoniale des joints « contribution » (hors flux) — pour la ligne info du Suivi.
+  // Part patrimoniale des joints « contribution » (hors flux).
   const joint_share_outside_perimeter = outsidePerimeterAccounts.reduce((s, a) => s + Number(a.balance), 0);
+  // Part (pondérée) des comptes partagés « quotidien » incluse dans le solde COURANT du périmètre —
+  // affichée à côté du solde pour expliquer d'où il vient (le montant impacte le budget).
+  const joint_share_in_checking = accounts
+    .filter((a) => a.id in sharedFactor && a.type === 'checking')
+    .reduce((s, a) => s + Number(a.balance), 0);
 
   // =====================================================================
   // AGGREGATIONS: Accounts by Type
@@ -1162,6 +1171,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     monthOverrides: ovrByTx,
     // Périmètre & confiance (packages Fiabilité / Comptes partagés).
     joint_share_outside_perimeter,
+    joint_share_in_checking,
     confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
   };
 }
