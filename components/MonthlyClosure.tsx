@@ -13,15 +13,18 @@ import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } fro
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { prorateClosureGap, isRegul } from '../lib/regul';
 import { todayISO } from '../lib/dateUtils';
+import { useRecalibrateReliability } from '../hooks/useReliability';
 
 interface Props {
   /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
   surplusEstimate: number;
   /** Tous les comptes courants (clôture du solde réel possible compte par compte). */
   checkingAccounts?: { id: string; name: string; balance: number }[];
+  /** Ouvre directement la modale (deeplink « Clôture ton mois » du bandeau prochain geste). */
+  autoOpen?: boolean;
 }
 
-export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] }: Props) {
+export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [], autoOpen = false }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user, isImpersonating } = useAuth();
@@ -46,6 +49,18 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
 
   const openModal = () => { setClosedLocally([]); setMode('direct'); setFlash(false); setBalances({}); setOpen(true); };
   const closeModal = () => { setOpen(false); setClosedLocally([]); setMode('direct'); setFlash(false); setBalances({}); };
+
+  // Deeplink « Clôture ton mois » : ouvre la modale directement (une fois par montage).
+  const autoOpened = React.useRef(false);
+  React.useEffect(() => {
+    if (autoOpen && enabled && pendingMonths.length > 0 && !autoOpened.current) {
+      autoOpened.current = true;
+      openModal();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen, enabled, pendingMonths.length]);
+
+  const recalibrate = useRecalibrateReliability(user?.id);
 
   // Solde d'un compte à la fin du mois concerné (= solde actuel − transactions postérieures).
   const targetKey = monthsToClose[monthsToClose.length - 1] ?? oldest;
@@ -132,6 +147,8 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
         }
       }
       await closeMonths.mutateAsync({ monthKeys: monthsToClose, surplus: Math.max(0, surplusEstimate), status: 'confirmed' });
+      // Clôture confirmée = vérification → recalibrer la dérive du user (silencieux).
+      recalibrate.mutate();
       // Mois par mois : s'il reste des mois en attente, on enchaîne directement sur le suivant.
       const remaining = effectivePending.filter((m) => !monthsToClose.includes(m));
       if (!flash && remaining.length > 0) {
@@ -241,9 +258,60 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
               </>
             )}
 
+            {/* ── Aperçu AVANT validation : impact exact par mois (bloc structuré, pas de surprise) ── */}
+            {(() => {
+              if (!targetKey) return null;
+              const prevMonth = addMonthKey(ym(new Date()), -1);
+              const isLatest = targetKey >= prevMonth;
+              const t0 = todayISO();
+              type Row = { label: string; regul: number; closed?: boolean };
+              const rows: Row[] = [];
+              if (mode === 'direct') {
+                rows.push({ label: monthLabel(targetKey), regul: 0, closed: true });
+              } else {
+                let closingTotal = 0, currentTotal = 0, any = false;
+                for (const acc of checkingAccounts) {
+                  const raw = balances[acc.id];
+                  if (raw == null || raw.trim() === '') continue;
+                  const nb = parseFloat(raw.replace(',', '.'));
+                  if (Number.isNaN(nb)) continue;
+                  any = true;
+                  const diff = nb - balanceAtEndFor(acc.id, acc.balance);
+                  if (isLatest) closingTotal += diff;
+                  else {
+                    const pr = prorateClosureGap(diff, lastVerifiedFor(acc.id, targetKey), t0, targetKey);
+                    closingTotal += pr.closingShare;
+                    currentTotal += pr.currentShare;
+                  }
+                }
+                if (!any) return null;
+                rows.push({ label: monthLabel(targetKey), regul: closingTotal, closed: true });
+                if (Math.abs(currentTotal) > 0.005) rows.push({ label: monthLabel(ym(new Date())), regul: currentTotal });
+              }
+              return (
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewTitle}>Si tu valides :</Text>
+                  {rows.map((r) => (
+                    <View key={r.label} style={styles.previewRow}>
+                      <Text style={styles.previewMonth}>{r.label}</Text>
+                      <Text style={[styles.previewValue, { color: Math.abs(r.regul) < 0.005 ? COLORS.emerald : r.regul < 0 ? COLORS.danger : COLORS.green }]}>
+                        {Math.abs(r.regul) < 0.005 ? 'écart 0 — solde confirmé' : `régularisation : ${r.regul > 0 ? '+' : '−'}${fmt(Math.abs(r.regul))}`}
+                      </Text>
+                      {r.closed && (
+                        <View style={styles.previewBadge}>
+                          <Ionicons name="checkmark" size={10} color={COLORS.emerald} />
+                          <Text style={styles.previewBadgeText}>mois fermé</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+
             <View style={styles.lockNote}>
               <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
-              <Text style={styles.lockNoteText}>La clôture enregistre une régularisation datée pour fiabiliser vos calculs. Rien n'est verrouillé : vous pourrez toujours corriger plus tard.</Text>
+              <Text style={styles.lockNoteText}>La clôture enregistre une régularisation datée pour fiabiliser tes calculs. Rien n'est verrouillé : tu pourras toujours corriger plus tard.</Text>
             </View>
 
             <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={confirm} disabled={busy}>
@@ -312,6 +380,13 @@ function makeStyles(c: any) {
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hint: { fontSize: 12, color: c.textSecondary, marginTop: 10, lineHeight: 17 },
+    previewBox: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '44', padding: 12, marginTop: 14, gap: 8 },
+    previewTitle: { fontSize: 12.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    previewRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    previewMonth: { fontSize: 13.5, fontWeight: '800', color: c.text, textTransform: 'capitalize', minWidth: 74 },
+    previewValue: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+    previewBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.emerald + '18', borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
+    previewBadgeText: { fontSize: 10, fontWeight: '800', color: c.emerald },
     lockNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderRadius: 10, padding: 10, marginTop: 16 },
     lockNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },

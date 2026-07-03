@@ -955,9 +955,12 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
             const w = Math.max(48, label.length * 6.3);
             const bx = Math.min(Math.max(cx - w / 2, padL), width - padR - w);
             const by = Math.max(padT, cy - 26);
+            const tipX = Math.min(Math.max(cx, bx + 8), bx + w - 8); // pointe clampée dans la bulle
             return (
               <React.Fragment>
-                <Rect x={bx} y={by} width={w} height={18} rx={5} fill={COLORS.cardSolid ?? COLORS.card} stroke={COLORS.cardBorder} strokeWidth={1} />
+                <Rect x={bx} y={by} width={w} height={18} rx={6} fill={COLORS.cardSolid ?? COLORS.card} stroke={COLORS.cardBorder} strokeWidth={1} />
+                {/* Pointe de la bulle vers le point sélectionné */}
+                <Path d={`M ${tipX - 5} ${by + 17.5} L ${tipX + 5} ${by + 17.5} L ${tipX} ${by + 23} Z`} fill={COLORS.cardSolid ?? COLORS.card} stroke={COLORS.cardBorder} strokeWidth={1} />
                 <SvgText x={bx + w / 2} y={by + 12.5} fill={COLORS.text} fontSize="10.5" fontWeight="800" textAnchor="middle">{label}</SvgText>
               </React.Fragment>
             );
@@ -979,7 +982,7 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
       {/* Légende SOUS le graphe (sous les mois) */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 8, paddingLeft: 4 }}>
         <LegendItem color={COLORS.blue} label="Solde prévu" />
-        {hasBand && <LegendItem color={COLORS.blue + '55'} label="Fourchette probable (±1σ)" />}
+        {hasBand && <LegendItem color={COLORS.blue + '55'} label="Fourchette probable" />}
         {hasMargin && <LegendItem color={COLORS.orange} label={`Marge de sécurité (${fmt(marginAmount)})`} dashed />}
       </View>
 
@@ -1167,9 +1170,10 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
             COLORS={COLORS}
             marginAmount={pilotage?.safety_margin_amount ?? 0}
             sigma={(() => {
-              // σ_variables : écart-type mensuel des dépenses variables si dispo, sinon fraction de
-              // l'enveloppe variable (fallback CDC). Ici : fallback simple, robuste.
-              return 0.25 * (pilotage?.variable_envelope_initial ?? 0);
+              // σ_variables : VRAI écart-type des dépenses variables (mois fiables, hors estimated) ;
+              // repli = fraction de l'enveloppe si historique insuffisant.
+              const real = pilotage?.variable_sigma ?? 0;
+              return real > 0 ? real : 0.25 * (pilotage?.variable_envelope_initial ?? 0);
             })()}
             confidenceFactor={(() => {
               const ci = pilotage?.confidence_inputs;

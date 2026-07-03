@@ -1,11 +1,12 @@
-// Bandeau « prochain geste » — overlay en HAUT de l'écran (au-dessus du contenu), non bloquant.
+// Bandeau « prochain geste » — overlay en HAUT de l'écran (sous le header), non bloquant.
 // Affiche l'UNIQUE action prioritaire (moteur d'état). Dismissable ; réapparaît à la prochaine
 // ouverture de l'app tant que l'action reste pertinente (dismiss = mémoire de SESSION uniquement).
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+// Visible UNIQUEMENT sur le Pilotage (jamais par-dessus un écran de saisie).
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppState } from '../hooks/useAppState';
 import type { AppActionType } from '../lib/appStateEngine';
@@ -13,6 +14,35 @@ import type { AppActionType } from '../lib/appStateEngine';
 // Dismiss de SESSION : réinitialisé au prochain lancement de l'app (module rechargé) → l'action
 // pertinente réapparaît. Ne pas persister (c'est voulu).
 const dismissedThisSession = new Set<string>();
+
+// Persistance légère (web : localStorage ; natif : repli mémoire de session).
+const memoryFlags = new Set<string>();
+function flagGet(key: string): boolean {
+  if (memoryFlags.has(key)) return true;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) return window.localStorage.getItem(key) === '1';
+  } catch {}
+  return false;
+}
+function flagSet(key: string): void {
+  memoryFlags.add(key);
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(key, '1');
+  } catch {}
+}
+
+/** « Tout est à jour » : montré UNE fois par mois. */
+function okSeenKey(): string {
+  const n = new Date();
+  return `relyka_ok_banner_${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+}
+/** « Compte commun à découvert » : max 1 fois par semaine et par compte (clé = lundi de la semaine). */
+function weekKey(): string {
+  const d = new Date();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+}
 
 const ICONS: Record<AppActionType, string> = {
   setup: 'construct-outline',
@@ -27,20 +57,58 @@ export default function NextActionBanner() {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const segments = useSegments();
   const action = useAppState();
   const [, force] = useState(0);
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
 
-  // L'état positif s'efface tout seul au bout de quelques secondes (discret).
+  // Animation d'entrée (slide-down + fade) à chaque nouvelle action affichée.
+  const anim = useRef(new Animated.Value(0)).current;
+  const lastKey = useRef<string | null>(null);
+
+  // Auto-effacement : état positif ~5 s (marqué « vu ce mois-ci ») ; « Vérifie ton solde » 15 s
+  // (ne reste jamais à l'infini — il reviendra à la prochaine ouverture tant que non vérifié).
   useEffect(() => {
-    if (action?.positive) {
-      const id = setTimeout(() => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); }, 4500);
+    if (!action) return;
+    if (action.positive) {
+      flagSet(okSeenKey());
+      const id = setTimeout(() => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); }, 5000);
       return () => clearTimeout(id);
     }
-  }, [action?.dismissKey, action?.positive]);
+    if (action.type === 'check_balance') {
+      const id = setTimeout(() => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); }, 15000);
+      return () => clearTimeout(id);
+    }
+    if (action.type === 'joint_low') {
+      flagSet(`relyka_jl_${action.dismissKey}_${weekKey()}`);
+    }
+  }, [action?.dismissKey, action?.positive, action?.type]);
 
-  if (!action) return null;
-  if (dismissedThisSession.has(action.dismissKey)) return null;
+  // Uniquement sur le Pilotage (jamais par-dessus une saisie ou un autre écran).
+  const onPilotage = segments[segments.length - 1] === 'pilotage';
+
+  const visible = (() => {
+    if (!action || !onPilotage) return false;
+    if (dismissedThisSession.has(action.dismissKey)) return false;
+    // « Tout est à jour » déjà vu ce mois-ci (session précédente) → pas de ré-affichage.
+    if (action.positive && flagGet(okSeenKey()) && !memoryFlags.has(`shown_${okSeenKey()}`)) return false;
+    // « Compte commun à découvert » déjà signalé cette semaine (session précédente) → silence.
+    if (action.type === 'joint_low' && flagGet(`relyka_jl_${action.dismissKey}_${weekKey()}`)
+      && !memoryFlags.has(`shown_jl_${action.dismissKey}_${weekKey()}`)) return false;
+    return true;
+  })();
+
+  useEffect(() => {
+    if (visible && action && lastKey.current !== action.dismissKey) {
+      lastKey.current = action.dismissKey;
+      anim.setValue(0);
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 60, friction: 10 }).start();
+    }
+  }, [visible, action?.dismissKey, anim]);
+
+  if (!visible || !action) return null;
+  if (action.positive) memoryFlags.add(`shown_${okSeenKey()}`);           // affiché CETTE session → laisser finir le timer
+  if (action.type === 'joint_low') memoryFlags.add(`shown_jl_${action.dismissKey}_${weekKey()}`);
 
   const accent = action.type === 'joint_low' ? COLORS.orange
     : action.positive ? COLORS.green : COLORS.emerald;
@@ -51,7 +119,14 @@ export default function NextActionBanner() {
   const onDismiss = () => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); };
 
   return (
-    <View style={[styles.wrap, { top: insets.top + 6 }]} pointerEvents="box-none">
+    <Animated.View
+      style={[
+        styles.wrap,
+        { top: insets.top + 58 }, // sous le header (ne recouvre plus l'avatar / les flammes)
+        { opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) }] },
+      ]}
+      pointerEvents="box-none"
+    >
       <TouchableOpacity
         style={[styles.banner, action.positive && styles.bannerPositive, { borderColor: accent + '55' }]}
         activeOpacity={action.deeplink ? 0.85 : 1}
@@ -62,8 +137,9 @@ export default function NextActionBanner() {
           <Ionicons name={ICONS[action.type] as any} size={23} color={accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title} numberOfLines={1}>{action.title}</Text>
-          <Text style={styles.reason} numberOfLines={2}>
+          <Text style={styles.title}>{action.title}</Text>
+          {/* Message complet, jamais tronqué (peut faire plusieurs lignes). */}
+          <Text style={styles.reason}>
             {action.reason}{action.eta ? ` · ${action.eta}` : ''}
           </Text>
         </View>
@@ -74,7 +150,7 @@ export default function NextActionBanner() {
           <Ionicons name="close" size={16} color={COLORS.textSecondary} />
         </TouchableOpacity>
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 

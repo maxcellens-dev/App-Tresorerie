@@ -39,6 +39,8 @@ export interface AppStateInputs {
   relykaText?: string;
   /** Fonctionnalité clôture active (sinon on n'affiche pas soft_close). */
   closureEnabled?: boolean;
+  /** Compte courant principal → deeplinks « solde » PRÉ-REMPLIS (modal Nouveau Solde ouvert). */
+  mainCheckingId?: string | null;
 }
 
 function monthLabel(key: string): string {
@@ -46,26 +48,28 @@ function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long' });
 }
 
-/** Retourne LA prochaine action prioritaire. */
+/** Retourne LA prochaine action prioritaire. Ton : TUTOIEMENT partout (cohérent avec l'app). */
 export function getCurrentAction(i: AppStateInputs): AppAction {
+  // Deeplink solde : directement le modal « Nouveau Solde » du compte principal si connu.
+  const balanceLink = i.mainCheckingId ? `/(tabs)/comptes/${i.mainCheckingId}?verify=1` : '/(tabs)/comptes';
   // 1) Réglages de base manquants (le plus structurant).
   if (!i.hasBalance) {
     return {
-      type: 'setup', title: 'Renseignez votre solde',
-      reason: 'vos chiffres deviennent fiables dès le départ', eta: '~30 s',
-      deeplink: '/(tabs)/comptes', dismissKey: 'setup:balance',
+      type: 'setup', title: 'Renseigne ton solde',
+      reason: 'tes chiffres seront fiables dès le départ', eta: '~30 s',
+      deeplink: balanceLink, dismissKey: 'setup:balance',
     };
   }
   if (!i.hasIncome) {
     return {
-      type: 'setup', title: 'Ajoutez votre revenu principal',
-      reason: "l'app anticipe alors vos rentrées d'argent", eta: '~30 s',
+      type: 'setup', title: 'Ajoute ton revenu principal',
+      reason: "l'app anticipera tes rentrées d'argent", eta: '~30 s',
       deeplink: '/(tabs)/transactions/add?type=income', dismissKey: 'setup:income',
     };
   }
   if (!i.hasFixed) {
     return {
-      type: 'setup', title: 'Ajoutez vos charges fixes',
+      type: 'setup', title: 'Ajoute tes charges fixes',
       reason: 'loyer, abonnements… pour un budget réaliste', eta: '~1 min',
       deeplink: '/(tabs)/transactions/add?type=expense', dismissKey: 'setup:fixed',
     };
@@ -74,7 +78,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   // 2) Compte partagé à qualifier (une fois, différable).
   if (i.sharedModePrompt) {
     return {
-      type: 'shared_mode', title: 'Comment utilisez-vous ce compte commun ?',
+      type: 'shared_mode', title: 'Comment utilises-tu ce compte commun ?',
       reason: `« ${i.sharedModePrompt.name} » — pour des chiffres justes`, eta: '~15 s',
       deeplink: `/(tabs)/comptes/edit/${i.sharedModePrompt.accountId}`,
       dismissKey: `shared_mode:${i.sharedModePrompt.accountId}`,
@@ -84,19 +88,20 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   // 3) Clôture d'un mois précédent.
   if (i.closureEnabled && i.pendingClosureMonth) {
     return {
-      type: 'soft_close', title: `Clôturer ${monthLabel(i.pendingClosureMonth)}`,
-      reason: 'figez le passé pour fiabiliser vos calculs', eta: '~30 s',
-      deeplink: '/(tabs)/pilotage', dismissKey: `soft_close:${i.pendingClosureMonth}`,
+      type: 'soft_close', title: `Clôture ton mois de ${monthLabel(i.pendingClosureMonth)}`,
+      reason: 'fige le passé pour fiabiliser tes calculs', eta: '~30 s',
+      deeplink: '/(tabs)/pilotage?closure=1', dismissKey: `soft_close:${i.pendingClosureMonth}`,
     };
   }
 
-  // 4) Chiffres en fourchette (confiance moyenne/basse) → vérifier le solde. On ne dit JAMAIS
-  //    « tout est à jour » tant que le Relyka s'affiche en fourchette.
+  // 4) Confiance BASSE → les montants affichés sont des ESTIMATIONS (données probablement plus à
+  //    jour). En confiance MOYENNE, seul le bandeau ambre de la carte Relyka le signale (pas de
+  //    doublon overlay) — et l'état positif est supprimé côté hook.
   if (i.confidenceLow) {
     return {
-      type: 'check_balance', title: 'Vérifiez votre solde',
-      reason: `non vérifié depuis ${i.daysSinceVerification} j — vos chiffres sont affichés en fourchette`,
-      eta: '~30 s', deeplink: '/(tabs)/comptes', dismissKey: 'check_balance',
+      type: 'check_balance', title: 'Vérifie ton solde',
+      reason: `tes montants sont des estimations - \ntes données ne sont sans doute plus à jour (dernière vérif il y a ${i.daysSinceVerification} j)`,
+      eta: '~30 s', deeplink: balanceLink, dismissKey: 'check_balance',
     };
   }
 
@@ -104,7 +109,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   if (i.jointLow) {
     return {
       type: 'joint_low', title: 'Compte commun bientôt à découvert',
-      reason: `« ${i.jointLow.name} » : pensez à une contribution`, eta: '~30 s',
+      reason: `« ${i.jointLow.name} » : pense à faire une contribution`, eta: '~30 s',
       deeplink: `/(tabs)/comptes/${i.jointLow.accountId}`,
       dismissKey: `joint_low:${i.jointLow.accountId}`,
     };
@@ -114,7 +119,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   //    (même formule, même arrondi) — atteint uniquement en confiance haute (pas de fourchette).
   return {
     type: 'ok', title: 'Tout est à jour',
-    reason: i.relykaText ? `ton Relyka est bien de ${i.relykaText}` : 'vos chiffres sont fiables',
+    reason: i.relykaText ? `ton Relyka est bien de ${i.relykaText}` : 'tes chiffres sont fiables',
     dismissKey: 'ok', positive: true,
   };
 }

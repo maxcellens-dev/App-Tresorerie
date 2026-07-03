@@ -5,18 +5,14 @@
  * Stocké dans app_config.reliability / app_config.system_notifications.
  */
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Switch, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
-import {
-  useReliabilityConfig, useSaveReliabilityConfig,
-  useSystemNotificationsConfig, useSaveSystemNotificationsConfig,
-} from '../../../../hooks/useReliability';
+import { useReliabilityConfig, useSaveReliabilityConfig } from '../../../../hooks/useReliability';
 import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/confidenceEngine';
-import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
 
 const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; pct?: boolean }[] = [
   { key: 'highMax', label: 'Seuil confiance haute', help: 'doute < X → chiffres nets', pct: true },
@@ -34,8 +30,6 @@ export default function AdminReliability() {
   const goBack = useNavBack();
   const { data: cfg } = useReliabilityConfig();
   const saveCfg = useSaveReliabilityConfig();
-  const { data: notifCfg } = useSystemNotificationsConfig();
-  const saveNotif = useSaveSystemNotificationsConfig();
 
   const [draft, setDraft] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -85,26 +79,10 @@ export default function AdminReliability() {
           {saveCfg.isPending && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 8 }} />}
 
           <Text style={styles.section}>Notifications système</Text>
-          <Text style={styles.p}>Déclenchées par le moteur d’état. Documentées ci-dessous, activables une par une.</Text>
-          {SYSTEM_NOTIFICATIONS.map((n) => {
-            const enabled = isSystemNotificationEnabled(n.id, notifCfg);
-            return (
-              <View key={n.id} style={styles.notifCard}>
-                <View style={styles.notifHead}>
-                  <Text style={styles.notifTitle}>{n.title}</Text>
-                  <Switch
-                    value={enabled}
-                    onValueChange={(v) => saveNotif.mutate({ [n.id]: { enabled: v } })}
-                    trackColor={{ true: COLORS.emerald, false: COLORS.cardBorder }}
-                  />
-                </View>
-                <Text style={styles.notifId}>{n.id}</Text>
-                <Text style={styles.notifBody}>« {n.bodyExample} »</Text>
-                <Text style={styles.notifMeta}>Quand : {n.condition}</Text>
-                <Text style={styles.notifMeta}>Fréquence max : {n.maxFrequency}</Text>
-              </View>
-            );
-          })}
+          <Text style={styles.p}>
+            Le catalogue des notifications automatiques (soft_close, confidence_low, …) se gère désormais
+            dans Admin → Notifications, section « Notifications automatiques (système) ».
+          </Text>
         </ScrollView>
       </SafeAreaView>
     </View>

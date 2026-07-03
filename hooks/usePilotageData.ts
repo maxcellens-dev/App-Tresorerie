@@ -127,6 +127,8 @@ export interface PilotageData {
   /** Part (pondérée au %) des comptes partagés « quotidien » INCLUSE dans le solde courant affiché —
    *  ligne info du Suivi (n'a de sens que dans ce mode : le montant impacte le budget). */
   joint_share_in_checking: number;
+  /** Écart-type mensuel des dépenses variables (mois fiables). 0 si historique insuffisant. */
+  variable_sigma: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
   confidence_inputs: { lastVerifiedAt: string | null; calibration: DriftCalibration | null; floorBase: number };
 }
@@ -136,6 +138,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   profile: Profile | null;
   sharedFactor: Record<string, number>;
   sharedModeById: Record<string, string | null>;
+  estimatedMonths: Set<string>;
   accounts: Account[];
   transactions: TransactionWithCategory[];
   questionnaireAnswers: any | null;
@@ -146,7 +149,7 @@ async function fetchPilotageData(profileId: string): Promise<{
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
-  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes] = await Promise.all([
+  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes, closuresRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
     supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
@@ -157,6 +160,7 @@ async function fetchPilotageData(profileId: string): Promise<{
     supabase.from('transaction_month_overrides').select('transaction_id, year, month, override_amount').eq('profile_id', profileId),
     supabase.from('credits').select('*, category:categories!category_id(id, name, is_variable, parent_id), insurance_category:categories!insurance_category_id(id, name, is_variable, parent_id)').eq('profile_id', profileId),
     supabase.from('credit_events').select('*').eq('profile_id', profileId),
+    supabase.from('month_closures').select('month_key, status').eq('profile_id', profileId),
   ]);
 
   if (profileRes.error) throw profileRes.error;
@@ -187,10 +191,16 @@ async function fetchPilotageData(profileId: string): Promise<{
   const creditPilotTx = ((creditsRes.data ?? []) as any[])
     .flatMap((c) => buildCreditPilotTxs(c as any, evtByCredit[c.id], acctById[c.account_id]));
 
+  // Mois `estimated` (non confirmés) → exclus des baselines (moyennes variables, revenu moyen, σ).
+  const estimatedMonths = new Set(
+    ((closuresRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key as string),
+  );
+
   return {
     profile: (profileRes.data as Profile) || null,
     sharedFactor: shared.factorByAccount,
     sharedModeById: shared.modeByAccount,
+    estimatedMonths,
     accounts: [...persoAccounts, ...shared.accounts],
     transactions: [
       ...persoTransactions.map((t: any) => ({ ...t, amount: Number(t.amount), account: t.account, category: t.category })),
@@ -1068,7 +1078,13 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const variable_envelope_spent = Math.max(0, month_expenses_past - recurring_passed_current);
 
   // Historique = mois passés avec de vraies dépenses variables (> 0), pas toute transaction.
-  const monthsWithData = pastMonths.filter(m => variableByPastMonth[m.key] > 0);
+  // Les mois `estimated` (non confirmés) sont EXCLUS : leurs chiffres ne sont pas fiables et
+  // pollueraient l'enveloppe des mois suivants.
+  const estimatedMonths: Set<string> = (data as any).estimatedMonths ?? new Set();
+  const monthsWithData = pastMonths.filter((m) => {
+    const padded = `${m.year}-${String(m.month).padStart(2, '0')}`;
+    return variableByPastMonth[m.key] > 0 && !estimatedMonths.has(padded);
+  });
   let variable_envelope_initial = 0;
   let variable_envelope_source: 'history' | 'onboarding' | 'none' = 'none';
   let variable_envelope_months_used = 0;
@@ -1090,6 +1106,15 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   }
 
   const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
+
+  // σ des dépenses variables (mois FIABLES uniquement) — alimente le cône de la Projection.
+  // < 2 mois fiables → 0 (les écrans utilisent alors leur repli : fraction de l'enveloppe).
+  let variable_sigma = 0;
+  if (monthsWithData.length >= 2) {
+    const vals = monthsWithData.map((m) => variableByPastMonth[m.key]);
+    const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+    variable_sigma = Math.sqrt(vals.reduce((s, v) => s + (v - mean) * (v - mean), 0) / vals.length);
+  }
 
   // ── Confiance : signaux bruts. Le niveau/fourchette sont calculés par confidenceEngine côté écrans
   // avec le VRAI Relyka (resteDisponible), pour n'avoir qu'UNE seule fonction de doute partout.
@@ -1172,6 +1197,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     // Périmètre & confiance (packages Fiabilité / Comptes partagés).
     joint_share_outside_perimeter,
     joint_share_in_checking,
+    variable_sigma,
     confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
   };
 }

@@ -3,9 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import {
-  resolveReliabilityConfig, computeConfidence, toRange,
+  resolveReliabilityConfig, computeConfidence, toRange, computeCalibration,
   type ReliabilityConfig, type ConfidenceResult, type Range,
 } from '../lib/confidenceEngine';
+import { todayISO } from '../lib/dateUtils';
 import type { PilotageData } from './usePilotageData';
 import type { SystemNotificationsConfig } from '../lib/systemNotifications';
 
@@ -64,6 +65,54 @@ export function useSaveSystemNotificationsConfig() {
       return merged;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['system_notifications_config'] }); },
+  });
+}
+
+/**
+ * Recalcule la CALIBRATION de dérive du user (profiles.reliability_calib) à partir de ses
+ * vérifications passées (régularisations). À appeler après chaque régul / clôture confirmée.
+ *   dérive_journalière = médiane(|écarts trouvés|) / médiane(jours entre vérifications)
+ * Les réguls des mois « estimated » sont EXCLUES (mois non fiables → ne calibrent pas).
+ * Un user qui vérifie avec écart ~0 voit sa dérive tendre vers 0 → confiance durable.
+ */
+export function useRecalibrateReliability(profileId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!supabase || !profileId) return;
+      const [txRes, clRes] = await Promise.all([
+        supabase.from('transactions')
+          .select('date, amount, regul_target')
+          .eq('profile_id', profileId)
+          .not('regul_target', 'is', null)
+          .lte('date', todayISO())
+          .order('date', { ascending: true }),
+        supabase.from('month_closures').select('month_key, status').eq('profile_id', profileId),
+      ]);
+      const estimated = new Set(
+        ((clRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key),
+      );
+      // Une « vérification » = un JOUR de régul (multi-comptes le même jour → écarts sommés).
+      const byDay = new Map<string, number>();
+      for (const t of (txRes.data ?? []) as any[]) {
+        const d = String(t.date).slice(0, 10);
+        if (estimated.has(d.slice(0, 7))) continue;
+        byDay.set(d, (byDay.get(d) ?? 0) + Math.abs(Number(t.amount)));
+      }
+      const days = [...byDay.keys()].sort();
+      const samples: { absGap: number; daysBetween: number }[] = [];
+      for (let i = 1; i < days.length; i++) {
+        const gapDays = Math.round((new Date(days[i] + 'T00:00:00').getTime() - new Date(days[i - 1] + 'T00:00:00').getTime()) / 86400000);
+        samples.push({ absGap: byDay.get(days[i])!, daysBetween: gapDays });
+      }
+      const calib = computeCalibration(samples);
+      await supabase.from('profiles').update({ reliability_calib: calib }).eq('id', profileId);
+      return calib;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['profile', profileId] });
+      qc.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
   });
 }
 

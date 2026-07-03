@@ -31,6 +31,7 @@ import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { currencySymbolFor } from '../../../lib/currency';
+import { useRecalibrateReliability } from '../../../hooks/useReliability';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -76,13 +77,14 @@ export default function AccountDetailScreen() {
   const modalStyles = makeModalStyles(COLORS);
   const txDetailStyles = makeTxDetailStyles(COLORS);
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; verify?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
   const { data: accounts = [] } = useAllAccounts(user?.id);
   const { data: transactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
+  const recalibrate = useRecalibrateReliability(user?.id);
 
   const account = accounts.find((a) => a.id === id);
 
@@ -127,6 +129,20 @@ export default function AccountDetailScreen() {
 
   const [selectedTx, setSelectedTx] = useState<TransactionWithDetails | null>(null);
 
+  // Deeplink « Vérifie ton solde » (bandeau prochain geste) : ?verify=1 ouvre directement le modal
+  // Nouveau Solde — le user n'a plus qu'à saisir le montant (~10 s réels).
+  useEffect(() => {
+    if (params.verify === '1' && account?.type === 'checking') {
+      setShowBalance(true);
+      setBalanceInput('');
+      setBalanceNote('Régularisation solde');
+      const today = todayISO();
+      setBalanceDate(today);
+      setBalanceDateDisplay(formatDateFrench(today));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.verify, account?.id]);
+
   const [showGainLoss, setShowGainLoss] = useState(false);
   const [gainLossMode, setGainLossMode] = useState<'amount' | 'balance'>('balance');
   const [showMethodPicker, setShowMethodPicker] = useState(false);
@@ -159,10 +175,8 @@ export default function AccountDetailScreen() {
     }
     if (!account || !id || !user?.id) return;
     const diff = newBalance - balanceAtDate;
-    if (diff === 0) {
-      Alert.alert('Aucune variation', 'Le solde saisi est identique au solde à cette date.');
-      return;
-    }
+    // Écart 0 = le user CONFIRME son solde → c'est une vraie VÉRIFICATION (ancre écart 0) :
+    // elle calibre sa dérive vers 0 et fait remonter la confiance. On ne la refuse plus.
     setBalanceLoading(true);
     try {
       await addTransaction.mutateAsync({
@@ -174,6 +188,8 @@ export default function AccountDetailScreen() {
         is_recurring: false,
         regul_target: newBalance, // solde cible saisi → affiché sur la ligne de régul
       });
+      // Vérification effectuée → recalibrer la dérive du user (silencieux, non bloquant).
+      recalibrate.mutate();
       setShowBalance(false);
       setBalanceInput('');
       setBalanceNote('');

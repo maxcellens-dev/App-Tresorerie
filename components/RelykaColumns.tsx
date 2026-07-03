@@ -5,8 +5,8 @@
 //     = marge « selon vérification » (jusqu'à la borne haute) ;
 //   • colonnes tapables → détail de la reco.
 // Montants de fourchette arrondis à la dizaine INFÉRIEURE (cohérent avec l'affichage historique).
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
 
@@ -43,11 +43,24 @@ function darken(hex: string, f: number): string {
 const fl = (n: number) => Math.max(0, floorToTen(n));
 const fmtInt = (n: number) => Math.round(n).toLocaleString('fr-FR');
 
+// Animation jouée une seule fois par SESSION d'app (réinitialisé au relancement de l'app).
+let hasAnimatedThisSession = false;
+
 export default function RelykaColumns({
   relykaAmount, relykaRange, relykaColor, columns, onColumnPress, onCenterPress,
 }: Props) {
   const c = useAppColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+
+  // Animation « pousse » des colonnes : UNIQUEMENT à la première ouverture de l'app (par session).
+  // Revenir sur la page ne rejoue pas l'animation ; fermer/rouvrir l'app la rejoue (module rechargé).
+  const grow = useRef(new Animated.Value(hasAnimatedThisSession ? 1 : 0)).current;
+  useEffect(() => {
+    if (hasAnimatedThisSession) return;
+    hasAnimatedThisSession = true;
+    Animated.spring(grow, { toValue: 1, useNativeDriver: false, tension: 40, friction: 9 }).start();
+  }, [grow]);
+  const gh = (h: number) => grow.interpolate({ inputRange: [0, 1], outputRange: [0, h] });
 
   const maxVal = Math.max(
     1,
@@ -82,10 +95,10 @@ export default function RelykaColumns({
               <TouchableOpacity key={col.key} style={styles.barCol} activeOpacity={0.7} onPress={() => onColumnPress?.(i)}>
                 <View style={styles.barStack}>
                   {hUncertain > 0.5 && (
-                    <View style={[styles.segUncertain, { height: hUncertain, backgroundColor: col.color + '33', borderColor: col.color + '66' }]} />
+                    <Animated.View style={[styles.segUncertain, { height: gh(hUncertain), backgroundColor: col.color + '33', borderColor: col.color + '66' }]} />
                   )}
-                  {hSure > 0.5 && <View style={[styles.seg, { height: hSure, backgroundColor: col.color }]} />}
-                  {hDone > 0.5 && <View style={[styles.seg, { height: hDone, backgroundColor: darken(col.color, 0.35) }]} />}
+                  {hSure > 0.5 && <Animated.View style={[styles.seg, { height: gh(hSure), backgroundColor: col.color }]} />}
+                  {hDone > 0.5 && <Animated.View style={[styles.seg, { height: gh(hDone), backgroundColor: darken(col.color, 0.35) }]} />}
                 </View>
               </TouchableOpacity>
             );
@@ -107,16 +120,27 @@ export default function RelykaColumns({
         })}
       </View>
 
+      {/* Légende : nuances dans le MÊME ordre que les segments (du bas vers le haut de la colonne),
+          avec des pastilles qui reproduisent exactement l'aspect de chaque segment. */}
       {(anyDone || anyRange) && (
         <View style={styles.legend}>
+          {anyDone && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: darken(c.textSecondary, 0.45) }]} />
+              <Text style={styles.legendText}>déjà fait</Text>
+            </View>
+          )}
           {anyRange && (
             <>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: c.textSecondary }]} /><Text style={styles.legendText}>minimum sûr</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: c.textSecondary + '55' }]} /><Text style={styles.legendText}>selon vérification</Text></View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, { backgroundColor: c.textSecondary }]} />
+                <Text style={styles.legendText}>minimum sûr</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendSwatch, styles.legendSwatchDashed, { backgroundColor: c.textSecondary + '2E', borderColor: c.textSecondary + '77' }]} />
+                <Text style={styles.legendText}>si tout est à jour</Text>
+              </View>
             </>
-          )}
-          {anyDone && (
-            <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: darken(c.textSecondary, 0.35) }]} /><Text style={styles.legendText}>déjà fait</Text></View>
           )}
         </View>
       )}
@@ -150,9 +174,10 @@ function makeStyles(c: any) {
     labelCol: { flex: 1, alignItems: 'center', gap: 2 },
     colValue: { fontSize: 11.5, fontWeight: '800' },
     colLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '600', textAlign: 'center' },
-    legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 2 },
-    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    legendDot: { width: 8, height: 8, borderRadius: 2 },
-    legendText: { fontSize: 9.5, color: c.textSecondary, fontWeight: '600' },
+    legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 4 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    legendSwatch: { width: 12, height: 12, borderRadius: 3 },
+    legendSwatchDashed: { borderWidth: 1.2, borderStyle: 'dashed' },
+    legendText: { fontSize: 10, color: c.textSecondary, fontWeight: '600' },
   });
 }

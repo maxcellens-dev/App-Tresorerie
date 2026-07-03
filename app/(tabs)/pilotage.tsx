@@ -12,7 +12,7 @@ import { useUpdateOnboarding } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -91,6 +91,7 @@ function darken(hex: string, factor: number): string {
 
 export default function PilotageScreen() {
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ closure?: string }>();
   const { user } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -181,6 +182,8 @@ export default function PilotageScreen() {
   // Modaux détail du « Suivi du mois » (toutes les zones sont cliquables, §3)
   const [detailKey, setDetailKey] = useState<'checking' | 'savings' | 'invest' | 'spent' | 'planned' | 'relyka' | null>(null);
   const [plannedTab, setPlannedTab] = useState<'recurrentes' | 'variables'>('recurrentes');
+  // Détail d'une transaction depuis les modaux Épargné/Investi (feuille « Fermer / Modifier »).
+  const [suiviTx, setSuiviTx] = useState<any | null>(null);
   const [showTroughInfo, setShowTroughInfo] = useState(false); // popup « point bas de trésorerie » (§N8)
   const [spentFilter, setSpentFilter] = useState<string | null>(null); // filtre sous-catégorie du camembert (§N2)
   const [recurFilter, setRecurFilter] = useState<string | null>(null); // filtre catégorie du camembert des récurrentes
@@ -344,9 +347,16 @@ export default function PilotageScreen() {
   const variableOverspend = Math.max(0,
     (pilotageData?.variable_envelope_spent ?? 0) - (pilotageData?.variable_envelope_initial ?? 0),
   );
+  // ÉXÉCUTÉ ce mois (virements épargne/invest déjà SORTIS du solde) : le point bas (trough) les a
+  // déjà déduits → sans correction, le moteur redistribuerait le budget restant sur TOUS les types
+  // et re-proposerait d'investir/épargner après un virement (ex. reco invest 325 € → j'investis
+  // 325 € → nouvelle reco invest sur le reste). On RECONSTITUE donc le budget d'avant-allocation
+  // (+exécuté) et on impute l'exécuté au type concerné (alreadyAllocated) → la reco tombe à 0.
+  const savingsExecuted = Math.max(0, (pilotageData?.month_savings_total ?? 0) - (pilotageData?.month_savings_future ?? 0));
+  const investExecuted = Math.max(0, (pilotageData?.month_invest_total ?? 0) - (pilotageData?.month_invest_future ?? 0));
   // Budget « enveloppe juste atteinte » : on rajoute le dépassement (le moteur le re-déduira en
   // cascade). Quand il n'y a pas de dépassement, ce budget est identique à recoGrossBudget.
-  const recoBaselineBudget = recoGrossBudget + variableOverspend;
+  const recoBaselineBudget = recoGrossBudget + variableOverspend + savingsExecuted + investExecuted;
   // Ordre de consommation selon la prudence du budget (Auto → dérivé du profil financier).
   const consumptionMode = resolveConsumptionMode(
     ((profile as any)?.prudence_level ?? null) as number | null,
@@ -355,10 +365,11 @@ export default function PilotageScreen() {
   );
   const consumptionOrder = getConsumptionOrder(consumptionMode, recoThresholds?.consumption_orders);
   const recoAlreadyAllocated = {
-    // Épargne / invest : virements prévus ce mois (non exécutés) + cumuls fléchés.
-    save: savingsRemaining + preEpargneTotal,
-    invest: investRemaining + preInvestTotal,
-    // Conserver : réservations + réservé projets du mois (PAS les cumuls épargne/invest).
+    // Épargne / invest : EXÉCUTÉ ce mois + virements prévus (non exécutés) + cumuls fléchés.
+    // L'exécuté (manuel OU via reco) est bien déduit du type concerné → pas de re-proposition.
+    save: savingsExecuted + savingsRemaining + preEpargneTotal,
+    invest: investExecuted + investRemaining + preInvestTotal,
+    // Conserver : réservations (manuelles ou via reco) + réservé projets du mois.
     keep: reservationsTotal + (pilotageData?.monthly_reserve_planned ?? 0),
   };
   // Couleur d'affichage par type de reco — alignée sur les couleurs sémantiques du thème
@@ -651,6 +662,7 @@ export default function PilotageScreen() {
             <MonthlyClosure
               surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
               checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
+              autoOpen={routeParams.closure === '1'}
             />
           ) : tipsEnabled ? (
             <ConseilsBanner
@@ -703,7 +715,7 @@ export default function PilotageScreen() {
               recoRange={relConf ? relConf.proportional : undefined}
               confidenceLevel={relConf?.result.level}
               daysSinceVerification={relConf?.result.daysSinceVerification}
-              onVerify={() => router.push('/(tabs)/comptes')}
+              onVerify={() => router.push((mainCheckingId ? `/(tabs)/comptes/${mainCheckingId}?verify=1` : '/(tabs)/comptes') as any)}
               financials={recoContextEnabled && pilotageData ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance } : undefined}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
@@ -1131,6 +1143,8 @@ export default function PilotageScreen() {
                 checking: 'Budget courant actuel', savings: 'Épargne du mois', invest: 'Investissement du mois',
                 spent: 'Dépensé ce mois', planned: 'Dépenses prévues restantes', relyka: 'Ton Relyka (Budget libre)',
               };
+              // Épargné / Investi : lignes CLIQUABLES → feuille de détail (Fermer / Modifier).
+              const rowsTappable = detailKey === 'savings' || detailKey === 'invest';
               const txList = (list: any[], color: string, empty: string, dim?: (t: any) => boolean) => (
                 list.length === 0 ? <Text style={styles.detailEmpty}>{empty}</Text> :
                 list.map((t, i) => {
@@ -1141,7 +1155,13 @@ export default function PilotageScreen() {
                   const dimmed = dim ? dim(t) : false;
                   const valColor = dimmed ? COLORS.textSecondary : (isRefund ? semanticText(COLORS.green, COLORS) : color);
                   return (
-                    <View key={t.id ?? i} style={[styles.detailRow, dimmed && { opacity: 0.5 }]}>
+                    <TouchableOpacity
+                      key={t.id ?? i}
+                      style={[styles.detailRow, dimmed && { opacity: 0.5 }]}
+                      activeOpacity={rowsTappable ? 0.7 : 1}
+                      disabled={!rowsTappable}
+                      onPress={() => setSuiviTx(t)}
+                    >
                       <Ionicons name={iconForTransaction(t) as any} size={16} color={isRefund && !dimmed ? semanticText(COLORS.green, COLORS) : COLORS.textSecondary} style={{ marginRight: 10 }} />
                       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={{ flex: 1 }}>
@@ -1157,7 +1177,7 @@ export default function PilotageScreen() {
                         )}
                       </View>
                       <Text style={[styles.detailRowValue, { color: valColor }]}>{(isRefund ? '+' : '') + fmt(toRef(t))}</Text>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })
               );
@@ -1423,6 +1443,72 @@ export default function PilotageScreen() {
                       );
                     })()}
                   </ScrollView>
+                </>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Détail d'une transaction depuis Épargné/Investi — feuille du bas « Fermer / Modifier »,
+          comme au clic d'une transaction dans un compte. */}
+      <Modal visible={!!suiviTx} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setSuiviTx(null)}>
+        <Pressable style={styles.txSheetOverlay} onPress={() => setSuiviTx(null)}>
+          <Pressable style={styles.txSheet} onPress={() => {}}>
+            {suiviTx && (() => {
+              const t = suiviTx;
+              const refCode = profile?.currency_code ?? 'EUR';
+              const cur = accounts.find((a) => a.id === t.account_id)?.currency ?? refCode;
+              const raw = Number(t.amount);
+              const conv = convertAmount(Math.abs(raw), cur, refCode, rates) ?? Math.abs(raw);
+              const isIncome = raw > 0;
+              const dateStr = new Date(t._monthDate ?? t.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+              const isCredit = !!t.is_credit_flow;
+              const isMine = !t.profile_id || t.profile_id === user?.id;
+              const monthKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+              const canEdit = isMine && !!t.id && !t._perimeter_synthetic;
+              const goEdit = () => {
+                setSuiviTx(null);
+                setDetailKey(null);
+                if (isCredit) { router.push(`/(tabs)/comptes/credit/${t.credit_id}` as any); return; }
+                const route = t.is_recurring
+                  ? `/(tabs)/transactions/edit/${t.id}?instanceDate=${monthKey}`
+                  : `/(tabs)/transactions/edit/${t.id}`;
+                router.push(route as any);
+              };
+              const rows: [string, string][] = [
+                ['Date', dateStr],
+                ['Montant', `${isIncome ? '+' : '−'} ${conv.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${CURRENCY_SYMBOL}`],
+                ['Compte', accounts.find((a) => a.id === t.account_id)?.name ?? t.account?.name ?? ''],
+              ];
+              if (t.linked_account_id) rows.push(['Vers', accounts.find((a) => a.id === t.linked_account_id)?.name ?? '']);
+              if (t.category?.name) rows.push(['Catégorie', t.category.name]);
+              if (t._impact_pct != null && t._impact_pct < 100) rows.push(['Part appliquée', `${t._impact_pct} %`]);
+              return (
+                <>
+                  <View style={styles.txSheetHandle} />
+                  <Text style={[styles.txSheetAmount, { color: isIncome ? COLORS.green : COLORS.danger }]}>
+                    {isIncome ? '+' : '−'} {conv.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+                  </Text>
+                  <Text style={styles.txSheetLabel}>{t.note?.trim() || t.category?.name || 'Virement'}</Text>
+                  <View style={styles.txSheetDivider} />
+                  {rows.map(([k, v]) => (
+                    <View key={k} style={styles.txSheetRow}>
+                      <Text style={styles.txSheetKey}>{k}</Text>
+                      <Text style={styles.txSheetVal} numberOfLines={2}>{v}</Text>
+                    </View>
+                  ))}
+                  <View style={styles.txSheetBtns}>
+                    <TouchableOpacity style={styles.txSheetClose} onPress={() => setSuiviTx(null)}>
+                      <Text style={styles.txSheetCloseText}>Fermer</Text>
+                    </TouchableOpacity>
+                    {(canEdit || isCredit) && (
+                      <TouchableOpacity style={styles.txSheetEdit} onPress={goEdit}>
+                        <Ionicons name={isCredit ? 'card-outline' : 'create-outline'} size={16} color={COLORS.bg} />
+                        <Text style={styles.txSheetEditText}>{isCredit ? 'Voir le crédit' : 'Modifier'}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </>
               );
             })()}
@@ -1816,6 +1902,21 @@ function makeStyles(c: AppColors) {
 
   // ── Modaux détail (centrés) ──
   detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  /* Feuille du bas — détail d'une transaction depuis les modaux Épargné/Investi */
+  txSheetOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
+  txSheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  txSheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, marginBottom: 14 },
+  txSheetAmount: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
+  txSheetLabel: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },
+  txSheetDivider: { height: 1, backgroundColor: c.cardBorder, marginVertical: 14 },
+  txSheetRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7 },
+  txSheetKey: { fontSize: 13.5, color: c.textSecondary },
+  txSheetVal: { fontSize: 13.5, fontWeight: '600', color: c.text, flexShrink: 1, textAlign: 'right', marginLeft: 12 },
+  txSheetBtns: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  txSheetClose: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
+  txSheetCloseText: { fontSize: 15, fontWeight: '700', color: c.text },
+  txSheetEdit: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 13, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald },
+  txSheetEditText: { fontSize: 15, fontWeight: '700', color: c.bg },
   detailBox: { width: '100%', maxWidth: 460, backgroundColor: c.bg, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 18 },
   detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   detailTitle: { fontSize: 17, fontWeight: '800', color: c.text, flex: 1 },

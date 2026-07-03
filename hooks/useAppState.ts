@@ -80,20 +80,29 @@ export function useAppState(): AppAction | null {
       if (Number(a.balance) + net < 0) { jointLow = { accountId: a.id, name: a.name }; break; }
     }
 
-    return getCurrentAction({
+    // Compte courant principal (perso, solde le plus élevé) → deeplinks « solde » pré-remplis.
+    const mainCheckingId = (accounts as any[])
+      .filter((a) => a.type === 'checking' && a._role === 'owner' && !a.is_joint)
+      .sort((a, b) => Number(b.balance) - Number(a.balance))[0]?.id ?? null;
+
+    const action = getCurrentAction({
       hasBalance,
       hasIncome,
       hasFixed,
       pendingClosureMonth: pendingMonths[0] ?? null,
       sharedModePrompt,
-      // Dès que les chiffres sont en FOURCHETTE (confiance moyenne OU basse), on ne dit pas
-      // « tout est à jour » : on invite à vérifier le solde.
-      confidenceLow: conf != null && conf.result.level !== 'high',
+      // Overlay « Vérifie ton solde » : confiance BASSE uniquement (en moyenne, le bandeau ambre de
+      // la carte Relyka suffit — pas de doublon de messages).
+      confidenceLow: conf?.result.level === 'low',
       daysSinceVerification: conf?.result.daysSinceVerification ?? 0,
       jointLow,
       // Même arrondi que la carte (dizaine inférieure) → le bandeau annonce le même chiffre.
       relykaText: `${floorToTen(relyka).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`,
       closureEnabled,
+      mainCheckingId,
     });
+    // Jamais « tout est à jour » quand les chiffres sont en fourchette (confiance non haute).
+    if (action.type === 'ok' && conf && conf.result.level !== 'high') return null;
+    return action;
   }, [pilotage, accounts, transactions, pendingMonths, relCfg, closureEnabled, sharedContrib, preSavings, reservations, user?.id]);
 }

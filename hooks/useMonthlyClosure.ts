@@ -1,8 +1,12 @@
 /**
- * Clôture mensuelle — détection des mois à clôturer, verrou temporel et bilan éphémère.
+ * Clôture mensuelle — détection des mois à clôturer, statut souple (confirmed/estimated) et bilan.
  * Activable via l'admin (feature flag monthly_closure_enabled). Désactivé → aucun effet.
+ *
+ * Un mois passé IGNORÉ (non confirmé après un délai de grâce) est marqué `estimated` : il reste
+ * proposé à la clôture, mais il est EXCLU des baselines (dérive, moyennes variables, σ) pour ne
+ * pas polluer les mois suivants. Confirmer plus tard écrase le statut (upsert) → rétro-corrigeable.
  */
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useProfile } from './useProfile';
@@ -60,11 +64,14 @@ export function useMonthlyClosure(userId: string | undefined) {
 
   const pendingMonths = useMemo(() => {
     if (!enabled || !transactions.length) return [];
-    const closedSet = new Set(closures.map((c) => c.month_key));
+    // Seuls les mois CONFIRMÉS sont réellement clos : un mois `estimated` reste proposé à la clôture
+    // (le user peut toujours répondre plus tard) mais est déjà exclu des baselines.
+    const confirmed = closures.filter((c) => (c.status ?? 'confirmed') === 'confirmed');
+    const closedSet = new Set(confirmed.map((c) => c.month_key));
     const cur = ym(new Date());
     const firstTx = (transactions as any[]).reduce((min, t) => (t.date < min ? t.date : min), (transactions as any[])[0].date) as string;
     const firstKey = firstTx.slice(0, 7);
-    const lastClosed = closures.length ? closures[closures.length - 1].month_key : null;
+    const lastClosed = confirmed.length ? confirmed[confirmed.length - 1].month_key : null;
     let start = lastClosed ? addMonthKey(lastClosed, 1) : firstKey;
     if (start < firstKey) start = firstKey;
     const res: string[] = [];
@@ -77,6 +84,31 @@ export function useMonthlyClosure(userId: string | undefined) {
     }
     return res; // du plus ancien au plus récent
   }, [enabled, transactions, closures]);
+
+  // ── Marquage AUTO `estimated` : un mois pendant ignoré au-delà du délai de grâce (8 jours dans
+  // le mois suivant) est marqué estimated (jamais bloquant, silencieux, rétro-corrigeable). ──
+  const estimatedRunFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enabled || !userId || !supabase || pendingMonths.length === 0) return;
+    const now = new Date();
+    const prevMonth = addMonthKey(ym(now), -1);
+    const graceOver = now.getDate() >= 8;
+    const alreadyMarked = new Set(closures.map((c) => c.month_key)); // confirmed OU estimated
+    const toEstimate = pendingMonths.filter((mk) =>
+      !alreadyMarked.has(mk) && (mk < prevMonth || (mk === prevMonth && graceOver)),
+    );
+    if (toEstimate.length === 0) return;
+    const sig = `${userId}:${toEstimate.join(',')}`;
+    if (estimatedRunFor.current === sig) return;
+    estimatedRunFor.current = sig;
+    (async () => {
+      try {
+        const rows = toEstimate.map((mk) => ({ profile_id: userId, month_key: mk, surplus: 0, status: 'estimated' }));
+        await supabase!.from('month_closures').upsert(rows, { onConflict: 'profile_id,month_key', ignoreDuplicates: true });
+        qc.invalidateQueries({ queryKey: ['month_closures', userId] });
+      } catch { estimatedRunFor.current = null; }
+    })();
+  }, [enabled, userId, pendingMonths, closures, qc]);
 
   const closeMonths = useMutation({
     mutationFn: async ({ monthKeys, surplus, status = 'confirmed' }: { monthKeys: string[]; surplus: number; status?: 'confirmed' | 'estimated' }) => {

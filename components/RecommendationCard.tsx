@@ -189,7 +189,7 @@ export default function RecommendationCard({
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
           <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
           <Text style={styles.amberText} numberOfLines={2}>
-            Solde non vérifié depuis {daysSinceVerification} j — chiffres en fourchette
+            Solde non vérifié depuis {daysSinceVerification} j — Ton relyka est une estimation — vérifie ton solde pour un suivi fiable.
           </Text>
           <Text style={styles.amberCta}>Vérifier</Text>
         </TouchableOpacity>
@@ -224,7 +224,21 @@ export default function RecommendationCard({
         /* ── Slide 0 : jauge « Ton Relyka » composée des couleurs des recos ── */
         <View style={styles.leadSlide}>
           <View style={styles.leadTopRow}>
-            <Text style={styles.leadTitle}>Ton Relyka</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.leadTitle}>Ton Relyka</Text>
+              {/* Retour POSITIF quand tout va bien / info douce en confiance moyenne. */}
+              {confidenceLevel === 'high' && (
+                <View style={styles.freshBadge}>
+                  <Ionicons name="checkmark-circle" size={11} color={COLORS.green} />
+                  <Text style={styles.freshBadgeText}>À jour</Text>
+                </View>
+              )}
+              {confidenceLevel === 'medium' && (
+                <View style={[styles.freshBadge, { backgroundColor: COLORS.textSecondary + '18', borderColor: COLORS.textSecondary + '44' }]}>
+                  <Text style={[styles.freshBadgeText, { color: COLORS.textSecondary }]}>Vérifié il y a {daysSinceVerification} j</Text>
+                </View>
+              )}
+            </View>
             {count > 1 ? navControls : <View />}
           </View>
           <RelykaColumns
@@ -327,6 +341,19 @@ export default function RecommendationCard({
         </View>
       ) : (
         <>
+          {/* Confiance BASSE : on ne pousse pas à déplacer de l'argent réel sur des chiffres douteux.
+              → « Vérifier mon solde d'abord » devient l'action PRINCIPALE, les actions passent en
+              style secondaire (dégrisées, toujours accessibles — jamais bloquées). */}
+          {confidenceLevel === 'low' && onVerify && (
+            <TouchableOpacity
+              style={styles.verifyFirstBtn}
+              onPress={onVerify}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.bg} />
+              <Text style={styles.verifyFirstText}>Vérifier mon solde d'abord</Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.actionRow}>
             {/* Ignorer — toujours présent */}
             <TouchableOpacity style={styles.dismissBtn} onPress={() => handleIgnore(currentReco)} activeOpacity={0.7}>
@@ -334,10 +361,10 @@ export default function RecommendationCard({
               <Text style={styles.dismissText}>Ignorer</Text>
             </TouchableOpacity>
 
-            {/* Action principale par type (masquée si le compte cible manque) */}
+            {/* Action principale par type (masquée si le compte cible manque) ; SECONDAIRE en confiance basse. */}
             {currentReco.type === 'save' && hasSavingsAccount !== false && (
               <TouchableOpacity
-                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }, confidenceLevel === 'low' && styles.actionBtnMuted]}
                 onPress={() => onEpargner?.(currentReco)}
                 activeOpacity={0.7}
               >
@@ -347,7 +374,7 @@ export default function RecommendationCard({
             )}
             {currentReco.type === 'invest' && hasInvestmentAccount !== false && (
               <TouchableOpacity
-                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }, confidenceLevel === 'low' && styles.actionBtnMuted]}
                 onPress={() => onInvestir?.(currentReco)}
                 activeOpacity={0.7}
               >
@@ -357,7 +384,7 @@ export default function RecommendationCard({
             )}
             {currentReco.type === 'keep' && (
               <TouchableOpacity
-                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+                style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }, confidenceLevel === 'low' && styles.actionBtnMuted]}
                 onPress={() => { setReserveAmount(String(Math.round(currentReco.amount))); setConfirmReserve(true); }}
                 activeOpacity={0.7}
               >
@@ -421,6 +448,22 @@ function makeStyles(c: any) {
   },
   amberText: { flex: 1, fontSize: 11.5, color: c.text, fontWeight: '600', lineHeight: 15 },
   amberCta: { fontSize: 12, fontWeight: '800', color: c.orange },
+
+  /* Confiance basse : CTA principal « Vérifier mon solde d'abord » + actions en secondaire */
+  verifyFirstBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: c.orange, borderRadius: 10, paddingVertical: 10, marginTop: 4, marginBottom: 8,
+  },
+  verifyFirstText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  actionBtnMuted: { opacity: 0.5, backgroundColor: 'transparent' },
+
+  /* Badge fraîcheur (confiance haute « À jour » / moyenne « Vérifié il y a N j ») */
+  freshBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: c.green + '16', borderWidth: 1, borderColor: c.green + '44',
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+  },
+  freshBadgeText: { fontSize: 10, fontWeight: '800', color: c.green },
 
   /* Header */
   headerRow: {

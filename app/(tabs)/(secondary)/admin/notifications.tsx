@@ -20,6 +20,8 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { sendPushToTarget, type NotifTarget } from '../../../../lib/pushSend';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
+import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
+import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/useReliability';
 
 interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null; target_label: string | null }
 interface GroupRow { id: string; name: string }
@@ -91,6 +93,10 @@ export default function AdminNotifications() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+
+  // Notifications automatiques (système) : activation par identifiant (app_config.system_notifications).
+  const { data: sysNotifCfg } = useSystemNotificationsConfig();
+  const saveSysNotif = useSaveSystemNotificationsConfig();
 
   const { data: groups = [] } = useQuery({
     queryKey: ['user_groups_min'],
@@ -306,6 +312,34 @@ export default function AdminNotifications() {
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
           <Text style={styles.title}>Notifications</Text>
 
+          {/* ── Notifications AUTOMATIQUES (système) — catalogue documenté, activables une à une ── */}
+          <Text style={styles.sectionLabel}>Notifications automatiques (système)</Text>
+          <View style={[styles.card, { gap: 10 }]}>
+            <Text style={styles.sysIntro}>
+              Déclenchées automatiquement dans l'app par le moteur d'état (bandeau « prochain geste »).
+              L'envoi PUSH sera branché plus tard via cron — les réglages ci-dessous s'appliqueront aussi au push.
+            </Text>
+            {SYSTEM_NOTIFICATIONS.map((n) => {
+              const enabled = isSystemNotificationEnabled(n.id, sysNotifCfg);
+              return (
+                <View key={n.id} style={styles.sysCard}>
+                  <View style={styles.sysHead}>
+                    <Text style={styles.sysTitle}>{n.title}</Text>
+                    <Switch
+                      value={enabled}
+                      onValueChange={(v) => saveSysNotif.mutate({ [n.id]: { enabled: v } })}
+                      trackColor={{ true: COLORS.emerald, false: COLORS.cardBorder }}
+                    />
+                  </View>
+                  <Text style={styles.sysId}>{n.id}</Text>
+                  <Text style={styles.sysBody}>« {n.bodyExample} »</Text>
+                  <Text style={styles.sysMeta}>Quand : {n.condition}</Text>
+                  <Text style={styles.sysMeta}>Fréquence max : {n.maxFrequency}</Text>
+                </View>
+              );
+            })}
+          </View>
+
           {/* ── Envoi immédiat ── */}
           <Text style={styles.sectionLabel}>Envoi immédiat</Text>
           <View style={styles.card}>
@@ -497,6 +531,14 @@ function makeStyles(c: any) {
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, marginTop: 8 },
     sectionLabel: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
     card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 8 },
+    /* Notifications automatiques (système) */
+    sysIntro: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    sysCard: { backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, padding: 12 },
+    sysHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sysTitle: { fontSize: 14, fontWeight: '800', color: c.text, flex: 1, marginRight: 10 },
+    sysId: { fontSize: 11, fontFamily: 'monospace', color: c.emerald, marginTop: 2 },
+    sysBody: { fontSize: 12.5, color: c.text, fontStyle: 'italic', marginTop: 6 },
+    sysMeta: { fontSize: 11.5, color: c.textSecondary, marginTop: 4 },
     fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 6 },
     input: {
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
