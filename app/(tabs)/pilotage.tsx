@@ -52,6 +52,8 @@ import type { AppColors } from '../../theme/palette';
 import { semanticText, pastelFill } from '../../theme/palette';
 import { CURRENCY_SYMBOL, floorToTen, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
+import { useReliabilityConfig, deriveRelykaConfidence } from '../../hooks/useReliability';
+import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
 
 /** Divise par 2 l'alpha d'une couleur rgb(a)/hex (#RRGGBBAA) — pour atténuer un fond translucide. */
 function halfAlpha(color: string): string {
@@ -100,6 +102,7 @@ export default function PilotageScreen() {
   // Données principales
   const queryClient = useQueryClient();
   const pilotageQuery = usePilotageData(user?.id);
+  const { data: reliabilityCfg } = useReliabilityConfig();
 
   // À chaque fois qu'on (re)vient sur le Pilotage, on rafraîchit les données qui pilotent les recos.
   // Garantit que tout changement fait sur un autre écran (prudence du budget, nouvelle dépense…) est
@@ -148,6 +151,19 @@ export default function PilotageScreen() {
     () => [...accountsPerso, ...(sharedContrib?.accounts ?? [])],
     [accountsPerso, sharedContrib],
   );
+  // Périmètre quotidien appliqué aux données des MODAUX du Suivi (mêmes règles que le moteur
+  // usePilotageData) : joints « contribution » hors flux, virements trans-frontière → dépenses/recettes.
+  const perimeterCtx = useMemo(
+    () => buildPerimeterCtx(accounts.map((a: any) => ({
+      id: a.id,
+      isShared: !!(sharedContrib?.factorByAccount && a.id in sharedContrib.factorByAccount),
+      shared_mode: sharedContrib?.modeByAccount?.[a.id] ?? null,
+      factor: sharedContrib?.factorByAccount?.[a.id] ?? 1,
+    }))),
+    [accounts, sharedContrib],
+  );
+  const txForSuivi = useMemo(() => transformFluxTransactions(txForConseils as any[], perimeterCtx), [txForConseils, perimeterCtx]);
+  const accountsForSuivi = useMemo(() => splitPerimeterAccounts(accounts, perimeterCtx).perimeter, [accounts, perimeterCtx]);
   const { data: preSavings } = usePreSavings(user?.id);
   const { data: reservations = [] } = useReservations(user?.id);
   const { data: recoThresholds } = useRecoThresholds();
@@ -309,6 +325,12 @@ export default function PilotageScreen() {
   const baseADepenser = pilotageData?.safe_to_spend ?? 0;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
+  // ── Confiance (fourchettes) : une seule fonction de doute, alimentée par le VRAI Relyka. ──
+  const relConf = React.useMemo(
+    () => (reliabilityCfg && pilotageData ? deriveRelykaConfidence(pilotageData, resteDisponible, reliabilityCfg) : null),
+    [reliabilityCfg, pilotageData, resteDisponible],
+  );
+
   // ── Budget de recommandation (§P7) ──
   // Budget BRUT invariant = argent libre AVANT répartition volontaire (= point bas − dépenses
   // variables estimées − marge). Il ne bouge PAS quand on cumule/réserve : on déduit ensuite
@@ -368,6 +390,10 @@ export default function PilotageScreen() {
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
   const suiviDetail = React.useMemo(() => {
+    // Données FILTRÉES par le périmètre quotidien (comme le moteur) : les modaux (dépenses, épargne,
+    // investi, récurrentes) et le solde courant ne comptent QUE le périmètre du user.
+    const accounts = accountsForSuivi;
+    const txForConseils = txForSuivi;
     const now = new Date();
     const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const todayStr = `${monthPrefix}-${String(now.getDate()).padStart(2, '0')}`;
@@ -490,7 +516,7 @@ export default function PilotageScreen() {
       recurringTotal,
       recurringPassed,
     };
-  }, [txForConseils, accounts]);
+  }, [txForSuivi, accountsForSuivi]);
 
   // Synchroniser le statut des cumuls (actif / en_depassement)
   React.useEffect(() => {
@@ -666,6 +692,17 @@ export default function PilotageScreen() {
                   : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant tes recommandations ;)'
               }
               recommendations={recoList}
+              doneByType={{
+                save: Math.round(pilotageData?.month_savings_total ?? 0),
+                invest: Math.round(pilotageData?.month_invest_total ?? 0),
+                keep: Math.round(pilotageData?.monthly_reserve_planned ?? 0),
+                enjoy: 0,
+              }}
+              relykaRange={relConf?.relykaRange}
+              recoRange={relConf ? relConf.proportional : undefined}
+              confidenceLevel={relConf?.result.level}
+              daysSinceVerification={relConf?.result.daysSinceVerification}
+              onVerify={() => router.push('/(tabs)/comptes')}
               financials={recoContextEnabled && pilotageData ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance } : undefined}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
@@ -684,6 +721,17 @@ export default function PilotageScreen() {
                 setMonthlyReservation.mutate({ montant: newTotal, libelle: `Réservé ${monthYear}` });
               }}
             />
+
+            {/* Périmètre : part patrimoniale des comptes communs « contribution » (hors budget). */}
+            {Math.round(pilotageData?.joint_share_outside_perimeter ?? 0) > 0 && (
+              <View style={styles.jointShareLine}>
+                <Ionicons name="people-outline" size={14} color={COLORS.textSecondary} />
+                <Text style={styles.jointShareText}>
+                  + votre part du compte commun : {Math.round(pilotageData!.joint_share_outside_perimeter).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
+                  <Text style={styles.jointShareSub}>  (patrimoine, hors budget)</Text>
+                </Text>
+              </View>
+            )}
 
             {/* Cumuls en attente — bandeau (ouvre « Réservé » où on gère/saisit les cumuls, §N).
                 Plus de bouton « Gérer » : tout le bandeau est cliquable. */}
@@ -1536,6 +1584,9 @@ function makeStyles(c: AppColors) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 8, paddingTop: 8 },
+  jointShareLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 4 },
+  jointShareText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, flex: 1 },
+  jointShareSub: { fontSize: 11, fontWeight: '400', color: c.textSecondary },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

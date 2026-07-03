@@ -12,6 +12,7 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
 import AccountShareSection from '../../../../components/AccountShareSection';
 import AccountImpactSection from '../../../../components/AccountImpactSection';
+import AccountModeSection from '../../../../components/AccountModeSection';
 
 
 const TYPES = [
@@ -184,6 +185,9 @@ export default function EditAccountScreen() {
 
           {/* #5 — % d'impact de chaque participant (visible par tout participant) */}
           <AccountImpactSection account={account} />
+
+          {/* Périmètre quotidien : mode d'usage du compte (par participant) */}
+          <AccountModeSection account={account} />
 
           {account._role === 'owner' ? (
             <>

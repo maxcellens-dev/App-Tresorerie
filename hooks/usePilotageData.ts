@@ -4,6 +4,9 @@ import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEn
 import { convertAmount, type RatesMap } from '../lib/currency';
 import { fetchSharedContribution } from './useSharedContribution';
 import { buildCreditPilotTxs } from './useCreditFlows';
+import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } from '../lib/perimeter';
+import { isRegul } from '../lib/regul';
+import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
@@ -117,11 +120,19 @@ export interface PilotageData {
   current_savings: number;
   /** Overrides du mois courant (montant modifié d'une occurrence récurrente) : transaction_id → montant absolu. */
   monthOverrides?: Record<string, number>;
+
+  // ── Périmètre quotidien & confiance ──
+  /** Part patrimoniale des joints « contribution » (hors périmètre flux) — ligne info du Suivi. */
+  joint_share_outside_perimeter: number;
+  /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
+  confidence_inputs: { lastVerifiedAt: string | null; calibration: DriftCalibration | null; floorBase: number };
 }
 
 // Fetch multiple data types
 async function fetchPilotageData(profileId: string): Promise<{
   profile: Profile | null;
+  sharedFactor: Record<string, number>;
+  sharedModeById: Record<string, string | null>;
   accounts: Account[];
   transactions: TransactionWithCategory[];
   questionnaireAnswers: any | null;
@@ -175,6 +186,8 @@ async function fetchPilotageData(profileId: string): Promise<{
 
   return {
     profile: (profileRes.data as Profile) || null,
+    sharedFactor: shared.factorByAccount,
+    sharedModeById: shared.modeByAccount,
     accounts: [...persoAccounts, ...shared.accounts],
     transactions: [
       ...persoTransactions.map((t: any) => ({ ...t, amount: Number(t.amount), account: t.account, category: t.category })),
@@ -433,11 +446,29 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const refCode = profile?.currency_code ?? 'EUR';
   const accountCurrency = new Map(data.accounts.map((a) => [a.id, (a as any).currency || 'EUR']));
   const toRef = (amount: number, from: string) => convertAmount(amount, from, refCode, rates) ?? amount;
-  const accounts = data.accounts.map((a) => ({ ...a, balance: toRef(Number(a.balance), (a as any).currency || 'EUR') }));
-  const transactions = data.transactions.map((t) => ({
+  const accountsAll = data.accounts.map((a) => ({ ...a, balance: toRef(Number(a.balance), (a as any).currency || 'EUR') }));
+  const transactionsAll = data.transactions.map((t) => ({
     ...t,
     amount: toRef(Number(t.amount), accountCurrency.get((t as any).account_id) ?? refCode),
   }));
+
+  // ── Périmètre quotidien : réinterprète comptes & transactions pour la VUE FLUX (budget).
+  // Joints « contribution » → hors flux (leur part reste au patrimoine) ; virements trans-frontière →
+  // dépenses/recettes « Versé/Reçu du foyer ». L'historique en base n'est JAMAIS réécrit.
+  const sharedFactor: Record<string, number> = (data as any).sharedFactor ?? {};
+  const sharedModeById: Record<string, string | null> = (data as any).sharedModeById ?? {};
+  const perimeterCtx = buildPerimeterCtx(
+    accountsAll.map((a) => ({
+      id: a.id,
+      isShared: a.id in sharedFactor,
+      shared_mode: sharedModeById[a.id] ?? null,
+      factor: sharedFactor[a.id] ?? 1,
+    })),
+  );
+  const { perimeter: accounts, outside: outsidePerimeterAccounts } = splitPerimeterAccounts(accountsAll, perimeterCtx);
+  const transactions = transformFluxTransactions(transactionsAll, perimeterCtx) as typeof transactionsAll;
+  // Part patrimoniale des joints « contribution » (hors flux) — pour la ligne info du Suivi.
+  const joint_share_outside_perimeter = outsidePerimeterAccounts.reduce((s, a) => s + Number(a.balance), 0);
 
   // =====================================================================
   // AGGREGATIONS: Accounts by Type
@@ -1051,6 +1082,19 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
 
+  // ── Confiance : signaux bruts. Le niveau/fourchette sont calculés par confidenceEngine côté écrans
+  // avec le VRAI Relyka (resteDisponible), pour n'avoir qu'UNE seule fonction de doute partout.
+  // lastVerifiedAt = date de la dernière régularisation dans le périmètre (= dernière « vérification »).
+  let lastVerifiedAt: string | null = null;
+  for (const t of transactions) {
+    if (isRegul(t)) {
+      const d = String((t as any).date ?? '').slice(0, 10);
+      if (d && (!lastVerifiedAt || d > lastVerifiedAt)) lastVerifiedAt = d;
+    }
+  }
+  const reliability_calib = ((profile as any)?.reliability_calib ?? null) as DriftCalibration | null;
+  const confidence_floor_base = Math.max(avgMonthlyIncome, variable_envelope_initial, 0);
+
   return {
     safe_to_spend,
     current_checking_balance,
@@ -1116,6 +1160,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     // Overrides du mois courant exposés à l'écran (modaux Épargne/Investi/Dépensé) pour qu'ils
     // affichent le même montant RÉEL que les curseurs (et non le montant figé du template).
     monthOverrides: ovrByTx,
+    // Périmètre & confiance (packages Fiabilité / Comptes partagés).
+    joint_share_outside_perimeter,
+    confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
   };
 }
 

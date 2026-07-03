@@ -5,10 +5,10 @@ import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine'
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useRecoDismissals } from '../hooks/useUiPrefs';
-import { CURRENCY_SYMBOL } from '../lib/currency';
+import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
 import { isHidden } from '../lib/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
-import RelykaGauge from './RelykaGauge';
+import RelykaColumns from './RelykaColumns';
 
 
 interface SmartRecommendationCardProps {
@@ -44,6 +44,18 @@ interface SmartRecommendationCardProps {
   onOpenRelyka?: () => void;
   /** Données financières pour la phrase contextuelle sous chaque reco (projection invest, économie…). */
   financials?: RecoFinancials;
+  /** Déjà réalisé ce mois par type de reco (segment foncé des colonnes). */
+  doneByType?: Partial<Record<RecoType, number>>;
+  /** Fourchette du Relyka (confiance moyenne/basse) — Phase 3. */
+  relykaRange?: { low: number; high: number; isRange: boolean };
+  /** Fourchette proportionnelle d'un sous-montant (reco) — Phase 3. */
+  recoRange?: (amount: number) => { low: number; high: number; isRange: boolean };
+  /** Niveau de confiance courant (liseré / bandeau ambre / CTA « Vérifier ») — Phase 3. */
+  confidenceLevel?: 'high' | 'medium' | 'low';
+  /** Jours depuis la dernière vérification (bandeau ambre). */
+  daysSinceVerification?: number;
+  /** Action « Vérifier mon solde » (deeplink saisie de solde). */
+  onVerify?: () => void;
 }
 
 export default function RecommendationCard({
@@ -65,6 +77,12 @@ export default function RecommendationCard({
   relykaMessage,
   onOpenRelyka,
   financials,
+  doneByType,
+  relykaRange,
+  recoRange,
+  confidenceLevel = 'high',
+  daysSinceVerification = 0,
+  onVerify,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -165,7 +183,17 @@ export default function RecommendationCard({
   );
 
   return (
-    <View style={[styles.container, (isLead && count === 1 && Math.round(relykaAmount) <= 0) && { minHeight: 0 }, { borderColor: ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald) + '40' }]} {...panResponder.panHandlers}>
+    <View style={[styles.container, (isLead && count === 1 && Math.round(relykaAmount) <= 0) && { minHeight: 0 }, { borderColor: (confidenceLevel === 'low' ? COLORS.orange : ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald)) + '55' }]} {...panResponder.panHandlers}>
+      {/* Bandeau ambre « solde non vérifié » — visible sur TOUTES les slides (confiance basse). */}
+      {confidenceLevel === 'low' && onVerify && (
+        <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
+          <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
+          <Text style={styles.amberText} numberOfLines={2}>
+            Solde non vérifié depuis {daysSinceVerification} j — chiffres en fourchette
+          </Text>
+          <Text style={styles.amberCta}>Vérifier</Text>
+        </TouchableOpacity>
+      )}
       {/* ── Header (titre + nav) — masqué si la section porte déjà le titre ── */}
       {!hideTitle && (
         <View style={styles.headerRow}>
@@ -199,14 +227,19 @@ export default function RecommendationCard({
             <Text style={styles.leadTitle}>Ton Relyka</Text>
             {count > 1 ? navControls : <View />}
           </View>
-          <RelykaGauge
-            amount={relykaAmount}
-            segments={visible.map(r => ({ amount: r.amount, color: r.color }))}
-            amountColor={COLORS.text}
-            // Partie vide visible dans les deux thèmes (gris transparent : sombre sur fond clair,
-            // clair sur fond sombre) — sinon le track blanc disparaît en thème clair.
-            trackColor={COLORS.mode === 'light' ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.16)'}
-            onSegmentPress={(i) => setCurrentIndex(lead + i)}
+          <RelykaColumns
+            relykaAmount={relykaAmount}
+            relykaRange={relykaRange}
+            relykaColor={relykaColor}
+            columns={visible.map((r) => ({
+              key: `${r.type}:${r.amount}`,
+              label: r.shortTitle,
+              amount: r.amount,
+              color: r.color,
+              done: doneByType?.[r.type] ?? 0,
+              range: recoRange ? recoRange(r.amount) : undefined,
+            }))}
+            onColumnPress={(i) => setCurrentIndex(lead + i)}
             onCenterPress={onOpenRelyka}
           />
           {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}
@@ -230,7 +263,13 @@ export default function RecommendationCard({
           <View style={styles.slideContent}>
             <Text style={styles.recoTitle}>{currentReco.title}</Text>
             <Text style={[styles.recoAmount, { color: currentReco.color }]}>
-              {currentReco.amount.toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
+              {(() => {
+                const r = recoRange?.(currentReco.amount);
+                const flr = (n: number) => Math.max(0, floorToTen(n));
+                return r?.isRange
+                  ? `${flr(r.low).toLocaleString('fr-FR')}–${flr(r.high).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`
+                  : `${currentReco.amount.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
+              })()}
             </Text>
           </View>
         </View>
@@ -373,6 +412,15 @@ function makeStyles(c: any) {
     // remplissent la même hauteur (titre en haut, actions en bas) → plus de saut au swipe.
     minHeight: 332,
   },
+
+  /* Bandeau ambre confiance basse */
+  amberBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '44',
+    borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10,
+  },
+  amberText: { flex: 1, fontSize: 11.5, color: c.text, fontWeight: '600', lineHeight: 15 },
+  amberCta: { fontSize: 12, fontWeight: '800', color: c.orange },
 
   /* Header */
   headerRow: {

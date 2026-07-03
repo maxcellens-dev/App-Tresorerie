@@ -104,7 +104,7 @@ export function useGamification(userId: string | undefined) {
     const upserts: { profile_id: string; badge_key: string; unlocked_at: string }[] = [];
     for (const def of conf.badges) {
       // Succès lié à la clôture désactivé si la fonctionnalité Clôture est off.
-      if (def.metric === 'closures_count' && !closureEnabled) continue;
+      if ((def.metric === 'closures_count' || def.metric === 'consecutive_closures') && !closureEnabled) continue;
       if (unlocked.has(def.key)) continue;          // déjà débloqué
       if (!isUnlocked(def, fullCtx)) continue;       // seuil non atteint
       gemsToAdd += def.gems ?? 0;

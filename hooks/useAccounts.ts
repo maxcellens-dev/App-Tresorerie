@@ -158,7 +158,7 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
 export function useAddAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null; is_joint?: boolean }) => {
+    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null; is_joint?: boolean; shared_mode?: string | null }) => {
       if (!supabase) throw new Error('Backend indisponible');
       // SOURCE DE VÉRITÉ = l'utilisateur réellement authentifié (auth.uid()), pas le profileId du
       // contexte (qui peut être désynchronisé). La RLS exige profile_id = auth.uid() → on garantit
@@ -186,6 +186,7 @@ export function useAddAccount(profileId: string | undefined) {
           currency: input.currency || 'EUR',
           balance: 0,
           ...(input.is_joint ? { is_joint: true } : {}),
+          ...(input.is_joint && input.shared_mode ? { shared_mode: input.shared_mode } : {}),
           ...(input.type === 'investment' && input.fiscal_envelope ? { fiscal_envelope: input.fiscal_envelope } : {}),
           ...(input.type === 'investment' && input.initial_contributed != null ? { initial_contributed: input.initial_contributed, current_contributed: input.initial_contributed } : {}),
           ...(input.init_date ? { init_date: input.init_date } : {}),

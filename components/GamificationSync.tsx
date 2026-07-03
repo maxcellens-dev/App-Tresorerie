@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTransactions } from '../hooks/useTransactions';
 import { useGamification } from '../hooks/useGamification';
 import { useGamificationConfig } from '../hooks/useGamificationConfig';
-import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
+import { useMonthlyClosure, addMonthKey } from '../hooks/useMonthlyClosure';
 import { useProfile } from '../hooks/useProfile';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { mondayOf, type BadgeContext } from '../lib/gamification';
@@ -45,7 +45,7 @@ export default function GamificationSync() {
   const { user, isImpersonating } = useAuth();
   const { data: config } = useGamificationConfig();
   const { data: transactions = [], isLoading: txLoading } = useTransactions(user?.id);
-  const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
+  const { enabled: closureEnabled, closures } = useMonthlyClosure(user?.id);
   const { data: profile } = useProfile(user?.id);
   const { allDone: onboardingDone } = useOnboarding(user?.id);
   const { validateWeek, evaluate, recordLogin } = useGamification(user?.id);
@@ -66,11 +66,23 @@ export default function GamificationSync() {
     // connexion quotidienne est renseignée par recordLogin et relue dans evaluate().
     const createdAt = (profile as any)?.created_at ?? (user as any)?.created_at ?? null;
     const accountAgeDays = createdAt ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000) : 0;
+    // Métriques de fiabilité (clôtures) : total confirmé + plus longue série de mois consécutifs.
+    const confirmedKeys = (closures ?? [])
+      .filter((c: any) => (c.status ?? 'confirmed') === 'confirmed')
+      .map((c: any) => c.month_key as string)
+      .sort();
+    let bestRun = 0, run = 0;
+    for (let i = 0; i < confirmedKeys.length; i++) {
+      run = i > 0 && confirmedKeys[i] === addMonthKey(confirmedKeys[i - 1], 1) ? run + 1 : 1;
+      if (run > bestRun) bestRun = run;
+    }
     const ctx: BadgeContext = {
       ...buildContext(transactions),
       account_age_days: accountAgeDays,
       profile_photo: (profile as any)?.avatar_url ? 1 : 0,
       onboarding_done: onboardingDone ? 1 : 0,
+      closures_count: confirmedKeys.length,
+      consecutive_closures: bestRun,
     };
     const opts = { closureEnabled: !!closureEnabled };
     (async () => {
@@ -81,7 +93,7 @@ export default function GamificationSync() {
       } catch { ranFor.current = null; }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, config?.identity.enabled, closureEnabled, txLoading, profile, onboardingDone]);
+  }, [user?.id, config?.identity.enabled, closureEnabled, txLoading, profile, onboardingDone, closures]);
 
   return null;
 }

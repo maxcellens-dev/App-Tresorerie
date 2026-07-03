@@ -49,6 +49,8 @@ export default function AddAccountScreen() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('pea');
   const [initialContributed, setInitialContributed] = useState('');
+  // Mode « périmètre quotidien » du compte joint (défaut recommandé : Contribution).
+  const [sharedMode, setSharedMode] = useState<'contribution' | 'tracked'>('contribution');
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export default function AddAccountScreen() {
         currency: currency || 'EUR',
         balance: num,
         is_joint: isJoint,
+        shared_mode: isJoint ? sharedMode : null,
         fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
         initial_contributed: type === 'investment' && initialContributed.trim() ? parseFloat(initialContributed.replace(',', '.')) : null,
         init_date: initDate,
@@ -160,6 +163,34 @@ export default function AddAccountScreen() {
                 <Text style={styles.jointToggleLabel}>Compte joint</Text>
                 <Text style={styles.jointToggleHint}>Partagé avec d'autres utilisateurs. Après création, tu pourras envoyer les invitations.</Text>
               </View>
+            </View>
+          )}
+
+          {/* Périmètre quotidien : comment ce compte compte dans TON budget (modifiable ensuite). */}
+          {isJoint && (
+            <View style={{ marginBottom: 18 }}>
+              <Text style={styles.label}>Comment utilisez-vous ce compte ?</Text>
+              {([
+                { m: 'contribution', icon: 'home-outline', t: 'Pour les charges communes', d: 'Loyer, crédits… Tes virements = dépenses ; les prélèvements internes n’encombrent pas ton budget.' },
+                { m: 'tracked', icon: 'cart-outline', t: 'Au quotidien', d: 'Courses, sorties… Ses dépenses comptent dans ton budget, à hauteur de ta part.' },
+              ] as const).map((o) => {
+                const active = sharedMode === o.m;
+                return (
+                  <TouchableOpacity
+                    key={o.m}
+                    style={[styles.modeCard, active && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '12' }]}
+                    onPress={() => setSharedMode(o.m)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name={o.icon as any} size={18} color={active ? COLORS.emerald : COLORS.textSecondary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modeTitle}>{o.t}</Text>
+                      <Text style={styles.modeDesc}>{o.d}</Text>
+                    </View>
+                    <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={18} color={active ? COLORS.emerald : COLORS.textSecondary} />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -341,6 +372,9 @@ function makeStyles(c: any) {
     marginBottom: 20,
   },
   inputError: { borderColor: c.danger },
+  modeCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 11, marginTop: 8, backgroundColor: c.card },
+  modeTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
+  modeDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 15 },
   jointToggle: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 18 },
   jointToggleActive: { borderColor: c.emerald, backgroundColor: c.emerald + '12' },
   jointToggleLabel: { fontSize: 14.5, fontWeight: '700', color: c.text },

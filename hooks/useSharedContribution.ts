@@ -16,10 +16,12 @@ export interface SharedContribution {
   accounts: Account[];                 // comptes partagés, balance ×facteur
   transactions: any[];                 // toutes les tx de ces comptes, amount ×facteur (devise d'origine)
   factorByAccount: Record<string, number>;
+  /** Mode du USER COURANT pour chaque compte partagé (owner → accounts.shared_mode ; membre → account_members.shared_mode). */
+  modeByAccount: Record<string, string | null>;
 }
 
 export async function fetchSharedContribution(profileId: string): Promise<SharedContribution> {
-  if (!supabase) return { accounts: [], transactions: [], factorByAccount: {} };
+  if (!supabase) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
 
   // Comptes auxquels je participe : joints que JE possède + comptes où je suis membre.
   const [ownJointsRes, myMemsRes] = await Promise.all([
@@ -37,21 +39,24 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
 
   const sharedAccounts = [...ownJoints, ...memberAccts];
   const sharedIds = sharedAccounts.map((a) => a.id);
-  if (sharedIds.length === 0) return { accounts: [], transactions: [], factorByAccount: {} };
+  if (sharedIds.length === 0) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
 
-  // Tous les membres des comptes partagés (pour la part égale auto = 100/N) + le % explicite du courant.
+  // Tous les membres des comptes partagés (part égale auto = 100/N) + le % ET le MODE explicites du courant.
   const { data: allMems } = await supabase
-    .from('account_members').select('account_id, user_id, impact_pct').in('account_id', sharedIds);
+    .from('account_members').select('account_id, user_id, impact_pct, shared_mode').in('account_id', sharedIds);
   const membersByAcct: Record<string, any[]> = {};
   for (const m of (allMems ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
 
   const factorByAccount: Record<string, number> = {};
+  const modeByAccount: Record<string, string | null> = {};
   for (const a of sharedAccounts) {
     const members = membersByAcct[a.id] ?? [];
     const N = 1 + members.length;
     const iAmOwner = a.profile_id === profileId;
     const myExplicit = iAmOwner ? (a.owner_impact_pct ?? null) : (members.find((m) => m.user_id === profileId)?.impact_pct ?? null);
     factorByAccount[a.id] = effectiveImpactPct(myExplicit, N) / 100;
+    // Mode du USER COURANT (owner → colonne du compte ; membre → sa ligne account_members).
+    modeByAccount[a.id] = iAmOwner ? (a.shared_mode ?? null) : (members.find((m) => m.user_id === profileId)?.shared_mode ?? null);
   }
 
   // TOUTES les transactions de ces comptes (de tous les participants).
@@ -91,7 +96,7 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
       };
     });
 
-  return { accounts, transactions, factorByAccount };
+  return { accounts, transactions, factorByAccount, modeByAccount };
 }
 
 export function useSharedContribution(profileId: string | undefined) {

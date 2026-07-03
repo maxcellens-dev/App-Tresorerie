@@ -40,7 +40,7 @@ export default function SuccesScreen() {
   const [selected, setSelected] = useState<BadgeDef | null>(null);
 
   // Masque les badges liés à la clôture si la fonctionnalité est désactivée.
-  const visibleBadges = (config?.badges ?? []).filter((d) => d.metric !== 'closures_count' || closureEnabled);
+  const visibleBadges = (config?.badges ?? []).filter((d) => (d.metric !== 'closures_count' && d.metric !== 'consecutive_closures') || closureEnabled);
   // Succès débloqués triés du plus récent au plus ancien (date de déverrouillage)
   const unlockedBadges = visibleBadges
     .filter((d) => unlockedKeys.has(d.key))

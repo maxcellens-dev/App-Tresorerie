@@ -22,6 +22,7 @@ export default function AdminLayout() {
       <Stack.Screen name="users" options={{ title: 'Utilisateurs' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Stack.Screen name="app-update" options={{ title: "Mise à jour de l'App" }} />
+      <Stack.Screen name="reliability" options={{ title: 'Fiabilité & confiance' }} />
     </Stack>
   );
 }

@@ -40,6 +40,7 @@ import {
 } from '../../lib/projectionEngine';
 
 import { semanticText } from '../../theme/palette';
+import { computeConfidence, resolveReliabilityConfig } from '../../lib/confidenceEngine';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -815,64 +816,92 @@ export default function ProjectionScreen() {
   );
 }
 
-/* ── Courbe des soldes prévus (ligne + points marqués) sur 6 mois ── */
-function BalanceCurve({ rows, width, COLORS, marginAmount = 0 }: {
+/* ── Courbe des soldes prévus en CÔNE d'incertitude (ligne médiane + bande) sur 6 mois ──
+ * incertitude(mois m) = σ_variables × √m × facteur_confiance. La bande s'élargit avec l'horizon. */
+function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confidenceFactor = 1 }: {
   rows: { label: string; balance: number; isCurrent: boolean }[];
   width: number;
   COLORS: any;
   marginAmount?: number;
+  /** Écart-type des dépenses variables (ou fraction de l'enveloppe si historique insuffisant). */
+  sigma?: number;
+  /** Facteur de confiance (haute = 1, moyenne/basse = élargi). */
+  confidenceFactor?: number;
 }) {
   if (rows.length < 2 || width <= 0) return null;
   const h = 188;
   const padL = 12, padR = 14, padT = 30, padB = 26;
   const usableW = width - padL - padR;
   const usableH = h - padT - padB;
+  const uncAt = (i: number) => (sigma > 0 && i > 0 ? sigma * Math.sqrt(i) * confidenceFactor : 0);
+  const upperV = rows.map((r, i) => r.balance + uncAt(i));
+  const lowerV = rows.map((r, i) => r.balance - uncAt(i));
+  const hasBand = sigma > 0;
   const vals = rows.map((r) => r.balance);
   const hasMargin = marginAmount > 0;
-  let minV = Math.min(...vals, 0, hasMargin ? marginAmount : Infinity);
-  let maxV = Math.max(...vals, hasMargin ? marginAmount : -Infinity);
+  let minV = Math.min(...vals, ...lowerV, 0, hasMargin ? marginAmount : Infinity);
+  let maxV = Math.max(...vals, ...upperV, hasMargin ? marginAmount : -Infinity);
   if (maxV === minV) maxV = minV + 1;
   const pad = (maxV - minV) * 0.12;
   minV -= pad; maxV += pad;
   const x = (i: number) => padL + (i / (rows.length - 1)) * usableW;
   const y = (v: number) => padT + (1 - (v - minV) / (maxV - minV)) * usableH;
   const line = rows.map((r, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(r.balance)}`).join(' ');
-  const area = `${line} L ${x(rows.length - 1)} ${padT + usableH} L ${x(0)} ${padT + usableH} Z`;
+  // Bande = borne haute (aller) + borne basse (retour).
+  const bandPath = hasBand
+    ? upperV.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`).join(' ')
+      + ' ' + lowerV.map((_, idx) => { const i = rows.length - 1 - idx; return `L ${x(i)} ${y(lowerV[i])}`; }).join(' ') + ' Z'
+    : '';
   const zeroVisible = minV < 0 && maxV > 0;
   const shortMonth = (lbl: string) => lbl.split(' ')[0].slice(0, 4);
+  // Le scénario le plus bas croise-t-il la marge ?
+  const crossIdx = hasMargin && hasBand ? rows.findIndex((_r, i) => lowerV[i] < marginAmount && i > 0) : -1;
   return (
-    <Svg width={width} height={h}>
-      <Defs>
-        <LinearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={COLORS.blue} stopOpacity="0.28" />
-          <Stop offset="1" stopColor={COLORS.blue} stopOpacity="0.02" />
-        </LinearGradient>
-      </Defs>
-      {zeroVisible && (
-        <Line x1={padL} y1={y(0)} x2={width - padR} y2={y(0)} stroke={COLORS.cardBorder} strokeWidth={1} strokeDasharray="3 3" />
+    <View>
+      <Svg width={width} height={h}>
+        <Defs>
+          <LinearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={COLORS.blue} stopOpacity="0.28" />
+            <Stop offset="1" stopColor={COLORS.blue} stopOpacity="0.02" />
+          </LinearGradient>
+        </Defs>
+        {zeroVisible && (
+          <Line x1={padL} y1={y(0)} x2={width - padR} y2={y(0)} stroke={COLORS.cardBorder} strokeWidth={1} strokeDasharray="3 3" />
+        )}
+        {hasMargin && (
+          <>
+            <Line x1={padL} y1={y(marginAmount)} x2={width - padR} y2={y(marginAmount)} stroke={COLORS.yellow} strokeWidth={1.5} strokeDasharray="5 3" opacity={0.9} />
+            <SvgText x={padL + 2} y={y(marginAmount) - 4} fill={COLORS.yellow} fontSize="9" fontWeight="400" textAnchor="start" opacity={0.9}>{`Marge de sécurité (${fmt(marginAmount)})`}</SvgText>
+          </>
+        )}
+        {/* Cône d'incertitude */}
+        {hasBand && <Path d={bandPath} fill={COLORS.blue} opacity={0.12} />}
+        <Path d={area(line, x, padT + usableH, rows.length)} fill="url(#balGrad)" />
+        <Path d={line} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+        {rows.map((r, i) => (
+          <React.Fragment key={i}>
+            <Circle cx={x(i)} cy={y(r.balance)} r={r.isCurrent ? 5 : 3.5} fill={r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} />
+            <SvgText x={x(i)} y={y(r.balance) - 10} fill={r.balance >= 0 ? COLORS.text : COLORS.danger} fontSize="10" fontWeight="700" textAnchor="middle">
+              {fmtK(r.balance)}
+            </SvgText>
+            <SvgText x={x(i)} y={h - 8} fill={r.isCurrent ? COLORS.blue : COLORS.textSecondary} fontSize="10" fontWeight={r.isCurrent ? '800' : '600'} textAnchor="middle">
+              {shortMonth(r.label)}
+            </SvgText>
+          </React.Fragment>
+        ))}
+      </Svg>
+      {crossIdx > 0 && (
+        <Text style={{ fontSize: 11.5, color: COLORS.yellow, fontWeight: '600', marginTop: 4, paddingHorizontal: 4, lineHeight: 16 }}>
+          Dans le scénario le plus bas, vous passez sous votre marge en {rows[crossIdx].label}.
+        </Text>
       )}
-      {/* Trait « marge de sécurité » (§N7) */}
-      {hasMargin && (
-        <>
-          <Line x1={padL} y1={y(marginAmount)} x2={width - padR} y2={y(marginAmount)} stroke={COLORS.yellow} strokeWidth={1.5} strokeDasharray="5 3" opacity={0.9} />
-          <SvgText x={padL + 2} y={y(marginAmount) - 4} fill={COLORS.yellow} fontSize="9" fontWeight="400" textAnchor="start" opacity={0.9}>{`Marge de sécurité (${fmt(marginAmount)})`}</SvgText>
-        </>
-      )}
-      <Path d={area} fill="url(#balGrad)" />
-      <Path d={line} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-      {rows.map((r, i) => (
-        <React.Fragment key={i}>
-          <Circle cx={x(i)} cy={y(r.balance)} r={r.isCurrent ? 5 : 3.5} fill={r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} />
-          <SvgText x={x(i)} y={y(r.balance) - 10} fill={r.balance >= 0 ? COLORS.text : COLORS.danger} fontSize="10" fontWeight="700" textAnchor="middle">
-            {fmtK(r.balance)}
-          </SvgText>
-          <SvgText x={x(i)} y={h - 8} fill={r.isCurrent ? COLORS.blue : COLORS.textSecondary} fontSize="10" fontWeight={r.isCurrent ? '800' : '600'} textAnchor="middle">
-            {shortMonth(r.label)}
-          </SvgText>
-        </React.Fragment>
-      ))}
-    </Svg>
+    </View>
   );
+}
+
+/** Aire sous la ligne médiane. */
+function area(line: string, x: (i: number) => number, bottomY: number, n: number): string {
+  return `${line} L ${x(n - 1)} ${bottomY} L ${x(0)} ${bottomY} Z`;
 }
 
 // ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
@@ -1037,7 +1066,26 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
       <View style={[styles.chartCard, { marginTop: 0, alignItems: 'stretch' }]}>
         <Text style={styles.chartTitle}>Prévision des soldes de trésorerie</Text>
         <View style={{ alignItems: 'center' }}>
-          <BalanceCurve rows={rows} width={chartWidth} COLORS={COLORS} marginAmount={pilotage?.safety_margin_amount ?? 0} />
+          <BalanceCurve
+            rows={rows}
+            width={chartWidth}
+            COLORS={COLORS}
+            marginAmount={pilotage?.safety_margin_amount ?? 0}
+            sigma={(() => {
+              // σ_variables : écart-type mensuel des dépenses variables si dispo, sinon fraction de
+              // l'enveloppe variable (fallback CDC). Ici : fallback simple, robuste.
+              return 0.25 * (pilotage?.variable_envelope_initial ?? 0);
+            })()}
+            confidenceFactor={(() => {
+              const ci = pilotage?.confidence_inputs;
+              if (!ci) return 1;
+              const conf = computeConfidence({
+                today: new Date(), lastVerifiedAt: ci.lastVerifiedAt ?? null, calibration: ci.calibration ?? null,
+                relyka: pilotage?.safe_to_spend ?? 0, floorBase: ci.floorBase ?? 0, config: resolveReliabilityConfig(null),
+              });
+              return conf.level === 'high' ? 1 : conf.level === 'medium' ? 1.6 : 2.2;
+            })()}
+          />
         </View>
       </View>
       {rows.map((r, i) => (

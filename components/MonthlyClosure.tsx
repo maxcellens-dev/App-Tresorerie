@@ -11,6 +11,8 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAddTransaction, useTransactions } from '../hooks/useTransactions';
 import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../hooks/useMonthlyClosure';
 import { CURRENCY_SYMBOL } from '../lib/currency';
+import { prorateClosureGap, isRegul } from '../lib/regul';
+import { todayISO } from '../lib/dateUtils';
 
 interface Props {
   /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
@@ -58,37 +60,78 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
     return accBalance - after;
   };
 
+  // Dernière « vérification » (régul) datée ≤ aujourd'hui pour un compte, sinon 1er jour du mois clos.
+  const lastVerifiedFor = (accId: string, closeKey: string): string => {
+    const t0 = todayISO();
+    let best: string | null = null;
+    for (const t of allTx as any[]) {
+      if (t.account_id !== accId || !isRegul(t)) continue;
+      const d = String(t.date ?? '').slice(0, 10);
+      if (d && d <= t0 && (!best || d > best)) best = d;
+    }
+    return best ?? `${closeKey}-01`;
+  };
+
   const confirm = async () => {
     if (!monthsToClose.length) return;
     setBusy(true);
     try {
-      if (mode === 'balance' && hasChecking) {
-        const closeKey = monthsToClose[monthsToClose.length - 1];
-        const prevMonth = addMonthKey(ym(new Date()), -1);
-        const isLatest = closeKey >= prevMonth; // clôture qui atteint le mois précédent (solde réel = solde actuel)
-        // Un ajustement par compte courant renseigné.
+      const closeKey = monthsToClose[monthsToClose.length - 1];
+      const prevMonth = addMonthKey(ym(new Date()), -1);
+      const isLatest = closeKey >= prevMonth; // clôture qui atteint le mois précédent (solde réel = solde actuel)
+      const monthEnd = lastDayOfMonthKey(closeKey);
+      const t0 = todayISO();
+      if (hasChecking) {
         for (const acc of checkingAccounts) {
+          const balAtEnd = balanceAtEndFor(acc.id, acc.balance);
+          if (mode === 'direct') {
+            // Option A — « Je suis à jour » : ancre de VÉRIFICATION (écart 0) datée de la fin du mois.
+            // Calibre la dérive vers 0 et compte comme une vérification récente.
+            await addTransaction.mutateAsync({
+              account_id: acc.id, category_id: null, amount: 0, date: monthEnd,
+              note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false,
+            } as any);
+            continue;
+          }
+          // Mode « solde réel ».
           const raw = balances[acc.id];
           if (raw == null || raw.trim() === '') continue;
           const newBalance = parseFloat(raw.replace(',', '.'));
           if (Number.isNaN(newBalance)) continue;
-          // Écart vs le solde réel calculé à la fin du mois (0 si l'utilisateur confirme le même montant).
-          const diff = newBalance - balanceAtEndFor(acc.id, acc.balance);
-          if (Math.abs(diff) <= 0.005) continue;
-          await addTransaction.mutateAsync({
-            account_id: acc.id, category_id: null, amount: diff,
-            date: lastDayOfMonthKey(closeKey), note: 'Ajustement de solde', is_recurring: false,
-          } as any);
-          // Mois passé (≠ mois précédent) : compensation au mois suivant → solde actuel inchangé.
-          if (!isLatest) {
+          const diff = newBalance - balAtEnd;
+          if (Math.abs(diff) <= 0.005) {
             await addTransaction.mutateAsync({
-              account_id: acc.id, category_id: null, amount: -diff,
-              date: addMonthKey(closeKey, 1) + '-01', note: 'Ajustement de clôture (compensation)', is_recurring: false,
+              account_id: acc.id, category_id: null, amount: 0, date: monthEnd,
+              note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false,
             } as any);
+            continue;
+          }
+          if (isLatest) {
+            // Option B — solde réel constaté = solde ACTUEL → régul ancre datée de la fin du mois.
+            await addTransaction.mutateAsync({
+              account_id: acc.id, category_id: null, amount: diff, date: monthEnd,
+              note: 'Régularisation solde', regul_target: newBalance, is_recurring: false,
+            } as any);
+          } else {
+            // Option C — mois passé, solde saisi = AUJOURD'HUI → PRORATA par jours entre la dernière
+            // vérification et aujourd'hui : la part du mois clos reste sur ce mois, le reste sur le courant.
+            const pr = prorateClosureGap(diff, lastVerifiedFor(acc.id, closeKey), t0, closeKey);
+            if (Math.abs(pr.closingShare) > 0.005) {
+              await addTransaction.mutateAsync({
+                account_id: acc.id, category_id: null, amount: pr.closingShare, date: pr.closingDate,
+                note: 'Régularisation clôture (mois)', is_recurring: false,
+              } as any);
+            }
+            if (Math.abs(pr.currentShare) > 0.005) {
+              await addTransaction.mutateAsync({
+                account_id: acc.id, category_id: null, amount: pr.currentShare, date: t0,
+                note: 'Régularisation clôture (mois courant)', is_recurring: false,
+              } as any);
+            }
           }
         }
       }
-      await closeMonths.mutateAsync({ monthKeys: monthsToClose, surplus: Math.max(0, surplusEstimate) });
+      await closeMonths.mutateAsync({ monthKeys: monthsToClose, surplus: Math.max(0, surplusEstimate), status: 'confirmed' });
       // Mois par mois : s'il reste des mois en attente, on enchaîne directement sur le suivant.
       const remaining = effectivePending.filter((m) => !monthsToClose.includes(m));
       if (!flash && remaining.length > 0) {
@@ -200,7 +243,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [] 
 
             <View style={styles.lockNote}>
               <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
-              <Text style={styles.lockNoteText}>Après clôture, les transactions de cette période ne pourront plus être modifiées.</Text>
+              <Text style={styles.lockNoteText}>La clôture enregistre une régularisation datée pour fiabiliser vos calculs. Rien n'est verrouillé : vous pourrez toujours corriger plus tard.</Text>
             </View>
 
             <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={confirm} disabled={busy}>

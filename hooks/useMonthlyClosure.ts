@@ -9,7 +9,7 @@ import { useProfile } from './useProfile';
 import { useTransactions } from './useTransactions';
 import { useFeatureFlags } from './useFeatureFlags';
 
-export interface MonthClosure { id: string; profile_id: string; month_key: string; surplus: number; closed_at: string; }
+export interface MonthClosure { id: string; profile_id: string; month_key: string; surplus: number; closed_at: string; status?: 'confirmed' | 'estimated'; }
 export interface ClosureBilan { month_key: string; surplus: number; seen?: boolean; }
 
 export function ym(d: Date): string {
@@ -79,17 +79,17 @@ export function useMonthlyClosure(userId: string | undefined) {
   }, [enabled, transactions, closures]);
 
   const closeMonths = useMutation({
-    mutationFn: async ({ monthKeys, surplus }: { monthKeys: string[]; surplus: number }) => {
+    mutationFn: async ({ monthKeys, surplus, status = 'confirmed' }: { monthKeys: string[]; surplus: number; status?: 'confirmed' | 'estimated' }) => {
       if (!supabase || !userId || !monthKeys.length) return;
-      const rows = monthKeys.map((mk) => ({ profile_id: userId, month_key: mk, surplus: mk === monthKeys[monthKeys.length - 1] ? surplus : 0 }));
+      const rows = monthKeys.map((mk) => ({ profile_id: userId, month_key: mk, surplus: mk === monthKeys[monthKeys.length - 1] ? surplus : 0, status }));
       const { error } = await supabase.from('month_closures').upsert(rows, { onConflict: 'profile_id,month_key' });
       if (error) throw error;
       const maxKey = monthKeys.reduce((a, b) => (a > b ? a : b));
-      const lock = lastDayOfMonthKey(maxKey);
-      // Bilan affiché uniquement pour le mois qui vient de se terminer (mois précédent).
+      // AUCUN blocage (décision produit) : on ne pose plus de verrou dur — les mois restent modifiables,
+      // le statut confirmed/estimated suffit à la fiabilité. On efface un éventuel verrou hérité.
       const prevMonth = addMonthKey(ym(new Date()), -1);
-      const patch: Record<string, any> = { closure_lock_date: lock };
-      patch.last_closure_bilan = maxKey === prevMonth ? { month_key: maxKey, surplus, seen: false } : null;
+      const patch: Record<string, any> = { closure_lock_date: null };
+      patch.last_closure_bilan = (status === 'confirmed' && maxKey === prevMonth) ? { month_key: maxKey, surplus, seen: false } : null;
       await supabase.from('profiles').update(patch).eq('id', userId);
     },
     onSuccess: () => {

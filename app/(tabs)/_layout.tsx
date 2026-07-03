@@ -7,6 +7,7 @@ import HeaderWithProfile from '../../components/HeaderWithProfile';
 import CustomTabBar from '../../components/CustomTabBar';
 import OnboardingGate from '../../components/OnboardingGate';
 import QuickAddButton from '../../components/QuickAddButton';
+import NextActionBanner from '../../components/NextActionBanner';
 import { useAppColors } from '../../hooks/useAppColors';
 import { View } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
@@ -162,6 +163,7 @@ export default function TabsLayout() {
     </Tabs>
     <OnboardingGate />
     <QuickAddButton />
+    <NextActionBanner />
     </View>
   );
 }

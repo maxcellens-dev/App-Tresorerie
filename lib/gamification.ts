@@ -18,6 +18,7 @@ export type BadgeMetric =
   | 'streak_weeks'           // série hebdo (record)
   | 'gems_earned'            // cumul de gemmes gagnées
   | 'closures_count'         // nb de clôtures mensuelles effectuées
+  | 'consecutive_closures'   // plus longue série de mois consécutifs clôturés (fiabilité)
   | 'surplus_months_streak'  // mois consécutifs terminés avec excédent variable > 0
   | 'variable_savings_pct'   // meilleure éco. vs enveloppe sur un mois (%)
   | 'invest_followed'        // nb de fois où la reco d'investir a été suivie
@@ -183,6 +184,10 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'cloture_1', category: 'Rigueur', metric: 'closures_count', label: 'Première clôture', description: 'Effectue ta première clôture mensuelle.', icon: 'time', threshold: 1, gems: 20 },
     { key: 'cloture_3', category: 'Rigueur', metric: 'closures_count', label: 'Rigueur', description: '3 clôtures mensuelles effectuées.', icon: 'time', threshold: 3, gems: 60 },
     { key: 'cloture_12', category: 'Rigueur', metric: 'closures_count', label: 'Horloger', description: '12 clôtures mensuelles effectuées.', icon: 'time', threshold: 12, gems: 250 },
+    // ── Fiabilité (suivi régulier : mois consécutifs clôturés) ──
+    { key: 'fiable_3', category: 'Rigueur', metric: 'consecutive_closures', label: 'Suivi fiable', description: '3 mois consécutifs clôturés.', icon: 'shield-checkmark', threshold: 3, gems: 80 },
+    { key: 'fiable_6', category: 'Rigueur', metric: 'consecutive_closures', label: 'Régularité', description: '6 mois consécutifs clôturés.', icon: 'shield-checkmark', threshold: 6, gems: 160 },
+    { key: 'fiable_12', category: 'Rigueur', metric: 'consecutive_closures', label: 'Un an de suivi fiable', description: '12 mois consécutifs clôturés.', icon: 'shield-checkmark', threshold: 12, gems: 400 },
     // ── Action (investissement) ──
     { key: 'invest_1', category: 'Action', metric: 'invest_followed', label: 'Première graine', description: 'Suis une recommandation d’investir.', icon: 'trending-up', threshold: 1, gems: 40 },
     { key: 'invest_5', category: 'Action', metric: 'invest_followed', label: 'Investisseur', description: 'Suis 5 recommandations d’investir.', icon: 'trending-up', threshold: 5, gems: 200 },
