@@ -108,7 +108,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
 
   // Badges « non lu » : réponses assistance pour l'utilisateur, assistance + idées pour l'admin.
   const userUnread = useUserUnreadCount(user?.id);
-  const adminUnread = useAdminUnreadCount(isAdmin);
+  const adminUnread = useAdminUnreadCount(isAdmin, user?.id);
   const { avatarFrameColor } = useCosmetics(user?.id);
 
   function openAdmin() {

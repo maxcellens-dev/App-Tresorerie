@@ -69,8 +69,9 @@ export default function WelcomeScreen() {
             <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
             <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
-            <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
-            <Text style={[styles.subtag, { fontFamily: appNameFont }]}>Relyka · Prévisions · Sérénité</Text>
+            {/* Accroche BÉNÉFICE : ce que le user obtient, pas ce que l'app est. */}
+            <Text style={styles.tagline}>Sache toujours combien tu peux dépenser — sans tableur, sans stress.</Text>
+            <Text style={[styles.subtag, { fontFamily: appNameFont }]}>Ton budget · Ta projection · Ta sérénité</Text>
           </Animated.View>
 
           <View style={styles.ctaContainer}>
@@ -100,34 +101,45 @@ export default function WelcomeScreen() {
             </View>
           </View>
 
+          {/* 3 fonctionnalités PHARES — concrètes, nommées comme dans l'app. */}
           <Animated.View style={[styles.features, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <View style={styles.featureRow}>
               <View style={styles.featureIcon}>
-                <Ionicons name="trending-up" size={24} color={COLORS.emerald} />
+                <Ionicons name="wallet" size={24} color={COLORS.emerald} />
               </View>
               <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>Anticipez</Text>
-                <Text style={styles.featureText}>Visualisez votre solde futur et prenez les bonnes décisions.</Text>
-              </View>
-            </View>
-            
-            <View style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="shield-checkmark" size={24} color={COLORS.accent} />
-              </View>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>Sécurisez</Text>
-                <Text style={styles.featureText}>Données chiffrées et stockées localement (offline-first).</Text>
+                <Text style={styles.featureTitle}>Ton Relyka</Text>
+                <Text style={styles.featureText}>LE montant que tu peux dépenser ce mois sans te mettre en difficulté — calculé en continu, charges et projets déduits.</Text>
               </View>
             </View>
 
             <View style={styles.featureRow}>
               <View style={styles.featureIcon}>
-                <Ionicons name="options" size={24} color={COLORS.text} />
+                <Ionicons name="trending-up" size={24} color={COLORS.accent} />
               </View>
               <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>Maîtrisez</Text>
-                <Text style={styles.featureText}>Catégorisation intelligente et plan de trésorerie sur mesure.</Text>
+                <Text style={styles.featureTitle}>Ta projection</Text>
+                <Text style={styles.featureText}>Où tu en seras dans 6 mois ou 1 an : solde prévu, épargne, investissements — et comment y arriver.</Text>
+              </View>
+            </View>
+
+            <View style={styles.featureRow}>
+              <View style={styles.featureIcon}>
+                <Ionicons name="people" size={24} color={COLORS.text} />
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>À deux, sans prise de tête</Text>
+                <Text style={styles.featureText}>Comptes communs et projets partagés : chacun sa part, chacun son budget — les comptes d'apothicaire en moins.</Text>
+              </View>
+            </View>
+
+            <View style={styles.featureRow}>
+              <View style={styles.featureIcon}>
+                <Ionicons name="shield-checkmark" size={24} color={COLORS.emerald} />
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>Tes données restent les tiennes</Text>
+                <Text style={styles.featureText}>Export complet à tout moment, aucune connexion bancaire requise.</Text>
               </View>
             </View>
           </Animated.View>

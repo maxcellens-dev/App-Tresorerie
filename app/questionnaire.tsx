@@ -215,12 +215,12 @@ export default function QuestionnaireScreen() {
     animateToStep(step - 1, -1);
   }
 
-  async function handleFinish() {
+  async function handleFinish(answersToSave: QuestionnaireAnswers = answers) {
     if (!user?.id) return;
     setSaving(true);
     try {
       // Étape critique : crée le profil financier (source de vérité de l'onboarding)
-      await saveQuestionnaire.mutateAsync({ answers });
+      await saveQuestionnaire.mutateAsync({ answers: answersToSave });
     } catch (e: unknown) {
       console.error('[questionnaire] saveQuestionnaire échoué:', e);
       Alert.alert('Erreur', (e as any)?.message ?? 'Impossible d\'enregistrer le questionnaire.');
@@ -258,6 +258,27 @@ export default function QuestionnaireScreen() {
     router.replace('/(tabs)/comptes?welcome=1' as any);
   }
 
+  /** « Passer pour l'instant » (dès la 4ᵉ question) : complète les réponses manquantes par des
+   *  valeurs médianes (→ profil équilibré), puis termine l'onboarding normalement. Le user peut
+   *  affiner à tout moment dans Profil financier — zéro friction, personne n'abandonne sur le
+   *  questionnaire. */
+  async function handleSkip() {
+    const mid = (opts: readonly string[]) => opts[Math.floor(opts.length / 2)];
+    const def: QuestionnaireAnswers = {
+      q1: answers.q1 || Q1_OPTIONS[0],
+      q2: answers.q2 || Q2_OPTIONS[0],
+      q3: answers.q3 || mid(Q3_OPTIONS),
+      q4: answers.q4 || mid(Q4_OPTIONS),
+      q5: answers.q5 || mid(Q5_OPTIONS),
+      q6: answers.q6 || mid(Q6_OPTIONS),
+      q7: answers.q7 || Q7_OPTIONS[0],
+      q8: answers.q8 || '',
+      q9: answers.q9 || '',
+    } as QuestionnaireAnswers;
+    setAnswers(def);
+    await handleFinish(def);
+  }
+
   const assignedProfile = useMemo((): FinancialProfileId | null => {
     if (answers.q5 && answers.q4 && answers.q6) return computeInitialProfile(answers);
     return null;
@@ -292,6 +313,13 @@ export default function QuestionnaireScreen() {
             </View>
             <Text style={styles.progressLabel}>{step}/8</Text>
           </View>
+        )}
+
+        {/* Échappatoire anti-abandon : visible dès la 4ᵉ question. */}
+        {step >= 4 && step < 10 && (
+          <TouchableOpacity style={styles.skipLink} onPress={handleSkip} disabled={saving} hitSlop={{ top: 8, bottom: 8 }}>
+            <Text style={styles.skipLinkText}>{saving ? 'Un instant…' : "Passer pour l'instant →"}</Text>
+          </TouchableOpacity>
         )}
 
         {/* Contenu animé */}
@@ -571,7 +599,7 @@ export default function QuestionnaireScreen() {
 
               <TouchableOpacity
                 style={[styles.primaryBtn, saving && styles.btnDisabled]}
-                onPress={handleFinish}
+                onPress={() => handleFinish()}
                 disabled={saving}
               >
                 {saving ? (
@@ -624,6 +652,8 @@ function makeStyles(c: any) {
   },
   progressFill: { height: 4, backgroundColor: c.emerald, borderRadius: 2 },
   progressLabel: { fontSize: 12, color: c.textSecondary, fontWeight: '600', minWidth: 24 },
+  skipLink: { alignSelf: 'flex-end', paddingHorizontal: 20, paddingVertical: 4 },
+  skipLinkText: { fontSize: 12.5, color: c.textSecondary, fontWeight: '600', textDecorationLine: 'underline' },
 
   // Welcome
   centeredScreen: {

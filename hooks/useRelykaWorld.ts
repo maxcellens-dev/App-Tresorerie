@@ -398,6 +398,44 @@ export function useRwInviteByCode(projectId: string | undefined) {
   });
 }
 
+export interface RwProjectStats {
+  participants: { id: string; name: string }[];
+  total: number;
+  /** Total payé par participant (id → montant), pour la barre de contribution. */
+  paidBy: Record<string, number>;
+}
+
+/**
+ * Stats LÉGÈRES de plusieurs projets partagés (2 requêtes pour toute la liste) : participants,
+ * total réuni et répartition par payeur → affichées sur les cartes de la page Projets sans
+ * devoir ouvrir chaque projet.
+ */
+export function useRwProjectsStats(userId: string | undefined, projectIds: string[]) {
+  return useQuery({
+    queryKey: ['rw_projects_stats', userId, projectIds.slice().sort().join(',')],
+    enabled: !!userId && ok() && projectIds.length > 0,
+    queryFn: async (): Promise<Record<string, RwProjectStats>> => {
+      const [partsRes, expsRes] = await Promise.all([
+        supabase!.from('rw_participants').select('id, project_id, display_name').in('project_id', projectIds),
+        supabase!.from('rw_expenses').select('project_id, amount, paid_by').in('project_id', projectIds),
+      ]);
+      const out: Record<string, RwProjectStats> = {};
+      for (const pid of projectIds) out[pid] = { participants: [], total: 0, paidBy: {} };
+      for (const p of (partsRes.data ?? []) as any[]) {
+        out[p.project_id]?.participants.push({ id: p.id, name: p.display_name });
+      }
+      for (const e of (expsRes.data ?? []) as any[]) {
+        const s = out[e.project_id];
+        if (!s) continue;
+        const amt = Number(e.amount) || 0;
+        s.total += amt;
+        if (e.paid_by) s.paidBy[e.paid_by] = (s.paidBy[e.paid_by] ?? 0) + amt;
+      }
+      return out;
+    },
+  });
+}
+
 /** Invitations en attente reçues par l'utilisateur courant. */
 export function useRwInvitations(userId: string | undefined) {
   // Idem useRwProjects : la RPC s'appuie sur auth.uid() = l'admin → on masque en impersonation.

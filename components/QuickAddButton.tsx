@@ -6,21 +6,32 @@
  * Position réglable (Paramètres) : 'right' (défaut, entre Pilotage et Projets), 'left' (entre Pilotage
  * et Transactions) ou 'hidden'. Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre.
  */
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuickAddPref } from '../hooks/useUiPrefs';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
-const FAB_SIZE = 42;
-const ACTION_SIZE = 48;
-const ACTION_W = 92;          // largeur du conteneur d'action (pour afficher le libellé en entier)
-const RADIUS = 98;            // distance d'expansion des actions
+const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
+const ACTION_SIZE = 54;       // actions plus grosses et lisibles
+const ACTION_W = 96;          // largeur du conteneur d'action (pour afficher le libellé en entier)
+const RADIUS = 104;           // distance d'expansion des actions
 const BAR_CONTENT = 70;       // hauteur du contenu de la barre d'onglets (hors inset bas)
+
+// Pulse d'attention : une seule fois par session d'app (pas en boucle — juste « je suis là »).
+let pulsedThisSession = false;
+
+/** Assombrit une couleur hex (#RRGGBB) vers le noir (facteur 0..1) — pour les dégradés d'action. */
+function darkenHex(hex: string, f: number): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex;
+  const g = (i: number) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - f)).toString(16).padStart(2, '0');
+  return `#${g(1)}${g(3)}${g(5)}`;
+}
 
 export default function QuickAddButton() {
   const COLORS = useAppColors();
@@ -38,6 +49,22 @@ export default function QuickAddButton() {
   // fermeture → sinon leur ombre (elevation Android) reste visible même à opacity 0.
   const [mounted, setMounted] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
+
+  // Pulse UNE fois par session à l'arrivée sur le Pilotage : attire l'œil sans agacer.
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (pulsedThisSession || !/(pilotage|home)/.test(pathname ?? '')) return;
+    pulsedThisSession = true;
+    const t = setTimeout(() => {
+      Animated.sequence([
+        Animated.spring(pulse, { toValue: 1.18, useNativeDriver: true, tension: 120, friction: 4 }),
+        Animated.spring(pulse, { toValue: 1, useNativeDriver: true, tension: 120, friction: 5 }),
+        Animated.spring(pulse, { toValue: 1.12, useNativeDriver: true, tension: 120, friction: 4 }),
+        Animated.spring(pulse, { toValue: 1, useNativeDriver: true, tension: 120, friction: 6 }),
+      ]).start();
+    }, 900);
+    return () => clearTimeout(t);
+  }, [pathname, pulse]);
 
   const run = (to: number, cb?: (result: { finished: boolean }) => void) =>
     Animated.spring(anim, { toValue: to, useNativeDriver: true, friction: 6, tension: 90 }).start(cb);
@@ -101,20 +128,40 @@ export default function QuickAddButton() {
               pointerEvents={open ? 'auto' : 'none'}
               style={[styles.action, { left, top, opacity: anim, transform: [{ scale }] }]}
             >
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: a.color }]} onPress={() => go(a.route)} activeOpacity={0.85}>
-                <Ionicons name={a.icon as any} size={20} color={'#fff'} />
+              <TouchableOpacity
+                style={[styles.actionBtn, { shadowColor: a.color }]}
+                onPress={() => go(a.route)}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={[a.color, darkenHex(a.color, 0.22)]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionGradient}
+                >
+                  <Ionicons name={a.icon as any} size={24} color={'#fff'} />
+                </LinearGradient>
               </TouchableOpacity>
-              <Text style={styles.actionLabel} numberOfLines={1}>{a.label}</Text>
+              <Text style={[styles.actionLabel, { color: a.color, borderColor: a.color + '55' }]} numberOfLines={1}>{a.label}</Text>
             </Animated.View>
           );
         })}
 
-        {/* Le bouton « + » */}
-        <TouchableOpacity style={styles.fab} onPress={toggle} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Saisie rapide">
-          <Animated.View style={{ transform: [{ rotate }] }}>
-            <Ionicons name="add" size={34} color={'#fff'} />
-          </Animated.View>
-        </TouchableOpacity>
+        {/* Le bouton « + » — dégradé de marque + halo coloré + pulse d'attention (1×/session) */}
+        <Animated.View style={{ transform: [{ scale: pulse }] }}>
+          <TouchableOpacity style={styles.fab} onPress={toggle} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Saisie rapide">
+            <LinearGradient
+              colors={[COLORS.emerald, COLORS.teal ?? COLORS.emerald]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.fabGradient}
+            >
+              <Animated.View style={{ transform: [{ rotate }] }}>
+                <Ionicons name="add" size={36} color={'#fff'} />
+              </Animated.View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </>
   );
@@ -124,10 +171,14 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     anchor: { position: 'absolute', width: FAB_SIZE, height: FAB_SIZE, alignItems: 'center', justifyContent: 'center', zIndex: 50 },
     fab: {
-      width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2, backgroundColor: c.emerald,
-      alignItems: 'center', justifyContent: 'center',
-      shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8,
+      width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2,
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      // Halo COLORÉ (emerald) au lieu d'une ombre noire → le bouton « rayonne », immédiatement repérable.
+      shadowColor: c.emerald, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.5, shadowRadius: 12, elevation: 10,
       borderWidth: 3, borderColor: c.bg,
+    },
+    fabGradient: {
+      width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center',
     },
     action: {
       position: 'absolute',
@@ -136,13 +187,16 @@ function makeStyles(c: any) {
     },
     actionBtn: {
       width: ACTION_SIZE, height: ACTION_SIZE, borderRadius: ACTION_SIZE / 2,
-      alignItems: 'center', justifyContent: 'center',
-      shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 6, elevation: 6,
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      // Halo de la COULEUR de l'action (posé dynamiquement via shadowColor) → chaque bouton « rayonne ».
+      shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.45, shadowRadius: 9, elevation: 8,
+      borderWidth: 2.5, borderColor: c.bg,
     },
+    actionGradient: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
     actionLabel: {
-      marginTop: 4, fontSize: 11, fontWeight: '700', color: c.text,
-      backgroundColor: c.cardSolid ?? c.card, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
-      overflow: 'hidden',
+      marginTop: 5, fontSize: 11.5, fontWeight: '800',
+      backgroundColor: c.cardSolid ?? c.card, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999,
+      overflow: 'hidden', borderWidth: 1,
     },
   });
 }

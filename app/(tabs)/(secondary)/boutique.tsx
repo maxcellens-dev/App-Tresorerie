@@ -242,6 +242,34 @@ export default function BoutiqueScreen() {
                 </ScrollView>
               )}
 
+              {/* ── Sélection du mois : mise en avant tournante (déterministe par mois) de 2 articles
+                  cosmétiques/apparence → crée un rendez-vous mensuel dans la boutique. ── */}
+              {catFilter === 'all' && (() => {
+                const pool = shopByCategory
+                  .filter((g) => g.cat === 'apparence' || g.cat === 'cosmetiques' || g.cat === 'titres')
+                  .flatMap((g) => g.items);
+                if (pool.length < 2) return null;
+                const m = new Date().getMonth() + new Date().getFullYear() * 12;
+                const picks = [pool[m % pool.length], pool[(m + Math.floor(pool.length / 2)) % pool.length]]
+                  .filter((v, i, a) => a.indexOf(v) === i);
+                const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long' });
+                return (
+                  <View style={styles.monthlyPickCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="star" size={14} color={'#F5B301'} />
+                      <Text style={styles.monthlyPickTitle}>Sélection de {monthLabel}</Text>
+                    </View>
+                    {picks.map((item) => (
+                      <View key={item.key} style={styles.monthlyPickRow}>
+                        <Text style={styles.monthlyPickLabel} numberOfLines={1}>{itemLabel(item)}</Text>
+                        <Text style={styles.monthlyPickPrice}>{priceOf(item.price)} {currencyName}{priceOf(item.price) > 1 ? 's' : ''}</Text>
+                      </View>
+                    ))}
+                    <Text style={styles.monthlyPickHint}>Change tous les mois — fais-toi plaisir 👇</Text>
+                  </View>
+                );
+              })()}
+
               {(catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter)).map(({ cat, items }) => {
                 const compact = cat === 'gems' || cat === 'series';
                 return (
@@ -402,6 +430,13 @@ function makeStyles(c: any) {
     tabTextActive: { color: c.emerald },
     sectionIntro: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },
     catHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    /* Sélection du mois */
+    monthlyPickCard: { backgroundColor: c.card, borderWidth: 1.5, borderColor: '#F5B301' + '66', borderRadius: 14, padding: 14, marginBottom: 14, gap: 8 },
+    monthlyPickTitle: { fontSize: 14, fontWeight: '800', color: c.text, textTransform: 'capitalize' },
+    monthlyPickRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    monthlyPickLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: c.text },
+    monthlyPickPrice: { fontSize: 13, fontWeight: '800', color: '#F5B301' },
+    monthlyPickHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
     catHeader: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6 },
     gemsNote: { fontSize: 11.5, color: c.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 15 },
     soonPill: { backgroundColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },

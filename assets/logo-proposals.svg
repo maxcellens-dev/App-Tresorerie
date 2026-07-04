@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" font-family="Segoe UI, Arial, sans-serif">
+  <!-- ============================================================
+       PROPOSITIONS DE LOGO RELYKA — idée directrice :
+       le « R » dont la jambe se prolonge en COURBE DE PROJECTION
+       ascendante, terminée par un POINT (le repère fiable).
+       Ouvrir ce fichier dans un navigateur / l'aperçu VS Code.
+       ============================================================ -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#059669"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#0ea5a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="640" fill="#0f172a"/>
+  <text x="450" y="42" fill="#94a3b8" font-size="20" text-anchor="middle" font-weight="600">Propositions de logo Relyka — « la trajectoire + le repère »</text>
+
+  <!-- ── Variante A : R + courbe intégrée (logotype complet) ── -->
+  <g transform="translate(60,90)">
+    <rect width="360" height="220" rx="24" fill="#1e293b"/>
+    <text x="180" y="205" fill="#64748b" font-size="14" text-anchor="middle">A — Logotype : la jambe du R devient la projection</text>
+    <!-- R stylisé -->
+    <path d="M 90 160 L 90 60 Q 90 48 102 48 L 138 48 Q 170 48 170 78 Q 170 104 142 108 L 108 108"
+          fill="none" stroke="url(#g)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- jambe → courbe ascendante -->
+    <path d="M 112 108 C 150 160 190 150 230 118 C 252 100 268 88 284 80"
+          fill="none" stroke="url(#g)" stroke-width="17" stroke-linecap="round"/>
+    <circle cx="292" cy="76" r="13" fill="#fbbf24"/>
+  </g>
+
+  <!-- ── Variante B : monogramme compact (app icon) ── -->
+  <g transform="translate(480,90)">
+    <rect width="360" height="220" rx="24" fill="#1e293b"/>
+    <text x="180" y="205" fill="#64748b" font-size="14" text-anchor="middle">B — Icône app : courbe + point dans une pastille</text>
+    <rect x="105" y="30" width="150" height="150" rx="38" fill="url(#g2)"/>
+    <path d="M 133 138 C 158 148 172 120 186 100 C 200 80 212 68 224 62"
+          fill="none" stroke="#0f172a" stroke-width="14" stroke-linecap="round" opacity="0.85"/>
+    <circle cx="228" cy="59" r="10" fill="#ffffff"/>
+    <!-- marge de sécurité en pointillés (clin d'œil produit) -->
+    <path d="M 130 158 L 232 158" stroke="#0f172a" stroke-width="4" stroke-dasharray="2 8" stroke-linecap="round" opacity="0.5"/>
+  </g>
+
+  <!-- ── Variante C : R négatif dans un cercle (badge / avatar) ── -->
+  <g transform="translate(60,350)">
+    <rect width="360" height="220" rx="24" fill="#1e293b"/>
+    <text x="180" y="205" fill="#64748b" font-size="14" text-anchor="middle">C — Badge : R en négatif, point doré</text>
+    <circle cx="180" cy="105" r="72" fill="url(#g)"/>
+    <path d="M 152 148 L 152 66 Q 152 58 160 58 L 186 58 Q 210 58 210 80 Q 210 98 190 101 L 165 101"
+          fill="none" stroke="#0f172a" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+    <path d="M 168 101 C 192 134 214 124 236 104" fill="none" stroke="#0f172a" stroke-width="13" stroke-linecap="round" opacity="0.9"/>
+    <circle cx="241" cy="100" r="9" fill="#fbbf24"/>
+  </g>
+
+  <!-- ── Variante D : wordmark complet ── -->
+  <g transform="translate(480,350)">
+    <rect width="360" height="220" rx="24" fill="#1e293b"/>
+    <text x="180" y="205" fill="#64748b" font-size="14" text-anchor="middle">D — Wordmark : le « k » porte la courbe</text>
+    <text x="52" y="128" fill="#e2e8f0" font-size="58" font-weight="800" letter-spacing="1">Rely<tspan fill="url(#g)">k</tspan>a</text>
+    <path d="M 218 96 C 236 84 252 74 272 66" fill="none" stroke="url(#g)" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="279" cy="63" r="7" fill="#fbbf24"/>
+  </g>
+
+  <text x="450" y="612" fill="#64748b" font-size="14" text-anchor="middle">Point doré = « ton repère fiable » · dégradé emerald→teal = la marque · pointillés = la marge de sécurité</text>
+</svg>

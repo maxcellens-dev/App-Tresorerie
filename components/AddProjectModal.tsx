@@ -630,6 +630,27 @@ export default function AddProjectModal() {
                         ? 'Vous fixez vous-même le montant mensuel.'
                         : `Calculé automatiquement (objectif sur ${DEFAULT_PROJECT_MONTHS} mois) — modifiable.`}
                     </Text>
+                    {/* ETA parlante : le user voit IMMÉDIATEMENT quand son objectif sera atteint
+                        avec cette mensualité (se recalcule en direct quand il modifie le montant). */}
+                    {(() => {
+                      const target = parseFloat(form.target_amount);
+                      const monthly = parseFloat(form.monthly_allocation);
+                      if (!(target > 0) || !(monthly > 0)) return null;
+                      const remaining = Math.max(0, target - (form.current_accumulated || 0));
+                      const months = Math.max(1, Math.ceil(remaining / monthly));
+                      const eta = new Date();
+                      eta.setMonth(eta.getMonth() + months);
+                      const etaLabel = eta.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                      return (
+                        <View style={[styles.infoBox, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40', marginTop: 8 }]}>
+                          <Text style={styles.infoIcon}>🎯</Text>
+                          <Text style={[styles.infoText, { color: COLORS.textSecondary }]}>
+                            À <Text style={{ fontWeight: '800', color: COLORS.text }}>{Math.round(monthly).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}/mois</Text>,
+                            objectif atteint en <Text style={{ fontWeight: '800', color: COLORS.text }}>{etaLabel}</Text> ({months} mois).
+                          </Text>
+                        </View>
+                      );
+                    })()}
                   </View>
                 )}
 
@@ -780,6 +801,18 @@ export default function AddProjectModal() {
                         ? 'Chaque montant saisi sera ajouté comme transaction en brouillon à la date prévue.'
                         : 'Chaque versement mensuel sera ajouté comme transaction en brouillon aux dates à venir.'}
                       {' '}Vous pourrez ensuite <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou ajuster chaque versement un par un</Text> dans l'onglet Transactions, ou tout modifier d'un coup en rouvrant ce projet.
+                    </Text>
+                  </View>
+                )}
+
+                {/* Explication du choix « OÙ mettre l'argent » — les 2 schémas possibles, en clair. */}
+                {!editingProject && (
+                  <View style={[styles.infoBox, { backgroundColor: COLORS.primary + '0E', borderColor: COLORS.border, marginBottom: 4 }]}>
+                    <Text style={styles.infoIcon}>📍</Text>
+                    <Text style={[styles.infoText, { color: COLORS.textSecondary }]}>
+                      Où mettre cet argent ?{'\n'}
+                      • <Text style={{ fontWeight: '700', color: COLORS.text }}>Vers un compte épargne</Text> : choisis ton courant en source et ton épargne en destination — des virements seront préparés.{'\n'}
+                      • <Text style={{ fontWeight: '700', color: COLORS.text }}>Le garder de côté sur ton courant</Text> : choisis le MÊME compte en source et destination — le montant sera « Réservé » (déduit de ton budget, sans virement).
                     </Text>
                   </View>
                 )}

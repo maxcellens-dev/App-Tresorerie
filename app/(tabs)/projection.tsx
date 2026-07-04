@@ -31,7 +31,7 @@ import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOve
 import { useAccounts } from '../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
 import { useAppColors } from '../../hooks/useAppColors';
-import { useFiscalEnvelopeRates, taxRateFor, noteFor } from '../../hooks/useFiscalEnvelopes';
+import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../../hooks/useFiscalEnvelopes';
 import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/useProjectionAssumptions';
 import {
   projectInvestment, sumProjections, projectSavings, investCurve,
@@ -685,6 +685,38 @@ export default function ProjectionScreen() {
                     <Text style={styles.fiscalNoteText}>{noteFor(fiscalRates, (selectedAcc as any).envelope)}</Text>
                   </View>
                 )}
+                {/* Plafond de VERSEMENTS de l'enveloppe (ex. PEA : 150 000 €) — sensibilisation, jamais bloquant. */}
+                {(() => {
+                  const cap = depositCapFor((selectedAcc as any).envelope);
+                  if (!cap) return null;
+                  const contributed = num(selHypo.contributed);
+                  const annual = num(selHypo.annual);
+                  if (contributed >= cap) {
+                    return (
+                      <View style={[styles.fiscalNote, { borderColor: COLORS.orange + '55', backgroundColor: COLORS.orange + '12' }]}>
+                        <Ionicons name="alert-circle-outline" size={14} color={COLORS.orange} />
+                        <Text style={[styles.fiscalNoteText, { color: COLORS.orange }]}>
+                          Plafond de versements atteint ({fmt(cap)}) : de nouveaux apports ne sont plus possibles sur cette enveloppe — pense à un CTO ou une assurance-vie pour la suite.
+                        </Text>
+                      </View>
+                    );
+                  }
+                  if (annual > 0) {
+                    const yearsToCap = (cap - contributed) / annual;
+                    if (yearsToCap <= years) {
+                      const capYear = new Date().getFullYear() + Math.ceil(yearsToCap);
+                      return (
+                        <View style={[styles.fiscalNote, { borderColor: COLORS.orange + '55', backgroundColor: COLORS.orange + '12' }]}>
+                          <Ionicons name="alert-circle-outline" size={14} color={COLORS.orange} />
+                          <Text style={[styles.fiscalNoteText, { color: COLORS.orange }]}>
+                            À ce rythme, le plafond de versements ({fmt(cap)}) sera atteint vers {capYear}. Au-delà, les apports devront aller sur une autre enveloppe (CTO, assurance-vie…) — la projection reste indicative.
+                          </Text>
+                        </View>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
               </>
             )}
 

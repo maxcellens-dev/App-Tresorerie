@@ -59,6 +59,18 @@ export default function EditTransactionScreen() {
   const tx = transactions.find((t) => t.id === id);
   const isPast = tx ? new Date(tx.date) < new Date(new Date().toISOString().slice(0, 10)) : false;
   const isVirement = !!(tx as any)?.linked_account_id;
+  // Jambe APPARIÉE d'un virement : toute édition de SÉRIE doit synchroniser les 2 jambes, sinon
+  // l'une garde l'ancien montant / l'ancienne fin et le virement se désynchronise (voire se perd).
+  const pairedLeg = useMemo(() => {
+    if (!tx || !(tx as any).linked_account_id) return null;
+    const g = (tx as any).transfer_group_id;
+    if (g) return (transactions as any[]).find((p) => p.id !== tx.id && (p as any).transfer_group_id === g) ?? null;
+    // Anciens virements sans groupe : heuristique (comptes croisés, même date, montant opposé).
+    return (transactions as any[]).find((p) =>
+      p.id !== tx.id && (p as any).linked_account_id && p.account_id === (tx as any).linked_account_id &&
+      p.date === tx.date && Math.abs(Number(p.amount) + Number(tx.amount)) < 0.01,
+    ) ?? null;
+  }, [tx, transactions]);
   // Régularisation de solde : pas de vraie sous-catégorie stockée (le moteur de solde l'identifie
   // par le libellé + category_id null). On la présente comme « Régularisation solde », verrouillée.
   const isRegul = !!tx && isRegulRow(tx as any);
@@ -281,22 +293,48 @@ export default function EditTransactionScreen() {
           d.setDate(d.getDate() - 1);
           const dayBefore = toIsoDate(d);
           await updateTx.mutateAsync({ id, recurrence_end_date: dayBefore });
-          // Créer la nouvelle série à partir de la date d'effet sans modifier le solde du compte
-          const { error } = await supabase!.from('transactions').insert({
-            profile_id: user!.id,
-            account_id: accountId,
-            category_id: categoryId || null,
-            amount: newRecurringAmount,
-            date: effectiveDateISO,
-            note: note || null,
-            is_forecast: false,
-            is_recurring: true,
-            recurrence_rule: recurrenceRule,
-            recurrence_end_date: endDateISO,
-            project_id: null,
-            linked_account_id: null,
-          });
-          if (error) throw error;
+          if (isVirement) {
+            // VIREMENT : tronquer AUSSI l'autre jambe, puis recréer LES DEUX jambes de la nouvelle
+            // série (groupe partagé). Sinon la nouvelle série perdait sa jambe liée et devenait une
+            // simple dépense/recette → virement cassé.
+            if (pairedLeg) await updateTx.mutateAsync({ id: pairedLeg.id, recurrence_end_date: dayBefore });
+            const groupId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0; const v = c === 'x' ? r : (r & 0x3) | 0x8; return v.toString(16);
+            });
+            const otherId = (tx as any).linked_account_id as string;
+            const fromId = Number(tx.amount) < 0 ? tx.account_id : otherId;
+            const toId = Number(tx.amount) < 0 ? otherId : tx.account_id;
+            const legs = [
+              { account_id: fromId, linked_account_id: toId, amount: -Math.abs(futureAmountNum!) },
+              { account_id: toId, linked_account_id: fromId, amount: Math.abs(futureAmountNum!) },
+            ];
+            for (const leg of legs) {
+              const { error } = await supabase!.from('transactions').insert({
+                profile_id: user!.id, category_id: null, date: effectiveDateISO,
+                note: note || tx.note || 'Virement interne', is_forecast: false,
+                is_recurring: true, recurrence_rule: recurrenceRule, recurrence_end_date: endDateISO,
+                project_id: null, transfer_group_id: groupId, ...leg,
+              });
+              if (error) throw error;
+            }
+          } else {
+            // Créer la nouvelle série à partir de la date d'effet sans modifier le solde du compte
+            const { error } = await supabase!.from('transactions').insert({
+              profile_id: user!.id,
+              account_id: accountId,
+              category_id: categoryId || null,
+              amount: newRecurringAmount,
+              date: effectiveDateISO,
+              note: note || null,
+              is_forecast: false,
+              is_recurring: true,
+              recurrence_rule: recurrenceRule,
+              recurrence_end_date: endDateISO,
+              project_id: null,
+              linked_account_id: null,
+            });
+            if (error) throw error;
+          }
           queryClient.invalidateQueries({ queryKey: ['transactions', user!.id] });
           queryClient.invalidateQueries({ queryKey: ['pilotage_data', user!.id] });
         } else {
@@ -311,6 +349,16 @@ export default function EditTransactionScreen() {
             recurrence_rule: recurrenceRule,
             recurrence_end_date: endDateISO,
           });
+          // VIREMENT : refléter le nouveau montant/série sur la jambe appariée (montant opposé).
+          if (isVirement && pairedLeg) {
+            await updateTx.mutateAsync({
+              id: pairedLeg.id,
+              amount: -newRecurringAmount,
+              is_recurring: true,
+              recurrence_rule: recurrenceRule,
+              recurrence_end_date: endDateISO,
+            });
+          }
         }
         closeEditor();
       } catch (e: unknown) {
@@ -320,6 +368,7 @@ export default function EditTransactionScreen() {
     }
 
     try {
+      const effectiveDate = (isInstanceEdit && editMode === 'future' && date === initialDateRef.current) ? tx.date : date;
       await updateTx.mutateAsync({
         id,
         account_id: accountId,
@@ -328,13 +377,27 @@ export default function EditTransactionScreen() {
         // « Modifier la récurrence » : on garde l'ancre d'origine SAUF si l'utilisateur a EXPLICITEMENT
         // changé la date (#2) → on déplace alors le jour/anchor de toute la série (occurrences non échues).
         // Sans changement explicite, on garde tx.date pour ne pas reculer l'ancre avancée par la matérialisation.
-        date: (isInstanceEdit && editMode === 'future' && date === initialDateRef.current) ? tx.date : date,
+        date: effectiveDate,
         note: note || undefined,
         is_draft: isDraft,
         is_recurring: isRecurring,
         recurrence_rule: isRecurring ? recurrenceRule : null,
         recurrence_end_date: endDateISO,
       });
+      // VIREMENT : synchroniser la jambe appariée (montant opposé, mêmes date/récurrence/fin).
+      // Sans ça, modifier une jambe désynchronisait le virement (montants/fins différents).
+      if (isVirement && pairedLeg) {
+        await updateTx.mutateAsync({
+          id: pairedLeg.id,
+          amount: -finalAmount,
+          date: effectiveDate,
+          note: note || undefined,
+          is_draft: isDraft,
+          is_recurring: isRecurring,
+          recurrence_rule: isRecurring ? recurrenceRule : null,
+          recurrence_end_date: endDateISO,
+        });
+      }
       closeEditor();
     } catch (e: unknown) {
       showError(e instanceof Error ? e.message : "Impossible d'enregistrer.");

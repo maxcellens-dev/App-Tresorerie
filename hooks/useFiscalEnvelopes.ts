@@ -25,6 +25,20 @@ export function noteFor(rates: FiscalEnvelopeRate[], envelope?: string | null): 
   return rates.find((x) => x.envelope === envelope)?.note ?? null;
 }
 
+/**
+ * Plafonds de VERSEMENTS réglementaires (€, apports cumulés — pas la valorisation).
+ * Sensibilisation uniquement : la projection AVERTIT quand les apports projetés dépassent le
+ * plafond, sans jamais bloquer (les règles fines varient selon les situations).
+ */
+export const DEPOSIT_CAPS: Partial<Record<FiscalEnvelope, number>> = {
+  pea: 150000, // plafond légal des versements sur un PEA
+};
+
+/** Plafond de versements d'une enveloppe (null = pas de plafond connu). */
+export function depositCapFor(envelope?: string | null): number | null {
+  return (envelope && DEPOSIT_CAPS[envelope as FiscalEnvelope]) || null;
+}
+
 const KEY = 'fiscal_envelope_rates';
 
 export function useFiscalEnvelopeRates() {

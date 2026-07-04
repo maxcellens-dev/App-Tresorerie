@@ -105,15 +105,14 @@ export default function PilotageScreen() {
   const pilotageQuery = usePilotageData(user?.id);
   const { data: reliabilityCfg } = useReliabilityConfig();
 
-  // À chaque fois qu'on (re)vient sur le Pilotage, on rafraîchit les données qui pilotent les recos.
-  // Garantit que tout changement fait sur un autre écran (prudence du budget, nouvelle dépense…) est
-  // reflété immédiatement : nouveau budget/dépassement (pilotage_data) + nouvelle prudence (profile).
+  // PERF : plus d'invalidation SYSTÉMATIQUE au focus (elle re-téléchargeait TOUTES les transactions
+  // à chaque passage d'onglet → lenteur perçue). Les mutations (saisie, virement, régul, prudence…)
+  // invalident déjà `pilotage_data`/`profile` ; le staleTime (45 s) couvre le reste. On garde un
+  // refetch DOUX au focus : uniquement si les données sont périmées (respecte staleTime, pas de réseau sinon).
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      queryClient.invalidateQueries({ queryKey: ['pilotage_data', user.id] });
-      queryClient.invalidateQueries({ queryKey: ['profile', user.id] });
-      queryClient.invalidateQueries({ queryKey: ['recommendation_settings'] });
+      queryClient.refetchQueries({ queryKey: ['pilotage_data', user.id], stale: true });
     }, [user?.id, queryClient]),
   );
   const { data: projectsForConseils = [] } = useProjects(user?.id);

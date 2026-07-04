@@ -88,6 +88,8 @@ export default function TabsLayout() {
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: true,
+        // PERF : gèle les onglets inactifs (pas de re-rendu des écrans non visibles au changement d'onglet).
+        freezeOnBlur: true,
         header: () => <TabsHeader route={route} />,
         headerStyle: { backgroundColor: 'transparent' },
         headerShadowVisible: false,

@@ -16,6 +16,13 @@ import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/gamification';
 
+/** Mois suivant d'une clé YYYY-MM (pour la série de clôtures consécutives). */
+function nextMonthKey(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function SuccesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -23,7 +30,7 @@ export default function SuccesScreen() {
   const goBack = useNavBack();
   const { user, isImpersonating } = useAuth();
   const { state, badges, config, markBadgesCelebrated } = useGamification(user?.id);
-  const { enabled: closureEnabled } = useMonthlyClosure(user?.id);
+  const { enabled: closureEnabled, closures } = useMonthlyClosure(user?.id);
 
   // « Bienvenue » est consommé ici (et non en pop-up) : à la 1ʳᵉ visite de la page Succès,
   // on le marque célébré s'il ne l'est pas encore. Idempotent → no-op aux visites suivantes.
@@ -52,9 +59,33 @@ export default function SuccesScreen() {
   const lockedBadges = visibleBadges.filter((d) => !unlockedKeys.has(d.key));
   const unlockedCount = unlockedBadges.length;
 
+  // Progression ACTUELLE par métrique (pour les métriques calculables ici, à faible coût) →
+  // barre « 7/12 » sur les badges verrouillés : LE levier d'envie n° 1.
+  const metricValues = useMemo((): Partial<Record<string, number>> => {
+    const confirmed = (closures ?? [])
+      .filter((c: any) => (c.status ?? 'confirmed') === 'confirmed')
+      .map((c: any) => c.month_key as string)
+      .sort();
+    let bestRun = 0, run = 0;
+    for (let i = 0; i < confirmed.length; i++) {
+      run = i > 0 && nextMonthKey(confirmed[i - 1]) === confirmed[i] ? run + 1 : 1;
+      if (run > bestRun) bestRun = run;
+    }
+    return {
+      streak_weeks: state?.best_streak ?? 0,
+      gems_earned: state?.gems_earned_total ?? 0,
+      login_streak_days: state?.login_streak ?? 0,
+      closures_count: confirmed.length,
+      consecutive_closures: bestRun,
+    };
+  }, [state, closures]);
+
   const renderBadge = (def: typeof visibleBadges[number]) => {
     const unlocked = unlockedKeys.has(def.key);
     const tint = unlocked ? UNLOCK_COLOR : COLORS.textSecondary;
+    const current = metricValues[def.metric];
+    const showProgress = !unlocked && current != null && def.threshold > 1;
+    const pct = showProgress ? Math.min(100, Math.round(((current ?? 0) / def.threshold) * 100)) : 0;
     return (
       <TouchableOpacity
         key={def.key}
@@ -78,6 +109,15 @@ export default function SuccesScreen() {
         <Text style={styles.badgeDesc} numberOfLines={3}>{def.description}</Text>
         {/* Récompense affichée uniquement sur les succès À DÉBLOQUER (motivation) ;
             sur les succès déjà obtenus, on la voit en grand au clic. */}
+        {/* Barre de progression vers le déblocage (métriques calculables). */}
+        {showProgress && (
+          <View style={styles.progressWrap}>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: pct >= 66 ? UNLOCK_COLOR : COLORS.emerald }]} />
+            </View>
+            <Text style={styles.progressText}>{Math.min(current ?? 0, def.threshold)}/{def.threshold}</Text>
+          </View>
+        )}
         {!unlocked && def.gems > 0 && (
           <View style={styles.rewardPill}>
             <Ionicons name="diamond" size={11} color={COLORS.textSecondary} />
@@ -228,6 +268,10 @@ function makeStyles(c: any) {
     badgeLevel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     badgeDesc: { fontSize: 11, color: c.textSecondary, textAlign: 'center', lineHeight: 15 },
     rewardPill: { position: 'absolute', top: -8, right: -6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: c.cardSolid ?? c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
+    progressWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'stretch', marginTop: 6 },
+    progressTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: c.cardBorder, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 3 },
+    progressText: { fontSize: 9.5, fontWeight: '800', color: c.textSecondary },
     rewardText: { fontSize: 10.5, fontWeight: '800' },
     // ── Modal « succès en grand » ──
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },

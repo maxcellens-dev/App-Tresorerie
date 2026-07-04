@@ -9,9 +9,11 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
-import { useAccounts } from '../../../hooks/useAccounts';
+import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../../hooks/useFinancialProfile';
 import { CURRENCY_SYMBOL } from '../../../lib/currency';
+import { supabase } from '../../../lib/supabase';
+import { effectiveSharedMode } from '../../../lib/perimeter';
 
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
@@ -57,17 +59,46 @@ export default function MesDonneesScreen() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile, isLoading: pLoading } = useProfile(user?.id);
-  const { data: accounts = [], isLoading: aLoading } = useAccounts(user?.id);
+  const { data: accounts = [], isLoading: aLoading } = useAllAccounts(user?.id);
   const { data: answers } = useQuestionnaireAnswers(user?.id);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
   const totalBalance = useMemo(() => accounts.reduce((s, a) => s + Number(a.balance), 0), [accounts]);
 
+  /** Export RGPD EXHAUSTIF : toutes les données personnelles sont récupérées AU MOMENT de l'export
+   *  (comptes perso + partagés/joints, membres, transactions, crédits, projets, clôtures,
+   *  réservations, cumuls, échéances modifiées, gamification). */
+  const fetchAllData = async () => {
+    if (!supabase || !user?.id) return null;
+    const uid = user.id;
+    const [tx, members, credits, creditEvents, projects, objectives, closures, reservations, preSavings, overrides, gami, badges] = await Promise.all([
+      supabase.from('transactions').select('date, amount, note, is_draft, is_recurring, recurrence_rule, recurrence_end_date, regul_target, account:accounts!account_id(name), category:categories!category_id(name), linked_account:accounts!linked_account_id(name)').eq('profile_id', uid).order('date', { ascending: false }),
+      supabase.from('account_members').select('account_id, display_name, role, impact_pct, shared_mode').in('account_id', accounts.filter((a: any) => a._role === 'owner').map((a) => a.id)),
+      supabase.from('credits').select('*').eq('profile_id', uid),
+      supabase.from('credit_events').select('*').eq('profile_id', uid),
+      supabase.from('projects').select('name, target_amount, monthly_allocation, allocation_type, target_date, status').eq('profile_id', uid),
+      supabase.from('objectives').select('name, target_yearly_amount, status').eq('profile_id', uid),
+      supabase.from('month_closures').select('month_key, status, surplus, closed_at').eq('profile_id', uid).order('month_key'),
+      supabase.from('reservations').select('*').eq('profile_id', uid),
+      supabase.from('pre_savings').select('*').eq('profile_id', uid),
+      supabase.from('transaction_month_overrides').select('year, month, override_amount, override_date').eq('profile_id', uid),
+      supabase.from('user_gamification').select('*').eq('profile_id', uid).maybeSingle(),
+      supabase.from('user_badges').select('badge_key, unlocked_at').eq('profile_id', uid),
+    ]);
+    return {
+      tx: tx.data ?? [], members: members.data ?? [], credits: credits.data ?? [], creditEvents: creditEvents.data ?? [],
+      projects: projects.data ?? [], objectives: objectives.data ?? [], closures: closures.data ?? [],
+      reservations: reservations.data ?? [], preSavings: preSavings.data ?? [], overrides: overrides.data ?? [],
+      gami: gami.data ?? null, badges: badges.data ?? [],
+    };
+  };
+
   // Construit les lignes structurées (réutilisées pour le .xlsx et le repli .csv).
-  const buildRows = (): Row[] => {
+  const buildRows = (d: NonNullable<Awaited<ReturnType<typeof fetchAllData>>>): Row[] => {
     const now = new Date();
     const rows: Row[] = [];
+    const acctName = new Map(accounts.map((a) => [a.id, a.name]));
     rows.push({ type: 'title', cells: ['Mes données Relyka'] });
     rows.push({ type: 'subtitle', cells: ['Exporté le ' + now.toLocaleString('fr-FR')] });
     rows.push({ type: 'spacer', cells: [''] });
@@ -85,12 +116,106 @@ export default function MesDonneesScreen() {
     rows.push({ type: 'data', cells: ['Allocation conserver (%)', { amount: Number((profile as any)?.allocation_keep_percent ?? 0) }] });
     rows.push({ type: 'spacer', cells: [''] });
 
-    rows.push({ type: 'section', cells: ['COMPTES'] });
-    rows.push({ type: 'colhead', cells: ['Nom', 'Type', 'Solde (' + CURRENCY_SYMBOL + ')'] });
-    accounts.forEach((a) => {
-      rows.push({ type: 'data', cells: [a.name, ACCOUNT_TYPE_LABELS[a.type] ?? a.type, { amount: Number(a.balance) }] });
+    // COMPTES : perso + joints + reçus (rôle), avec ma part (%) et le mode « périmètre quotidien ».
+    rows.push({ type: 'section', cells: ['COMPTES (personnels, joints & partagés)'] });
+    rows.push({ type: 'colhead', cells: ['Nom', 'Type · Partage · Part · Mode', 'Solde (' + CURRENCY_SYMBOL + ')'] });
+    accounts.forEach((a: any) => {
+      const share = a.is_joint ? 'Joint' : a._role === 'owner' ? 'Perso' : a._role === 'read' ? 'Reçu (consultation)' : 'Reçu (écriture)';
+      const pct = a._impact_pct != null ? ` · ${a._impact_pct} %` : '';
+      const mode = (a.is_joint || a._role !== 'owner')
+        ? ` · ${effectiveSharedMode(a.shared_mode) === 'contribution' ? 'Contribution' : 'Suivi quotidien'}`
+        : '';
+      rows.push({ type: 'data', cells: [a.name, `${ACCOUNT_TYPE_LABELS[a.type] ?? a.type} · ${share}${pct}${mode}`, { amount: Number(a.balance) }] });
     });
     rows.push({ type: 'total', cells: ['', 'TOTAL', { amount: totalBalance }] });
+    rows.push({ type: 'spacer', cells: [''] });
+
+    if (d.members.length > 0) {
+      rows.push({ type: 'section', cells: ['MEMBRES DE MES COMPTES PARTAGÉS'] });
+      rows.push({ type: 'colhead', cells: ['Compte', 'Membre', 'Rôle · Part'] });
+      d.members.forEach((m: any) => {
+        rows.push({ type: 'data', cells: [acctName.get(m.account_id) ?? m.account_id, m.display_name, `${m.role}${m.impact_pct != null ? ` · ${m.impact_pct} %` : ''}`] });
+      });
+      rows.push({ type: 'spacer', cells: [''] });
+    }
+
+    rows.push({ type: 'section', cells: [`TRANSACTIONS (${d.tx.length})`] });
+    rows.push({ type: 'colhead', cells: ['Date · Compte · Libellé', 'Catégorie · Récurrence', 'Montant (' + CURRENCY_SYMBOL + ')'] });
+    d.tx.forEach((t: any) => {
+      const rec = t.is_recurring ? ` · récurrent (${t.recurrence_rule ?? ''})` : '';
+      const draft = t.is_draft ? ' · brouillon' : '';
+      const virement = t.linked_account?.name ? ` → ${t.linked_account.name}` : '';
+      rows.push({
+        type: 'data',
+        cells: [`${t.date} · ${t.account?.name ?? ''} · ${t.note ?? t.category?.name ?? ''}${virement}`, `${t.category?.name ?? (t.regul_target != null ? 'Régularisation' : t.linked_account?.name ? 'Virement' : '')}${rec}${draft}`, { amount: Number(t.amount) }],
+      });
+    });
+    rows.push({ type: 'spacer', cells: [''] });
+
+    if (d.overrides.length > 0) {
+      rows.push({ type: 'section', cells: ['ÉCHÉANCES MODIFIÉES'] });
+      rows.push({ type: 'colhead', cells: ['Mois', 'Nouvelle date', 'Montant modifié'] });
+      d.overrides.forEach((o: any) => {
+        rows.push({ type: 'data', cells: [`${o.year}-${String(o.month).padStart(2, '0')}`, o.override_date ?? '—', o.override_amount != null ? { amount: Number(o.override_amount) } : '—'] });
+      });
+      rows.push({ type: 'spacer', cells: [''] });
+    }
+
+    if (d.projects.length > 0 || d.objectives.length > 0) {
+      rows.push({ type: 'section', cells: ['PROJETS & OBJECTIFS'] });
+      rows.push({ type: 'colhead', cells: ['Nom', 'Détail', 'Montant (' + CURRENCY_SYMBOL + ')'] });
+      d.projects.forEach((p: any) => {
+        rows.push({ type: 'data', cells: [p.name, `Projet · ${p.status}${p.target_date ? ` · échéance ${p.target_date}` : ''} · ${Number(p.monthly_allocation ?? 0)} €/mois`, { amount: Number(p.target_amount ?? 0) }] });
+      });
+      d.objectives.forEach((o: any) => {
+        rows.push({ type: 'data', cells: [o.name, `Objectif annuel · ${o.status}`, { amount: Number(o.target_yearly_amount ?? 0) }] });
+      });
+      rows.push({ type: 'spacer', cells: [''] });
+    }
+
+    if (d.credits.length > 0) {
+      rows.push({ type: 'section', cells: ['CRÉDITS'] });
+      rows.push({ type: 'colhead', cells: ['Libellé', 'Détail complet (JSON)'] });
+      d.credits.forEach((c: any) => {
+        const { id: _i, profile_id: _p, ...rest } = c;
+        rows.push({ type: 'data', cells: [c.label ?? c.type ?? 'Crédit', JSON.stringify(rest)] });
+      });
+      d.creditEvents.forEach((e: any) => {
+        const { id: _i, profile_id: _p, credit_id: _c, ...rest } = e;
+        rows.push({ type: 'data', cells: ['— événement', JSON.stringify(rest)] });
+      });
+      rows.push({ type: 'spacer', cells: [''] });
+    }
+
+    if (d.closures.length > 0) {
+      rows.push({ type: 'section', cells: ['CLÔTURES MENSUELLES'] });
+      rows.push({ type: 'colhead', cells: ['Mois', 'Statut', 'Surplus (' + CURRENCY_SYMBOL + ')'] });
+      d.closures.forEach((cl: any) => {
+        rows.push({ type: 'data', cells: [cl.month_key, cl.status === 'estimated' ? 'Estimé' : 'Confirmé', { amount: Number(cl.surplus ?? 0) }] });
+      });
+      rows.push({ type: 'spacer', cells: [''] });
+    }
+
+    if (d.reservations.length > 0 || d.preSavings.length > 0) {
+      rows.push({ type: 'section', cells: ['RÉSERVATIONS & CUMULS'] });
+      rows.push({ type: 'colhead', cells: ['Libellé', 'Type', 'Montant (' + CURRENCY_SYMBOL + ')'] });
+      d.reservations.forEach((r: any) => {
+        rows.push({ type: 'data', cells: [r.libelle ?? 'Réservation', `Réservé · ${String(r.created_at ?? '').slice(0, 10)}`, { amount: Number(r.montant ?? 0) }] });
+      });
+      d.preSavings.forEach((p: any) => {
+        rows.push({ type: 'data', cells: [p.type === 'invest' ? 'Cumul investissement' : 'Cumul épargne', `Statut : ${p.statut ?? ''}`, { amount: Number(p.total_cumule ?? 0) }] });
+      });
+      rows.push({ type: 'spacer', cells: [''] });
+    }
+
+    rows.push({ type: 'section', cells: ['GAMIFICATION'] });
+    rows.push({ type: 'colhead', cells: ['Champ', 'Valeur'] });
+    rows.push({ type: 'data', cells: ['Relyks', String(d.gami?.gems ?? 0)] });
+    rows.push({ type: 'data', cells: ['Relyks gagnés au total', String(d.gami?.gems_earned_total ?? 0)] });
+    rows.push({ type: 'data', cells: ['Série (semaines)', `${d.gami?.streak ?? 0} (record : ${d.gami?.best_streak ?? 0})`] });
+    d.badges.forEach((b: any) => {
+      rows.push({ type: 'data', cells: [`Succès : ${b.badge_key}`, `débloqué le ${String(b.unlocked_at ?? '').slice(0, 10)}`] });
+    });
     rows.push({ type: 'spacer', cells: [''] });
 
     rows.push({ type: 'section', cells: ['QUESTIONNAIRE (à date)'] });
@@ -152,7 +277,9 @@ export default function MesDonneesScreen() {
   const handleExport = async () => {
     setBusy(true); setDone(false);
     try {
-      const rows = buildRows();
+      const data = await fetchAllData();
+      if (!data) throw new Error('Non connecté');
+      const rows = buildRows(data);
       const dateStr = new Date().toISOString().slice(0, 10);
       if (Platform.OS === 'web') {
         await exportXlsx(rows, `mes-donnees-tresorerie-${dateStr}.xlsx`);
@@ -196,7 +323,19 @@ export default function MesDonneesScreen() {
             </View>
             <View style={styles.bullet}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.checking} />
-              <Text style={styles.bulletText}>Liste de vos comptes et leurs soldes {loading ? '' : `(${accounts.length} compte${accounts.length > 1 ? 's' : ''})`}.</Text>
+              <Text style={styles.bulletText}>Vos comptes (personnels, joints & partagés : rôle, part, mode) et leurs soldes {loading ? '' : `(${accounts.length} compte${accounts.length > 1 ? 's' : ''})`}, avec les membres de vos comptes partagés.</Text>
+            </View>
+            <View style={styles.bullet}>
+              <Ionicons name="list-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.bulletText}>Toutes vos transactions (avec récurrences et échéances modifiées).</Text>
+            </View>
+            <View style={styles.bullet}>
+              <Ionicons name="flag-outline" size={18} color={COLORS.teal} />
+              <Text style={styles.bulletText}>Projets, objectifs, crédits, clôtures mensuelles, réservations & cumuls.</Text>
+            </View>
+            <View style={styles.bullet}>
+              <Ionicons name="trophy-outline" size={18} color={COLORS.orange} />
+              <Text style={styles.bulletText}>Gamification (relyks, série, succès débloqués).</Text>
             </View>
             <View style={styles.bullet}>
               <Ionicons name="help-circle-outline" size={18} color={COLORS.violet} />

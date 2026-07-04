@@ -40,7 +40,7 @@ import { computeAmortization } from '../../../lib/amortization';
 import { todayISO } from '../../../lib/dateUtils';
 import { useProfile } from '../../../hooks/useProfile';
 import { TextInput, Modal } from 'react-native';
-import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation } from '../../../hooks/useRelykaWorld';
+import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/useRelykaWorld';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -61,6 +61,9 @@ export default function ProjectsScreen() {
   // consultables dans la vue « Archives », d'où on peut les désarchiver).
   const activeRwProjects = rwProjects.filter((p) => !p.archived_at);
   const archivedRwProjects = rwProjects.filter((p) => !!p.archived_at);
+  // Stats des projets partagés (participants, total, répartition) → visibles SUR la carte.
+  const { data: rwStats = {} } = useRwProjectsStats(user?.id, activeRwProjects.map((p) => p.id));
+  const RW_MEMBER_COLORS = [COLORS.emerald, COLORS.violet, COLORS.orange, COLORS.blue, COLORS.teal];
   const [showInfo, setShowInfo] = useState(false);
   const [showTypeChoice, setShowTypeChoice] = useState(false);
   const [showRwCreate, setShowRwCreate] = useState(false);
@@ -495,16 +498,54 @@ export default function ProjectsScreen() {
                   {activeRwProjects.length > 0 && (
                     <>
                       <Text style={styles.rwSectionLabel}>Projets partagés</Text>
-                      {activeRwProjects.map((p) => (
-                        <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
-                          <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.rwProjName} numberOfLines={1}>{p.name}</Text>
-                            <Text style={styles.rwProjSub} numberOfLines={1}>{p.description || 'Dépenses partagées'}</Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                        </TouchableOpacity>
-                      ))}
+                      {activeRwProjects.map((p) => {
+                        const st = rwStats[p.id];
+                        const members = st?.participants ?? [];
+                        const total = st?.total ?? 0;
+                        // Répartition « qui a payé quoi » (par participant, ordre stable des membres).
+                        const segments = members
+                          .map((m, i) => ({ name: m.name, amount: st?.paidBy[m.id] ?? 0, color: RW_MEMBER_COLORS[i % RW_MEMBER_COLORS.length] }))
+                          .filter((s) => s.amount > 0);
+                        return (
+                          <TouchableOpacity key={p.id} style={styles.rwProjCard} activeOpacity={0.8} onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/${p.id}` as any)}>
+                            <Text style={{ fontSize: 26 }}>{p.emoji || '💸'}</Text>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text style={[styles.rwProjName, { flexShrink: 1 }]} numberOfLines={1}>{p.name}</Text>
+                                {/* Pile d'initiales des participants (max 4 + compteur) */}
+                                {members.length > 0 && (
+                                  <View style={{ flexDirection: 'row' }}>
+                                    {members.slice(0, 4).map((m, i) => (
+                                      <View key={m.id} style={[styles.rwAvatar, { backgroundColor: RW_MEMBER_COLORS[i % RW_MEMBER_COLORS.length], marginLeft: i === 0 ? 0 : -7 }]}>
+                                        <Text style={styles.rwAvatarText}>{(m.name || '?').trim().charAt(0).toUpperCase()}</Text>
+                                      </View>
+                                    ))}
+                                    {members.length > 4 && (
+                                      <View style={[styles.rwAvatar, { backgroundColor: COLORS.textSecondary, marginLeft: -7 }]}>
+                                        <Text style={styles.rwAvatarText}>+{members.length - 4}</Text>
+                                      </View>
+                                    )}
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.rwProjSub} numberOfLines={1}>
+                                {total > 0
+                                  ? `${Math.round(total).toLocaleString('fr-FR')} € de dépenses · ${members.length} participant${members.length > 1 ? 's' : ''}`
+                                  : (p.description || 'Dépenses partagées')}
+                              </Text>
+                              {/* Barre « qui a payé quoi » (segments par contributeur) */}
+                              {segments.length > 0 && total > 0 && (
+                                <View style={styles.rwContribBar}>
+                                  {segments.map((s) => (
+                                    <View key={s.name} style={{ flex: s.amount / total, backgroundColor: s.color }} />
+                                  ))}
+                                </View>
+                              )}
+                            </View>
+                            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                          </TouchableOpacity>
+                        );
+                      })}
                     </>
                   )}
                   {/* Bandeau pub (maison) — juste au-dessus des projets personnels */}
@@ -876,6 +917,9 @@ function makeStyles(c: any) {
   rwProjCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: '#3b82f6' + '44', borderRadius: 14, padding: 14, marginBottom: 8 },
   rwProjName: { fontSize: 15, fontWeight: '700', color: c.text },
   rwProjSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+  rwAvatar: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.card },
+  rwAvatarText: { fontSize: 9, fontWeight: '800', color: '#fff' },
+  rwContribBar: { flexDirection: 'row', height: 5, borderRadius: 3, overflow: 'hidden', marginTop: 7, backgroundColor: c.cardBorder },
   rwModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
   rwChoiceCard: { width: '100%', maxWidth: 380, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 20, gap: 12 },
   rwModalTitle: { fontSize: 18, fontWeight: '800', color: c.text },

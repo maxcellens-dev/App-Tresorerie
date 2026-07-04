@@ -22,6 +22,7 @@ import { sendPushToTarget, type NotifTarget } from '../../../../lib/pushSend';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
 import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
 import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/useReliability';
+import { useAdminNotifPrefs, useSaveAdminNotifPref, type AdminNotifKind } from '../../../../hooks/useUnreadBadges';
 
 interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null; target_label: string | null }
 interface GroupRow { id: string; name: string }
@@ -97,8 +98,18 @@ export default function AdminNotifications() {
   // Notifications automatiques (système) : activation par identifiant (app_config.system_notifications).
   const { data: sysNotifCfg } = useSystemNotificationsConfig();
   const saveSysNotif = useSaveSystemNotificationsConfig();
-  // Onglet : automatiques (système) vs manuelles (envoi immédiat / planifié / historique).
-  const [tab, setTab] = useState<'auto' | 'manuel'>('auto');
+  // Onglet : automatiques (système) / manuelles (envoi, planifié, historique) / admin-support.
+  const [tab, setTab] = useState<'auto' | 'manuel' | 'support'>('auto');
+  // Préférences PAR ADMIN (assistance / suggestions / tickets IA → in-app / push).
+  const { data: adminPrefs } = useAdminNotifPrefs(isAdmin);
+  const savePref = useSaveAdminNotifPref();
+  const prefOf = (adminId: string, kind: AdminNotifKind) =>
+    adminPrefs?.prefs.find((p) => p.profile_id === adminId && p.kind === kind) ?? { in_app: true, push: false };
+  const KIND_LABELS: { kind: AdminNotifKind; label: string; icon: string }[] = [
+    { kind: 'support', label: 'Assistance', icon: 'headset-outline' },
+    { kind: 'suggestion', label: 'Suggestions', icon: 'chatbubbles-outline' },
+    { kind: 'ai_ticket', label: 'Tickets IA', icon: 'sparkles-outline' },
+  ];
 
   const { data: groups = [] } = useQuery({
     queryKey: ['user_groups_min'],
@@ -314,21 +325,59 @@ export default function AdminNotifications() {
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
           <Text style={styles.title}>Notifications</Text>
 
-          {/* ── Onglets : Automatiques (système) / Manuelles ── */}
+          {/* ── Onglets : Automatiques (système) / Manuelles / Admin-Support ── */}
           <View style={styles.tabBar}>
-            {([['auto', 'Automatiques'], ['manuel', 'Manuelles']] as const).map(([k, lbl]) => (
+            {([['auto', 'Automatiques', 'flash-outline'], ['manuel', 'Manuelles', 'paper-plane-outline'], ['support', 'Admin', 'shield-outline']] as const).map(([k, lbl, icon]) => (
               <TouchableOpacity key={k} style={[styles.tab, tab === k && styles.tabActive]} onPress={() => setTab(k)} activeOpacity={0.8}>
-                <Ionicons
-                  name={k === 'auto' ? 'flash-outline' : 'paper-plane-outline'}
-                  size={15}
-                  color={tab === k ? COLORS.bg : COLORS.textSecondary}
-                />
+                <Ionicons name={icon as any} size={15} color={tab === k ? COLORS.bg : COLORS.textSecondary} />
                 <Text style={[styles.tabText, tab === k && styles.tabTextActive]}>{lbl}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {tab === 'auto' ? (
+          {tab === 'support' ? (
+          /* ── Notifications ADMIN/SUPPORT : qui reçoit quoi (badge in-app / push) ── */
+          <View style={[styles.card, { gap: 10 }]}>
+            <Text style={styles.sysIntro}>
+              Choisissez, pour chaque admin, les événements qui déclenchent son badge in-app et (bientôt)
+              un push : demandes d'assistance, suggestions d'utilisateurs, tickets Conseils IA.
+              L'envoi push sera activé avec les crons — le ciblage configuré ici sera respecté.
+            </Text>
+            {(adminPrefs?.admins ?? []).map((a) => (
+              <View key={a.id} style={styles.sysCard}>
+                <Text style={styles.sysTitle}>{a.label}</Text>
+                {KIND_LABELS.map(({ kind, label, icon }) => {
+                  const p = prefOf(a.id, kind);
+                  return (
+                    <View key={kind} style={styles.prefRow}>
+                      <Ionicons name={icon as any} size={15} color={COLORS.textSecondary} />
+                      <Text style={styles.prefLabel}>{label}</Text>
+                      <View style={styles.prefToggle}>
+                        <Text style={styles.prefToggleLabel}>In-app</Text>
+                        <Switch
+                          value={p.in_app}
+                          onValueChange={(v) => savePref.mutate({ profile_id: a.id, kind, in_app: v })}
+                          trackColor={{ true: COLORS.emerald, false: COLORS.cardBorder }}
+                        />
+                      </View>
+                      <View style={styles.prefToggle}>
+                        <Text style={styles.prefToggleLabel}>Push</Text>
+                        <Switch
+                          value={p.push}
+                          onValueChange={(v) => savePref.mutate({ profile_id: a.id, kind, push: v })}
+                          trackColor={{ true: COLORS.blue, false: COLORS.cardBorder }}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+            {(adminPrefs?.admins ?? []).length === 0 && (
+              <Text style={styles.empty}>Aucun admin trouvé (ou migration 121 non appliquée).</Text>
+            )}
+          </View>
+          ) : tab === 'auto' ? (
           /* ── Notifications AUTOMATIQUES (système) — catalogue documenté, activables une à une ── */
           <View style={[styles.card, { gap: 10 }]}>
             <Text style={styles.sysIntro}>
@@ -564,6 +613,11 @@ function makeStyles(c: any) {
     sysId: { fontSize: 11, fontFamily: 'monospace', color: c.emerald, marginTop: 2 },
     sysBody: { fontSize: 12.5, color: c.text, fontStyle: 'italic', marginTop: 6 },
     sysMeta: { fontSize: 11.5, color: c.textSecondary, marginTop: 4 },
+    /* Préférences par admin (onglet Admin/Support) */
+    prefRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+    prefLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: c.text },
+    prefToggle: { alignItems: 'center', gap: 0 },
+    prefToggleLabel: { fontSize: 9.5, color: c.textSecondary, fontWeight: '700' },
     fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, marginTop: 6 },
     input: {
       backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,

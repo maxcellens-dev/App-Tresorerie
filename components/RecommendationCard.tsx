@@ -432,6 +432,24 @@ export default function RecommendationCard({
       </View>
       </View>
       ) : null}
+
+      {/* Points de pagination : plus scannables que « 1/5 », tapables pour sauter à une slide. */}
+      {count > 1 && (
+        <View style={styles.dotsRow}>
+          {Array.from({ length: count }, (_, i) => (
+            <TouchableOpacity key={i} onPress={() => setCurrentIndex(i)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+              <View
+                style={[
+                  styles.dot,
+                  i === safeIndex
+                    ? { backgroundColor: (isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald, width: 18 }
+                    : { backgroundColor: COLORS.cardBorder },
+                ]}
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -466,6 +484,10 @@ function makeStyles(c: any) {
   },
   verifyFirstText: { fontSize: 13, fontWeight: '800', color: c.bg },
   actionBtnMuted: { opacity: 0.5, backgroundColor: 'transparent' },
+
+  /* Points de pagination du carrousel */
+  dotsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 2 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
 
   /* Badge fraîcheur (confiance haute « À jour » / moyenne « Vérifié il y a N j ») */
   freshBadge: {

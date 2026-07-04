@@ -702,6 +702,75 @@ export default function ReportingScreen() {
             </View>
           </FadeIn>
 
+          {/* ════════════ BILAN INTELLIGENT (insights rédigés automatiquement) ════════════
+              La vraie valeur Premium : des CONSTATS en français, pas seulement des courbes. */}
+          <FadeIn delay={100}>
+            {(() => {
+              const insights: { icon: string; color: string; text: string }[] = [];
+              const last = monthlyIO[monthlyIO.length - 1];
+              const prev = monthlyIO[monthlyIO.length - 2];
+              // 1) Dépenses variables vs habitudes (3 derniers mois).
+              const trend = pilotage?.variable_trend_percentage ?? 0;
+              if (trend > 0 && (pilotage?.avg_variable_expenses_3m ?? 0) > 0) {
+                const delta = Math.round(trend - 100);
+                if (Math.abs(delta) >= 10) {
+                  insights.push({
+                    icon: delta > 0 ? 'trending-up' : 'trending-down',
+                    color: delta > 0 ? C.rose : C.emerald,
+                    text: delta > 0
+                      ? `Tes dépenses variables sont ${delta} % AU-DESSUS de ta moyenne des 3 derniers mois — surveille les sorties non prévues.`
+                      : `Tes dépenses variables sont ${Math.abs(delta)} % en dessous de ta moyenne des 3 derniers mois. Beau contrôle 👌`,
+                  });
+                }
+              }
+              // 2) Taux d'épargne réel du mois (épargné + investi / revenus du mois).
+              const saved = (pilotage?.month_savings_total ?? 0) + (pilotage?.month_invest_total ?? 0);
+              if (last && last.income > 0 && saved > 0) {
+                const rate = Math.round((saved / last.income) * 100);
+                insights.push({
+                  icon: 'shield-checkmark',
+                  color: C.emerald,
+                  text: `Ce mois-ci, tu mets de côté ${rate} % de tes revenus (${fmtFull(saved)}). ${rate >= 15 ? 'Excellent rythme !' : rate >= 5 ? 'Bon rythme — chaque euro compte.' : 'Un petit virement de plus et tu passes un cap.'}`,
+                });
+              }
+              // 3) Dépenses vs mois précédent.
+              if (last && prev && prev.expense > 0) {
+                const d = Math.round(((last.expense - prev.expense) / prev.expense) * 100);
+                if (Math.abs(d) >= 8) {
+                  insights.push({
+                    icon: 'swap-vertical',
+                    color: d > 0 ? C.orange : C.emerald,
+                    text: d > 0
+                      ? `Tes dépenses du mois (${fmtFull(last.expense)}) dépassent de ${d} % celles du mois dernier.`
+                      : `Tes dépenses du mois (${fmtFull(last.expense)}) sont ${Math.abs(d)} % plus basses que le mois dernier. 📉`,
+                  });
+                }
+              }
+              // 4) Fiabilité des données (dernière vérification de solde).
+              const lv = pilotage?.confidence_inputs?.lastVerifiedAt;
+              if (lv) {
+                const days = Math.floor((Date.now() - new Date(lv + 'T00:00:00').getTime()) / 86400000);
+                if (days > 10) insights.push({ icon: 'alert-circle', color: C.amber, text: `Solde non vérifié depuis ${days} j — ces chiffres sont des estimations. Une vérif de 30 s et tout redevient net.` });
+              }
+              if (insights.length === 0) return null;
+              return (
+                <View style={[s.section, { borderColor: C.violet + '55', borderWidth: 1 }]}>
+                  <View style={s.sectionHeader}>
+                    <Ionicons name="sparkles" size={20} color={C.violet} />
+                    <Text style={s.sectionTitle}>Bilan intelligent</Text>
+                  </View>
+                  <Text style={s.sectionSub}>Constats générés automatiquement à partir de tes données</Text>
+                  {insights.slice(0, 4).map((ins, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 }}>
+                      <Ionicons name={ins.icon as any} size={16} color={ins.color} style={{ marginTop: 2 }} />
+                      <Text style={{ flex: 1, fontSize: 13, color: C.text, lineHeight: 19 }}>{ins.text}</Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+          </FadeIn>
+
           {/* ════════════════ SECTION PATRIMOINE ════════════════ */}
           <FadeIn delay={140}>
             <GroupHeader icon="layers-outline" title="Patrimoine" color={ACCOUNT_COLORS.checking} />

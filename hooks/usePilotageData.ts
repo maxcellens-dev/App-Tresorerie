@@ -1211,5 +1211,9 @@ export function usePilotageData(profileId: string | undefined) {
       return computePilotageData(data);
     },
     enabled: !!profileId,
+    // PERF : ce fetch est LOURD (toutes les transactions + jointures + partagés + crédits).
+    // 45 s de fraîcheur → changer d'onglet ne re-télécharge pas tout ; les MUTATIONS (ajout/édition
+    // de transaction, virement, régul…) invalident déjà cette clé → les données restent justes.
+    staleTime: 45 * 1000,
   });
 }

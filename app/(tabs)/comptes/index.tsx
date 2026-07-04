@@ -25,6 +25,7 @@ import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAccountsTotalsFilter } from '../../../hooks/useUiPrefs';
 import { useSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
+import StaggerIn from '../../../components/StaggerIn';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -326,8 +327,8 @@ export default function AccountsListScreen() {
                 const iconName = ACCOUNT_ICONS[acc.type] ?? 'cash-outline';
                 const isLast = idx === sortedAccounts.length - 1;
                 return (
+                  <StaggerIn key={acc.id} index={idx} groupKey="comptes">
                   <TouchableOpacity
-                    key={acc.id}
                     style={[styles.accountRow, !isLast && styles.accountRowBorder]}
                     onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
                     activeOpacity={0.7}
@@ -350,6 +351,7 @@ export default function AccountsListScreen() {
                       <Ionicons name="chevron-forward" size={14} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
                     </View>
                   </TouchableOpacity>
+                  </StaggerIn>
                 );
               })}
             </View>

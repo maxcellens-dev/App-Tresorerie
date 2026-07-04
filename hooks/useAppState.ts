@@ -8,6 +8,7 @@ import { useMonthlyClosure } from './useMonthlyClosure';
 import { useSharedContribution } from './useSharedContribution';
 import { usePreSavings } from './usePreSavings';
 import { useReservations } from './useReservations';
+import { useOnboarding } from './useOnboarding';
 import { useReliabilityConfig, deriveRelykaConfidence } from './useReliability';
 import { isRegul } from '../lib/regul';
 import { getCurrentAction, type AppAction } from '../lib/appStateEngine';
@@ -23,6 +24,7 @@ export function useAppState(): AppAction | null {
   const { data: preSavings } = usePreSavings(user?.id);
   const { data: reservations = [] } = useReservations(user?.id);
   const { data: relCfg } = useReliabilityConfig();
+  const { allDone: onboardingDone } = useOnboarding(user?.id);
 
   return useMemo(() => {
     if (!pilotage) return null;
@@ -103,6 +105,9 @@ export function useAppState(): AppAction | null {
     });
     // Jamais « tout est à jour » quand les chiffres sont en fourchette (confiance non haute).
     if (action.type === 'ok' && conf && conf.result.level !== 'high') return null;
+    // Pendant le guide « Pour bien démarrer », les étapes de setup sont déjà raillées par le guide
+    // → pas de double sollicitation (le bandeau reprendra pour le quotidien une fois le guide fini).
+    if (action.type === 'setup' && !onboardingDone) return null;
     return action;
-  }, [pilotage, accounts, transactions, pendingMonths, relCfg, closureEnabled, sharedContrib, preSavings, reservations, user?.id]);
+  }, [pilotage, accounts, transactions, pendingMonths, relCfg, closureEnabled, sharedContrib, preSavings, reservations, onboardingDone, user?.id]);
 }

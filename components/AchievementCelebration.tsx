@@ -34,6 +34,25 @@ export default function AchievementCelebration() {
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
+  // Paillettes : burst unique 0→1 ; chaque particule a sa direction/couleur/rotation propre.
+  const burst = useRef(new Animated.Value(0)).current;
+  const CONFETTI_COLORS = ['#f59e0b', '#34d399', '#a78bfa', '#60a5fa', '#f472b6', '#fbbf24'];
+  const particles = useMemo(() => {
+    // Régénérées à chaque succès affiché (dépend de `current`).
+    return Array.from({ length: 18 }, (_, i) => {
+      const angle = (i / 18) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 90 + Math.random() * 70;
+      return {
+        dx: Math.cos(angle) * dist,
+        dy: Math.sin(angle) * dist - 30, // légère poussée vers le haut
+        rot: `${Math.round(Math.random() * 720 - 360)}deg`,
+        size: 6 + Math.random() * 6,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        round: Math.random() > 0.5,
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.key]);
 
   // Réinitialise à chaque changement de compte.
   useEffect(() => {
@@ -72,13 +91,14 @@ export default function AchievementCelebration() {
     setQueue((q) => q.slice(1));
   }, [queue, current]);
 
-  // Animation d'apparition.
+  // Animation d'apparition + burst de paillettes.
   useEffect(() => {
     if (!current) return;
-    scale.setValue(0.6); opacity.setValue(0); glow.setValue(0);
+    scale.setValue(0.6); opacity.setValue(0); glow.setValue(0); burst.setValue(0);
     Animated.parallel([
       Animated.spring(scale, { toValue: 1, friction: 5, tension: 70, useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(burst, { toValue: 1, duration: 950, useNativeDriver: true }),
     ]).start();
     Animated.loop(
       Animated.sequence([
@@ -103,6 +123,26 @@ export default function AchievementCelebration() {
     <Animated.View style={[styles.overlay, { opacity }]}>
       <TouchableOpacity style={StyleSheet.absoluteFill as any} activeOpacity={1} onPress={dismiss} />
       <Animated.View style={[styles.card, { transform: [{ scale }] }]} pointerEvents="none">
+        {/* Paillettes : burst radial depuis le centre de la carte (fade + rotation). */}
+        <View pointerEvents="none" style={styles.confettiLayer}>
+          {particles.map((p, i) => (
+            <Animated.View
+              key={i}
+              style={{
+                position: 'absolute',
+                width: p.size, height: p.size,
+                borderRadius: p.round ? p.size / 2 : 2,
+                backgroundColor: p.color,
+                opacity: burst.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 1, 0.9, 0] }),
+                transform: [
+                  { translateX: burst.interpolate({ inputRange: [0, 1], outputRange: [0, p.dx] }) },
+                  { translateY: burst.interpolate({ inputRange: [0, 1], outputRange: [0, p.dy] }) },
+                  { rotate: burst.interpolate({ inputRange: [0, 1], outputRange: ['0deg', p.rot] }) },
+                ],
+              }}
+            />
+          ))}
+        </View>
         <Text style={styles.congrats}>🎉 Succès débloqué !</Text>
         <View style={styles.iconWrap}>
           <Animated.View style={[styles.glow, { backgroundColor: UNLOCK_COLOR, opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
@@ -133,6 +173,7 @@ function makeStyles(c: any) {
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 28, zIndex: 5000, ...(Platform.OS === 'web' ? { position: 'fixed' as any } : {}) },
     card: { width: '100%', maxWidth: 340, backgroundColor: c.cardSolid ?? c.card, borderRadius: 24, borderWidth: 1, borderColor: UNLOCK_COLOR + '55', padding: 28, alignItems: 'center' },
     congrats: { fontSize: 16, fontWeight: '800', color: UNLOCK_COLOR, marginBottom: 18 },
+    confettiLayer: { position: 'absolute', top: '38%', left: '50%', width: 0, height: 0, alignItems: 'center', justifyContent: 'center' },
     iconWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     glow: { position: 'absolute', width: 96, height: 96, borderRadius: 48 },
     iconCircle: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
