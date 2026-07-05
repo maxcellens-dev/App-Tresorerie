@@ -26,7 +26,7 @@ import {
   Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
   Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
   computeInitialProfile, detectIrregularIncome,
-  PROFILE_INFO, PROFILE_ALLOCATIONS, safetyMarginFromQ8,
+  PROFILE_INFO, PROFILE_ALLOCATIONS, safetyMarginFromQ8, estimateWeeklyVariable,
 } from '../lib/financialProfileEngine';
 import type { QuestionnaireAnswers } from '../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
@@ -47,17 +47,17 @@ const QUESTIONS: Array<{
   label: string;
   options: readonly string[];
 }> = [
-  { key: 'q1', label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
-  { key: 'q2', label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
-  { key: 'q3', label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
+  { key: 'q1', label: 'Quel type de revenu possédes-tu ?', options: Q1_OPTIONS },
+  { key: 'q2', label: 'À quelle fréquence tes revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
+  { key: 'q3', label: 'Quel est le montant moyen de tes revenus nets par mois ?', options: Q3_OPTIONS },
   // Q9 (dépenses variables hebdo) affichée en 4e position — rendu spécial (TextInput)
-  { key: 'q9', label: 'Combien dépensez-vous environ pour vos courses, loisirs et dépenses variables ?', options: [] },
-  { key: 'q4', label: 'Une fois toutes vos dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
-  { key: 'q5', label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
-  { key: 'q6', label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
-  { key: 'q7', label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
+  { key: 'q9', label: 'Combien dépenses-tu environ pour tes courses, loisirs et dépenses variables ?', options: [] },
+  { key: 'q4', label: 'Une fois toutes tes dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
+  { key: 'q5', label: 'Si tes revenus s\'arrêtaient demain, combien de temps pourrais-tu maintenir ton niveau de vie grâce à ton épargne disponible ?', options: Q5_OPTIONS },
+  { key: 'q6', label: 'Quel pourcentage approximatif de tes revenus mettons-nous de côté chaque mois ?', options: Q6_OPTIONS },
+  { key: 'q7', label: 'Quel est ton objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
   // Q8 : rendu spécial (TextInput), pas d'options
-  { key: 'q8', label: 'Quel montant minimum souhaitez-vous toujours conserver sur vos comptes courants, quoi qu\'il arrive ?', options: [] },
+  { key: 'q8', label: 'Quel montant minimum souhaites-tu toujours conserver sur tes comptes courants, quoi qu\'il arrive ?', options: [] },
 ];
 
 // 0 = welcome, 1-9 = questions, 10 = résultat
@@ -258,22 +258,22 @@ export default function QuestionnaireScreen() {
     router.replace('/(tabs)/comptes?welcome=1' as any);
   }
 
-  /** « Passer pour l'instant » (dès la 4ᵉ question) : complète les réponses manquantes par des
-   *  valeurs médianes (→ profil équilibré), puis termine l'onboarding normalement. Le user peut
-   *  affiner à tout moment dans Profil financier — zéro friction, personne n'abandonne sur le
-   *  questionnaire. */
+  /** « Passer pour l'instant » : complète les réponses manquantes par un profil PRUDENT PAR PRINCIPE
+   *  (1ʳᵉ réponse de chaque question = la plus conservatrice), marge de sécurité à 0 € (q8) et
+   *  dépenses variables ESTIMÉES automatiquement depuis le revenu (q9, pour ne pas supposer 0 €).
+   *  Tant que l'utilisateur n'affine pas dans « Mon profil financier », il reste du bon côté. */
   async function handleSkip() {
-    const mid = (opts: readonly string[]) => opts[Math.floor(opts.length / 2)];
+    const q3 = answers.q3 || Q3_OPTIONS[0];
     const def: QuestionnaireAnswers = {
       q1: answers.q1 || Q1_OPTIONS[0],
       q2: answers.q2 || Q2_OPTIONS[0],
-      q3: answers.q3 || mid(Q3_OPTIONS),
-      q4: answers.q4 || mid(Q4_OPTIONS),
-      q5: answers.q5 || mid(Q5_OPTIONS),
-      q6: answers.q6 || mid(Q6_OPTIONS),
+      q3,
+      q4: answers.q4 || Q4_OPTIONS[0],
+      q5: answers.q5 || Q5_OPTIONS[0],
+      q6: answers.q6 || Q6_OPTIONS[0],
       q7: answers.q7 || Q7_OPTIONS[0],
-      q8: answers.q8 || '',
-      q9: answers.q9 || '',
+      q8: answers.q8 || '',                                   // marge de sécurité = 0 €
+      q9: answers.q9 || String(estimateWeeklyVariable(q3)),   // dépenses variables estimées auto
     } as QuestionnaireAnswers;
     setAnswers(def);
     await handleFinish(def);
@@ -318,7 +318,7 @@ export default function QuestionnaireScreen() {
         {/* Échappatoire anti-abandon : visible dès la 4ᵉ question. */}
         {step >= 4 && step < 10 && (
           <TouchableOpacity style={styles.skipLink} onPress={handleSkip} disabled={saving} hitSlop={{ top: 8, bottom: 8 }}>
-            <Text style={styles.skipLinkText}>{saving ? 'Un instant…' : "Passer pour l'instant →"}</Text>
+            <Text style={styles.skipLinkText}>{saving ? 'Un instant…' : "Passer le questionnairepour l'instant →"}</Text>
           </TouchableOpacity>
         )}
 
@@ -334,12 +334,12 @@ export default function QuestionnaireScreen() {
                 <Ionicons name="stats-chart" size={40} color={COLORS.emerald} />
               </View>
               <Text style={styles.welcomeTitle}>Bienvenue sur <Text style={{ fontFamily: appNameFont }}>Relyka</Text></Text>
-              <Text style={styles.welcomeSub}>Votre coach financier personnel</Text>
+              <Text style={styles.welcomeSub}>Ton coach financier personnel</Text>
               <View style={styles.welcomeDivider} />
               <Text style={styles.welcomeBody}>
-                Avant de commencer, répondez à{' '}
+                Avant de commencer, réponds à{' '}
                 <Text style={{ color: COLORS.emerald, fontWeight: '700' }}>7 questions rapides</Text>
-                {' '}pour que l'application adapte ses recommandations à votre situation financière réelle.
+                {' '}pour que l'application adapte ses recommandations à ta situation financière réelle.
               </Text>
               <Text style={styles.welcomeTime}>⏱ Moins de 2 minutes</Text>
 
@@ -393,7 +393,7 @@ export default function QuestionnaireScreen() {
                   <View style={styles.infoBox}>
                     <Ionicons name="shield-checkmark-outline" size={15} color={COLORS.blue} />
                     <Text style={styles.infoText}>
-                      On fera attention à préserver cette somme, avant de calculer ce que vous pouvez dépenser ou investir.
+                      On fera attention à préserver cette somme sur tes comptes courants, avant de calculer ce que tu peux dépenser ou investir.
                     </Text>
                   </View>
                   <TextInput
@@ -425,7 +425,7 @@ export default function QuestionnaireScreen() {
                   <View style={styles.infoBox}>
                     <Ionicons name="cart-outline" size={15} color={COLORS.blue} />
                     <Text style={styles.infoText}>
-                      Estimez votre enveloppe de dépenses variables (courses, loisirs, imprévus). Après 2 mois d'utilisation, l’application se basera sur vos dépenses réelles.
+                      Estimes ton enveloppe de dépenses variables (courses, loisirs, imprévus). Après 2 mois d'utilisation, l’application se basera sur tes dépenses réelles.
                     </Text>
                   </View>
                   <View style={styles.q9Row}>
@@ -474,7 +474,7 @@ export default function QuestionnaireScreen() {
                 {currentQ.key === 'q1' && (
                   <View style={styles.infoBox}>
                     <Ionicons name="checkbox-outline" size={15} color={COLORS.blue} />
-                    <Text style={styles.infoText}>Vous pouvez sélectionner plusieurs types de revenus.</Text>
+                    <Text style={styles.infoText}>Tu peux sélectionner plusieurs types de revenus.</Text>
                   </View>
                 )}
 
@@ -508,7 +508,7 @@ export default function QuestionnaireScreen() {
                     </View>
                     {q6Pct !== null && (
                       <View style={styles.calcResult}>
-                        <Text style={styles.calcResultLabel}>Votre taux d'épargne estimé</Text>
+                        <Text style={styles.calcResultLabel}>Ton taux d'épargne estimé</Text>
                         <Text style={styles.calcResultValue}>{q6Pct} %</Text>
                       </View>
                     )}
@@ -569,7 +569,7 @@ export default function QuestionnaireScreen() {
               )}
 
               <View style={styles.allocCard}>
-                <Text style={styles.allocTitle}>Votre allocation recommandée</Text>
+                <Text style={styles.allocTitle}>Ton allocation recommandée</Text>
                 {([
                   { label: 'Épargner',        key: 'save'   as const, color: COLORS.green },
                   { label: 'Investir',         key: 'invest' as const, color: COLORS.violet },
@@ -593,7 +593,7 @@ export default function QuestionnaireScreen() {
               <View style={styles.freezeNote}>
                 <Ionicons name="lock-closed-outline" size={14} color={COLORS.textSecondary} />
                 <Text style={styles.freezeText}>
-                  Ce profil reste actif 6 mois, puis évolue automatiquement selon vos données réelles.
+                  Ce profil reste actif 6 mois, puis évolue automatiquement selon tes données réelles.
                 </Text>
               </View>
 
@@ -624,9 +624,9 @@ export default function QuestionnaireScreen() {
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingCard}>
             <ActivityIndicator size="large" color={COLORS.emerald} />
-            <Text style={styles.loadingTitle}>Création de votre espace…</Text>
+            <Text style={styles.loadingTitle}>Création de ton espace…</Text>
             <Text style={styles.loadingText}>
-              On configure vos comptes, vos catégories et vos premières recommandations. Encore quelques secondes.
+              On configure tes comptes, tes catégories et tes premières recommandations. Encore quelques secondes.
             </Text>
           </View>
         </View>

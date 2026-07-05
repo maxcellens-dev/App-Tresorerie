@@ -183,7 +183,7 @@ export default function RecommendationCard({
   );
 
   return (
-    <View style={[styles.container, (isLead && count === 1 && Math.round(relykaAmount) <= 0) && { minHeight: 0 }, { borderColor: (confidenceLevel === 'low' ? COLORS.orange : ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald)) + '55' }]} {...panResponder.panHandlers}>
+    <View style={[styles.container, (isLead && Math.round(relykaAmount) <= 0) && { minHeight: 0 }, { borderColor: (confidenceLevel === 'low' ? COLORS.orange : ((isLead ? relykaColor : currentReco?.color) ?? COLORS.emerald)) + '55' }]} {...panResponder.panHandlers}>
       {/* Bandeau ambre « solde non vérifié » — visible sur TOUTES les slides (confiance basse). */}
       {confidenceLevel === 'low' && onVerify && (
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
@@ -205,21 +205,28 @@ export default function RecommendationCard({
         </View>
       )}
 
-      {isLead && count === 1 && Math.round(relykaAmount) <= 0 ? (
-        /* ── À 0 € sans reco : version COMPACTE (pas de jauge, ligne réduite) ──
-           Cliquable (chevron) → ouvre le détail « Ton Relyka », comme le bloc du Suivi du mois. */
-        <TouchableOpacity style={styles.leadCompact} activeOpacity={onOpenRelyka ? 0.7 : 1} disabled={!onOpenRelyka} onPress={onOpenRelyka}>
+      {isLead && Math.round(relykaAmount) <= 0 ? (
+        /* ── Relyka à 0 € : version SIMPLE (pas de jauge ni de fourchette 0–200 trompeuse) ──
+           On affiche « 0 € » net. Le bandeau de vérification reste au-dessus (confiance basse).
+           S'il existe des recommandations (épargne/invest), on garde la navigation vers leurs slides. */
+        <View style={styles.leadCompact}>
           <View style={styles.leadCompactRow}>
-            <Text style={styles.leadTitle}>Ton Relyka</Text>
-            <View style={styles.leadCompactRight}>
+            <TouchableOpacity
+              activeOpacity={onOpenRelyka ? 0.7 : 1}
+              disabled={!onOpenRelyka}
+              onPress={onOpenRelyka}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}
+            >
+              <Text style={styles.leadTitle}>Ton Relyka</Text>
               <Text style={[styles.leadCompactAmount, { color: COLORS.text }]}>
                 {Math.round(relykaAmount).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
               </Text>
-              {onOpenRelyka && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
-            </View>
+              {onOpenRelyka && count === 1 && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
+            </TouchableOpacity>
+            {count > 1 ? navControls : <View />}
           </View>
           {!!relykaMessage && <Text style={styles.leadCompactMsg}>{relykaMessage}</Text>}
-        </TouchableOpacity>
+        </View>
       ) : isLead ? (
         /* ── Slide 0 : jauge « Ton Relyka » composée des couleurs des recos ── */
         <View style={styles.leadSlide}>

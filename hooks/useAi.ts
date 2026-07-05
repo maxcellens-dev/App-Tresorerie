@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase';
 import { sendPushToProfile } from '../lib/pushSend';
 
 export interface AiModel { id: string; label: string; enabled: boolean }
+/** Offre de recharge (click-to-pay) : N requêtes pour un prix. product_id = identifiant Store/RevenueCat. */
+export interface AiCreditPack { id: string; credits: number; price_cents: number; product_id: string }
 export interface AiConfig {
   id: string;
   models: AiModel[];
@@ -15,6 +17,8 @@ export interface AiConfig {
   open_to_all: boolean;
   pay_to_use_enabled: boolean;
   pay_to_use_price_cents: number;
+  /** Offres de recharge de requêtes IA (click-to-pay). */
+  extra_credit_packs?: AiCreditPack[];
   consent_text: string;
   predefined_questions: string[];
   /** Couper la notification PUSH admin des tickets (badges/historique restent actifs). */
@@ -22,7 +26,8 @@ export interface AiConfig {
 }
 export interface AiPrompt { key: string; title: string; prompt_template: string; sort_order: number; is_active: boolean }
 export interface AiMessage { id: string; profile_id: string; role: 'user' | 'assistant' | 'admin'; content: string; model: string | null; kind: string | null; analysis_key: string | null; counted: boolean; created_at: string }
-export interface AiQuota { used: number; limit: number; remaining: number; is_premium: boolean }
+/** Quota mensuel + solde de crédits payants (rechargés). */
+export interface AiQuota { used: number; limit: number; remaining: number; is_premium: boolean; extra_credits: number }
 export interface AiTicket { id: string; profile_id: string; user_message_id: string | null; request: any; error: string | null; status: 'open' | 'resolved'; created_at: string; resolved_at: string | null }
 
 export function useAiConfig() {
@@ -84,6 +89,41 @@ export function useAiQuota(userId: string | undefined) {
       if (error) throw error;
       return data as AiQuota;
     },
+  });
+}
+
+/**
+ * Achat d'un pack de requêtes IA (click-to-pay).
+ *
+ * BRANCHEMENT REVENUECAT (dernière étape, côté produit) : dans mutationFn, appeler
+ * `Purchases.purchaseStoreProduct(...)` avec `pack.product_id`, puis laisser le WEBHOOK RevenueCat
+ * (service role) créditer le ledger `ai_extra_credits`. Tant que ce n'est pas branché, on renvoie une
+ * erreur explicite `purchase_not_configured` → l'UI affiche « bientôt disponible ».
+ */
+export function usePurchaseExtraCredits(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (_pack: AiCreditPack): Promise<{ ok: true; balance: number }> => {
+      // TODO(RevenueCat) : déclencher l'achat in-app ici puis attendre le crédit du ledger via webhook.
+      throw new Error('purchase_not_configured');
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ai_quota', userId] }); },
+  });
+}
+
+/** ADMIN — offre N crédits payants à un utilisateur (test / support / geste commercial). */
+export function useGrantExtraCredits() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { userId: string; qty: number; reason?: string }): Promise<number> => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data, error } = await supabase.rpc('ai_grant_extra_credits', {
+        p_user: input.userId, p_qty: input.qty, p_reason: input.reason ?? 'admin_grant',
+      });
+      if (error) throw new Error(error.message);
+      return Number(data ?? 0);
+    },
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['ai_quota', v.userId] }),
   });
 }
 

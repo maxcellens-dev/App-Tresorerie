@@ -103,7 +103,12 @@ export default function CreditAddScreen() {
   // Création : sections dépliées (on guide la saisie). Édition/consultation : repliées (gagner de la place).
   const [showFees, setShowFees] = useState(!editId);
   const [showYearly, setShowYearly] = useState(false); // toggle de MODE (par année) → géré séparément
-  const [showPayment, setShowPayment] = useState(!editId);
+  // Éditeur de mensualité TOUJOURS ouvert (même en édition) : c'est le point d'entrée pour changer la
+  // mensualité sans passer par le tableau ligne à ligne.
+  const [showPayment, setShowPayment] = useState(true);
+  // L'utilisateur a-t-il TOUCHÉ à la mensualité/paliers ? Si oui en édition, enregistrer RÉAPPLIQUE la
+  // mensualité à tout le tableau (efface les échéances modifiées à la main qui, sinon, la masqueraient).
+  const [paymentTouched, setPaymentTouched] = useState(false);
   const [showInsurance, setShowInsurance] = useState(!editId);
   const [insYear, setInsYear] = useState<Record<number, string>>({});
   const [payYear, setPayYear] = useState<Record<number, string>>({});
@@ -113,6 +118,12 @@ export default function CreditAddScreen() {
   // Assurance par paliers (montant mensuel FIXE par période).
   const [insMode, setInsMode] = useState<'flat' | 'paliers'>('flat');
   const [insSegments, setInsSegments] = useState<{ startYear: number; amount: string }[]>([{ startYear: 0, amount: '' }]);
+  // #3 — Différé de remboursement (décalage au départ) → intérêts intercalaires calculés automatiquement.
+  //   • partiel : on paie les intérêts (intercalaires) chaque mois pendant le différé, capital plus tard ;
+  //   • total   : on ne paie rien, les intérêts se capitalisent (s'ajoutent au capital).
+  const [deferralMonths, setDeferralMonths] = useState('');
+  const [deferralType, setDeferralType] = useState<'partial' | 'total'>('partial');
+  const [showDeferral, setShowDeferral] = useState(false);
   const [showCal, setShowCal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -135,6 +146,12 @@ export default function CreditAddScreen() {
       interim_interest: String(editing.interim_interest ?? ''), management_fees: String(editing.management_fees ?? ''), other_fees: String(editing.other_fees ?? ''),
     });
     if (editing.interest_total_manual != null) setInterestManual(String(editing.interest_total_manual));
+    // Différé : restituer mois + type ; ouvrir la section si un différé existe.
+    if ((editing.deferral_months ?? 0) > 0) {
+      setDeferralMonths(String(editing.deferral_months));
+      setDeferralType((editing.deferral_type === 'total' ? 'total' : 'partial'));
+      setShowDeferral(true);
+    }
     // Reconstruire les PALIERS depuis les montants annuels enregistrés (regroupe les années consécutives
     // de même montant en un palier) → la saisie par palier est restituée à la réouverture.
     const toSegs = (arr: any[] | null | undefined, key: 'payment' | 'amount') => {
@@ -210,16 +227,30 @@ export default function CreditAddScreen() {
   const amort = useMemo(() => {
     const C = num(principal), n = parseInt(duration, 10), r = num(rate);
     if (!C || !n || Number.isNaN(C) || Number.isNaN(n)) return null;
+    const defN = Math.max(0, parseInt(deferralMonths, 10) || 0);
     return computeAmortization({
       principal: C, rate_annual: Number.isNaN(r) ? 0 : r, duration_months: n,
       start_date: startDate, insurance_monthly: numOr0(insurance),
       insurance_yearly: effInsuranceYearly(),
       payment_yearly: effPaymentYearly(),
+      deferral_months: defN,
+      deferral_type: defN > 0 ? deferralType : 'none',
     });
-  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments]);
+  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments, deferralMonths, deferralType]);
 
   const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const stdPayment = amort ? amort.monthlyPayment : 0;
+  // Nb d'échéances modifiées à la main (schedule_overrides) sur le crédit édité — celles qui masquent
+  // la mensualité globale. Changer la mensualité et enregistrer les efface pour tout réappliquer.
+  const overrideCount = editing?.schedule_overrides ? Object.keys(editing.schedule_overrides).length : 0;
+  // Bascule vers une mensualité IMPOSÉE (mode paliers, un seul palier pré-rempli avec la mensualité
+  // actuelle) → l'utilisateur tape ensuite le montant voulu, appliqué à toute la durée.
+  const forceCustomPayment = () => {
+    setPaymentMode('paliers');
+    // On pré-remplit avec la mensualité calculée AU CENTIME (pas arrondie à l'euro).
+    setSegments([{ startYear: 0, payment: (Math.round(stdPayment * 100) / 100).toFixed(2) }]);
+    setPaymentTouched(true);
+  };
 
   const save = async () => {
     setError(null);
@@ -234,6 +265,9 @@ export default function CreditAddScreen() {
       principal: C, duration_months: n, rate_annual: numOr0(rate), rate_type: 'fixe',
       insurance_monthly: numOr0(insurance), start_date: startDate, first_payment_date: startDate,
       is_simulation: isSimulation,
+      // #3 — Différé de remboursement (0 = aucun). Les intérêts intercalaires en découlent (calcul auto).
+      deferral_months: Math.max(0, parseInt(deferralMonths, 10) || 0),
+      deferral_type: (parseInt(deferralMonths, 10) || 0) > 0 ? deferralType : 'none',
       fees_file: numOr0(fees.fees_file), fees_bank: numOr0(fees.fees_bank), fees_notary: numOr0(fees.fees_notary),
       fees_guarantee: numOr0(fees.fees_guarantee), personal_contribution: numOr0(fees.personal_contribution),
       interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
@@ -247,6 +281,9 @@ export default function CreditAddScreen() {
       // pas si une migration tarde (107 = interest_total_manual, 109 = first_insurance_date).
       ...(insDate ? { first_insurance_date: insDate } : {}),
       ...(!Number.isNaN(num(interestManual)) ? { interest_total_manual: num(interestManual) } : {}),
+      // Propagation : si la mensualité/les paliers ont été changés en édition, on efface les échéances
+      // modifiées à la main du tableau (elles masqueraient la nouvelle mensualité). « Écraser & réappliquer ».
+      ...(editId && paymentTouched ? { schedule_overrides: null } : {}),
     };
     try {
       if (editId) { await updateCredit.mutateAsync({ id: editId, ...payload }); router.back(); }
@@ -419,11 +456,24 @@ export default function CreditAddScreen() {
               {showPayment && (<>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                 {([['standard', 'Calculée'], ['paliers', 'Par paliers']] as const).map(([m, lbl]) => (
-                  <TouchableOpacity key={m} style={[styles.modeChip, paymentMode === m && styles.modeChipActive]} onPress={() => setPaymentMode(m)}>
+                  <TouchableOpacity key={m} style={[styles.modeChip, paymentMode === m && styles.modeChipActive]} onPress={() => { setPaymentMode(m); setPaymentTouched(true); }}>
                     <Text style={[styles.modeText, paymentMode === m && { color: COLORS.blue }]}>{lbl}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
+              {/* Mode CALCULÉ : on affiche la mensualité calculée + un raccourci pour en imposer une autre. */}
+              {paymentMode === 'standard' && (
+                <View style={{ marginBottom: 10 }}>
+                  <View style={styles.calcRow}>
+                    <Text style={styles.calcLabel}>Mensualité calculée (hors assurance)</Text>
+                    <Text style={styles.calcValue}>{fmt(stdPayment)}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.forceLink} onPress={forceCustomPayment} activeOpacity={0.7}>
+                    <Ionicons name="create-outline" size={15} color={COLORS.blue} />
+                    <Text style={styles.forceLinkText}>Imposer une autre mensualité</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {paymentMode === 'paliers' && (
                 <View style={{ marginBottom: 10 }}>
                   <Text style={styles.hint}>Mensualité FIXE par période. Laisse une mensualité vide → calcul auto pour solder le prêt sur la durée restante.</Text>
@@ -433,24 +483,83 @@ export default function CreditAddScreen() {
                       <TextInput
                         style={styles.segYear} keyboardType="number-pad"
                         value={i === 0 ? '1' : String(s.startYear + 1)} editable={i !== 0}
-                        onChangeText={(v) => { const y = Math.max(1, parseInt(v, 10) || 1) - 1; setSegments((p) => p.map((seg, j) => j === i ? { ...seg, startYear: y } : seg)); }}
+                        onChangeText={(v) => { const y = Math.max(1, parseInt(v, 10) || 1) - 1; setSegments((p) => p.map((seg, j) => j === i ? { ...seg, startYear: y } : seg)); setPaymentTouched(true); }}
                       />
                       <TextInput
                         style={styles.segPay} keyboardType="decimal-pad"
-                        value={s.payment} onChangeText={(v) => setSegments((p) => p.map((seg, j) => j === i ? { ...seg, payment: v } : seg))}
+                        value={s.payment} onChangeText={(v) => { setSegments((p) => p.map((seg, j) => j === i ? { ...seg, payment: v } : seg)); setPaymentTouched(true); }}
                         placeholder={paliers ? String(paliers.resolved[i] ?? '') + ' (auto)' : 'auto'} placeholderTextColor={COLORS.textSecondary}
                       />
                       {i > 0 && (
-                        <TouchableOpacity onPress={() => setSegments((p) => p.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
+                        <TouchableOpacity onPress={() => { setSegments((p) => p.filter((_, j) => j !== i)); setPaymentTouched(true); }}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
                       )}
                     </View>
                   ))}
-                  <TouchableOpacity style={styles.segAdd} onPress={() => setSegments((p) => [...p, { startYear: Math.min(years - 1, (p[p.length - 1]?.startYear ?? 0) + 1), payment: '' }])}>
+                  <TouchableOpacity style={styles.segAdd} onPress={() => { setSegments((p) => [...p, { startYear: Math.min(years - 1, (p[p.length - 1]?.startYear ?? 0) + 1), payment: '' }]); setPaymentTouched(true); }}>
                     <Ionicons name="add" size={16} color={COLORS.blue} />
                     <Text style={styles.segAddText}>Ajouter un palier</Text>
                   </TouchableOpacity>
                 </View>
               )}
+              {/* Avertissement : le tableau a des échéances modifiées à la main qui MASQUENT la mensualité.
+                  En changeant la mensualité, l'enregistrement les efface pour tout réappliquer. */}
+              {overrideCount > 0 && (
+                <View style={[styles.overrideWarn, paymentTouched && { borderColor: COLORS.blue + '88', backgroundColor: COLORS.blue + '12' }]}>
+                  <Ionicons name={paymentTouched ? 'sync-outline' : 'information-circle-outline'} size={16} color={paymentTouched ? COLORS.blue : COLORS.textSecondary} />
+                  <Text style={styles.overrideWarnText}>
+                    {paymentTouched
+                      ? `${overrideCount} échéance${overrideCount > 1 ? 's' : ''} modifiée${overrideCount > 1 ? 's' : ''} à la main ser${overrideCount > 1 ? 'ont' : 'a'} effacée${overrideCount > 1 ? 's' : ''} : la nouvelle mensualité s'appliquera à tout le tableau.`
+                      : `${overrideCount} échéance${overrideCount > 1 ? 's' : ''} du tableau ${overrideCount > 1 ? 'ont' : 'a'} été modifiée${overrideCount > 1 ? 's' : ''} à la main. Change la mensualité ci-dessus pour la réappliquer à tout le tableau.`}
+                  </Text>
+                </View>
+              )}
+              </>)}
+
+              {/* #3 — Différé de remboursement → intérêts intercalaires calculés automatiquement. */}
+              <TouchableOpacity style={styles.section} onPress={() => setShowDeferral((v) => !v)} activeOpacity={0.7}>
+                <Ionicons name="hourglass-outline" size={18} color={COLORS.text} />
+                <Text style={styles.sectionTitle}>Différé de remboursement</Text>
+                <Ionicons name={showDeferral ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              {showDeferral && (<>
+                <Text style={styles.hint}>
+                  Si le 1ᵉʳ remboursement du capital est décalé (ex. construction, franchise), la banque facture des
+                  intérêts « intercalaires » sur la période. Indique la durée du différé : ils sont calculés et
+                  ajoutés automatiquement en tête du tableau (remboursés en premier).
+                </Text>
+                <View style={styles.row2}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Durée du différé (mois)</Text>
+                    <TextInput
+                      style={styles.input} value={deferralMonths} onChangeText={setDeferralMonths}
+                      keyboardType="number-pad" placeholder="0" placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                  <View style={{ flex: 1.4 }}>
+                    <Text style={styles.label}>Type</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {([['partial', 'Partiel'], ['total', 'Total']] as const).map(([m, lbl]) => (
+                        <TouchableOpacity key={m} style={[styles.modeChip, deferralType === m && styles.modeChipActive]} onPress={() => setDeferralType(m)}>
+                          <Text style={[styles.modeText, deferralType === m && { color: COLORS.blue }]}>{lbl}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+                <Text style={styles.hint}>
+                  {deferralType === 'partial'
+                    ? 'Partiel : tu paies les intérêts chaque mois pendant le différé (le capital ne baisse pas encore).'
+                    : 'Total : tu ne paies rien pendant le différé ; les intérêts se capitalisent (s’ajoutent au capital).'}
+                </Text>
+                {(parseInt(deferralMonths, 10) || 0) > 0 && amort && (
+                  <View style={[styles.overrideWarn, { borderColor: COLORS.blue + '88', backgroundColor: COLORS.blue + '12' }]}>
+                    <Ionicons name="calculator-outline" size={16} color={COLORS.blue} />
+                    <Text style={styles.overrideWarnText}>
+                      Intérêts intercalaires estimés : <Text style={{ fontWeight: '800' }}>{fmt(amort.deferralInterest)}</Text> sur {parseInt(deferralMonths, 10)} mois.
+                      Le tableau d'amortissement est recalculé automatiquement. Tu peux ajuster chaque échéance à la main dans le tableau si besoin.
+                    </Text>
+                  </View>
+                )}
               </>)}
 
               {/* Assurance : fixe OU par paliers (montant mensuel fixe par période). */}
@@ -645,6 +754,13 @@ function makeStyles(c: any) {
     segPay: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13.5, color: c.text, textAlign: 'right' },
     segAdd: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
     segAddText: { color: c.blue, fontWeight: '700', fontSize: 13 },
+    calcRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
+    calcLabel: { fontSize: 12.5, color: c.textSecondary, flex: 1 },
+    calcValue: { fontSize: 15, fontWeight: '800', color: c.text },
+    forceLink: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, alignSelf: 'flex-start' },
+    forceLinkText: { color: c.blue, fontWeight: '700', fontSize: 13 },
+    overrideWarn: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 4, marginBottom: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
+    overrideWarnText: { flex: 1, fontSize: 12, color: c.text, lineHeight: 16 },
     feeInput: { width: 110, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: c.text, textAlign: 'right' },
     hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 8, lineHeight: 16 },
     yRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },

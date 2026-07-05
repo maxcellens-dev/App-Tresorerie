@@ -22,6 +22,9 @@ const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 // Multi-clés : on peut configurer 2 (ou plus) clés API Gemini. On alterne pour répartir la charge et
 // on bascule si l'une est épuisée/HS. Secrets : GEMINI_API_KEY (+ GEMINI_API_KEY_2 optionnelle).
 const GEMINI_KEYS = [Deno.env.get('GEMINI_API_KEY'), Deno.env.get('GEMINI_API_KEY_2')].filter(Boolean) as string[];
+// Clé PAYANTE dédiée (facturation Google activée) pour les requêtes RECHARGÉES : quotas énormes, pas de
+// cap gratuit commun. Repli sur les clés gratuites si non configurée (le crédit reste décompté).
+const GEMINI_PAID_KEYS = [Deno.env.get('GEMINI_API_KEY_PAID')].filter(Boolean) as string[];
 
 // Notifie les ADMINS UNIQUEMENT (push Expo) qu'un conseil IA a échoué, et trace l'alerte dans
 // l'historique admin (admin_notifications) pour qu'elle soit visible/gérable côté admin.
@@ -69,13 +72,14 @@ async function callGemini(model: string, prompt: string, key: string): Promise<s
 
 // Essaie les modèles (ordre = bascule) × les clés API (alternées au hasard pour répartir la charge ;
 // si une clé est épuisée/HS on passe à la suivante, puis au modèle suivant).
-async function generateWithFallback(models: any[], prompt: string): Promise<{ reply: string; model: string; lastErr: string }> {
-  const n = Math.max(1, GEMINI_KEYS.length);
+async function generateWithFallback(models: any[], prompt: string, keys: string[] = GEMINI_KEYS): Promise<{ reply: string; model: string; lastErr: string }> {
+  const useKeys = keys.length ? keys : GEMINI_KEYS; // repli sur les clés gratuites si le jeu est vide
+  const n = Math.max(1, useKeys.length);
   const start = Math.floor(Math.random() * n);
   let lastErr = 'no model';
   for (const m of models) {
-    for (let k = 0; k < GEMINI_KEYS.length; k++) {
-      const key = GEMINI_KEYS[(start + k) % GEMINI_KEYS.length];
+    for (let k = 0; k < useKeys.length; k++) {
+      const key = useKeys[(start + k) % useKeys.length];
       try { return { reply: await callGemini(m.id, prompt, key), model: m.id, lastErr: '' }; }
       catch (e) { lastErr = String(e); }
     }
@@ -161,7 +165,14 @@ serve(async (req) => {
   // Décompte lu depuis le REGISTRE (non effaçable) → effacer l'historique ne rend pas de quota.
   const { count: used } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
     .eq('profile_id', user.id).gte('created_at', monthStart);
-  if ((used ?? 0) >= limit) return json({ error: 'quota_exceeded', used, limit }, 429);
+  // Quota mensuel épuisé → on tente les CRÉDITS PAYANTS (rechargés). Si aucun, on renvoie le paywall.
+  let usePaidCredit = false;
+  if ((used ?? 0) >= limit) {
+    const { data: extraBal } = await admin.rpc('ai_extra_credits_balance', { p_user: user.id });
+    const balance = Number(extraBal ?? 0);
+    if (balance > 0) usePaidCredit = true;
+    else return json({ error: 'quota_exceeded', used, limit, extra_credits: 0 }, 429);
+  }
 
   // 3) Prompt : template admin + instantané (déjà anonymisé côté client).
   const key = kind === 'analysis' ? analysisKey! : 'chat_system';
@@ -177,15 +188,17 @@ serve(async (req) => {
     .insert({ profile_id: user.id, role: 'user', content: userContent, kind, analysis_key: analysisKey, counted: false })
     .select('id').single();
 
-  // 5) Cap global du jour (garde-fou quota gratuit Gemini). Dépassé → on file en mode « ticket ».
+  // 5) Cap global du jour (garde-fou quota gratuit Gemini). Les requêtes PAYÉES (clé payante dédiée) ne
+  //    tapent PAS dans le pool gratuit → elles ignorent ce cap.
   const { count: globalToday } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
     .gte('created_at', dayStart);
-  const overGlobal = (globalToday ?? 0) >= cfg.daily_global_cap;
+  const overGlobal = !usePaidCredit && (globalToday ?? 0) >= cfg.daily_global_cap;
 
-  // 6) Appel modèle avec bascule modèles × clés (modèle choisi en tête s'il est fourni & actif).
+  // 6) Appel modèle avec bascule modèles × clés. Requête payée → clé PAYANTE dédiée (pas de cap commun).
   let models = (cfg.models as any[]).filter((m) => m.enabled);
   if (wantedModel) models = [...models.filter((m) => m.id === wantedModel), ...models.filter((m) => m.id !== wantedModel)];
-  const gen = overGlobal ? { reply: '', model: '', lastErr: 'daily_global_cap' } : await generateWithFallback(models, finalPrompt);
+  const keysToUse = usePaidCredit ? GEMINI_PAID_KEYS : GEMINI_KEYS;
+  const gen = overGlobal ? { reply: '', model: '', lastErr: 'daily_global_cap' } : await generateWithFallback(models, finalPrompt, keysToUse);
   const reply = gen.reply, modelUsed = gen.model;
 
   // 7a) Échec → ticket admin (relance gratuite plus tard), le user sera notifié. Pas de décompte.
@@ -198,9 +211,15 @@ serve(async (req) => {
     return json({ ok: false, queued: true });
   }
 
-  // 7b) Succès → réponse + décompte de la requête user (registre d'usage NON effaçable + flag legacy).
+  // 7b) Succès → réponse + décompte. Requête PAYÉE → on consomme 1 crédit du ledger (delta -1) et on ne
+  //     touche PAS le quota mensuel. Requête incluse → registre d'usage mensuel (non effaçable).
   await admin.from('ai_messages').insert({ profile_id: user.id, role: 'assistant', content: reply, model: modelUsed });
   await admin.from('ai_messages').update({ counted: true }).eq('id', userMsg!.id);
+  if (usePaidCredit) {
+    await admin.from('ai_extra_credits').insert({ profile_id: user.id, delta: -1, reason: 'consumption', ref: userMsg?.id ?? null });
+    const { data: bal } = await admin.rpc('ai_extra_credits_balance', { p_user: user.id });
+    return json({ ok: true, reply, model: modelUsed, used, limit, paid: true, extra_credits: Number(bal ?? 0) });
+  }
   await admin.from('ai_usage').insert({ profile_id: user.id, kind });
   return json({ ok: true, reply, model: modelUsed, used: (used ?? 0) + 1, limit });
 });

@@ -1,12 +1,15 @@
 /**
  * FontApplier — applique la police globale définie dans le Style Editor.
- * Sur web : injecte une règle CSS qui force la font-family sur toute l'app.
- * Sur natif : sans effet (les polices custom nécessiteraient expo-font).
+ * Sur web : injecte une règle CSS qui force la font-family sur toute l'app (texte + nom).
+ * Sur natif : charge les polices IMPORTÉES (expo-font, depuis leur URL) → le NOM de l'app (déjà rendu
+ *   en fontFamily via useAppNameFont) se résout. La police du TEXTE global reste web-only (une police
+ *   globale fiable sur natif nécessiterait un rechargement complet de l'app).
  */
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useStyleConfig } from '../hooks/useStyleConfig';
 import { injectGoogleFonts } from '../lib/webFonts';
+import { ensureNativeFonts } from '../lib/nativeFonts';
 
 function fontFormat(url: string): string {
   return /\.woff2(\?.*)?$/i.test(url) ? 'woff2'
@@ -21,6 +24,13 @@ export default function FontApplier() {
   const appNameFont = styleConfig?.app_name_font?.trim() ?? '';
   const customFonts = styleConfig?.custom_fonts ?? [];
   const customFontsKey = JSON.stringify(customFonts);
+
+  // ── NATIF — Charger les polices IMPORTÉES (téléversées) depuis leur URL via expo-font. ──
+  // Une fois chargée, la famille se résout là où on l'utilise en fontFamily (nom de l'app).
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    ensureNativeFonts(customFonts as any);
+  }, [customFontsKey]);
 
   // Polices Google prédéfinies (Inter, DM Sans, Plus Jakarta Sans…) : chargées à la demande sur web
   // quand elles sont sélectionnées (police globale ou police du nom de l'app).

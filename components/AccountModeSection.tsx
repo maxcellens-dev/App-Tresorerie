@@ -10,7 +10,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useMySharedMode, useSetSharedMode } from '../hooks/useSharedMode';
 import { useAllTransactions } from '../hooks/useTransactions';
-import { effectiveSharedMode, type SharedMode } from '../lib/perimeter';
+import { type SharedMode } from '../lib/perimeter';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import type { Account } from '../types/database';
 
@@ -45,7 +45,6 @@ export default function AccountModeSection({ account }: { account: Account }) {
   if (!isShared || isReadOnly) return null;
 
   const current = mode ?? null; // null = non répondu (interprété « Suivi partagé »)
-  const effective = effectiveSharedMode(mode);
 
   const choose = (m: SharedMode) => {
     if (m === current) { setPendingMode(null); return; }
@@ -83,8 +82,9 @@ export default function AccountModeSection({ account }: { account: Account }) {
       </Text>
 
       {OPTIONS.map((opt) => {
-        const selected = current === null ? opt.mode === effective && false : current === opt.mode;
-        const active = current === opt.mode;
+        // Sélection VISUELLE : reflète le choix en attente (aperçu) dès le clic, sinon le mode
+        // enregistré. Sans ça, tapoter un bouton ne le surlignait qu'après validation.
+        const active = pendingMode ? pendingMode === opt.mode : current === opt.mode;
         return (
           <TouchableOpacity
             key={opt.mode}

@@ -65,8 +65,10 @@ export function resolvePaliers(
       const remaining = n - startMonth;
       pay = t > 0 ? (crd * t) / (1 - Math.pow(1 + t, -remaining)) : crd / Math.max(1, remaining);
     }
-    resolved.push(Math.round(pay));
-    for (let y = Math.floor(startMonth / 12); y < Math.ceil(endMonth / 12) && y < years; y++) out[y] = Math.round(pay);
+    // On GARDE les centimes (arrondi au centime, pas à l'euro) → le tableau affiche 987,43 et non 987,00.
+    const pay2 = Math.round(pay * 100) / 100;
+    resolved.push(pay2);
+    for (let y = Math.floor(startMonth / 12); y < Math.ceil(endMonth / 12) && y < years; y++) out[y] = pay2;
     for (let m = 0; m < segMonths; m++) { const interest = crd * t; crd = Math.max(0, crd - (pay - interest)); }
   }
   return { paymentYearly: out, resolved };
@@ -87,6 +89,10 @@ export interface AmortResult {
   monthlyWithInsurance: number;
   totalInterest: number;
   totalInsurance: number;
+  /** Intérêts INTERCALAIRES = intérêts courus pendant le différé (avant amortissement du capital).
+   *  Différé partiel : payés mois par mois d'abord. Différé total : capitalisés (ajoutés au capital).
+   *  Déjà INCLUS dans totalInterest — exposé à part pour l'affichage (« comme les banques »). */
+  deferralInterest: number;
   totalCost: number;          // intérêts + assurance (coût du crédit)
   schedule: AmortRow[];       // échéancier de REMBOURSEMENT (n lignes, par période)
   /** Échéancier RÉEL fusionné (remboursement + assurance à leurs dates respectives, possiblement décalées
@@ -128,6 +134,7 @@ export function computeAmortization(p: CreditParams): AmortResult {
   let crd = C;
   let totalInterest = 0;
   let totalInsurance = 0;
+  let deferralInterest = 0; // intérêts intercalaires (courus pendant le différé)
 
   const insYearly = p.insurance_yearly ?? null;
   const payYearly = p.payment_yearly ?? null;
@@ -193,6 +200,7 @@ export function computeAmortization(p: CreditParams): AmortResult {
     // Restant dû : override manuel sinon calcul.
     crd = onum(so?.rd) != null ? Math.max(0, onum(so?.rd)!) : Math.max(0, crd - principalPart);
     totalInterest += Math.max(0, interest);
+    if (inDeferral) deferralInterest += Math.max(0, interest); // intérêts intercalaires du différé
     totalInsurance += insI;
     schedule.push({ period: i, date, payment, insurance: insI, interest: Math.max(0, interest), principalPart, crdAfter: crd });
   }
@@ -235,6 +243,7 @@ export function computeAmortization(p: CreditParams): AmortResult {
     monthlyWithInsurance: monthlyPayment + insForPeriod(Math.min(defN + 1, n)),
     totalInterest,
     totalInsurance,
+    deferralInterest,
     totalCost: totalInterest + totalInsurance,
     schedule,
     displaySchedule,

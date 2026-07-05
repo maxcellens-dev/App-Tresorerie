@@ -35,6 +35,66 @@ const FONTS = [
   { id: 'Impact, fantasy',             label: 'Impact' },
 ];
 
+type FontOption = { family: string; label: string; custom?: boolean };
+
+/**
+ * Sélecteur de police RÉUTILISABLE (liste déroulante unique) — sert à la fois pour la police du
+ * TEXTE de l'app et pour la police du NOM de l'app. Aperçu « Aa » rendu dans chaque police, coche
+ * sur la sélection, corbeille sur les polices importées.
+ */
+function FontSelect({
+  value, onChange, options, onRemoveCustom, COLORS, styles,
+}: {
+  value: string;
+  onChange: (family: string) => void;
+  options: FontOption[];
+  onRemoveCustom?: (family: string) => void;
+  COLORS: any;
+  styles: any;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.family === value);
+  const ff = (family: string) => (family === 'System' ? undefined : family);
+  return (
+    <View>
+      <TouchableOpacity style={styles.dropdownHeader} onPress={() => setOpen((o) => !o)} activeOpacity={0.8}>
+        <Text style={{ fontSize: 18, color: COLORS.text, width: 30, fontFamily: ff(value) }}>Aa</Text>
+        <Text style={{ flex: 1, color: COLORS.text, fontSize: 14, fontFamily: ff(value) }} numberOfLines={1}>
+          {current?.label ?? value ?? 'Système'}
+        </Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+      </TouchableOpacity>
+      {open && (
+        <View style={styles.dropdownList}>
+          {options.map((opt) => {
+            const selected = opt.family === value;
+            return (
+              <View key={opt.family} style={styles.dropdownRow}>
+                <TouchableOpacity
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11 }}
+                  onPress={() => { onChange(opt.family); setOpen(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 17, color: selected ? COLORS.emerald : COLORS.text, width: 28, fontFamily: ff(opt.family) }}>Aa</Text>
+                  <Text style={{ flex: 1, color: selected ? COLORS.emerald : COLORS.text, fontSize: 14, fontFamily: ff(opt.family) }} numberOfLines={1}>
+                    {opt.label}
+                  </Text>
+                  {selected && <Ionicons name="checkmark" size={16} color={COLORS.emerald} />}
+                </TouchableOpacity>
+                {opt.custom && onRemoveCustom && (
+                  <TouchableOpacity onPress={() => onRemoveCustom(opt.family)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 6 }}>
+                    <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function isValidHex(v: string) { return /^#[0-9A-Fa-f]{6}$/.test(v); }
 function clampPct(v: number) { return Math.min(100, Math.max(0, v)); }
 function toHex(a: number) { return Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0').toUpperCase(); }
@@ -100,7 +160,6 @@ export default function StyleEditor() {
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
   const [fontUploading, setFontUploading] = useState(false);
   const [fontUploadMsg, setFontUploadMsg] = useState<string | null>(null);
-  const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [accentInputs, setAccentInputs] = useState<Record<string, string>>({});
   const [semanticInputs, setSemanticInputs] = useState<Record<string, string>>({});
   const [lightSemanticInputs, setLightSemanticInputs] = useState<Record<string, string>>({});
@@ -163,6 +222,19 @@ export default function StyleEditor() {
     if (Platform.OS !== 'web') return;
     injectGoogleFonts('admin-google-fonts-preview', Object.keys(GOOGLE_FONTS));
   }, []);
+
+  // Injecte les polices IMPORTÉES (téléversées) pour que leurs aperçus « Aa » s'affichent DANS l'admin
+  // avant même l'enregistrement (FontApplier ne les charge qu'une fois la config sauvegardée).
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const ID = 'admin-custom-fonts-preview';
+    let el = document.getElementById(ID) as HTMLStyleElement | null;
+    const valid = customFonts.filter((f) => f?.family && f?.url);
+    if (valid.length === 0) { el?.remove(); return; }
+    if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
+    const fmt = (url: string) => /\.woff2(\?.*)?$/i.test(url) ? 'woff2' : /\.woff(\?.*)?$/i.test(url) ? 'woff' : /\.otf(\?.*)?$/i.test(url) ? 'opentype' : 'truetype';
+    el.textContent = valid.map((f) => `@font-face { font-family: '${f.family}'; src: url('${f.url}') format('${fmt(f.url)}'); font-display: swap; }`).join('\n');
+  }, [customFonts]);
 
   // Accents valides pour l'aperçu live
   const liveAccents: Record<string, string> = {};
@@ -259,13 +331,14 @@ export default function StyleEditor() {
     if (appNameFont === family) setAppNameFont('Arial Rounded MT Bold');
   }
 
-  // Options de la liste déroulante « police du titre » : système + intégrées + importées.
-  const titleFontOptions: { family: string; label: string; custom?: boolean }[] = [
+  // UNE SEULE liste de polices, partagée par les DEUX sélecteurs (texte de l'app + nom de l'app) :
+  // système + polices intégrées + polices importées (téléversées). Dédoublonnée par famille.
+  const allFontOptions: FontOption[] = useMemo(() => [
     { family: 'System', label: 'Système (défaut)' },
     { family: 'Arial Rounded MT Bold', label: 'Arial Rounded MT Bold' },
     ...FONTS.filter((f) => f.id !== 'System').map((f) => ({ family: f.id, label: f.label })),
     ...customFonts.map((cf) => ({ family: cf.family, label: `${cf.family} · importée`, custom: true })),
-  ].filter((opt, i, arr) => arr.findIndex((o) => o.family === opt.family) === i);
+  ].filter((opt, i, arr) => arr.findIndex((o) => o.family === opt.family) === i), [customFonts]);
 
   async function handleSave() {
     setSaving(true); setSaved(false);
@@ -725,24 +798,48 @@ export default function StyleEditor() {
           {/* ══════════ ONGLET POLICE ══════════ */}
           {tab === 'font' && (
             <>
-            <Section label="Police de caractères" icon="text-outline" COLORS={COLORS}>
-              <Text style={styles.hint}>Appliquée partout sur le web. Sur mobile, seules les polices système s'appliquent.</Text>
-              <View style={styles.fontGrid}>
-                {FONTS.map(f => (
-                  <TouchableOpacity key={f.id}
-                    style={[styles.fontBtn, fontFamily === f.id && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '18' }]}
-                    onPress={() => setFontFamily(f.id)} activeOpacity={0.8}>
-                    <Text style={[styles.fontSample, { fontFamily: f.id === 'System' ? undefined : f.id }]}>Aa</Text>
-                    <Text style={[styles.fontLabel, fontFamily === f.id && { color: COLORS.emerald }]}>{f.label}</Text>
-                    {fontFamily === f.id && <View style={[styles.fontCheck, { backgroundColor: COLORS.emerald }]}><Ionicons name="checkmark" size={9} color="#fff" /></View>}
-                  </TouchableOpacity>
-                ))}
+            <Section label="Polices" icon="text-outline" COLORS={COLORS}>
+              <Text style={styles.hint}>
+                Une seule liste pour tout : choisis la police du texte et celle du nom de l'app parmi les
+                polices intégrées ou celles que tu importes ci-dessous. (Appliquées sur le web ; sur mobile,
+                seules les polices système s'appliquent.)
+              </Text>
+
+              {/* Sélecteur 1 — police du TEXTE de l'app */}
+              <Text style={styles.fieldLabel}>Police du texte de l'app</Text>
+              <FontSelect
+                value={fontFamily}
+                onChange={setFontFamily}
+                options={allFontOptions}
+                onRemoveCustom={removeCustomFont}
+                COLORS={COLORS}
+                styles={styles}
+              />
+              <View style={styles.fontPreviewBox}>
+                <Text style={{ fontSize: 15, color: COLORS.text, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>
+                  Solde courant : 1 234 € · Épargne, projets et projection.
+                </Text>
+              </View>
+
+              {/* Sélecteur 2 — police du NOM de l'app (même liste) */}
+              <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Police du nom de l'app</Text>
+              <FontSelect
+                value={appNameFont}
+                onChange={setAppNameFont}
+                options={allFontOptions}
+                onRemoveCustom={removeCustomFont}
+                COLORS={COLORS}
+                styles={styles}
+              />
+              <View style={styles.fontPreviewBox}>
+                <Text style={{ fontSize: 30, color: COLORS.text, fontFamily: appNameFont === 'System' ? undefined : (appNameFont.trim() || undefined) }}>Relyka</Text>
               </View>
             </Section>
 
-            <Section label="Police personnalisée (nom de l'app)" icon="cloud-upload-outline" COLORS={COLORS}>
+            <Section label="Importer une police" icon="cloud-upload-outline" COLORS={COLORS}>
               <Text style={styles.hint}>
-                Téléversez un fichier de police (.ttf / .otf / .woff / .woff2) — il est stocké sur Supabase. Renseignez ensuite le nom EXACT de la famille, puis « Appliquer ». Le nom de l'app utilisera cette police partout. (Web ; sur mobile : police système.)
+                Téléverse un fichier (.ttf / .otf / .woff / .woff2) : il rejoint automatiquement la liste
+                ci-dessus et devient utilisable pour le texte ET le nom de l'app. (Web ; sur mobile : police système.)
               </Text>
 
               <TouchableOpacity
@@ -756,44 +853,6 @@ export default function StyleEditor() {
               </TouchableOpacity>
               {fontUploadMsg && <Text style={[styles.hint, { marginTop: 8, color: fontUploadMsg.includes('Échec') || fontUploadMsg.includes('non') ? '#f43f5e' : COLORS.emerald }]}>{fontUploadMsg}</Text>}
 
-              {/* Liste déroulante : police du titre (système + intégrées + importées) */}
-              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Police du nom de l'app</Text>
-              <TouchableOpacity style={styles.dropdownHeader} onPress={() => setFontDropdownOpen((o) => !o)} activeOpacity={0.8}>
-                <Text style={{ flex: 1, color: COLORS.text, fontSize: 14, fontFamily: appNameFont === 'System' ? undefined : appNameFont }} numberOfLines={1}>
-                  {appNameFont || 'Système'}
-                </Text>
-                <Ionicons name={fontDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-              {fontDropdownOpen && (
-                <View style={styles.dropdownList}>
-                  {titleFontOptions.map((opt) => {
-                    const selected = opt.family === appNameFont;
-                    return (
-                      <View key={opt.family} style={styles.dropdownRow}>
-                        <TouchableOpacity
-                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 11 }}
-                          onPress={() => { setAppNameFont(opt.family); setFontDropdownOpen(false); }}
-                          activeOpacity={0.7}
-                        >
-                          {selected ? <Ionicons name="checkmark" size={16} color={COLORS.emerald} /> : <View style={{ width: 16 }} />}
-                          <Text style={{ flex: 1, color: selected ? COLORS.emerald : COLORS.text, fontSize: 14, fontFamily: opt.family === 'System' ? undefined : opt.family }} numberOfLines={1}>
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                        {opt.custom && (
-                          <TouchableOpacity onPress={() => removeCustomFont(opt.family)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 6 }}>
-                            <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-
-              <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Aperçu</Text>
-              <Text style={{ fontSize: 30, color: COLORS.text, fontFamily: appNameFont === 'System' ? undefined : (appNameFont.trim() || undefined) }}>Relyka</Text>
-
               <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Avancé — importer via lien CSS (Google Fonts)</Text>
               <TextInput
                 style={styles.textInput}
@@ -804,7 +863,7 @@ export default function StyleEditor() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={styles.hint}>Optionnel : pour une police hébergée ailleurs. Ajoutez ensuite son nom de famille manuellement n'est pas nécessaire si vous téléversez le fichier.</Text>
+              <Text style={styles.hint}>Optionnel : pour une police hébergée ailleurs.</Text>
             </Section>
             </>
           )}
@@ -928,6 +987,7 @@ function makeStyles(c: any) {
   alphaRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   alphaSample: { flex: 1, height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
 
+  fontPreviewBox: { marginTop: 10, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
   fontGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   fontBtn: { width: '30%', borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: c.cardBorder, backgroundColor: c.card, alignItems: 'center', gap: 4, position: 'relative' },
   fontSample: { fontSize: 22, fontWeight: '700', color: c.text },

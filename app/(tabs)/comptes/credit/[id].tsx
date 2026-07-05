@@ -101,7 +101,12 @@ export default function CreditDetailScreen() {
 
   // Décomposition des coûts (utilisée par la synthèse EN HAUT et la section « Coûts » → mêmes montants).
   const cInterest = credit.interest_total_manual != null ? credit.interest_total_manual : amort.totalInterest;
-  const cLoanFees = (credit.fees_guarantee ?? 0) + (credit.fees_notary ?? 0) + (credit.interim_interest ?? 0) + (credit.management_fees ?? 0);
+  // #3 — Intérêts intercalaires (différé). Avec un différé, ils sont DÉJÀ compris dans cInterest → on ne
+  // les recompte PAS comme un frais (sinon double-comptage). Sans différé, on garde l'ancienne saisie
+  // manuelle `interim_interest` comme frais du prêt (compatibilité).
+  const hasDeferral = (credit.deferral_months ?? 0) > 0;
+  const deferInt = amort.deferralInterest;
+  const cLoanFees = (credit.fees_guarantee ?? 0) + (credit.fees_notary ?? 0) + (credit.management_fees ?? 0) + (hasDeferral ? 0 : (credit.interim_interest ?? 0));
   const cExtraFees = (credit.fees_file ?? 0) + (credit.fees_bank ?? 0) + (credit.other_fees ?? 0);
   const cCoutPret = cInterest + cLoanFees;
   const cCoutTotal = cCoutPret + amort.totalInsurance + cExtraFees;
@@ -151,6 +156,7 @@ export default function CreditDetailScreen() {
             {acctName ? <Row k="Prélèvement" v={acctName} /> : null}
             <Row k="Catégorie" v={(credit as any).category?.name ?? 'Crédits'} />
             <Row k="1ʳᵉ échéance" v={formatDateFrench((credit.first_payment_date as string) || credit.start_date)} />
+            {hasDeferral ? <Row k="Différé" v={`${credit.deferral_months} mois · ${credit.deferral_type === 'total' ? 'total (intérêts capitalisés)' : 'partiel (intérêts payés)'}`} /> : null}
             {credit.insurance_monthly ? <Row k="Assurance" v={`${fmt(credit.insurance_monthly)}/mois`} /> : null}
             {credit.is_simulation ? <Row k="Statut" v="Simulation" /> : null}
           </View>
@@ -159,6 +165,12 @@ export default function CreditDetailScreen() {
           <Text style={styles.sectionTitle}>Coûts</Text>
           <View style={styles.card}>
             <Row k={`Intérêts${credit.interest_total_manual != null ? ' (manuel)' : ''}`} v={fmt(cInterest)} />
+            {hasDeferral && deferInt > 0 && credit.interest_total_manual == null ? (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoK, { paddingLeft: 12 }]}>↳ dont intérêts intercalaires (différé)</Text>
+                <Text style={styles.infoV}>{fmt(deferInt)}</Text>
+              </View>
+            ) : null}
             {cLoanFees > 0 ? <Row k="Frais du prêt" v={fmt(cLoanFees)} /> : null}
             <Row k="Coût du prêt" v={fmt(cCoutPret)} />
             {amort.totalInsurance > 0 ? <Row k="Assurance (totale)" v={fmt(amort.totalInsurance)} /> : null}

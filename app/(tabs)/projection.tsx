@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  useWindowDimensions, Platform, findNodeHandle,
+  useWindowDimensions, Platform, findNodeHandle, Animated, Easing,
 } from 'react-native';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
@@ -862,6 +862,12 @@ export default function ProjectionScreen() {
   );
 }
 
+// Version animable du tracé + des points (révélation de la courbe mois par mois).
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// Ne jouer l'animation qu'UNE fois par session d'app (comme les colonnes Relyka).
+let projectionCurveAnimated = false;
+
 /** Chemin LISSÉ (spline Catmull-Rom → béziers cubiques) passant par les points. */
 function smoothLine(pts: { x: number; y: number }[]): string {
   if (pts.length < 2) return pts.length ? `M ${pts[0].x} ${pts[0].y}` : '';
@@ -898,6 +904,20 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
   confidenceFactor?: number;
 }) {
   const [sel, setSel] = React.useState<number | null>(null);
+  // Révélation progressive de la courbe (0 → 1), une fois par session.
+  const draw = React.useRef(new Animated.Value(projectionCurveAnimated ? 1 : 0)).current;
+  React.useEffect(() => {
+    if (projectionCurveAnimated) return;
+    projectionCurveAnimated = true;
+    const anim = Animated.timing(draw, {
+      toValue: 1,
+      duration: 1150,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: false, // props SVG animées → pas de driver natif
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [draw]);
   if (rows.length < 2 || width <= 0) return null;
   const h = 220;
   const padL = 34, padR = 12, padT = 8, padB = 22;
@@ -925,6 +945,13 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
   const upperPts = upperV.map((v, i) => ({ x: x(i), y: y(v) }));
   const lowerPts = lowerV.map((v, i) => ({ x: x(i), y: y(v) }));
   const centralD = smoothLine(centralPts);
+  // Longueur approx. de la ligne (polyligne ×1.03 pour la marge des courbes) → tracé animé.
+  let polyLen = 0;
+  for (let i = 1; i < centralPts.length; i++) {
+    polyLen += Math.hypot(centralPts[i].x - centralPts[i - 1].x, centralPts[i].y - centralPts[i - 1].y);
+  }
+  const pathLen = Math.max(1, polyLen * 1.03);
+  const dashOffset = draw.interpolate({ inputRange: [0, 1], outputRange: [pathLen, 0] });
   // Bande = borne haute lissée (aller) + borne basse lissée (retour).
   const bandD = hasBand
     ? `${smoothLine(upperPts)} L ${lowerPts[lowerPts.length - 1].x} ${lowerPts[lowerPts.length - 1].y} `
@@ -966,14 +993,30 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
           {hasMargin && (
             <Line x1={padL} y1={y(marginAmount)} x2={width - padR} y2={y(marginAmount)} stroke={COLORS.orange} strokeWidth={1.5} strokeDasharray="5 4" opacity={0.95} />
           )}
-          {/* Ligne médiane lissée */}
-          <Path d={centralD} stroke={COLORS.blue} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+          {/* Ligne médiane lissée — tracée progressivement (dashoffset animé) */}
+          <AnimatedPath
+            d={centralD}
+            stroke={COLORS.blue}
+            strokeWidth={2.5}
+            fill="none"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeDasharray={pathLen}
+            strokeDashoffset={dashOffset}
+          />
           {rows.map((r, i) => {
             const cx = x(i), cy = y(r.balance);
             const selected = sel === i;
+            // Chaque point apparaît quand le tracé « passe » dessus.
+            const t = i / (rows.length - 1);
+            const dotOpacity = draw.interpolate({
+              inputRange: [Math.max(0, t - 0.06), t],
+              outputRange: [0, 1],
+              extrapolate: 'clamp',
+            });
             return (
               <React.Fragment key={i}>
-                <Circle cx={cx} cy={cy} r={selected ? 6 : r.isCurrent ? 4.5 : 3} fill={selected || r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} />
+                <AnimatedCircle cx={cx} cy={cy} r={selected ? 6 : r.isCurrent ? 4.5 : 3} fill={selected || r.isCurrent ? COLORS.blue : COLORS.bg} stroke={COLORS.blue} strokeWidth={2} opacity={dotOpacity} />
                 <SvgText x={cx} y={h - 6} fill={r.isCurrent ? COLORS.blue : COLORS.textSecondary} fontSize="10" fontWeight={r.isCurrent ? '800' : '600'} textAnchor="middle">
                   {shortMonth(r.label)}
                 </SvgText>

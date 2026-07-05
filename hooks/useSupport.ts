@@ -5,7 +5,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { sendPushToProfile } from '../lib/pushSend';
+import { sendPushToProfile, notifyAdminsEvent } from '../lib/pushSend';
 
 export interface SupportRequest {
   id: string;
@@ -63,6 +63,10 @@ export function useCreateSupportRequest(profileId: string | undefined, profileEm
         .from('support_messages')
         .insert({ request_id: (req as any).id, sender_role: 'user', author_id: profileId, body: body.trim() });
       if (msgErr) throw msgErr;
+      // Notifie les admins (événementiel, respecte leurs préférences push).
+      const excerpt = body.trim().slice(0, 160);
+      notifyAdminsEvent('support', `Assistance — ${(subject.trim() || 'nouvelle demande')}`, excerpt)
+        .catch(() => {});
       return req as SupportRequest;
     },
     onSuccess: () => {

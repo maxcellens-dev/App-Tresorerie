@@ -4,9 +4,9 @@ import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
-import { tabBarRect, headerProfileRect } from '../../../lib/tourTargets';
+import { getGuideAnchor } from '../../../lib/guideAnchors';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,7 +62,6 @@ export default function AccountsListScreen() {
   const openCreate = (joint: boolean) => { setShowCreateType(false); router.push(`/(tabs)/comptes/add${joint ? '?joint=1' : ''}` as any); };
 
   // ── Guide "bulles" ──
-  const insets = useSafeAreaInsets();
   const guide = useScreenGuide('comptes', user?.id);
   const scrollRef = useRef<ScrollView>(null);
   const addBtnRef = useRef<any>(null);
@@ -78,14 +77,14 @@ export default function AccountsListScreen() {
       description: 'Ajoute tes comptes (courant, épargne, investissement) avec leur solde réel du jour.\n\nUn « Virement » déplace de l\'argent d\'un compte à l\'autre.',
     },
     {
-      getRect: () => tabBarRect(),
+      getRef: () => getGuideAnchor('tabbar'),
       icon: 'apps',
       iconColor: COLORS.green,
       title: 'Ta navigation',
       description: 'La barre du bas réunit tout l\'essentiel : Comptes, Transactions, Pilotage, Projets et Projection.',
     },
     {
-      getRect: () => headerProfileRect(insets.top),
+      getRef: () => getGuideAnchor('headerProfile'),
       icon: 'person-circle',
       iconColor: COLORS.green,
       title: 'Ton menu',

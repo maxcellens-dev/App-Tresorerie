@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
+import { useTour } from '../contexts/TourContext';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type BadgeDef } from '../lib/gamification';
 
 export default function AchievementCelebration() {
@@ -22,10 +23,13 @@ export default function AchievementCelebration() {
   const { user, isImpersonating } = useAuth();
   const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
   const { data: profile } = useProfile(user?.id);
-  // Aucune célébration tant que l'onboarding n'est pas terminé : questionnaire répondu
-  // ET tuto de présentation vu/fermé. Sinon un pop-up s'affiche par-dessus l'accueil/questionnaire.
+  const tour = useTour();
+  // On célèbre dès que le QUESTIONNAIRE est terminé et que le tour de présentation n'est PAS en
+  // cours d'affichage. (Auparavant on exigeait app_tour_done=true, mais ce drapeau reste false pour
+  // qui n'a jamais lancé/terminé le tour → plus AUCUNE célébration n'apparaissait. On se base donc
+  // sur tour.active, qui redevient false dès que le tour est passé/terminé.)
   const onboardingDone =
-    Boolean((profile as any)?.initial_onboarding_completed) && Boolean((profile as any)?.app_tour_done);
+    Boolean((profile as any)?.initial_onboarding_completed) && !tour.active;
 
   // Succès déjà pris en charge cette session (évite de re-traiter avant le refetch du serveur).
   const handledRef = useRef<Set<string>>(new Set());

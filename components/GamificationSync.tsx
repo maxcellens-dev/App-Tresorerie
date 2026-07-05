@@ -54,14 +54,19 @@ export default function GamificationSync() {
   useEffect(() => {
     if (isImpersonating) return; // pas d'effet de bord gamification en mode consultation admin
     if (!user?.id || !config?.identity.enabled) return;
-    if (ranFor.current === user.id) return;
     if (txLoading) return; // attendre la fin du chargement des transactions (vide = OK)
-    ranFor.current = user.id;
 
     const monday = mondayOf(new Date());
     const activeThisWeek = transactions.some(
       (t: any) => typeof t.created_at === 'string' && t.created_at >= `${monday}T00:00:00`,
     );
+    // Signature des métriques déclencheuses : on RÉÉVALUE dès qu'une d'elles change (ex. photo de
+    // profil ajoutée après le 1er passage). Un simple verrou par user.id ne débloquait le succès
+    // qu'au prochain lancement de l'app.
+    const avatarPresent = (profile as any)?.avatar_url ? 1 : 0;
+    const sig = [user.id, avatarPresent, onboardingDone ? 1 : 0, (closures ?? []).length, transactions.length, activeThisWeek ? 1 : 0].join('|');
+    if (ranFor.current === sig) return;
+    ranFor.current = sig;
     // Contexte des métriques « classiques » (ancienneté, photo, guide). La série de
     // connexion quotidienne est renseignée par recordLogin et relue dans evaluate().
     const createdAt = (profile as any)?.created_at ?? (user as any)?.created_at ?? null;

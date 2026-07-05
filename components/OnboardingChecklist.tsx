@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStep } from '../hooks/useOnboarding';
 import { useTour } from '../contexts/TourContext';
-import { subscribeOpenChecklist } from '../lib/onboardingChecklist';
+import { subscribeChecklistOpen, openOnboardingChecklist, closeOnboardingChecklist } from '../lib/onboardingChecklist';
 
 export default function OnboardingChecklist() {
   const COLORS = useAppColors();
@@ -24,8 +24,9 @@ export default function OnboardingChecklist() {
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
 
-  // Ouverture déclenchée depuis l'extérieur (ex. « Suivant » du coachmark d'étape validée).
-  useEffect(() => subscribeOpenChecklist(() => setOpen(true)), []);
+  // État d'ouverture PARTAGÉ entre toutes les instances (une par onglet). Fermer ici ferme partout,
+  // sinon l'instance de l'onglet de destination resterait ouverte après navigation (« guide reste ouvert »).
+  useEffect(() => subscribeChecklistOpen((v) => setOpen(v)), []);
 
   // Après le tour, on n'ouvre plus la checklist automatiquement : le bouton « Commencer »
   // du message de fin envoie directement sur la 1re étape (coachmark). On marque juste l'intro.
@@ -50,20 +51,20 @@ export default function OnboardingChecklist() {
 
   const goToStep = (step: OnboardingStep) => {
     if (step.done) return;
-    setOpen(false);
+    closeOnboardingChecklist(); // ferme TOUTES les instances avant de naviguer
     router.push((step.route + '?onb=' + step.key) as any);
   };
 
   return (
     <>
-      <TouchableOpacity style={styles.badge} onPress={() => setOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Guide de démarrage">
+      <TouchableOpacity style={styles.badge} onPress={openOnboardingChecklist} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Guide de démarrage">
         <Ionicons name="rocket-outline" size={18} color={COLORS.emerald} />
         <View style={styles.badgeCount}>
           <Text style={styles.badgeCountText}>{ob.doneCount}/{ob.total}</Text>
         </View>
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeOnboardingChecklist}>
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <View style={styles.header}>
@@ -71,7 +72,7 @@ export default function OnboardingChecklist() {
                 <Text style={styles.title}>Pour bien démarrer</Text>
                 <Text style={styles.subtitle}>Quelques actions rapides pour profiter pleinement de votre suivi · {ob.doneCount}/{ob.total}</Text>
               </View>
-              <TouchableOpacity onPress={() => setOpen(false)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={closeOnboardingChecklist} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
@@ -103,7 +104,7 @@ export default function OnboardingChecklist() {
               ))}
             </ScrollView>
 
-            <TouchableOpacity style={styles.dismissBtn} onPress={() => { ob.dismiss(); setOpen(false); }} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.dismissBtn} onPress={() => { ob.dismiss(); closeOnboardingChecklist(); }} activeOpacity={0.7}>
               <Text style={styles.dismissText}>Passer le guide</Text>
             </TouchableOpacity>
           </View>

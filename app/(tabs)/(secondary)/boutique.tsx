@@ -15,7 +15,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useGamification } from '../../../hooks/useGamification';
 import { usePlan } from '../../../hooks/usePlan';
 import { useNavBack } from '../../../hooks/useNavBack';
-import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, type ShopItem, type ShopCategory } from '../../../lib/gamification';
+import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, monthlySelectionKeys, shopFinalPrice, shopDiscountPct, type ShopItem, type ShopCategory } from '../../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
@@ -51,7 +51,12 @@ export default function BoutiqueScreen() {
   const gems = state?.gems ?? 0;
   const freezes = state?.freezes ?? 0;
   const discountPct = config?.premium_discount_pct ?? 0;
-  const priceOf = (base: number) => (isPremium ? Math.round(base * (1 - discountPct / 100)) : base);
+  // Remise de la « Sélection du mois » — appliquée à TOUS (cumulée avec le Premium).
+  const monthlyPct = config?.monthly_selection_discount_pct ?? 30;
+  const monthlyKeys = useMemo(() => new Set(monthlySelectionKeys(config?.shop ?? [])), [config?.shop]);
+  // Prix final key-aware : remise Premium + promo du mois (si l'article est dans la sélection).
+  const priceOf = (base: number, key?: string) =>
+    shopFinalPrice(base, { isPremium, premiumPct: discountPct, isMonthlyPick: !!key && monthlyKeys.has(key), monthlyPct });
   const currencyName = config?.identity.currencyName ?? 'Relyk';
   // Libellé / description calculés pour les articles « monnaie » (toujours au nom courant + pluriel).
   const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
@@ -134,17 +139,21 @@ export default function BoutiqueScreen() {
         </View>
       );
     }
-    const price = priceOf(item.price);
+    const price = priceOf(item.price, item.key);
+    const isPick = monthlyKeys.has(item.key);
     const canBuy = gems >= price && !busy;
     return (
-      <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canBuy ? COLORS.emerald : COLORS.cardBorder }]} onPress={() => canBuy && setConfirmItem({ key: item.key, label: item.label, price })} disabled={!canBuy} activeOpacity={0.85}>
-        {busy ? <ActivityIndicator size="small" color="#fff" /> : (
-          <>
-            <Ionicons name="diamond" size={12} color={canBuy ? '#fff' : COLORS.textSecondary} />
-            <Text style={[styles.buyText, { color: canBuy ? '#fff' : COLORS.textSecondary }]}>{price}</Text>
-          </>
-        )}
-      </TouchableOpacity>
+      <View style={{ alignItems: 'flex-end', gap: 2 }}>
+        {isPick && price < item.price && <Text style={styles.gridStrike}>{item.price}</Text>}
+        <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canBuy ? COLORS.emerald : COLORS.cardBorder }]} onPress={() => canBuy && setConfirmItem({ key: item.key, label: item.label, price })} disabled={!canBuy} activeOpacity={0.85}>
+          {busy ? <ActivityIndicator size="small" color="#fff" /> : (
+            <>
+              <Ionicons name="diamond" size={12} color={canBuy ? '#fff' : COLORS.textSecondary} />
+              <Text style={[styles.buyText, { color: canBuy ? '#fff' : COLORS.textSecondary }]}>{price}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -259,13 +268,29 @@ export default function BoutiqueScreen() {
                       <Ionicons name="star" size={14} color={'#F5B301'} />
                       <Text style={styles.monthlyPickTitle}>Sélection de {monthLabel}</Text>
                     </View>
-                    {picks.map((item) => (
-                      <View key={item.key} style={styles.monthlyPickRow}>
-                        <Text style={styles.monthlyPickLabel} numberOfLines={1}>{itemLabel(item)}</Text>
-                        <Text style={styles.monthlyPickPrice}>{priceOf(item.price)} {currencyName}{priceOf(item.price) > 1 ? 's' : ''}</Text>
-                      </View>
-                    ))}
-                    <Text style={styles.monthlyPickHint}>Change tous les mois — fais-toi plaisir 👇</Text>
+                    {picks.map((item) => {
+                      const final = priceOf(item.price, item.key);
+                      const pct = shopDiscountPct({ isPremium, premiumPct: discountPct, isMonthlyPick: true, monthlyPct });
+                      return (
+                        <View key={item.key} style={styles.monthlyPickRow}>
+                          <Text style={styles.monthlyPickLabel} numberOfLines={1}>{itemLabel(item)}</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            {pct > 0 && (
+                              <>
+                                <View style={styles.discountPill}>
+                                  <Text style={styles.discountPillText}>−{pct}%</Text>
+                                </View>
+                                <Text style={styles.strikePrice}>{item.price}</Text>
+                              </>
+                            )}
+                            <Text style={styles.monthlyPickPrice}>{final} {currencyName}{final > 1 ? 's' : ''}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                    <Text style={styles.monthlyPickHint}>
+                      {`−${monthlyPct}% ce mois-ci${isPremium && discountPct > 0 ? ` · cumulé avec ton −${discountPct}% Premium` : ''} · Profites-en 👇`}
+                    </Text>
                   </View>
                 );
               })()}
@@ -437,6 +462,10 @@ function makeStyles(c: any) {
     monthlyPickLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: c.text },
     monthlyPickPrice: { fontSize: 13, fontWeight: '800', color: '#F5B301' },
     monthlyPickHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
+    discountPill: { backgroundColor: '#F5B301', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+    discountPillText: { fontSize: 10.5, fontWeight: '900', color: '#1a1200' },
+    strikePrice: { fontSize: 12, color: c.textSecondary, textDecorationLine: 'line-through' },
+    gridStrike: { fontSize: 10.5, color: c.textSecondary, textDecorationLine: 'line-through' },
     catHeader: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6 },
     gemsNote: { fontSize: 11.5, color: c.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 15 },
     soonPill: { backgroundColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },

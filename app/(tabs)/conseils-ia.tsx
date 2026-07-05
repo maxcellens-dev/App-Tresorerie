@@ -4,7 +4,7 @@
  * l'historique. L'appel au modèle passe par l'Edge Function `ai-advice` (clé API jamais côté client).
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, useDeleteAiHistory, type AiMessage } from '../../hooks/useAi';
+import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, useDeleteAiHistory, usePurchaseExtraCredits, type AiMessage, type AiCreditPack } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
   const c = useAppColors();
@@ -39,10 +39,32 @@ export default function ConseilsIaScreen() {
   useAiMessagesRealtime(uid);
   const ask = useAskAi(uid);
   const delHistory = useDeleteAiHistory(uid);
+  const purchase = usePurchaseExtraCredits(uid);
 
   const allowed = isPremium || isAdmin || !!cfg?.open_to_all;
   const readOnly = isImpersonating || (!isPremium && !isAdmin && !cfg?.open_to_all); // consultation : pas d'envoi
   const remaining = quota?.remaining ?? 0;
+  // Crédits payants (rechargés) : utilisables quand le quota mensuel est épuisé.
+  const extraCredits = quota?.extra_credits ?? 0;
+  const canSend = remaining > 0 || extraCredits > 0;
+  const packs: AiCreditPack[] = cfg?.extra_credit_packs ?? [];
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const eur = (cents: number) => (cents / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+  const buyPack = async (pack: AiCreditPack) => {
+    try {
+      await purchase.mutateAsync(pack);
+      setShowPaywall(false);
+      Alert.alert('Merci !', `${pack.credits} requêtes ajoutées à ton compte.`);
+    } catch (e: any) {
+      if (String(e?.message) === 'purchase_not_configured') {
+        Alert.alert('Bientôt disponible', 'Le paiement in-app arrive très prochainement. Reviens dans quelques jours pour recharger tes requêtes 🙌');
+      } else {
+        Alert.alert('Achat impossible', e?.message ?? 'Réessaie plus tard.');
+      }
+    }
+  };
 
   // ── Instantané financier anonymisé (même logique partagée avec l'onglet Snapshot admin) ──
   const { ready: snapshotReady, build: buildSnap } = useUserSnapshot(uid);
@@ -62,7 +84,7 @@ export default function ConseilsIaScreen() {
       if (res.queued) {
         Alert.alert('Réessai en cours', "Le service n'a pas pu répondre tout de suite. Ta demande a été transmise — tu seras notifié dès qu'une réponse est disponible. Cette requête n'a pas été décomptée.");
       } else if (!res.ok) {
-        if (res.error === 'quota_exceeded') Alert.alert('Quota atteint', `Tu as utilisé tes ${res.limit} requête(s) ce mois-ci.`);
+        if (res.error === 'quota_exceeded') setShowPaywall(true);
         else if (res.error === 'premium_required') Alert.alert('Réservé Premium', 'Cette fonctionnalité est réservée aux abonnés Premium.');
         else Alert.alert('Indisponible', `Le service de conseils est momentanément indisponible.${res.error ? `\n\n(détail : ${res.error})` : ''}`);
       }
@@ -74,17 +96,24 @@ export default function ConseilsIaScreen() {
     }
   };
 
-  // Validation préalable : prévient que la demande consomme 1 requête du compteur.
+  // Validation préalable : prévient que la demande consomme 1 requête (quota mensuel OU crédit rechargé).
   const run = (payload: RunPayload) => {
     if (readOnly || pending) return;
     if (!snapshotReady) { Alert.alert('Patiente', 'Tes données sont en cours de chargement.'); return; }
+    // Plus rien de disponible → on propose le click-to-pay (recharge).
+    if (!canSend) { setShowPaywall(true); return; }
+    // Quota mensuel épuisé mais crédits rechargés dispo → on consomme un crédit payant.
     if (remaining <= 0) {
-      Alert.alert('Quota atteint', `Tu as utilisé tes ${quota?.limit ?? 0} requête(s) ce mois-ci.${!isPremium ? '\nPasse Premium pour 10 requêtes/mois.' : ''}`);
+      Alert.alert(
+        'Utiliser un crédit rechargé ?',
+        `Ton quota mensuel est épuisé. Cette demande utilisera 1 de tes ${extraCredits} crédit(s) rechargé(s).`,
+        [{ text: 'Annuler', style: 'cancel' }, { text: 'Continuer', onPress: () => execute(payload) }],
+      );
       return;
     }
     Alert.alert(
       'Utiliser une requête ?',
-      `Cette demande consomme 1 requête de ton quota mensuel.\nIl t'en restera ${remaining - 1} sur ${quota?.limit ?? 0} ce mois-ci.`,
+      `Cette demande consomme 1 requête de ton quota mensuel.\nIl t'en restera ${remaining - 1} sur ${quota?.limit ?? 0} ce mois-ci.${extraCredits > 0 ? `\n(+ ${extraCredits} crédit(s) rechargé(s) en réserve)` : ''}`,
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Continuer', onPress: () => execute(payload) },
@@ -163,11 +192,24 @@ export default function ConseilsIaScreen() {
                 <Text style={s.title}>Conseils IA</Text>
                 <Text style={s.sub}>Analyses et conseils basés sur tes finances</Text>
               </View>
-              <View style={s.counter}>
+              <TouchableOpacity style={s.counter} activeOpacity={0.8} onPress={() => setShowPaywall(true)} accessibilityRole="button" accessibilityLabel="Recharger mes requêtes IA">
                 <Text style={s.counterNum}>{remaining}</Text>
                 <Text style={s.counterLbl}>/ {quota?.limit ?? 0} ce mois</Text>
-              </View>
+                {extraCredits > 0 && <Text style={s.counterExtra}>+{extraCredits} rechargé{extraCredits > 1 ? 's' : ''}</Text>}
+              </TouchableOpacity>
             </View>
+
+            {/* Quota mensuel épuisé → bandeau click-to-pay (sauf s'il reste des crédits rechargés). */}
+            {remaining <= 0 && extraCredits <= 0 && !readOnly && (
+              <TouchableOpacity style={s.rechargeBanner} activeOpacity={0.85} onPress={() => setShowPaywall(true)}>
+                <Ionicons name="flash" size={18} color={c.emerald} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rechargeTitle}>Tu as utilisé toutes tes analyses ce mois</Text>
+                  <Text style={s.rechargeSub}>Recharge des requêtes à l'unité pour continuer, sans attendre le mois prochain.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={c.emerald} />
+              </TouchableOpacity>
+            )}
 
             {/* Consentement */}
             <Text style={s.consent}>{cfg?.consent_text ?? 'Un résumé anonymisé de tes finances est envoyé à un service d\'IA tiers pour générer ces conseils.'}</Text>
@@ -245,6 +287,51 @@ export default function ConseilsIaScreen() {
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Paywall « click-to-pay » : offres de recharge de requêtes. */}
+      <Modal visible={showPaywall} transparent animationType="fade" onRequestClose={() => setShowPaywall(false)}>
+        <View style={s.payOverlay}>
+          <View style={s.paySheet}>
+            <View style={{ alignItems: 'center', marginBottom: 6 }}>
+              <View style={s.iconBadge}><Ionicons name="flash" size={22} color={c.emerald} /></View>
+            </View>
+            <Text style={s.paySheetTitle}>Recharge tes conseils IA</Text>
+            <Text style={s.paySheetSub}>
+              {extraCredits > 0
+                ? `Il te reste ${extraCredits} crédit(s) rechargé(s). Ajoute-en autant que tu veux : ils ne périment pas.`
+                : 'Ton quota mensuel est épuisé. Achète des requêtes à l\'unité et continue tout de suite — sans passer Premium ni attendre le mois prochain.'}
+            </Text>
+
+            {packs.length === 0 ? (
+              <Text style={[s.paySheetSub, { marginTop: 12 }]}>Offres bientôt disponibles.</Text>
+            ) : (
+              <View style={{ gap: 10, marginTop: 14 }}>
+                {packs.map((p) => {
+                  const perUnit = p.credits > 0 ? p.price_cents / p.credits : p.price_cents;
+                  return (
+                    <TouchableOpacity key={p.id} style={s.packRow} activeOpacity={0.85} disabled={purchase.isPending} onPress={() => buyPack(p)}>
+                      <View style={s.packLeft}>
+                        <Text style={s.packCredits}>{p.credits} requêtes</Text>
+                        <Text style={s.packUnit}>{eur(perUnit)} / requête</Text>
+                      </View>
+                      <View style={s.packPrice}>
+                        {purchase.isPending ? <ActivityIndicator color="#fff" /> : <Text style={s.packPriceTxt}>{eur(p.price_cents)}</Text>}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            <Text style={s.payLegal}>
+              Paiement sécurisé via l'App Store / Google Play. Les crédits sont ajoutés à ton compte après l'achat.
+            </Text>
+            <TouchableOpacity style={s.payClose} onPress={() => setShowPaywall(false)}>
+              <Text style={s.payCloseTxt}>Plus tard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -295,6 +382,23 @@ function makeStyles(c: any) {
     counter: { alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6 },
     counterNum: { fontSize: 18, fontWeight: '800', color: c.emerald },
     counterLbl: { fontSize: 9.5, color: c.textSecondary },
+    counterExtra: { fontSize: 9.5, fontWeight: '800', color: c.amber, marginTop: 1 },
+    rechargeBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 12, padding: 12, marginBottom: 4 },
+    rechargeTitle: { fontSize: 13.5, fontWeight: '800', color: c.text },
+    rechargeSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    payOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    paySheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32 },
+    paySheetTitle: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
+    paySheetSub: { fontSize: 13, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
+    packRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14 },
+    packLeft: { flex: 1 },
+    packCredits: { fontSize: 15.5, fontWeight: '800', color: c.text },
+    packUnit: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    packPrice: { minWidth: 74, alignItems: 'center', backgroundColor: c.emerald, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14 },
+    packPriceTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
+    payLegal: { fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 14, lineHeight: 15 },
+    payClose: { alignItems: 'center', paddingVertical: 12, marginTop: 6 },
+    payCloseTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
     consent: { fontSize: 11, fontStyle: 'italic', color: c.textSecondary, lineHeight: 15, marginTop: 12 },
     banner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderRadius: 10, padding: 10, marginTop: 10 },
     bannerTxt: { fontSize: 12, color: c.textSecondary, flex: 1 },

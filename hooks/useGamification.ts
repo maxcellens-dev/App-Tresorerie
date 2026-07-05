@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { useGamificationConfig } from './useGamificationConfig';
 import { usePlan } from './usePlan';
 import {
-  mondayOf, weeksBetween, isUnlocked, isUniqueItem,
+  mondayOf, weeksBetween, isUnlocked, isUniqueItem, monthlySelectionKeys, shopFinalPrice,
   type BadgeContext, type GamificationConfig,
 } from '../lib/gamification';
 
@@ -212,7 +212,14 @@ export function useGamification(userId: string | undefined) {
       if ((owned?.qty ?? 0) > 0) return { ok: false, reason: 'déjà acquis' };
     }
 
-    const price = isPremium ? Math.round(item.price * (1 - config.premium_discount_pct / 100)) : item.price;
+    // Prix final = remise Premium + promo « Sélection du mois » (pour tous) si l'article est en avant ce mois.
+    const isMonthlyPick = monthlySelectionKeys(config.shop).includes(itemKey);
+    const price = shopFinalPrice(item.price, {
+      isPremium,
+      premiumPct: config.premium_discount_pct,
+      isMonthlyPick,
+      monthlyPct: config.monthly_selection_discount_pct ?? 30,
+    });
     if (state.gems < price) return { ok: false, reason: 'relyks insuffisants' };
 
     const patch: Record<string, unknown> = { gems: state.gems - price, updated_at: new Date().toISOString() };

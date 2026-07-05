@@ -21,35 +21,35 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
     name: 'Premiers repères',
     emoji: '🌱',
     tier: 'Épargne critique',
-    description: 'Vous structurez vos finances. L\'objectif prioritaire est de constituer un premier matelas de sécurité.',
+    description: 'Structures tes finances. L\'objectif prioritaire est de constituer un premier matelas de sécurité.',
     color: '#ef4444',
   },
   P2: {
     name: 'Réserve à construire',
     emoji: '🌿',
     tier: 'Épargne à renforcer',
-    description: 'Les bases sont posées. Renforcez votre réserve de sécurité pour atteindre 3 mois de dépenses.',
+    description: 'Les bases sont posées. Renforces ta réserve de sécurité pour atteindre 3 mois de dépenses.',
     color: '#f59e0b',
   },
   P3: {
     name: 'Stabilité à améliorer',
     emoji: '⚖️',
     tier: 'Stabilité à améliorer',
-    description: 'Votre situation est stable. Commencez à faire travailler votre argent au-delà de l\'épargne pure.',
+    description: 'Ta situation est stable. Commences à faire travailler ton argent au-delà de l\'épargne pure.',
     color: '#3b82f6',
   },
   P4: {
     name: 'Bonne dynamique',
     emoji: '🚀',
     tier: 'Bonne dynamique',
-    description: 'Votre réserve est solide et vous investissez régulièrement. L\'investissement prend une place croissante.',
+    description: 'Ta réserve est solide et tu investisses régulièrement. L\'investissement prend une place croissante.',
     color: '#8b5cf6',
   },
   P5: {
     name: 'Patrimoine en développement',
     emoji: '🎯',
     tier: 'Confortable',
-    description: 'Maturité financière remarquable. L\'objectif est d\'optimiser et faire croître votre patrimoine.',
+    description: 'Maturité financière remarquable. L\'objectif est d\'optimiser et faire croître ton patrimoine.',
     color: '#34d399',
   },
 };
@@ -164,6 +164,23 @@ export function weeklyVariableFromQ9(q9: string): number {
 
 /** Facteur de conversion hebdomadaire → mensuel (52 semaines / 12 mois). */
 export const WEEKS_PER_MONTH = 4.33;
+
+/** Revenu mensuel REPRÉSENTATIF d'une tranche Q3 (borne basse prudente de la tranche). */
+function representativeIncome(q3: string): number {
+  const i = Q3_OPTIONS.indexOf(q3 as any);
+  // Bornes basses (prudentes) : <1500→1200, 1500-2500→1800, 2500-4000→2800, >4000→4200.
+  return [1200, 1800, 2800, 4200][i] ?? 1800;
+}
+
+/**
+ * Estimation AUTOMATIQUE des dépenses variables hebdomadaires (€/semaine) quand l'utilisateur
+ * ne la renseigne pas (ex. questionnaire passé). On prend ~35 % du revenu mensuel en variable
+ * (courses + loisirs), ce qui donne un profil PRUDENT (on ne suppose pas 0 € de dépenses).
+ */
+export function estimateWeeklyVariable(q3: string): number {
+  const monthlyVariable = representativeIncome(q3) * 0.35;
+  return Math.round(monthlyVariable / WEEKS_PER_MONTH);
+}
 
 /** Estimation mensuelle des dépenses variables à partir de la réponse hebdo Q9. */
 export function monthlyVariableFromQ9(q9: string): number {

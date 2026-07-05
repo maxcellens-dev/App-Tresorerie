@@ -19,8 +19,11 @@ import { useFeatureFlags } from '../hooks/useFeatureFlags';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
 const ACTION_SIZE = 54;       // actions plus grosses et lisibles
-const ACTION_W = 96;          // largeur du conteneur d'action (pour afficher le libellé en entier)
-const RADIUS = 104;           // distance d'expansion des actions
+const ACTION_W = 84;          // largeur du conteneur d'action (pour afficher le libellé en entier)
+// Rayon d'expansion : plus large en mode barre (place verticale) ; plus court en mode bulle (coin
+// bas-droite → il faut rester dans l'écran). Choisis pour que les libellés ne se chevauchent PAS.
+const RADIUS_TABBAR = 118;
+const RADIUS_BUBBLE = 112;
 const BAR_CONTENT = 70;       // hauteur du contenu de la barre d'onglets (hors inset bas)
 
 // Pulse d'attention : une seule fois par session d'app (pas en boucle — juste « je suis là »).
@@ -92,10 +95,13 @@ export default function QuickAddButton() {
   const anchorBottom = isBubble ? barHeight + 12 : barHeight - FAB_SIZE / 2; // bulle au-dessus du menu ; barre = centre sur le bord
   const anchorLeft = isBubble ? width - 16 - FAB_SIZE : width * (position === 'left' ? 0.4 : 0.6) - FAB_SIZE / 2;
 
-  // Arc des actions : vers le haut en mode barre ; vers le haut-gauche en mode bulle (coin bas-droite).
+  // Arc des actions : vers le haut en mode barre ; vers le haut-GAUCHE en mode bulle (coin bas-droite),
+  // en restant entre ~96° et ~188° pour ne pas sortir par le bord droit de l'écran.
+  // Écarts angulaires ≥ 46° pour que les libellés (pastilles) ne se chevauchent pas.
+  const radius = isBubble ? RADIUS_BUBBLE : RADIUS_TABBAR;
   const ANG = isBubble
-    ? { transfer: 180, expense: 138, income: 96 }
-    : { transfer: 150, expense: 90, income: 30 };
+    ? { transfer: 188, expense: 142, income: 96 }
+    : { transfer: 152, expense: 90, income: 28 };
   const ACTIONS = [
     { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
     { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
@@ -119,8 +125,8 @@ export default function QuickAddButton() {
         {mounted && ACTIONS.map((a) => {
           const rad = (a.deg * Math.PI) / 180;
           // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
-          const left = FAB_SIZE / 2 + RADIUS * Math.cos(rad) - ACTION_W / 2;
-          const top = FAB_SIZE / 2 - RADIUS * Math.sin(rad) - ACTION_SIZE / 2;
+          const left = FAB_SIZE / 2 + radius * Math.cos(rad) - ACTION_W / 2;
+          const top = FAB_SIZE / 2 - radius * Math.sin(rad) - ACTION_SIZE / 2;
           const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
           return (
             <Animated.View

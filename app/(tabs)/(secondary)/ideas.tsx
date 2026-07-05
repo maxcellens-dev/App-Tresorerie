@@ -12,6 +12,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoadmapIdeas } from '../../../hooks/useRoadmapIdeas';
+import { notifyAdminsEvent } from '../../../lib/pushSend';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useNavBack } from '../../../hooks/useNavBack';
 
@@ -40,6 +41,8 @@ function useAddSuggestion(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { error } = await supabase.from('suggestions').insert({ profile_id: profileId, content });
       if (error) throw error;
+      // Notifie les admins (événementiel, respecte leurs préférences push).
+      notifyAdminsEvent('suggestion', 'Nouvelle suggestion', content.slice(0, 160)).catch(() => {});
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['suggestions', profileId] }); },
   });

@@ -700,7 +700,7 @@ export default function PilotageScreen() {
                   : Math.round(resteDisponible) <= 0
                   ? (Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
                       ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
-                      : 'Plus de marge ce mois — évite de dépenser avant ta prochaine rentrée d\'argent.')
+                      : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.')
                   : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant les recommandations.'
               }
               recommendations={recoList}
@@ -1358,6 +1358,21 @@ export default function PilotageScreen() {
                                   ? 'Estimation basée sur le budget variable indiqué à l\'inscription.'
                                   : 'Pas encore assez d\'historique pour estimer vos dépenses variables.'}
                               </Text>
+                              {/* Info non renseignée (ex. questionnaire passé) → estimation à 0 €. On renvoie
+                                  vers « Mon profil financier » pour la compléter (profil fiable). */}
+                              {pilotageData.variable_envelope_source !== 'history' && !profile?.weekly_variable_budget && (
+                                <TouchableOpacity
+                                  style={styles.varProfileBanner}
+                                  activeOpacity={0.8}
+                                  onPress={() => { setDetailKey(null); router.push('/(tabs)/(secondary)/profil-financier?edit=1' as any); }}
+                                >
+                                  <Ionicons name="alert-circle-outline" size={16} color={COLORS.orange} />
+                                  <Text style={styles.varProfileBannerText}>
+                                    Tu n'as pas encore indiqué tes dépenses variables — sans elles, l'estimation reste à 0 €. Complète ton profil pour un suivi fiable.
+                                  </Text>
+                                  <Ionicons name="chevron-forward" size={16} color={COLORS.orange} />
+                                </TouchableOpacity>
+                              )}
                               {[
                                 { l: 'Enveloppe estimée', v: pilotageData.variable_envelope_initial, c: COLORS.text },
                                 { l: 'Déjà dépensé ce mois', v: varSpentMonth, c: COLORS.textSecondary },
@@ -1942,6 +1957,8 @@ function makeStyles(c: AppColors) {
   detailTabTextActive: { color: c.bg },
   detailEditBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '12' },
   detailEditBtnText: { fontSize: 13, fontWeight: '700', color: c.emerald },
+  varProfileBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: c.orange + '55', backgroundColor: c.orange + '14', marginVertical: 4 },
+  varProfileBannerText: { flex: 1, fontSize: 12, color: c.text, lineHeight: 16, fontWeight: '600' },
 
   suiviLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   suiviHint: { fontSize: 11, color: c.textSecondary, marginTop: 1 },

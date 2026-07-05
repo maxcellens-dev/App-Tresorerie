@@ -14,7 +14,7 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import {
   useAiConfig, useUpdateAiConfig, useAiPrompts, useUpdateAiPrompt, useAiTickets,
-  useResolveAiTicket, useAdminReplyAi, useAdminRelaunchAi, useCheckAiModels,
+  useResolveAiTicket, useAdminReplyAi, useAdminRelaunchAi, useCheckAiModels, useGrantExtraCredits,
   type AiModel, type AiModelStatus,
 } from '../../../../hooks/useAi';
 import * as Clipboard from 'expo-clipboard';
@@ -122,11 +122,21 @@ function SettingsTab({ c, s, cfg, updateCfg }: any) {
 
       <Toggle label="Notif push des tickets" desc="Envoyer une notification mobile aux admins quand un conseil échoue. Désactivé = pas de push, mais le badge et l'historique restent." value={cfg.notify_admins_push !== false} onToggle={() => updateCfg.mutate({ notify_admins_push: !(cfg.notify_admins_push !== false) })} />
 
-      <Toggle label="Paiement à l'usage (anticipé)" desc="Permettre d'acheter des requêtes supplémentaires. PRÉVU mais NON ACTIVÉ pour l'instant." value={cfg.pay_to_use_enabled} onToggle={() => updateCfg.mutate({ pay_to_use_enabled: !cfg.pay_to_use_enabled })} />
+      {/* ── Click-to-pay : recharge de requêtes à l'unité ── */}
+      <Text style={[s.lbl, { marginTop: 18 }]}>Recharge de requêtes (click-to-pay)</Text>
+      <Toggle label="Paiement à l'usage" desc="Proposer d'acheter des requêtes supplémentaires quand le quota mensuel est épuisé. Le décompte et le routage vers la clé payante sont en place ; l'achat in-app se branche via RevenueCat." value={cfg.pay_to_use_enabled} onToggle={() => updateCfg.mutate({ pay_to_use_enabled: !cfg.pay_to_use_enabled })} />
       <View style={s.card}>
-        <View style={{ flex: 1 }}><Text style={s.cardTitle}>Prix / requête (centimes)</Text><Text style={s.cardDesc}>Tarif unitaire si le paiement à l'usage est activé.</Text></View>
-        <TextInput style={s.num} value={price} onChangeText={setPrice} keyboardType="number-pad" onBlur={() => updateCfg.mutate({ pay_to_use_price_cents: Math.max(0, parseInt(price) || 0) })} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.cardTitle}>Offres proposées</Text>
+          {(cfg.extra_credit_packs ?? []).length === 0
+            ? <Text style={s.cardDesc}>Aucun pack configuré.</Text>
+            : (cfg.extra_credit_packs ?? []).map((p: any) => (
+                <Text key={p.id} style={s.cardDesc}>• {p.credits} requêtes — {((p.price_cents || 0) / 100).toFixed(2)} € ({p.product_id})</Text>
+              ))}
+          <Text style={[s.cardDesc, { marginTop: 4, fontStyle: 'italic' }]}>Les product_id doivent correspondre à RevenueCat / Google Play / App Store.</Text>
+        </View>
       </View>
+      <GrantCreditsCard c={c} s={s} />
 
       <Text style={s.lbl}>Texte de consentement</Text>
       <TextInput style={s.area} value={consent} onChangeText={setConsent} multiline />
@@ -134,6 +144,44 @@ function SettingsTab({ c, s, cfg, updateCfg }: any) {
         <Text style={s.saveTxt}>Enregistrer le consentement</Text>
       </TouchableOpacity>
     </>
+  );
+}
+
+/* ── Outil admin : offrir des crédits IA payants à un utilisateur (test / support) ── */
+function GrantCreditsCard({ c, s }: { c: any; s: any }) {
+  const grant = useGrantExtraCredits();
+  const [email, setEmail] = useState('');
+  const [qty, setQty] = useState('5');
+  const [busy, setBusy] = useState(false);
+  const doGrant = async () => {
+    const e = email.trim().toLowerCase();
+    const n = Math.max(1, parseInt(qty, 10) || 0);
+    if (!e || !supabase) return;
+    setBusy(true);
+    try {
+      const { data: prof } = await supabase.from('profiles').select('id, email').ilike('email', e).maybeSingle();
+      if (!prof?.id) { Alert.alert('Introuvable', 'Aucun utilisateur avec cet e-mail.'); return; }
+      const bal = await grant.mutateAsync({ userId: prof.id as string, qty: n, reason: 'admin_grant' });
+      Alert.alert('Crédité', `${n} requête(s) ajoutée(s). Nouveau solde : ${bal}.`);
+      setEmail('');
+    } catch (err: any) {
+      Alert.alert('Échec', err?.message ?? 'Erreur');
+    } finally { setBusy(false); }
+  };
+  return (
+    <View style={s.card}>
+      <View style={{ flex: 1 }}>
+        <Text style={s.cardTitle}>Offrir des crédits (test / support)</Text>
+        <Text style={s.cardDesc}>Ajoute des requêtes payantes à un utilisateur (par e-mail) — pour tester le flux ou un geste commercial.</Text>
+        <TextInput style={[s.area, { minHeight: 0, marginTop: 8 }]} value={email} onChangeText={setEmail} placeholder="email@user.com" autoCapitalize="none" keyboardType="email-address" placeholderTextColor={c.textSecondary} />
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' }}>
+          <TextInput style={s.num} value={qty} onChangeText={setQty} keyboardType="number-pad" />
+          <TouchableOpacity style={[s.saveBtn, { flex: 1, marginTop: 0 }]} onPress={doGrant} disabled={busy || grant.isPending}>
+            <Text style={s.saveTxt}>{busy ? '…' : 'Offrir'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
   );
 }
 

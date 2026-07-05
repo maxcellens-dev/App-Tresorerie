@@ -564,7 +564,7 @@ function makeStyles(c: any) {
     marginBottom: 4,
   },
   modalTitle: { fontSize: 19, fontWeight: '800', color: c.text, textAlign: 'center' },
-  modalText: { fontSize: 14, color: '#cbd5e1', textAlign: 'center', lineHeight: 20 },
+  modalText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },
   modalInput: {
     width: '100%', backgroundColor: c.bg, borderWidth: 1, borderColor: c.danger + '60',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,

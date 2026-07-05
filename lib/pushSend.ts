@@ -77,3 +77,20 @@ export async function sendPushToProfile(profileId: string, title: string, body: 
 export async function sendPushToAll(title: string, body: string): Promise<number> {
   return sendPushToTarget({ kind: 'all' }, title, body);
 }
+
+export type AdminNotifKind = 'support' | 'suggestion' | 'ai_ticket';
+
+/**
+ * Notifie les ADMINS qu'un utilisateur vient de générer quelque chose (assistance, suggestion…).
+ * Événementiel (à l'INSERT), pas de cron. Passe par l'Edge Function `notify-admins` (rôle service)
+ * car un utilisateur normal n'a pas le droit RLS de lire les jetons/préférences des admins.
+ * Best-effort : on n'échoue jamais l'action utilisateur si la notif ne part pas.
+ */
+export async function notifyAdminsEvent(kind: AdminNotifKind, title: string, body: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.functions.invoke('notify-admins', { body: { kind, title, body } });
+  } catch (e) {
+    console.warn('[pushSend] notifyAdminsEvent échoué (ignoré):', e);
+  }
+}

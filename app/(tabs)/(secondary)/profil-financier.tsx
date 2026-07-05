@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput,
@@ -9,7 +9,7 @@ import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -134,6 +134,18 @@ export default function ProfilFinancierScreen() {
     }
     setEditing(true);
   }
+
+  // Arrivée depuis un renvoi « complète ton profil » (ex. dépenses variables non renseignées dans
+  // Pilotage) : on ouvre directement le mode édition pour que l'utilisateur mette à jour ses réponses.
+  const params = useLocalSearchParams<{ edit?: string }>();
+  const autoEditDone = useRef(false);
+  useEffect(() => {
+    if (params.edit && savedAnswers && !editing && !autoEditDone.current) {
+      autoEditDone.current = true;
+      startEditing();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.edit, savedAnswers]);
 
   async function handleSave() {
     const qLabels: Record<keyof QuestionnaireAnswers, string> = {

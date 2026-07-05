@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform, DeviceEventEmitter } from 'react-native';
+import { registerGuideAnchor, unregisterGuideAnchor } from '../lib/guideAnchors';
 
 /** Événement émis quand on tape l'onglet « Comptes » → la page réinitialise son sous-onglet sur « Comptes ». */
 export const COMPTES_TAB_PRESSED = 'comptesTabPressed';
@@ -46,10 +47,17 @@ export default function CustomTabBar({ state }: any) {
   useSharedAccountsRealtime(user?.id); // sync live des comptes partagés/joints + invitations
   useSharedCreditsRealtime(user?.id);  // sync live des crédits partagés + invitations
 
+  // Ancre du guide : la vraie position de la barre (mesurée), pas un rectangle « height - 78 » approximatif.
+  const barRef = useRef<any>(null);
+  useEffect(() => {
+    registerGuideAnchor('tabbar', barRef);
+    return () => unregisterGuideAnchor('tabbar');
+  }, []);
+
   return (
     // paddingBottom = inset système (barre de navigation / gestes) → le contenu remonte
     // au-dessus des boutons du téléphone, et le fond couvre toute la zone (pas de bande vide).
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View ref={barRef} collapsable={false} style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.topBorder} />
       {ITEMS.map((it) => {
         const focused = activeRoute === it.name;
