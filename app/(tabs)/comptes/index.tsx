@@ -1,12 +1,11 @@
 ﻿import { useState, useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter, Dimensions } from 'react-native';
 import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
-import { getGuideAnchor } from '../../../lib/guideAnchors';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,13 +62,45 @@ export default function AccountsListScreen() {
 
   // ── Guide "bulles" ──
   const guide = useScreenGuide('comptes', user?.id);
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const addBtnRef = useRef<any>(null);
   const transferBtnRef = useRef<any>(null);
   const actionsRef = useRef<any>(null);
+  // Position ABSOLUE (pageX/pageY) des boutons d'actions, capturée AU REPOS via measure() dans onLayout
+  // (pas pendant le scroll du guide → plus de décalage). Sert de cible EXACTE au 1ᵉʳ pas du guide.
+  const [actionsRect, setActionsRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const measureActions = () => {
+    actionsRef.current?.measure?.((_x: number, _y: number, w: number, h: number, pageX: number, pageY: number) => {
+      if (w > 0 && h > 0) setActionsRect({ x: pageX, y: pageY, w, h });
+    });
+  };
+  // Re-mesure quand le guide s'affiche sur le 1ᵉʳ pas (la position peut avoir bougé depuis le montage).
+  useEffect(() => {
+    if (guide.visible && guide.step === 0) {
+      const t = setTimeout(measureActions, 120);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guide.visible, guide.step]);
+
+  // Rectangles cibles DÉTERMINISTES (géométrie écran + zones sûres) pour les éléments FIXES : la barre du
+  // bas et l'avatar sont toujours au même endroit → pas de mesure fragile (qui se décalait selon le mobile).
+  const tabBarRect = () => {
+    const { width, height } = Dimensions.get('window');
+    const bottom = Math.max(insets.bottom, 8);
+    return { x: 4, y: height - bottom - 58, w: width - 8, h: 54 };
+  };
+  const avatarRect = () => {
+    const { width } = Dimensions.get('window');
+    return { x: width - 62, y: insets.top + 6, w: 50, h: 48 };
+  };
 
   const GUIDE_STEPS: BubbleStep[] = [
     {
+      // Cible = position ABSOLUE capturée au repos (pas de mesure pendant le scroll → cadre bien collé
+      // aux 2 boutons). Repli : re-mesure via la ref si pas encore capturée.
+      getRect: actionsRect ? () => actionsRect : undefined,
       getRef: () => actionsRef,
       icon: 'add-circle',
       iconColor: COLORS.green,
@@ -77,14 +108,14 @@ export default function AccountsListScreen() {
       description: 'Ajoute tes comptes (courant, épargne, investissement) avec leur solde réel du jour.\n\nUn « Virement » déplace de l\'argent d\'un compte à l\'autre.',
     },
     {
-      getRef: () => getGuideAnchor('tabbar'),
+      getRect: tabBarRect,
       icon: 'apps',
       iconColor: COLORS.green,
       title: 'Ta navigation',
       description: 'En bas de l\'écran, la barre de navigation réunit tout l\'essentiel : Comptes, Transactions, Pilotage, Projets et Projection.',
     },
     {
-      getRef: () => getGuideAnchor('headerProfile'),
+      getRect: avatarRect,
       icon: 'person-circle',
       iconColor: COLORS.green,
       title: 'Ton menu',
@@ -261,7 +292,7 @@ export default function AccountsListScreen() {
 
             {/* Quick actions + zone pub compacte (maison) à droite, gérable en admin */}
             <View style={styles.quickActions}>
-              <View style={styles.quickBtnGroup} ref={actionsRef}>
+              <View style={styles.quickBtnGroup} ref={actionsRef} collapsable={false} onLayout={measureActions}>
                 <TouchableOpacity
                   ref={addBtnRef}
                   style={styles.quickBtn}

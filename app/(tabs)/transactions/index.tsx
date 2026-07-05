@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import PageIntroModal from '../../../components/PageIntroModal';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
@@ -93,6 +93,14 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
   const day = Math.min(origDay, maxDay);
   return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
+
+// Élément de la liste APLATIE (FlatList) — un type par « brique » visuelle.
+type TxListItem =
+  | { t: 'ad'; placement: string; k: string }
+  | { t: 'monthHeader'; year: number; month: number; gap: boolean; k: string }
+  | { t: 'futureToggle'; count: number; k: string }
+  | { t: 'row'; item: any; group: 'future' | 'past'; pos: number; groupCount: number; k: string }
+  | { t: 'emptyPast'; k: string };
 
 export default function TransactionsListScreen() {
   const COLORS = useAppColors();
@@ -235,6 +243,7 @@ export default function TransactionsListScreen() {
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
+  const currentMonthKey = getMonthKey(currentYear, currentMonth);
   
   // Déterminer nombre de mois à afficher
   const displayMonthCount = params.singleMonth === '1' ? 1 : 3;
@@ -405,6 +414,34 @@ export default function TransactionsListScreen() {
     });
   }, [filtered]);
 
+  // ── Liste APLATIE (typée) pour la FlatList : virtualisation au niveau LIGNE (seules les lignes
+  // visibles sont rendues). On reproduit fidèlement la structure : en-tête de mois, section « À venir »
+  // repliable, cartes de lignes (rayons haut/bas par groupe), pub inter-mois, placeholders. ──
+  const listData = useMemo(() => {
+    const out: TxListItem[] = [];
+    byMonth.forEach(({ key, year, month, items }, monthIndex) => {
+      const isCurrentMonth = key === currentMonthKey;
+      const pastItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) <= todayStr) : items;
+      const futureItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) > todayStr) : [];
+      if (monthIndex === 1) out.push({ t: 'ad', placement: 'transactions_mois', k: 'ad-mois' });
+      out.push({ t: 'monthHeader', year, month, gap: monthIndex > 0, k: `mh-${key}` });
+      if (isCurrentMonth && futureItems.length > 0) {
+        out.push({ t: 'futureToggle', count: futureItems.length, k: `ft-${key}` });
+        if (showFutureThisMonth) {
+          futureItems.forEach((item, i) =>
+            out.push({ t: 'row', item, group: 'future', pos: i, groupCount: futureItems.length, k: `f-${item.id}-${(item as any).displayDate || ''}` }));
+        }
+      }
+      if (pastItems.length > 0) {
+        pastItems.forEach((item, i) =>
+          out.push({ t: 'row', item, group: 'past', pos: i, groupCount: pastItems.length, k: `p-${item.id}-${(item as any).displayDate || ''}` }));
+      } else if (isCurrentMonth) {
+        out.push({ t: 'emptyPast', k: `ep-${key}` });
+      }
+    });
+    return out;
+  }, [byMonth, currentMonthKey, todayStr, showFutureThisMonth]);
+
   // Le filtre est "manuel" si la sélection diffère des comptes courants par défaut
   const isManualFilter =
     accountFilterIds.length !== defaultCheckingIds.length ||
@@ -422,8 +459,6 @@ export default function TransactionsListScreen() {
     if (displayMonths.length === 0) return '';
     return `${formatMonthHeader(firstMonth.year, firstMonth.month)} - ${formatMonthHeader(lastMonth.year, lastMonth.month)}`;
   }, [firstMonth, lastMonth, displayMonths]);
-
-  const currentMonthKey = getMonthKey(currentYear, currentMonth);
 
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
@@ -678,6 +713,51 @@ export default function TransactionsListScreen() {
     );
   };
 
+  // renderItem de la FlatList : chaque « brique » (pub, en-tête de mois, bascule « À venir », ligne, vide).
+  const renderListItem = ({ item: li }: { item: TxListItem }) => {
+    switch (li.t) {
+      case 'ad':
+        return <AdSlot placement={li.placement as any} />;
+      case 'monthHeader':
+        return (
+          <View style={[styles.monthHeader, li.gap && { marginTop: 16 }]}>
+            <Text style={styles.monthHeaderText}>{formatMonthHeader(li.year, li.month)}</Text>
+          </View>
+        );
+      case 'futureToggle':
+        return (
+          <TouchableOpacity style={styles.futureToggle} onPress={() => setShowFutureThisMonth((v) => !v)} activeOpacity={0.7} accessibilityRole="button">
+            <Ionicons name={showFutureThisMonth ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
+            <Text style={styles.futureToggleText}>À venir ce mois ({li.count})</Text>
+          </TouchableOpacity>
+        );
+      case 'row': {
+        const first = li.pos === 0;
+        const last = li.pos === li.groupCount - 1;
+        // Reproduit la carte arrondie qui englobait le groupe : bg partout, rayon en haut (1ʳᵉ ligne) et
+        // en bas (dernière). Un écart sépare le groupe « À venir » du groupe « passé » et les mois.
+        return (
+          <View style={[
+            styles.rowWrap,
+            first && styles.rowWrapTop,
+            last && styles.rowWrapBottom,
+            last && (li.group === 'future' ? { marginBottom: 8 } : { marginBottom: 20 }),
+          ]}>
+            {renderRow(li.item, li.pos, li.groupCount)}
+          </View>
+        );
+      }
+      case 'emptyPast':
+        return (
+          <View style={[styles.card, { marginBottom: 20 }]}>
+            <Text style={styles.empty}>Aucune transaction passée pour l'instant ce mois.</Text>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
@@ -830,82 +910,44 @@ export default function TransactionsListScreen() {
           </View>
         )}
         <View style={{ flex: 1 }} {...periodPan.panHandlers}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.emerald}
-              progressBackgroundColor={COLORS.card}
-            />
-          }
-        >
-          {isLoading ? (
-            <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
-          ) : (
-            <>
-              {byMonth.length === 0 ? (
-                <View style={styles.card}>
-                  <Text style={styles.empty}>Aucune transaction{hasFilter ? ' pour ce filtre' : ''}.</Text>
-                </View>
-              ) : (
-                byMonth.map(({ key, year, month, items }, monthIndex) => {
-                  // Mois courant : on scinde passé / à venir. Les autres mois s'affichent en entier (déplié).
-                  const isCurrentMonth = key === currentMonthKey;
-                  const pastItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) <= todayStr) : items;
-                  const futureItems = isCurrentMonth ? items.filter((it) => getEffectiveDate(it) > todayStr) : [];
-                  return (
-                  <React.Fragment key={key}>
-                  {/* Bandeau pub entre le 1er et le 2e mois affiché */}
-                  {monthIndex === 1 && <AdSlot placement="transactions_mois" />}
-                  <View style={styles.monthBlock}>
-                    <View style={styles.monthHeader}>
-                      <Text style={styles.monthHeaderText}>{formatMonthHeader(year, month)}</Text>
-                    </View>
-                    {/* Mois courant : les transactions À VENIR sont placées AU-DESSUS du passé et repliées
-                        par défaut, pour ne pas parasiter la lecture de ce qui est réellement passé. */}
-                    {isCurrentMonth && futureItems.length > 0 && (
-                      <>
-                        <TouchableOpacity
-                          style={styles.futureToggle}
-                          onPress={() => setShowFutureThisMonth((v) => !v)}
-                          activeOpacity={0.7}
-                          accessibilityRole="button"
-                        >
-                          <Ionicons name={showFutureThisMonth ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
-                          <Text style={styles.futureToggleText}>À venir ce mois ({futureItems.length})</Text>
-                        </TouchableOpacity>
-                        {showFutureThisMonth && (
-                          <View style={[styles.card, styles.futureCard]}>
-                            {futureItems.map((item, index) => renderRow(item, index, futureItems.length))}
-                          </View>
-                        )}
-                      </>
-                    )}
-                    {pastItems.length > 0 ? (
-                      <View style={styles.card}>
-                        {pastItems.map((item, index) => renderRow(item, index, pastItems.length))}
-                      </View>
-                    ) : isCurrentMonth ? (
-                      <View style={styles.card}>
-                        <Text style={styles.empty}>Aucune transaction passée pour l'instant ce mois.</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  </React.Fragment>
-                  );
-                })
-              )}
-              <Text style={styles.hint}>Appuyez sur une ligne pour modifier ou supprimer.</Text>
-            </>
-          )}
-
-          {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
-          <AdSlot placement="transactions" />
-        </ScrollView>
+        {isLoading ? (
+          <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
+        ) : (
+          <FlatList
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            data={listData}
+            keyExtractor={(li) => li.k}
+            renderItem={renderListItem}
+            showsVerticalScrollIndicator={false}
+            // Virtualisation : seules les lignes visibles (+ marge) sont rendues → fluide même avec
+            // des centaines de transactions dans un mois.
+            initialNumToRender={20}
+            maxToRenderPerBatch={16}
+            windowSize={11}
+            removeClippedSubviews={Platform.OS === 'android'}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.emerald}
+                progressBackgroundColor={COLORS.card}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.card}>
+                <Text style={styles.empty}>Aucune transaction{hasFilter ? ' pour ce filtre' : ''}.</Text>
+              </View>
+            }
+            ListFooterComponent={
+              <>
+                {listData.length > 0 && <Text style={styles.hint}>Appuyez sur une ligne pour modifier ou supprimer.</Text>}
+                {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
+                <AdSlot placement="transactions" />
+              </>
+            }
+          />
+        )}
         </View>
         <Modal visible={!!confirmModal} transparent animationType="fade" onRequestClose={() => setConfirmModal(null)}>
           <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setConfirmModal(null)}>
@@ -1029,6 +1071,10 @@ function makeStyles(c: any) {
     borderRadius: 18,
     overflow: 'hidden',
   },
+  // Enveloppe d'UNE ligne dans la FlatList : reconstitue la carte arrondie qui groupait les lignes.
+  rowWrap: { backgroundColor: c.card },
+  rowWrapTop: { borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden' },
+  rowWrapBottom: { borderBottomLeftRadius: 18, borderBottomRightRadius: 18, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -56,10 +56,14 @@ export default function ConseilsIaScreen() {
     try {
       await purchase.mutateAsync(pack);
       setShowPaywall(false);
-      Alert.alert('Merci !', `${pack.credits} requêtes ajoutées à ton compte.`);
+      Alert.alert('Merci ! 🙌', `Achat validé. Tes ${pack.credits} requêtes arrivent dans quelques secondes (le temps de la validation).`);
     } catch (e: any) {
-      if (String(e?.message) === 'purchase_not_configured') {
-        Alert.alert('Bientôt disponible', 'Le paiement in-app arrive très prochainement. Reviens dans quelques jours pour recharger tes requêtes 🙌');
+      const reason = e?.reason;
+      if (reason === 'cancelled') return; // l'utilisateur a annulé → silencieux
+      if (reason === 'not_supported') {
+        Alert.alert('Sur mobile uniquement', 'La recharge de requêtes se fait depuis l\'application mobile Relyka (iOS / Android).');
+      } else if (reason === 'not_configured') {
+        Alert.alert('Produit indisponible', e?.message ?? 'Ce pack n\'est pas encore disponible. Réessaie plus tard.');
       } else {
         Alert.alert('Achat impossible', e?.message ?? 'Réessaie plus tard.');
       }

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { sendPushToProfile } from '../lib/pushSend';
+import { purchaseGemsPack, type PurchaseResult } from '../lib/purchases';
 
 export interface AiModel { id: string; label: string; enabled: boolean }
 /** Offre de recharge (click-to-pay) : N requêtes pour un prix. product_id = identifiant Store/RevenueCat. */
@@ -93,21 +94,31 @@ export function useAiQuota(userId: string | undefined) {
 }
 
 /**
- * Achat d'un pack de requêtes IA (click-to-pay).
+ * Achat d'un pack de requêtes IA (click-to-pay) via RevenueCat.
  *
- * BRANCHEMENT REVENUECAT (dernière étape, côté produit) : dans mutationFn, appeler
- * `Purchases.purchaseStoreProduct(...)` avec `pack.product_id`, puis laisser le WEBHOOK RevenueCat
- * (service role) créditer le ledger `ai_extra_credits`. Tant que ce n'est pas branché, on renvoie une
- * erreur explicite `purchase_not_configured` → l'UI affiche « bientôt disponible ».
+ * Flux : on déclenche l'achat store (même mécanisme que les packs de Relyks). En cas de succès, c'est
+ * le WEBHOOK RevenueCat (Edge Function `revenuecat-webhook`, service role) qui crédite le ledger
+ * `ai_extra_credits` de façon SÛRE (vérifié serveur, pas de triche client). Le crédit arrive en quelques
+ * secondes → on rafraîchit le quota plusieurs fois après l'achat.
  */
 export function usePurchaseExtraCredits(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (_pack: AiCreditPack): Promise<{ ok: true; balance: number }> => {
-      // TODO(RevenueCat) : déclencher l'achat in-app ici puis attendre le crédit du ledger via webhook.
-      throw new Error('purchase_not_configured');
+    mutationFn: async (pack: AiCreditPack): Promise<PurchaseResult> => {
+      const res = await purchaseGemsPack(pack.product_id); // achat consommable par product_id
+      if (!res.ok) {
+        const err = new Error(res.message ?? res.reason ?? 'purchase_failed') as Error & { reason?: string };
+        err.reason = res.reason;
+        throw err;
+      }
+      return res;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['ai_quota', userId] }); },
+    onSuccess: () => {
+      // Le webhook crédite le ledger de façon asynchrone → on relit le quota plusieurs fois.
+      const refetch = () => qc.invalidateQueries({ queryKey: ['ai_quota', userId] });
+      refetch();
+      [1500, 4000, 8000, 15000].forEach((ms) => setTimeout(refetch, ms));
+    },
   });
 }
 

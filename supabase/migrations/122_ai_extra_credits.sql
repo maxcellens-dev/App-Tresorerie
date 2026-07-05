@@ -55,8 +55,8 @@ GRANT EXECUTE ON FUNCTION public.ai_grant_extra_credits(uuid, integer, text) TO 
 ALTER TABLE public.ai_config
   ADD COLUMN IF NOT EXISTS extra_credit_packs jsonb NOT NULL DEFAULT '[
     {"id":"pack_5","credits":5,"price_cents":199,"product_id":"ai_credits_5"},
-    {"id":"pack_15","credits":15,"price_cents":499,"product_id":"ai_credits_15"},
-    {"id":"pack_40","credits":40,"price_cents":999,"product_id":"ai_credits_40"}
+    {"id":"pack_25","credits":25,"price_cents":399,"product_id":"ai_credits_25"},
+    {"id":"pack_100","credits":100,"price_cents":1199,"product_id":"ai_credits_100"}
   ]'::jsonb;
 
 -- 5) Le quota renvoie aussi le solde de crédits payants (pour l'UI + la décision d'envoi).
