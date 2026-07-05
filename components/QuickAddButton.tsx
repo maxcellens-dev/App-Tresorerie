@@ -102,10 +102,12 @@ export default function QuickAddButton() {
   const ANG = isBubble
     ? { transfer: 188, expense: 142, income: 96 }
     : { transfer: 152, expense: 90, income: 28 };
+  // `up` = décalage vertical supplémentaire (px) vers le haut. « Dépense » est remonté pour que son
+  // libellé ne colle pas au bouton « Virement » (surtout en mode bulle où les deux sont à gauche).
   const ACTIONS = [
-    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
-    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
-    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
+    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, up: 0, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
+    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, up: 8, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
+    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, up: 0, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
   ] as const;
 
   const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
@@ -126,7 +128,7 @@ export default function QuickAddButton() {
           const rad = (a.deg * Math.PI) / 180;
           // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
           const left = FAB_SIZE / 2 + radius * Math.cos(rad) - ACTION_W / 2;
-          const top = FAB_SIZE / 2 - radius * Math.sin(rad) - ACTION_SIZE / 2;
+          const top = FAB_SIZE / 2 - radius * Math.sin(rad) - ACTION_SIZE / 2 - (a.up ?? 0);
           const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
           return (
             <Animated.View

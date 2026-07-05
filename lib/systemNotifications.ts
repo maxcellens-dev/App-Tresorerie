@@ -27,7 +27,7 @@ export const SYSTEM_NOTIFICATIONS: SystemNotificationDef[] = [
   {
     id: 'confidence_low',
     title: 'Vos chiffres sont à vérifier',
-    bodyExample: 'Solde non vérifié depuis 12 jours — vos montants sont affichés en fourchette. Vérifiez en 30 s.',
+    bodyExample: 'Solde non vérifié depuis un moment — vos montants sont affichés en fourchette. Vérifiez en 30 s.',
     condition: "Le niveau de confiance est « bas » (doute > seuil) alors qu'aucune vérification récente.",
     maxFrequency: '1 par semaine',
     defaultEnabled: true,

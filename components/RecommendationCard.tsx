@@ -6,6 +6,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useRecoDismissals } from '../hooks/useUiPrefs';
 import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
+import { unverifiedSincePhrase, verifiedAgoPhrase } from '../lib/confidenceEngine';
 import { isHidden } from '../lib/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
 import RelykaColumns from './RelykaColumns';
@@ -189,7 +190,7 @@ export default function RecommendationCard({
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
           <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
           <Text style={styles.amberText} numberOfLines={2}>
-            Solde non vérifié depuis {daysSinceVerification} j — Ton relyka est une estimation — vérifie ton solde pour un suivi fiable.
+            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Ton relyka est une estimation — vérifie ton solde pour un suivi fiable.
           </Text>
           <Text style={styles.amberCta}>Vérifier</Text>
         </TouchableOpacity>
@@ -242,7 +243,7 @@ export default function RecommendationCard({
               )}
               {confidenceLevel === 'medium' && (
                 <View style={[styles.freshBadge, { backgroundColor: COLORS.textSecondary + '18', borderColor: COLORS.textSecondary + '44' }]}>
-                  <Text style={[styles.freshBadgeText, { color: COLORS.textSecondary }]}>Vérifié il y a {daysSinceVerification} j</Text>
+                  <Text style={[styles.freshBadgeText, { color: COLORS.textSecondary }]}>Vérifié {verifiedAgoPhrase(daysSinceVerification)}</Text>
                 </View>
               )}
             </View>

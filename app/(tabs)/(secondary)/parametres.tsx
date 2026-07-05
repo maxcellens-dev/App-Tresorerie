@@ -5,7 +5,7 @@ import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
@@ -121,6 +121,16 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const guide = useScreenGuide('parametres', user?.id);
   const scrollRef = useRef<ScrollView>(null);
+  // Scroll auto vers la section « Affichage & aides » quand on arrive via la roue crantée du bandeau conseils.
+  const params = useLocalSearchParams<{ scrollTo?: string }>();
+  const displaySectionY = useRef(0);
+  const didAutoScroll = useRef(false);
+  useEffect(() => {
+    if (params.scrollTo !== 'display' || didAutoScroll.current) return;
+    didAutoScroll.current = true;
+    const t = setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, displaySectionY.current - 16), animated: true }), 350);
+    return () => clearTimeout(t);
+  }, [params.scrollTo]);
   const categoriesRowRef = useRef<any>(null);
   const marginRowRef = useRef<any>(null);
   const monProfilRowRef = useRef<any>(null);
@@ -313,7 +323,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* ── Affichage & aides (conseils Pilotage + calculatrice) ── */}
-          <Text style={styles.sectionTitle}>Affichage & aides</Text>
+          <Text style={styles.sectionTitle} onLayout={(e) => { displaySectionY.current = e.nativeEvent.layout.y; }}>Affichage & aides</Text>
           <View style={styles.card}>
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
               <Ionicons name="bulb-outline" size={20} color={COLORS.textSecondary} />

@@ -131,6 +131,26 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   return { level, doubtRatio, uncertaintyEur, daysSinceVerification, dailyDrift, coldStart };
 }
 
+// ── Formulations VAGUES de l'ancienneté de vérification ──────────────────────
+// On n'affiche JAMAIS un compteur de jours précis (peu fiable : un compte neuf, jamais vérifié,
+// démarre à `coldStartDays` → « 21 j » n'a aucun sens). On préfère un terme flou et rassurant.
+
+/** « depuis quelques jours » / « depuis un moment »… pour « Solde non vérifié {…} ». */
+export function unverifiedSincePhrase(days: number): string {
+  if (!Number.isFinite(days) || days <= 4) return 'depuis quelques jours';
+  if (days <= 14) return 'depuis plusieurs jours';
+  if (days <= 45) return 'depuis un moment';
+  return 'depuis longtemps';
+}
+
+/** « récemment » / « il y a un moment »… pour « Vérifié {…} ». */
+export function verifiedAgoPhrase(days: number): string {
+  if (!Number.isFinite(days) || days <= 2) return 'récemment';
+  if (days <= 14) return 'il y a quelques jours';
+  if (days <= 45) return 'il y a un moment';
+  return 'il y a longtemps';
+}
+
 /**
  * Transforme un montant net en fourchette selon le doute courant.
  * Confiance haute → pas de fourchette. Sinon [net − doute ; net + doute×upBias], arrondi.

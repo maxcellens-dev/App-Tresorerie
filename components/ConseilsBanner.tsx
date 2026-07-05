@@ -6,6 +6,7 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { useConseilDuJour, interpolate } from '../hooks/useConseils';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
@@ -23,6 +24,7 @@ interface Slide { id: string; label: string; icon: string; iconColor: string; te
 
 export default function ConseilsBanner({ userId, pilotage, transactions = [], projects = [], accounts = [] }: Props) {
   const COLORS = useAppColors();
+  const router = useRouter();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(userId);
   const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides);
@@ -100,18 +102,29 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
       <TouchableOpacity style={styles.closeBtn} onPress={() => apiRef.current.doDismiss()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="close" size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
+      {/* Roue crantée → réglages « Affichage & aides » (activer/désactiver ces conseils, etc.). */}
+      <TouchableOpacity
+        style={styles.gearBtn}
+        onPress={() => router.push('/(tabs)/(secondary)/parametres?scrollTo=display' as any)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel="Réglages des conseils"
+      >
+        <Ionicons name="settings-outline" size={15} color={COLORS.textSecondary} />
+      </TouchableOpacity>
     </Animated.View>
   );
 }
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 13, paddingRight: 32, marginBottom: 10 },
+    card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 13, paddingRight: 32, paddingBottom: 15, marginBottom: 10 },
     labelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 5 },
     label: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     dots: { flexDirection: 'row', gap: 4, marginLeft: 6 },
     dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: c.cardBorder },
     text: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
     closeBtn: { position: 'absolute', top: 10, right: 10, padding: 2 },
+    gearBtn: { position: 'absolute', bottom: 8, right: 10, padding: 2 },
   });
 }

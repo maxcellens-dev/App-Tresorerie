@@ -4,8 +4,8 @@ import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
-import { getGuideAnchor } from '../../../lib/guideAnchors';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
+import { getGuideAnchor } from '../../../lib/guideAnchors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -81,14 +81,14 @@ export default function AccountsListScreen() {
       icon: 'apps',
       iconColor: COLORS.green,
       title: 'Ta navigation',
-      description: 'La barre du bas réunit tout l\'essentiel : Comptes, Transactions, Pilotage, Projets et Projection.',
+      description: 'En bas de l\'écran, la barre de navigation réunit tout l\'essentiel : Comptes, Transactions, Pilotage, Projets et Projection.',
     },
     {
       getRef: () => getGuideAnchor('headerProfile'),
       icon: 'person-circle',
       iconColor: COLORS.green,
       title: 'Ton menu',
-      description: 'En haut à droite : ton profil, tes réglages, ton abonnement et l\'assistance. \n\nTout est là.',
+      description: 'En haut à droite (ton avatar) : ton profil, tes réglages, ton abonnement et l\'assistance. Tout est là.',
     },
   ];
   

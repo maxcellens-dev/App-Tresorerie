@@ -16,6 +16,7 @@ import { useTransactions } from '../../hooks/useTransactions';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
 import { usePilotageData } from '../../hooks/usePilotageData';
+import { unverifiedSincePhrase } from '../../lib/confidenceEngine';
 import { useProfile } from '../../hooks/useProfile';
 import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
@@ -750,7 +751,7 @@ export default function ReportingScreen() {
               const lv = pilotage?.confidence_inputs?.lastVerifiedAt;
               if (lv) {
                 const days = Math.floor((Date.now() - new Date(lv + 'T00:00:00').getTime()) / 86400000);
-                if (days > 10) insights.push({ icon: 'alert-circle', color: C.amber, text: `Solde non vérifié depuis ${days} j — ces chiffres sont des estimations. Une vérif de 30 s et tout redevient net.` });
+                if (days > 10) insights.push({ icon: 'alert-circle', color: C.amber, text: `Solde non vérifié ${unverifiedSincePhrase(days)} — ces chiffres sont des estimations. Une vérif de 30 s et tout redevient net.` });
               }
               if (insights.length === 0) return null;
               return (

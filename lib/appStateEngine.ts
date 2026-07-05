@@ -1,6 +1,7 @@
 // Moteur d'état — détermine LA prochaine action utile pour le user à l'ouverture de l'app.
 // Une seule action à la fois (la plus prioritaire). Consommé par le bandeau « prochain geste ».
 // Ne remplace pas le guide « Pour bien démarrer » : il le complète pour le quotidien.
+import { unverifiedSincePhrase } from './confidenceEngine';
 
 export type AppActionType =
   | 'setup'          // un réglage de base manque (solde / revenu / charges fixes)
@@ -100,7 +101,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   if (i.confidenceLow) {
     return {
       type: 'check_balance', title: 'Vérifie ton solde',
-      reason: `tes montants sont des estimations - \ntes données ne sont sans doute plus à jour (dernière vérif il y a ${i.daysSinceVerification} j)`,
+      reason: `tes montants sont des estimations - \ntes données ne sont sans doute plus à jour (solde non vérifié ${unverifiedSincePhrase(i.daysSinceVerification)})`,
       eta: '~30 s', deeplink: balanceLink, dismissKey: 'check_balance',
     };
   }

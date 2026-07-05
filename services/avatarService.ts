@@ -84,6 +84,15 @@ export async function deleteAvatar(userId: string): Promise<void> {
 }
 
 /**
+ * Vrai si l'URL d'avatar correspond à une image TÉLÉVERSÉE MANUELLEMENT (bucket Supabase « avatars »),
+ * et non à l'avatar Google importé par défaut à la création du compte (googleusercontent…).
+ * Sert au succès « photo de profil » : il ne doit se débloquer que sur une vraie photo choisie.
+ */
+export function isUploadedAvatar(url: string | null | undefined): boolean {
+  return typeof url === 'string' && url.includes(`/${BUCKET}/`);
+}
+
+/**
  * Retourne l'URL publique de l'avatar (sans vérifier l'existence).
  */
 export function getAvatarPublicUrl(userId: string, ext: 'webp' | 'jpg' = 'webp'): string {

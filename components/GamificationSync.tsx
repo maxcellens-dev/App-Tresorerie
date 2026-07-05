@@ -12,6 +12,7 @@ import { useMonthlyClosure, addMonthKey } from '../hooks/useMonthlyClosure';
 import { useProfile } from '../hooks/useProfile';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { mondayOf, type BadgeContext } from '../lib/gamification';
+import { isUploadedAvatar } from '../services/avatarService';
 
 /** Construit le contexte des métriques calculables depuis les transactions. */
 function buildContext(transactions: any[]): BadgeContext {
@@ -84,7 +85,8 @@ export default function GamificationSync() {
     const ctx: BadgeContext = {
       ...buildContext(transactions),
       account_age_days: accountAgeDays,
-      profile_photo: (profile as any)?.avatar_url ? 1 : 0,
+      // Succès « photo de profil » : seulement une image TÉLÉVERSÉE (pas l'avatar Google seedé à la création).
+      profile_photo: isUploadedAvatar((profile as any)?.avatar_url) ? 1 : 0,
       onboarding_done: onboardingDone ? 1 : 0,
       closures_count: confirmedKeys.length,
       consecutive_closures: bestRun,
