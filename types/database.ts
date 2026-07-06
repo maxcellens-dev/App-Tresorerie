@@ -282,6 +282,9 @@ export interface Credit {
   early_repayment_penalty_pct?: number | null;
   deferral_months?: number | null;
   deferral_type?: 'none' | 'partial' | 'total' | null;
+  /** Différé total : 'deferred' = intérêts NON capitalisés remboursés en premier (banques FR) ;
+   *  'capitalized' = ajoutés au capital. Migration 126. */
+  deferral_interest_mode?: 'capitalized' | 'deferred' | null;
   is_simulation: boolean;
   is_active: boolean;
   notes?: string | null;

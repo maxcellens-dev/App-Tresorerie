@@ -18,6 +18,7 @@ import { useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
+import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
@@ -475,7 +476,7 @@ function Bubble({ m, s, c }: { m: AiMessage; s: any; c: any }) {
           <Text style={s.stamp}>{stamp}</Text>
         </View>
       )}
-      <Text style={s.bubbleAssistantTxt}>{m.content}</Text>
+      <AiRichText text={m.content} style={s.bubbleAssistantTxt} />
       <Text style={s.modelTag}>{isAdminMsg ? 'Réponse de l\'équipe Relyka' : (m.model ?? 'IA')}</Text>
     </View>
   );

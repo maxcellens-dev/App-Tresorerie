@@ -1,14 +1,23 @@
 // Module Crédit — calcul d'amortissement déterministe (mensualités constantes).
 //
-// Mensualité M = C·t / (1 − (1+t)^−n)   (C = capital, t = taux mensuel, n = nb d'échéances)
+// Mensualité M = C·t / (1 − (1+t)^−n)   (C = capital, t = taux mensuel, n = nb d'échéances REMBOURSÉES)
 // Chaque mois : intérêts = CRD·t ; capital_remboursé = M − intérêts ; CRD' = CRD − capital_remboursé.
-// Gère le différé (partiel = intérêts seuls, total = rien) et l'assurance (ajoutée à la mensualité).
-// (Les remboursements anticipés / changements de taux via credit_events sont une évolution ultérieure.)
+//
+// DIFFÉRÉ (franchise) : les mois de différé s'ajoutent EN TÊTE du tableau (duration_months reste le
+// nombre d'échéances remboursées, comme sur le contrat). Trois comportements :
+//   • partiel               : on paie les intérêts chaque mois pendant le différé ;
+//   • total « capitalisés » : on ne paie rien, les intérêts s'ajoutent au capital (anatocisme) ;
+//   • total « différés »    : on ne paie rien, les intérêts vont dans un compteur SÉPARÉ (le CRD ne bouge
+//     pas) remboursé EN PRIORITÉ par les premières mensualités, avant tout amortissement du capital.
+//     C'est la pratique courante des banques françaises (LCL, CA…) : la colonne « Total des intérêts
+//     différés » de leur tableau. Validé au centime contre un échéancier LCL réel.
+// `interim_interest` (saisie manuelle) remplace l'estimation automatique des intérêts du différé —
+// utile quand le capital est débloqué par TRANCHES (l'estimation sur le capital total serait trop haute).
 
 export interface CreditParams {
   principal: number;
   rate_annual: number;        // %
-  duration_months: number;
+  duration_months: number;    // nb d'échéances REMBOURSÉES (hors différé)
   first_payment_date?: string | null;
   /** Date de 1ʳᵉ échéance d'ASSURANCE (peut différer du remboursement). NULL → first_payment_date. */
   first_insurance_date?: string | null;
@@ -16,9 +25,15 @@ export interface CreditParams {
   insurance_monthly?: number | null;
   deferral_months?: number | null;
   deferral_type?: 'none' | 'partial' | 'total' | null;
+  /** Différé total : 'deferred' = intérêts NON capitalisés, remboursés en premier (banques FR) ;
+   *  'capitalized' = ajoutés au capital. Défaut 'capitalized' (compatibilité crédits existants). */
+  deferral_interest_mode?: 'capitalized' | 'deferred' | null;
+  /** Intérêts intercalaires RÉELS (relevé banque). Si > 0 avec un différé, remplace l'estimation auto
+   *  (indispensable si déblocage progressif par tranches). Sans différé : simple ligne de frais. */
+  interim_interest?: number | null;
   /** #5 — assurance MENSUELLE par année (index 0 = année 1…). Manquant → insurance_monthly. */
   insurance_yearly?: (number | null)[] | null;
-  /** #6 — mensualité (capital+intérêts) FORCÉE par année. Manquant/null → calcul standard. */
+  /** #6 — mensualité (capital+intérêts) FORCÉE par année DE REMBOURSEMENT. Manquant/null → standard. */
   payment_yearly?: (number | null)[] | null;
   /** C5 — événements (remboursement anticipé, changement de taux) appliqués chronologiquement. */
   events?: CreditEvent[] | null;
@@ -38,15 +53,62 @@ export interface CreditEvent {
 /** Indice d'année (0-based) d'une échéance (1-based). */
 function yearIndex(period: number): number { return Math.floor((period - 1) / 12); }
 
+/** Options de différé pour resolvePaliers (mêmes conventions que CreditParams). */
+export interface DeferralOpts {
+  months?: number | null;
+  type?: 'none' | 'partial' | 'total' | null;
+  interestMode?: 'capitalized' | 'deferred' | null;
+  /** Intérêts intercalaires réels (remplace l'estimation auto). */
+  seed?: number | null;
+}
+
+/** État initial au 1ᵉʳ mois REMBOURSÉ : CRD (capitalisé si différé total capitalisé) + stock
+ *  d'intérêts différés D à rembourser en premier (différé total « deferred »). */
+function deferralStart(C: number, t: number, defer?: DeferralOpts | null): { crd: number; D: number } {
+  const defN = Math.max(0, Math.round(Number(defer?.months) || 0));
+  if (defN <= 0 || !defer || defer.type !== 'total') return { crd: C, D: 0 };
+  const seed = Math.max(0, Number(defer.seed) || 0); // intercalaires réels saisis (sinon estimation)
+  if (defer.interestMode === 'deferred') return { crd: C, D: seed > 0 ? seed : C * t * defN };
+  return { crd: seed > 0 ? C + seed : C * Math.pow(1 + t, defN), D: 0 };
+}
+
+/** Reste dû (CRD + intérêts différés) après `months` mensualités `pay` — sans clamp, pour la bisection. */
+function residualAfter(crd0: number, D0: number, t: number, months: number, pay: number): number {
+  let crd = crd0, D = D0;
+  for (let m = 0; m < months; m++) {
+    const interest = crd * t;
+    const avail = pay - interest;
+    const payDef = Math.min(D, Math.max(0, avail));
+    D -= payDef;
+    crd -= (avail - payDef);
+  }
+  return crd + D;
+}
+
+/** Mensualité qui solde CRD + intérêts différés sur `months` mois. Formule fermée sans stock différé,
+ *  bisection sinon (le stock est remboursé en premier et ne porte pas intérêt → pas de formule simple). */
+function solvePayment(crd0: number, D0: number, t: number, months: number): number {
+  if (months <= 0) return 0;
+  const annuity = t > 0 ? (crd0 * t) / (1 - Math.pow(1 + t, -months)) : crd0 / months;
+  if (D0 <= 0) return annuity;
+  let lo = 0, hi = annuity + D0 / months + 1;
+  for (let k = 0; k < 60; k++) {
+    const mid = (lo + hi) / 2;
+    if (residualAfter(crd0, D0, t, months, mid) > 0) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 /**
- * #8b — Mensualité SEMI-FIXE par PALIERS. Chaque palier commence à une année donnée et a une mensualité
- * FIXE. Une mensualité vide est AUTO-calculée pour amortir le capital restant dû au début du palier sur la
- * durée restante du prêt. Renvoie un tableau `payment_yearly` (mensualité forcée par année) prêt pour
- * computeAmortization, et les mensualités résolues par palier (pour l'affichage).
+ * #8b — Mensualité SEMI-FIXE par PALIERS. Chaque palier commence à une année donnée (années DE
+ * REMBOURSEMENT, hors différé) et a une mensualité FIXE. Une mensualité vide est AUTO-calculée pour
+ * solder le prêt (capital + intérêts différés éventuels) sur la durée restante. Renvoie un tableau
+ * `payment_yearly` prêt pour computeAmortization, et les mensualités résolues par palier (affichage).
  */
 export function resolvePaliers(
   C: number, rateAnnual: number, n: number,
   segments: { startYear: number; payment?: number | null }[],
+  defer?: DeferralOpts | null,
 ): { paymentYearly: (number | null)[]; resolved: number[] } {
   const t = (rateAnnual || 0) / 100 / 12;
   const years = Math.max(1, Math.ceil(n / 12));
@@ -54,34 +116,39 @@ export function resolvePaliers(
   if (sorted.length === 0 || sorted[0].startYear !== 0) sorted.unshift({ startYear: 0 });
   const out: (number | null)[] = Array(years).fill(null);
   const resolved: number[] = [];
-  let crd = Math.max(0, C);
+  let { crd, D } = deferralStart(Math.max(0, C), t, defer);
   for (let si = 0; si < sorted.length; si++) {
     const startMonth = Math.max(0, Math.round(sorted[si].startYear * 12));
     const endMonth = si + 1 < sorted.length ? Math.round(sorted[si + 1].startYear * 12) : n;
     const segMonths = endMonth - startMonth;
     if (segMonths <= 0) { resolved.push(0); continue; }
     let pay = sorted[si].payment;
-    if (pay == null || Number.isNaN(pay) || pay <= 0) {
-      const remaining = n - startMonth;
-      pay = t > 0 ? (crd * t) / (1 - Math.pow(1 + t, -remaining)) : crd / Math.max(1, remaining);
-    }
+    if (pay == null || Number.isNaN(pay) || pay <= 0) pay = solvePayment(crd, D, t, n - startMonth);
     // On GARDE les centimes (arrondi au centime, pas à l'euro) → le tableau affiche 987,43 et non 987,00.
     const pay2 = Math.round(pay * 100) / 100;
     resolved.push(pay2);
     for (let y = Math.floor(startMonth / 12); y < Math.ceil(endMonth / 12) && y < years; y++) out[y] = pay2;
-    for (let m = 0; m < segMonths; m++) { const interest = crd * t; crd = Math.max(0, crd - (pay - interest)); }
+    for (let m = 0; m < segMonths; m++) {
+      const interest = crd * t;
+      const avail = pay - interest;
+      const payDef = Math.min(D, Math.max(0, avail));
+      D -= payDef;
+      crd = Math.max(0, crd - (avail - payDef));
+    }
   }
   return { paymentYearly: out, resolved };
 }
 
 export interface AmortRow {
-  period: number;             // n° d'échéance (1..n)
+  period: number;             // n° d'échéance (1..defN+n, différé inclus)
   date: string;               // ISO (YYYY-MM-DD)
   payment: number;            // mensualité hors assurance
   insurance: number;          // part assurance
-  interest: number;           // part intérêts
+  interest: number;           // part intérêts PAYÉS (intérêts du mois + part d'intérêts différés remboursée)
   principalPart: number;      // part capital
   crdAfter: number;           // capital restant dû après cette échéance
+  /** Stock d'intérêts différés restant à rembourser après cette échéance (différé « deferred »). */
+  deferredAfter?: number;
 }
 
 export interface AmortResult {
@@ -90,11 +157,10 @@ export interface AmortResult {
   totalInterest: number;
   totalInsurance: number;
   /** Intérêts INTERCALAIRES = intérêts courus pendant le différé (avant amortissement du capital).
-   *  Différé partiel : payés mois par mois d'abord. Différé total : capitalisés (ajoutés au capital).
    *  Déjà INCLUS dans totalInterest — exposé à part pour l'affichage (« comme les banques »). */
   deferralInterest: number;
   totalCost: number;          // intérêts + assurance (coût du crédit)
-  schedule: AmortRow[];       // échéancier de REMBOURSEMENT (n lignes, par période)
+  schedule: AmortRow[];       // échéancier de REMBOURSEMENT (différé + n lignes, par période)
   /** Échéancier RÉEL fusionné (remboursement + assurance à leurs dates respectives, possiblement décalées
    *  → plus de lignes que la durée). Pour l'affichage du tableau. Une ligne peut n'avoir que l'assurance. */
   displaySchedule: AmortRow[];
@@ -118,32 +184,40 @@ export function computeAmortization(p: CreditParams): AmortResult {
   const t = (Number(p.rate_annual) || 0) / 100 / 12; // taux mensuel
   const ins = Math.max(0, Number(p.insurance_monthly) || 0);
   const defN = Math.max(0, Math.round(Number(p.deferral_months) || 0));
-  const defType = p.deferral_type ?? 'none';
+  const defType = defN > 0 ? (p.deferral_type ?? 'none') : 'none';
+  const defDeferred = defType === 'total' && p.deferral_interest_mode === 'deferred';
+  const defSeed = Math.max(0, Number(p.interim_interest) || 0);
+  // Accrual mensuel pendant le différé : intercalaires réels saisis (répartis) sinon CRD·t.
+  const defAccrual = (crd: number, tt: number) => (defSeed > 0 ? defSeed / defN : crd * tt);
+  const totalN = n + defN; // le différé s'ajoute EN TÊTE : n = nb d'échéances remboursées
   // La 1ʳᵉ échéance EST la date saisie (plus de décalage à m+1) : period 1 = first_payment_date (sinon start_date).
   const firstDate = p.first_payment_date && /^\d{4}-\d{2}-\d{2}$/.test(p.first_payment_date)
     ? p.first_payment_date
     : p.start_date;
 
-  // Mensualité hors différé sur le nombre d'échéances « amortissantes » restant après le différé.
-  const amortN = Math.max(1, n - defN);
-  const monthlyPayment = t > 0
-    ? (C * t) / (1 - Math.pow(1 + t, -amortN))
-    : C / amortN;
+  // Mensualité standard : solde le CRD au 1ᵉʳ mois remboursé (capitalisé si différé total capitalisé)
+  // + le stock d'intérêts différés éventuel, sur les n échéances remboursées.
+  const start = deferralStart(C, t, defType === 'none' ? null : { months: defN, type: defType, interestMode: defDeferred ? 'deferred' : 'capitalized', seed: defSeed });
+  const monthlyPayment = solvePayment(start.crd, start.D, t, n);
 
   const schedule: AmortRow[] = [];
   let crd = C;
+  let D = 0;                 // stock d'intérêts différés restant à rembourser (différé « deferred »)
   let totalInterest = 0;
   let totalInsurance = 0;
-  let deferralInterest = 0; // intérêts intercalaires (courus pendant le différé)
+  let deferralInterest = 0;  // intérêts intercalaires (courus pendant le différé)
 
   const insYearly = p.insurance_yearly ?? null;
   const payYearly = p.payment_yearly ?? null;
   const insForPeriod = (i: number) => {
-    const y = insYearly?.[yearIndex(i)];
+    // Année plafonnée à la dernière renseignée (le différé ajoute des lignes au-delà du tableau annuel).
+    const y = insYearly?.[Math.min(yearIndex(i), Math.max(0, (insYearly?.length ?? 1) - 1))];
     return y != null && !Number.isNaN(y) ? Math.max(0, y) : ins;
   };
-  const payOverride = (i: number) => {
-    const y = payYearly?.[yearIndex(i)];
+  // Mensualité forcée par année DE REMBOURSEMENT (j = i − defN) : les paliers sont pensés « an 1 = 1ʳᵉ
+  // année remboursée », indépendamment du différé.
+  const payOverride = (j: number) => {
+    const y = payYearly?.[yearIndex(j)];
     return y != null && !Number.isNaN(y) && y > 0 ? y : null;
   };
 
@@ -156,7 +230,7 @@ export function computeAmortization(p: CreditParams): AmortResult {
   const ov = (i: number) => p.schedule_overrides?.[String(i)];
   const onum = (v: number | null | undefined) => (v != null && !Number.isNaN(v) ? v : undefined);
 
-  for (let i = 1; i <= n; i++) {
+  for (let i = 1; i <= totalN; i++) {
     const so = ov(i);
     const date = (so?.d && /^\d{4}-\d{2}-\d{2}$/.test(so.d)) ? so.d : addMonthsISO(firstDate, i - 1);
     // Appliquer les événements dont la date est <= date de cette échéance.
@@ -166,44 +240,82 @@ export function computeAmortization(p: CreditParams): AmortResult {
       else if (ev.kind === 'rate_change' && ev.new_rate != null) tCur = (Number(ev.new_rate) || 0) / 100 / 12;
       else if (ev.kind === 'modulation' && ev.new_payment != null) modPayment = Number(ev.new_payment) || null;
     }
-    if (crd <= 0.005 && !(i <= defN)) break; // crédit soldé (ex. après remboursement anticipé total)
-
-    // Overrides MANUELS de cette échéance (édition du tableau, toutes colonnes) : priment sur le calcul.
-    const interest = onum(so?.int) ?? (tCur > 0 ? crd * tCur : 0);
-    const insI = onum(so?.i) != null ? Math.max(0, onum(so?.i)!) : insForPeriod(i);
-    let payment: number;
-    let principalPart: number;
     const inDeferral = i <= defN;
+    if (crd <= 0.005 && D <= 0.005 && !inDeferral) break; // crédit soldé (ex. après remboursement anticipé total)
 
-    if (onum(so?.cap) != null) {
-      // Capital forcé manuellement → la mensualité suit (sauf si forcée aussi).
-      principalPart = onum(so?.cap)!;
-      payment = onum(so?.p) ?? (principalPart + interest);
-    } else if (onum(so?.p) != null) {
-      // Mensualité (hors assurance) forcée manuellement pour cette échéance.
-      payment = Math.max(0, onum(so?.p)!);
-      principalPart = payment - interest;
-      if (principalPart > crd && onum(so?.rd) == null) { principalPart = crd; payment = principalPart + interest; }
+    const insI = onum(ov(i)?.i) != null ? Math.max(0, onum(so?.i)!) : insForPeriod(i);
+    let payment: number;
+    let interest: number;
+    let principalPart: number;
+
+    if (inDeferral && defDeferred) {
+      // Différé total « intérêts différés » : rien payé, le compteur D grossit, le CRD ne bouge pas.
+      const acc = defAccrual(crd, tCur);
+      D += acc;
+      deferralInterest += acc;
+      payment = 0; interest = 0; principalPart = 0;
     } else if (inDeferral && defType === 'total') {
+      // Différé total « capitalisés » : les intérêts s'ajoutent au capital.
+      interest = defAccrual(crd, tCur);
       payment = 0;
       principalPart = -interest; // CRD augmente des intérêts non payés
+      deferralInterest += interest;
+      totalInterest += interest;
     } else if (inDeferral && defType === 'partial') {
+      // Différé partiel : on paie les intérêts (intercalaires) chaque mois.
+      interest = defAccrual(crd, tCur);
       payment = interest;
       principalPart = 0;
+      deferralInterest += interest;
+      totalInterest += interest;
     } else {
-      // Priorité : modulation > mensualité forcée par année (#6) > mensualité standard.
-      payment = modPayment ?? payOverride(i) ?? monthlyPayment;
-      principalPart = payment - interest;
-      if (i === n || principalPart > crd) { principalPart = crd; payment = principalPart + interest; }
+      // Échéance de REMBOURSEMENT (j = n° d'échéance remboursée). Le paiement couvre d'abord les
+      // intérêts du mois, puis le stock d'intérêts différés, puis amortit le capital.
+      const j = i - defN;
+      const monthInterest = tCur > 0 ? crd * tCur : 0;
+
+      // Overrides MANUELS de cette échéance (édition du tableau, toutes colonnes) : priment sur le calcul.
+      if (onum(so?.cap) != null) {
+        // Capital forcé manuellement → la mensualité suit (sauf si forcée aussi).
+        principalPart = onum(so?.cap)!;
+        interest = onum(so?.int) ?? monthInterest;
+        payment = onum(so?.p) ?? (principalPart + interest);
+        // Part d'intérêts différés implicitement remboursée = ce que la mensualité couvre au-delà.
+        const payDef = Math.min(D, Math.max(0, payment - interest - principalPart));
+        D -= payDef; interest += payDef;
+      } else if (onum(so?.p) != null || onum(so?.int) != null) {
+        // Mensualité et/ou intérêts forcés manuellement pour cette échéance.
+        payment = Math.max(0, onum(so?.p) ?? (modPayment ?? payOverride(j) ?? monthlyPayment));
+        const curInt = onum(so?.int) ?? monthInterest;
+        const payDef = Math.min(D, Math.max(0, payment - curInt));
+        D -= payDef;
+        interest = curInt + payDef;
+        principalPart = payment - interest;
+        if (principalPart > crd && onum(so?.rd) == null) { principalPart = crd; payment = principalPart + interest; }
+      } else {
+        // Priorité : modulation > mensualité forcée par année (#6) > mensualité standard.
+        payment = modPayment ?? payOverride(j) ?? monthlyPayment;
+        const avail = payment - monthInterest;
+        const payDef = Math.min(D, Math.max(0, avail));
+        D -= payDef;
+        interest = monthInterest + payDef;
+        principalPart = avail - payDef;
+        // Dernière échéance (ou dépassement) : on solde exactement le capital restant.
+        if (j === n || principalPart > crd) { principalPart = crd; payment = principalPart + interest; }
+      }
     }
 
     // Restant dû : override manuel sinon calcul.
     crd = onum(so?.rd) != null ? Math.max(0, onum(so?.rd)!) : Math.max(0, crd - principalPart);
-    totalInterest += Math.max(0, interest);
-    if (inDeferral) deferralInterest += Math.max(0, interest); // intérêts intercalaires du différé
+    totalInterest += inDeferral ? 0 : Math.max(0, interest);
     totalInsurance += insI;
-    schedule.push({ period: i, date, payment, insurance: insI, interest: Math.max(0, interest), principalPart, crdAfter: crd });
+    schedule.push({
+      period: i, date, payment, insurance: insI, interest: Math.max(0, interest), principalPart,
+      crdAfter: crd, ...(defDeferred ? { deferredAfter: Math.max(0, Math.round(D * 100) / 100) } : {}),
+    });
   }
+  // Sécurité : stock d'intérêts différés jamais remboursé (config incohérente) → compté quand même en coût.
+  if (D > 0.005) totalInterest += D;
 
   const crdAtDate = (isoDate: string) => {
     // CRD = capital après la dernière échéance dont la date <= isoDate (sinon capital initial).
@@ -240,7 +352,7 @@ export function computeAmortization(p: CreditParams): AmortResult {
 
   return {
     monthlyPayment,
-    monthlyWithInsurance: monthlyPayment + insForPeriod(Math.min(defN + 1, n)),
+    monthlyWithInsurance: monthlyPayment + insForPeriod(Math.min(defN + 1, totalN)),
     totalInterest,
     totalInsurance,
     deferralInterest,

@@ -16,6 +16,7 @@ import { useCredits, useDeleteCredit, useUpdateCredit } from '../../../../hooks/
 import { useAllAccounts } from '../../../../hooks/useAccounts';
 import { useCreditEvents, useAddCreditEvent, useDeleteCreditEvent } from '../../../../hooks/useCreditEvents';
 import CreditShareSection from '../../../../components/CreditShareSection';
+import CreditCurve from '../../../../components/CreditCurve';
 import { computeAmortization } from '../../../../lib/amortization';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 
@@ -138,7 +139,7 @@ export default function CreditDetailScreen() {
           <View style={styles.card}>
             <Text style={styles.crdLabel}>Capital restant dû</Text>
             <Text style={styles.crdValue}>{fmt(crd)}</Text>
-            <Text style={styles.crdSub}>{paid}/{credit.duration_months} échéances payées · emprunté {fmt(credit.principal)}</Text>
+            <Text style={styles.crdSub}>{paid}/{amort.schedule.length} échéances payées · emprunté {fmt(credit.principal)}</Text>
             <View style={styles.statRow}>
               <View style={styles.stat}><Text style={styles.statK}>Mensualité</Text><Text style={styles.statV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
               <View style={styles.stat}><Text style={styles.statK}>Taux</Text><Text style={styles.statV}>{credit.rate_annual}%</Text></View>
@@ -156,7 +157,7 @@ export default function CreditDetailScreen() {
             {acctName ? <Row k="Prélèvement" v={acctName} /> : null}
             <Row k="Catégorie" v={(credit as any).category?.name ?? 'Crédits'} />
             <Row k="1ʳᵉ échéance" v={formatDateFrench((credit.first_payment_date as string) || credit.start_date)} />
-            {hasDeferral ? <Row k="Différé" v={`${credit.deferral_months} mois · ${credit.deferral_type === 'total' ? 'total (intérêts capitalisés)' : 'partiel (intérêts payés)'}`} /> : null}
+            {hasDeferral ? <Row k="Différé" v={`${credit.deferral_months} mois · ${credit.deferral_type === 'total' ? (credit.deferral_interest_mode === 'deferred' ? 'total (intérêts remboursés en premier)' : 'total (intérêts capitalisés)') : 'partiel (intérêts payés)'}`} /> : null}
             {credit.insurance_monthly ? <Row k="Assurance" v={`${fmt(credit.insurance_monthly)}/mois`} /> : null}
             {credit.is_simulation ? <Row k="Statut" v="Simulation" /> : null}
           </View>
@@ -180,6 +181,16 @@ export default function CreditDetailScreen() {
               <View style={styles.infoRow}><Text style={[styles.infoK, { fontWeight: '800', color: COLORS.text }]}>Coût total</Text><Text style={[styles.infoV, { color: COLORS.danger, fontWeight: '800' }]}>{fmt(cCoutTotal)}</Text></View>
             </View>
           </View>
+
+          {/* Courbe de remboursement (capital vs intérêts par année + capital restant dû). */}
+          {amort.schedule.length > 1 && (
+            <>
+              <Text style={styles.sectionTitle}>Courbe de remboursement</Text>
+              <View style={styles.card}>
+                <CreditCurve schedule={amort.schedule} colors={COLORS} principal={credit.principal} />
+              </View>
+            </>
+          )}
 
           {/* C5 — Événements (remboursement anticipé, changement de taux) */}
           <View style={styles.evtHead}>
@@ -225,11 +236,14 @@ export default function CreditDetailScreen() {
             // Vue = échéancier RÉEL (remboursement + assurance décalée). Édition = par période (schedule).
             const rows = editTable ? amort.schedule : amort.displaySchedule;
             const hasInsurance = editTable || rows.some((r) => r.insurance > 0);
+            // Différé « intérêts remboursés en premier » : colonne du stock d'intérêts différés restant
+            // (comme la colonne « Total des intérêts différés » des échéanciers banque).
+            const hasDeferred = rows.some((r) => (r.deferredAfter ?? 0) > 0);
             const nextIdx = rows.findIndex((r) => r.date >= today);
             const overridden = (r: any) => !!(credit.schedule_overrides ?? {})[String(r.period)];
             // Largeur mini pour que toutes les colonnes soient lisibles : le tableau glisse horizontalement
             // sur les petits écrans (scroll latéral).
-            const tableMinW = 150 + (hasInsurance ? 5 : 4) * 96; // Échéance + N colonnes chiffrées
+            const tableMinW = 150 + (4 + (hasInsurance ? 1 : 0) + (hasDeferred ? 1 : 0)) * 96; // Échéance + N colonnes chiffrées
             return (
               <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled>
               <View style={[styles.card, { minWidth: tableMinW }]}>
@@ -240,6 +254,7 @@ export default function CreditDetailScreen() {
                   <Text style={[styles.tc, styles.tHeadText]}>Intérêts</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Capital</Text>
                   <Text style={[styles.tc, styles.tHeadText]}>Restant dû</Text>
+                  {hasDeferred && <Text style={[styles.tc, styles.tHeadText]}>Int. différés</Text>}
                 </View>
                 {rows.map((r, i) => {
                   const past = r.date < today;
@@ -252,6 +267,7 @@ export default function CreditDetailScreen() {
                       <Text style={[styles.tc, isNext && styles.tNextText]}>{r.interest.toFixed(2)}</Text>
                       <Text style={[styles.tc, isNext && styles.tNextText]}>{r.principalPart.toFixed(2)}</Text>
                       <Text style={[styles.tc, isNext && styles.tNextText]}>{r.crdAfter.toFixed(2)}</Text>
+                      {hasDeferred && <Text style={[styles.tc, isNext && styles.tNextText]}>{r.deferredAfter != null ? r.deferredAfter.toFixed(2) : '—'}</Text>}
                       {editTable && <Ionicons name="chevron-forward" size={13} color={COLORS.blue} style={{ marginLeft: 2 }} />}
                     </View>
                   );

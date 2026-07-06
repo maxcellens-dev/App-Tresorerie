@@ -19,6 +19,7 @@ import { useCategories } from '../../../hooks/useCategories';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import { useProjects } from '../../../hooks/useProjects';
 import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/useCredits';
+import CreditCurve from '../../../components/CreditCurve';
 import { computeAmortization, resolvePaliers } from '../../../lib/amortization';
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
@@ -31,6 +32,8 @@ const TYPES: { key: CreditType; label: string; icon: string }[] = [
 ];
 
 // Frais COMPTÉS dans le coût du prêt (s'ajoutent aux intérêts).
+// NB : avec un DIFFÉRÉ actif, « Intérêts intercalaires » n'est plus un frais : la valeur sert de montant
+// RÉEL des intérêts du différé (remplace l'estimation auto) et est déjà comprise dans les intérêts.
 const LOAN_FEES: { key: string; label: string }[] = [
   { key: 'fees_guarantee', label: 'Frais de garantie' },
   { key: 'fees_notary', label: 'Frais de notaire' },
@@ -120,9 +123,13 @@ export default function CreditAddScreen() {
   const [insSegments, setInsSegments] = useState<{ startYear: number; amount: string }[]>([{ startYear: 0, amount: '' }]);
   // #3 — Différé de remboursement (décalage au départ) → intérêts intercalaires calculés automatiquement.
   //   • partiel : on paie les intérêts (intercalaires) chaque mois pendant le différé, capital plus tard ;
-  //   • total   : on ne paie rien, les intérêts se capitalisent (s'ajoutent au capital).
+  //   • total « remboursés en premier » : rien payé ; les intérêts vont dans un compteur séparé (le CRD
+  //     ne bouge pas) remboursé en priorité par les premières mensualités (pratique des banques FR) ;
+  //   • total « capitalisés » : rien payé ; les intérêts s'ajoutent au capital.
+  // Le différé s'ajoute EN TÊTE du tableau : la durée saisie reste le nb d'échéances REMBOURSÉES.
   const [deferralMonths, setDeferralMonths] = useState('');
   const [deferralType, setDeferralType] = useState<'partial' | 'total'>('partial');
+  const [deferralIntMode, setDeferralIntMode] = useState<'capitalized' | 'deferred'>('deferred');
   const [showDeferral, setShowDeferral] = useState(false);
   const [showCal, setShowCal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,10 +153,11 @@ export default function CreditAddScreen() {
       interim_interest: String(editing.interim_interest ?? ''), management_fees: String(editing.management_fees ?? ''), other_fees: String(editing.other_fees ?? ''),
     });
     if (editing.interest_total_manual != null) setInterestManual(String(editing.interest_total_manual));
-    // Différé : restituer mois + type ; ouvrir la section si un différé existe.
+    // Différé : restituer mois + type + mode d'intérêts ; ouvrir la section si un différé existe.
     if ((editing.deferral_months ?? 0) > 0) {
       setDeferralMonths(String(editing.deferral_months));
       setDeferralType((editing.deferral_type === 'total' ? 'total' : 'partial'));
+      setDeferralIntMode(editing.deferral_interest_mode === 'deferred' ? 'deferred' : 'capitalized');
       setShowDeferral(true);
     }
     // Reconstruire les PALIERS depuis les montants annuels enregistrés (regroupe les années consécutives
@@ -198,12 +206,22 @@ export default function CreditAddScreen() {
   const numOr0 = (s: string | undefined) => { const v = num(s); return Number.isNaN(v) ? 0 : v; };
   const years = useMemo(() => { const n = parseInt(duration, 10); return n > 0 ? Math.ceil(n / 12) : 0; }, [duration]);
 
-  // #8b — paliers résolus (mensualités auto-calculées d'un palier à l'autre).
+  // Options de différé partagées entre le solveur de paliers et l'amortissement (le stock d'intérêts
+  // différés change la mensualité qui solde le prêt).
+  const deferN = Math.max(0, parseInt(deferralMonths, 10) || 0);
+  const deferOpts = useMemo(() => ({
+    months: deferN,
+    type: (deferN > 0 ? deferralType : 'none') as 'none' | 'partial' | 'total',
+    interestMode: deferralIntMode,
+    seed: numOr0(fees.interim_interest),
+  }), [deferN, deferralType, deferralIntMode, fees.interim_interest]);
+
+  // #8b — paliers résolus (mensualités auto-calculées d'un palier à l'autre, différé compris).
   const paliers = useMemo(() => {
     const C = num(principal), n = parseInt(duration, 10), r = num(rate);
     if (paymentMode !== 'paliers' || !C || !n || Number.isNaN(C) || Number.isNaN(n)) return null;
-    return resolvePaliers(C, Number.isNaN(r) ? 0 : r, n, segments.map((s) => ({ startYear: s.startYear, payment: num(s.payment) })));
-  }, [paymentMode, segments, principal, duration, rate]);
+    return resolvePaliers(C, Number.isNaN(r) ? 0 : r, n, segments.map((s) => ({ startYear: s.startYear, payment: num(s.payment) })), deferOpts);
+  }, [paymentMode, segments, principal, duration, rate, deferOpts]);
 
   const buildInsArray = (): (number | null)[] =>
     Array.from({ length: years }, (_, y) => { const v = num(insYear[y]); return Number.isNaN(v) ? numOr0(insurance) : v; });
@@ -227,16 +245,17 @@ export default function CreditAddScreen() {
   const amort = useMemo(() => {
     const C = num(principal), n = parseInt(duration, 10), r = num(rate);
     if (!C || !n || Number.isNaN(C) || Number.isNaN(n)) return null;
-    const defN = Math.max(0, parseInt(deferralMonths, 10) || 0);
     return computeAmortization({
       principal: C, rate_annual: Number.isNaN(r) ? 0 : r, duration_months: n,
       start_date: startDate, insurance_monthly: numOr0(insurance),
       insurance_yearly: effInsuranceYearly(),
       payment_yearly: effPaymentYearly(),
-      deferral_months: defN,
-      deferral_type: defN > 0 ? deferralType : 'none',
+      deferral_months: deferN,
+      deferral_type: deferOpts.type,
+      deferral_interest_mode: deferralIntMode,
+      interim_interest: numOr0(fees.interim_interest),
     });
-  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments, deferralMonths, deferralType]);
+  }, [principal, duration, rate, insurance, startDate, showYearly, insYear, payYear, years, paymentMode, paliers, insMode, insSegments, deferN, deferOpts, deferralIntMode, fees.interim_interest]);
 
   const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const stdPayment = amort ? amort.monthlyPayment : 0;
@@ -265,9 +284,12 @@ export default function CreditAddScreen() {
       principal: C, duration_months: n, rate_annual: numOr0(rate), rate_type: 'fixe',
       insurance_monthly: numOr0(insurance), start_date: startDate, first_payment_date: startDate,
       is_simulation: isSimulation,
-      // #3 — Différé de remboursement (0 = aucun). Les intérêts intercalaires en découlent (calcul auto).
-      deferral_months: Math.max(0, parseInt(deferralMonths, 10) || 0),
-      deferral_type: (parseInt(deferralMonths, 10) || 0) > 0 ? deferralType : 'none',
+      // #3 — Différé de remboursement (0 = aucun). Les intérêts intercalaires en découlent (calcul auto,
+      // bypassable par « Intérêts intercalaires » saisis). Mode d'intérêts envoyé seulement si différé
+      // (colonne migration 126 — anti « column not found » si la migration tarde).
+      deferral_months: deferN,
+      deferral_type: deferN > 0 ? deferralType : 'none',
+      ...(deferN > 0 ? { deferral_interest_mode: deferralIntMode } : {}),
       fees_file: numOr0(fees.fees_file), fees_bank: numOr0(fees.fees_bank), fees_notary: numOr0(fees.fees_notary),
       fees_guarantee: numOr0(fees.fees_guarantee), personal_contribution: numOr0(fees.personal_contribution),
       interim_interest: numOr0(fees.interim_interest), management_fees: numOr0(fees.management_fees), other_fees: numOr0(fees.other_fees),
@@ -422,7 +444,9 @@ export default function CreditAddScreen() {
               </View>
 
               <Text style={styles.feeGroup}>Intérêts & frais du prêt <Text style={styles.feeGroupHint}>(comptés dans le coût du prêt)</Text></Text>
-              {LOAN_FEES.map((f) => (
+              {/* Avec un différé, les intercalaires se saisissent dans la section « Différé » (ils sont
+                  compris dans les intérêts, pas un frais en plus). */}
+              {LOAN_FEES.filter((f) => !(deferN > 0 && f.key === 'interim_interest')).map((f) => (
                 <View key={f.key} style={styles.feeRow}>
                   <Text style={styles.feeLabel}>{f.label}</Text>
                   <TextInput style={styles.feeInput} value={fees[f.key] ?? ''} onChangeText={(v) => setFees((p) => ({ ...p, [f.key]: v }))} keyboardType="decimal-pad" placeholder="0 €" placeholderTextColor={COLORS.textSecondary} />
@@ -523,9 +547,10 @@ export default function CreditAddScreen() {
               </TouchableOpacity>
               {showDeferral && (<>
                 <Text style={styles.hint}>
-                  Si le 1ᵉʳ remboursement du capital est décalé (ex. construction, franchise), la banque facture des
-                  intérêts « intercalaires » sur la période. Indique la durée du différé : ils sont calculés et
-                  ajoutés automatiquement en tête du tableau (remboursés en premier).
+                  Si le 1ᵉʳ remboursement du capital est décalé (ex. construction, franchise), la banque facture
+                  des intérêts « intercalaires » sur la période. Les mois de différé s'ajoutent EN TÊTE du
+                  tableau : la durée saisie plus haut reste le nombre d'échéances remboursées. La date de 1ʳᵉ
+                  échéance = la 1ʳᵉ ligne du tableau (début du différé).
                 </Text>
                 <View style={styles.row2}>
                   <View style={{ flex: 1 }}>
@@ -546,17 +571,45 @@ export default function CreditAddScreen() {
                     </View>
                   </View>
                 </View>
+                {deferralType === 'total' && (
+                  <>
+                    <Text style={styles.label}>Intérêts du différé</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {([['deferred', 'Remboursés en premier'], ['capitalized', 'Capitalisés']] as const).map(([m, lbl]) => (
+                        <TouchableOpacity key={m} style={[styles.modeChip, deferralIntMode === m && styles.modeChipActive]} onPress={() => setDeferralIntMode(m)}>
+                          <Text style={[styles.modeText, deferralIntMode === m && { color: COLORS.blue }]}>{lbl}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
                 <Text style={styles.hint}>
                   {deferralType === 'partial'
                     ? 'Partiel : tu paies les intérêts chaque mois pendant le différé (le capital ne baisse pas encore).'
-                    : 'Total : tu ne paies rien pendant le différé ; les intérêts se capitalisent (s’ajoutent au capital).'}
+                    : deferralIntMode === 'deferred'
+                      ? 'Total, remboursés en premier : tu ne paies rien pendant le différé ; les intérêts vont dans un compteur séparé (le capital restant dû ne bouge pas), remboursé en priorité par les premières mensualités avant d\'amortir le capital. C\'est ce que font la plupart des banques (colonne « intérêts différés » de leur échéancier).'
+                      : 'Total, capitalisés : tu ne paies rien pendant le différé ; les intérêts s\'ajoutent au capital (qui augmente).'}
                 </Text>
-                {(parseInt(deferralMonths, 10) || 0) > 0 && amort && (
+                {deferN > 0 && (
+                  <View style={styles.feeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.feeLabel}>Intérêts intercalaires réels (€)</Text>
+                      <Text style={styles.feeSubHint}>Montant du relevé banque. Vide = estimation auto — utile si le capital est débloqué par tranches (l'estimation sur le capital total serait trop haute).</Text>
+                    </View>
+                    <TextInput
+                      style={styles.feeInput} value={fees.interim_interest ?? ''}
+                      onChangeText={(v) => setFees((p) => ({ ...p, interim_interest: v }))}
+                      keyboardType="decimal-pad" placeholder="auto" placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                )}
+                {deferN > 0 && amort && (
                   <View style={[styles.overrideWarn, { borderColor: COLORS.blue + '88', backgroundColor: COLORS.blue + '12' }]}>
                     <Ionicons name="calculator-outline" size={16} color={COLORS.blue} />
                     <Text style={styles.overrideWarnText}>
-                      Intérêts intercalaires estimés : <Text style={{ fontWeight: '800' }}>{fmt(amort.deferralInterest)}</Text> sur {parseInt(deferralMonths, 10)} mois.
-                      Le tableau d'amortissement est recalculé automatiquement. Tu peux ajuster chaque échéance à la main dans le tableau si besoin.
+                      Intérêts intercalaires {numOr0(fees.interim_interest) > 0 ? 'saisis' : 'estimés'} : <Text style={{ fontWeight: '800' }}>{fmt(amort.deferralInterest)}</Text> sur {deferN} mois
+                      ({deferralType === 'partial' ? 'payés pendant le différé' : deferralIntMode === 'deferred' ? 'remboursés en premier par les mensualités' : 'ajoutés au capital'}).
+                      Le tableau ({deferN} + {parseInt(duration, 10) || 0} échéances) est recalculé automatiquement ; chaque échéance reste ajustable à la main.
                     </Text>
                   </View>
                 )}
@@ -652,9 +705,10 @@ export default function CreditAddScreen() {
           </TouchableOpacity>
 
           {amort && (() => {
-            // #5 — décomposition des coûts.
+            // #5 — décomposition des coûts. Avec un différé, les intercalaires sont DÉJÀ dans les
+            // intérêts calculés → on ne les recompte pas comme frais (anti double-comptage).
             const interest = !Number.isNaN(num(interestManual)) ? num(interestManual) : amort.totalInterest;
-            const loanFees = LOAN_FEES.reduce((s, f) => s + numOr0(fees[f.key]), 0);
+            const loanFees = LOAN_FEES.reduce((s, f) => s + (deferN > 0 && f.key === 'interim_interest' ? 0 : numOr0(fees[f.key])), 0);
             const extraFees = EXTRA_FEES.reduce((s, f) => s + numOr0(fees[f.key]), 0);
             const coutPret = interest + loanFees;                          // constitue la mensualité (hors assurance)
             const coutTotal = coutPret + amort.totalInsurance + extraFees; // 100% des coûts
@@ -664,12 +718,23 @@ export default function CreditAddScreen() {
                 <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (hors assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyPayment)}</Text></View>
                 <View style={styles.previewRow}><Text style={styles.previewK}>Mensualité (1ʳᵉ année, avec assurance)</Text><Text style={styles.previewV}>{fmt(amort.monthlyWithInsurance)}</Text></View>
                 <View style={[styles.previewRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.cardBorder, paddingTop: 8, marginTop: 2 }]}><Text style={styles.previewK}>Intérêts{!Number.isNaN(num(interestManual)) ? ' (manuel)' : ''}</Text><Text style={styles.previewV}>{fmt(interest)}</Text></View>
+                {deferN > 0 && amort.deferralInterest > 0 && Number.isNaN(num(interestManual)) && (
+                  <View style={styles.previewRow}><Text style={[styles.previewK, { paddingLeft: 12 }]}>↳ dont intérêts intercalaires (différé)</Text><Text style={styles.previewV}>{fmt(amort.deferralInterest)}</Text></View>
+                )}
                 <View style={styles.previewRow}><Text style={styles.previewK}>Frais (dossier, garantie, notaire…)</Text><Text style={styles.previewV}>{fmt(loanFees + extraFees)}</Text></View>
                 <View style={styles.previewRow}><Text style={styles.previewK}>Coût du prêt (intérêts + frais du prêt)</Text><Text style={styles.previewV}>{fmt(coutPret)}</Text></View>
                 <View style={styles.previewRow}><Text style={styles.previewK}>Coût total (tout compris)</Text><Text style={[styles.previewV, { color: COLORS.danger }]}>{fmt(coutTotal)}</Text></View>
               </View>
             );
           })()}
+
+          {/* Courbe de remboursement (capital vs intérêts + CRD) — se met à jour en direct. */}
+          {amort && amort.schedule.length > 1 && (
+            <View style={styles.preview}>
+              <Text style={styles.previewTitle}>Courbe de remboursement</Text>
+              <CreditCurve schedule={amort.schedule} colors={COLORS} principal={num(principal) || 0} />
+            </View>
+          )}
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving}>
             {saving ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveLabel}>{editId ? 'Enregistrer les modifications' : 'Enregistrer le crédit'}</Text>}

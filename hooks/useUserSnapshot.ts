@@ -1,6 +1,10 @@
 // Construit l'instantané financier ANONYMISÉ d'un utilisateur (le même que celui envoyé à l'IA).
 // Réutilisé par la page Conseils IA (utilisateur courant) ET par l'onglet Snapshot admin (user choisi,
 // lecture autorisée par les policies admin — migrations 101/102/104/110/119).
+//
+// V2 : en plus des agrégats pilotage, on dérive des transactions (500 dernières) l'HISTORIQUE des mois
+// COMPLETS, les moyennes/tendances par grande catégorie, les charges & revenus RÉCURRENTS actifs et les
+// grosses dépenses ponctuelles récentes — toujours anonymisé (catégories + montants, jamais de libellé).
 import { useMemo } from 'react';
 import { usePilotageData } from './usePilotageData';
 import { useTransactions } from './useTransactions';
@@ -10,7 +14,7 @@ import { useAllAccounts } from './useAccounts';
 import { useProjects } from './useProjects';
 import { computeAmortization } from '../lib/amortization';
 import { todayISO } from '../lib/dateUtils';
-import { buildSnapshot } from '../lib/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff } from '../lib/aiSnapshot';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 export function useUserSnapshot(userId: string | undefined): { text: string | null; ready: boolean; build: () => string } {
@@ -22,8 +26,8 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
   const { data: projects } = useProjects(userId);
 
   const catById = useMemo(() => {
-    const m = new Map<string, { name: string; parent_id?: string | null }>();
-    for (const cat of categories ?? []) m.set(cat.id, { name: cat.name, parent_id: cat.parent_id });
+    const m = new Map<string, { name: string; parent_id?: string | null; is_variable?: boolean }>();
+    for (const cat of categories ?? []) m.set(cat.id, { name: cat.name, parent_id: cat.parent_id, is_variable: (cat as any).is_variable });
     return m;
   }, [categories]);
   const grandCat = (id: string | null | undefined): string => {
@@ -32,13 +36,25 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     if (!cat) return 'Sans catégorie';
     return cat.parent_id ? (catById.get(cat.parent_id)?.name ?? cat.name) : cat.name;
   };
+  /** « Parent > Sous-catégorie » (taxonomie seule, jamais de libellé) pour les lignes récurrentes. */
+  const fullCat = (id: string | null | undefined): string => {
+    if (!id) return 'Sans catégorie';
+    const cat = catById.get(id);
+    if (!cat) return 'Sans catégorie';
+    const parent = cat.parent_id ? catById.get(cat.parent_id)?.name : null;
+    return parent && parent !== cat.name ? `${parent} > ${cat.name}` : cat.name;
+  };
+
+  // Transaction « réelle » à considérer (ni virement interne, ni brouillon).
+  const isReal = (t: any) => !t.linked_account_id && !t.is_draft;
+  const isRecurringTpl = (t: any) => Boolean(t.is_recurring) && Boolean(t.recurrence_rule);
 
   const expensesByCategory = useMemo(() => {
     if (!transactions) return [];
     const curYm = todayISO().slice(0, 7);
     const acc: Record<string, number> = {};
     for (const t of transactions) {
-      if (t.linked_account_id || t.is_draft) continue;
+      if (!isReal(t)) continue;
       if (Number(t.amount) >= 0) continue;
       if (t.date.slice(0, 7) !== curYm) continue;
       const name = grandCat(t.category_id);
@@ -46,6 +62,96 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     }
     return Object.entries(acc).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
   }, [transactions, catById]);
+
+  // Mois COMPLETS réellement couverts par les données chargées (500 dernières transactions) : on ignore
+  // le mois le plus ancien (potentiellement tronqué par la limite) et le mois en cours (partiel).
+  const completeMonths = useMemo(() => {
+    if (!transactions?.length) return [] as string[];
+    const curYm = todayISO().slice(0, 7);
+    const oldestYm = transactions[transactions.length - 1].date.slice(0, 7);
+    const months = [...new Set(transactions.map((t) => t.date.slice(0, 7)))]
+      .filter((ym) => ym < curYm && ym > oldestYm)
+      .sort();
+    return months.slice(-6);
+  }, [transactions]);
+
+  const history = useMemo<SnapshotMonth[]>(() => {
+    if (!transactions) return [];
+    const by: Record<string, SnapshotMonth> = {};
+    for (const ym of completeMonths) by[ym] = { ym, income: 0, expenses: 0, fixed: 0, variable: 0 };
+    for (const t of transactions) {
+      const ym = t.date.slice(0, 7);
+      const h = by[ym];
+      if (!h || !isReal(t)) continue;
+      const amt = Number(t.amount);
+      if (amt > 0) { h.income += amt; continue; }
+      const abs = Math.abs(amt);
+      h.expenses += abs;
+      // Fixe = récurrente OU catégorie marquée non-variable ; sinon variable.
+      const cat = t.category_id ? catById.get(t.category_id) : null;
+      if (isRecurringTpl(t) || cat?.is_variable === false) h.fixed += abs; else h.variable += abs;
+    }
+    return completeMonths.map((ym) => by[ym]);
+  }, [transactions, completeMonths, catById]);
+
+  const categoryTrends = useMemo<SnapshotCategoryTrend[]>(() => {
+    if (!transactions || !completeMonths.length) return [];
+    const last3 = completeMonths.slice(-3);
+    const lastYm = completeMonths[completeMonths.length - 1];
+    const sum3: Record<string, number> = {};
+    const last: Record<string, number> = {};
+    for (const t of transactions) {
+      if (!isReal(t) || Number(t.amount) >= 0) continue;
+      const ym = t.date.slice(0, 7);
+      if (!last3.includes(ym)) continue;
+      const name = grandCat(t.category_id);
+      const abs = Math.abs(Number(t.amount));
+      sum3[name] = (sum3[name] ?? 0) + abs;
+      if (ym === lastYm) last[name] = (last[name] ?? 0) + abs;
+    }
+    return Object.entries(sum3)
+      .map(([name, total]) => ({ name, avg3m: total / last3.length, lastMonth: last[name] ?? 0 }))
+      .filter((x) => x.avg3m >= 5)
+      .sort((a, b) => b.avg3m - a.avg3m);
+  }, [transactions, completeMonths, catById]);
+
+  // Récurrentes ACTIVES (templates non terminés), dédupliquées par catégorie+montant+fréquence.
+  const recurrings = useMemo(() => {
+    const today = todayISO();
+    const seen = new Set<string>();
+    const expenses: SnapshotRecurring[] = [];
+    const incomes: SnapshotRecurring[] = [];
+    for (const t of transactions ?? []) {
+      if (!isReal(t) || !isRecurringTpl(t)) continue;
+      if (t.recurrence_end_date && t.recurrence_end_date < today) continue;
+      const amt = Number(t.amount);
+      const key = `${t.category_id ?? 'x'}|${Math.round(Math.abs(amt) * 100)}|${t.recurrence_rule}`;
+      if (seen.has(key)) continue; // transactions triées desc → on garde l'occurrence la plus récente
+      seen.add(key);
+      const row = { category: fullCat(t.category_id), amount: Math.abs(amt), rule: String(t.recurrence_rule) };
+      (amt < 0 ? expenses : incomes).push(row);
+    }
+    expenses.sort((a, b) => b.amount - a.amount);
+    incomes.sort((a, b) => b.amount - a.amount);
+    return { expenses, incomes };
+  }, [transactions, catById]);
+
+  // Grosses dépenses PONCTUELLES récentes (dernier mois complet + mois en cours, non récurrentes).
+  const topOneOff = useMemo<SnapshotOneOff[]>(() => {
+    if (!transactions) return [];
+    const curYm = todayISO().slice(0, 7);
+    const lastYm = completeMonths[completeMonths.length - 1];
+    const out: SnapshotOneOff[] = [];
+    for (const t of transactions) {
+      if (!isReal(t) || isRecurringTpl(t) || Number(t.amount) >= 0) continue;
+      const ym = t.date.slice(0, 7);
+      if (ym !== curYm && ym !== lastYm) continue;
+      const abs = Math.abs(Number(t.amount));
+      if (abs < 50) continue;
+      out.push({ date: t.date, category: grandCat(t.category_id), amount: abs });
+    }
+    return out.sort((a, b) => b.amount - a.amount).slice(0, 8);
+  }, [transactions, completeMonths, catById]);
 
   const creditsSummary = useMemo(() => {
     const today = todayISO();
@@ -59,6 +165,7 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       return {
         principal: cr.principal, ratePct: cr.rate_annual, crd: a.crdAtDate(today),
         endYM: last ? last.date.slice(0, 7) : null,
+        remainingMonths: a.schedule.filter((r) => r.date > today).length,
         impactPct, monthly: a.monthlyWithInsurance * (impactPct / 100),
       };
     });
@@ -88,9 +195,17 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       expensesByCategory,
       credits: creditsSummary,
       projects: projectsSummary,
+      history,
+      categoryTrends,
+      recurringExpenses: recurrings.expenses,
+      recurringIncomes: recurrings.incomes,
+      topOneOff,
     });
   };
 
-  const text = useMemo(() => (pilotage ? build() : null), [pilotage, expensesByCategory, creditsSummary, projectsSummary]);
+  const text = useMemo(
+    () => (pilotage ? build() : null),
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff],
+  );
   return { text, ready: !!pilotage, build };
 }
