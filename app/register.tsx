@@ -120,7 +120,7 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
                 <Text style={styles.emailNote}>
                   ℹ️ L'adresse e-mail n'est reliée à aucune messagerie : pas de récupération
-                  automatique du mot de passe. En cas d'oubli, contactez un administrateur.
+                  automatique du mot de passe. En cas d'oubli, contacte un administrateur.
                 </Text>
               </>
             )}

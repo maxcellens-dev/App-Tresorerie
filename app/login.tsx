@@ -63,7 +63,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
           <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
           <Text style={styles.title}>Connexion</Text>
-          <Text style={styles.subtitle}>Accédez à votre trésorerie sur tous vos appareils.</Text>
+          <Text style={styles.subtitle}>Accède à ta trésorerie sur tous tes appareils.</Text>
 
           {/* Connexion sociale (mise en avant) */}
           <SocialAuthButtons mode="login" />
@@ -113,7 +113,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
             <Text style={styles.emailNote}>
               ℹ️ L'adresse e-mail n'est reliée à aucune messagerie : pas de récupération
-              automatique du mot de passe. En cas d'oubli, contactez un administrateur.
+              automatique du mot de passe. En cas d'oubli, contacte un administrateur.
             </Text>
             <TouchableOpacity style={styles.link} onPress={() => router.push('/reset-password')}>
               <Text style={[styles.linkText, { color: COLORS.textSecondary }]}>Mot de passe oublié ?</Text>

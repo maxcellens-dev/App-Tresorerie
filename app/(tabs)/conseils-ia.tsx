@@ -70,7 +70,11 @@ export default function ConseilsIaScreen() {
   const remaining = quota?.remaining ?? 0;
   // Crédits payants (rechargés) : utilisables quand le quota mensuel est épuisé.
   const extraCredits = quota?.extra_credits ?? 0;
-  const canSend = remaining > 0 || extraCredits > 0;
+  // ── Compteur UNIQUE côté user : requêtes gratuites + rechargées confondues. En arrière-plan le
+  //    serveur consomme d'abord le gratuit, puis le payant — mais l'utilisateur voit juste « X / Y ».
+  const available = remaining + extraCredits;         // requêtes utilisables maintenant
+  const totalRequests = (quota?.limit ?? 0) + extraCredits; // capacité totale du cycle
+  const canSend = available > 0;
   const packs: AiCreditPack[] = cfg?.extra_credit_packs ?? [];
   const [showPaywall, setShowPaywall] = useState(false);
 
@@ -136,24 +140,15 @@ export default function ConseilsIaScreen() {
     }
   };
 
-  // Validation préalable : prévient que la demande consomme 1 requête (quota mensuel OU crédit rechargé).
+  // Validation préalable : une seule confirmation, sans distinction gratuit/payant (transparent pour le user).
   const run = (payload: RunPayload) => {
     if (readOnly || pending) return;
     if (!snapshotReady) { Alert.alert('Patiente', 'Tes données sont en cours de chargement.'); return; }
-    // Plus rien de disponible → on propose le click-to-pay (recharge).
+    // Plus aucune requête → on propose le click-to-pay (recharge).
     if (!canSend) { setShowPaywall(true); return; }
-    // Quota mensuel épuisé mais crédits rechargés dispo → on consomme un crédit payant.
-    if (remaining <= 0) {
-      Alert.alert(
-        'Utiliser un crédit rechargé ?',
-        `Ton quota mensuel est épuisé. Cette demande utilisera 1 de tes ${extraCredits} crédit(s) rechargé(s).`,
-        [{ text: 'Annuler', style: 'cancel' }, { text: 'Continuer', onPress: () => execute(payload) }],
-      );
-      return;
-    }
     Alert.alert(
       'Utiliser une requête ?',
-      `Cette demande consomme 1 requête de ton quota mensuel.\nIl t'en restera ${remaining - 1} sur ${quota?.limit ?? 0} ce mois-ci.${extraCredits > 0 ? `\n(+ ${extraCredits} crédit(s) rechargé(s) en réserve)` : ''}`,
+      `Cette demande utilise 1 requête.\nIl t'en restera ${available - 1} sur ${totalRequests}.`,
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Continuer', onPress: () => execute(payload) },
@@ -277,18 +272,17 @@ export default function ConseilsIaScreen() {
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={s.counter} activeOpacity={0.8} onPress={() => setShowPaywall(true)} accessibilityRole="button" accessibilityLabel="Recharger mes requêtes IA">
-                <Text style={s.counterNum}>{remaining}</Text>
-                <Text style={s.counterLbl}>/ {quota?.limit ?? 0} ce mois</Text>
-                {extraCredits > 0 && <Text style={s.counterExtra}>+{extraCredits} rechargé{extraCredits > 1 ? 's' : ''}</Text>}
+                <Text style={s.counterNum}>{available}</Text>
+                <Text style={s.counterLbl}>/ {totalRequests} requêtes</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Quota mensuel épuisé → bandeau click-to-pay (sauf s'il reste des crédits rechargés). */}
-            {remaining <= 0 && extraCredits <= 0 && !readOnly && (
+            {/* Plus aucune requête disponible → bandeau click-to-pay. */}
+            {available <= 0 && !readOnly && (
               <TouchableOpacity style={s.rechargeBanner} activeOpacity={0.85} onPress={() => setShowPaywall(true)}>
                 <Ionicons name="flash" size={18} color={c.emerald} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.rechargeTitle}>Tu as utilisé toutes tes analyses ce mois</Text>
+                  <Text style={s.rechargeTitle}>Tu n'as plus de requêtes disponibles</Text>
                   <Text style={s.rechargeSub}>Recharge des requêtes à l'unité pour continuer, sans attendre le mois prochain.</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={c.emerald} />
@@ -382,9 +376,9 @@ export default function ConseilsIaScreen() {
             </View>
             <Text style={s.paySheetTitle}>Recharge tes conseils IA</Text>
             <Text style={s.paySheetSub}>
-              {extraCredits > 0
-                ? `Il te reste ${extraCredits} crédit(s) rechargé(s). Ajoute-en autant que tu veux : ils ne périment pas.`
-                : 'Ton quota mensuel est épuisé. Achète des requêtes à l\'unité et continue tout de suite — sans passer Premium ni attendre le mois prochain.'}
+              {available > 0
+                ? `Il te reste ${available} requête${available > 1 ? 's' : ''}. Ajoutes-en autant que tu veux : les requêtes achetées ne périment pas.`
+                : 'Tu n\'as plus de requêtes. Achètes-en à l\'unité et continue tout de suite — sans passer Premium ni attendre le mois prochain.'}
             </Text>
 
             {packs.length === 0 ? (
