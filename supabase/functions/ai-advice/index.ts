@@ -104,6 +104,8 @@ serve(async (req) => {
   const question: string = kind === 'chat' ? String(body.question ?? '').slice(0, 2000) : '';
   const snapshot: string = String(body.snapshot ?? '').slice(0, 20000);
   const wantedModel: string | undefined = body.model || undefined; // choix éventuel du user
+  // Conversation (fil) à laquelle rattacher les messages. Le client en fournit toujours une.
+  const conversationId: string | null = typeof body.conversation_id === 'string' ? body.conversation_id : null;
 
   // ── Test ADMIN : ping chaque modèle pour connaître sa disponibilité en temps réel (OK / 429 / 404…).
   if (body.admin_check_models === true) {
@@ -141,7 +143,13 @@ serve(async (req) => {
     const { data: acfg } = await admin.from('ai_config').select('models').single();
     const { reply: rep, model: mdl, lastErr: le } = await generateWithFallback((acfg!.models as any[]).filter((x) => x.enabled), fp);
     if (!rep) return json({ ok: false, queued: true, error: le });
-    await admin.from('ai_messages').insert({ profile_id: targetUser, role: 'assistant', content: rep, model: mdl });
+    // Conversation cible = celle du ticket (pour que la réponse arrive dans le bon fil).
+    let convId: string | null = typeof body.conversation_id === 'string' ? body.conversation_id : null;
+    if (!convId && body.ticket_id) {
+      const { data: tk } = await admin.from('ai_tickets').select('conversation_id').eq('id', body.ticket_id).maybeSingle();
+      convId = (tk as any)?.conversation_id ?? null;
+    }
+    await admin.from('ai_messages').insert({ profile_id: targetUser, role: 'assistant', content: rep, model: mdl, conversation_id: convId });
     if (body.ticket_id) await admin.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', body.ticket_id);
     return json({ ok: true, reply: rep, model: mdl });
   }
@@ -183,10 +191,12 @@ serve(async (req) => {
     .replaceAll('{{QUESTION}}', question);
   const userContent = kind === 'analysis' ? `📊 ${prompt.title}` : question;
 
-  // 4) Trace le message user (non décompté tant qu'on n'a pas de réponse).
+  // 4) Trace le message user (non décompté tant qu'on n'a pas de réponse), rattaché à la conversation.
   const { data: userMsg } = await admin.from('ai_messages')
-    .insert({ profile_id: user.id, role: 'user', content: userContent, kind, analysis_key: analysisKey, counted: false })
+    .insert({ profile_id: user.id, role: 'user', content: userContent, kind, analysis_key: analysisKey, counted: false, conversation_id: conversationId })
     .select('id').single();
+  // Remonte la conversation en tête de liste (dernière activité).
+  if (conversationId) await admin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversationId);
 
   // 5) Cap global du jour (garde-fou quota gratuit Gemini). Les requêtes PAYÉES (clé payante dédiée) ne
   //    tapent PAS dans le pool gratuit → elles ignorent ce cap.
@@ -204,7 +214,7 @@ serve(async (req) => {
   // 7a) Échec → ticket admin (relance gratuite plus tard), le user sera notifié. Pas de décompte.
   if (!reply) {
     await admin.from('ai_tickets').insert({
-      profile_id: user.id, user_message_id: userMsg?.id ?? null,
+      profile_id: user.id, user_message_id: userMsg?.id ?? null, conversation_id: conversationId,
       request: { kind, analysis_key: analysisKey, question, snapshot }, error: gen.lastErr, status: 'open',
     });
     await notifyAdmins(admin, 'Une demande de conseil a échoué et attend une relance.', cfg.notify_admins_push !== false);
@@ -213,7 +223,7 @@ serve(async (req) => {
 
   // 7b) Succès → réponse + décompte. Requête PAYÉE → on consomme 1 crédit du ledger (delta -1) et on ne
   //     touche PAS le quota mensuel. Requête incluse → registre d'usage mensuel (non effaçable).
-  await admin.from('ai_messages').insert({ profile_id: user.id, role: 'assistant', content: reply, model: modelUsed });
+  await admin.from('ai_messages').insert({ profile_id: user.id, role: 'assistant', content: reply, model: modelUsed, conversation_id: conversationId });
   await admin.from('ai_messages').update({ counted: true }).eq('id', userMsg!.id);
   if (usePaidCredit) {
     await admin.from('ai_extra_credits').insert({ profile_id: user.id, delta: -1, reason: 'consumption', ref: userMsg?.id ?? null });

@@ -9,7 +9,7 @@ import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useNavBack } from '../../hooks/useNavBack';
@@ -17,7 +17,7 @@ import { useRouter } from 'expo-router';
 import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, useDeleteAiHistory, usePurchaseExtraCredits, type AiMessage, type AiCreditPack } from '../../hooks/useAi';
+import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
   const c = useAppColors();
@@ -35,10 +35,30 @@ export default function ConseilsIaScreen() {
   const { data: cfg } = useAiConfig();
   const { data: quota } = useAiQuota(uid);
   const { data: prompts } = useAiPrompts();
-  const { data: history } = useAiMessages(uid);
+
+  // ── Conversations séparées (comme ChatGPT/Claude) ──
+  const { data: conversations = [] } = useAiConversations(uid);
+  // undefined = pas encore initialisé ; null = « nouvelle conversation » vide (pas encore créée en base).
+  const [conversationId, setConversationId] = useState<string | null | undefined>(undefined);
+  // Initialise sur la conversation la plus récente (ou « nouvelle » si aucune) une fois la liste chargée.
+  useEffect(() => {
+    if (conversationId === undefined) setConversationId(conversations[0]?.id ?? null);
+  }, [conversations, conversationId]);
+  // Si la conversation courante disparaît (supprimée ailleurs), on bascule sur la plus récente.
+  useEffect(() => {
+    if (conversationId && !conversations.some((cv) => cv.id === conversationId)) {
+      setConversationId(conversations[0]?.id ?? null);
+    }
+  }, [conversations, conversationId]);
+  const [showConvs, setShowConvs] = useState(false);
+  const createConv = useCreateConversation(uid);
+  const renameConv = useRenameConversation(uid);
+  const delConv = useDeleteConversation(uid);
+  const currentConv = conversations.find((cv) => cv.id === conversationId) ?? null;
+
+  const { data: history } = useAiMessages(uid, conversationId ?? null);
   useAiMessagesRealtime(uid);
   const ask = useAskAi(uid);
-  const delHistory = useDeleteAiHistory(uid);
   const purchase = usePurchaseExtraCredits(uid);
 
   const allowed = isPremium || isAdmin || !!cfg?.open_to_all;
@@ -78,13 +98,25 @@ export default function ConseilsIaScreen() {
 
   type RunPayload = { kind: 'analysis' | 'chat'; analysis_key?: string; question?: string };
 
+  // Titre d'une nouvelle conversation à partir de la première demande.
+  const titleFor = (payload: RunPayload) =>
+    payload.kind === 'analysis'
+      ? ((prompts ?? []).find((p) => p.key === payload.analysis_key)?.title ?? 'Analyse')
+      : (payload.question ?? 'Nouvelle conversation');
+
   // Envoi effectif (après validation) — consomme 1 requête en cas de succès.
   const execute = async (payload: RunPayload) => {
     if (payload.kind === 'chat') setInput('');
     setPending(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     try {
-      const res = await ask.mutateAsync({ ...payload, snapshot: buildSnap() });
+      // Crée la conversation à la volée si on est sur un fil « neuf » (évite les conversations vides).
+      let convId = conversationId ?? null;
+      if (!convId) {
+        convId = await createConv.mutateAsync(titleFor(payload));
+        setConversationId(convId);
+      }
+      const res = await ask.mutateAsync({ ...payload, snapshot: buildSnap(), conversation_id: convId });
       if (res.queued) {
         Alert.alert('Réessai en cours', "Le service n'a pas pu répondre tout de suite. Ta demande a été transmise — tu seras notifié dès qu'une réponse est disponible. Cette requête n'a pas été décomptée.");
       } else if (!res.ok) {
@@ -131,12 +163,44 @@ export default function ConseilsIaScreen() {
     run({ kind: 'chat', question: q });
   };
 
-  const confirmDelete = () => {
-    if (!history?.length) return;
-    Alert.alert('Effacer l\'historique', 'Supprimer toutes tes conversations IA ? Cette action est définitive.', [
+  // Démarre un fil neuf (créé en base au premier message).
+  const newConversation = () => {
+    setConversationId(null);
+    setInput('');
+    setShowConvs(false);
+  };
+
+  const selectConversation = (id: string) => {
+    setConversationId(id);
+    setShowConvs(false);
+  };
+
+  const deleteConversation = (conv: AiConversation) => {
+    Alert.alert('Supprimer la conversation', `« ${conv.title} » sera définitivement supprimée.`, [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Effacer', style: 'destructive', onPress: () => delHistory.mutate() },
+      { text: 'Supprimer', style: 'destructive', onPress: () => delConv.mutate(conv.id) },
     ]);
+  };
+
+  const renamePrompt = (conv: AiConversation) => {
+    if (Platform.OS === 'web') {
+      const t = (globalThis as any).prompt?.('Renommer la conversation', conv.title);
+      if (t && t.trim()) renameConv.mutate({ id: conv.id, title: t.trim().slice(0, 80) });
+      return;
+    }
+    (Alert as any).prompt?.(
+      'Renommer la conversation',
+      undefined,
+      (t: string) => { if (t && t.trim()) renameConv.mutate({ id: conv.id, title: t.trim().slice(0, 80) }); },
+      'plain-text',
+      conv.title,
+    );
+  };
+
+  // Supprime la conversation courante (bouton corbeille de l'en-tête).
+  const confirmDelete = () => {
+    if (!currentConv) return;
+    deleteConversation(currentConv);
   };
 
   const analyses = (prompts ?? []).filter((p) => p.key.startsWith('analysis_') && p.is_active);
@@ -181,8 +245,15 @@ export default function ConseilsIaScreen() {
               <Text style={{ color: c.text, fontWeight: '600', fontSize: 14 }}>Retour</Text>
             </TouchableOpacity>
             <View style={{ flex: 1 }} />
-            {!!history?.length && (
-              <TouchableOpacity onPress={confirmDelete} style={s.trashBtn} disabled={delHistory.isPending}>
+            <TouchableOpacity onPress={() => setShowConvs(true)} style={s.headBtn} accessibilityRole="button" accessibilityLabel="Mes conversations">
+              <Ionicons name="chatbubbles-outline" size={18} color={c.text} />
+              {conversations.length > 0 && <Text style={s.headBtnCount}>{conversations.length}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={newConversation} style={s.headBtn} accessibilityRole="button" accessibilityLabel="Nouvelle conversation" disabled={readOnly}>
+              <Ionicons name="add" size={22} color={readOnly ? c.textSecondary : c.emerald} />
+            </TouchableOpacity>
+            {!!currentConv && (
+              <TouchableOpacity onPress={confirmDelete} style={s.trashBtn} disabled={delConv.isPending} accessibilityLabel="Supprimer cette conversation">
                 <Ionicons name="trash-outline" size={18} color={c.danger} />
               </TouchableOpacity>
             )}
@@ -194,7 +265,12 @@ export default function ConseilsIaScreen() {
               <View style={s.iconBadge}><Ionicons name="sparkles" size={20} color={c.emerald} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={s.title}>Conseils IA</Text>
-                <Text style={s.sub}>Analyses et conseils basés sur tes finances</Text>
+                <TouchableOpacity onPress={() => setShowConvs(true)} activeOpacity={0.7}>
+                  <Text style={s.sub} numberOfLines={1}>
+                    {currentConv ? currentConv.title : 'Nouvelle conversation'}
+                    {'  '}<Ionicons name="chevron-down" size={11} color={c.textSecondary} />
+                  </Text>
+                </TouchableOpacity>
               </View>
               <TouchableOpacity style={s.counter} activeOpacity={0.8} onPress={() => setShowPaywall(true)} accessibilityRole="button" accessibilityLabel="Recharger mes requêtes IA">
                 <Text style={s.counterNum}>{remaining}</Text>
@@ -337,6 +413,49 @@ export default function ConseilsIaScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Liste des conversations (historiques séparés). */}
+      <Modal visible={showConvs} transparent animationType="fade" onRequestClose={() => setShowConvs(false)}>
+        <Pressable style={s.payOverlay} onPress={() => setShowConvs(false)}>
+          <Pressable style={s.convSheet} onPress={() => {}}>
+            <View style={s.convHeader}>
+              <Text style={s.convTitle}>Mes conversations</Text>
+              <TouchableOpacity onPress={() => setShowConvs(false)} style={s.convClose}>
+                <Ionicons name="close" size={20} color={c.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={s.convNewBtn} activeOpacity={0.85} onPress={newConversation} disabled={readOnly}>
+              <Ionicons name="add-circle-outline" size={18} color={readOnly ? c.textSecondary : c.emerald} />
+              <Text style={[s.convNewTxt, readOnly && { color: c.textSecondary }]}>Nouvelle conversation</Text>
+            </TouchableOpacity>
+
+            <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+              {conversations.length === 0 ? (
+                <Text style={s.convEmpty}>Aucune conversation pour l'instant. Pose une question pour en démarrer une.</Text>
+              ) : (
+                conversations.map((cv) => {
+                  const active = cv.id === conversationId;
+                  return (
+                    <View key={cv.id} style={[s.convRow, active && s.convRowActive]}>
+                      <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.7} onPress={() => selectConversation(cv.id)}>
+                        <Text style={[s.convRowTitle, active && { color: c.emerald }]} numberOfLines={1}>{cv.title}</Text>
+                        <Text style={s.convRowDate}>{new Date(cv.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => renamePrompt(cv)} style={s.convAction} accessibilityLabel="Renommer">
+                        <Ionicons name="create-outline" size={17} color={c.textSecondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteConversation(cv)} style={s.convAction} accessibilityLabel="Supprimer">
+                        <Ionicons name="trash-outline" size={17} color={c.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -377,8 +496,22 @@ function formatStamp(iso: string | null | undefined): string {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+    headBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, minWidth: 36, paddingHorizontal: 8, borderRadius: 18, alignSelf: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
+    headBtnCount: { fontSize: 12, fontWeight: '800', color: c.text },
     trashBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.danger + '44' },
+    convSheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 18, paddingBottom: 28 },
+    convHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    convTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: c.text },
+    convClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+    convNewBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 12, padding: 12, marginBottom: 10 },
+    convNewTxt: { fontSize: 14, fontWeight: '800', color: c.emerald },
+    convEmpty: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 18, lineHeight: 18 },
+    convRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8 },
+    convRowActive: { borderColor: c.emerald + '88', backgroundColor: c.emerald + '10' },
+    convRowTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+    convRowDate: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
+    convAction: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
     scroll: { paddingHorizontal: 16, paddingBottom: 16 },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
     iconBadge: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.emerald + '1A', alignItems: 'center', justifyContent: 'center' },

@@ -26,7 +26,8 @@ export interface AiConfig {
   notify_admins_push?: boolean;
 }
 export interface AiPrompt { key: string; title: string; prompt_template: string; sort_order: number; is_active: boolean }
-export interface AiMessage { id: string; profile_id: string; role: 'user' | 'assistant' | 'admin'; content: string; model: string | null; kind: string | null; analysis_key: string | null; counted: boolean; created_at: string }
+export interface AiMessage { id: string; profile_id: string; role: 'user' | 'assistant' | 'admin'; content: string; model: string | null; kind: string | null; analysis_key: string | null; counted: boolean; created_at: string; conversation_id?: string | null }
+export interface AiConversation { id: string; profile_id: string; title: string; created_at: string; updated_at: string }
 /** Quota mensuel + solde de crédits payants (rechargés). */
 export interface AiQuota { used: number; limit: number; remaining: number; is_premium: boolean; extra_credits: number }
 export interface AiTicket { id: string; profile_id: string; user_message_id: string | null; request: any; error: string | null; status: 'open' | 'resolved'; created_at: string; resolved_at: string | null }
@@ -138,13 +139,72 @@ export function useGrantExtraCredits() {
   });
 }
 
-/** Historique de chat de l'utilisateur (ou du user visité en admin). */
-export function useAiMessages(userId: string | undefined) {
+/** Liste des conversations de l'utilisateur (les plus récentes en tête). */
+export function useAiConversations(userId: string | undefined) {
   return useQuery({
-    queryKey: ['ai_messages', userId],
+    queryKey: ['ai_conversations', userId],
     enabled: !!userId && !!supabase,
+    queryFn: async (): Promise<AiConversation[]> => {
+      const { data, error } = await supabase!.from('ai_conversations').select('*').eq('profile_id', userId!).order('updated_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as AiConversation[];
+    },
+  });
+}
+
+/** Crée une conversation (titre depuis le 1ᵉʳ message) → renvoie son id. */
+export function useCreateConversation(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (title?: string): Promise<string> => {
+      if (!supabase || !userId) throw new Error('Non connecté');
+      const clean = (title ?? '').trim().slice(0, 80) || 'Nouvelle conversation';
+      const { data, error } = await supabase.from('ai_conversations').insert({ profile_id: userId, title: clean }).select('id').single();
+      if (error) throw new Error(error.message);
+      return (data as any).id as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai_conversations', userId] }),
+  });
+}
+
+/** Renomme une conversation. */
+export function useRenameConversation(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; title: string }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('ai_conversations').update({ title: input.title.trim().slice(0, 80) || 'Conversation' }).eq('id', input.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai_conversations', userId] }),
+  });
+}
+
+/** Supprime une conversation (ses messages partent en cascade). */
+export function useDeleteConversation(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('ai_conversations').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ai_conversations', userId] });
+      qc.invalidateQueries({ queryKey: ['ai_messages', userId] });
+    },
+  });
+}
+
+/** Historique d'UNE conversation (ou du user visité en admin, toutes conversations si conversationId absent). */
+export function useAiMessages(userId: string | undefined, conversationId?: string | null) {
+  return useQuery({
+    queryKey: ['ai_messages', userId, conversationId ?? 'all'],
+    enabled: !!userId && !!supabase && conversationId !== null, // null = « nouvelle conversation » vide
     queryFn: async (): Promise<AiMessage[]> => {
-      const { data, error } = await supabase!.from('ai_messages').select('*').eq('profile_id', userId!).order('created_at');
+      let q = supabase!.from('ai_messages').select('*').eq('profile_id', userId!);
+      if (conversationId) q = q.eq('conversation_id', conversationId);
+      const { data, error } = await q.order('created_at');
       if (error) throw error;
       return (data ?? []) as AiMessage[];
     },
@@ -161,6 +221,7 @@ export function useAiMessagesRealtime(userId: string | undefined) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_messages', filter: `profile_id=eq.${userId}` }, () => {
         qc.invalidateQueries({ queryKey: ['ai_messages', userId] });
         qc.invalidateQueries({ queryKey: ['ai_quota', userId] });
+        qc.invalidateQueries({ queryKey: ['ai_conversations', userId] });
       })
       .subscribe();
     return () => { supabase!.removeChannel(channel); };
@@ -180,7 +241,7 @@ export function useDeleteAiHistory(userId: string | undefined) {
   });
 }
 
-export interface AskAiInput { kind: 'analysis' | 'chat'; analysis_key?: string; question?: string; snapshot: string; model?: string }
+export interface AskAiInput { kind: 'analysis' | 'chat'; analysis_key?: string; question?: string; snapshot: string; model?: string; conversation_id?: string }
 export interface AskAiResult { ok: boolean; queued?: boolean; reply?: string; model?: string; used?: number; limit?: number; error?: string }
 
 /**
@@ -206,6 +267,7 @@ export function useAskAi(userId: string | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ai_messages', userId] });
       qc.invalidateQueries({ queryKey: ['ai_quota', userId] });
+      qc.invalidateQueries({ queryKey: ['ai_conversations', userId] });
     },
   });
 }
@@ -256,9 +318,15 @@ export function useResolveAiTicket() {
 export function useAdminReplyAi() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { profileId: string; content: string; ticketId?: string }) => {
+    mutationFn: async (input: { profileId: string; content: string; ticketId?: string; conversationId?: string | null }) => {
       if (!supabase) throw new Error('Backend indisponible');
-      const { error } = await supabase.from('ai_messages').insert({ profile_id: input.profileId, role: 'admin', content: input.content });
+      // Cible = la conversation du ticket (pour répondre dans le bon fil), sinon celle fournie.
+      let convId = input.conversationId ?? null;
+      if (!convId && input.ticketId) {
+        const { data: tk } = await supabase.from('ai_tickets').select('conversation_id').eq('id', input.ticketId).maybeSingle();
+        convId = (tk as any)?.conversation_id ?? null;
+      }
+      const { error } = await supabase.from('ai_messages').insert({ profile_id: input.profileId, role: 'admin', content: input.content, conversation_id: convId });
       if (error) throw new Error(error.message);
       if (input.ticketId) await supabase.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', input.ticketId);
       // Notifie le user que sa demande a reçu une réponse.
