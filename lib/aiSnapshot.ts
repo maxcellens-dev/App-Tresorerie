@@ -18,8 +18,13 @@ export interface SnapshotCredit { principal: number; monthly: number; ratePct: n
 export interface SnapshotProject { target: number; monthly: number; progressPct: number; startISO: string | null; status: string }
 /** Un mois COMPLET d'historique (YYYY-MM) : revenus / dépenses (hors virements internes). */
 export interface SnapshotMonth { ym: string; income: number; expenses: number; fixed: number; variable: number }
-/** Tendance d'une grande catégorie : moyenne mensuelle (3 mois complets) vs dernier mois complet. */
-export interface SnapshotCategoryTrend { name: string; avg3m: number; lastMonth: number }
+/** Dépenses d'une grande catégorie PAR MOIS COMPLET (+ moyenne) — montrer les mois évite les fausses
+ *  « dérives » quand une catégorie n'apparaît que depuis peu (ex. prélèvements réorganisés). */
+export interface SnapshotCategoryTrend { name: string; byMonth: Record<string, number>; avg: number }
+/** Détail des dépenses ponctuelles/variables d'un mois, par sous-catégorie (tous comptes courants). */
+export interface SnapshotVariableDetail { ym: string; isCurrent: boolean; items: { category: string; amount: number; count: number }[] }
+/** Compte partagé / joint accessible : type + part d'impact de l'utilisateur. */
+export interface SnapshotSharedAccount { type: string; joint: boolean; impactPct: number }
 /** Charge (ou revenu) récurrente active : sous-catégorie + montant + fréquence. */
 export interface SnapshotRecurring { category: string; amount: number; rule: string }
 /** Dépense ponctuelle notable (non récurrente) : date + grande catégorie + montant. */
@@ -49,6 +54,10 @@ export interface SnapshotInput {
   topOneOff?: SnapshotOneOff[];
   /** Projection du solde courant sur ~6 mois (mois courant inclus). */
   forecast?: SnapshotForecastMonth[];
+  /** Détail des dépenses ponctuelles/variables par sous-catégorie (dernier mois complet + mois en cours). */
+  variableDetail?: SnapshotVariableDetail[];
+  /** Comptes partagés / joints accessibles (type + part d'impact). */
+  sharedAccounts?: SnapshotSharedAccount[];
 }
 
 const r0 = (n: number) => Math.round(n || 0).toLocaleString('fr-FR');
@@ -62,6 +71,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     currencySymbol: s, today, dayOfMonth, daysInMonth, pilotage: p, expensesByCategory,
     credits = [], projects = [], history = [], categoryTrends = [],
     recurringExpenses = [], recurringIncomes = [], topOneOff = [], forecast = [],
+    variableDetail = [], sharedAccounts = [],
   } = input;
   const L: string[] = [];
   const m = (n: number) => `${r0(n)} ${s}`;
@@ -80,12 +90,14 @@ export function buildSnapshot(input: SnapshotInput): string {
   L.push(`- Patrimoine total : ${m(p.total_checking + p.total_savings + p.total_invested)}`);
 
   // Ratios pré-calculés côté app (fiables — préfère-les à tes propres recalculs).
-  // Revenu de RÉFÉRENCE = le plus représentatif entre le revenu déclaré/inféré et le total des revenus
-  // récurrents actifs (un « revenu estimé » déclaré peut être partiel ; une moyenne peut être gonflée
-  // par une rentrée exceptionnelle).
+  // Revenu de RÉFÉRENCE = le plus représentatif entre : revenu déclaré/inféré, total des revenus
+  // récurrents actifs, et MÉDIANE des revenus des mois complets (robuste aux mois exceptionnels).
   const recurringIncomeMonthly = recurringIncomes.reduce((t, r) => t + monthlyEq(r), 0);
-  const income = Math.max(p.expected_monthly_income || 0, recurringIncomeMonthly) || p.avg_monthly_income || 0;
+  const histIncomes = history.map((h) => h.income).sort((a, b) => a - b);
+  const medianHistIncome = histIncomes.length ? histIncomes[Math.floor(histIncomes.length / 2)] : 0;
+  const income = Math.max(p.expected_monthly_income || 0, recurringIncomeMonthly, medianHistIncome) || p.avg_monthly_income || 0;
   const incomeBase = income === recurringIncomeMonthly && recurringIncomeMonthly > 0 ? 'total des revenus récurrents actifs'
+    : income === medianHistIncome && medianHistIncome > 0 ? 'médiane des revenus des mois complets'
     : income === p.expected_monthly_income ? 'revenu mensuel estimé' : 'revenu mensuel moyen';
   const plannedSetAside = (p.monthly_savings_planned || 0) + (p.monthly_invest_planned || 0);
   const creditMonthly = credits.reduce((t, cr) => t + (cr.impactPct > 0 ? cr.monthly : 0), 0);
@@ -118,12 +130,38 @@ export function buildSnapshot(input: SnapshotInput): string {
     const first = forecast[0].balance;
     const last = forecast[forecast.length - 1].balance;
     const minF = Math.min(...forecast.map((f) => f.balance));
-    L.push('\nPROJECTION DU SOLDE COURANT (fin de mois — moteur de l\'app : récurrentes + variables estimées + mises de côté prévues déjà comptées)');
+    L.push('\nPROJECTION DU SOLDE COURANT (fin de mois — MÊMES chiffres que l\'onglet Projection de l\'app : récurrentes + variables estimées + mises de côté prévues déjà comptées)');
     L.push('- ' + forecast.map((f) => `${f.ym} : ${m(f.balance)}`).join(' · '));
     if (last < first - 1 || minF < 0) {
       L.push(`- ⚠ Le solde projeté ${minF < 0 ? 'passe en NÉGATIF' : 'BAISSE sur la période'} : ne recommande PAS de virement automatique mensuel supplémentaire — préfère des allocations PONCTUELLES décidées mois par mois, et explique pourquoi.`);
     } else {
       L.push('- Le solde projeté tient sur la période : des mises de côté régulières sont envisageables dans la limite du surplus.');
+    }
+  }
+
+  // PROJECTIONS PRÊTES À CITER : tout est pré-calculé ici — le modèle recopie, il ne calcule pas
+  // (les modèles légers se trompent systématiquement sur les intérêts composés et les trajectoires).
+  {
+    const ready: string[] = [];
+    // Mois « normaux » = hors rentrées exceptionnelles (déjà signalées dans LIMITES).
+    const normal = history.filter((h) => income <= 0 || h.income <= income * 2.5);
+    if (normal.length >= 2) {
+      const avgNet = normal.reduce((t, h) => t + (h.income - h.expenses), 0) / normal.length;
+      const patrimoine = p.total_checking + p.total_savings + p.total_invested;
+      ready.push(`Patrimoine dans 12 mois au rythme actuel (solde mensuel moyen des mois complets normaux : ${avgNet >= 0 ? '+' : ''}${r0(avgNet)} ${s}/mois, mises de côté comprises) : ≈ ${m(patrimoine + 12 * avgNet)}.`);
+    }
+    const surplus = p.projected_surplus || 0;
+    if (surplus > 0) {
+      const fv = (years: number) => { const r = 0.05 / 12; const n = years * 12; return surplus * ((Math.pow(1 + r, n) - 1) / r); };
+      ready.push(`Si le surplus projeté de ${m(surplus)}/mois était investi chaque mois à 5 %/an (hypothèse indicative) : ≈ ${m(fv(5))} au bout de 5 ans (dont ${m(surplus * 60)} de versements), ≈ ${m(fv(10))} au bout de 10 ans (dont ${m(surplus * 120)} de versements).`);
+    }
+    if (avgExpenses > 0) {
+      const cushion6 = (p.total_savings + 6 * (p.monthly_savings_planned || 0)) / avgExpenses;
+      ready.push(`Coussin de sécurité dans 6 mois au rythme d'épargne planifié : ≈ ${cushion6.toFixed(1)} mois de dépenses (aujourd'hui : ${(p.total_savings / avgExpenses).toFixed(1)}).`);
+    }
+    if (ready.length) {
+      L.push('\nPROJECTIONS PRÊTES À CITER (pré-calculées — recopie ces chiffres TELS QUELS, n\'en recalcule aucun)');
+      for (const x of ready) L.push(`- ${x}`);
     }
   }
 
@@ -139,7 +177,11 @@ export function buildSnapshot(input: SnapshotInput): string {
   {
     // Rythme des variables : signal explicite pour éviter le contresens « 648 € au jour 6 = dans la
     // moyenne » (la moyenne est MENSUELLE ; dépassée dès le début du mois = alerte, pas normalité).
-    const avgVar = p.avg_variable_expenses_3m || 0;
+    // UNE SEULE moyenne de référence : celle des mois complets de l'historique (les indicateurs
+    // multiples du pilotage divergent et faisaient dire au modèle « le double de ta moyenne »).
+    const avgVar = history.length
+      ? history.reduce((t, h) => t + h.variable, 0) / history.length
+      : (p.avg_variable_expenses_3m || 0);
     const spentVar = p.current_month_variable || 0;
     let paceTxt = '';
     if (avgVar > 0 && spentVar >= avgVar && dayOfMonth < daysInMonth - 3) {
@@ -149,7 +191,7 @@ export function buildSnapshot(input: SnapshotInput): string {
       const delta = Math.round(((pace - avgVar) / avgVar) * 100);
       paceTxt = ` — rythme projeté ≈ ${m(pace)} sur le mois (${delta >= 0 ? '+' : ''}${delta} % vs moyenne, indicatif en début de mois)`;
     }
-    L.push(`- Dépenses VARIABLES : moyenne 3 mois ${m(avgVar)}/mois ; déjà engagées ce mois ${m(spentVar)} au jour ${dayOfMonth}/${daysInMonth}${paceTxt}.`);
+    L.push(`- Dépenses VARIABLES : moyenne des mois complets ${m(avgVar)}/mois (c'est LA seule moyenne de référence pour les variables) ; déjà engagées ce mois ${m(spentVar)} au jour ${dayOfMonth}/${daysInMonth}${paceTxt}.`);
   }
   L.push(`- Total dépenses du mois (partiel) : ${m(p.month_expenses_total)} (déjà passées ${m(p.month_expenses_past)}, à venir ${m(p.month_expenses_remaining)}).`);
   if (expensesByCategory.length) {
@@ -158,11 +200,20 @@ export function buildSnapshot(input: SnapshotInput): string {
   }
 
   if (categoryTrends.length) {
-    L.push('\nMOYENNES PAR GRANDE CATÉGORIE (mois COMPLETS — base solide pour repérer les postes lourds et les dérives)');
+    const months = history.map((h) => h.ym);
+    L.push('\nDÉPENSES PAR GRANDE CATÉGORIE ET PAR MOIS COMPLET (lis les mois, pas seulement la moyenne)');
+    L.push('- ⚠ Une catégorie qui n\'apparaît qu\'à partir d\'un mois récent = RÉORGANISATION (nouvelle saisie, prélèvements déplacés — ex. vers un compte joint), PAS une dérive ni une anomalie à « investiguer ».');
     for (const t of categoryTrends.slice(0, 12)) {
-      const drift = t.avg3m > 0 ? Math.round(((t.lastMonth - t.avg3m) / t.avg3m) * 100) : 0;
-      const driftTxt = Math.abs(drift) >= 10 ? ` (${drift > 0 ? '+' : ''}${drift} % vs moyenne)` : '';
-      L.push(`- ${t.name} : moyenne ${m(t.avg3m)}/mois ; dernier mois complet ${m(t.lastMonth)}${driftTxt}.`);
+      const perMonth = months.map((ym) => `${ym.slice(5)} : ${m(t.byMonth[ym] ?? 0)}`).join(' · ');
+      L.push(`- ${t.name} : ${perMonth} (moyenne ${m(t.avg)}/mois).`);
+    }
+  }
+
+  if (variableDetail.length) {
+    L.push('\nDÉTAIL DES DÉPENSES PONCTUELLES/VARIABLES PAR SOUS-CATÉGORIE (tous comptes courants confondus — la matière pour des conseils CONCRETS poste par poste)');
+    for (const md of variableDetail) {
+      L.push(`- ${md.ym}${md.isCurrent ? ' (mois en cours, partiel)' : ' (mois complet)'} :`);
+      for (const it of md.items) L.push(`  • ${it.category} : ${m(it.amount)} (${it.count} opération${it.count > 1 ? 's' : ''})`);
     }
   }
 
@@ -186,6 +237,15 @@ export function buildSnapshot(input: SnapshotInput): string {
   L.push(`- Recommandation du moteur pour le surplus : ${p.recommendation} (surplus projeté ${m(p.projected_surplus)}).`);
   if (p.allocation_save_percent != null || p.allocation_invest_percent != null) {
     L.push(`- Répartition du surplus paramétrée par l'utilisateur : épargne ${Math.round(p.allocation_save_percent ?? 0)} % / investissement ${Math.round(p.allocation_invest_percent ?? 0)} % (le reste = confort/libre). Pars de cette répartition, ne l'invente pas.`);
+  }
+
+  if (sharedAccounts.length) {
+    L.push(`\nCOMPTES PARTAGÉS / JOINTS (${sharedAccounts.length}) — une partie de la vie du foyer passe par là`);
+    sharedAccounts.forEach((a, i) => {
+      const typeFr = a.type === 'checking' ? 'courant' : a.type === 'savings' ? 'épargne' : a.type === 'investment' ? 'investissement' : a.type;
+      L.push(`- Compte ${a.joint ? 'JOINT' : 'partagé'} ${i + 1} (${typeFr}) : part d'impact de l'utilisateur ${Math.round(a.impactPct)} %.`);
+    });
+    L.push('- Les mensualités de crédits prélevées sur ces comptes sont DÉJÀ pondérées par sa part dans la section CRÉDITS. Une contribution récurrente versée à un compte joint (part de crédit, copropriété, charges du foyer) est un ENGAGEMENT FIXE du foyer : ce n\'est ni une dépense compressible, ni une anomalie.');
   }
 
   if (projects.length) {
@@ -220,8 +280,9 @@ export function buildSnapshot(input: SnapshotInput): string {
     }
   }
   const uncat = categoryTrends.find((t) => t.name === 'Sans catégorie');
-  if (uncat && uncat.avg3m >= 30) limits.push(`~${m(uncat.avg3m)}/mois de dépenses NON CATÉGORISÉES : les analyses par poste sont incomplètes — suggère de les catégoriser dans l'app.`);
+  if (uncat && uncat.avg >= 30) limits.push(`~${m(uncat.avg)}/mois de dépenses NON CATÉGORISÉES : les analyses par poste sont incomplètes — suggère de les catégoriser dans l'app.`);
   if (recurringExpenses.length === 0 && avgExpenses > 0) limits.push(`Aucune charge récurrente n'est marquée dans l'app : le poids réel des dépenses fixes est INCONNU — ne conclus pas à leur absence ; suggère de marquer les dépenses récurrentes.`);
+  if (recurringIncomes.length === 0) limits.push(`Aucun revenu récurrent n'est marqué comme RECETTE dans l'app (les rentrées sont peut-être saisies comme des virements) : le revenu détecté est PEU FIABLE — reste prudent sur les % du revenu et suggère de marquer les salaires/revenus en recettes récurrentes pour des conseils plus justes.`);
   if (limits.length) {
     L.push('\nLIMITES DES DONNÉES (à respecter, sans en faire un paragraphe)');
     for (const x of limits) L.push(`- ${x}`);

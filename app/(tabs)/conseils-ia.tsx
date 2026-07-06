@@ -4,7 +4,7 @@
  * l'historique. L'appel au modèle passe par l'Edge Function `ai-advice` (clé API jamais côté client).
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +19,7 @@ import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
 import { useUiPrefs } from '../../hooks/useUiPrefs';
+import { useKeyboardClearance } from '../../hooks/useKeyboardClearance';
 import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
@@ -30,6 +31,13 @@ export default function ConseilsIaScreen() {
   const goBack = useNavBack();
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
+
+  // Clavier : compensation mesurée de la barre de saisie (+ scroll en bas quand le clavier s'ouvre).
+  const inputBarRef = useRef<View>(null);
+  const kbPad = useKeyboardClearance(inputBarRef);
+  useEffect(() => {
+    if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  }, [kbPad]);
 
   const { isPremium } = usePlan(uid);
   const { data: profile } = useProfile(uid);
@@ -246,10 +254,10 @@ export default function ConseilsIaScreen() {
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
-        {/* behavior="padding" AUSSI sur Android : si la fenêtre est déjà redimensionnée par le clavier
-            (adjustResize), l'overlap mesuré est ~0 → pas de double compensation ; sinon (edge-to-edge,
-            modaux…), le padding remonte la barre de saisie au-dessus du clavier. */}
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        {/* Clavier : compensation MESURÉE (useKeyboardClearance sur la barre de saisie) — pas de
+            KeyboardAvoidingView, qui mesure faux sur Android edge-to-edge et laissait la saisie
+            masquée sous le clavier. */}
+        <View style={{ flex: 1 }}>
           {/* Header */}
           <View style={s.header}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack}>
@@ -355,12 +363,14 @@ export default function ConseilsIaScreen() {
               </>
             )}
 
-            <View style={{ height: 8 }} />
+            {/* Marge de scroll sous le contenu : on peut faire défiler « un peu plus bas » que le
+                dernier message, même clavier ouvert. */}
+            <View style={{ height: 48 }} />
           </ScrollView>
 
-          {/* Barre de saisie */}
+          {/* Barre de saisie — remontée EXACTEMENT au-dessus du clavier (compensation mesurée). */}
           {!readOnly && (
-            <View style={s.inputBar}>
+            <View ref={inputBarRef} style={[s.inputBar, kbPad > 0 && { marginBottom: kbPad }]} collapsable={false}>
               <TextInput
                 style={s.input}
                 value={input}
@@ -370,14 +380,14 @@ export default function ConseilsIaScreen() {
                 multiline
                 editable={!pending}
                 onSubmitEditing={sendChat}
-                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
               />
               <TouchableOpacity style={[s.sendBtn, (pending || !input.trim()) && { opacity: 0.5 }]} disabled={pending || !input.trim()} onPress={sendChat}>
                 <Ionicons name="send" size={18} color="#fff" />
               </TouchableOpacity>
             </View>
           )}
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
 
       {/* Paywall « click-to-pay » : offres de recharge de requêtes. */}

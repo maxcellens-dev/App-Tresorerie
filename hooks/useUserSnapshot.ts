@@ -19,6 +19,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { usePilotageData } from './usePilotageData';
+import { useTransactions } from './useTransactions';
 import { useTransactionMonthOverrides } from './useTransactionMonthOverrides';
 import { useCategories } from './useCategories';
 import { useCredits } from './useCredits';
@@ -27,7 +28,7 @@ import { useProjects } from './useProjects';
 import { computeAmortization, addMonthsISO } from '../lib/amortization';
 import { computeMonthlyForecast } from '../lib/forecast';
 import { todayISO } from '../lib/dateUtils';
-import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth } from '../lib/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount } from '../lib/aiSnapshot';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const SNAPSHOT_TX_LIMIT = 4000;
@@ -58,6 +59,10 @@ function useSnapshotTransactions(profileId: string | undefined) {
 export function useUserSnapshot(userId: string | undefined): { text: string | null; ready: boolean; build: () => string } {
   const { data: pilotage } = usePilotageData(userId);
   const { data: transactions } = useSnapshotTransactions(userId);
+  // Jeu « écran Projection » (useTransactions) : la projection du snapshot doit être calculée avec
+  // EXACTEMENT les mêmes données que l'onglet Projection — sinon l'IA cite des soldes que
+  // l'utilisateur ne retrouve pas dans son app.
+  const { data: screenTransactions } = useTransactions(userId);
   const { data: monthOverrides } = useTransactionMonthOverrides(userId);
   const { data: categories } = useCategories(userId);
   const { data: credits } = useCredits(userId);
@@ -155,25 +160,50 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     return completeMonths.map((ym) => by[ym]);
   }, [transactions, completeMonths, catById]);
 
+  // Tendances par grande catégorie : montant PAR MOIS COMPLET (pas une moyenne écrasée — une
+  // catégorie apparue seulement le mois dernier ressemblait à une « dérive +100 % » alors que c'est
+  // juste une réorganisation, ex. prélèvements déplacés sur un compte joint).
   const categoryTrends = useMemo<SnapshotCategoryTrend[]>(() => {
     if (!transactions || !completeMonths.length) return [];
-    const last3 = completeMonths.slice(-3);
-    const lastYm = completeMonths[completeMonths.length - 1];
-    const sum3: Record<string, number> = {};
-    const last: Record<string, number> = {};
+    const byName: Record<string, Record<string, number>> = {};
     for (const t of transactions) {
       if (!isCashflow(t) || Number(t.amount) >= 0) continue;
       const ym = t.date.slice(0, 7);
-      if (!last3.includes(ym)) continue;
+      if (!completeMonths.includes(ym)) continue;
       const name = grandCat(t.category_id);
-      const abs = Math.abs(Number(t.amount));
-      sum3[name] = (sum3[name] ?? 0) + abs;
-      if (ym === lastYm) last[name] = (last[name] ?? 0) + abs;
+      (byName[name] ??= {})[ym] = (byName[name]?.[ym] ?? 0) + Math.abs(Number(t.amount));
     }
-    return Object.entries(sum3)
-      .map(([name, total]) => ({ name, avg3m: total / last3.length, lastMonth: last[name] ?? 0 }))
-      .filter((x) => x.avg3m >= 5)
-      .sort((a, b) => b.avg3m - a.avg3m);
+    return Object.entries(byName)
+      .map(([name, byMonth]) => ({
+        name, byMonth,
+        avg: completeMonths.reduce((s, ym) => s + (byMonth[ym] ?? 0), 0) / completeMonths.length,
+      }))
+      .filter((x) => x.avg >= 5)
+      .sort((a, b) => b.avg - a.avg);
+  }, [transactions, completeMonths, catById]);
+
+  // DÉTAIL des dépenses ponctuelles/variables PAR SOUS-CATÉGORIE (tous les comptes courants
+  // confondus), mois en cours + dernier mois complet : la matière pour des conseils concrets.
+  const variableDetail = useMemo<SnapshotVariableDetail[]>(() => {
+    if (!transactions) return [];
+    const curYm = todayISO().slice(0, 7);
+    const months = [completeMonths[completeMonths.length - 1], curYm].filter(Boolean) as string[];
+    return months.map((ym) => {
+      const acc: Record<string, { amount: number; count: number }> = {};
+      for (const t of transactions) {
+        if (!isCashflow(t) || isRecurringTpl(t) || Number(t.amount) >= 0) continue;
+        if (t.date.slice(0, 7) !== ym) continue;
+        const name = fullCat(t.category_id);
+        const cur = (acc[name] ??= { amount: 0, count: 0 });
+        cur.amount += Math.abs(Number(t.amount));
+        cur.count += 1;
+      }
+      const items = Object.entries(acc)
+        .map(([category, v]) => ({ category, amount: v.amount, count: v.count }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 12);
+      return { ym, isCurrent: ym === curYm, items };
+    }).filter((m) => m.items.length > 0);
   }, [transactions, completeMonths, catById]);
 
   // Récurrentes ACTIVES (templates non terminés), dédupliquées par catégorie+montant+fréquence.
@@ -209,19 +239,19 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       const ym = t.date.slice(0, 7);
       if (ym !== curYm && ym !== lastYm) continue;
       const abs = Math.abs(Number(t.amount));
-      if (abs < 50) continue;
+      if (abs < 20) continue; // seuil bas : les petites dépenses répétées comptent aussi
       out.push({ date: t.date, category: grandCat(t.category_id), amount: abs });
     }
-    return out.sort((a, b) => b.amount - a.amount).slice(0, 8);
+    return out.sort((a, b) => b.amount - a.amount).slice(0, 10);
   }, [transactions, completeMonths, catById]);
 
-  // PROJECTION du solde courant (même moteur que l'onglet Projection) : indispensable pour que l'IA
-  // ne conseille pas un virement automatique alors que le solde projeté baisse dans les mois à venir.
+  // PROJECTION du solde courant : même moteur ET mêmes données que l'onglet Projection
+  // (useTransactions) → l'IA cite exactement les soldes que l'utilisateur voit dans son app.
   const forecast = useMemo<SnapshotForecastMonth[]>(() => {
-    if (!pilotage || !transactions || !allAccounts?.length) return [];
+    if (!pilotage || !screenTransactions?.length || !allAccounts?.length) return [];
     try {
       const months = computeMonthlyForecast({
-        transactions,
+        transactions: screenTransactions,
         accounts: allAccounts,
         variableMonthly: pilotage.variable_envelope_initial ?? 0,
         variableRemaining: pilotage.variable_envelope_remaining ?? 0,
@@ -230,7 +260,15 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       });
       return months.map((f) => ({ ym: `${f.year}-${String(f.month).padStart(2, '0')}`, balance: f.balance }));
     } catch { return []; }
-  }, [pilotage, transactions, allAccounts, monthOverrides]);
+  }, [pilotage, screenTransactions, allAccounts, monthOverrides]);
+
+  // Comptes PARTAGÉS / JOINTS accessibles : type + ma part d'impact — l'IA doit savoir qu'une partie
+  // de la vie du foyer passe par là (contributions = engagements fixes, crédits déjà pondérés).
+  const sharedAccounts = useMemo<SnapshotSharedAccount[]>(() => {
+    return (allAccounts ?? [])
+      .filter((a: any) => a.is_joint || a._impact_pct != null)
+      .map((a: any) => ({ type: a.type, joint: !!a.is_joint, impactPct: a._impact_pct != null ? Number(a._impact_pct) : 100 }));
+  }, [allAccounts]);
 
   const creditsSummary = useMemo(() => {
     const today = todayISO();
@@ -280,12 +318,14 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       recurringIncomes: recurrings.incomes,
       topOneOff,
       forecast,
+      variableDetail,
+      sharedAccounts,
     });
   };
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts],
   );
   return { text, ready: !!pilotage, build };
 }

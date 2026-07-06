@@ -3,9 +3,10 @@
  * Partagé entre l'écran utilisateur et le panneau admin.
  */
 import React, { useMemo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useKeyboardClearance } from '../hooks/useKeyboardClearance';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
 
@@ -36,19 +37,14 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-  // Hauteur du clavier (suivi manuel) : dans un Modal, KeyboardAvoidingView ne remonte pas la saisie
-  // sur Android → on remonte la feuille de cette hauteur pour que le champ reste visible.
-  const [kbHeight, setKbHeight] = useState(0);
+  // Clavier : compensation MESURÉE de la ligne de saisie (position réelle vs haut réel du clavier) —
+  // KeyboardAvoidingView et le simple `endCoordinates.height` mesurent faux dans un Modal
+  // statusBarTranslucent sur Android edge-to-edge → saisie masquée.
+  const inputRowRef = useRef<View>(null);
+  const kbPad = useKeyboardClearance(inputRowRef);
   useEffect(() => {
-    const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const s = Keyboard.addListener(showEv, (e: any) => {
-      setKbHeight(e?.endCoordinates?.height ?? 0);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-    });
-    const h = Keyboard.addListener(hideEv, () => setKbHeight(0));
-    return () => { s.remove(); h.remove(); };
-  }, []);
+    if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+  }, [kbPad]);
 
   // Marque la demande comme lue à l'ouverture (efface le drapeau du rôle courant).
   useEffect(() => {
@@ -70,9 +66,8 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      {/* Clavier ouvert : on remonte la feuille de sa hauteur (+ marge, sinon la saisie reste à moitié
-          cachée par la barre de suggestions). Clavier fermé : inset bas (barre de gestes Android). */}
-      <View style={[styles.overlay, { paddingBottom: kbHeight > 0 ? kbHeight + 8 : insets.bottom }]}>
+      {/* Clavier ouvert : on remonte la feuille du chevauchement MESURÉ. Fermé : inset bas (gestes). */}
+      <View style={[styles.overlay, { paddingBottom: kbPad > 0 ? kbPad : insets.bottom }]}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -120,7 +115,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
             )}
           </ScrollView>
 
-          <View style={styles.inputRow}>
+          <View ref={inputRowRef} style={styles.inputRow} collapsable={false}>
             <TextInput
               style={styles.input}
               value={text}
@@ -128,6 +123,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
               placeholder={isClosed ? 'Répondre rouvre la demande…' : 'Votre message…'}
               placeholderTextColor={COLORS.textSecondary}
               multiline
+              onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
             />
             <TouchableOpacity style={[styles.sendBtn, (!text.trim() || addMessage.isPending) && { opacity: 0.5 }]} onPress={send} disabled={!text.trim() || addMessage.isPending}>
               <Ionicons name="send" size={18} color={COLORS.bg} />
