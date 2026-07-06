@@ -13,11 +13,12 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useNavBack } from '../../hooks/useNavBack';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
+import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
   const c = useAppColors();
@@ -33,7 +34,10 @@ export default function ConseilsIaScreen() {
   const isAdmin = (profile as any)?.is_admin === true;
 
   const { data: cfg } = useAiConfig();
-  const { data: quota } = useAiQuota(uid);
+  const { data: quota, refetch: refetchQuota } = useAiQuota(uid);
+  useAiExtraCreditsRealtime(uid); // crédit d'achat affiché dès qu'il tombe (webhook async)
+  // Filet de sécurité : à chaque fois qu'on revient sur l'écran, on relit le quota (crédit tardif).
+  useFocusEffect(useCallback(() => { refetchQuota(); }, [refetchQuota]));
   const { data: prompts } = useAiPrompts();
 
   // ── Conversations séparées (comme ChatGPT/Claude) ──

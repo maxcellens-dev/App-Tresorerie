@@ -228,6 +228,22 @@ export function useAiMessagesRealtime(userId: string | undefined) {
   }, [userId, qc]);
 }
 
+/** TEMPS RÉEL sur le solde de crédits payants : dès que le webhook RevenueCat insère un crédit
+ *  (achat validé, parfois avec quelques secondes de latence), le compteur se met à jour tout seul. */
+export function useAiExtraCreditsRealtime(userId: string | undefined) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    const channel = supabase
+      .channel(`ai_extra_credits_${userId}_${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_extra_credits', filter: `profile_id=eq.${userId}` }, () => {
+        qc.invalidateQueries({ queryKey: ['ai_quota', userId] });
+      })
+      .subscribe();
+    return () => { supabase!.removeChannel(channel); };
+  }, [userId, qc]);
+}
+
 /** Purge tout l'historique de l'utilisateur (autorisé même en non-Premium). */
 export function useDeleteAiHistory(userId: string | undefined) {
   const qc = useQueryClient();
