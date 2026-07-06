@@ -18,6 +18,7 @@ import { useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
+import { useUiPrefs } from '../../hooks/useUiPrefs';
 import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
@@ -104,6 +105,11 @@ export default function ConseilsIaScreen() {
 
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
+  // Confirmation « utiliser 1 requête » : modal custom (une Alert native ne peut pas porter la case
+  // « ne plus me demander »). Préférence persistée côté compte (ui_prefs.ai_confirm_skip).
+  const { prefs: uiPrefs, patch: patchUiPrefs } = useUiPrefs(uid);
+  const [confirmPayload, setConfirmPayload] = useState<RunPayload | null>(null);
+  const [confirmSkip, setConfirmSkip] = useState(false);
 
   type RunPayload = { kind: 'analysis' | 'chat'; analysis_key?: string; question?: string };
 
@@ -141,20 +147,23 @@ export default function ConseilsIaScreen() {
     }
   };
 
-  // Validation préalable : une seule confirmation, sans distinction gratuit/payant (transparent pour le user).
+  // Validation préalable : une seule confirmation, sans distinction gratuit/payant (transparent pour le
+  // user). Case « ne plus me demander » (ui_prefs.ai_confirm_skip) → envoi direct les fois suivantes.
   const run = (payload: RunPayload) => {
     if (readOnly || pending) return;
     if (!snapshotReady) { Alert.alert('Patiente', 'Tes données sont en cours de chargement.'); return; }
     // Plus aucune requête → on propose le click-to-pay (recharge).
     if (!canSend) { setShowPaywall(true); return; }
-    Alert.alert(
-      'Utiliser une requête ?',
-      `Cette demande utilise 1 requête.\nIl t'en restera ${available - 1} sur ${totalRequests}.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Continuer', onPress: () => execute(payload) },
-      ],
-    );
+    if (uiPrefs.ai_confirm_skip === true) { execute(payload); return; }
+    setConfirmSkip(false);
+    setConfirmPayload(payload);
+  };
+
+  const confirmSend = () => {
+    const payload = confirmPayload;
+    setConfirmPayload(null);
+    if (confirmSkip) patchUiPrefs({ ai_confirm_skip: true }); // mémorisé côté compte
+    if (payload) execute(payload);
   };
 
   const sendChat = () => {
@@ -237,7 +246,10 @@ export default function ConseilsIaScreen() {
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {/* behavior="padding" AUSSI sur Android : si la fenêtre est déjà redimensionnée par le clavier
+            (adjustResize), l'overlap mesuré est ~0 → pas de double compensation ; sinon (edge-to-edge,
+            modaux…), le padding remonte la barre de saisie au-dessus du clavier. */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           {/* Header */}
           <View style={s.header}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack}>
@@ -358,6 +370,7 @@ export default function ConseilsIaScreen() {
                 multiline
                 editable={!pending}
                 onSubmitEditing={sendChat}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
               />
               <TouchableOpacity style={[s.sendBtn, (pending || !input.trim()) && { opacity: 0.5 }]} disabled={pending || !input.trim()} onPress={sendChat}>
                 <Ionicons name="send" size={18} color="#fff" />
@@ -455,6 +468,32 @@ export default function ConseilsIaScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Confirmation « utiliser 1 requête » — avec case « ne plus me demander » (envoi direct ensuite). */}
+      <Modal visible={confirmPayload != null} transparent animationType="fade" onRequestClose={() => setConfirmPayload(null)}>
+        <Pressable style={s.payOverlay} onPress={() => setConfirmPayload(null)}>
+          <Pressable style={s.paySheet} onPress={() => {}}>
+            <Text style={s.paySheetTitle}>Utiliser une requête ?</Text>
+            <Text style={s.paySheetSub}>
+              Cette demande utilise 1 requête. Il t'en restera {Math.max(0, available - 1)} sur {totalRequests}.
+            </Text>
+            <TouchableOpacity style={s.skipRow} activeOpacity={0.7} onPress={() => setConfirmSkip((v) => !v)}>
+              <View style={[s.skipBox, confirmSkip && { backgroundColor: c.emerald, borderColor: c.emerald }]}>
+                {confirmSkip && <Ionicons name="checkmark" size={14} color={c.bg} />}
+              </View>
+              <Text style={s.skipTxt}>Ne plus me demander : envoyer directement les prochaines fois</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity style={s.confirmCancel} onPress={() => setConfirmPayload(null)}>
+                <Text style={{ color: c.text, fontWeight: '600' }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.confirmGo} onPress={confirmSend}>
+                <Text style={{ color: c.bg, fontWeight: '800' }}>Continuer</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -527,6 +566,12 @@ function makeStyles(c: any) {
     paySheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32 },
     paySheetTitle: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
     paySheetSub: { fontSize: 13, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
+    // Confirmation « utiliser 1 requête » (case « ne plus me demander »)
+    skipRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16, paddingHorizontal: 4 },
+    skipBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+    skipTxt: { flex: 1, fontSize: 12.5, color: c.text, lineHeight: 17 },
+    confirmCancel: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder },
+    confirmGo: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', backgroundColor: c.emerald },
     packRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14 },
     packLeft: { flex: 1 },
     packCredits: { fontSize: 15.5, fontWeight: '800', color: c.text },

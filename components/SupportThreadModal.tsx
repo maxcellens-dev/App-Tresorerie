@@ -4,6 +4,7 @@
  */
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Keyboard } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
@@ -34,6 +35,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const setStatus = useSetSupportStatus();
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
   // Hauteur du clavier (suivi manuel) : dans un Modal, KeyboardAvoidingView ne remonte pas la saisie
   // sur Android → on remonte la feuille de cette hauteur pour que le champ reste visible.
   const [kbHeight, setKbHeight] = useState(0);
@@ -68,7 +70,9 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <View style={[styles.overlay, { paddingBottom: kbHeight }]}>
+      {/* Clavier ouvert : on remonte la feuille de sa hauteur (+ marge, sinon la saisie reste à moitié
+          cachée par la barre de suggestions). Clavier fermé : inset bas (barre de gestes Android). */}
+      <View style={[styles.overlay, { paddingBottom: kbHeight > 0 ? kbHeight + 8 : insets.bottom }]}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>

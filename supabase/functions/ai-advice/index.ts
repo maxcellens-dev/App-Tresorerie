@@ -16,6 +16,22 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
+// Historique RÉCENT d'une conversation (chat) : le modèle est sans état — sans ça, ses questions de
+// relance perdent tout contexte au message suivant. Injecté via {{HISTORY}} dans le prompt chat_system.
+async function conversationHistory(admin: any, conversationId: string | null): Promise<string> {
+  if (!conversationId) return '(première question de la conversation)';
+  const { data } = await admin.from('ai_messages')
+    .select('role, content')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  const rows = (data ?? []).reverse();
+  if (!rows.length) return '(première question de la conversation)';
+  return rows
+    .map((m: any) => `${m.role === 'user' ? 'Utilisateur' : 'Toi'} : ${String(m.content ?? '').slice(0, 800)}`)
+    .join('\n---\n');
+}
+
 const URL = Deno.env.get('SUPABASE_URL')!;
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -139,16 +155,19 @@ serve(async (req) => {
     const akey = kind === 'analysis' ? analysisKey! : 'chat_system';
     const { data: pr } = await admin.from('ai_prompts').select('prompt_template').eq('key', akey).maybeSingle();
     if (!pr) return json({ error: 'prompt_missing' }, 500);
-    const fp = pr.prompt_template.replaceAll('{{SNAPSHOT}}', snapshot).replaceAll('{{QUESTION}}', question);
-    const { data: acfg } = await admin.from('ai_config').select('models').single();
-    const { reply: rep, model: mdl, lastErr: le } = await generateWithFallback((acfg!.models as any[]).filter((x) => x.enabled), fp);
-    if (!rep) return json({ ok: false, queued: true, error: le });
-    // Conversation cible = celle du ticket (pour que la réponse arrive dans le bon fil).
+    // Conversation cible = celle du ticket (pour que la réponse arrive dans le bon fil + historique).
     let convId: string | null = typeof body.conversation_id === 'string' ? body.conversation_id : null;
     if (!convId && body.ticket_id) {
       const { data: tk } = await admin.from('ai_tickets').select('conversation_id').eq('id', body.ticket_id).maybeSingle();
       convId = (tk as any)?.conversation_id ?? null;
     }
+    const fp = pr.prompt_template
+      .replaceAll('{{SNAPSHOT}}', snapshot)
+      .replaceAll('{{HISTORY}}', kind === 'chat' ? await conversationHistory(admin, convId) : '')
+      .replaceAll('{{QUESTION}}', question);
+    const { data: acfg } = await admin.from('ai_config').select('models').single();
+    const { reply: rep, model: mdl, lastErr: le } = await generateWithFallback((acfg!.models as any[]).filter((x) => x.enabled), fp);
+    if (!rep) return json({ ok: false, queued: true, error: le });
     await admin.from('ai_messages').insert({ profile_id: targetUser, role: 'assistant', content: rep, model: mdl, conversation_id: convId });
     if (body.ticket_id) await admin.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', body.ticket_id);
     return json({ ok: true, reply: rep, model: mdl });
@@ -182,12 +201,14 @@ serve(async (req) => {
     else return json({ error: 'quota_exceeded', used, limit, extra_credits: 0 }, 429);
   }
 
-  // 3) Prompt : template admin + instantané (déjà anonymisé côté client).
+  // 3) Prompt : template admin + instantané (déjà anonymisé côté client) + historique de la
+  //    conversation (chat) — AVANT l'insertion du message user pour ne pas l'inclure deux fois.
   const key = kind === 'analysis' ? analysisKey! : 'chat_system';
   const { data: prompt } = await admin.from('ai_prompts').select('prompt_template, title').eq('key', key).maybeSingle();
   if (!prompt) return json({ error: 'prompt_missing' }, 500);
   const finalPrompt = prompt.prompt_template
     .replaceAll('{{SNAPSHOT}}', snapshot)
+    .replaceAll('{{HISTORY}}', kind === 'chat' ? await conversationHistory(admin, conversationId) : '')
     .replaceAll('{{QUESTION}}', question);
   const userContent = kind === 'analysis' ? `📊 ${prompt.title}` : question;
 

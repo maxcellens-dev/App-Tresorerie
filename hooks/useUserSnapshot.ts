@@ -2,30 +2,62 @@
 // Réutilisé par la page Conseils IA (utilisateur courant) ET par l'onglet Snapshot admin (user choisi,
 // lecture autorisée par les policies admin — migrations 101/102/104/110/119).
 //
-// V2 : en plus des agrégats pilotage, on dérive des transactions (500 dernières) l'HISTORIQUE des mois
-// COMPLETS, les moyennes/tendances par grande catégorie, les charges & revenus RÉCURRENTS actifs et les
-// grosses dépenses ponctuelles récentes — toujours anonymisé (catégories + montants, jamais de libellé).
+// V2 : en plus des agrégats pilotage, on dérive des transactions l'HISTORIQUE des mois COMPLETS,
+// les moyennes/tendances par grande catégorie, les charges & revenus RÉCURRENTS actifs, les grosses
+// dépenses ponctuelles récentes et la PROJECTION du solde courant (moteur lib/forecast) — toujours
+// anonymisé (catégories + montants, jamais de libellé).
 //
 // PÉRIMÈTRE du train de vie (historique, tendances, ponctuelles) : comptes COURANTS uniquement, hors
 // virements internes ET hors régularisations de solde (regul_target). Sinon les mouvements des comptes
 // épargne/investissement (grosses régularisations de valorisation, dépôts) gonflent les « revenus »
 // et faussent totalement les soldes mensuels vus par l'IA.
+//
+// SOURCE : requête DÉDIÉE (pas useTransactions et sa limite de 500 lignes) — 6 mois complets de
+// transactions + TOUS les templates récurrents (même anciens), pour qu'un utilisateur avec 2 ans
+// d'historique ait un vrai historique 6 mois et que son loyer créé il y a 2 ans reste vu.
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
 import { usePilotageData } from './usePilotageData';
-import { useTransactions } from './useTransactions';
 import { useTransactionMonthOverrides } from './useTransactionMonthOverrides';
 import { useCategories } from './useCategories';
 import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
 import { useProjects } from './useProjects';
-import { computeAmortization } from '../lib/amortization';
+import { computeAmortization, addMonthsISO } from '../lib/amortization';
+import { computeMonthlyForecast } from '../lib/forecast';
 import { todayISO } from '../lib/dateUtils';
-import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff } from '../lib/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth } from '../lib/aiSnapshot';
 import { CURRENCY_SYMBOL } from '../lib/currency';
+
+const SNAPSHOT_TX_LIMIT = 4000;
+
+/** Transactions pour l'instantané : 6 derniers mois complets + mois courant + tous les templates
+ *  récurrents, sur MES comptes non joints. Champs minimaux (pas de libellés inutiles en mémoire). */
+function useSnapshotTransactions(profileId: string | undefined) {
+  return useQuery({
+    queryKey: ['snapshot_txs', profileId],
+    enabled: !!profileId && !!supabase,
+    queryFn: async (): Promise<any[]> => {
+      const since = addMonthsISO(todayISO().slice(0, 8) + '01', -6);
+      const { data, error } = await supabase!
+        .from('transactions')
+        .select('id, account_id, amount, date, category_id, linked_account_id, is_draft, regul_target, is_recurring, recurrence_rule, recurrence_end_date, project_id, note, account:accounts!account_id(type, profile_id, is_joint)')
+        .eq('profile_id', profileId!)
+        .or(`date.gte.${since},is_recurring.eq.true`)
+        .order('date', { ascending: false })
+        .limit(SNAPSHOT_TX_LIMIT);
+      if (error) throw error;
+      return (data ?? [])
+        .filter((r: any) => r.account && r.account.profile_id === profileId && !r.account.is_joint)
+        .map((r: any) => ({ ...r, amount: Number(r.amount) }));
+    },
+  });
+}
 
 export function useUserSnapshot(userId: string | undefined): { text: string | null; ready: boolean; build: () => string } {
   const { data: pilotage } = usePilotageData(userId);
-  const { data: transactions } = useTransactions(userId);
+  const { data: transactions } = useSnapshotTransactions(userId);
   const { data: monthOverrides } = useTransactionMonthOverrides(userId);
   const { data: categories } = useCategories(userId);
   const { data: credits } = useCredits(userId);
@@ -89,15 +121,18 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     return Object.entries(acc).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount);
   }, [transactions, catById]);
 
-  // Mois COMPLETS réellement couverts par les données chargées (500 dernières transactions) : on ignore
-  // le mois le plus ancien (potentiellement tronqué par la limite) et le mois en cours (partiel).
+  // Mois COMPLETS couverts : la requête charge tout depuis le 1ᵉʳ du mois -6 → chaque mois de la
+  // fenêtre (hors mois courant) est complet. Les templates récurrents plus anciens (chargés à part)
+  // sont hors fenêtre → exclus d'ici. Garde-fou : si la limite de lignes est atteinte, le mois le
+  // plus ancien peut être tronqué → on l'écarte.
   const completeMonths = useMemo(() => {
     if (!transactions?.length) return [] as string[];
     const curYm = todayISO().slice(0, 7);
-    const oldestYm = transactions[transactions.length - 1].date.slice(0, 7);
-    const months = [...new Set(transactions.map((t) => t.date.slice(0, 7)))]
-      .filter((ym) => ym < curYm && ym > oldestYm)
+    const sinceYm = addMonthsISO(todayISO().slice(0, 8) + '01', -6).slice(0, 7);
+    let months = [...new Set(transactions.map((t) => t.date.slice(0, 7)))]
+      .filter((ym) => ym < curYm && ym >= sinceYm)
       .sort();
+    if (transactions.length >= SNAPSHOT_TX_LIMIT) months = months.slice(1);
     return months.slice(-6);
   }, [transactions]);
 
@@ -180,6 +215,23 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     return out.sort((a, b) => b.amount - a.amount).slice(0, 8);
   }, [transactions, completeMonths, catById]);
 
+  // PROJECTION du solde courant (même moteur que l'onglet Projection) : indispensable pour que l'IA
+  // ne conseille pas un virement automatique alors que le solde projeté baisse dans les mois à venir.
+  const forecast = useMemo<SnapshotForecastMonth[]>(() => {
+    if (!pilotage || !transactions || !allAccounts?.length) return [];
+    try {
+      const months = computeMonthlyForecast({
+        transactions,
+        accounts: allAccounts,
+        variableMonthly: pilotage.variable_envelope_initial ?? 0,
+        variableRemaining: pilotage.variable_envelope_remaining ?? 0,
+        monthsCount: 6,
+        monthOverrides: (monthOverrides ?? []) as any,
+      });
+      return months.map((f) => ({ ym: `${f.year}-${String(f.month).padStart(2, '0')}`, balance: f.balance }));
+    } catch { return []; }
+  }, [pilotage, transactions, allAccounts, monthOverrides]);
+
   const creditsSummary = useMemo(() => {
     const today = todayISO();
     const acctById: Record<string, any> = {};
@@ -227,12 +279,13 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       recurringExpenses: recurrings.expenses,
       recurringIncomes: recurrings.incomes,
       topOneOff,
+      forecast,
     });
   };
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast],
   );
   return { text, ready: !!pilotage, build };
 }

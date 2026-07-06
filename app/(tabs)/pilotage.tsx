@@ -714,13 +714,15 @@ export default function PilotageScreen() {
               recoRange={relConf ? relConf.proportional : undefined}
               confidenceLevel={relConf?.result.level}
               daysSinceVerification={relConf?.result.daysSinceVerification}
-              onVerify={() => router.push((mainCheckingId ? `/(tabs)/comptes/${mainCheckingId}?verify=1` : '/(tabs)/comptes') as any)}
+              // « Vérifier » → page du COMPTE (pas l'écran de saisie d'un nouveau solde).
+              onVerify={() => router.push((mainCheckingId ? `/(tabs)/comptes/${mainCheckingId}` : '/(tabs)/comptes') as any)}
               financials={recoContextEnabled && pilotageData ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance } : undefined}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
               hasSavingsAccount={hasSavingsAccount}
               hasInvestmentAccount={hasInvestmentAccount}
-              onCreateAccount={() => router.push('/(tabs)/comptes/add')}
+              // « Pas encore de compte… » → page Comptes (choix du type là-bas), pas la création directe.
+              onCreateAccount={() => router.push('/(tabs)/comptes' as any)}
               onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
               onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
               onCumuler={(type, reco) => { markRecoUsed(); setPreModalAmount(reco.amount); setPreModal(type); }}

@@ -142,6 +142,8 @@ export interface UiPrefs {
   accounts_totals_filter?: 'all' | 'perso' | 'shared';
   /** Recommandations ignorées / complétées du mois courant. */
   reco_dismissals?: RecoDismissals;
+  /** Conseils IA : ne plus demander confirmation avant d'utiliser une requête (envoi direct). */
+  ai_confirm_skip?: boolean;
 }
 
 export interface Account {
