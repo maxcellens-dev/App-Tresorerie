@@ -16,6 +16,7 @@ import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAUL
 import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
 import ColorPickerModal from '../../../../components/ColorPickerModal';
 import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/webFonts';
+import { ensureNativeFonts, useNativeFontsVersion } from '../../../../lib/nativeFonts';
 
 
 const FONTS = [
@@ -36,6 +37,9 @@ const FONTS = [
 ];
 
 type FontOption = { family: string; label: string; custom?: boolean };
+
+// Marqueur (web) : exclut ces éléments de la police globale → l'aperçu montre la police EN COURS de choix.
+const FONT_PREVIEW_PROPS: any = Platform.OS === 'web' ? { dataSet: { fontpreview: '1' } } : {};
 
 /**
  * Sélecteur de police RÉUTILISABLE (liste déroulante unique) — sert à la fois pour la police du
@@ -58,8 +62,8 @@ function FontSelect({
   return (
     <View>
       <TouchableOpacity style={styles.dropdownHeader} onPress={() => setOpen((o) => !o)} activeOpacity={0.8}>
-        <Text style={{ fontSize: 18, color: COLORS.text, width: 30, fontFamily: ff(value) }}>Aa</Text>
-        <Text style={{ flex: 1, color: COLORS.text, fontSize: 14, fontFamily: ff(value) }} numberOfLines={1}>
+        <Text {...FONT_PREVIEW_PROPS} style={{ fontSize: 18, color: COLORS.text, width: 30, fontFamily: ff(value) }}>Aa</Text>
+        <Text {...FONT_PREVIEW_PROPS} style={{ flex: 1, color: COLORS.text, fontSize: 14, fontFamily: ff(value) }} numberOfLines={1}>
           {current?.label ?? value ?? 'Système'}
         </Text>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
@@ -75,8 +79,8 @@ function FontSelect({
                   onPress={() => { onChange(opt.family); setOpen(false); }}
                   activeOpacity={0.7}
                 >
-                  <Text style={{ fontSize: 17, color: selected ? COLORS.emerald : COLORS.text, width: 28, fontFamily: ff(opt.family) }}>Aa</Text>
-                  <Text style={{ flex: 1, color: selected ? COLORS.emerald : COLORS.text, fontSize: 14, fontFamily: ff(opt.family) }} numberOfLines={1}>
+                  <Text {...FONT_PREVIEW_PROPS} style={{ fontSize: 17, color: selected ? COLORS.emerald : COLORS.text, width: 28, fontFamily: ff(opt.family) }}>Aa</Text>
+                  <Text {...FONT_PREVIEW_PROPS} style={{ flex: 1, color: selected ? COLORS.emerald : COLORS.text, fontSize: 14, fontFamily: ff(opt.family) }} numberOfLines={1}>
                     {opt.label}
                   </Text>
                   {selected && <Ionicons name="checkmark" size={16} color={COLORS.emerald} />}
@@ -234,6 +238,15 @@ export default function StyleEditor() {
     if (!el) { el = document.createElement('style'); el.id = ID; document.head.appendChild(el); }
     const fmt = (url: string) => /\.woff2(\?.*)?$/i.test(url) ? 'woff2' : /\.woff(\?.*)?$/i.test(url) ? 'woff' : /\.otf(\?.*)?$/i.test(url) ? 'opentype' : 'truetype';
     el.textContent = valid.map((f) => `@font-face { font-family: '${f.family}'; src: url('${f.url}') format('${fmt(f.url)}'); font-display: swap; }`).join('\n');
+  }, [customFonts]);
+
+  // NATIF — charge les polices IMPORTÉES (expo-font) pour que les aperçus s'affichent en direct.
+  // (Les polices Google, sans fichier, ne peuvent pas s'afficher sur natif → repli système.)
+  useNativeFontsVersion(); // re-render quand une police finit de charger
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const valid = customFonts.filter((f) => f?.family && f?.url);
+    if (valid.length) ensureNativeFonts(valid as any);
   }, [customFonts]);
 
   // Accents valides pour l'aperçu live
@@ -816,7 +829,7 @@ export default function StyleEditor() {
                 styles={styles}
               />
               <View style={styles.fontPreviewBox}>
-                <Text style={{ fontSize: 15, color: COLORS.text, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>
+                <Text {...FONT_PREVIEW_PROPS} style={{ fontSize: 15, color: COLORS.text, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>
                   Solde courant : 1 234 € · Épargne, projets et projection.
                 </Text>
               </View>
@@ -832,7 +845,7 @@ export default function StyleEditor() {
                 styles={styles}
               />
               <View style={styles.fontPreviewBox}>
-                <Text style={{ fontSize: 30, color: COLORS.text, fontFamily: appNameFont === 'System' ? undefined : (appNameFont.trim() || undefined) }}>Relyka</Text>
+                <Text {...FONT_PREVIEW_PROPS} style={{ fontSize: 30, color: COLORS.text, fontFamily: appNameFont === 'System' ? undefined : (appNameFont.trim() || undefined) }}>Relyka</Text>
               </View>
             </Section>
 

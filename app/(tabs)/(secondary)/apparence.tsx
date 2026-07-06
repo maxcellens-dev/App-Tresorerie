@@ -20,6 +20,7 @@ import { useNavBack } from '../../../hooks/useNavBack';
 import { COSMETIC_DEFS } from '../../../lib/gamification';
 import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
+import ColorPickerModal from '../../../components/ColorPickerModal';
 
 export default function AppearanceScreen() {
   const COLORS = useAppColors();
@@ -58,6 +59,7 @@ export default function AppearanceScreen() {
   // L'application se fait UNIQUEMENT via le bouton « Appliquer ».
   const onHexChange = (v: string) => setCustomHex(v.toUpperCase());
   const applyHex = () => { if (isHex(customHex)) setPreset(customHex as ThemePreset); };
+  const [showColorPicker, setShowColorPicker] = useState(false); // palette HSV (clic sur l'aperçu)
 
   // Les 14 pastilles de couleur d'accent sont GRATUITES pour tout le monde.
   // SEUL le sélecteur de couleur personnalisée (saisie du code hex, sous les pastilles)
@@ -217,10 +219,16 @@ export default function AppearanceScreen() {
                       autoCapitalize="characters"
                       maxLength={7}
                     />
-                    {/* Aperçu de la couleur — à droite du champ, à gauche de « Appliquer ». */}
-                    <View style={[styles.customPreview, { backgroundColor: customValid ? customHex : COLORS.cardBorder }, customActive && { borderColor: COLORS.text, borderWidth: 2 }]}>
-                      {customActive && <Ionicons name="checkmark" size={18} color="#ffffff" />}
-                    </View>
+                    {/* Aperçu de la couleur — CLIQUABLE : ouvre la palette (choix manuel à la souris/doigt). */}
+                    <TouchableOpacity
+                      style={[styles.customPreview, { backgroundColor: customValid ? customHex : COLORS.cardBorder }, customActive && { borderColor: COLORS.text, borderWidth: 2 }]}
+                      onPress={() => setShowColorPicker(true)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Ouvrir la palette de couleurs"
+                    >
+                      {customActive ? <Ionicons name="checkmark" size={18} color="#ffffff" /> : <Ionicons name="color-palette-outline" size={16} color={customValid ? '#ffffff' : COLORS.textSecondary} />}
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.applyBtn, !customValid && { opacity: 0.5 }]}
                       onPress={applyHex}
@@ -259,7 +267,8 @@ export default function AppearanceScreen() {
                   {cosmeticGroups.map((group) => (
                     <View key={group.slot}>
                       <Text style={styles.cosmeticGroupTitle}>{group.label}</Text>
-                      <View style={styles.cosmeticGrid}>
+                      {/* Une ligne par type, défilable à l'horizontale (galerie / carrousel). */}
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cosmeticRow}>
                         {group.items.map((cos) => (
                           <TouchableOpacity
                             key={cos.key}
@@ -278,7 +287,7 @@ export default function AppearanceScreen() {
                             )}
                           </TouchableOpacity>
                         ))}
-                      </View>
+                      </ScrollView>
                     </View>
                   ))}
                 </>
@@ -287,6 +296,15 @@ export default function AppearanceScreen() {
           </View>
         </KeyboardAwareScrollView>
       </SafeAreaView>
+
+      {/* Palette de couleurs (HSV) — ouverte au clic sur le carré d'aperçu. Met à jour l'aperçu ;
+          l'application se fait via « Appliquer », comme la saisie hex. */}
+      <ColorPickerModal
+        visible={showColorPicker}
+        value={customValid ? customHex : '#00B67A'}
+        onPick={(hex) => onHexChange(hex)}
+        onClose={() => setShowColorPicker(false)}
+      />
     </View>
   );
 }
@@ -320,7 +338,8 @@ function makeStyles(c: any) {
     unlockBtnText: { fontSize: 14, fontWeight: '700', color: c.bg },
     cosmeticGroupTitle: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 14, marginBottom: 2 },
     cosmeticGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 },
-    cosmeticCard: { flexBasis: '30%', flexGrow: 0, height: 96, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 7 },
+    cosmeticRow: { flexDirection: 'row', gap: 10, marginTop: 6, paddingRight: 6 },
+    cosmeticCard: { width: 104, height: 96, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, gap: 7 },
     cosmeticCardIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
     cosmeticCardLabel: { fontSize: 11, fontWeight: '700', color: c.text, textAlign: 'center' },
     cosmeticCheck: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 9, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },

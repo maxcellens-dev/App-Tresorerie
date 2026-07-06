@@ -7,8 +7,16 @@
  * re-rend ses consommateurs (welcome, questionnaire…) pour que la police s'affiche enfin.
  */
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useStyleConfig } from './useStyleConfig';
 import { ensureNativeFonts, useNativeFontsVersion } from '../lib/nativeFonts';
+
+/**
+ * Props à étaler sur un <Text> qui affiche le NOM de l'app. Sur WEB, pose l'attribut `data-appfont`
+ * → FontApplier EXCLUT ces éléments de la police globale du TEXTE (sinon son `!important` écraserait
+ * la police du nom). Sur natif : aucun effet (la police du nom s'applique via fontFamily direct).
+ */
+export const APP_NAME_TEXT_PROPS: any = Platform.OS === 'web' ? { dataSet: { appfont: '1' } } : {};
 
 export function useAppNameFont(): string {
   const { data } = useStyleConfig();

@@ -21,6 +21,13 @@ function toDateString(year: number, month: number, day = 1): string {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// Découpe robuste d'une chaîne « YYYY-MM » OU « YYYY-MM-DD » → { y, m } (month 1-based).
+// (Évite le NaN causé par `new Date("2026-07-01" + "-01T00:00:00")` = date invalide.)
+function ym(s: string): { y: number; m: number } {
+  const parts = (s ?? '').split('-');
+  return { y: Number(parts[0]), m: Number(parts[1]) };
+}
+
 interface Props {
   current?: string;
   minDate?: string;
@@ -113,7 +120,7 @@ export default function CalendarWithPicker({
   }
 
   if (picker === 'month') {
-    const displayedYear = new Date(displayedMonth + '-01T00:00:00').getFullYear();
+    const displayedYear = ym(displayedMonth).y;
     return (
       <View style={[pickerStyles.container, { backgroundColor: bgColor }]}>
         <View style={pickerStyles.nav}>
@@ -130,7 +137,7 @@ export default function CalendarWithPicker({
         <View style={pickerStyles.grid}>
           {MONTH_NAMES.map((name, idx) => {
             const month = idx + 1;
-            const isSelected = pickerYear === displayedYear && month === new Date(displayedMonth + '-01T00:00:00').getMonth() + 1;
+            const isSelected = pickerYear === displayedYear && month === ym(displayedMonth).m;
             const isCurrentMonth = pickerYear === nowYear && month === new Date().getMonth() + 1;
             return (
               <TouchableOpacity
@@ -160,7 +167,7 @@ export default function CalendarWithPicker({
     <Calendar
       key={calKey}
       firstDay={1}
-      current={displayedMonth}
+      current={displayedMonth.length >= 10 ? displayedMonth : `${displayedMonth}-01`}
       minDate={minDate}
       maxDate={maxDate}
       onDayPress={onDayPress}
@@ -171,7 +178,7 @@ export default function CalendarWithPicker({
         return (
           <TouchableOpacity
             onPress={() => {
-              const y = new Date(displayedMonth + '-01T00:00:00').getFullYear();
+              const y = ym(displayedMonth).y;
               setPickerYear(y);
               setYearRangeStart(Math.floor(y / 12) * 12);
               setPicker('year');

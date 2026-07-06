@@ -96,7 +96,7 @@ export default function IdeasScreen() {
                 Nous examinons chaque suggestion avec attention. Les meilleures idées seront intégrées dans les prochaines mises à jour.
               </Text>
               <TouchableOpacity style={styles.btn} onPress={() => setSubmitted(false)}>
-                <Text style={styles.btnText}>Proposer une autre idée</Text>
+                <Text style={styles.btnText}> Proposer une autre idée </Text>
               </TouchableOpacity>
             </View>
           ) : (

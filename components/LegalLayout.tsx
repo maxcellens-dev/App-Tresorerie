@@ -16,7 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { usePublicColors } from '../hooks/usePublicColors';
-import { useAppNameFont } from '../hooks/useBrandFont';
+import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { useNavBack } from '../hooks/useNavBack';
 import HeaderWithProfile from './HeaderWithProfile';
 
@@ -30,9 +31,22 @@ export default function LegalLayout({ title, children }: { title: string; childr
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const appNameFont = useAppNameFont();
   const router = useRouter();
+  const { data: landing } = useLandingConfig();
+  const L = landing ?? DEFAULT_LANDING; // même config que la page d'accueil (rien en dur)
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && width >= LEGAL_DESKTOP_MIN_WIDTH;
   const goBack = useNavBack();
+  // Même résolveur de liens que la page d'accueil (ancre → route, URL → nouvel onglet).
+  const goAnchor = (link: { anchor?: string; url?: string }) => {
+    if (link.url) { if (Platform.OS === 'web' && typeof window !== 'undefined') window.open(link.url, '_blank'); return; }
+    if (link.anchor === 'login') return router.push('/login');
+    if (link.anchor === 'register') return router.push('/register');
+    if (link.anchor === 'confidentialite') return router.push('/confidentialite');
+    if (link.anchor === 'legal') return router.push('/legal');
+    if (Platform.OS === 'web' && typeof document !== 'undefined' && link.anchor) {
+      document.getElementById(link.anchor)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // ───────── Mode « site web » (bureau) ─────────
   if (isDesktopWeb) {
@@ -45,7 +59,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
             <View style={styles.siteHeaderInner}>
               <TouchableOpacity style={styles.brandRow} onPress={() => router.replace(user ? '/(tabs)/pilotage' : '/welcome')} activeOpacity={0.8}>
                 <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
-                <Text style={[styles.brand, { fontFamily: appNameFont }]}>Relyka</Text>
+                <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, { fontFamily: appNameFont }]}>{L.brandName}</Text>
               </TouchableOpacity>
               <View style={styles.siteHeaderBtns}>
                 {user ? (
@@ -78,15 +92,16 @@ export default function LegalLayout({ title, children }: { title: string; childr
             </View>
           </View>
 
-          {/* Pied de page site */}
+          {/* Pied de page site — IDENTIQUE à la page d'accueil (config admin). */}
           <View style={styles.siteFooter}>
-            <Text style={[styles.footerBrand, { fontFamily: appNameFont }]}>Relyka</Text>
-            <Text style={styles.footerText}>Laissez-vous guider pour faire des économies.</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, { fontFamily: appNameFont }]}>{L.brandName}</Text>
+            <Text style={styles.footerText}>{L.footerText}</Text>
             <View style={styles.footerLinks}>
-              <TouchableOpacity onPress={() => router.push('/confidentialite')}><Text style={styles.footerLink}>Confidentialité</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/legal')}><Text style={styles.footerLink}>Mentions légales</Text></TouchableOpacity>
+              {L.footerLinks.map((l) => (
+                <TouchableOpacity key={l.label} onPress={() => goAnchor(l)} activeOpacity={0.7}><Text style={styles.footerLink}>{l.label}</Text></TouchableOpacity>
+              ))}
             </View>
-            <Text style={styles.footerCopy}>© {new Date().getFullYear()} Relyka. Tous droits réservés.</Text>
+            <Text style={styles.footerCopy}>© {new Date().getFullYear()} {L.brandName}. Tous droits réservés.</Text>
           </View>
         </ScrollView>
       </View>

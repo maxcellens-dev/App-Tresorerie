@@ -1143,7 +1143,9 @@ export default function PilotageScreen() {
                 spent: 'Dépensé ce mois', planned: 'Dépenses prévues restantes', relyka: 'Ton Relyka (Budget libre)',
               };
               // Épargné / Investi : lignes CLIQUABLES → feuille de détail (Fermer / Modifier).
-              const rowsTappable = detailKey === 'savings' || detailKey === 'invest';
+              // Lignes tapables (→ détail de la transaction) dans TOUS les modaux de suivi : épargné,
+              // investi, total dépensé et dépenses prévues/récurrentes (§3).
+              const rowsTappable = detailKey === 'savings' || detailKey === 'invest' || detailKey === 'spent' || detailKey === 'planned';
               const txList = (list: any[], color: string, empty: string, dim?: (t: any) => boolean) => (
                 list.length === 0 ? <Text style={styles.detailEmpty}>{empty}</Text> :
                 list.map((t, i) => {

@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useAllConseils } from '../../../../hooks/useConseils';
+import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/supabase';
 import type { Conseil } from '../../../../hooks/useConseils';
@@ -23,6 +24,10 @@ export default function AdminConseils() {
   const goBack = useNavBack();
   const qc = useQueryClient();
   const { data: all = [], isLoading } = useAllConseils();
+  const { data: flags } = useFeatureFlags();
+  const saveFlags = useSaveFeatureFlags();
+  const [rotationSec, setRotationSec] = useState('');
+  React.useEffect(() => { setRotationSec(String(flags?.conseils_rotation_seconds ?? 8)); }, [flags?.conseils_rotation_seconds]);
   const [filter, setFilter] = useState<'all' | 'general' | 'contextuel'>('all');
   const [editing, setEditing] = useState<Partial<Conseil> | null>(null);
   const [editMsg, setEditMsg] = useState('');
@@ -66,6 +71,24 @@ export default function AdminConseils() {
           <Text style={styles.title}>Conseils</Text>
         </View>
         <Text style={styles.subtitle}>Gérez les conseils du jour affichés dans le Pilotage.</Text>
+
+        {/* Vitesse de défilement du bandeau (secondes entre 2 conseils) */}
+        <View style={styles.speedRow}>
+          <Ionicons name="timer-outline" size={18} color={COLORS.emerald} />
+          <Text style={styles.speedLabel}>Vitesse de défilement</Text>
+          <TextInput
+            style={styles.speedInput}
+            value={rotationSec}
+            onChangeText={setRotationSec}
+            keyboardType="number-pad"
+            onBlur={() => {
+              const n = Math.max(2, Math.min(60, parseInt(rotationSec, 10) || 8));
+              setRotationSec(String(n));
+              if (n !== (flags?.conseils_rotation_seconds ?? 8)) saveFlags.mutate({ conseils_rotation_seconds: n });
+            }}
+          />
+          <Text style={styles.speedUnit}>sec</Text>
+        </View>
 
         {/* Filtre */}
         <View style={styles.filterRow}>
@@ -158,6 +181,10 @@ function makeStyles(c: any) {
     pageHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
     title: { fontSize: 20, fontWeight: '800', color: c.text },
     subtitle: { fontSize: 12.5, color: c.textSecondary, marginBottom: 14, lineHeight: 17 },
+    speedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
+    speedLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: c.text },
+    speedInput: { width: 56, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 6, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'center' },
+    speedUnit: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
     filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
     filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
     filterText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },

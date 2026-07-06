@@ -7,8 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWindowDimensions } from 'react-native';
 import { useBrandColors } from '../hooks/useBrandColors';
-import { useAppNameFont } from '../hooks/useBrandFont';
-import { useLandingConfig } from '../hooks/useLandingConfig';
+import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { signalAppReady } from '../lib/splashGate';
 import LandingPage from '../components/LandingPage';
 
@@ -23,6 +23,8 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { width: winWidth } = useWindowDimensions();
   const { data: landing } = useLandingConfig();
+  const L = landing ?? DEFAULT_LANDING; // config admin (avec défauts) → rien en dur sur l'accueil mobile
+  const featColors = [COLORS.emerald, COLORS.accent, COLORS.text, COLORS.emerald];
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
@@ -68,17 +70,17 @@ export default function WelcomeScreen() {
           <Animated.View style={[styles.hero, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
-            <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
-            {/* Accroche BÉNÉFICE : ce que le user obtient, pas ce que l'app est. */}
-            <Text style={styles.tagline}>Sache toujours combien tu peux dépenser — sans tableur, sans stress.</Text>
-            <Text style={[styles.subtag, { fontFamily: appNameFont }]}>Ton budget · Ta projection · Ta sérénité</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, { fontFamily: appNameFont }]}>{L.brandName}</Text>
+            {/* Accroche BÉNÉFICE (éditable en admin → « Page d'accueil » section Mobile). */}
+            <Text style={styles.tagline}>{L.mobileTagline}</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.subtag, { fontFamily: appNameFont }]}>{L.mobileSubtag}</Text>
           </Animated.View>
 
           <View style={styles.ctaContainer}>
             <View style={styles.ctaCard}>
-              <Text style={styles.ctaTitle}>Prêt à commencer ?</Text>
-              <Text style={styles.ctaText}>Connectez-vous pour retrouver vos comptes ou créez votre espace en quelques secondes.</Text>
-              
+              <Text style={styles.ctaTitle}>{L.mobileCtaTitle}</Text>
+              <Text style={styles.ctaText}>{L.mobileCtaText}</Text>
+
               <View style={styles.ctaButtons}>
                 <TouchableOpacity
                   style={styles.primaryBtn}
@@ -86,7 +88,7 @@ export default function WelcomeScreen() {
                   accessibilityRole="button"
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.primaryLabel}>Se connecter</Text>
+                  <Text style={styles.primaryLabel}>{L.mobileCtaPrimaryLabel}</Text>
                   <Ionicons name="arrow-forward" size={20} color={COLORS.bg} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -95,53 +97,25 @@ export default function WelcomeScreen() {
                   accessibilityRole="button"
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.secondaryLabel}>Créer un compte</Text>
+                  <Text style={styles.secondaryLabel}>{L.mobileCtaSecondaryLabel}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
 
-          {/* 3 fonctionnalités PHARES — concrètes, nommées comme dans l'app. */}
+          {/* Fonctionnalités PHARES — éditables en admin (section Mobile). */}
           <Animated.View style={[styles.features, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-            <View style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="wallet" size={24} color={COLORS.emerald} />
+            {L.mobileFeatures.map((f, i) => (
+              <View key={i} style={styles.featureRow}>
+                <View style={styles.featureIcon}>
+                  <Ionicons name={(f.icon || 'sparkles') as any} size={24} color={featColors[i % featColors.length]} />
+                </View>
+                <View style={styles.featureContent}>
+                  <Text style={styles.featureTitle}>{f.title}</Text>
+                  <Text style={styles.featureText}>{f.text}</Text>
+                </View>
               </View>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>Ton Relyka</Text>
-                <Text style={styles.featureText}>LE montant que tu peux dépenser ce mois sans te mettre en difficulté — calculé en continu, charges et projets déduits.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="trending-up" size={24} color={COLORS.accent} />
-              </View>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>Ta projection</Text>
-                <Text style={styles.featureText}>Où tu en seras dans 6 mois ou 1 an : solde prévu, épargne, investissements — et comment y arriver.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="people" size={24} color={COLORS.text} />
-              </View>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>À deux, sans prise de tête</Text>
-                <Text style={styles.featureText}>Comptes communs et projets partagés : chacun sa part, chacun son budget — les comptes d'apothicaire en moins.</Text>
-              </View>
-            </View>
-
-            <View style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Ionicons name="shield-checkmark" size={24} color={COLORS.emerald} />
-              </View>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>Tes données restent les tiennes</Text>
-                <Text style={styles.featureText}>Export complet à tout moment, aucune connexion bancaire requise.</Text>
-              </View>
-            </View>
+            ))}
           </Animated.View>
 
         </ScrollView>

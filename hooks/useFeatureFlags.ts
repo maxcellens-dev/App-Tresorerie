@@ -38,6 +38,8 @@ export interface FeatureFlags {
    * - 'bubble' : bulle volante sur le seul écran Pilotage, en bas à droite (l'user peut juste l'afficher/masquer).
    */
   quick_add_mode?: 'tabbar' | 'bubble';
+  /** Vitesse de défilement du bandeau « Conseils » sur le Pilotage (secondes entre 2 conseils). Défaut 8. */
+  conseils_rotation_seconds?: number;
 }
 
 const KEY = 'feature_flags';

@@ -14,7 +14,7 @@ import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useAppColors } from '../hooks/useAppColors';
 import { useUserUnreadCount } from '../hooks/useUnreadBadges';
 import { useCosmetics } from '../hooks/useCosmetics';
-import { useAppNameFont } from '../hooks/useBrandFont';
+import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { APP_VERSION } from '../lib/appVersion';
 
 export default function ProfileMenuModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
@@ -128,7 +128,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
           </TouchableOpacity>
 
           <View style={styles.footer}>
-            <Text style={[styles.footerBrand, { fontFamily: appNameFont }]}>Relyka</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, { fontFamily: appNameFont }]}>Relyka</Text>
             <Text style={styles.footerTag}>Laissez-vous guider pour faire des économies.</Text>
             <Text style={styles.footerVersion}>Version {APP_VERSION} · © 2026 Relyka</Text>
           </View>

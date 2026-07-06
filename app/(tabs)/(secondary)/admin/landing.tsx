@@ -27,6 +27,7 @@ export default function AdminLanding() {
   const [cfg, setCfg] = useState<LandingConfig | null>(null);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<'bureau' | 'mobile'>('bureau');
 
   useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
 
@@ -36,6 +37,7 @@ export default function AdminLanding() {
 
   const set = (patch: Partial<LandingConfig>) => setCfg({ ...cfg, ...patch });
   const setFeature = (i: number, patch: Partial<LandingFeature>) => set({ features: cfg.features.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
+  const setMobileFeature = (i: number, patch: Partial<LandingFeature>) => set({ mobileFeatures: cfg.mobileFeatures.map((f, idx) => idx === i ? { ...f, ...patch } : f) });
   const setStat = (i: number, patch: Partial<LandingStat>) => set({ stats: cfg.stats.map((s, idx) => idx === i ? { ...s, ...patch } : s) });
   const setFooter = (i: number, patch: Partial<LandingLink>) => set({ footerLinks: cfg.footerLinks.map((l, idx) => idx === i ? { ...l, ...patch } : l) });
 
@@ -76,10 +78,21 @@ export default function AdminLanding() {
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Page d'accueil (bureau)</Text>
-        <Text style={styles.sub}>Affichée sur le web en grand écran. Sur mobile, l'accueil classique reste utilisé. Les boutons mènent aux pages de connexion / inscription.</Text>
+        <Text style={styles.title}>Page d'accueil</Text>
+        <Text style={styles.sub}>Deux présentations : « Bureau » (web grand écran) et « Mobile » (écran d'accueil de l'app). Les boutons mènent aux pages de connexion / inscription.</Text>
+
+        {/* Onglets Bureau / Mobile → évite une page interminable. */}
+        <View style={styles.tabsRow}>
+          {([['bureau', 'Bureau', 'desktop-outline'], ['mobile', 'Mobile', 'phone-portrait-outline']] as const).map(([id, label, icon]) => (
+            <TouchableOpacity key={id} style={[styles.tabBtn, tab === id && styles.tabBtnActive]} onPress={() => setTab(id)} activeOpacity={0.8}>
+              <Ionicons name={icon as any} size={16} color={tab === id ? COLORS.bg : COLORS.textSecondary} />
+              <Text style={[styles.tabBtnText, tab === id && { color: COLORS.bg }]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+          {tab === 'bureau' && (<>
           {/* Général */}
           <View style={styles.card}>
             <View style={styles.rowBetween}>
@@ -188,6 +201,37 @@ export default function AdminLanding() {
             <Text style={styles.hint}>Ancres : confidentialite, legal (pages publiques), login, register, features, stats, final — ou une URL https://…</Text>
           </View>
 
+          </>)}
+
+          {tab === 'mobile' && (
+          /* ── Écran d'accueil MOBILE (application) — textes propres au mobile ── */
+          <View style={styles.card}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.section}>Accueil mobile (application)</Text>
+              <TouchableOpacity onPress={() => set({ mobileFeatures: [...cfg.mobileFeatures, { icon: 'sparkles', title: 'Titre', text: '' }] })} style={styles.addBtn}><Ionicons name="add" size={16} color={COLORS.emerald} /><Text style={styles.addText}>Ajouter</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.hint}>Ces textes s'affichent sur l'écran d'accueil de l'app mobile (le nom de la marque et le logo sont communs). Le badge/héros ci-dessus concernent la version web bureau.</Text>
+            <Field label="Accroche (sous le nom)" value={cfg.mobileTagline} onChange={(v) => set({ mobileTagline: v })} multiline styles={styles} c={COLORS} />
+            <Field label="Sous-accroche" value={cfg.mobileSubtag} onChange={(v) => set({ mobileSubtag: v })} styles={styles} c={COLORS} />
+            <Field label="Titre de la carte d'action" value={cfg.mobileCtaTitle} onChange={(v) => set({ mobileCtaTitle: v })} styles={styles} c={COLORS} />
+            <Field label="Texte de la carte d'action" value={cfg.mobileCtaText} onChange={(v) => set({ mobileCtaText: v })} multiline styles={styles} c={COLORS} />
+            <Field label="Bouton principal" value={cfg.mobileCtaPrimaryLabel} onChange={(v) => set({ mobileCtaPrimaryLabel: v })} styles={styles} c={COLORS} />
+            <Field label="Bouton secondaire" value={cfg.mobileCtaSecondaryLabel} onChange={(v) => set({ mobileCtaSecondaryLabel: v })} styles={styles} c={COLORS} />
+            <Text style={[styles.section, { fontSize: 13, marginTop: 8 }]}>Fonctionnalités mises en avant</Text>
+            {cfg.mobileFeatures.map((f, i) => (
+              <View key={i} style={styles.subCard}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.cardTitle}>Fonctionnalité {i + 1}</Text>
+                  <TouchableOpacity onPress={() => set({ mobileFeatures: cfg.mobileFeatures.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                </View>
+                <Field label="Icône (Ionicons)" value={f.icon} onChange={(v) => setMobileFeature(i, { icon: v })} styles={styles} c={COLORS} />
+                <Field label="Titre" value={f.title} onChange={(v) => setMobileFeature(i, { title: v })} styles={styles} c={COLORS} />
+                <Field label="Texte" value={f.text} onChange={(v) => setMobileFeature(i, { text: v })} multiline styles={styles} c={COLORS} />
+              </View>
+            ))}
+          </View>
+          )}
+
           <TouchableOpacity style={[styles.saveBtn, save.isPending && { opacity: 0.6 }]} onPress={persist} disabled={save.isPending}>
             {save.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveLabel}>Enregistrer la page d'accueil</Text>}
           </TouchableOpacity>
@@ -214,7 +258,11 @@ function makeStyles(c: any) {
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
     title: { fontSize: 22, fontWeight: '800', color: c.text },
-    sub: { fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
+    sub: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
+    tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
+    tabBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+    tabBtnText: { fontSize: 13.5, fontWeight: '700', color: c.textSecondary },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     subCard: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginTop: 10 },
     section: { fontSize: 15, fontWeight: '700', color: c.text, marginBottom: 4 },

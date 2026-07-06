@@ -113,17 +113,23 @@ export default function FontApplier() {
     // @expo/vector-icons (sinon le !important écrase leur fontFamily 'Ionicons' → glyphes en carrés).
     // On les exclut via : `.app-vicon` (classe posée au runtime par l'effet ci-dessous, fiable en
     // dev ET en prod) + `[class*="r-fontFamily"]` (classe RNW, présente en dev → zéro flash).
+    // `:not([data-appfont])` → on laisse les éléments du NOM de l'app garder LEUR police (app_name_font),
+    // sinon ce !important l'écraserait.
+    // `:not([data-fontpreview])` → les APERÇUS du Style Editor gardent la police EN COURS de sélection
+    // (leur fontFamily inline), au lieu d'être forcés à la police globale sauvegardée.
     el.textContent = `
-      [data-testid]:not(.app-vicon):not([class*="r-fontFamily"]),
+      [data-testid]:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
       body, #root,
-      .css-text-146c3p1:not(.app-vicon):not([class*="r-fontFamily"]),
-      div:not(.app-vicon):not([class*="r-fontFamily"]),
-      span:not(.app-vicon):not([class*="r-fontFamily"]),
-      p, input, textarea, button {
+      .css-text-146c3p1:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
+      div:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
+      span:not(.app-vicon):not([class*="r-fontFamily"]):not([data-appfont]):not([data-fontpreview]),
+      p:not([data-appfont]):not([data-fontpreview]), input, textarea, button {
         font-family: ${font} !important;
       }
+      /* Le NOM de l'app garde SA police (priorité absolue). */
+      [data-appfont]:not([data-fontpreview]), [data-appfont] * { font-family: ${appNameFont || font} !important; }
     `;
-  }, [font]);
+  }, [font, appNameFont]);
 
   // Marque les icônes vector (élément dont le texte est un SEUL glyphe en zone d'usage privé Unicode)
   // d'une classe stable `app-vicon`, pour les exclure de la police globale quel que soit le build

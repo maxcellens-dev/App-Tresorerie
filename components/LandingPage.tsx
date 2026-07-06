@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBrandColors } from '../hooks/useBrandColors';
-import { useAppNameFont } from '../hooks/useBrandFont';
+import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig } from '../hooks/useLandingConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
@@ -70,7 +70,7 @@ export default function LandingPage() {
         <View style={styles.headerInner}>
           <View style={styles.brandRow}>
             <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
-            <Text style={[styles.brand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
           </View>
           <View style={styles.headerBtns}>
             <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.ghostBtn}>
@@ -179,7 +179,7 @@ export default function LandingPage() {
 
         {/* ── Pied de page ── */}
         <View style={styles.footer}>
-          <Text style={[styles.footerBrand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
+          <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
           <Text style={styles.footerText}>{cfg.footerText}</Text>
           <View style={styles.footerLinks}>
             {cfg.footerLinks.map((l) => (

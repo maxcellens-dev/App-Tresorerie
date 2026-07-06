@@ -5,7 +5,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { sendPushToProfile, notifyAdminsEvent } from '../lib/pushSend';
+import { notifyAdminsEvent } from '../lib/pushSend';
 
 export interface SupportRequest {
   id: string;
@@ -146,16 +146,9 @@ export function useAddSupportMessage() {
         ...(role === 'user' ? { admin_unread: true } : { user_unread: true }),
       };
       await supabase.from('support_requests').update(patch).eq('id', requestId);
-
-      // Réponse admin → notification push à l'utilisateur (s'il a activé les notifications).
-      if (role === 'admin') {
-        const { data: req } = await supabase.from('support_requests').select('profile_id, subject').eq('id', requestId).maybeSingle();
-        if (req?.profile_id) {
-          const excerpt = body.trim().length > 120 ? body.trim().slice(0, 117) + '…' : body.trim();
-          sendPushToProfile(req.profile_id, `Assistance — ${req.subject || 'votre demande'}`, excerpt)
-            .catch((e) => console.warn('[useSupport] push réponse assistance échoué:', e));
-        }
-      }
+      // PAS de push ici : une seule notification par conversation (à la CRÉATION de la demande, cf.
+      // useCreateSupportRequest → notifyAdminsEvent). Les messages suivants (user ou admin) ne poussent
+      // pas — l'in-app se met à jour via les drapeaux « non lus » (admin_unread / user_unread).
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['support_messages', vars.requestId] });

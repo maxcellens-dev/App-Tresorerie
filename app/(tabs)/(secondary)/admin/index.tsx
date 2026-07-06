@@ -8,7 +8,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
-import { useAiTicketsCount } from '../../../../hooks/useUnreadBadges';
+import { useAdminUnreadBreakdown } from '../../../../hooks/useUnreadBadges';
 
 
 export default function AdminHub() {
@@ -19,7 +19,7 @@ export default function AdminHub() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
-  const aiTickets = useAiTicketsCount(!!isAdmin);
+  const unread = useAdminUnreadBreakdown(!!isAdmin, user?.id);
 
   if (!isAdmin) {
     return (
@@ -93,7 +93,11 @@ export default function AdminHub() {
               <Text style={styles.categoryTitle}>{section.category}</Text>
               <View style={styles.grid}>
                 {section.items.map((item) => {
-                  const badge = item.href.endsWith('/admin/ai') ? aiTickets : 0;
+                  // Badge « non lu » par type sur le bouton correspondant → on sait dans quelle page aller.
+                  const badge = item.href.endsWith('/admin/ai') ? unread.ai_ticket
+                    : item.href.endsWith('/admin/assistance') ? unread.support
+                    : item.href.endsWith('/admin/suggestions') ? unread.suggestion
+                    : 0;
                   return (
                   <TouchableOpacity
                     key={item.href}

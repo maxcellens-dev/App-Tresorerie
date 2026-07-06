@@ -24,7 +24,13 @@
     "plugins": [
       "./plugins/withJitpackAuth",
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0D2E2A"
+        }
+      ],
       [
         "expo-splash-screen",
         {

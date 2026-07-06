@@ -3,7 +3,7 @@
  * Partagé entre l'écran utilisateur et le panneau admin.
  */
 import React, { useMemo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator, Keyboard } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
@@ -34,6 +34,19 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const setStatus = useSetSupportStatus();
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
+  // Hauteur du clavier (suivi manuel) : dans un Modal, KeyboardAvoidingView ne remonte pas la saisie
+  // sur Android → on remonte la feuille de cette hauteur pour que le champ reste visible.
+  const [kbHeight, setKbHeight] = useState(0);
+  useEffect(() => {
+    const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const s = Keyboard.addListener(showEv, (e: any) => {
+      setKbHeight(e?.endCoordinates?.height ?? 0);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    });
+    const h = Keyboard.addListener(hideEv, () => setKbHeight(0));
+    return () => { s.remove(); h.remove(); };
+  }, []);
 
   // Marque la demande comme lue à l'ouverture (efface le drapeau du rôle courant).
   useEffect(() => {
@@ -55,7 +68,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
+      <View style={[styles.overlay, { paddingBottom: kbHeight }]}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -117,15 +130,17 @@ export default function SupportThreadModal({ visible, requestId, subject, status
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, height: '85%' },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', paddingTop: '9%' },
+    // flex:1 (au lieu d'une hauteur fixe) → la feuille se rétrécit par le bas quand le clavier remonte
+    // (via paddingBottom = hauteur clavier sur l'overlay), gardant la saisie visible.
+    sheet: { flex: 1, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder },
     header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: c.cardBorder, gap: 8 },
     title: { fontSize: 16, fontWeight: '800', color: c.text },
     statusPill: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },

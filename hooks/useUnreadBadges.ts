@@ -55,6 +55,31 @@ export function useAdminUnreadCount(isAdmin: boolean, profileId?: string) {
   return data ?? 0;
 }
 
+/** Détail des non-lus admin PAR TYPE → badge sur chaque bouton de la page Admin (assistance / idées /
+ *  conseils IA). Respecte les préférences in-app de l'admin (comme le cumul de l'en-tête). */
+export function useAdminUnreadBreakdown(isAdmin: boolean, profileId?: string) {
+  const { data } = useQuery({
+    queryKey: ['unread_badges', 'admin_breakdown', profileId],
+    enabled: isAdmin && !!supabase,
+    refetchInterval: 30000,
+    queryFn: async (): Promise<{ support: number; suggestion: number; ai_ticket: number }> => {
+      if (!supabase) return { support: 0, suggestion: 0, ai_ticket: 0 };
+      const wants: Record<string, boolean> = { support: true, suggestion: true, ai_ticket: true };
+      if (profileId) {
+        const { data: prefs } = await supabase.from('admin_notification_prefs').select('kind, in_app').eq('profile_id', profileId);
+        for (const p of (prefs ?? []) as any[]) wants[p.kind] = !!p.in_app;
+      }
+      const [reqs, ideas, aiTickets] = await Promise.all([
+        wants.support ? supabase.from('support_requests').select('id', { count: 'exact', head: true }).eq('admin_unread', true) : Promise.resolve({ count: 0 } as any),
+        wants.suggestion ? supabase.from('suggestions').select('id', { count: 'exact', head: true }).eq('admin_unread', true) : Promise.resolve({ count: 0 } as any),
+        wants.ai_ticket ? supabase.from('ai_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open') : Promise.resolve({ count: 0 } as any),
+      ]);
+      return { support: reqs.count ?? 0, suggestion: ideas.count ?? 0, ai_ticket: aiTickets.count ?? 0 };
+    },
+  });
+  return data ?? { support: 0, suggestion: 0, ai_ticket: 0 };
+}
+
 export type AdminNotifKind = 'support' | 'suggestion' | 'ai_ticket';
 export interface AdminNotifPref { profile_id: string; kind: AdminNotifKind; in_app: boolean; push: boolean }
 

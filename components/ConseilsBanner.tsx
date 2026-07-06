@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { useConseilDuJour, interpolate } from '../hooks/useConseils';
+import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { useTransactionMonthOverrides } from '../hooks/useTransactionMonthOverrides';
 import type { PilotageData } from '../hooks/usePilotageData';
 
@@ -26,6 +27,9 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
   const COLORS = useAppColors();
   const router = useRouter();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { data: flags } = useFeatureFlags();
+  // Vitesse de rotation réglable en admin (secondes → ms). Bornée pour éviter les valeurs absurdes.
+  const rotationMs = Math.max(2, Math.min(60, flags?.conseils_rotation_seconds ?? 8)) * 1000;
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(userId);
   const { general, contextuel, dismiss } = useConseilDuJour(userId, pilotage, transactions, projects, accounts, monthOverrides);
 
@@ -75,12 +79,12 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
     if (index >= slidesLen && slidesLen > 0) setIndex(0);
   }, [slidesLen, index]);
 
-  // Rotation auto toutes les 5 s (seulement si 2 conseils).
+  // Rotation auto (vitesse réglable en admin ; seulement si ≥ 2 conseils).
   useEffect(() => {
     if (slidesLen < 2) return;
-    const t = setInterval(() => apiRef.current.doNext(), 8000);
+    const t = setInterval(() => apiRef.current.doNext(), rotationMs);
     return () => clearInterval(t);
-  }, [slidesLen]);
+  }, [slidesLen, rotationMs]);
 
   if (slidesLen === 0) return null;
   const current = slides[Math.min(index, slidesLen - 1)];

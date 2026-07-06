@@ -39,6 +39,14 @@ export interface LandingConfig {
   finalSubtitle: string;
   footerText: string;
   footerLinks: LandingLink[];
+  // ── Écran d'accueil MOBILE (app native + web étroit) — textes propres, éditables en admin. ──
+  mobileTagline: string;
+  mobileSubtag: string;
+  mobileCtaTitle: string;
+  mobileCtaText: string;
+  mobileCtaPrimaryLabel: string;   // bouton principal (ex. « Se connecter »)
+  mobileCtaSecondaryLabel: string; // bouton secondaire (ex. « Créer un compte »)
+  mobileFeatures: LandingFeature[];
 }
 
 export const DEFAULT_LANDING: LandingConfig = {
@@ -83,6 +91,19 @@ export const DEFAULT_LANDING: LandingConfig = {
     { label: 'Confidentialité', anchor: 'confidentialite' },
     { label: 'Mentions légales', anchor: 'legal' },
   ],
+  // ── Défauts de l'accueil mobile (reprennent les textes actuels de l'écran welcome). ──
+  mobileTagline: 'Sache toujours combien tu peux dépenser — sans tableur, sans stress.',
+  mobileSubtag: 'Ton budget · Ta projection · Ta sérénité',
+  mobileCtaTitle: 'Prêt à commencer ?',
+  mobileCtaText: 'Connectez-vous pour retrouver vos comptes ou créez votre espace en quelques secondes.',
+  mobileCtaPrimaryLabel: 'Se connecter',
+  mobileCtaSecondaryLabel: 'Créer un compte',
+  mobileFeatures: [
+    { icon: 'wallet', title: 'Ton Relyka', text: 'LE montant que tu peux dépenser ce mois sans te mettre en difficulté — calculé en continu, charges et projets déduits.' },
+    { icon: 'trending-up', title: 'Ta projection', text: 'Où tu en seras dans 6 mois ou 1 an : solde prévu, épargne, investissements — et comment y arriver.' },
+    { icon: 'people', title: 'À deux, sans prise de tête', text: 'Comptes communs et projets partagés : chacun sa part, chacun son budget — les comptes d’apothicaire en moins.' },
+    { icon: 'shield-checkmark', title: 'Tes données restent les tiennes', text: 'Export complet à tout moment, aucune connexion bancaire requise.' },
+  ],
 };
 
 const KEY = 'landing_config';
@@ -97,6 +118,7 @@ export function mergeLanding(stored: Partial<LandingConfig> | undefined): Landin
     features: stored.features && stored.features.length > 0 ? stored.features : DEFAULT_LANDING.features,
     stats: stored.stats ?? DEFAULT_LANDING.stats,
     footerLinks: stored.footerLinks ?? DEFAULT_LANDING.footerLinks,
+    mobileFeatures: stored.mobileFeatures && stored.mobileFeatures.length > 0 ? stored.mobileFeatures : DEFAULT_LANDING.mobileFeatures,
   };
 }
 
