@@ -4,7 +4,7 @@
  * l'historique. L'appel au modèle passe par l'Edge Function `ai-advice` (clé API jamais côté client).
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -294,8 +294,9 @@ export default function ConseilsIaScreen() {
 
       {/* Paywall « click-to-pay » : offres de recharge de requêtes. */}
       <Modal visible={showPaywall} transparent animationType="fade" onRequestClose={() => setShowPaywall(false)}>
-        <View style={s.payOverlay}>
-          <View style={s.paySheet}>
+        {/* Fond tapable → ferme ; la feuille stoppe la propagation du tap. */}
+        <Pressable style={s.payOverlay} onPress={() => setShowPaywall(false)}>
+          <Pressable style={s.paySheet} onPress={() => {}}>
             <View style={{ alignItems: 'center', marginBottom: 6 }}>
               <View style={s.iconBadge}><Ionicons name="flash" size={22} color={c.emerald} /></View>
             </View>
@@ -333,8 +334,8 @@ export default function ConseilsIaScreen() {
             <TouchableOpacity style={s.payClose} onPress={() => setShowPaywall(false)}>
               <Text style={s.payCloseTxt}>Plus tard</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

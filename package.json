@@ -9,6 +9,9 @@
     "ios": "npx expo start --ios",
     "web": "npx expo start --web",
     "fix-packages": "npx expo install --fix",
+    "version:bump": "node scripts/bump-version.js",
+    "build:android": "node scripts/bump-version.js && eas build --profile production --platform android",
+    "build:ios": "node scripts/bump-version.js && eas build --profile production --platform ios",
     "test": "jest"
   },
   "dependencies": {
