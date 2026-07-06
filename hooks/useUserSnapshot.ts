@@ -5,9 +5,15 @@
 // V2 : en plus des agrégats pilotage, on dérive des transactions (500 dernières) l'HISTORIQUE des mois
 // COMPLETS, les moyennes/tendances par grande catégorie, les charges & revenus RÉCURRENTS actifs et les
 // grosses dépenses ponctuelles récentes — toujours anonymisé (catégories + montants, jamais de libellé).
+//
+// PÉRIMÈTRE du train de vie (historique, tendances, ponctuelles) : comptes COURANTS uniquement, hors
+// virements internes ET hors régularisations de solde (regul_target). Sinon les mouvements des comptes
+// épargne/investissement (grosses régularisations de valorisation, dépôts) gonflent les « revenus »
+// et faussent totalement les soldes mensuels vus par l'IA.
 import { useMemo } from 'react';
 import { usePilotageData } from './usePilotageData';
 import { useTransactions } from './useTransactions';
+import { useTransactionMonthOverrides } from './useTransactionMonthOverrides';
 import { useCategories } from './useCategories';
 import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
@@ -20,6 +26,7 @@ import { CURRENCY_SYMBOL } from '../lib/currency';
 export function useUserSnapshot(userId: string | undefined): { text: string | null; ready: boolean; build: () => string } {
   const { data: pilotage } = usePilotageData(userId);
   const { data: transactions } = useTransactions(userId);
+  const { data: monthOverrides } = useTransactionMonthOverrides(userId);
   const { data: categories } = useCategories(userId);
   const { data: credits } = useCredits(userId);
   const { data: allAccounts } = useAllAccounts(userId);
@@ -45,16 +52,35 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     return parent && parent !== cat.name ? `${parent} > ${cat.name}` : cat.name;
   };
 
-  // Transaction « réelle » à considérer (ni virement interne, ni brouillon).
-  const isReal = (t: any) => !t.linked_account_id && !t.is_draft;
+  // Transaction « réelle » à considérer (ni virement interne, ni brouillon, ni régularisation de solde).
+  const isReal = (t: any) => !t.linked_account_id && !t.is_draft && t.regul_target == null;
+  // Train de vie = flux des comptes COURANTS uniquement (les mouvements épargne/invest ne sont ni des
+  // revenus ni des dépenses de vie courante).
+  const isCashflow = (t: any) => isReal(t) && t.account?.type === 'checking';
   const isRecurringTpl = (t: any) => Boolean(t.is_recurring) && Boolean(t.recurrence_rule);
+
+  // Montant EFFECTIF d'un template récurrent : l'override mensuel le plus récent (≤ mois courant, sinon
+  // le dernier connu) prime sur le montant de base — sinon on annonce à l'IA des montants obsolètes.
+  const effectiveAmount = useMemo(() => {
+    const best = new Map<string, { ym: number; amount: number }>();
+    const curYm = (() => { const t = todayISO(); return Number(t.slice(0, 4)) * 12 + Number(t.slice(5, 7)); })();
+    for (const o of monthOverrides ?? []) {
+      if (o.override_amount == null) continue;
+      const ym = Number(o.year) * 12 + Number(o.month);
+      const prev = best.get(o.transaction_id);
+      // Priorité aux overrides passés/courants les plus récents ; un override futur ne sert que s'il n'y a rien d'autre.
+      const rank = (v: number) => (v <= curYm ? v : -v);
+      if (!prev || rank(ym) > rank(prev.ym)) best.set(o.transaction_id, { ym, amount: o.override_amount });
+    }
+    return (t: any): number => best.get(t.id)?.amount ?? Number(t.amount);
+  }, [monthOverrides]);
 
   const expensesByCategory = useMemo(() => {
     if (!transactions) return [];
     const curYm = todayISO().slice(0, 7);
     const acc: Record<string, number> = {};
     for (const t of transactions) {
-      if (!isReal(t)) continue;
+      if (!isCashflow(t)) continue;
       if (Number(t.amount) >= 0) continue;
       if (t.date.slice(0, 7) !== curYm) continue;
       const name = grandCat(t.category_id);
@@ -82,7 +108,7 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     for (const t of transactions) {
       const ym = t.date.slice(0, 7);
       const h = by[ym];
-      if (!h || !isReal(t)) continue;
+      if (!h || !isCashflow(t)) continue;
       const amt = Number(t.amount);
       if (amt > 0) { h.income += amt; continue; }
       const abs = Math.abs(amt);
@@ -101,7 +127,7 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     const sum3: Record<string, number> = {};
     const last: Record<string, number> = {};
     for (const t of transactions) {
-      if (!isReal(t) || Number(t.amount) >= 0) continue;
+      if (!isCashflow(t) || Number(t.amount) >= 0) continue;
       const ym = t.date.slice(0, 7);
       if (!last3.includes(ym)) continue;
       const name = grandCat(t.category_id);
@@ -124,7 +150,8 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     for (const t of transactions ?? []) {
       if (!isReal(t) || !isRecurringTpl(t)) continue;
       if (t.recurrence_end_date && t.recurrence_end_date < today) continue;
-      const amt = Number(t.amount);
+      // Montant courant réel (override mensuel s'il existe — les templates gardent souvent un vieux montant).
+      const amt = effectiveAmount(t);
       const key = `${t.category_id ?? 'x'}|${Math.round(Math.abs(amt) * 100)}|${t.recurrence_rule}`;
       if (seen.has(key)) continue; // transactions triées desc → on garde l'occurrence la plus récente
       seen.add(key);
@@ -134,7 +161,7 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     expenses.sort((a, b) => b.amount - a.amount);
     incomes.sort((a, b) => b.amount - a.amount);
     return { expenses, incomes };
-  }, [transactions, catById]);
+  }, [transactions, catById, effectiveAmount]);
 
   // Grosses dépenses PONCTUELLES récentes (dernier mois complet + mois en cours, non récurrentes).
   const topOneOff = useMemo<SnapshotOneOff[]>(() => {
@@ -143,7 +170,7 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     const lastYm = completeMonths[completeMonths.length - 1];
     const out: SnapshotOneOff[] = [];
     for (const t of transactions) {
-      if (!isReal(t) || isRecurringTpl(t) || Number(t.amount) >= 0) continue;
+      if (!isCashflow(t) || isRecurringTpl(t) || Number(t.amount) >= 0) continue;
       const ym = t.date.slice(0, 7);
       if (ym !== curYm && ym !== lastYm) continue;
       const abs = Math.abs(Number(t.amount));

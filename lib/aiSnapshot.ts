@@ -49,6 +49,9 @@ export interface SnapshotInput {
 
 const r0 = (n: number) => Math.round(n || 0).toLocaleString('fr-FR');
 const RULE_FR: Record<string, string> = { daily: 'jour', weekly: 'semaine', monthly: 'mois', yearly: 'an', quarterly: 'trimestre' };
+// Équivalent MENSUEL d'une récurrence (pour totaliser des récurrents de fréquences différentes).
+const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+const monthlyEq = (r: SnapshotRecurring) => r.amount * (RULE_MONTHLY[r.rule] ?? 1);
 
 export function buildSnapshot(input: SnapshotInput): string {
   const {
@@ -73,7 +76,13 @@ export function buildSnapshot(input: SnapshotInput): string {
   L.push(`- Patrimoine total : ${m(p.total_checking + p.total_savings + p.total_invested)}`);
 
   // Ratios pré-calculés côté app (fiables — préfère-les à tes propres recalculs).
-  const income = p.expected_monthly_income || p.avg_monthly_income || 0;
+  // Revenu de RÉFÉRENCE = le plus représentatif entre le revenu déclaré/inféré et le total des revenus
+  // récurrents actifs (un « revenu estimé » déclaré peut être partiel ; une moyenne peut être gonflée
+  // par une rentrée exceptionnelle).
+  const recurringIncomeMonthly = recurringIncomes.reduce((t, r) => t + monthlyEq(r), 0);
+  const income = Math.max(p.expected_monthly_income || 0, recurringIncomeMonthly) || p.avg_monthly_income || 0;
+  const incomeBase = income === recurringIncomeMonthly && recurringIncomeMonthly > 0 ? 'total des revenus récurrents actifs'
+    : income === p.expected_monthly_income ? 'revenu mensuel estimé' : 'revenu mensuel moyen';
   const plannedSetAside = (p.monthly_savings_planned || 0) + (p.monthly_invest_planned || 0);
   const creditMonthly = credits.reduce((t, cr) => t + (cr.impactPct > 0 ? cr.monthly : 0), 0);
   const avgExpenses = history.length
@@ -81,6 +90,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     : (p.monthly_commitments || 0) + (p.avg_variable_expenses_3m || 0);
   L.push('\nRATIOS CLÉS (pré-calculés — fiables)');
   if (income > 0) {
+    L.push(`- Revenu de référence utilisé pour ces ratios : ${m(income)}/mois (base : ${incomeBase}).`);
     L.push(`- Taux de mise de côté planifié (épargne + investissement) : ${Math.round((plannedSetAside / income) * 100)} % du revenu.`);
     L.push(`- Poids des dépenses fixes : ${Math.round(((p.monthly_commitments || 0) / income) * 100)} % du revenu.`);
     if (creditMonthly > 0) L.push(`- Poids des crédits (mensualités à charge, assurance incluse) : ${Math.round((creditMonthly / income) * 100)} % du revenu.`);
@@ -93,6 +103,9 @@ export function buildSnapshot(input: SnapshotInput): string {
   L.push(`- Point bas projeté sur quelques mois : ${m(p.projection_min_buffer)}${p.projection_in_danger ? ' (⚠ tension de trésorerie)' : ''}`);
   L.push(`- Revenu mensuel estimé : ${m(p.expected_monthly_income)} (fiabilité ${Math.round(p.expected_income_confidence * 100)}%, source ${p.expected_income_source})`);
   L.push(`- Revenu mensuel moyen (6 mois) : ${m(p.avg_monthly_income)}`);
+  if (recurringIncomeMonthly > 0) {
+    L.push(`- ⚠ Ces indicateurs de revenu peuvent différer entre eux (déclaration partielle, rentrée exceptionnelle dans la moyenne…). La référence de train de vie = le revenu de référence des RATIOS CLÉS. Un écart entre indicateurs n'est PAS une priorité d'action : au plus une phrase.`);
+  }
 
   if (history.length) {
     L.push(`\nHISTORIQUE MENSUEL (${history.length} mois COMPLETS — la référence pour les tendances)`);
@@ -120,11 +133,11 @@ export function buildSnapshot(input: SnapshotInput): string {
   }
 
   if (recurringExpenses.length) {
-    L.push(`\nCHARGES RÉCURRENTES ACTIVES (${recurringExpenses.length}) — abonnements & engagements, candidates à la revue/résiliation`);
+    L.push(`\nCHARGES RÉCURRENTES ACTIVES (${recurringExpenses.length}) — engagements réguliers. NB : une ligne « Autres / Divers / Frais variables » est une ENVELOPPE de dépenses courantes, pas un abonnement résiliable.`);
     for (const r of recurringExpenses.slice(0, 20)) L.push(`- ${r.category} : ${m(r.amount)}/${RULE_FR[r.rule] ?? r.rule}`);
   }
   if (recurringIncomes.length) {
-    L.push('\nREVENUS RÉCURRENTS ACTIFS');
+    L.push(`\nREVENUS RÉCURRENTS ACTIFS — total ≈ ${m(recurringIncomeMonthly)}/mois`);
     for (const r of recurringIncomes.slice(0, 8)) L.push(`- ${r.category} : ${m(r.amount)}/${RULE_FR[r.rule] ?? r.rule}`);
   }
 
@@ -158,6 +171,23 @@ export function buildSnapshot(input: SnapshotInput): string {
         L.push(`- Crédit ${i + 1} : mensualité à sa charge ${m(cr.monthly)}${share}, capital restant dû ~${m(cr.crd)}, taux ${cr.ratePct} %${rem}${cr.endYM ? `, fin ${cr.endYM}` : ''}.`);
       }
     });
+  }
+
+  // Limites AUTO-DÉTECTÉES des données : calibre la prudence de l'IA et lui permet de suggérer les
+  // bons gestes DANS L'APP (catégoriser, marquer une récurrente…) plutôt que des conseils bancals.
+  const limits: string[] = [];
+  if (history.length > 0 && history.length < 3) limits.push(`Historique court (${history.length} mois complet${history.length > 1 ? 's' : ''}) : ne parle de « tendance » qu'avec beaucoup de prudence.`);
+  if (income > 0) {
+    for (const h of history) {
+      if (h.income > income * 2.5) limits.push(`Le mois ${h.ym} contient des rentrées exceptionnelles (${m(h.income)}) : événement PONCTUEL, pas une tendance — ne bâtis pas de conseil récurrent dessus.`);
+    }
+  }
+  const uncat = categoryTrends.find((t) => t.name === 'Sans catégorie');
+  if (uncat && uncat.avg3m >= 30) limits.push(`~${m(uncat.avg3m)}/mois de dépenses NON CATÉGORISÉES : les analyses par poste sont incomplètes — suggère de les catégoriser dans l'app.`);
+  if ((p.monthly_commitments || 0) <= 0 && recurringExpenses.length > 0) limits.push(`Le total « dépenses fixes » du pilotage est à 0 alors que des charges récurrentes existent : ne conclus PAS à l'absence de charges fixes (détection incomplète côté app).`);
+  if (limits.length) {
+    L.push('\nLIMITES DES DONNÉES (à respecter, sans en faire un paragraphe)');
+    for (const x of limits) L.push(`- ${x}`);
   }
 
   return L.join('\n');
