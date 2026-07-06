@@ -73,7 +73,13 @@ export default function WelcomeScreen() {
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, { fontFamily: appNameFont }]}>{L.brandName}</Text>
             {/* Accroche BÉNÉFICE (éditable en admin → « Page d'accueil » section Mobile). */}
             <Text style={styles.tagline}>{L.mobileTagline}</Text>
-            <Text {...APP_NAME_TEXT_PROPS} style={[styles.subtag, { fontFamily: appNameFont }]}>{L.mobileSubtag}</Text>
+            <Text
+              {...APP_NAME_TEXT_PROPS}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+              style={[styles.subtag, { fontFamily: appNameFont }]}
+            >{L.mobileSubtag}</Text>
           </Animated.View>
 
           <View style={styles.ctaContainer}>
@@ -200,6 +206,11 @@ function makeStyles(c: any) {
     letterSpacing: 1,
     textTransform: 'uppercase',
     fontFamily: 'Arial Rounded MT Bold',
+    // Largeur bornée + centrage → l'auto-ajustement peut réduire la police pour tenir sur 1 ligne,
+    // quelle que soit la police chargée (fini le « SÉRÉNITÉ » coupé quand la police de marque tarde).
+    alignSelf: 'stretch',
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
 
   ctaContainer: {
