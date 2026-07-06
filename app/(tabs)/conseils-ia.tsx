@@ -469,12 +469,12 @@ export default function ConseilsIaScreen() {
         </Pressable>
       </Modal>
 
-      {/* Confirmation « utiliser 1 requête » — avec case « ne plus me demander » (envoi direct ensuite). */}
+      {/* Confirmation « utiliser 1 requête » — dialogue CENTRÉ, avec case « ne plus me demander ». */}
       <Modal visible={confirmPayload != null} transparent animationType="fade" onRequestClose={() => setConfirmPayload(null)}>
-        <Pressable style={s.payOverlay} onPress={() => setConfirmPayload(null)}>
-          <Pressable style={s.paySheet} onPress={() => {}}>
-            <Text style={s.paySheetTitle}>Utiliser une requête ?</Text>
-            <Text style={s.paySheetSub}>
+        <Pressable style={s.confirmOverlay} onPress={() => setConfirmPayload(null)}>
+          <Pressable style={s.confirmCard} onPress={() => {}}>
+            <Text style={[s.paySheetTitle, { textAlign: 'left' }]}>Utiliser une requête ?</Text>
+            <Text style={[s.paySheetSub, { textAlign: 'left', marginTop: 8 }]}>
               Cette demande utilise 1 requête. Il t'en restera {Math.max(0, available - 1)} sur {totalRequests}.
             </Text>
             <TouchableOpacity style={s.skipRow} activeOpacity={0.7} onPress={() => setConfirmSkip((v) => !v)}>
@@ -566,7 +566,9 @@ function makeStyles(c: any) {
     paySheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32 },
     paySheetTitle: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
     paySheetSub: { fontSize: 13, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
-    // Confirmation « utiliser 1 requête » (case « ne plus me demander »)
+    // Confirmation « utiliser 1 requête » — dialogue centré (pas une feuille du bas)
+    confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    confirmCard: { width: '100%', maxWidth: 400, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 22 },
     skipRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16, paddingHorizontal: 4 },
     skipBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
     skipTxt: { flex: 1, fontSize: 12.5, color: c.text, lineHeight: 17 },
