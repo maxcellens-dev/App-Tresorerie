@@ -67,7 +67,7 @@ export default function RegisterScreen() {
           </TouchableOpacity>
           <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
           <Text style={styles.title}>Créer un compte</Text>
-          <Text style={styles.subtitle}>Vos données seront synchronisées et sauvegardées.</Text>
+          <Text style={styles.subtitle}>Tes données seront synchronisées et sauvegardées.</Text>
 
           {/* Inscription sociale (mise en avant) */}
           <SocialAuthButtons mode="register" />
