@@ -21,7 +21,11 @@ export interface ReliabilityConfig {
   lowMin: number;
   /** Cold start (aucune vérif passée) : dérive = base × coldStartWeeklyFraction / 7 par jour. */
   coldStartWeeklyFraction: number;
-  /** Jours de doute présumés au cold start (pas de date de vérif connue). */
+  /**
+   * PLAFOND de jours comptés depuis la dernière vérif (le doute sature au lieu d'exploser).
+   * Sert aussi d'ancienneté présumée quand aucune date n'est connue, et de plafond à
+   * l'amorçage de calibration à la 1ʳᵉ régul (useRecalibrateReliability).
+   */
   coldStartDays: number;
   /** Plancher absolu de la base (évite division par ~0). */
   absoluteFloor: number;
@@ -105,7 +109,10 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   let coldStart = false;
   if (lastVerifiedAt) {
     const d = new Date(lastVerifiedAt.slice(0, 10) + 'T00:00:00');
-    daysSinceVerification = Number.isNaN(d.getTime()) ? config.coldStartDays : daysBetween(today, d);
+    // Plafonné : au-delà de coldStartDays sans vérif, le doute sature au lieu de croître sans fin.
+    daysSinceVerification = Number.isNaN(d.getTime())
+      ? config.coldStartDays
+      : Math.min(daysBetween(today, d), config.coldStartDays);
   } else {
     daysSinceVerification = config.coldStartDays;
     coldStart = true;

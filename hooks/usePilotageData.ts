@@ -6,6 +6,7 @@ import { fetchSharedContribution } from './useSharedContribution';
 import { buildCreditPilotTxs } from './useCreditFlows';
 import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } from '../lib/perimeter';
 import { isRegul } from '../lib/regul';
+import { computeTresoRows } from '../lib/tresoProjection';
 import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
@@ -131,6 +132,9 @@ export interface PilotageData {
   variable_sigma: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
   confidence_inputs: { lastVerifiedAt: string | null; calibration: DriftCalibration | null; floorBase: number };
+  /** Soldes courants projetés en fin de mois sur 6 mois (index 0 = mois courant) — même trajectoire
+   *  que l'écran Projection (lib/tresoProjection). Alimente le garde-fou marge des recommandations. */
+  projection_balances_6m: number[];
 }
 
 // Fetch multiple data types
@@ -413,7 +417,9 @@ function computeAvgMonthlyIncome(transactions: any[], checkingIds: Set<string>, 
   const windowStart = isoDay(new Date(now.getFullYear(), now.getMonth() - 5, 1)); // 6 mois (courant inclus)
   const qualifies = (t: any) =>
     checkingIds.has(t.account_id) && !t.is_draft && !t.is_reserved && !t.linked_account_id
-    && Number(t.amount) > 0 && t.date <= todayStr && !/r[ée]gul/i.test(t.note ?? '');
+    && Number(t.amount) > 0 && t.date <= todayStr && !/r[ée]gul/i.test(t.note ?? '')
+    // Un montant positif sur une catégorie de DÉPENSE = remboursement, pas un revenu.
+    && (t as any).category?.type !== 'expense';
 
   const byMonth: Record<string, { sum: number; maxOne: number }> = {};
   let hasOlderIncome = false; // une recette antérieure à la fenêtre → utilisateur établi (pas un 1ᵉʳ mois)
@@ -1126,8 +1132,30 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       if (d && (!lastVerifiedAt || d > lastVerifiedAt)) lastVerifiedAt = d;
     }
   }
+  // La création d'un compte courant est une « vérification n° 0 » : le solde initial est recopié
+  // depuis la banque, l'écart est nul ce jour-là (init_date si constaté à une autre date).
+  for (const a of accounts) {
+    if (a.type !== 'checking') continue;
+    const d = String((a as any).init_date ?? (a as any).created_at ?? '').slice(0, 10);
+    if (d && d <= todayStr && (!lastVerifiedAt || d > lastVerifiedAt)) lastVerifiedAt = d;
+  }
   const reliability_calib = ((profile as any)?.reliability_calib ?? null) as DriftCalibration | null;
   const confidence_floor_base = Math.max(avgMonthlyIncome, variable_envelope_initial, 0);
+
+  // ── Soldes projetés 6 mois (trajectoire de l'écran Projection, virements épargne/invest inclus)
+  // pour le garde-fou marge des recommandations. Overrides SIGNÉS tous mois, format `${id}:${y}:${m}`.
+  const signedOvrAllMonths: Record<string, number> = {};
+  for (const o of (data as any).monthOverrides ?? []) {
+    if (o.override_amount != null) signedOvrAllMonths[`${o.transaction_id}:${o.year}:${o.month}`] = Number(o.override_amount);
+  }
+  const projection_balances_6m = computeTresoRows({
+    transactions,
+    accounts,
+    overridesMap: signedOvrAllMonths,
+    variableMonthly: variable_envelope_initial,
+    variableRemaining: variable_envelope_remaining,
+    now,
+  }).map((r) => r.balance);
 
   return {
     safe_to_spend,
@@ -1199,6 +1227,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     joint_share_in_checking,
     variable_sigma,
     confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
+    projection_balances_6m,
   };
 }
 

@@ -314,6 +314,19 @@ export default function RecommendationCard({
             </View>
           ) : null;
         })()}
+        {/* Garde-fou marge × projection : montant réduit / mis en réserve (encadré orange). */}
+        {!!currentReco.guardNote && (
+          <View style={[styles.contextBox, { marginTop: 0, borderColor: COLORS.orange + '44', backgroundColor: COLORS.orange + '12' }]}>
+            <Text style={[styles.contextText, { color: COLORS.orange }]}>{currentReco.guardNote}</Text>
+          </View>
+        )}
+        {/* Conseil « virement récurrent » : tenable (ou non) en répétant le montant chaque mois. */}
+        {!!currentReco.recurringNote && (
+          <View style={styles.recurringNoteRow}>
+            <Ionicons name="repeat-outline" size={13} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
+            <Text style={styles.recurringNoteText}>{currentReco.recurringNote}</Text>
+          </View>
+        )}
       </View>
       </View>
 
@@ -657,6 +670,8 @@ function makeStyles(c: any) {
     lineHeight: 17,
     fontWeight: '600',
   },
+  recurringNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingHorizontal: 2 },
+  recurringNoteText: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic' },
 
   /* Actions */
   actionRow: {

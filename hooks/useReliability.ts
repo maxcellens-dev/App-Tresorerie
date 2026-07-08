@@ -74,13 +74,16 @@ export function useSaveSystemNotificationsConfig() {
  *   dérive_journalière = médiane(|écarts trouvés|) / médiane(jours entre vérifications)
  * Les réguls des mois « estimated » sont EXCLUES (mois non fiables → ne calibrent pas).
  * Un user qui vérifie avec écart ~0 voit sa dérive tendre vers 0 → confiance durable.
+ * AMORÇAGE : dès la 1ʳᵉ régul (pas encore d'intervalle entre deux réguls), on fabrique un
+ * échantillon provisoire : l'écart trouvé s'est accumulé depuis la création du profil
+ * (plafonné à coldStartDays) → on sort du cold start dès la première vérification.
  */
 export function useRecalibrateReliability(profileId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       if (!supabase || !profileId) return;
-      const [txRes, clRes] = await Promise.all([
+      const [txRes, clRes, cfgRes, profRes] = await Promise.all([
         supabase.from('transactions')
           .select('date, amount, regul_target')
           .eq('profile_id', profileId)
@@ -88,7 +91,10 @@ export function useRecalibrateReliability(profileId: string | undefined) {
           .lte('date', todayISO())
           .order('date', { ascending: true }),
         supabase.from('month_closures').select('month_key, status').eq('profile_id', profileId),
+        supabase.from('app_config').select('reliability').eq('id', 'default').single(),
+        supabase.from('profiles').select('created_at').eq('id', profileId).single(),
       ]);
+      const cfg = resolveReliabilityConfig((cfgRes.data as any)?.reliability ?? null);
       const estimated = new Set(
         ((clRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key),
       );
@@ -104,6 +110,17 @@ export function useRecalibrateReliability(profileId: string | undefined) {
       for (let i = 1; i < days.length; i++) {
         const gapDays = Math.round((new Date(days[i] + 'T00:00:00').getTime() - new Date(days[i - 1] + 'T00:00:00').getTime()) / 86400000);
         samples.push({ absGap: byDay.get(days[i])!, daysBetween: gapDays });
+      }
+      if (samples.length === 0 && days.length > 0) {
+        // Amorçage 1ʳᵉ régul : l'écart s'est accumulé depuis la création du profil.
+        const lastDay = days[days.length - 1];
+        const createdAt = String((profRes.data as any)?.created_at ?? '').slice(0, 10);
+        let span = cfg.coldStartDays;
+        if (createdAt) {
+          const d = Math.round((new Date(lastDay + 'T00:00:00').getTime() - new Date(createdAt + 'T00:00:00').getTime()) / 86400000);
+          if (Number.isFinite(d)) span = Math.min(Math.max(1, d), cfg.coldStartDays);
+        }
+        samples.push({ absGap: byDay.get(lastDay)!, daysBetween: span });
       }
       const calib = computeCalibration(samples);
       await supabase.from('profiles').update({ reliability_calib: calib }).eq('id', profileId);

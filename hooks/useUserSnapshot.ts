@@ -19,16 +19,15 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { usePilotageData } from './usePilotageData';
-import { useTransactions } from './useTransactions';
 import { useTransactionMonthOverrides } from './useTransactionMonthOverrides';
 import { useCategories } from './useCategories';
 import { useCredits } from './useCredits';
 import { useAllAccounts } from './useAccounts';
 import { useProjects } from './useProjects';
+import { useSharedContribution } from './useSharedContribution';
 import { computeAmortization, addMonthsISO } from '../lib/amortization';
-import { computeMonthlyForecast } from '../lib/forecast';
 import { todayISO } from '../lib/dateUtils';
-import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount } from '../lib/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef } from '../lib/aiSnapshot';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const SNAPSHOT_TX_LIMIT = 4000;
@@ -59,19 +58,18 @@ function useSnapshotTransactions(profileId: string | undefined) {
 export function useUserSnapshot(userId: string | undefined): { text: string | null; ready: boolean; build: () => string } {
   const { data: pilotage } = usePilotageData(userId);
   const { data: transactions } = useSnapshotTransactions(userId);
-  // Jeu « écran Projection » (useTransactions) : la projection du snapshot doit être calculée avec
-  // EXACTEMENT les mêmes données que l'onglet Projection — sinon l'IA cite des soldes que
-  // l'utilisateur ne retrouve pas dans son app.
-  const { data: screenTransactions } = useTransactions(userId);
   const { data: monthOverrides } = useTransactionMonthOverrides(userId);
   const { data: categories } = useCategories(userId);
   const { data: credits } = useCredits(userId);
   const { data: allAccounts } = useAllAccounts(userId);
   const { data: projects } = useProjects(userId);
+  // Mode des comptes partagés (« tracked » = quotidien / « contribution » = hors quotidien) — le
+  // traitement des flux qui y transitent en dépend totalement.
+  const { data: sharedContrib } = useSharedContribution(userId);
 
   const catById = useMemo(() => {
-    const m = new Map<string, { name: string; parent_id?: string | null; is_variable?: boolean }>();
-    for (const cat of categories ?? []) m.set(cat.id, { name: cat.name, parent_id: cat.parent_id, is_variable: (cat as any).is_variable });
+    const m = new Map<string, { name: string; parent_id?: string | null; is_variable?: boolean; type?: string }>();
+    for (const cat of categories ?? []) m.set(cat.id, { name: cat.name, parent_id: cat.parent_id, is_variable: (cat as any).is_variable, type: (cat as any).type });
     return m;
   }, [categories]);
   const grandCat = (id: string | null | undefined): string => {
@@ -95,6 +93,10 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
   // revenus ni des dépenses de vie courante).
   const isCashflow = (t: any) => isReal(t) && t.account?.type === 'checking';
   const isRecurringTpl = (t: any) => Boolean(t.is_recurring) && Boolean(t.recurrence_rule);
+  // Montant positif sur une catégorie de DÉPENSE = remboursement (réduit la dépense, PAS un revenu).
+  const isRefund = (t: any) => Number(t.amount) > 0 && t.category_id != null && catById.get(t.category_id)?.type === 'expense';
+  // Vraie RECETTE (revenu) : positive, réelle, sur compte courant, et pas un remboursement.
+  const isIncome = (t: any) => isCashflow(t) && Number(t.amount) > 0 && !isRefund(t);
 
   // Montant EFFECTIF d'un template récurrent : l'override mensuel le plus récent (≤ mois courant, sinon
   // le dernier connu) prime sur le montant de base — sinon on annonce à l'IA des montants obsolètes.
@@ -141,21 +143,74 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     return months.slice(-6);
   }, [transactions]);
 
+  // REVENU DE RÉFÉRENCE = moyenne des SOMMES de recettes par mois (mois AVEC recettes uniquement,
+  // fenêtre ≤ 6 mois, mois courant inclus). Recettes = vraies rentrées : pas les virements internes,
+  // pas les remboursements de dépenses, pas les régularisations. EN PARALLÈLE : virements ENTRANTS
+  // sur les comptes courants depuis un compte « autre » (un user peut encaisser ailleurs puis virer
+  // vers son courant → c'est alors son revenu de fait). Retours d'épargne/invest exclus.
+  const incomeRef = useMemo<SnapshotIncomeRef>(() => {
+    const curYm = todayISO().slice(0, 7);
+    const sinceYm = addMonthsISO(todayISO().slice(0, 8) + '01', -5).slice(0, 7); // 6 mois, courant inclus
+    const acctTypeById: Record<string, string> = {};
+    for (const a of allAccounts ?? []) acctTypeById[a.id] = (a as any).type;
+    const incomeByYm: Record<string, number> = {};
+    const transferByYm: Record<string, number> = {};
+    const activityYms = new Set<string>();
+    for (const t of transactions ?? []) {
+      const ym = t.date.slice(0, 7);
+      if (ym < sinceYm || ym > curYm) continue;
+      if (t.account?.type !== 'checking' || t.is_draft) continue;
+      activityYms.add(ym);
+      if (isIncome(t)) { incomeByYm[ym] = (incomeByYm[ym] ?? 0) + Number(t.amount); continue; }
+      // Virement entrant depuis un compte « autre » (ou inconnu) — PAS depuis épargne/invest/courant.
+      if (t.regul_target == null && t.linked_account_id && Number(t.amount) > 0) {
+        const lt = acctTypeById[t.linked_account_id];
+        if (lt !== 'checking' && lt !== 'savings' && lt !== 'investment') {
+          transferByYm[ym] = (transferByYm[ym] ?? 0) + Number(t.amount);
+        }
+      }
+    }
+    const incomeMonths = Object.keys(incomeByYm);
+    const transferMonths = Object.keys(transferByYm);
+    const avgIncome = incomeMonths.length ? Object.values(incomeByYm).reduce((s, v) => s + v, 0) / incomeMonths.length : 0;
+    const transfersAvg = transferMonths.length ? Object.values(transferByYm).reduce((s, v) => s + v, 0) / transferMonths.length : 0;
+    const monthsWithoutIncome = [...activityYms].filter((ym) => !(ym in incomeByYm)).length;
+    const source: SnapshotIncomeRef['source'] = avgIncome > 0 ? 'recettes' : transfersAvg > 0 ? 'virements' : 'none';
+    return {
+      avg: source === 'virements' ? transfersAvg : avgIncome,
+      monthsUsed: source === 'virements' ? transferMonths.length : incomeMonths.length,
+      monthsWithoutIncome,
+      transfersAvg,
+      source,
+    };
+  }, [transactions, allAccounts, catById]);
+
   const history = useMemo<SnapshotMonth[]>(() => {
     if (!transactions) return [];
     const by: Record<string, SnapshotMonth> = {};
+    const refundByYm: Record<string, number> = {};
     for (const ym of completeMonths) by[ym] = { ym, income: 0, expenses: 0, fixed: 0, variable: 0 };
     for (const t of transactions) {
       const ym = t.date.slice(0, 7);
       const h = by[ym];
       if (!h || !isCashflow(t)) continue;
       const amt = Number(t.amount);
-      if (amt > 0) { h.income += amt; continue; }
+      if (amt > 0) {
+        // Remboursement de dépense → réduit la dépense (variable), ce n'est PAS un revenu.
+        if (isRefund(t)) refundByYm[ym] = (refundByYm[ym] ?? 0) + amt;
+        else h.income += amt;
+        continue;
+      }
       const abs = Math.abs(amt);
       h.expenses += abs;
       // Fixe = récurrente OU catégorie marquée non-variable ; sinon variable.
       const cat = t.category_id ? catById.get(t.category_id) : null;
       if (isRecurringTpl(t) || cat?.is_variable === false) h.fixed += abs; else h.variable += abs;
+    }
+    for (const ym of completeMonths) {
+      const h = by[ym]; const rb = refundByYm[ym] ?? 0;
+      h.expenses = Math.max(0, h.expenses - rb);
+      h.variable = Math.max(0, h.variable - rb);
     }
     return completeMonths.map((ym) => by[ym]);
   }, [transactions, completeMonths, catById]);
@@ -207,16 +262,27 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
   }, [transactions, completeMonths, catById]);
 
   // Récurrentes ACTIVES (templates non terminés), dédupliquées par catégorie+montant+fréquence.
+  // REVENUS récurrents : seules les occurrences RÉCENTES comptent (fenêtre ~2 mois selon la
+  // fréquence) — sinon de vieux templates jamais clôturés (salaire passé de 2 500 € à 1 700 €…)
+  // gonflent le « total des revenus récurrents » avec des montants qui n'existent plus.
   const recurrings = useMemo(() => {
     const today = todayISO();
     const seen = new Set<string>();
     const expenses: SnapshotRecurring[] = [];
     const incomes: SnapshotRecurring[] = [];
+    const recentSinceByRule: Record<string, string> = {
+      daily: addMonthsISO(today, -1), weekly: addMonthsISO(today, -1),
+      monthly: addMonthsISO(today, -2), quarterly: addMonthsISO(today, -4), yearly: addMonthsISO(today, -13),
+    };
     for (const t of transactions ?? []) {
       if (!isReal(t) || !isRecurringTpl(t)) continue;
       if (t.recurrence_end_date && t.recurrence_end_date < today) continue;
       // Montant courant réel (override mensuel s'il existe — les templates gardent souvent un vieux montant).
       const amt = effectiveAmount(t);
+      if (amt > 0) {
+        const since = recentSinceByRule[String(t.recurrence_rule)] ?? addMonthsISO(today, -2);
+        if (t.date < since) continue; // revenu récurrent sans occurrence récente → considéré obsolète
+      }
       const key = `${t.category_id ?? 'x'}|${Math.round(Math.abs(amt) * 100)}|${t.recurrence_rule}`;
       if (seen.has(key)) continue; // transactions triées desc → on garde l'occurrence la plus récente
       seen.add(key);
@@ -240,35 +306,37 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       if (ym !== curYm && ym !== lastYm) continue;
       const abs = Math.abs(Number(t.amount));
       if (abs < 20) continue; // seuil bas : les petites dépenses répétées comptent aussi
-      out.push({ date: t.date, category: grandCat(t.category_id), amount: abs });
+      // Sous-catégorie (« Parent > Sous-catégorie ») : la grande catégorie seule ne permet aucune analyse.
+      out.push({ date: t.date, category: fullCat(t.category_id), amount: abs });
     }
     return out.sort((a, b) => b.amount - a.amount).slice(0, 10);
   }, [transactions, completeMonths, catById]);
 
-  // PROJECTION du solde courant : même moteur ET mêmes données que l'onglet Projection
-  // (useTransactions) → l'IA cite exactement les soldes que l'utilisateur voit dans son app.
+  // PROJECTION du solde courant : LA trajectoire de référence (pilotage.projection_balances_6m,
+  // calculée par lib/tresoProjection — la même que l'onglet Projection ET que le garde-fou marge
+  // des recommandations) → l'IA cite exactement les soldes que l'utilisateur voit dans son app.
   const forecast = useMemo<SnapshotForecastMonth[]>(() => {
-    if (!pilotage || !screenTransactions?.length || !allAccounts?.length) return [];
-    try {
-      const months = computeMonthlyForecast({
-        transactions: screenTransactions,
-        accounts: allAccounts,
-        variableMonthly: pilotage.variable_envelope_initial ?? 0,
-        variableRemaining: pilotage.variable_envelope_remaining ?? 0,
-        monthsCount: 6,
-        monthOverrides: (monthOverrides ?? []) as any,
-      });
-      return months.map((f) => ({ ym: `${f.year}-${String(f.month).padStart(2, '0')}`, balance: f.balance }));
-    } catch { return []; }
-  }, [pilotage, screenTransactions, allAccounts, monthOverrides]);
+    const balances = pilotage?.projection_balances_6m ?? [];
+    const now = new Date();
+    return balances.map((balance, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      return { ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, balance };
+    });
+  }, [pilotage]);
 
-  // Comptes PARTAGÉS / JOINTS accessibles : type + ma part d'impact — l'IA doit savoir qu'une partie
-  // de la vie du foyer passe par là (contributions = engagements fixes, crédits déjà pondérés).
+  // Comptes PARTAGÉS / JOINTS accessibles : type + ma part d'impact + MODE (« quotidien » = flux
+  // inclus dans le budget ; « contribution » = hors quotidien, seule la contribution versée compte).
   const sharedAccounts = useMemo<SnapshotSharedAccount[]>(() => {
+    const modeByAccount = sharedContrib?.modeByAccount ?? {};
     return (allAccounts ?? [])
       .filter((a: any) => a.is_joint || a._impact_pct != null)
-      .map((a: any) => ({ type: a.type, joint: !!a.is_joint, impactPct: a._impact_pct != null ? Number(a._impact_pct) : 100 }));
-  }, [allAccounts]);
+      .map((a: any) => ({
+        type: a.type,
+        joint: !!a.is_joint,
+        impactPct: a._impact_pct != null ? Number(a._impact_pct) : 100,
+        mode: (modeByAccount[a.id] ?? null) as string | null,
+      }));
+  }, [allAccounts, sharedContrib]);
 
   const creditsSummary = useMemo(() => {
     const today = todayISO();
@@ -291,15 +359,21 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
   const projectsSummary = useMemo(() => {
     const byId: Record<string, any> = {};
     for (const pr of projects ?? []) byId[pr.id] = pr;
+    const acctTypeById: Record<string, string> = {};
+    for (const a of allAccounts ?? []) acctTypeById[a.id] = (a as any).type;
     return (pilotage?.projects_with_progress ?? []).map((pr) => {
       const src = byId[pr.id];
+      // Type du compte de DESTINATION des virements du projet (toujours anonyme) : dit si le projet
+      // consiste à investir, épargner, ou conserver sur le courant.
+      const destType = src?.linked_account_id ? (acctTypeById[src.linked_account_id] ?? null) : null;
       return {
         target: pr.target_amount, monthly: pr.monthly_allocation, progressPct: pr.progress_percentage,
         status: pr.status,
         startISO: (src?.first_payment_date || src?.created_at || '').slice(0, 10) || null,
+        destType,
       };
     });
-  }, [pilotage, projects]);
+  }, [pilotage, projects, allAccounts]);
 
   const build = () => {
     const now = new Date();
@@ -313,6 +387,9 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       credits: creditsSummary,
       projects: projectsSummary,
       history,
+      // 1ᵉʳ mois de la fenêtre probablement = arrivée sur l'app (moins de 6 mois complets) →
+      // saisie possiblement incomplète ce mois-là, signalé à l'IA par un astérisque.
+      firstMonthPartial: history.length > 0 && history.length < 6,
       categoryTrends,
       recurringExpenses: recurrings.expenses,
       recurringIncomes: recurrings.incomes,
@@ -320,12 +397,13 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       forecast,
       variableDetail,
       sharedAccounts,
+      incomeRef,
     });
   };
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef],
   );
   return { text, ready: !!pilotage, build };
 }

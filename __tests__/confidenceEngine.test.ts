@@ -60,6 +60,16 @@ describe('computeConfidence — niveaux', () => {
     expect(r.level).toBe('high');
   });
 
+  it('vérif très ancienne : les jours comptés saturent au plafond coldStartDays', () => {
+    const calib: DriftCalibration = { medianAbsGap: 90, medianDaysBetween: 30, sampleCount: 3 }; // 3/j
+    const r = computeConfidence({
+      today: TODAY, lastVerifiedAt: iso('2025-07-15'), calibration: calib, // 365 jours
+      relyka: 2000, floorBase: 2000, config: cfg,
+    });
+    expect(r.daysSinceVerification).toBe(cfg.coldStartDays);
+    expect(r.uncertaintyEur).toBeCloseTo(3 * cfg.coldStartDays, 0);
+  });
+
   it('cold start (aucune vérif) : dérive prudente, marqué coldStart', () => {
     const r = computeConfidence({
       today: TODAY, lastVerifiedAt: null, calibration: null,

@@ -40,6 +40,10 @@ export interface SmartRecommendation {
   actionRoute: string | null;
   /** Libellé du bouton d'action */
   actionLabel: string;
+  /** Garde-fou marge × projection : le montant a été réduit (ou mis en réserve) — message d'explication. */
+  guardNote?: string;
+  /** Conseil « virement récurrent » : tenable (ou pas) en répétant ce montant chaque mois sur 6 mois. */
+  recurringNote?: string;
 }
 
 export type SavingsTier = 'critical' | 'below_optimal' | 'healthy' | 'p4_dynamic' | 'comfortable';
@@ -217,6 +221,13 @@ export interface ComputeRecoOptions {
   overspend?: number;
   /** Ordre de consommation des recos quand `overspend > 0` (1er = réduit en premier). */
   consumptionOrder?: RecoType[];
+  /**
+   * Garde-fou MARGE × PROJECTION 6 MOIS : soldes courants projetés en fin de mois (index 0 = mois
+   * courant), trajectoire partagée avec l'écran Projection (lib/tresoProjection). Épargner/Investir
+   * sont plafonnés pour que le POINT BAS des 6 mois reste au-dessus de la marge (invest réduit en
+   * premier, excédent → « Conserver »). Ignoré si margin ≤ 0 ou balances vide.
+   */
+  projectionGuard?: { balances: number[]; margin: number };
 }
 
 export function computeRecommendations(
@@ -243,6 +254,20 @@ export function computeRecommendations(
   if (data.projection_in_danger) {
     if (budget <= 0) return [];
     return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data)];
+  }
+
+  // Garde-fou MARGE × PROJECTION 6 MOIS : point bas de la trajectoire (écran Projection). S'il est
+  // déjà sous la marge SANS toucher aux recos → tout « Conserver » (comme les freins ci-dessus).
+  const guard = opts.projectionGuard;
+  const guardTrough = guard && guard.margin > 0 && guard.balances.length > 0
+    ? Math.min(...guard.balances)
+    : null;
+  if (guardTrough != null && guardTrough <= guard!.margin) {
+    if (budget <= 0) return [];
+    return [{
+      ...buildRecommendation('keep', 100, Math.round(budget), 'critical', data),
+      guardNote: `Ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : on garde tout en réserve ce mois-ci.`,
+    }];
   }
 
   // Pas de budget → pas de recommandation
@@ -343,6 +368,40 @@ export function computeRecommendations(
     }
   }
 
+  // 8bis. Garde-fou marge × projection : Épargner + Investir plafonnés au « headroom » (point bas
+  // des 6 mois − marge) pour qu'exécuter les recos ne fasse pas plonger la trajectoire sous la marge.
+  // Invest réduit en PREMIER (illiquide), épargne ensuite ; l'excédent file vers « Conserver »
+  // (Σ recos = Relyka préservé). Réduit sous son seuil d'affichage → tout le reste part en réserve.
+  const guardNotes: Partial<Record<RecoType, string>> = {};
+  if (guardTrough != null) {
+    const headroom = Math.max(0, Math.round(guardTrough - guard!.margin));
+    let remaining = Math.max(0, (nets.save ?? 0) + (nets.invest ?? 0) - headroom);
+    let moved = 0;
+    for (const type of ['invest', 'save'] as RecoType[]) {
+      if (remaining <= 0) break;
+      const cur = nets[type] ?? 0;
+      if (cur <= 0) continue;
+      let take = Math.min(cur, remaining);
+      let rest = cur - take;
+      const minTh = thresholdByType[type] ?? 0;
+      if (rest > 0 && rest < minTh) { take = cur; rest = 0; }
+      remaining = Math.max(0, remaining - take);
+      moved += take;
+      nets[type] = rest;
+      // Message seulement si la reco reste visible et que la réduction est significative (> 10 €).
+      if (rest > 0 && take > 10) {
+        guardNotes[type] = `Réduit de ${take.toLocaleString('fr-FR')} € : au-delà, ton solde projeté repasserait sous ta marge de sécurité d'ici 6 mois.`;
+      }
+    }
+    if (moved > 0) {
+      nets.keep = (nets.keep ?? 0) + moved;
+      if (!filtered.includes('keep')) filtered.push('keep');
+      if (moved > 10) {
+        guardNotes.keep = `Dont ${moved.toLocaleString('fr-FR')} € mis en réserve pour garder ton solde au-dessus de ta marge de sécurité sur les 6 prochains mois.`;
+      }
+    }
+  }
+
   // 9. Construire les recommandations (montant net ≥ seuil d'affichage)
   const result: SmartRecommendation[] = [];
   for (const type of filtered) {
@@ -352,7 +411,42 @@ export function computeRecommendations(
     if (net < min) continue;
     result.push(buildRecommendation(type, alloc[type], net, tier, data));
   }
+
+  // 10. Notes du garde-fou + conseil « virement récurrent » (tenable ou non en répétant le montant
+  // chaque mois : au mois k, le solde projeté porte k+1 exécutions). Le conseil n'est affiché que si
+  // la reco n'a PAS été réduite (sinon le message de réduction suffit).
+  if (guardTrough != null) {
+    for (const reco of result) {
+      const note = guardNotes[reco.type];
+      if (note) reco.guardNote = note;
+      if ((reco.type === 'save' || reco.type === 'invest') && !note) {
+        reco.recurringNote = buildRecurringNote(reco.amount, guard!.balances, guard!.margin);
+      }
+    }
+  }
   return result;
+}
+
+/**
+ * Conseil « virement récurrent » : le montant est-il tenable en le répétant chaque mois ?
+ * Au mois k (0 = mois courant), le solde projeté supporte (k+1) exécutions cumulées →
+ * tenable ⟺ montant ≤ min sur k de (solde_k − marge) ÷ (k+1).
+ */
+function buildRecurringNote(amount: number, balances: number[], margin: number): string | undefined {
+  if (amount <= 0 || balances.length === 0) return undefined;
+  let maxSustainable = Infinity;
+  for (let k = 0; k < balances.length; k++) {
+    maxSustainable = Math.min(maxSustainable, (balances[k] - margin) / (k + 1));
+  }
+  if (!Number.isFinite(maxSustainable)) return undefined;
+  if (amount <= maxSustainable) {
+    return `Tenable chaque mois : tu peux en faire un virement récurrent de ${amount.toLocaleString('fr-FR')} €/mois sans entamer ta marge de sécurité sur 6 mois.`;
+  }
+  const maxMonthly = Math.max(0, floorToTen(maxSustainable));
+  if (maxMonthly > 0) {
+    return `OK pour ce mois-ci, mais pas tenable chaque mois : en virement récurrent, reste sous ${maxMonthly.toLocaleString('fr-FR')} €/mois pour préserver ta marge.`;
+  }
+  return `OK pour ce mois-ci, mais pas tenable chaque mois — gère plutôt mois par mois.`;
 }
 
 /** Renvoie le palier d'épargne courant (utile pour l'affichage) */

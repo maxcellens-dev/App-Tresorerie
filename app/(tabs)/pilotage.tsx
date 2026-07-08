@@ -390,6 +390,12 @@ export default function PilotageScreen() {
         thresholds: recoThresholds,
         overspend: variableOverspend,
         consumptionOrder,
+        // Garde-fou marge × projection 6 mois : épargne/invest plafonnés pour que le point bas
+        // de la trajectoire (écran Projection) reste au-dessus de la marge de sécurité.
+        projectionGuard: {
+          balances: pilotageData.projection_balances_6m,
+          margin: pilotageData.safety_margin_amount ?? 0,
+        },
       }).map((r) => ({
         ...r,
         color: recoColorByType[r.type] ?? r.color,
