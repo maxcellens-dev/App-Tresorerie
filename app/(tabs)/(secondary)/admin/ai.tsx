@@ -122,6 +122,8 @@ function SettingsTab({ c, s, cfg, updateCfg }: any) {
 
       <Toggle label="Notif push des tickets" desc="Envoyer une notification mobile aux admins quand un conseil échoue. Désactivé = pas de push, mais le badge et l'historique restent." value={cfg.notify_admins_push !== false} onToggle={() => updateCfg.mutate({ notify_admins_push: !(cfg.notify_admins_push !== false) })} />
 
+      <Toggle label="Bascule payante quand gratuit épuisé" desc="Quota mensuel atteint et aucun crédit acheté → on CONTINUE de servir sur la clé payante (secret GEMINI_API_KEY_PAID, facturation Google activée), aux frais de l'éditeur. Pas de mur pour l'utilisateur. Nécessite la clé payante configurée." value={!!cfg.paid_fallback_enabled} onToggle={() => updateCfg.mutate({ paid_fallback_enabled: !cfg.paid_fallback_enabled })} />
+
       {/* ── Click-to-pay : recharge de requêtes à l'unité ── */}
       <Text style={[s.lbl, { marginTop: 18 }]}>Recharge de requêtes (click-to-pay)</Text>
       <Toggle label="Paiement à l'usage" desc="Proposer d'acheter des requêtes supplémentaires quand le quota mensuel est épuisé. Le décompte et le routage vers la clé payante sont en place ; l'achat in-app se branche via RevenueCat." value={cfg.pay_to_use_enabled} onToggle={() => updateCfg.mutate({ pay_to_use_enabled: !cfg.pay_to_use_enabled })} />

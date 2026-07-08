@@ -18,6 +18,8 @@ export interface AiConfig {
   open_to_all: boolean;
   pay_to_use_enabled: boolean;
   pay_to_use_price_cents: number;
+  /** Quota gratuit épuisé + aucun crédit acheté → continuer sur la clé payante (coût éditeur). */
+  paid_fallback_enabled?: boolean;
   /** Offres de recharge de requêtes IA (click-to-pay). */
   extra_credit_packs?: AiCreditPack[];
   consent_text: string;

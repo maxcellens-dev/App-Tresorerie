@@ -189,17 +189,23 @@ serve(async (req) => {
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
   const dayStart = new Date(new Date().setUTCHours(0, 0, 0, 0)).toISOString();
   const limit = isPremium ? cfg.premium_monthly_limit : cfg.free_monthly_limit;
-  // Décompte lu depuis le REGISTRE (non effaçable) → effacer l'historique ne rend pas de quota.
+  // Décompte lu depuis le REGISTRE (non effaçable) → effacer l'historique ne rend pas de quota. Les
+  // usages servis par la bascule payante éditeur (paid_fallback) ne comptent PAS dans le quota inclus.
   const { count: used } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
-    .eq('profile_id', user.id).gte('created_at', monthStart);
-  // Quota mensuel épuisé → on tente les CRÉDITS PAYANTS (rechargés). Si aucun, on renvoie le paywall.
-  let usePaidCredit = false;
+    .eq('profile_id', user.id).eq('paid_fallback', false).gte('created_at', monthStart);
+  // Quota mensuel épuisé → 1) crédits ACHETÉS s'il y en a ; 2) sinon, si la bascule payante auto est
+  //    activée (cfg.paid_fallback_enabled), on continue sur la clé PAYANTE aux frais de l'éditeur
+  //    (pas de crédit consommé, pas de mur) ; 3) sinon paywall.
+  let usePaidCredit = false;   // consomme 1 crédit acheté par l'utilisateur
+  let usePaidFallback = false; // clé payante, coût éditeur (phase de lancement)
   if ((used ?? 0) >= limit) {
     const { data: extraBal } = await admin.rpc('ai_extra_credits_balance', { p_user: user.id });
     const balance = Number(extraBal ?? 0);
     if (balance > 0) usePaidCredit = true;
+    else if (cfg.paid_fallback_enabled) usePaidFallback = true;
     else return json({ error: 'quota_exceeded', used, limit, extra_credits: 0 }, 429);
   }
+  const usePaidKey = usePaidCredit || usePaidFallback; // les deux passent par la clé payante dédiée
 
   // 3) Prompt : template admin + instantané (déjà anonymisé côté client) + historique de la
   //    conversation (chat) — AVANT l'insertion du message user pour ne pas l'inclure deux fois.
@@ -223,12 +229,12 @@ serve(async (req) => {
   //    tapent PAS dans le pool gratuit → elles ignorent ce cap.
   const { count: globalToday } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
     .gte('created_at', dayStart);
-  const overGlobal = !usePaidCredit && (globalToday ?? 0) >= cfg.daily_global_cap;
+  const overGlobal = !usePaidKey && (globalToday ?? 0) >= cfg.daily_global_cap;
 
   // 6) Appel modèle avec bascule modèles × clés. Requête payée → clé PAYANTE dédiée (pas de cap commun).
   let models = (cfg.models as any[]).filter((m) => m.enabled);
   if (wantedModel) models = [...models.filter((m) => m.id === wantedModel), ...models.filter((m) => m.id !== wantedModel)];
-  const keysToUse = usePaidCredit ? GEMINI_PAID_KEYS : GEMINI_KEYS;
+  const keysToUse = usePaidKey ? GEMINI_PAID_KEYS : GEMINI_KEYS;
   const gen = overGlobal ? { reply: '', model: '', lastErr: 'daily_global_cap' } : await generateWithFallback(models, finalPrompt, keysToUse);
   const reply = gen.reply, modelUsed = gen.model;
 
@@ -250,6 +256,12 @@ serve(async (req) => {
     await admin.from('ai_extra_credits').insert({ profile_id: user.id, delta: -1, reason: 'consumption', ref: userMsg?.id ?? null });
     const { data: bal } = await admin.rpc('ai_extra_credits_balance', { p_user: user.id });
     return json({ ok: true, reply, model: modelUsed, used, limit, paid: true, extra_credits: Number(bal ?? 0) });
+  }
+  if (usePaidFallback) {
+    // Bascule payante éditeur : pas de crédit consommé, pas de décompte mensuel (déjà au-delà). On
+    // trace tout de même l'usage (kind 'analysis'/'chat' + reason) pour suivre le volume/coût.
+    await admin.from('ai_usage').insert({ profile_id: user.id, kind, paid_fallback: true });
+    return json({ ok: true, reply, model: modelUsed, used, limit, paid: true });
   }
   await admin.from('ai_usage').insert({ profile_id: user.id, kind });
   return json({ ok: true, reply, model: modelUsed, used: (used ?? 0) + 1, limit });
