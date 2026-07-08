@@ -135,6 +135,8 @@ export interface PilotageData {
   /** Soldes courants projetés en fin de mois sur 6 mois (index 0 = mois courant) — même trajectoire
    *  que l'écran Projection (lib/tresoProjection). Alimente le garde-fou marge des recommandations. */
   projection_balances_6m: number[];
+  /** Même trajectoire prolongée à 12 mois (anticipation long terme : snapshot Conseils IA). */
+  projection_balances_12m: number[];
 }
 
 // Fetch multiple data types
@@ -1148,14 +1150,16 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   for (const o of (data as any).monthOverrides ?? []) {
     if (o.override_amount != null) signedOvrAllMonths[`${o.transaction_id}:${o.year}:${o.month}`] = Number(o.override_amount);
   }
-  const projection_balances_6m = computeTresoRows({
+  const projection_balances_12m = computeTresoRows({
     transactions,
     accounts,
     overridesMap: signedOvrAllMonths,
     variableMonthly: variable_envelope_initial,
     variableRemaining: variable_envelope_remaining,
+    monthsCount: 12,
     now,
   }).map((r) => r.balance);
+  const projection_balances_6m = projection_balances_12m.slice(0, 6);
 
   return {
     safe_to_spend,
@@ -1228,6 +1232,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     variable_sigma,
     confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
     projection_balances_6m,
+    projection_balances_12m,
   };
 }
 

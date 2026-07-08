@@ -27,7 +27,8 @@ import { useProjects } from './useProjects';
 import { useSharedContribution } from './useSharedContribution';
 import { computeAmortization, addMonthsISO } from '../lib/amortization';
 import { todayISO } from '../lib/dateUtils';
-import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef } from '../lib/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../lib/aiSnapshot';
+import { detectUpcomingChanges, type UpcomingTx } from '../lib/aiUpcoming';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const SNAPSHOT_TX_LIMIT = 4000;
@@ -42,7 +43,7 @@ function useSnapshotTransactions(profileId: string | undefined) {
       const since = addMonthsISO(todayISO().slice(0, 8) + '01', -6);
       const { data, error } = await supabase!
         .from('transactions')
-        .select('id, account_id, amount, date, category_id, linked_account_id, is_draft, regul_target, is_recurring, recurrence_rule, recurrence_end_date, project_id, note, account:accounts!account_id(type, profile_id, is_joint)')
+        .select('id, account_id, amount, date, category_id, linked_account_id, is_draft, regul_target, is_recurring, recurrence_rule, recurrence_end_date, materialized_from, project_id, note, account:accounts!account_id(type, profile_id, is_joint)')
         .eq('profile_id', profileId!)
         .or(`date.gte.${since},is_recurring.eq.true`)
         .order('date', { ascending: false })
@@ -97,6 +98,15 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
   const isRefund = (t: any) => Number(t.amount) > 0 && t.category_id != null && catById.get(t.category_id)?.type === 'expense';
   // Vraie RECETTE (revenu) : positive, réelle, sur compte courant, et pas un remboursement.
   const isIncome = (t: any) => isCashflow(t) && Number(t.amount) > 0 && !isRefund(t);
+  // Série récurrente encore VIVANTE. Une série « supprimée » ou « modifiée à partir de » n'est PAS
+  // effacée : elle est TRONQUÉE (recurrence_end_date) et son ancre (date) a pu être avancée par la
+  // matérialisation AU-DELÀ de la fin → fin passée OU fin < ancre = plus aucune échéance à venir.
+  const isLiveSeries = (t: any) => {
+    if (!isRecurringTpl(t)) return false;
+    const end = t.recurrence_end_date as string | null;
+    if (!end) return true;
+    return end >= todayISO() && end >= t.date;
+  };
 
   // Montant EFFECTIF d'un template récurrent : l'override mensuel le plus récent (≤ mois courant, sinon
   // le dernier connu) prime sur le montant de base — sinon on annonce à l'IA des montants obsolètes.
@@ -276,9 +286,10 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     };
     for (const t of transactions ?? []) {
       if (!isReal(t) || !isRecurringTpl(t)) continue;
-      if (t.recurrence_end_date && t.recurrence_end_date < today) continue;
+      if (!isLiveSeries(t)) continue; // série tronquée (supprimée/remplacée) → morte, même si sa fin est future
       // Montant courant réel (override mensuel s'il existe — les templates gardent souvent un vieux montant).
       const amt = effectiveAmount(t);
+      if (Math.round(Math.abs(amt)) === 0) continue; // occurrence « supprimée » via override à 0
       if (amt > 0) {
         const since = recentSinceByRule[String(t.recurrence_rule)] ?? addMonthsISO(today, -2);
         if (t.date < since) continue; // revenu récurrent sans occurrence récente → considéré obsolète
@@ -312,17 +323,77 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     return out.sort((a, b) => b.amount - a.amount).slice(0, 10);
   }, [transactions, completeMonths, catById]);
 
-  // PROJECTION du solde courant : LA trajectoire de référence (pilotage.projection_balances_6m,
+  // CHANGEMENTS DÉJÀ SAISIS À VENIR (12 mois) : fins de récurrences, NOUVELLES récurrences futures,
+  // ponctuelles futures notables — pour que l'IA anticipe le train de vie de DEMAIN. Détection dans
+  // lib/aiUpcoming (fonction pure testée) : compare aux occurrences MATÉRIALISÉES passées.
+  const upcoming = useMemo<SnapshotUpcoming>(() => {
+    const acctTypeById: Record<string, string> = {};
+    for (const a of allAccounts ?? []) acctTypeById[a.id] = (a as any).type;
+    const txs: UpcomingTx[] = (transactions ?? []).map((t: any) => ({ ...t, accountType: t.account?.type ?? null }));
+    return detectUpcomingChanges(txs, { today: todayISO(), acctTypeById, fullCat, isRefund });
+  }, [transactions, allAccounts, catById]);
+
+  // PROJECTION du solde courant : LA trajectoire de référence (pilotage.projection_balances_12m,
   // calculée par lib/tresoProjection — la même que l'onglet Projection ET que le garde-fou marge
-  // des recommandations) → l'IA cite exactement les soldes que l'utilisateur voit dans son app.
+  // des recommandations, prolongée à 12 mois) → l'IA cite les soldes que l'utilisateur voit.
   const forecast = useMemo<SnapshotForecastMonth[]>(() => {
-    const balances = pilotage?.projection_balances_6m ?? [];
+    const balances = pilotage?.projection_balances_12m ?? pilotage?.projection_balances_6m ?? [];
     const now = new Date();
     return balances.map((balance, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       return { ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, balance };
     });
   }, [pilotage]);
+
+  // ÉPARGNE & INVESTISSEMENT projetés à 6/12 mois — virements récurrents vivants (dans les deux
+  // sens) + virements ponctuels futurs déjà saisis, cumulés mois par mois (hors rendement).
+  const savingsInvestForecast = useMemo(() => {
+    const today = todayISO();
+    const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+    const acctTypeById: Record<string, string> = {};
+    for (const a of allAccounts ?? []) acctTypeById[a.id] = (a as any).type;
+    // Flux net signé VERS chaque poche (savings/investment), par mois +1 … +12.
+    const savingsByMonth = Array(12).fill(0);
+    const investByMonth = Array(12).fill(0);
+    const monthIndex = (dateISO: string): number => {
+      const now = new Date(today + 'T00:00:00');
+      const d = new Date(dateISO.slice(0, 10) + 'T00:00:00');
+      return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+    };
+    const seen = new Set<string>();
+    for (const t of transactions ?? []) {
+      if (t.is_draft || t.regul_target != null || !t.linked_account_id) continue;
+      // Une seule jambe par virement : celle qui N'EST PAS sur la poche cible (côté courant en général).
+      const legType = t.account?.type;
+      if (legType === 'savings' || legType === 'investment') continue;
+      const destType = acctTypeById[t.linked_account_id];
+      if (destType !== 'savings' && destType !== 'investment') continue;
+      const target = destType === 'savings' ? savingsByMonth : investByMonth;
+      const signed = -Number(t.amount); // sortie du courant (négatif) = ENTRÉE sur la poche
+      if (isRecurringTpl(t)) {
+        if (!isLiveSeries(t)) continue;
+        const key = `${t.linked_account_id}|${t.category_id ?? 'x'}|${Math.round(Math.abs(Number(t.amount)) * 100)}|${t.recurrence_rule}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const eq = signed * (RULE_MONTHLY[String(t.recurrence_rule)] ?? 1);
+        const startIdx = Math.max(1, monthIndex(t.date)); // ancre future → démarre à son mois
+        const endIdx = t.recurrence_end_date ? Math.min(12, monthIndex(t.recurrence_end_date)) : 12;
+        for (let k = startIdx; k <= endIdx && k <= 12; k++) target[k - 1] += eq;
+      } else if (t.date > today) {
+        const idx = monthIndex(t.date);
+        if (idx >= 1 && idx <= 12) target[idx - 1] += signed;
+      }
+    }
+    const cum = (arr: number[], k: number) => arr.slice(0, k).reduce((s, v) => s + v, 0);
+    return {
+      savingsNow: pilotage?.total_savings ?? 0,
+      investNow: pilotage?.total_invested ?? 0,
+      savings6: (pilotage?.total_savings ?? 0) + cum(savingsByMonth, 6),
+      savings12: (pilotage?.total_savings ?? 0) + cum(savingsByMonth, 12),
+      invest6: (pilotage?.total_invested ?? 0) + cum(investByMonth, 6),
+      invest12: (pilotage?.total_invested ?? 0) + cum(investByMonth, 12),
+    };
+  }, [transactions, allAccounts, pilotage]);
 
   // Comptes PARTAGÉS / JOINTS accessibles : type + ma part d'impact + MODE (« quotidien » = flux
   // inclus dans le budget ; « contribution » = hors quotidien, seule la contribution versée compte).
@@ -398,12 +469,14 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       variableDetail,
       sharedAccounts,
       incomeRef,
+      upcoming,
+      savingsInvestForecast,
     });
   };
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast],
   );
   return { text, ready: !!pilotage, build };
 }

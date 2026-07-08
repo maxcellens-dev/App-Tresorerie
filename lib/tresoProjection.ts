@@ -36,6 +36,8 @@ export interface TresoProjectionInput {
   variableMonthly: number;
   /** Reste d'enveloppe variable du mois courant. */
   variableRemaining: number;
+  /** Nombre de mois projetés (mois courant inclus). Défaut : 6. */
+  monthsCount?: number;
   now?: Date;
 }
 
@@ -131,7 +133,7 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
     return 0;
   }
 
-  const months = Array.from({ length: 6 }, (_, i) => {
+  const months = Array.from({ length: input.monthsCount ?? 6 }, (_, i) => {
     const d = new Date(currentYear, currentMonth - 1 + i, 1);
     return { year: d.getFullYear(), month: d.getMonth() + 1, label: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) };
   });

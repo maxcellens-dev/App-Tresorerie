@@ -42,6 +42,21 @@ export interface SnapshotRecurring { category: string; amount: number; rule: str
 export interface SnapshotOneOff { date: string; category: string; amount: number }
 /** Projection du solde courant en fin de mois (moteur lib/forecast — le même que l'onglet Projection). */
 export interface SnapshotForecastMonth { ym: string; balance: number }
+/** Changement DÉJÀ SAISI à venir : fin ou début d'une récurrence (charge, revenu, virement). */
+export interface SnapshotUpcomingChange {
+  kind: 'expense' | 'income' | 'transfer_saving' | 'transfer_invest' | 'transfer_other';
+  category: string;
+  amount: number;
+  rule: string;
+  /** Mois (YYYY-MM) de la dernière échéance (fin) ou de la première (début). */
+  ym: string;
+}
+/** Transactions futures déjà saisies (12 mois) : fins/débuts de récurrences + ponctuelles notables. */
+export interface SnapshotUpcoming {
+  endings: SnapshotUpcomingChange[];
+  starts: SnapshotUpcomingChange[];
+  oneOffs: { date: string; category: string; amount: number; income: boolean }[];
+}
 
 export interface SnapshotInput {
   currencySymbol: string;
@@ -73,6 +88,10 @@ export interface SnapshotInput {
   incomeRef?: SnapshotIncomeRef;
   /** true si le 1ᵉʳ mois de l'historique est probablement le mois d'arrivée sur l'app (saisie incomplète). */
   firstMonthPartial?: boolean;
+  /** Changements déjà saisis à venir (12 mois) : fins/débuts de récurrences + ponctuelles futures. */
+  upcoming?: SnapshotUpcoming;
+  /** Épargne & investissement projetés à 6/12 mois (virements déjà saisis, hors rendement). */
+  savingsInvestForecast?: { savingsNow: number; investNow: number; savings6: number; savings12: number; invest6: number; invest12: number };
 }
 
 const r0 = (n: number) => Math.round(n || 0).toLocaleString('fr-FR');
@@ -87,6 +106,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     credits = [], projects = [], history = [], categoryTrends = [],
     recurringExpenses = [], recurringIncomes = [], topOneOff = [], forecast = [],
     variableDetail = [], sharedAccounts = [], incomeRef, firstMonthPartial = false,
+    upcoming, savingsInvestForecast,
   } = input;
   const L: string[] = [];
   const m = (n: number) => `${r0(n)} ${s}`;
@@ -155,19 +175,28 @@ export function buildSnapshot(input: SnapshotInput): string {
     const first = forecast[0].balance;
     const last = forecast[forecast.length - 1].balance;
     const minF = Math.min(...forecast.map((f) => f.balance));
-    L.push('\nPROJECTION DU SOLDE COURANT (fin de mois — MÊMES chiffres que l\'onglet Projection de l\'app : récurrentes + variables estimées + mises de côté prévues déjà comptées)');
+    const at = (k: number) => forecast[Math.min(k, forecast.length - 1)].balance;
+    L.push(`\nPROJECTION DU SOLDE COURANT sur ${forecast.length} mois (fin de mois — MÊMES chiffres que l'onglet Projection de l'app : récurrentes + variables estimées + mises de côté prévues déjà comptées, y compris les CHANGEMENTS À VENIR ci-dessous)`);
     L.push('- ' + forecast.map((f) => `${f.ym} : ${m(f.balance)}`).join(' · '));
+    L.push(`- Repères à CITER tels quels : solde courant dans 6 mois ≈ ${m(at(5))} · dans 12 mois ≈ ${m(at(11))} (aujourd'hui : comptes courants ${m(p.total_checking)}).`);
+    if (savingsInvestForecast) {
+      const f = savingsInvestForecast;
+      L.push(`- Épargne projetée (virements déjà saisis, HORS rendement) : ≈ ${m(f.savings6)} dans 6 mois · ≈ ${m(f.savings12)} dans 12 mois (aujourd'hui ${m(f.savingsNow)}).`);
+      L.push(`- Investissement projeté (versements déjà saisis, HORS rendement — n'invente pas de performance) : ≈ ${m(f.invest6)} dans 6 mois · ≈ ${m(f.invest12)} dans 12 mois (aujourd'hui ${m(f.investNow)}).`);
+    }
     // Garde-fou MARGE × PROJECTION — les recommandations de l'app plafonnent épargne+invest pour
-    // que le point bas reste au-dessus de la marge : l'IA doit rester DANS les mêmes limites.
+    // que le point bas des 6 PROCHAINS mois reste au-dessus de la marge (même fenêtre que l'app).
     const margin = Math.max(0, p.safety_margin_amount || 0);
-    if (margin > 0) {
-      const headroom = Math.round(minF - margin);
+    const guardWindow = forecast.slice(0, 6);
+    if (margin > 0 && guardWindow.length > 0) {
+      const minG = Math.min(...guardWindow.map((f) => f.balance));
+      const headroom = Math.round(minG - margin);
       // Montant récurrent MENSUEL max soutenable : au mois k (0 = courant), k+1 exécutions cumulées.
-      const maxRecurring = Math.floor(Math.max(0, Math.min(...forecast.map((f, k) => (f.balance - margin) / (k + 1)))) / 10) * 10;
+      const maxRecurring = Math.floor(Math.max(0, Math.min(...guardWindow.map((f, k) => (f.balance - margin) / (k + 1)))) / 10) * 10;
       if (headroom <= 0) {
-        L.push(`- ⚠ Le point bas projeté (${m(minF)}) est SOUS la marge de sécurité (${m(margin)}) : l'app recommande de tout CONSERVER ce mois-ci. Ne recommande AUCUNE mise de côté supplémentaire (épargne ou investissement) — aide plutôt à redresser la trajectoire.`);
+        L.push(`- ⚠ Le point bas projeté à 6 mois (${m(minG)}) est SOUS la marge de sécurité (${m(margin)}) : l'app recommande de tout CONSERVER ce mois-ci. Ne recommande AUCUNE mise de côté supplémentaire (épargne ou investissement) — aide plutôt à redresser la trajectoire.`);
       } else {
-        L.push(`- Marge de sécurité ${m(margin)} · point bas projeté ${m(minF)} → capacité de mise de côté PONCTUELLE ce mois-ci ≤ ${m(headroom)} (au-delà, le solde projeté passerait sous la marge — l'app plafonne ses recommandations à ce montant, fais pareil).`);
+        L.push(`- Marge de sécurité ${m(margin)} · point bas projeté à 6 mois ${m(minG)} → capacité de mise de côté PONCTUELLE ce mois-ci ≤ ${m(headroom)} (au-delà, le solde projeté passerait sous la marge — l'app plafonne ses recommandations à ce montant, fais pareil).`);
         L.push(`- En VIREMENT RÉCURRENT mensuel (épargne + investissement cumulés) : max soutenable ≈ ${m(maxRecurring)}/mois sur 6 mois sans entamer la marge. Ne recommande jamais un récurrent au-delà.`);
       }
     }
@@ -201,6 +230,58 @@ export function buildSnapshot(input: SnapshotInput): string {
     if (ready.length) {
       L.push('\nPROJECTIONS PRÊTES À CITER (pré-calculées — recopie ces chiffres TELS QUELS, n\'en recalcule aucun)');
       for (const x of ready) L.push(`- ${x}`);
+    }
+  }
+
+  // CHANGEMENTS DÉJÀ SAISIS À VENIR (12 mois) : fins/débuts de récurrences, crédits qui se
+  // terminent, ponctuelles futures — le train de vie de DEMAIN n'est pas celui d'aujourd'hui,
+  // l'IA doit anticiper au lieu de projeter le présent à l'infini.
+  {
+    const KIND_FR: Record<string, string> = {
+      expense: 'charge récurrente', income: 'revenu récurrent',
+      transfer_saving: 'virement récurrent vers ÉPARGNE', transfer_invest: 'virement récurrent vers INVESTISSEMENT',
+      transfer_other: 'virement récurrent',
+    };
+    const chg: string[] = [];
+    let monthlyDelta = 0; // impact net sur la capacité mensuelle une fois les changements passés
+    for (const e of upcoming?.endings ?? []) {
+      const per = `${m(e.amount)}/${RULE_FR[e.rule] ?? e.rule}`;
+      const eq = e.amount * (RULE_MONTHLY[e.rule] ?? 1);
+      if (e.kind === 'expense') {
+        monthlyDelta += eq;
+        chg.push(`FIN d'une ${KIND_FR[e.kind]} « ${e.category} » (${per}) : dernière échéance ${e.ym} → ~${m(eq)}/mois libérés ensuite.`);
+      } else if (e.kind === 'income') {
+        monthlyDelta -= eq;
+        chg.push(`⚠ FIN d'un ${KIND_FR[e.kind]} « ${e.category} » (${per}) : dernière rentrée ${e.ym} → le revenu BAISSERA de ~${m(eq)}/mois après cette date. Anticipe (ajuste les mises de côté AVANT, pas après).`);
+      } else {
+        chg.push(`FIN d'un ${KIND_FR[e.kind]} « ${e.category} » (${per}) en ${e.ym} : la mise de côté s'arrête — demande si c'est voulu (fin d'objectif ?) ou un oubli à prolonger.`);
+      }
+    }
+    for (const e of upcoming?.starts ?? []) {
+      const per = `${m(e.amount)}/${RULE_FR[e.rule] ?? e.rule}`;
+      const eq = e.amount * (RULE_MONTHLY[e.rule] ?? 1);
+      if (e.kind === 'expense') monthlyDelta -= eq;
+      if (e.kind === 'income') monthlyDelta += eq;
+      chg.push(`NOUVEAU ${e.kind === 'expense' ? 'engagement' : e.kind === 'income' ? 'revenu récurrent' : KIND_FR[e.kind]} « ${e.category} » (${per}) à partir de ${e.ym}.`);
+    }
+    // Crédits qui se terminent dans les 12 mois → mensualité libérée (déjà pondérée par la part).
+    const horizonYM = `${Number(today.slice(0, 4)) + 1}${today.slice(4, 7)}`;
+    credits.forEach((cr, i) => {
+      if (cr.impactPct <= 0 || !cr.endYM || cr.monthly <= 0) return;
+      if (cr.endYM >= today.slice(0, 7) && cr.endYM <= horizonYM) {
+        monthlyDelta += cr.monthly;
+        chg.push(`FIN du crédit ${i + 1} en ${cr.endYM} → mensualité de ~${m(cr.monthly)}/mois libérée (belle occasion de rediriger ce montant vers l'épargne/l'investissement).`);
+      }
+    });
+    for (const o of (upcoming?.oneOffs ?? []).slice(0, 8)) {
+      chg.push(`${o.income ? 'Rentrée' : 'Dépense'} ponctuelle FUTURE déjà saisie : ${o.date} · ${o.category} : ${o.income ? '+' : '−'}${m(o.amount)} (déjà comptée dans la PROJECTION).`);
+    }
+    if (chg.length) {
+      L.push('\nCHANGEMENTS DÉJÀ SAISIS À VENIR (12 prochains mois — le train de vie va CHANGER : intègre-les dans tes conseils au lieu de projeter le présent)');
+      for (const x of chg) L.push(`- ${x}`);
+      if (Math.round(monthlyDelta) !== 0) {
+        L.push(`- Une fois tous ces changements passés, le budget mensuel courant ${monthlyDelta >= 0 ? 'gagnera' : 'perdra'} ~${m(Math.abs(monthlyDelta))}/mois vs aujourd'hui (hors virements internes). L'EFFET CONCRET sur le solde est déjà intégré dans la PROJECTION ci-dessus : cite les soldes à 6/12 mois plutôt que ce delta abstrait.`);
+      }
     }
   }
 

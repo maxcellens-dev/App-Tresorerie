@@ -60,7 +60,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     // invest (100) consommé en entier et disparaît ; save réduit de 100 → 300 ; keep 300+200 = 500.
     expect(r.invest).toBeUndefined();
     expect(r.save.amount).toBe(300);
-    expect(r.save.guardNote).toContain('Réduit de');
+    expect(r.save.guardNote).toContain('repasserait sous ta marge de sécurité');
     expect(r.keep.amount).toBe(500);
     expect(r.keep.guardNote).toContain('mis en réserve');
     // Σ recos = budget (invariant de la jauge Relyka).

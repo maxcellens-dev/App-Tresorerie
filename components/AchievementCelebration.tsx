@@ -15,6 +15,7 @@ import { useGamification } from '../hooks/useGamification';
 import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import { useTour } from '../contexts/TourContext';
+import { isAppReady, onAppReady } from '../lib/splashGate';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type BadgeDef } from '../lib/gamification';
 
 export default function AchievementCelebration() {
@@ -35,6 +36,10 @@ export default function AchievementCelebration() {
   const handledRef = useRef<Set<string>>(new Set());
   const [queue, setQueue] = useState<BadgeDef[]>([]);
   const [current, setCurrent] = useState<BadgeDef | null>(null);
+  // App réellement révélée (le splash animé s'est effacé) : on ne célèbre JAMAIS avant que
+  // l'utilisateur soit arrivé sur l'app — sinon l'animation joue derrière l'écran de chargement.
+  const [appReady, setAppReady] = useState(isAppReady());
+  useEffect(() => onAppReady(() => setAppReady(true)), []);
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
@@ -65,8 +70,9 @@ export default function AchievementCelebration() {
     setCurrent(null);
   }, [user?.id]);
 
-  // Détecte les succès non encore célébrés (celebrated_at null) → file d'attente, puis les marque
-  // célébrés côté serveur immédiatement pour qu'ils ne reviennent jamais.
+  // Détecte les succès non encore célébrés (celebrated_at null) → file d'attente. Le marquage
+  // « célébré » se fait à l'AFFICHAGE (effet suivant), pas ici : si l'app est fermée avant que
+  // l'animation soit montrée, le succès se rejouera à la prochaine ouverture (même 10 jours après).
   useEffect(() => {
     if (isImpersonating) return; // consultation admin : ne pas célébrer / marquer les succès du compte cible
     if (!user?.id || !config) return;
@@ -80,7 +86,6 @@ export default function AchievementCelebration() {
     );
     if (pending.length === 0) return;
     pending.forEach((b) => handledRef.current.add(b.badge_key));
-    markBadgesCelebrated(pending.map((b) => b.badge_key));
     const fresh = pending
       .map((b) => config.badges.find((d) => d.key === b.badge_key))
       .filter((d): d is BadgeDef => !!d);
@@ -88,12 +93,20 @@ export default function AchievementCelebration() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [badges, config, user?.id, onboardingDone, isImpersonating]);
 
-  // Affiche le suivant.
+  // Affiche le suivant — seulement une fois l'app RÉELLEMENT révélée (splash effacé), avec un court
+  // délai pour ne pas superposer la célébration à la transition d'arrivée. C'est ICI que le succès
+  // est marqué célébré côté serveur : il est garanti vu (ou en cours d'affichage).
   useEffect(() => {
-    if (current || queue.length === 0) return;
-    setCurrent(queue[0]);
-    setQueue((q) => q.slice(1));
-  }, [queue, current]);
+    if (current || queue.length === 0 || !appReady) return;
+    const next = queue[0];
+    const t = setTimeout(() => {
+      setCurrent(next);
+      setQueue((q) => q.slice(1));
+      markBadgesCelebrated([next.key]);
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue, current, appReady]);
 
   // Animation d'apparition + burst de paillettes.
   useEffect(() => {

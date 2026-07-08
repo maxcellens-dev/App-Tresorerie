@@ -266,7 +266,7 @@ export function computeRecommendations(
     if (budget <= 0) return [];
     return [{
       ...buildRecommendation('keep', 100, Math.round(budget), 'critical', data),
-      guardNote: `Ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : on garde tout en réserve ce mois-ci.`,
+      guardNote: `Ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : Il vaut mieux conserver ce mois-ci.`,
     }];
   }
 
@@ -390,7 +390,7 @@ export function computeRecommendations(
       nets[type] = rest;
       // Message seulement si la reco reste visible et que la réduction est significative (> 10 €).
       if (rest > 0 && take > 10) {
-        guardNotes[type] = `Réduit de ${take.toLocaleString('fr-FR')} € : au-delà, ton solde projeté repasserait sous ta marge de sécurité d'ici 6 mois.`;
+        guardNotes[type] = `Ce mois-ci tu pourrais rajouter ${take.toLocaleString('fr-FR')} € : mais ton solde repasserait sous ta marge de sécurité d'ici 6 mois.`;
       }
     }
     if (moved > 0) {

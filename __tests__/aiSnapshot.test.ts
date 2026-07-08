@@ -63,10 +63,15 @@ describe('buildSnapshot — revenu de référence & garde-fous', () => {
         { ym: '2026-07', balance: 2600 }, { ym: '2026-08', balance: 2600 }, { ym: '2026-09', balance: 2600 },
         { ym: '2026-10', balance: 2600 }, { ym: '2026-11', balance: 2600 }, { ym: '2026-12', balance: 2600 },
       ],
+      savingsInvestForecast: { savingsNow: 8000, investNow: 5000, savings6: 9200, savings12: 10400, invest6: 5600, invest12: 6200 },
     }));
     // headroom = 2600 − 2000 = 600 ; récurrent max = (2600−2000)/6 = 100 €/mois.
     expect(txt).toContain('capacité de mise de côté PONCTUELLE ce mois-ci ≤ 600 €');
     expect(txt).toContain('max soutenable ≈ 100 €/mois');
+    // Repères 6/12 mois + poches projetées (hors rendement).
+    expect(txt).toContain('solde courant dans 6 mois ≈ 2 600 €');
+    expect(txt).toContain('Épargne projetée (virements déjà saisis, HORS rendement) : ≈ 9 200 € dans 6 mois · ≈ 10 400 € dans 12 mois');
+    expect(txt).toContain('Investissement projeté');
   });
 
   it('1ᵉʳ mois d’app : astérisque + avertissement saisie incomplète', () => {
@@ -80,6 +85,40 @@ describe('buildSnapshot — revenu de référence & garde-fous', () => {
     }));
     expect(txt).toContain('- 2026-05* :');
     expect(txt).toContain('1ᵉʳ mois d\'utilisation de l\'app');
+  });
+
+  it('changements à venir : fin de revenu, fin de charge, crédit terminé, ponctuelle future + bilan net', () => {
+    const txt = build(base({
+      incomeRef: { avg: 2100, monthsUsed: 2, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+      credits: [{ principal: 10000, monthly: 250, ratePct: 3.5, crd: 2000, endYM: '2026-12', impactPct: 100, remainingMonths: 5 }],
+      upcoming: {
+        endings: [
+          { kind: 'income', category: 'Revenu > Gérant Société', amount: 1200, rule: 'monthly', ym: '2026-10' },
+          { kind: 'expense', category: 'Logement > Loyer', amount: 800, rule: 'monthly', ym: '2026-09' },
+          { kind: 'transfer_saving', category: 'Épargne', amount: 150, rule: 'monthly', ym: '2026-11' },
+        ],
+        starts: [{ kind: 'expense', category: 'Transport > Leasing', amount: 300, rule: 'monthly', ym: '2026-09' }],
+        oneOffs: [{ date: '2026-07-02', category: 'Logement > Travaux', amount: 440, income: false }],
+      },
+    }));
+    expect(txt).toContain('CHANGEMENTS DÉJÀ SAISIS À VENIR');
+    expect(txt).toContain('FIN d\'un revenu récurrent « Revenu > Gérant Société »');
+    expect(txt).toContain('le revenu BAISSERA de ~1 200 €/mois');
+    expect(txt).toContain('FIN d\'une charge récurrente « Logement > Loyer »');
+    expect(txt).toContain('la mise de côté s\'arrête');
+    expect(txt).toContain('NOUVEAU engagement « Transport > Leasing »');
+    expect(txt).toContain('FIN du crédit 1 en 2026-12');
+    expect(txt).toContain('Dépense ponctuelle FUTURE déjà saisie : 2026-07-02');
+    // Bilan : +800 (fin loyer) −1200 (fin revenu) −300 (leasing) +250 (crédit) = −450/mois.
+    expect(txt).toContain('perdra ~450 €/mois vs aujourd\'hui');
+  });
+
+  it('aucun changement saisi : pas de section', () => {
+    const txt = build(base({
+      incomeRef: { avg: 2100, monthsUsed: 2, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+      upcoming: { endings: [], starts: [], oneOffs: [] },
+    }));
+    expect(txt).not.toContain('CHANGEMENTS DÉJÀ SAISIS À VENIR');
   });
 
   it('dépenses variables : référence = enveloppe du pilotage (pas une moyenne divergente)', () => {
