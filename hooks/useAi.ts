@@ -257,6 +257,49 @@ export function useDeleteAiHistory(userId: string | undefined) {
   });
 }
 
+/** Métriques top-line d'un bilan (évolution inter-bilans) — persistées dans ai_bilan_metrics. */
+export interface BilanMetricsRow { patrimoine: number; checking: number; savings: number; invested: number; engaged: number; balance12: number; income: number; score: number }
+
+/** Dernier bilan global persisté (pour la section ÉVOLUTION du snapshot). null si aucun. */
+export function usePreviousBilanMetrics(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['ai_bilan_metrics', userId],
+    enabled: !!userId && !!supabase,
+    queryFn: async (): Promise<{ date: string; metrics: BilanMetricsRow } | null> => {
+      const { data, error } = await supabase!
+        .from('ai_bilan_metrics')
+        .select('metrics, created_at')
+        .eq('profile_id', userId!)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return { date: String((data as any).created_at).slice(0, 10), metrics: (data as any).metrics as BilanMetricsRow };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Persiste les métriques du bilan courant après un bilan global réussi, puis élague au-delà de 24
+ *  lignes (2 ans de bilans mensuels) — l'évolution n'a besoin que du dernier point. */
+export function useSaveBilanMetrics(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (metrics: BilanMetricsRow) => {
+      if (!supabase || !userId) return;
+      const { error } = await supabase.from('ai_bilan_metrics').insert({ profile_id: userId, metrics });
+      if (error) throw error;
+      // Élagage : ne garder que les 24 plus récentes.
+      const { data: old } = await supabase.from('ai_bilan_metrics')
+        .select('id').eq('profile_id', userId).order('created_at', { ascending: false }).range(24, 1000);
+      const ids = (old ?? []).map((r: any) => r.id);
+      if (ids.length) await supabase.from('ai_bilan_metrics').delete().in('id', ids);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai_bilan_metrics', userId] }),
+  });
+}
+
 export interface AskAiInput { kind: 'analysis' | 'chat'; analysis_key?: string; question?: string; snapshot: string; model?: string; conversation_id?: string }
 export interface AskAiResult { ok: boolean; queued?: boolean; reply?: string; model?: string; used?: number; limit?: number; error?: string }
 

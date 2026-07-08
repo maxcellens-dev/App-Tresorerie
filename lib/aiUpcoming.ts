@@ -31,6 +31,8 @@ export interface UpcomingOptions {
   fullCat: (id: string | null | undefined) => string;
   /** true si un montant positif est un remboursement (catégorie de dépense) et non un revenu. */
   isRefund: (t: UpcomingTx) => boolean;
+  /** Comptes joints en mode « contribution » : un virement récurrent vers eux = engagement foyer. */
+  jointContribAcctIds?: Set<string>;
   /** Horizon en mois (défaut 12). */
   monthsAhead?: number;
 }
@@ -43,7 +45,14 @@ function addMonths(iso: string, n: number): string {
 
 export function detectUpcomingChanges(txs: UpcomingTx[], opts: UpcomingOptions): SnapshotUpcoming {
   const { today, acctTypeById, fullCat, isRefund } = opts;
+  const jointContribAcctIds = opts.jointContribAcctIds ?? new Set<string>();
   const horizon = addMonths(today, opts.monthsAhead ?? 12);
+  // Libellé anonyme : un virement vers un joint « contribution » est un engagement du foyer, pas
+  // une catégorie vide (« Sans catégorie » n'apprend rien à l'IA sur ce flux structurant).
+  const labelOf = (t: UpcomingTx): string =>
+    t.linked_account_id && jointContribAcctIds.has(t.linked_account_id)
+      ? 'Contribution au compte JOINT (engagement du foyer)'
+      : fullCat(t.category_id);
 
   const isRecurringTpl = (t: UpcomingTx) => Boolean(t.is_recurring) && Boolean(t.recurrence_rule);
   // Série vivante : pas de fin, ou fin ≥ aujourd'hui ET ≥ ancre (une série tronquée voit son ancre
@@ -97,11 +106,11 @@ export function detectUpcomingChanges(txs: UpcomingTx[], opts: UpcomingOptions):
       const end = t.recurrence_end_date ?? null;
       if (end && end <= horizon && !seenEnd.has(dedup)) {
         seenEnd.add(dedup);
-        endings.push({ kind, category: fullCat(t.category_id), amount, rule, ym: end.slice(0, 7) });
+        endings.push({ kind, category: labelOf(t), amount, rule, ym: end.slice(0, 7) });
       }
       if (t.date > today && t.date <= horizon && !isEstablished(t, kind) && !seenStart.has(dedup)) {
         seenStart.add(dedup);
-        starts.push({ kind, category: fullCat(t.category_id), amount, rule, ym: t.date.slice(0, 7) });
+        starts.push({ kind, category: labelOf(t), amount, rule, ym: t.date.slice(0, 7) });
       }
     } else if (!t.linked_account_id && t.materialized_from == null && t.accountType === 'checking' && t.date > today && t.date <= horizon) {
       const abs = Math.abs(Number(t.amount));

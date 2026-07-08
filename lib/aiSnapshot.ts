@@ -13,6 +13,7 @@
 //   • REVENUS RÉCURRENTS ;
 //   • DÉPENSES PONCTUELLES NOTABLES (grosses dépenses non récurrentes récentes).
 import type { PilotageData } from '../hooks/usePilotageData';
+import { computeHealthScore, deriveEngaged } from './aiScore';
 
 export interface SnapshotCredit { principal: number; monthly: number; ratePct: number; crd: number; endYM: string | null; impactPct: number; remainingMonths?: number | null }
 export interface SnapshotProject { target: number; monthly: number; progressPct: number; startISO: string | null; status: string; destType?: string | null }
@@ -92,6 +93,26 @@ export interface SnapshotInput {
   upcoming?: SnapshotUpcoming;
   /** Épargne & investissement projetés à 6/12 mois (virements déjà saisis, hors rendement). */
   savingsInvestForecast?: { savingsNow: number; investNow: number; savings6: number; savings12: number; invest6: number; invest12: number };
+  /** Contribution récurrente mensuelle vers les comptes joints « contribution » (engagement foyer). */
+  jointContributionMonthly?: number;
+  /** Total des versements sur les comptes d'investissement (capital injecté) — pour la plus-value. */
+  investContributed?: number | null;
+  /** Revenus (recettes) attendus par mois sur les 6 prochains mois (même trajectoire que la Projection). */
+  incomeByMonth?: { ym: string; income: number }[];
+  /** Évolution depuis le DERNIER bilan global (métriques persistées) — répond à « je vais dans le bon sens ? ». */
+  evolution?: { previousDate: string; previous: BilanMetrics; current: BilanMetrics } | null;
+}
+
+/** Métriques top-line d'un bilan, persistées pour comparer d'un bilan à l'autre (~8 nombres). */
+export interface BilanMetrics {
+  patrimoine: number;
+  checking: number;
+  savings: number;
+  invested: number;
+  engaged: number;
+  balance12: number;
+  income: number;
+  score: number;
 }
 
 const r0 = (n: number) => Math.round(n || 0).toLocaleString('fr-FR');
@@ -106,7 +127,8 @@ export function buildSnapshot(input: SnapshotInput): string {
     credits = [], projects = [], history = [], categoryTrends = [],
     recurringExpenses = [], recurringIncomes = [], topOneOff = [], forecast = [],
     variableDetail = [], sharedAccounts = [], incomeRef, firstMonthPartial = false,
-    upcoming, savingsInvestForecast,
+    upcoming, savingsInvestForecast, jointContributionMonthly = 0, investContributed = null,
+    incomeByMonth = [], evolution = null,
   } = input;
   const L: string[] = [];
   const m = (n: number) => `${r0(n)} ${s}`;
@@ -137,7 +159,6 @@ export function buildSnapshot(input: SnapshotInput): string {
       ? `moyenne des virements reçus sur les comptes courants depuis un compte « autre » (${incomeRef.monthsUsed} mois — aucune recette saisie : ces virements font office de revenu)`
       : `moyenne des recettes mensuelles saisies (${incomeRef.monthsUsed} mois avec recettes, fenêtre ≤ 6 mois)`;
   const plannedSetAside = (p.monthly_savings_planned || 0) + (p.monthly_invest_planned || 0);
-  const creditMonthly = credits.reduce((t, cr) => t + (cr.impactPct > 0 ? cr.monthly : 0), 0);
   // Dépenses FIXES de référence = total des charges récurrentes actives normalisées au mois.
   // (`monthly_commitments` du pilotage = allocations de projets, PAS les dépenses fixes.)
   const fixedMonthly = recurringExpenses.reduce((t, r) => t + monthlyEq(r), 0);
@@ -151,13 +172,79 @@ export function buildSnapshot(input: SnapshotInput): string {
       L.push(`- En parallèle : virements entrants sur les comptes courants depuis un compte « autre » ≈ ${m(incomeRef.transfersAvg)}/mois (rentrées encaissées ailleurs puis rapatriées — à considérer comme du revenu complémentaire, pas comme une anomalie).`);
     }
     L.push(`- Taux de mise de côté planifié (épargne + investissement) : ${Math.round((plannedSetAside / income) * 100)} % du revenu.`);
-    if (fixedMonthly > 0) L.push(`- Poids des dépenses fixes (total des charges récurrentes actives, ~${m(fixedMonthly)}/mois) : ${Math.round((fixedMonthly / income) * 100)} % du revenu.`);
-    if (creditMonthly > 0) L.push(`- Poids des crédits (mensualités à charge, assurance incluse) : ${Math.round((creditMonthly / income) * 100)} % du revenu.`);
     // Réserve de sécurité en MOIS DE REVENUS : combien de temps tenir si les revenus s'arrêtent
     // (et pas « mois de dépenses », moins parlant pour l'utilisateur).
     L.push(`- Réserve de sécurité : l'épargne (${m(p.total_savings)}) représente ~${(p.total_savings / income).toFixed(1)} mois de revenus (à citer ainsi : « de quoi tenir ~X mois sans revenus »).`);
+    // Indépendance financière : le patrimoine investi couvre combien d'années de train de vie.
+    if (p.total_invested > 0) L.push(`- Indépendance : le patrimoine investi (${m(p.total_invested)}) représente ~${(p.total_invested / (income * 12)).toFixed(1)} an(s) de revenu de référence.`);
+    // Plus-value latente d'investissement (si les versements sont connus) — dit si le patrimoine
+    // croît par l'effort d'épargne ou par les marchés.
+    if (investContributed != null && investContributed > 0) {
+      const pv = p.total_invested - investContributed;
+      const pvPct = Math.round((pv / investContributed) * 100);
+      L.push(`- Investissement : ${m(p.total_invested)} pour ${m(investContributed)} versés → plus-value latente ~${pv >= 0 ? '+' : ''}${m(pv)} (${pvPct >= 0 ? '+' : ''}${pvPct} %). ⚠ INDICATIF (valeurs saisies par l'utilisateur), pas une performance certifiée.`);
+    }
   } else {
     L.push(`- Aucun revenu de référence calculable : aucune recette saisie sur la fenêtre. L'utilisateur n'a probablement pas encore saisi ses revenus — NE calcule AUCUN pourcentage du revenu, et suggère de saisir ses revenus en recettes (idéalement récurrentes).`);
+  }
+
+  // ── ENGAGEMENTS MENSUELS consolidés — tue le bug « fixes % + crédits % additionnés = 95 % ». Les
+  // buckets sont CHOISIS pour ne PAS se recouper : charges récurrentes directes (hors crédits) +
+  // crédits sur comptes PERSO (impact 100 %) + contribution au foyer (qui couvre les crédits/charges
+  // JOINTS, comptés à part < 100 %). On donne UN total et on interdit toute addition de « poids ».
+  const engaged = deriveEngaged(credits, fixedMonthly, jointContributionMonthly);
+  const totalEngaged = engaged.total;
+  {
+    const { ownCredits, jointCredits } = engaged;
+    if (totalEngaged > 0) {
+      L.push('\nENGAGEMENTS MENSUELS À CHARGE (consolidés — utilise le TOTAL, n\'additionne JAMAIS des « poids » séparés)');
+      if (fixedMonthly > 0) L.push(`- Charges récurrentes directes (hors crédits) : ~${m(fixedMonthly)}/mois.`);
+      if (ownCredits > 0) L.push(`- Crédits sur comptes perso (à 100 % à sa charge) : ~${m(ownCredits)}/mois.`);
+      if (jointContributionMonthly > 0) L.push(`- Contribution au compte JOINT (couvre sa part des crédits/charges du foyer) : ~${m(jointContributionMonthly)}/mois.`);
+      L.push(`- TOTAL ENGAGÉ : ~${m(totalEngaged)}/mois${income > 0 ? ` = ${Math.round((totalEngaged / income) * 100)} % du revenu de référence` : ''}${recurringIncomeMonthly > income ? ` (mais seulement ${Math.round((totalEngaged / recurringIncomeMonthly) * 100)} % des revenus récurrents réels ${m(recurringIncomeMonthly)}/mois — cf. écart de revenu ci-dessous)` : ''}.`);
+      if (jointCredits > 0) L.push(`- ⚠ Les crédits du FOYER (~${m(jointCredits)}/mois à sa part) sont DÉJÀ couverts par la contribution ci-dessus : ne les compte PAS en plus. Le seul chiffre juste est le TOTAL ENGAGÉ.`);
+    }
+  }
+
+  // ── SCORE DE SANTÉ pré-calculé (transparent, stable) — le modèle le RECOPIE, il ne le recalcule
+  // pas. Mois fiables = mois complets, hors 1ᵉʳ mois (saisie incomplète) et hors mois exceptionnels.
+  if (income > 0) {
+    const reliable = history.filter((h, i) => !(firstMonthPartial && i === 0) && h.income <= income * 2.5 && h.income > 0);
+    const avgNet = reliable.length ? reliable.reduce((t, h) => t + (h.income - h.expenses), 0) / reliable.length : null;
+    const projMin = forecast.length ? Math.min(...forecast.map((f) => f.balance)) : null;
+    const sc = computeHealthScore({
+      income,
+      realIncome: Math.max(recurringIncomeMonthly, income),
+      savings: p.total_savings,
+      invested: p.total_invested,
+      engagedMonthly: totalEngaged,
+      setAsideMonthly: plannedSetAside,
+      projectionMin: projMin,
+      margin: p.safety_margin_amount || 0,
+      avgNet,
+      reliableMonths: reliable.length,
+    });
+    L.push('\nSCORE DE SANTÉ FINANCIÈRE (pré-calculé — RECOPIE ce score et ces sous-scores, ne les recalcule pas)');
+    L.push(`- Score global : ${sc.global}/100 (moyenne pondérée des sous-scores disponibles).`);
+    for (const part of sc.parts) {
+      L.push(`- ${part.label} (${part.weight} %) : ${part.score == null ? '— (trop tôt pour juger)' : `${part.score}/100`} · ${part.why}.`);
+    }
+  }
+
+  // ── ÉVOLUTION DEPUIS LE DERNIER BILAN — répond à la question implicite n°1 : « je vais dans le
+  // bon sens ? ». Compare quelques métriques top-line au dernier bilan global persisté.
+  if (evolution) {
+    const { previous: a, current: b, previousDate } = evolution;
+    const delta = (cur: number, prev: number) => {
+      const d = Math.round(cur - prev);
+      return `${d >= 0 ? '+' : '−'}${m(Math.abs(d))}`;
+    };
+    L.push(`\nÉVOLUTION DEPUIS LE DERNIER BILAN (${previousDate}) — pour dire s'il va dans le bon sens (commence ton bilan par ça)`);
+    L.push(`- Patrimoine : ${delta(b.patrimoine, a.patrimoine)} (${m(a.patrimoine)} → ${m(b.patrimoine)}).`);
+    L.push(`- Comptes courants : ${delta(b.checking, a.checking)} · Épargne : ${delta(b.savings, a.savings)} · Investissement : ${delta(b.invested, a.invested)}.`);
+    L.push(`- Engagements mensuels : ${delta(b.engaged, a.engaged)} · Solde projeté à 12 mois : ${delta(b.balance12, a.balance12)}.`);
+    if (a.score > 0 && b.score > 0) L.push(`- Score : ${a.score} → ${b.score} (${b.score - a.score >= 0 ? '+' : ''}${b.score - a.score}).`);
+    L.push(`- ⚠ Lis cette évolution comme la tendance de fond (le patrimoine qui monte alors que la trésorerie baisse = tu transformes du cash en patrimoine, pas un problème). Un écart peut venir d'une saisie complétée entre deux bilans, pas seulement d'un vrai mouvement.`);
   }
 
   L.push('\nTRÉSORERIE');
@@ -166,6 +253,12 @@ export function buildSnapshot(input: SnapshotInput): string {
   L.push(`- Point bas projeté sur quelques mois : ${m(p.projection_min_buffer)}${p.projection_in_danger ? ' (⚠ tension de trésorerie)' : ''}`);
   if (p.expected_monthly_income > 0) {
     L.push(`- Prochaine rentrée récurrente détectée : ${m(p.expected_monthly_income)} (fiabilité ${Math.round(p.expected_income_confidence * 100)}%, source ${p.expected_income_source}). ⚠ C'est la PLUS GROSSE rentrée récurrente (sert au calcul du creux de trésorerie), PAS le revenu total : le revenu total = le revenu de référence des RATIOS CLÉS.`);
+  }
+  // Revenus ATTENDUS mois par mois (recettes saisies, overrides inclus) : bien plus juste qu'une
+  // seule ligne pour un indépendant dont le revenu varie. C'est le vrai revenu des prochains mois.
+  if (incomeByMonth.length > 0 && incomeByMonth.some((r) => r.income > 0)) {
+    L.push(`- Revenus attendus mois par mois (recettes déjà saisies pour ces mois) : ${incomeByMonth.map((r) => `${r.ym} : ${m(r.income)}`).join(' · ')}.`);
+    if (income > 0) L.push(`- ⚠ Si ces revenus attendus sont RÉGULIÈREMENT au-dessus du revenu de référence (${m(income)}), c'est que la référence — lissée sur un historique court/incomplet — SOUS-ESTIME le vrai train de vie : pondère tes jugements d'endettement en conséquence, et invite l'utilisateur à vérifier/compléter ses revenus dans l'app.`);
   }
   if (recurringIncomeMonthly > 0) {
     L.push(`- ⚠ Ces indicateurs de revenu peuvent différer entre eux (déclaration partielle, rentrée exceptionnelle dans la moyenne…). La référence de train de vie = le revenu de référence des RATIOS CLÉS. Un écart entre indicateurs n'est PAS une priorité d'action : au plus une phrase.`);

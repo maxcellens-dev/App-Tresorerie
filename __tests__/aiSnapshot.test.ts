@@ -128,5 +128,52 @@ describe('buildSnapshot — revenu de référence & garde-fous', () => {
     expect(txt).toContain('enveloppe mensuelle 600 €');
     expect(txt).toContain('calculée sur l\'historique (3 mois fiables)');
   });
+
+  it('engagements : UN total consolidé, crédits du foyer exclus (pas de 95 % additionné)', () => {
+    const txt = build(base({
+      incomeRef: { avg: 2333, monthsUsed: 3, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+      recurringExpenses: [{ category: 'Divers', amount: 1315, rule: 'monthly' }],
+      jointContributionMonthly: 955,
+      credits: [
+        { principal: 1, monthly: 609, ratePct: 3.9, crd: 1, endYM: null, impactPct: 50 },
+        { principal: 1, monthly: 120, ratePct: 0, crd: 1, endYM: null, impactPct: 100 },
+      ],
+      recurringIncomes: [{ category: 'Revenu', amount: 4000, rule: 'monthly' }] as any,
+    }));
+    expect(txt).toContain('ENGAGEMENTS MENSUELS À CHARGE');
+    // total = 1315 + 120 (crédit perso) + 955 (contribution) = 2 390. Le crédit foyer 609 est exclu.
+    expect(txt).toContain('TOTAL ENGAGÉ : ~2 390 €/mois');
+    expect(txt).toContain('DÉJÀ couverts par la contribution');
+  });
+
+  it('score de santé pré-calculé présent et à recopier', () => {
+    const txt = build(base({
+      incomeRef: { avg: 2333, monthsUsed: 3, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+    }));
+    expect(txt).toContain('SCORE DE SANTÉ FINANCIÈRE');
+    expect(txt).toMatch(/Score global : \d+\/100/);
+    expect(txt).toContain('Sécurité (25 %)');
+  });
+
+  it('évolution depuis le dernier bilan : deltas + sens', () => {
+    const prev = { patrimoine: 120000, checking: 3000, savings: 22000, invested: 95000, engaged: 2200, balance12: 1500, income: 2300, score: 78 };
+    const cur = { patrimoine: 126059, checking: 2600, savings: 23000, invested: 95132, engaged: 2270, balance12: 800, income: 2333, score: 80 };
+    const txt = build(base({
+      incomeRef: { avg: 2333, monthsUsed: 3, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+      evolution: { previousDate: '2026-06-08', previous: prev, current: cur },
+    }));
+    expect(txt).toContain('ÉVOLUTION DEPUIS LE DERNIER BILAN (2026-06-08)');
+    expect(txt).toContain('Patrimoine : +6 059 €');
+    expect(txt).toContain('Score : 78 → 80 (+2)');
+  });
+
+  it('revenus attendus mois par mois affichés', () => {
+    const txt = build(base({
+      incomeRef: { avg: 2333, monthsUsed: 3, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+      incomeByMonth: [{ ym: '2026-07', income: 1200 }, { ym: '2026-08', income: 4000 }],
+    }));
+    expect(txt).toContain('Revenus attendus mois par mois');
+    expect(txt).toContain('2026-08 : 4 000 €');
+  });
 });
 

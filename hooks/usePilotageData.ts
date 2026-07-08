@@ -137,6 +137,8 @@ export interface PilotageData {
   projection_balances_6m: number[];
   /** Même trajectoire prolongée à 12 mois (anticipation long terme : snapshot Conseils IA). */
   projection_balances_12m: number[];
+  /** Revenus (recettes) attendus par mois sur 12 mois — même trajectoire (overrides inclus). */
+  projection_income_12m: { ym: string; income: number }[];
 }
 
 // Fetch multiple data types
@@ -1150,7 +1152,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   for (const o of (data as any).monthOverrides ?? []) {
     if (o.override_amount != null) signedOvrAllMonths[`${o.transaction_id}:${o.year}:${o.month}`] = Number(o.override_amount);
   }
-  const projection_balances_12m = computeTresoRows({
+  const projection_rows_12m = computeTresoRows({
     transactions,
     accounts,
     overridesMap: signedOvrAllMonths,
@@ -1158,8 +1160,16 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     variableRemaining: variable_envelope_remaining,
     monthsCount: 12,
     now,
-  }).map((r) => r.balance);
+  });
+  const projection_balances_12m = projection_rows_12m.map((r) => r.balance);
   const projection_balances_6m = projection_balances_12m.slice(0, 6);
+  // Revenus (recettes) attendus par mois — même trajectoire que la Projection, overrides inclus.
+  // Alimente la ligne « revenus attendus mois par mois » du snapshot Conseils IA (bien plus juste
+  // pour un indépendant qu'une seule ligne « X €/mois »).
+  const projection_income_12m = projection_rows_12m.map((r) => ({
+    ym: `${r.year}-${String(r.month).padStart(2, '0')}`,
+    income: Math.round(r.income),
+  }));
 
   return {
     safe_to_spend,
@@ -1233,6 +1243,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
     projection_balances_6m,
     projection_balances_12m,
+    projection_income_12m,
   };
 }
 

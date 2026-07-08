@@ -21,7 +21,7 @@ import { useUserSnapshot } from '../../hooks/useUserSnapshot';
 import { useUiPrefs } from '../../hooks/useUiPrefs';
 import { useKeyboardClearance } from '../../hooks/useKeyboardClearance';
 import AiRichText from '../../components/AiRichText';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
+import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
 export default function ConseilsIaScreen() {
   const c = useAppColors();
@@ -109,7 +109,8 @@ export default function ConseilsIaScreen() {
   };
 
   // ── Instantané financier anonymisé (même logique partagée avec l'onglet Snapshot admin) ──
-  const { ready: snapshotReady, build: buildSnap } = useUserSnapshot(uid);
+  const { ready: snapshotReady, build: buildSnap, currentBilanMetrics } = useUserSnapshot(uid);
+  const saveBilanMetrics = useSaveBilanMetrics(uid);
 
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
@@ -140,6 +141,10 @@ export default function ConseilsIaScreen() {
         setConversationId(convId);
       }
       const res = await ask.mutateAsync({ ...payload, snapshot: buildSnap(), conversation_id: convId });
+      // Bilan global réussi → persiste les métriques top-line pour l'ÉVOLUTION du prochain bilan.
+      if (res.ok && !res.queued && payload.kind === 'analysis' && payload.analysis_key === 'analysis_global' && currentBilanMetrics) {
+        saveBilanMetrics.mutate(currentBilanMetrics);
+      }
       if (res.queued) {
         Alert.alert('Réessai en cours', "Le service n'a pas pu répondre tout de suite. Ta demande a été transmise — tu seras notifié dès qu'une réponse est disponible. Cette requête n'a pas été décomptée.");
       } else if (!res.ok) {

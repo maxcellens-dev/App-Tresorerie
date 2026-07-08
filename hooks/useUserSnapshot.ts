@@ -29,6 +29,8 @@ import { computeAmortization, addMonthsISO } from '../lib/amortization';
 import { todayISO } from '../lib/dateUtils';
 import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../lib/aiSnapshot';
 import { detectUpcomingChanges, type UpcomingTx } from '../lib/aiUpcoming';
+import { deriveEngaged, computeHealthScore } from '../lib/aiScore';
+import { usePreviousBilanMetrics, type BilanMetricsRow } from './useAi';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const SNAPSHOT_TX_LIMIT = 4000;
@@ -56,7 +58,15 @@ function useSnapshotTransactions(profileId: string | undefined) {
   });
 }
 
-export function useUserSnapshot(userId: string | undefined): { text: string | null; ready: boolean; build: () => string } {
+export interface UserSnapshot {
+  text: string | null;
+  ready: boolean;
+  build: () => string;
+  /** Métriques top-line du bilan courant — à persister après un bilan global réussi (évolution). */
+  currentBilanMetrics: BilanMetricsRow | null;
+}
+
+export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   const { data: pilotage } = usePilotageData(userId);
   const { data: transactions } = useSnapshotTransactions(userId);
   const { data: monthOverrides } = useTransactionMonthOverrides(userId);
@@ -67,6 +77,16 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
   // Mode des comptes partagés (« tracked » = quotidien / « contribution » = hors quotidien) — le
   // traitement des flux qui y transitent en dépend totalement.
   const { data: sharedContrib } = useSharedContribution(userId);
+  // Dernier bilan global persisté → section ÉVOLUTION (« je vais dans le bon sens ? »).
+  const { data: previousBilan } = usePreviousBilanMetrics(userId);
+  // Comptes JOINTS en mode CONTRIBUTION (hors budget quotidien) : les virements récurrents qui y
+  // vont sont des ENGAGEMENTS du foyer (couvrent souvent la part de crédits/charges communes).
+  const jointContribAcctIds = useMemo(() => {
+    const modeByAccount = sharedContrib?.modeByAccount ?? {};
+    const ids = new Set<string>();
+    for (const a of allAccounts ?? []) if (modeByAccount[a.id] === 'contribution') ids.add(a.id);
+    return ids;
+  }, [allAccounts, sharedContrib]);
 
   const catById = useMemo(() => {
     const m = new Map<string, { name: string; parent_id?: string | null; is_variable?: boolean; type?: string }>();
@@ -330,8 +350,8 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     const acctTypeById: Record<string, string> = {};
     for (const a of allAccounts ?? []) acctTypeById[a.id] = (a as any).type;
     const txs: UpcomingTx[] = (transactions ?? []).map((t: any) => ({ ...t, accountType: t.account?.type ?? null }));
-    return detectUpcomingChanges(txs, { today: todayISO(), acctTypeById, fullCat, isRefund });
-  }, [transactions, allAccounts, catById]);
+    return detectUpcomingChanges(txs, { today: todayISO(), acctTypeById, fullCat, isRefund, jointContribAcctIds });
+  }, [transactions, allAccounts, catById, jointContribAcctIds]);
 
   // PROJECTION du solde courant : LA trajectoire de référence (pilotage.projection_balances_12m,
   // calculée par lib/tresoProjection — la même que l'onglet Projection ET que le garde-fou marge
@@ -409,6 +429,38 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       }));
   }, [allAccounts, sharedContrib]);
 
+  // Contribution récurrente mensuelle vers les comptes joints « contribution » (équivalent mensuel).
+  const jointContributionMonthly = useMemo(() => {
+    const today = todayISO();
+    const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+    let total = 0;
+    const seen = new Set<string>();
+    for (const t of transactions ?? []) {
+      if (t.is_draft || t.regul_target != null || !t.linked_account_id) continue;
+      if (!jointContribAcctIds.has(t.linked_account_id)) continue;
+      if (Number(t.amount) >= 0) continue; // sortie du courant → contribution
+      if (isRecurringTpl(t)) {
+        if (!isLiveSeries(t)) continue;
+        const key = `${t.linked_account_id}|${Math.round(Math.abs(Number(t.amount)) * 100)}|${t.recurrence_rule}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        total += Math.abs(Number(t.amount)) * (RULE_MONTHLY[String(t.recurrence_rule)] ?? 1);
+      }
+    }
+    return Math.round(total);
+  }, [transactions, jointContribAcctIds]);
+
+  // Versements cumulés sur les comptes d'INVESTISSEMENT (capital injecté) → plus-value = valeur − versé.
+  const investContributed = useMemo(() => {
+    let total = 0; let known = false;
+    for (const a of allAccounts ?? []) {
+      if ((a as any).type !== 'investment') continue;
+      const c = (a as any).current_contributed ?? (a as any).initial_contributed;
+      if (c != null) { total += Number(c); known = true; }
+    }
+    return known ? Math.round(total) : null;
+  }, [allAccounts]);
+
   const creditsSummary = useMemo(() => {
     const today = todayISO();
     const acctById: Record<string, any> = {};
@@ -446,6 +498,43 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
     });
   }, [pilotage, projects, allAccounts]);
 
+  // Métriques top-line du bilan courant (même logique que le snapshot : deriveEngaged +
+  // computeHealthScore) → persistées après un bilan global, et comparées au précédent (évolution).
+  const currentBilanMetrics = useMemo<BilanMetricsRow | null>(() => {
+    if (!pilotage) return null;
+    const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
+    const income = incomeRef?.avg || pilotage.avg_monthly_income || 0;
+    const recurringIncomeMonthly = recurrings.incomes.reduce((t, r) => t + r.amount * (RULE_MONTHLY[r.rule] ?? 1), 0);
+    const fixedMonthly = recurrings.expenses.reduce((t, r) => t + r.amount * (RULE_MONTHLY[r.rule] ?? 1), 0);
+    const engaged = deriveEngaged(creditsSummary, fixedMonthly, jointContributionMonthly);
+    const balances = pilotage.projection_balances_12m ?? [];
+    const partial = history.length > 0 && history.length < 6;
+    const reliable = history.filter((h, i) => !(partial && i === 0) && income > 0 && h.income <= income * 2.5 && h.income > 0);
+    const avgNet = reliable.length ? reliable.reduce((t, h) => t + (h.income - h.expenses), 0) / reliable.length : null;
+    const score = income > 0 ? computeHealthScore({
+      income,
+      realIncome: Math.max(recurringIncomeMonthly, income),
+      savings: pilotage.total_savings,
+      invested: pilotage.total_invested,
+      engagedMonthly: engaged.total,
+      setAsideMonthly: (pilotage.monthly_savings_planned || 0) + (pilotage.monthly_invest_planned || 0),
+      projectionMin: balances.length ? Math.min(...balances) : null,
+      margin: pilotage.safety_margin_amount || 0,
+      avgNet,
+      reliableMonths: reliable.length,
+    }).global : 0;
+    return {
+      patrimoine: Math.round(pilotage.total_checking + pilotage.total_savings + pilotage.total_invested),
+      checking: Math.round(pilotage.total_checking),
+      savings: Math.round(pilotage.total_savings),
+      invested: Math.round(pilotage.total_invested),
+      engaged: Math.round(engaged.total),
+      balance12: balances.length ? Math.round(balances[balances.length - 1]) : 0,
+      income: Math.round(income),
+      score,
+    };
+  }, [pilotage, incomeRef, recurrings, creditsSummary, jointContributionMonthly, history]);
+
   const build = () => {
     const now = new Date();
     return buildSnapshot({
@@ -471,12 +560,18 @@ export function useUserSnapshot(userId: string | undefined): { text: string | nu
       incomeRef,
       upcoming,
       savingsInvestForecast,
+      jointContributionMonthly,
+      investContributed,
+      incomeByMonth: (pilotage?.projection_income_12m ?? []).slice(0, 6),
+      evolution: previousBilan && currentBilanMetrics
+        ? { previousDate: previousBilan.date, previous: previousBilan.metrics, current: currentBilanMetrics }
+        : null,
     });
   };
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics],
   );
-  return { text, ready: !!pilotage, build };
+  return { text, ready: !!pilotage, build, currentBilanMetrics };
 }
