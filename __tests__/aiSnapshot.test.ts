@@ -175,5 +175,24 @@ describe('buildSnapshot — revenu de référence & garde-fous', () => {
     expect(txt).toContain('Revenus attendus mois par mois');
     expect(txt).toContain('2026-08 : 4 000 €');
   });
+
+  it('revenus récurrents à montants variables : pas de faux total /mois, moyenne réelle + renvoi au détail', () => {
+    const txt = build(base({
+      incomeRef: { avg: 2333, monthsUsed: 3, monthsWithoutIncome: 0, transfersAvg: 0, source: 'recettes' },
+      // Les templates montrent 2500/1500 (override d'un mois), mais la moyenne réelle est bien plus basse.
+      recurringIncomes: [
+        { category: 'Revenu > Gérant', amount: 2500, rule: 'monthly' },
+        { category: 'Revenu > Gérant', amount: 1500, rule: 'monthly' },
+      ] as any,
+      realMonthlyIncome: 2400,
+      incomeByMonth: [{ ym: '2026-07', income: 2500 }, { ym: '2026-08', income: 4000 }, { ym: '2026-09', income: 3000 }],
+    }));
+    // Plus de « total ≈ 4 000 €/mois » présenté comme permanent.
+    expect(txt).not.toContain('REVENUS RÉCURRENTS ACTIFS — total');
+    expect(txt).toContain('SOURCES DE REVENU RÉCURRENTES');
+    expect(txt).toContain('montants VARIABLES selon les mois');
+    expect(txt).toContain('moyenne réelle ≈ 2 400 €/mois');
+    expect(txt).toContain('varie selon les mois');
+  });
 });
 

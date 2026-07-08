@@ -18,6 +18,12 @@ ALTER TABLE public.ai_config
 ALTER TABLE public.ai_usage
   ADD COLUMN IF NOT EXISTS paid_fallback boolean NOT NULL DEFAULT false;
 
+-- Marque les usages passés par la clé PAYANTE (premium inclus + fallback + crédits) : ils ne
+-- tapent PAS dans le pool gratuit partagé → exclus du plafond global quotidien (daily_global_cap).
+-- But : les PREMIUM utilisent directement la clé facturée, laissant le gratuit aux non-premium.
+ALTER TABLE public.ai_usage
+  ADD COLUMN IF NOT EXISTS paid_key boolean NOT NULL DEFAULT false;
+
 -- Le quota mensuel ne compte QUE les requêtes incluses (les bascules payantes éditeur sont hors quota).
 CREATE OR REPLACE FUNCTION public.ai_my_quota(p_user uuid DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$

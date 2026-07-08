@@ -99,6 +99,9 @@ export interface SnapshotInput {
   investContributed?: number | null;
   /** Revenus (recettes) attendus par mois sur les 6 prochains mois (même trajectoire que la Projection). */
   incomeByMonth?: { ym: string; income: number }[];
+  /** Revenu mensuel RÉEL moyen des prochains mois (moyenne de incomeByMonth) — capacité de paiement
+   *  honnête quand les revenus récurrents varient chaque mois (overrides). Défaut : total récurrent. */
+  realMonthlyIncome?: number;
   /** Évolution depuis le DERNIER bilan global (métriques persistées) — répond à « je vais dans le bon sens ? ». */
   evolution?: { previousDate: string; previous: BilanMetrics; current: BilanMetrics } | null;
 }
@@ -130,6 +133,12 @@ export function buildSnapshot(input: SnapshotInput): string {
     upcoming, savingsInvestForecast, jointContributionMonthly = 0, investContributed = null,
     incomeByMonth = [], evolution = null,
   } = input;
+  // Revenu récurrent « réel » : moyenne des prochains mois (overrides inclus) plutôt que l'override
+  // d'un seul mois multiplié — sinon des revenus qui varient chaque mois affichent un faux « /mois ».
+  const recurringIncomeMonthlyRaw = recurringIncomes.reduce((t, r) => t + r.amount * (RULE_MONTHLY[r.rule] ?? 1), 0);
+  const realMonthlyIncome = input.realMonthlyIncome != null && input.realMonthlyIncome > 0
+    ? input.realMonthlyIncome
+    : recurringIncomeMonthlyRaw;
   const L: string[] = [];
   const m = (n: number) => `${r0(n)} ${s}`;
   const monthProgress = Math.round((dayOfMonth / daysInMonth) * 100);
@@ -151,7 +160,6 @@ export function buildSnapshot(input: SnapshotInput): string {
   // (fenêtre ≤ 6 mois). Recettes = vraies rentrées : pas les virements internes, pas les
   // remboursements de dépenses, pas les régularisations. Si AUCUNE recette mais des virements
   // entrants depuis un compte « autre » → ces virements font office de revenu.
-  const recurringIncomeMonthly = recurringIncomes.reduce((t, r) => t + monthlyEq(r), 0);
   const income = incomeRef?.avg || p.avg_monthly_income || 0;
   const incomeBase = !incomeRef || incomeRef.source === 'none'
     ? 'revenu mensuel moyen'
@@ -201,7 +209,7 @@ export function buildSnapshot(input: SnapshotInput): string {
       if (fixedMonthly > 0) L.push(`- Charges récurrentes directes (hors crédits) : ~${m(fixedMonthly)}/mois.`);
       if (ownCredits > 0) L.push(`- Crédits sur comptes perso (à 100 % à sa charge) : ~${m(ownCredits)}/mois.`);
       if (jointContributionMonthly > 0) L.push(`- Contribution au compte JOINT (couvre sa part des crédits/charges du foyer) : ~${m(jointContributionMonthly)}/mois.`);
-      L.push(`- TOTAL ENGAGÉ : ~${m(totalEngaged)}/mois${income > 0 ? ` = ${Math.round((totalEngaged / income) * 100)} % du revenu de référence` : ''}${recurringIncomeMonthly > income ? ` (mais seulement ${Math.round((totalEngaged / recurringIncomeMonthly) * 100)} % des revenus récurrents réels ${m(recurringIncomeMonthly)}/mois — cf. écart de revenu ci-dessous)` : ''}.`);
+      L.push(`- TOTAL ENGAGÉ : ~${m(totalEngaged)}/mois${income > 0 ? ` = ${Math.round((totalEngaged / income) * 100)} % du revenu de référence` : ''}${realMonthlyIncome > income ? ` (mais seulement ${Math.round((totalEngaged / realMonthlyIncome) * 100)} % du revenu réel moyen des prochains mois ${m(realMonthlyIncome)}/mois — cf. revenus attendus mois par mois)` : ''}.`);
       if (jointCredits > 0) L.push(`- ⚠ Les crédits du FOYER (~${m(jointCredits)}/mois à sa part) sont DÉJÀ couverts par la contribution ci-dessus : ne les compte PAS en plus. Le seul chiffre juste est le TOTAL ENGAGÉ.`);
     }
   }
@@ -214,7 +222,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     const projMin = forecast.length ? Math.min(...forecast.map((f) => f.balance)) : null;
     const sc = computeHealthScore({
       income,
-      realIncome: Math.max(recurringIncomeMonthly, income),
+      realIncome: Math.max(realMonthlyIncome, income),
       savings: p.total_savings,
       invested: p.total_invested,
       engagedMonthly: totalEngaged,
@@ -260,7 +268,7 @@ export function buildSnapshot(input: SnapshotInput): string {
     L.push(`- Revenus attendus mois par mois (recettes déjà saisies pour ces mois) : ${incomeByMonth.map((r) => `${r.ym} : ${m(r.income)}`).join(' · ')}.`);
     if (income > 0) L.push(`- ⚠ Si ces revenus attendus sont RÉGULIÈREMENT au-dessus du revenu de référence (${m(income)}), c'est que la référence — lissée sur un historique court/incomplet — SOUS-ESTIME le vrai train de vie : pondère tes jugements d'endettement en conséquence, et invite l'utilisateur à vérifier/compléter ses revenus dans l'app.`);
   }
-  if (recurringIncomeMonthly > 0) {
+  if (realMonthlyIncome > 0) {
     L.push(`- ⚠ Ces indicateurs de revenu peuvent différer entre eux (déclaration partielle, rentrée exceptionnelle dans la moyenne…). La référence de train de vie = le revenu de référence des RATIOS CLÉS. Un écart entre indicateurs n'est PAS une priorité d'action : au plus une phrase.`);
   }
 
@@ -438,8 +446,10 @@ export function buildSnapshot(input: SnapshotInput): string {
     for (const r of recurringExpenses.slice(0, 20)) L.push(`- ${r.category} : ${m(r.amount)}/${RULE_FR[r.rule] ?? r.rule}`);
   }
   if (recurringIncomes.length) {
-    L.push(`\nREVENUS RÉCURRENTS ACTIFS — total ≈ ${m(recurringIncomeMonthly)}/mois (montants des occurrences RÉCENTES uniquement ; la référence de revenu reste celle des RATIOS CLÉS)`);
-    for (const r of recurringIncomes.slice(0, 8)) L.push(`- ${r.category} : ${m(r.amount)}/${RULE_FR[r.rule] ?? r.rule}`);
+    // ⚠ Ces revenus ont souvent des montants surchargés PAR MOIS (indépendant) → un « X/mois » figé
+    // induit en erreur. On donne la MOYENNE réelle des prochains mois et on renvoie au détail mensuel.
+    L.push(`\nSOURCES DE REVENU RÉCURRENTES (${recurringIncomes.length}) — ⚠ montants VARIABLES selon les mois : n'utilise PAS un montant par ligne comme s'il était permanent. Le vrai revenu = « Revenus attendus mois par mois » ci-dessus${realMonthlyIncome > 0 ? `, moyenne réelle ≈ ${m(realMonthlyIncome)}/mois sur les 6 prochains mois` : ''}.`);
+    for (const r of recurringIncomes.slice(0, 8)) L.push(`- ${r.category} (dernière échéance ~${m(r.amount)}, varie selon les mois).`);
   }
 
   if (topOneOff.length) {

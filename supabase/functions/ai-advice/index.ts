@@ -193,6 +193,11 @@ serve(async (req) => {
   // usages servis par la bascule payante éditeur (paid_fallback) ne comptent PAS dans le quota inclus.
   const { count: used } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
     .eq('profile_id', user.id).eq('paid_fallback', false).gte('created_at', monthStart);
+  // Routage des PREMIUM sur la clé PAYANTE dès leurs requêtes INCLUSES : leur usage (couvert par
+  //    l'abonnement) est facturé sur la clé dédiée et ne tape PAS dans le pool gratuit partagé →
+  //    le stock gratuit reste aux non-premium. (Sans clé payante configurée : repli sur le gratuit.)
+  const isPremiumPaid = isPremium && GEMINI_PAID_KEYS.length > 0;
+
   // Quota mensuel épuisé → 1) crédits ACHETÉS s'il y en a ; 2) sinon, si la bascule payante auto est
   //    activée (cfg.paid_fallback_enabled), on continue sur la clé PAYANTE aux frais de l'éditeur
   //    (pas de crédit consommé, pas de mur) ; 3) sinon paywall.
@@ -205,7 +210,8 @@ serve(async (req) => {
     else if (cfg.paid_fallback_enabled) usePaidFallback = true;
     else return json({ error: 'quota_exceeded', used, limit, extra_credits: 0 }, 429);
   }
-  const usePaidKey = usePaidCredit || usePaidFallback; // les deux passent par la clé payante dédiée
+  // Toute requête sur la clé payante : premium inclus, crédits achetés, ou bascule éditeur.
+  const usePaidKey = usePaidCredit || usePaidFallback || isPremiumPaid;
 
   // 3) Prompt : template admin + instantané (déjà anonymisé côté client) + historique de la
   //    conversation (chat) — AVANT l'insertion du message user pour ne pas l'inclure deux fois.
@@ -225,10 +231,11 @@ serve(async (req) => {
   // Remonte la conversation en tête de liste (dernière activité).
   if (conversationId) await admin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', conversationId);
 
-  // 5) Cap global du jour (garde-fou quota gratuit Gemini). Les requêtes PAYÉES (clé payante dédiée) ne
-  //    tapent PAS dans le pool gratuit → elles ignorent ce cap.
+  // 5) Cap global du jour (garde-fou quota gratuit Gemini) : ne compte QUE les requêtes du POOL
+  //    GRATUIT (paid_key=false). Les requêtes sur la clé payante (premium, crédits, fallback) ne
+  //    tapent pas dans ce pool et ignorent le cap.
   const { count: globalToday } = await admin.from('ai_usage').select('id', { count: 'exact', head: true })
-    .gte('created_at', dayStart);
+    .eq('paid_key', false).gte('created_at', dayStart);
   const overGlobal = !usePaidKey && (globalToday ?? 0) >= cfg.daily_global_cap;
 
   // 6) Appel modèle avec bascule modèles × clés. Requête payée → clé PAYANTE dédiée (pas de cap commun).
@@ -259,10 +266,12 @@ serve(async (req) => {
   }
   if (usePaidFallback) {
     // Bascule payante éditeur : pas de crédit consommé, pas de décompte mensuel (déjà au-delà). On
-    // trace tout de même l'usage (kind 'analysis'/'chat' + reason) pour suivre le volume/coût.
-    await admin.from('ai_usage').insert({ profile_id: user.id, kind, paid_fallback: true });
+    // trace tout de même l'usage (hors quota, sur clé payante) pour suivre le volume/coût.
+    await admin.from('ai_usage').insert({ profile_id: user.id, kind, paid_fallback: true, paid_key: true });
     return json({ ok: true, reply, model: modelUsed, used, limit, paid: true });
   }
-  await admin.from('ai_usage').insert({ profile_id: user.id, kind });
+  // Requête INCLUSE (décomptée du quota mensuel). paid_key=true pour un premium (clé facturée, hors
+  // pool gratuit) → n'entame pas le stock gratuit des non-premium.
+  await admin.from('ai_usage').insert({ profile_id: user.id, kind, paid_key: isPremiumPaid });
   return json({ ok: true, reply, model: modelUsed, used: (used ?? 0) + 1, limit });
 });

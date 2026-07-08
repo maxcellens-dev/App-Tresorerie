@@ -498,13 +498,19 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
     });
   }, [pilotage, projects, allAccounts]);
 
+  // Revenu réel moyen des prochains mois (moyenne des recettes projetées, overrides inclus) — bien
+  // plus juste que le total des templates récurrents quand les montants varient chaque mois.
+  const realMonthlyIncome = useMemo(() => {
+    const rows = (pilotage?.projection_income_12m ?? []).slice(0, 6).filter((r) => r.income > 0);
+    return rows.length ? Math.round(rows.reduce((s, r) => s + r.income, 0) / rows.length) : 0;
+  }, [pilotage]);
+
   // Métriques top-line du bilan courant (même logique que le snapshot : deriveEngaged +
   // computeHealthScore) → persistées après un bilan global, et comparées au précédent (évolution).
   const currentBilanMetrics = useMemo<BilanMetricsRow | null>(() => {
     if (!pilotage) return null;
     const RULE_MONTHLY: Record<string, number> = { daily: 30.4, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
     const income = incomeRef?.avg || pilotage.avg_monthly_income || 0;
-    const recurringIncomeMonthly = recurrings.incomes.reduce((t, r) => t + r.amount * (RULE_MONTHLY[r.rule] ?? 1), 0);
     const fixedMonthly = recurrings.expenses.reduce((t, r) => t + r.amount * (RULE_MONTHLY[r.rule] ?? 1), 0);
     const engaged = deriveEngaged(creditsSummary, fixedMonthly, jointContributionMonthly);
     const balances = pilotage.projection_balances_12m ?? [];
@@ -513,7 +519,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
     const avgNet = reliable.length ? reliable.reduce((t, h) => t + (h.income - h.expenses), 0) / reliable.length : null;
     const score = income > 0 ? computeHealthScore({
       income,
-      realIncome: Math.max(recurringIncomeMonthly, income),
+      realIncome: Math.max(realMonthlyIncome, income),
       savings: pilotage.total_savings,
       invested: pilotage.total_invested,
       engagedMonthly: engaged.total,
@@ -533,7 +539,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       income: Math.round(income),
       score,
     };
-  }, [pilotage, incomeRef, recurrings, creditsSummary, jointContributionMonthly, history]);
+  }, [pilotage, incomeRef, recurrings, creditsSummary, jointContributionMonthly, history, realMonthlyIncome]);
 
   const build = () => {
     const now = new Date();
@@ -563,6 +569,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       jointContributionMonthly,
       investContributed,
       incomeByMonth: (pilotage?.projection_income_12m ?? []).slice(0, 6),
+      realMonthlyIncome,
       evolution: previousBilan && currentBilanMetrics
         ? { previousDate: previousBilan.date, previous: previousBilan.metrics, current: currentBilanMetrics }
         : null,
@@ -571,7 +578,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics, realMonthlyIncome],
   );
   return { text, ready: !!pilotage, build, currentBilanMetrics };
 }
