@@ -142,7 +142,7 @@ export function buildSnapshot(input: SnapshotInput): string {
 
   L.push('\nTRÉSORERIE');
   L.push(`- Reste à vivre estimé (« safe to spend ») : ${m(p.safe_to_spend)} — déjà NET de la marge de sécurité ci-dessous : ce montant est réellement disponible (ce n'est PAS un signe de tension).`);
-  L.push(`- Marge de sécurité conservée EN PLUS (non comprise dans le reste à vivre) : ${m(p.safety_margin_amount)}`);
+  L.push(`- Marge de sécurité conservée EN PLUS (Somme qu'on souhaite avoir au minimum sur ses comptes courants, non comprise dans le reste à vivre) : ${m(p.safety_margin_amount)}`);
   L.push(`- Point bas projeté sur quelques mois : ${m(p.projection_min_buffer)}${p.projection_in_danger ? ' (⚠ tension de trésorerie)' : ''}`);
   if (p.expected_monthly_income > 0) {
     L.push(`- Prochaine rentrée récurrente détectée : ${m(p.expected_monthly_income)} (fiabilité ${Math.round(p.expected_income_confidence * 100)}%, source ${p.expected_income_source}). ⚠ C'est la PLUS GROSSE rentrée récurrente (sert au calcul du creux de trésorerie), PAS le revenu total : le revenu total = le revenu de référence des RATIOS CLÉS.`);
