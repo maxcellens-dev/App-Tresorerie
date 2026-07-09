@@ -408,7 +408,7 @@ export function computeRecommendations(
       nets[type] = rest;
       // Message seulement si la reco reste visible et que la réduction est significative (> 10 €).
       if (rest > 0 && take > 10) {
-        guardNotes[type] = `Ce mois-ci tu pourrais rajouter ${take.toLocaleString('fr-FR')} € : mais ton solde repasserait sous ta marge de sécurité d'ici 6 mois.`;
+        guardNotes[type] = `Ce mois-ci tu pourrais rajouter ${take.toLocaleString('fr-FR')} € à cette recommandation : mais ton solde repasserait sous ta marge de sécurité d'ici 6 mois.`;
       }
     }
     if (moved > 0) {
