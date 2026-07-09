@@ -77,6 +77,16 @@ export function useProjectionHorizon(userId: string | undefined) {
   };
 }
 
+/** Période de la page Reporting : 3, 6 (défaut) ou 12 mois, persistée par compte. */
+export function useReportingPeriod(userId: string | undefined) {
+  const { prefs, patch } = useUiPrefs(userId);
+  const p = prefs.reporting_period;
+  return {
+    period: (p === 3 || p === 12 ? p : 6) as 3 | 6 | 12,
+    setPeriod: (v: 3 | 6 | 12) => patch({ reporting_period: v }),
+  };
+}
+
 /** #2 — Filtre persistant des TOTAUX de la page Comptes : tout / comptes perso / comptes partagés. */
 export function useAccountsTotalsFilter(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);

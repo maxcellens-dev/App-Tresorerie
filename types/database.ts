@@ -146,6 +146,8 @@ export interface UiPrefs {
   ai_confirm_skip?: boolean;
   /** Horizon de la page Projection : 6 (défaut) ou 12 mois. */
   projection_horizon?: 6 | 12;
+  /** Période de la page Reporting : 3, 6 (défaut) ou 12 mois. */
+  reporting_period?: 3 | 6 | 12;
 }
 
 export interface Account {
