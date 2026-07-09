@@ -107,12 +107,6 @@ export default function WelcomeScreen() {
                   <Text style={styles.secondaryLabel}>{L.mobileCtaSecondaryLabel}</Text>
                 </TouchableOpacity>
               </View>
-              {/* Badge Play Store — web uniquement (redondant dans l'app native déjà installée). */}
-              {Platform.OS === 'web' && !!L.androidStoreUrl && (
-                <View style={styles.storeBadgeRow}>
-                  <PlayStoreBadge url={L.androidStoreUrl} size="sm" />
-                </View>
-              )}
             </View>
           </View>
 
@@ -130,6 +124,13 @@ export default function WelcomeScreen() {
               </View>
             ))}
           </Animated.View>
+
+          {/* Badge Play Store — en bas de la page ; web uniquement (redondant dans l'app native). */}
+          {Platform.OS === 'web' && !!L.androidStoreUrl && (
+            <View style={styles.storeBadgeRow}>
+              <PlayStoreBadge url={L.androidStoreUrl} size="sm" />
+            </View>
+          )}
 
         </ScrollView>
       </SafeAreaView>
@@ -249,7 +250,7 @@ function makeStyles(c: any) {
     width: '100%',
     gap: 12,
   },
-  storeBadgeRow: { marginTop: 16, alignItems: 'center' },
+  storeBadgeRow: { marginTop: 28, alignItems: 'center' },
   primaryBtn: {
     backgroundColor: c.emerald,
     paddingVertical: 16,
