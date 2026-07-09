@@ -18,24 +18,38 @@ describe('isRealFlux', () => {
 });
 
 describe('buildMonthlyFlux', () => {
-  it('agrège revenus/dépenses hors régul et virements', () => {
+  // 'sal' = recette (income) ; 'shop' = dépense ; le reste (null) = côté dépense.
+  const catType = (id: string | null | undefined): 'income' | 'expense' | null =>
+    id === 'sal' ? 'income' : id === 'shop' ? 'expense' : null;
+  it('revenus = recettes seulement ; positifs sans catégorie ignorés (ni revenu ni anti-dépense)', () => {
     const months = [M('2026-06'), M('2026-07')];
     const tx: ReportTx[] = [
-      { date: '2026-07-05', amount: 2000, account_id: 'a' },        // revenu
-      { date: '2026-07-10', amount: -300, account_id: 'a' },        // dépense
-      { date: '2026-07-11', amount: -200, account_id: 'a', regul_target: 100 }, // régul → ignoré
+      { date: '2026-07-05', amount: 2000, account_id: 'a', category_id: 'sal' },  // recette
+      { date: '2026-07-06', amount: 400, account_id: 'a' },                        // positif SANS catégorie → ignoré
+      { date: '2026-07-10', amount: -300, account_id: 'a', category_id: 'shop' },  // dépense
+      { date: '2026-07-13', amount: 100, account_id: 'a', category_id: 'shop' },   // remboursement → réduit la dépense
+      { date: '2026-07-14', amount: -80, account_id: 'a' },                        // dépense sans catégorie → comptée
+      { date: '2026-07-11', amount: -200, account_id: 'a', regul_target: 100 },    // régul → ignoré
       { date: '2026-07-12', amount: -500, account_id: 'a', linked_account_id: 'b' }, // virement → ignoré
-      { date: '2026-06-05', amount: 1000, account_id: 'a' },
+      { date: '2026-06-05', amount: 1000, account_id: 'a', category_id: 'sal' },
+      { date: '2026-06-10', amount: -600, account_id: 'a', category_id: 'shop' },  // dépenses M-1 conservées
     ];
-    const r = buildMonthlyFlux(tx, months);
-    expect(r[1]).toMatchObject({ ym: '2026-07', income: 2000, expense: 300, net: 1700 });
-    expect(r[1].rate).toBeCloseTo(85, 0);
-    expect(r[0]).toMatchObject({ income: 1000, expense: 0 });
+    const r = buildMonthlyFlux(tx, months, catType);
+    expect(r[1].income).toBe(2000);           // pas les 400 sans catégorie
+    expect(r[1].expense).toBe(300 - 100 + 80); // le positif sans catégorie n'efface PAS les dépenses
+    expect(r[0]).toMatchObject({ income: 1000, expense: 600 });
+  });
+  it('dépense nette d’un remboursement', () => {
+    const r = buildMonthlyFlux([
+      { date: '2026-07-10', amount: -300, account_id: 'a', category_id: 'shop' },
+      { date: '2026-07-13', amount: 50, account_id: 'a', category_id: 'shop' },
+    ], [M('2026-07')], catType);
+    expect(r[0].expense).toBe(250);
   });
 });
 
 describe('buildSavingsSeries', () => {
-  it('compte l’argent arrivé sur épargne/investissement (jambe entrante)', () => {
+  it('compte l’argent arrivé sur épargne/investissement (jambe entrante), ventilé par type', () => {
     const months = [M('2026-07')];
     const typeById = { chk: 'checking', sav: 'savings', inv: 'investment' };
     const tx: ReportTx[] = [
@@ -44,7 +58,10 @@ describe('buildSavingsSeries', () => {
       { date: '2026-07-02', amount: 150, account_id: 'inv', linked_account_id: 'chk' },  // ENTRE invest
       { date: '2026-07-03', amount: 999, account_id: 'chk', linked_account_id: 'sav' },  // arrive sur courant → ignoré
     ];
-    expect(buildSavingsSeries(tx, months, typeById)[0].saved).toBe(350);
+    const r = buildSavingsSeries(tx, months, typeById)[0];
+    expect(r.saved).toBe(350);
+    expect(r.savings).toBe(200);
+    expect(r.invest).toBe(150);
   });
 });
 
@@ -53,7 +70,7 @@ describe('buildCategoryBreakdown', () => {
   it('top N + regroupe le reste dans « Autres »', () => {
     const tx: ReportTx[] = [];
     for (let i = 1; i <= 9; i++) tx.push({ date: '2026-07-01', amount: -i * 10, account_id: 'a', category_id: String(i) });
-    const r = buildCategoryBreakdown(tx, '2026-07', grand, 7);
+    const r = buildCategoryBreakdown(tx, '2026-07', grand, () => 'expense', 7);
     expect(r.length).toBe(8); // 7 + Autres
     expect(r[0]).toEqual({ label: 'cat-9', amount: 90 });
     expect(r[r.length - 1].label).toBe('Autres');

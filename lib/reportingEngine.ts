@@ -35,6 +35,9 @@ export interface ReportTx {
 
 export interface MonthlyFlux { ym: string; label: string; income: number; expense: number; net: number; rate: number }
 
+/** Type d'une catégorie : 'income' (recette) / 'expense' / null (sans catégorie → côté dépense). */
+export type CategoryTypeResolver = (categoryId: string | null | undefined) => 'income' | 'expense' | null;
+
 /** Fenêtre des N derniers mois, bornée à `dataStartYM` (1ʳᵉ donnée) inclus. */
 export function monthsWindow(maxN: number, dataStartYM: string | null, now = new Date()): MonthBucket[] {
   const out: MonthBucket[] = [];
@@ -60,8 +63,15 @@ export function isRealFlux(t: ReportTx): boolean {
   return true;
 }
 
-/** Revenus / dépenses / net / taux par mois. */
-export function buildMonthlyFlux(fluxTx: ReportTx[], months: MonthBucket[]): MonthlyFlux[] {
+/**
+ * Revenus / dépenses / net / taux par mois.
+ * REVENUS = uniquement les vraies RECETTES (catégorie de type « income ») — pas un montant positif
+ * quelconque (remboursement, régul déjà exclue, non catégorisé…). DÉPENSES = montants négatifs
+ * (hors recettes), nets des remboursements — mais SEULEMENT ceux portés par une catégorie de
+ * DÉPENSE : un positif sans catégorie (entrée inclassée, « reçu du compte partagé »…) ne doit ni
+ * compter en revenu ni effacer les dépenses du mois.
+ */
+export function buildMonthlyFlux(fluxTx: ReportTx[], months: MonthBucket[], categoryType: CategoryTypeResolver): MonthlyFlux[] {
   const acc: Record<string, { income: number; expense: number }> = {};
   months.forEach((m) => { acc[m.ym] = { income: 0, expense: 0 }; });
   for (const t of fluxTx) {
@@ -69,11 +79,19 @@ export function buildMonthlyFlux(fluxTx: ReportTx[], months: MonthBucket[]): Mon
     const ym = (t.date ?? '').substring(0, 7);
     if (!acc[ym]) continue;
     const amt = Number(t.amount);
-    if (amt >= 0) acc[ym].income += amt;
-    else acc[ym].expense += Math.abs(amt);
+    const ty = categoryType(t.category_id);
+    if (ty === 'income') {
+      if (amt > 0) acc[ym].income += amt; // recette
+    } else if (amt < 0) {
+      acc[ym].expense += -amt; // dépense (catégorie de dépense ou sans catégorie)
+    } else if (ty === 'expense') {
+      acc[ym].expense -= amt; // remboursement sur une catégorie de dépense
+    }
+    // positif sans catégorie → ignoré (ni revenu ni « anti-dépense »)
   }
   return months.map((m) => {
-    const { income, expense } = acc[m.ym];
+    const income = acc[m.ym].income;
+    const expense = Math.max(0, acc[m.ym].expense);
     const net = income - expense;
     const rate = income > 0 ? (net / income) * 100 : 0;
     return { ym: m.ym, label: m.label, income, expense, net, rate };
@@ -88,20 +106,29 @@ export function buildSavingsSeries(
   allTx: ReportTx[],
   months: MonthBucket[],
   typeById: Record<string, string>,
-): { ym: string; label: string; saved: number }[] {
-  const acc: Record<string, number> = {};
-  months.forEach((m) => { acc[m.ym] = 0; });
+): { ym: string; label: string; saved: number; savings: number; invest: number }[] {
+  const acc: Record<string, { savings: number; invest: number }> = {};
+  months.forEach((m) => { acc[m.ym] = { savings: 0, invest: 0 }; });
   for (const t of allTx) {
     if (t.is_draft || !t.linked_account_id) continue; // jambe d'un virement interne uniquement
     const amt = Number(t.amount);
     if (amt <= 0) continue; // jambe ENTRANTE (argent qui arrive)
-    const type = typeById[t.account_id];
-    if (type !== 'savings' && type !== 'investment') continue;
+    const destType = typeById[t.account_id];
+    if (destType !== 'savings' && destType !== 'investment') continue;
+    // Compte SEULEMENT si l'argent vient d'un compte d'un AUTRE type (courant→épargne, épargne→invest…).
+    // Un virement entre deux comptes de MÊME type (épargne↔épargne, invest↔invest) = simple réorganisation,
+    // pas une mise de côté.
+    const srcType = typeById[t.linked_account_id];
+    if (srcType === destType) continue;
     const ym = (t.date ?? '').substring(0, 7);
-    if (acc[ym] == null) continue;
-    acc[ym] += amt;
+    if (!acc[ym]) continue;
+    if (destType === 'savings') acc[ym].savings += amt;
+    else acc[ym].invest += amt;
   }
-  return months.map((m) => ({ ym: m.ym, label: m.label, saved: acc[m.ym] }));
+  return months.map((m) => {
+    const { savings, invest } = acc[m.ym];
+    return { ym: m.ym, label: m.label, savings, invest, saved: savings + invest };
+  });
 }
 
 /** Répartition des DÉPENSES d'un mois par grande catégorie : top N + « Autres ». */
@@ -109,11 +136,13 @@ export function buildCategoryBreakdown(
   fluxTx: ReportTx[],
   ym: string,
   grandCategoryName: (categoryId: string | null | undefined) => string,
+  categoryType: CategoryTypeResolver,
   topN = 7,
 ): { label: string; amount: number }[] {
   const by: Record<string, number> = {};
   for (const t of fluxTx) {
     if (!isRealFlux(t)) continue;
+    if (categoryType(t.category_id) === 'income') continue; // pas les recettes
     if (Number(t.amount) >= 0) continue; // dépenses uniquement
     if ((t.date ?? '').substring(0, 7) !== ym) continue;
     const name = grandCategoryName(t.category_id);
@@ -133,12 +162,14 @@ export function buildTopCategoriesCompare(
   curYm: string,
   prevYm: string,
   grandCategoryName: (categoryId: string | null | undefined) => string,
+  categoryType: CategoryTypeResolver,
   topN = 5,
 ): { label: string; current: number; previous: number }[] {
   const cur: Record<string, number> = {};
   const old: Record<string, number> = {};
   for (const t of fluxTx) {
     if (!isRealFlux(t)) continue;
+    if (categoryType(t.category_id) === 'income') continue;
     if (Number(t.amount) >= 0) continue;
     const ym = (t.date ?? '').substring(0, 7);
     const name = grandCategoryName(t.category_id);
@@ -245,14 +276,15 @@ export function buildInsights(inp: InsightInputs): Insight[] {
     if (rate >= 10) out.push({ tone: 'win', icon: 'shield-checkmark', priority: 20,
       text: `Tu mets de côté ${rate} % de tes revenus ce mois-ci (${fmtEur(inp.monthSaved)}). ${rate >= 20 ? 'Rythme excellent 🎯' : 'Beau rythme.'}` });
   }
-  // Croissance du patrimoine sur la période.
+  // Croissance du patrimoine sur les N derniers mois (N concret, pas « la période »).
   const nw = inp.netWorthTotal;
   if (nw.length >= 2) {
     const growth = nw[nw.length - 1].value - nw[0].value;
+    const span = nw.length; // nb de mois couverts
     if (growth > 0 && nw[0].value !== 0) {
       const pct = Math.round((growth / Math.abs(nw[0].value)) * 100);
       out.push({ tone: 'win', icon: 'trending-up', priority: 22,
-        text: `Ton patrimoine a progressé de ${fmtEur(growth)} sur la période${pct > 0 ? ` (+${pct} %)` : ''}. 📈` });
+        text: `Ton patrimoine a progressé de ${fmtEur(growth)}${pct > 0 ? ` (+${pct} %)` : ''} sur les ${span} derniers mois. 📈` });
     }
   }
   // Dépenses variables sous contrôle.

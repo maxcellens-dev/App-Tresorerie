@@ -20,17 +20,16 @@ import { useSharedContribution } from '../../hooks/useSharedContribution';
 import { useProfile } from '../../hooks/useProfile';
 import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
-import { useReportingPeriod } from '../../hooks/useUiPrefs';
 import { ACCOUNT_COLORS } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
-import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
+import { buildPerimeterCtx, transformFluxTransactions } from '../../lib/perimeter';
 import {
   monthsWindow, buildMonthlyFlux, buildSavingsSeries, buildCategoryBreakdown,
   buildTopCategoriesCompare, buildBalanceSeries, buildInsights,
-  type ReportingPeriod, type ReportTx, type InsightTone,
+  type ReportTx, type InsightTone,
 } from '../../lib/reportingEngine';
 
 /* ── Palette catégorielle VALIDÉE (dataviz) — light/dark, ordre fixe (jamais cyclé). ── */
@@ -77,47 +76,70 @@ function ChartTooltip({ cx, cy, text, color, chartWidth, padR = 0 }: { cx: numbe
   );
 }
 
-/* ═══ Barres groupées Revenus vs Dépenses ═══ */
+/* ═══ Barres groupées Revenus vs Dépenses — colonne entière cliquable + bandeau détail.
+   Les zones tapables sont des Views RN SUPERPOSÉES au SVG : les événements de clic sur les
+   éléments SVG sont peu fiables selon la plateforme (web/natif) — les Views, elles, le sont. ═══ */
 function IncomeExpenseBars({ data, width }: { data: { label: string; income: number; expense: number }[]; width: number }) {
   const C = useReportingColors();
-  const [active, setActive] = useState<{ idx: number; type: 'income' | 'expense' } | null>(null);
-  const chartH = 170;
+  const s = makeStyles(C);
+  const [active, setActive] = useState<number | null>(null);
+  const chartH = 170, padT = 12;
   const groupW = (width - 52) / Math.max(1, data.length);
   const barW = Math.min(20, groupW * 0.32);
   const gap = 4;
+  const usableH = chartH - padT;
   const maxVal = Math.max(...data.flatMap((d) => [d.income, d.expense]), 1);
+  // Toujours un mois sélectionné (le dernier par défaut) → le détail est visible d'emblée.
+  const sel = active != null && active < data.length ? active : data.length - 1;
+  const selData = data[sel];
   return (
-    <Svg width={width} height={chartH + 30}>
-      <Rect x={0} y={0} width={width} height={chartH + 30} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
-      {[0, 0.5, 1].map((pct, i) => {
-        const y = chartH - pct * chartH;
-        return (
-          <G key={i}>
-            <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
-            <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * pct)}</SvgText>
-          </G>
-        );
-      })}
-      {data.map((d, i) => {
-        const x = 48 + i * groupW + (groupW - barW * 2 - gap) / 2;
-        const ih = (d.income / maxVal) * chartH;
-        const eh = (d.expense / maxVal) * chartH;
-        return (
-          <G key={i}>
-            <Rect x={x} y={chartH - ih} width={barW} height={Math.max(ih, 1)} rx={4} fill={C.income} opacity={active && !(active.idx === i && active.type === 'income') ? 0.4 : 1} {...svgPress(() => setActive({ idx: i, type: 'income' }))} />
-            <Rect x={x + barW + gap} y={chartH - eh} width={barW} height={Math.max(eh, 1)} rx={4} fill={C.expense} opacity={active && !(active.idx === i && active.type === 'expense') ? 0.4 : 1} {...svgPress(() => setActive({ idx: i, type: 'expense' }))} />
-            <SvgText x={x + barW + gap / 2} y={chartH + 14} fill={C.textSecondary} fontSize={10} textAnchor="middle">{d.label}</SvgText>
-          </G>
-        );
-      })}
-      {active ? (() => {
-        const pt = data[active.idx];
-        const v = active.type === 'income' ? pt.income : pt.expense;
-        const x = 48 + active.idx * groupW + (groupW - barW * 2 - gap) / 2 + (active.type === 'income' ? barW / 2 : barW + gap + barW / 2);
-        const cy = chartH - (v / maxVal) * chartH;
-        return <ChartTooltip cx={x} cy={cy} text={fmtSigned(active.type === 'income' ? v : -v)} color={active.type === 'income' ? C.income : C.expense} chartWidth={width} />;
-      })() : null}
-    </Svg>
+    <View>
+      <View>
+        <Svg width={width} height={chartH + 30}>
+          {[0, 0.5, 1].map((pct, i) => {
+            const y = padT + (1 - pct) * usableH;
+            return (
+              <G key={i}>
+                <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * pct)}</SvgText>
+              </G>
+            );
+          })}
+          {data.map((d, i) => {
+            const gx = 48 + i * groupW;
+            const x = gx + (groupW - barW * 2 - gap) / 2;
+            const ih = (d.income / maxVal) * usableH;
+            const eh = (d.expense / maxVal) * usableH;
+            const on = sel === i;
+            return (
+              <G key={i}>
+                {on && <Rect x={gx} y={0} width={groupW} height={chartH} rx={8} fill={C.violet + '14'} />}
+                <Rect x={x} y={chartH - ih} width={barW} height={Math.max(ih, 1)} rx={4} fill={C.income} opacity={on ? 1 : 0.5} />
+                <Rect x={x + barW + gap} y={chartH - eh} width={barW} height={Math.max(eh, 1)} rx={4} fill={C.expense} opacity={on ? 1 : 0.5} />
+                <SvgText x={x + barW + gap / 2} y={chartH + 14} fill={on ? C.text : C.textSecondary} fontSize={10} fontWeight={on ? '700' : '400'} textAnchor="middle">{d.label}</SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+        {/* Zones tapables (une par mois), par-dessus le SVG. */}
+        <View style={{ position: 'absolute', top: 0, bottom: 0, left: 48, right: 0, flexDirection: 'row' }}>
+          {data.map((_, i) => (
+            <TouchableOpacity key={i} style={{ width: groupW, height: '100%' }} activeOpacity={0.55} onPress={() => setActive(i)} accessibilityRole="button" />
+          ))}
+        </View>
+      </View>
+      {/* Bandeau détail du mois sélectionné (revenus · dépenses · net). */}
+      {selData ? (
+        <View style={s.ieDetail}>
+          <Text style={s.ieDetailMonth}>{selData.label}</Text>
+          <View style={s.ieDetailVals}>
+            <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.income)}</Text></View>
+            <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.expense)}</Text></View>
+            <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Net</Text><Text style={[s.ieDetailTxt, { color: selData.income - selData.expense >= 0 ? C.income : C.expense, fontWeight: '800' }]}>{fmtSigned(selData.income - selData.expense)}</Text></View>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -158,39 +180,81 @@ function AreaLineChart({ points, width, color, height = 120, showAxis = true }: 
   );
 }
 
-/* ═══ Barres « reste chaque mois » (net) — un seul axe, signe coloré, taux en libellé direct ═══ */
-function NetBars({ data, width }: { data: { label: string; net: number; rate: number }[]; width: number }) {
+/* ═══ Barres « Mis de côté chaque mois » — virements réels vers épargne (vert) / invest (violet),
+   EMPILÉS par mois. Même interaction que Revenus vs Dépenses : colonne tapable + bandeau détail. ═══ */
+function SavingsBars({ data, width }: { data: { label: string; saved: number; savings: number; invest: number }[]; width: number }) {
   const C = useReportingColors();
+  const s = makeStyles(C);
   const [active, setActive] = useState<number | null>(null);
-  if (data.length < 2) return <Text style={s0(C).empty}>Pas encore assez d'historique.</Text>;
-  const chartH = 158, padL = 44, padR = 14, padT = 18, padB = 20;
-  const usableW = width - padL - padR, usableH = chartH - padT - padB;
-  const maxAbs = Math.max(...data.map((d) => Math.abs(d.net)), 1);
-  const range = 2 * maxAbs || 1;
-  const y = (v: number) => padT + (1 - (v + maxAbs) / range) * usableH;
-  const slot = usableW / data.length, barW = Math.min(24, slot * 0.5);
-  const cx = (i: number) => padL + slot * i + slot / 2;
-  const zeroY = y(0);
+  if (!data.length) return <Text style={s.emptyChart}>Pas encore assez d'historique.</Text>;
+  const total = data.reduce((a, d) => a + d.saved, 0);
+  if (total <= 0) {
+    return <Text style={s.emptyChart}>Aucun virement vers l'épargne ou l'investissement sur la période. Tes virements apparaîtront ici.</Text>;
+  }
+  const chartH = 150, padT = 12;
+  const groupW = (width - 52) / data.length;
+  const barW = Math.min(26, groupW * 0.45);
+  const usableH = chartH - padT;
+  const maxVal = Math.max(...data.map((d) => d.saved), 1);
+  const sel = active != null && active < data.length ? active : data.length - 1;
+  const selData = data[sel];
+  const cSav = ACCOUNT_COLORS.savings;
+  const cInv = ACCOUNT_COLORS.investment;
   return (
-    <Svg width={width} height={chartH + 22}>
-      <Rect x={0} y={0} width={width} height={chartH + 22} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
-      <SvgText x={padL - 6} y={padT + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxAbs)}</SvgText>
-      <SvgText x={padL - 6} y={padT + usableH + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(-maxAbs)}</SvgText>
-      <Line x1={padL} y1={zeroY} x2={width - padR} y2={zeroY} stroke={C.text} strokeWidth={1} opacity={0.28} />
-      {data.map((d, i) => {
-        const yy = y(d.net);
-        const color = d.net >= 0 ? C.income : C.expense;
-        return (
-          <G key={i}>
-            <Rect x={cx(i) - barW / 2} y={Math.min(yy, zeroY)} width={barW} height={Math.max(Math.abs(yy - zeroY), 1)} rx={4} fill={color} opacity={active === null || active === i ? 0.95 : 0.4} {...svgPress(() => setActive(active === i ? null : i))} />
-            {/* Taux d'épargne en libellé direct (un seul axe : pas de 2ᵉ échelle). */}
-            <SvgText x={cx(i)} y={d.net >= 0 ? yy - 5 : yy + 12} fill={C.textSecondary} fontSize={8.5} fontWeight="700" textAnchor="middle">{d.rate.toFixed(0)}%</SvgText>
-            <SvgText x={cx(i)} y={chartH + 12} fill={C.textSecondary} fontSize={9} textAnchor="middle">{d.label}</SvgText>
-          </G>
-        );
-      })}
-      {active !== null ? <ChartTooltip cx={cx(active)} cy={y(data[active].net)} text={fmtSigned(data[active].net)} color={data[active].net >= 0 ? C.income : C.expense} chartWidth={width} padR={padR} /> : null}
-    </Svg>
+    <View>
+      <View style={s.legendRow}>
+        <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: cSav }]} /><Text style={s.legendSmall}>Épargne</Text></View>
+        <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: cInv }]} /><Text style={s.legendSmall}>Investissement</Text></View>
+      </View>
+      <View>
+        <Svg width={width} height={chartH + 30}>
+          {[0, 0.5, 1].map((pct, i) => {
+            const y = padT + (1 - pct) * usableH;
+            return (
+              <G key={i}>
+                <Line x1={44} y1={y} x2={width} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={40} y={y + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * pct)}</SvgText>
+              </G>
+            );
+          })}
+          {data.map((d, i) => {
+            const gx = 48 + i * groupW;
+            const bx = gx + (groupW - barW) / 2;
+            const hSav = (d.savings / maxVal) * usableH;
+            const hInv = (d.invest / maxVal) * usableH;
+            const on = sel === i;
+            const op = on ? 1 : 0.5;
+            // Empilé : épargne en bas, invest au-dessus, 2 px d'écart entre segments.
+            const gapSeg = hSav > 0.5 && hInv > 0.5 ? 2 : 0;
+            const yInv = chartH - hSav - gapSeg - hInv;
+            return (
+              <G key={i}>
+                {on && <Rect x={gx} y={0} width={groupW} height={chartH} rx={8} fill={cSav + '18'} />}
+                {hSav > 0.5 && <Rect x={bx} y={chartH - hSav} width={barW} height={hSav} rx={3} fill={cSav} opacity={op} />}
+                {hInv > 0.5 && <Rect x={bx} y={yInv} width={barW} height={hInv} rx={3} fill={cInv} opacity={op} />}
+                {d.saved <= 0 && <Rect x={bx} y={chartH - 1} width={barW} height={1} fill={C.cardBorder} />}
+                <SvgText x={gx + groupW / 2} y={chartH + 14} fill={on ? C.text : C.textSecondary} fontSize={10} fontWeight={on ? '700' : '400'} textAnchor="middle">{d.label}</SvgText>
+              </G>
+            );
+          })}
+        </Svg>
+        <View style={{ position: 'absolute', top: 0, bottom: 0, left: 48, right: 0, flexDirection: 'row' }}>
+          {data.map((_, i) => (
+            <TouchableOpacity key={i} style={{ width: groupW, height: '100%' }} activeOpacity={0.55} onPress={() => setActive(i)} accessibilityRole="button" />
+          ))}
+        </View>
+      </View>
+      {selData ? (
+        <View style={s.ieDetail}>
+          <Text style={s.ieDetailMonth}>{selData.label}</Text>
+          <View style={s.ieDetailVals}>
+            <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: cSav }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.savings)}</Text></View>
+            <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: cInv }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.invest)}</Text></View>
+            <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Total</Text><Text style={[s.ieDetailTxt, { fontWeight: '800' }]}>{fmtFull(selData.saved)}</Text></View>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -251,7 +315,7 @@ function HBarCompare({ rows, width }: { rows: { label: string; current: number; 
   const s = makeStyles(C);
   if (!rows.length) return <Text style={s.emptyChart}>Aucune dépense ce mois-ci.</Text>;
   const maxVal = Math.max(...rows.flatMap((r) => [r.current, r.previous]), 1);
-  const labelW = 92, valW = 64, trackW = Math.max(40, width - labelW - valW - 8);
+  const labelW = 84, valW = 82, trackW = Math.max(36, width - labelW - valW - 12);
   return (
     <View>
       {rows.map((r, i) => {
@@ -264,7 +328,7 @@ function HBarCompare({ rows, width }: { rows: { label: string; current: number; 
                 <View style={{ height: 5, borderRadius: 3, backgroundColor: C.cardBorder, marginBottom: 3, width: `${Math.max((r.previous / maxVal) * 100, 1.5)}%` as any }} />
                 <View style={{ height: 12, borderRadius: 4, backgroundColor: C.violet, width: `${Math.max((r.current / maxVal) * 100, 1.5)}%` as any }} />
               </View>
-              <Text style={{ width: valW, textAlign: 'right', color: C.text, fontSize: 12, fontWeight: '700' }}>{fmtFull(r.current)}</Text>
+              <Text style={{ width: valW, textAlign: 'right', color: C.text, fontSize: 12, fontWeight: '700', paddingLeft: 4 }} numberOfLines={1}>{fmtFull(r.current)}</Text>
             </View>
             <Text style={{ marginLeft: labelW, color: diff > 0 ? C.expense : C.income, fontSize: 10, marginTop: 2 }}>
               {r.previous === 0 ? 'nouveau ce mois' : diff === 0 ? '= stable' : `${diff > 0 ? '▲' : '▼'} ${fmtFull(Math.abs(diff))} vs mois préc.`}
@@ -280,29 +344,33 @@ function HBarCompare({ rows, width }: { rows: { label: string; current: number; 
   );
 }
 
-/* ═══ Indicateur santé (épargne de sécurité) ═══ */
-function HealthIndicator({ label, value, thresholds }: { label: string; value: number; thresholds: { level: number; label: string; color: string }[] }) {
+/* ═══ Jauge « épargne de sécurité » — langage simple, orientée objectif ═══ */
+function SafetyGauge({ value, min, optimal, comfort, monthsCovered }: { value: number; min: number; optimal: number; comfort: number; monthsCovered: number | null }) {
   const C = useReportingColors();
-  const maxLevel = Math.max(...thresholds.map((t) => t.level), value) * 1.2 || 1;
-  const pct = Math.min((value / maxLevel) * 100, 100);
-  const valueColor = (() => { for (let i = thresholds.length - 1; i >= 0; i--) if (value >= thresholds[i].level) return thresholds[i].color; return C.expense; })();
+  const status = value < min ? { label: 'Épargne faible', color: C.expense }
+    : value < optimal ? { label: 'À renforcer', color: C.amber }
+    : value < comfort ? { label: 'Bien', color: C.cat[0] }
+    : { label: 'Confortable', color: C.income };
+  const target = optimal > 0 ? optimal : comfort > 0 ? comfort : Math.max(value, 1);
+  const pct = Math.min(100, Math.max(3, (value / target) * 100));
   return (
     <View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ color: C.text, fontSize: 13, fontWeight: '500' }}>{label}</Text>
-        <Text style={{ color: valueColor, fontSize: 13, fontWeight: '700' }}>{fmtFull(value)}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 12.5, color: C.textSecondary, fontWeight: '600' }}>Épargne de sécurité</Text>
+          <Text style={{ fontSize: 26, fontWeight: '800', color: status.color, marginTop: 2 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(value)}</Text>
+        </View>
+        <View style={{ backgroundColor: status.color + '1F', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 2 }}>
+          <Text style={{ fontSize: 12, fontWeight: '800', color: status.color }}>{status.label}</Text>
+        </View>
       </View>
-      <View style={{ height: 10, backgroundColor: C.cardBorder, borderRadius: 5, overflow: 'hidden' }}>
-        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: valueColor, borderRadius: 5 }} />
+      <View style={{ height: 12, backgroundColor: C.cardBorder, borderRadius: 6, overflow: 'hidden', marginTop: 12 }}>
+        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: status.color, borderRadius: 6 }} />
       </View>
-      <View style={{ flexDirection: 'row', marginTop: 4, height: 16 }}>
-        {thresholds.map((t, i) => (
-          <View key={i} style={{ position: 'absolute', left: `${(t.level / maxLevel) * 100}%` as any }}>
-            <View style={{ width: 1, height: 6, backgroundColor: t.color, marginBottom: 2 }} />
-            <Text style={{ color: t.color, fontSize: 8 }}>{t.label}</Text>
-          </View>
-        ))}
-      </View>
+      <Text style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 9, lineHeight: 18 }}>
+        {monthsCovered != null && monthsCovered > 0 ? `Tu peux tenir environ ${monthsCovered} mois sans rentrée d'argent. ` : ''}
+        {target > value ? `Objectif conseillé : ${fmtFull(target)} — encore ${fmtFull(target - value)}.` : 'Objectif atteint 🎉'}
+      </Text>
     </View>
   );
 }
@@ -359,8 +427,6 @@ function GroupHeader({ icon, title, color }: { icon: string; title: string; colo
   );
 }
 
-const s0 = (C: any) => ({ empty: { color: C.textSecondary, textAlign: 'center' as const, padding: 24, fontSize: 13 } });
-
 /* ═══════════════════  MAIN SCREEN  ═══════════════════ */
 export default function ReportingScreen() {
   const C = useReportingColors();
@@ -370,7 +436,9 @@ export default function ReportingScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const { width: screenW } = useWindowDimensions();
-  const chartWidth = Math.min(screenW - 48, 500);
+  // Largeur INTÉRIEURE des cartes : écran − padding page (20×2) − padding carte (16×2).
+  // Sans ça, les graphes débordaient à droite (colonnes collées au bord, marge invisible).
+  const chartWidth = Math.min(screenW - 72, 460);
 
   const { data: profile } = useProfile(user?.id);
   const { isPremium } = usePlan(user?.id);
@@ -383,7 +451,6 @@ export default function ReportingScreen() {
   const { data: pilotage, refetch: rPil } = usePilotageData(user?.id);
   const { data: sharedContrib } = useSharedContribution(user?.id);
   const { data: rates = { EUR: 1 } } = useCurrencyRates();
-  const { period, setPeriod } = useReportingPeriod(user?.id);
 
   const refCode = (profile as any)?.currency_code ?? 'EUR';
 
@@ -420,6 +487,9 @@ export default function ReportingScreen() {
     if (c.parent_id) return catById.get(c.parent_id)?.name ?? c.name;
     return c.name;
   };
+  // Type de catégorie (recette vs dépense) : REVENUS = seulement les vraies recettes.
+  const catTypeById = useMemo(() => { const m = new Map<string, 'income' | 'expense'>(); for (const c of categories ?? []) { const ty = (c as any).type; if (ty === 'income' || ty === 'expense') m.set(c.id, ty); } return m; }, [categories]);
+  const categoryType = (categoryId: string | null | undefined): 'income' | 'expense' | null => (categoryId ? (catTypeById.get(categoryId) ?? null) : null);
 
   // ── Fenêtre de mois (période choisie, bornée à la 1ʳᵉ donnée). ──
   const dataStartYM = useMemo(() => {
@@ -428,11 +498,15 @@ export default function ReportingScreen() {
     for (const t of allTx as any[]) { const ym = (t.date ?? '').substring(0, 7); if (ym && (!earliest || ym < earliest)) earliest = ym; }
     return earliest;
   }, [allAccounts, allTx]);
-  const months = useMemo(() => monthsWindow(period, dataStartYM), [period, dataStartYM]);
+  // Fenêtres fixes (plus de sélecteur) : 12 mois pour les tendances, 6 mois pour les barres (lisibilité).
+  const months = useMemo(() => monthsWindow(12, dataStartYM), [dataStartYM]);
+  const monthsBars = useMemo(() => monthsWindow(6, dataStartYM), [dataStartYM]);
 
   // ── Séries. ──
-  const monthlyFlux = useMemo(() => buildMonthlyFlux(fluxTx, months), [fluxTx, months]);
+  const monthlyFlux = useMemo(() => buildMonthlyFlux(fluxTx, months, categoryType), [fluxTx, months, catTypeById]);
+  const monthlyFluxBars = useMemo(() => buildMonthlyFlux(fluxTx, monthsBars, categoryType), [fluxTx, monthsBars, catTypeById]);
   const savingsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], months, typeById), [allTx, months, typeById]);
+  const savingsBarsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], monthsBars, typeById), [allTx, monthsBars, typeById]);
   const idsOfType = (t: string) => new Set(allAccounts.filter((a: any) => a.type === t).map((a: any) => a.id));
   const allIds = useMemo(() => new Set(allAccounts.map((a: any) => a.id)), [allAccounts]);
   const today = todayISO();
@@ -443,8 +517,8 @@ export default function ReportingScreen() {
 
   const curYm = today.substring(0, 7);
   const prevYm = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }, []);
-  const categoryBreakdown = useMemo(() => buildCategoryBreakdown(fluxTx, curYm, grandCategoryName, 7), [fluxTx, curYm, catById]);
-  const topCategories = useMemo(() => buildTopCategoriesCompare(fluxTx, curYm, prevYm, grandCategoryName, 5), [fluxTx, curYm, prevYm, catById]);
+  const categoryBreakdown = useMemo(() => buildCategoryBreakdown(fluxTx, curYm, grandCategoryName, categoryType, 7), [fluxTx, curYm, catById, catTypeById]);
+  const topCategories = useMemo(() => buildTopCategoriesCompare(fluxTx, curYm, prevYm, grandCategoryName, categoryType, 5), [fluxTx, curYm, prevYm, catById, catTypeById]);
 
   // ── KPIs. ──
   const patrimoineTotal = useMemo(() => allAccounts.reduce((sum: number, a: any) => sum + Number(a.balance), 0), [allAccounts]);
@@ -453,7 +527,10 @@ export default function ReportingScreen() {
   const monthSaved = savingsSeries[savingsSeries.length - 1]?.saved ?? 0;
   const monthIncome = lastFlux?.income ?? 0;
   const savingsRate = monthIncome > 0 ? Math.round((monthSaved / monthIncome) * 100) : 0;
-  const expenseDelta = lastFlux && prevFlux && prevFlux.expense > 0 ? Math.round(((lastFlux.expense - prevFlux.expense) / prevFlux.expense) * 100) : null;
+  // Écart de dépenses vs mois précédent : en € (toujours affichable, même si M-1 = 0 €) + % si calculable.
+  const expenseDiff = lastFlux && prevFlux ? lastFlux.expense - prevFlux.expense : null;
+  const expensePct = lastFlux && prevFlux && prevFlux.expense > 0 ? Math.round(((lastFlux.expense - prevFlux.expense) / prevFlux.expense) * 100) : null;
+  const avgMonthlyExpense = useMemo(() => { const v = monthlyFlux.map((m) => m.expense).filter((x) => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }, [monthlyFlux]);
 
   const balanceByType = { checking: (allAccounts as any[]).filter((a) => a.type === 'checking').reduce((s2, a) => s2 + Number(a.balance), 0), savings: (allAccounts as any[]).filter((a) => a.type === 'savings').reduce((s2, a) => s2 + Number(a.balance), 0), investment: (allAccounts as any[]).filter((a) => a.type === 'investment').reduce((s2, a) => s2 + Number(a.balance), 0) };
 
@@ -496,27 +573,19 @@ export default function ReportingScreen() {
 
           <FadeIn><BackRow C={C} onPress={goBack} /></FadeIn>
 
-          {/* Sélecteur de période */}
-          <FadeIn delay={60}>
-            <View style={s.periodRow}>
-              {([3, 6, 12] as ReportingPeriod[]).map((p) => {
-                const on = period === p;
-                return (
-                  <TouchableOpacity key={p} style={[s.periodBtn, on && { backgroundColor: C.violet, borderColor: C.violet }]} onPress={() => setPeriod(p)} activeOpacity={0.85}>
-                    <Text style={[s.periodTxt, { color: on ? '#fff' : C.textSecondary }]}>{p} mois</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </FadeIn>
-
           {/* KPIs */}
           <FadeIn delay={100}>
             <View style={s.kpiRow}>
               <KpiCard icon="layers-outline" label="Patrimoine net" value={fmtFull(patrimoineTotal)} color={ACCOUNT_COLORS.checking} sub={netWorthTotal.length >= 2 ? `${fmtSigned(netWorthTotal[netWorthTotal.length - 1].value - netWorthTotal[0].value)} sur ${months.length} mois` : undefined} />
               <KpiCard icon="wallet-outline" label="Net du mois" value={lastFlux ? fmtSigned(lastFlux.net) : '—'} color={lastFlux && lastFlux.net >= 0 ? C.income : C.expense} sub={lastFlux ? `${fmtFull(lastFlux.income)} − ${fmtFull(lastFlux.expense)}` : undefined} />
               <KpiCard icon="shield-checkmark-outline" label="Taux d'épargne" value={`${savingsRate} %`} color={C.income} sub={`${fmtFull(monthSaved)} mis de côté`} />
-              <KpiCard icon="swap-vertical-outline" label="Dépenses vs M-1" value={expenseDelta == null ? '—' : `${expenseDelta > 0 ? '+' : ''}${expenseDelta} %`} color={expenseDelta != null && expenseDelta > 0 ? C.expense : C.income} sub={lastFlux ? fmtFull(lastFlux.expense) : undefined} />
+              <KpiCard
+                icon="swap-vertical-outline"
+                label="Dépenses vs M-1"
+                value={expenseDiff == null ? '—' : fmtSigned(expenseDiff)}
+                color={expenseDiff != null && expenseDiff > 0 ? C.expense : C.income}
+                sub={lastFlux ? `${fmtFull(lastFlux.expense)} ce mois${expensePct != null ? ` · ${expensePct > 0 ? '+' : ''}${expensePct} %` : ''}` : undefined}
+              />
             </View>
           </FadeIn>
 
@@ -551,9 +620,9 @@ export default function ReportingScreen() {
                 <AreaLineChart points={netWorthTotal} width={chartWidth} color={ACCOUNT_COLORS.checking} height={120} />
               </View>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <CompositionTile label="Courant" value={balanceByType.checking} color={ACCOUNT_COLORS.checking} points={checkingSeries} width={(chartWidth - 20) / 3 - 22} />
-                <CompositionTile label="Épargne" value={balanceByType.savings} color={ACCOUNT_COLORS.savings} points={savingsBalSeries} width={(chartWidth - 20) / 3 - 22} />
-                <CompositionTile label="Invest." value={balanceByType.investment} color={ACCOUNT_COLORS.investment} points={investSeries} width={(chartWidth - 20) / 3 - 22} />
+                <CompositionTile label="Courant" value={balanceByType.checking} color={ACCOUNT_COLORS.checking} points={checkingSeries} width={(chartWidth + 12) / 3 - 22} />
+                <CompositionTile label="Épargne" value={balanceByType.savings} color={ACCOUNT_COLORS.savings} points={savingsBalSeries} width={(chartWidth + 12) / 3 - 22} />
+                <CompositionTile label="Invest." value={balanceByType.investment} color={ACCOUNT_COLORS.investment} points={investSeries} width={(chartWidth + 12) / 3 - 22} />
               </View>
             </View>
           </FadeIn>
@@ -564,19 +633,19 @@ export default function ReportingScreen() {
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="pie-chart-outline" size={20} color={C.cat[0]} /><Text style={s.sectionTitle}>Où part mon argent</Text></View>
               <Text style={s.sectionSub}>Répartition des dépenses du mois en cours</Text>
-              <View style={s.chartCard}><CategoryDonut data={categoryBreakdown} width={chartWidth - 32} /></View>
+              <View style={s.chartCard}><CategoryDonut data={categoryBreakdown} width={chartWidth} /></View>
             </View>
           </FadeIn>
           <FadeIn delay={330}>
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="bar-chart-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Revenus vs Dépenses</Text></View>
-              <Text style={s.sectionSub}>{months.length} mois</Text>
+              <Text style={s.sectionSub}>{monthsBars.length} mois · touche un mois pour le détail</Text>
               <View style={s.chartCard}>
                 <View style={s.legendRow}>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.legendSmall}>Revenus</Text></View>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.legendSmall}>Dépenses</Text></View>
                 </View>
-                {monthlyFlux.length > 0 ? <IncomeExpenseBars data={monthlyFlux} width={chartWidth} /> : <Text style={s.emptyChart}>Aucune transaction</Text>}
+                {monthlyFluxBars.length > 0 ? <IncomeExpenseBars data={monthlyFluxBars} width={chartWidth} /> : <Text style={s.emptyChart}>Aucune transaction</Text>}
               </View>
             </View>
           </FadeIn>
@@ -593,33 +662,19 @@ export default function ReportingScreen() {
           {pilotage ? (
             <FadeIn delay={440}>
               <View style={s.section}>
-                <View style={s.sectionHeader}><Ionicons name="pulse-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Santé financière</Text></View>
-                <Text style={s.sectionSub}>Épargne de sécurité & tendances</Text>
+                <View style={s.sectionHeader}><Ionicons name="shield-checkmark-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Épargne de sécurité</Text></View>
+                <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
                 <View style={s.chartCard}>
-                  <HealthIndicator label="Épargne de sécurité" value={pilotage.current_savings} thresholds={[{ level: pilotage.safety_threshold_min, label: 'Min', color: C.expense }, { level: pilotage.safety_threshold_optimal, label: 'Optimal', color: C.amber }, { level: pilotage.safety_threshold_comfort, label: 'Confort', color: C.income }]} />
-                  <View style={{ height: 10 }} />
-                  <View style={s.healthRow}>
-                    <View style={s.healthItem}>
-                      <Text style={s.healthLabel}>Tendance variables</Text>
-                      <Text style={[s.healthValue, { color: pilotage.variable_trend_percentage <= 100 ? C.income : C.expense }]}>{pilotage.variable_trend_percentage.toFixed(0)}%</Text>
-                      <Text style={s.healthHint}>{pilotage.variable_trend_percentage <= 100 ? 'Sous contrôle' : 'Attention'}</Text>
-                    </View>
-                    <View style={s.healthDivider} />
-                    <View style={s.healthItem}>
-                      <Text style={s.healthLabel}>Surplus projeté</Text>
-                      <Text style={[s.healthValue, { color: pilotage.projected_surplus > 0 ? C.income : C.textSecondary }]}>{fmtFull(pilotage.projected_surplus)}</Text>
-                      <Text style={s.healthHint}>{pilotage.recommendation}</Text>
-                    </View>
-                  </View>
+                  <SafetyGauge value={pilotage.current_savings} min={pilotage.safety_threshold_min} optimal={pilotage.safety_threshold_optimal} comfort={pilotage.safety_threshold_comfort} monthsCovered={avgMonthlyExpense > 0 ? Math.round(pilotage.current_savings / avgMonthlyExpense) : null} />
                 </View>
               </View>
             </FadeIn>
           ) : null}
           <FadeIn delay={480}>
             <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={C.amber} /><Text style={s.sectionTitle}>Reste chaque mois</Text></View>
-              <Text style={s.sectionSub}>Revenus − dépenses, avec le taux d'épargne · {months.length} mois</Text>
-              <View style={s.chartCard}><NetBars data={monthlyFlux} width={chartWidth} /></View>
+              <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={ACCOUNT_COLORS.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
+              <Text style={s.sectionSub}>Virements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
+              <View style={s.chartCard}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
             </View>
           </FadeIn>
 
@@ -697,10 +752,6 @@ function makeStyles(C: any) {
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 120 },
 
-    periodRow: { flexDirection: 'row', gap: 8, marginBottom: 4 },
-    periodBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.cardBorder, backgroundColor: C.card },
-    periodTxt: { fontSize: 13, fontWeight: '700' },
-
     kpiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
     kpiCard: { flexGrow: 1, flexBasis: '46%', backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.cardBorder, borderLeftWidth: 3, paddingVertical: 12, paddingHorizontal: 14 },
     kpiLabel: { fontSize: 11.5, color: C.textSecondary, fontWeight: '600', flex: 1 },
@@ -722,6 +773,13 @@ function makeStyles(C: any) {
     legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 12 },
     legendInline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     legendSmall: { fontSize: 11, color: C.textSecondary },
+
+    ieDetail: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.cardBorder, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+    ieDetailMonth: { fontSize: 13, fontWeight: '800', color: C.text, textTransform: 'capitalize' },
+    ieDetailVals: { flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' },
+    ieDetailItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    ieDetailTxt: { fontSize: 13, fontWeight: '700', color: C.text },
+    ieDetailNetLabel: { fontSize: 11, color: C.textSecondary, fontWeight: '600' },
 
     healthRow: { flexDirection: 'row' },
     healthItem: { flex: 1, alignItems: 'center' },
