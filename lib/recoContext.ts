@@ -52,9 +52,11 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
       const y20 = futureValue(0, monthly, 20);
       return `💡 Et si tu te lançais ? ${fmt(monthly)} ${S}/mois à 7 %/an, ça pourrait faire ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans.`;
     }
-    const y10base = futureValue(fin.totalInvested, 0, 10);
-    const y10plus = futureValue(fin.totalInvested, monthly, 10);
-    return `💡 Tes ${fmt(fin.totalInvested)} ${S} déjà investis pourraient devenir ~${fmt(y10base)} ${S} dans 10 ans, avec un rendement à 7 %/an.`;
+    // Projection en RÉPÉTANT le versement chaque mois (avec l'existant comme capital de départ) —
+    // bien plus parlant que la seule croissance de l'existant.
+    const y10 = futureValue(fin.totalInvested, monthly, 10);
+    const y20 = futureValue(fin.totalInvested, monthly, 20);
+    return `💡 En investissant ${fmt(monthly)} ${S}/mois (en plus de tes ${fmt(fin.totalInvested)} ${S} déjà placés), tu pourrais avoir ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans, à 7 %/an.`;
   }
 
   if (type === 'save') {
