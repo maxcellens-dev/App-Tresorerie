@@ -30,6 +30,12 @@ export interface SmartRecommendation {
   description: string;
   /** Montant en euros */
   amount: number;
+  /**
+   * Montant « actionnable » : borne basse (« minimum sûr ») quand les montants sont affichés en
+   * fourchette, sinon = amount. C'est LUI qui est interpolé dans les textes et pré-rempli dans les
+   * actions (virement / réservation / cumul) — on ne pousse jamais à déplacer de l'argent incertain.
+   */
+  actionAmount: number;
   /** Pourcentage du safe_to_spend (0-100) */
   percentage: number;
   /** Couleur d'accent */
@@ -228,6 +234,18 @@ export interface ComputeRecoOptions {
    * premier, excédent → « Conserver »). Ignoré si margin ≤ 0 ou balances vide.
    */
   projectionGuard?: { balances: number[]; margin: number };
+  /**
+   * Plafond absolu du montant d'une reco (= reste réellement disponible « Ton Relyka », arrondi à
+   * la dizaine). Appliqué AVANT la construction des textes → montant affiché, description, conseils
+   * et CTA partagent la même valeur (pas de clamp après coup côté écran).
+   */
+  maxAmount?: number;
+  /**
+   * Montant « actionnable » pour les textes et CTA : borne basse « minimum sûr » quand les montants
+   * sont affichés en fourchette (confiance moyenne/basse), sinon identité. Fourni par l'écran
+   * (useReliability.proportional) pour rester alignée sur la fourchette du titre de la reco.
+   */
+  actionAmountFor?: (amount: number) => { value: number; isRange: boolean };
 }
 
 export function computeRecommendations(
@@ -244,7 +262,7 @@ export function computeRecommendations(
     data.total_checking < (data.safety_margin_amount ?? 0)
   ) {
     if (budget <= 0) return [];
-    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data)];
+    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts)];
   }
 
   // Garde-fou PROJECTION (moyen terme) : si la trajectoire de trésorerie plonge sous le coussin
@@ -253,7 +271,7 @@ export function computeRecommendations(
   // comme le garde-fou marge ci-dessus (n'agit qu'en situation de danger projeté).
   if (data.projection_in_danger) {
     if (budget <= 0) return [];
-    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data)];
+    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts)];
   }
 
   // Garde-fou MARGE × PROJECTION 6 MOIS : point bas de la trajectoire (écran Projection). S'il est
@@ -265,8 +283,8 @@ export function computeRecommendations(
   if (guardTrough != null && guardTrough <= guard!.margin) {
     if (budget <= 0) return [];
     return [{
-      ...buildRecommendation('keep', 100, Math.round(budget), 'critical', data),
-      guardNote: `Ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : Il vaut mieux conserver ce mois-ci.`,
+      ...buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts),
+      guardNote: `Ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : il vaut mieux conserver ce mois-ci.`,
     }];
   }
 
@@ -409,18 +427,19 @@ export function computeRecommendations(
     if (net <= 0) continue;
     const min = thresholdByType[type] ?? 0;
     if (net < min) continue;
-    result.push(buildRecommendation(type, alloc[type], net, tier, data));
+    result.push(buildRecommendation(type, alloc[type], net, tier, data, opts));
   }
 
   // 10. Notes du garde-fou + conseil « virement récurrent » (tenable ou non en répétant le montant
   // chaque mois : au mois k, le solde projeté porte k+1 exécutions). Le conseil n'est affiché que si
-  // la reco n'a PAS été réduite (sinon le message de réduction suffit).
+  // la reco n'a PAS été réduite (sinon le message de réduction suffit). Basé sur le montant
+  // ACTIONNABLE (borne basse en fourchette) : c'est lui qu'on propose en virement.
   if (guardTrough != null) {
     for (const reco of result) {
       const note = guardNotes[reco.type];
       if (note) reco.guardNote = note;
       if ((reco.type === 'save' || reco.type === 'invest') && !note) {
-        reco.recurringNote = buildRecurringNote(reco.amount, guard!.balances, guard!.margin);
+        reco.recurringNote = buildRecurringNote(reco.actionAmount, guard!.balances, guard!.margin);
       }
     }
   }
@@ -555,25 +574,37 @@ function normalizeAllocations(alloc: Record<RecoType, number>) {
 
 /* ── Construction de chaque recommandation ────────────────── */
 
+/** Montant « actionnable » interpolé dans les textes : « 90 € » ou « au moins 90 € » (minimum sûr). */
+interface ActionAmount { value: number; isRange: boolean }
+
+function amountPhrase(a: ActionAmount): string {
+  return `${a.isRange ? 'au moins ' : ''}${a.value.toLocaleString('fr-FR')} €`;
+}
+
 function buildRecommendation(
   type: RecoType,
   percentage: number,
   rawAmount: number,
   tier: SavingsTier,
   data: PilotageData,
+  opts?: Pick<ComputeRecoOptions, 'maxAmount' | 'actionAmountFor'>,
 ): SmartRecommendation {
-  // Montant « proposition » : arrondi à la dizaine inférieure → le montant affiché, les
-  // sous-textes/conseils (qui interpolent `amount`) et l'action validée (virement/conservation)
-  // partagent tous cette même valeur arrondie.
-  const amount = Math.max(0, floorToTen(rawAmount));
+  // Montant « proposition » : plafonné au reste réellement disponible (maxAmount) PUIS arrondi à la
+  // dizaine inférieure → le montant affiché, les sous-textes/conseils et l'action validée
+  // (virement/conservation) partagent tous cette même valeur.
+  const capped = opts?.maxAmount != null ? Math.min(rawAmount, opts.maxAmount) : rawAmount;
+  const amount = Math.max(0, floorToTen(capped));
+  // Montant actionnable : borne basse « minimum sûr » si les montants sont en fourchette.
+  const action: ActionAmount = opts?.actionAmountFor?.(amount) ?? { value: amount, isRange: false };
   switch (type) {
     case 'save':
       return {
         type,
         title: 'Épargner',
         shortTitle: 'Épargner',
-        description: getSaveDescription(tier, amount, data),
+        description: getSaveDescription(tier, action, data),
         amount,
+        actionAmount: action.value,
         percentage,
         color: RECO_COLORS.save,
         icon: RECO_ICONS.save,
@@ -585,8 +616,9 @@ function buildRecommendation(
         type,
         title: 'Investir',
         shortTitle: 'Investir',
-        description: getInvestDescription(tier, amount, data),
+        description: getInvestDescription(tier, action, data),
         amount,
+        actionAmount: action.value,
         percentage,
         color: RECO_COLORS.invest,
         icon: RECO_ICONS.invest,
@@ -598,8 +630,9 @@ function buildRecommendation(
         type,
         title: 'Confort',
         shortTitle: 'Confort',
-        description: getEnjoyDescription(amount, data),
+        description: getEnjoyDescription(action, data),
         amount,
+        actionAmount: action.value,
         percentage,
         color: RECO_COLORS.enjoy,
         icon: RECO_ICONS.enjoy,
@@ -611,8 +644,9 @@ function buildRecommendation(
         type,
         title: 'Conserver pour plus tard',
         shortTitle: 'Conserver',
-        description: getKeepDescription(amount, data),
+        description: getKeepDescription(action, data),
         amount,
+        actionAmount: action.value,
         percentage,
         color: RECO_COLORS.keep,
         icon: RECO_ICONS.keep,
@@ -630,7 +664,7 @@ function securityMonthsLabel(months: number): string {
   return `${Math.round(months)} mois`;
 }
 
-function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageData): string {
+function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: PilotageData): string {
   // Approche générique : épargne de sécurité totale + nb de mois de sécurité (= mois de REVENUS
   // couverts par l'épargne) + appréciation de niveau. Plus parlant qu'un écart à un « seuil » abstrait.
   const savings = Math.max(0, data.current_savings);
@@ -648,28 +682,28 @@ function getSaveDescription(tier: SavingsTier, amount: number, data: PilotageDat
 
   // Revenu non détecté → on n'affiche pas les « mois de sécurité » (juste le total + l'appréciation).
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
-  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. \nPlace ${amount} € ce mois-ci pour la consolider.`;
+  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. \nPlace ${amountPhrase(action)} ce mois-ci pour la consolider.`;
 }
 
-function getInvestDescription(tier: SavingsTier, amount: number, _data: PilotageData): string {
+function getInvestDescription(tier: SavingsTier, action: ActionAmount, _data: PilotageData): string {
   if (tier === 'comfortable') {
-    return `Ton épargne est confortable. Place ${amount} € sur tes investissements pour faire fructifier ton patrimoine.`;
+    return `Ton épargne est confortable. Place ${amountPhrase(action)} sur tes investissements pour faire fructifier ton patrimoine.`;
   }
   if (tier === 'healthy') {
-    return `Bonne santé financière ! Investis ${amount} € pour diversifier ton patrimoine.`;
+    return `Bonne santé financière ! Investis ${amountPhrase(action)} pour diversifier ton patrimoine.`;
   }
-  return `Commence à investir ${amount} € même modestement pour préparer l'avenir.`;
+  return `Commence à investir ${amountPhrase(action)}, même modestement, pour préparer l'avenir.`;
 }
 
-function getEnjoyDescription(amount: number, _data: PilotageData): string {
+function getEnjoyDescription(action: ActionAmount, _data: PilotageData): string {
   // « Confort » = la marge totalement libre, une fois tes dépenses variables habituelles couvertes.
   // C'est elle qui est entamée en premier si tu dépenses au-delà de ton budget variable.
-  return `Il te reste ${amount} € totalement disponibles ce mois-ci. \nFais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
+  return `Il te reste ${amountPhrase(action)} totalement disponibles ce mois-ci. \nFais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
-function getKeepDescription(amount: number, data: PilotageData): string {
+function getKeepDescription(action: ActionAmount, data: PilotageData): string {
   if (data.current_checking_balance < data.committed_allocations * 2) {
-    return `Ton solde courant est un peu juste. Garde ${amount} € en réserve pour couvrir les imprévus.`;
+    return `Ton solde courant est un peu juste. Garde ${amountPhrase(action)} en réserve pour couvrir les imprévus.`;
   }
-  return `Conserve ${amount} € sur ton compte courant comme marge de manœuvre pour le mois prochain.\nCette somme sera déduite de ton Relyka pour ne pas y toucher.`;
+  return `Conserve ${amountPhrase(action)} sur ton compte courant comme marge de manœuvre pour le mois prochain. Cette somme sera déduite de ton Relyka pour ne pas y toucher.`;
 }

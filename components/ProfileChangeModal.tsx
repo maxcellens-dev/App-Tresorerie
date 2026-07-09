@@ -6,6 +6,7 @@ import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
+import { sheetWidth } from '../lib/appLayout';
 
 
 interface Props {
@@ -178,6 +179,7 @@ function makeStyles(c: any) {
     justifyContent: 'flex-end',
   },
   sheet: {
+    ...sheetWidth,
     backgroundColor: c.cardSolid,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,

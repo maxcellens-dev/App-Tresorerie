@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCIES, currencySymbolFor } from '../lib/currency';
+import { sheetWidth } from '../lib/appLayout';
 
 interface Props {
   value: string;                       // code ISO sélectionné
@@ -110,6 +111,7 @@ function makeStyles(c: any) {
 
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: {
+      ...sheetWidth,
       backgroundColor: c.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
       paddingTop: 12, paddingHorizontal: 20, maxHeight: '80%', borderTopWidth: 1, borderColor: c.cardBorder,
     },

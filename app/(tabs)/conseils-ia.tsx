@@ -13,6 +13,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useNavBack } from '../../hooks/useNavBack';
+import { sheetWidth } from '../../lib/appLayout';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
@@ -578,7 +579,7 @@ function makeStyles(c: any) {
     rechargeTitle: { fontSize: 13.5, fontWeight: '800', color: c.text },
     rechargeSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     payOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    paySheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32 },
+    paySheet: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32 },
     paySheetTitle: { fontSize: 20, fontWeight: '800', color: c.text, textAlign: 'center' },
     paySheetSub: { fontSize: 13, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
     // Confirmation « utiliser 1 requête » — dialogue centré (pas une feuille du bas)

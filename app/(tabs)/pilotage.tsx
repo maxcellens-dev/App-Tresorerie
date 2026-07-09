@@ -51,6 +51,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { semanticText, pastelFill } from '../../theme/palette';
 import { CURRENCY_SYMBOL, floorToTen, convertAmount } from '../../lib/currency';
+import { sheetWidth } from '../../lib/appLayout';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../../hooks/useReliability';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
@@ -381,6 +382,8 @@ export default function PilotageScreen() {
     keep:   COLORS.blue,
   };
   // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
+  // Plafond passé AU MOTEUR (maxAmount) et non appliqué après coup : sinon la description et les
+  // conseils interpolent le montant d'avant-plafond (ex. « Conserve 600 € » avec un titre à 270 €).
   const recoList = pilotageData
     ? computeRecommendations(pilotageData, {
         customTierAllocations: customTiers,
@@ -396,12 +399,18 @@ export default function PilotageScreen() {
           balances: pilotageData.projection_balances_6m,
           margin: pilotageData.safety_margin_amount ?? 0,
         },
+        maxAmount: Math.max(0, floorToTen(resteDisponible)),
+        // Montant « actionnable » (textes + CTA) = borne basse « minimum sûr » quand les montants
+        // sont en fourchette — la MÊME borne basse que le titre de la reco (relConf.proportional).
+        actionAmountFor: (amount) => {
+          const r = relConf?.proportional(amount);
+          return r?.isRange
+            ? { value: Math.max(0, floorToTen(r.low)), isRange: true }
+            : { value: amount, isRange: false };
+        },
       }).map((r) => ({
         ...r,
         color: recoColorByType[r.type] ?? r.color,
-        // Plafonné au reste réellement disponible, lui aussi arrondi à la dizaine inférieure
-        // (cohérent avec l'affichage « Ton Relyka »). r.amount est déjà arrondi par le moteur.
-        amount: Math.min(r.amount, Math.max(0, floorToTen(resteDisponible))),
       }))
     : [];
 
@@ -576,11 +585,13 @@ export default function PilotageScreen() {
   // Étape « Suivre une recommandation » validée dès qu'on utilise un bouton de reco.
   const markRecoUsed = () => updateOnboarding.mutate({ flags: { reco_validated: true } });
 
-  // Ouvrir le virement pré-rempli pour une reco épargne/invest
+  // Ouvrir le virement pré-rempli pour une reco épargne/invest.
+  // Pré-rempli avec le montant ACTIONNABLE (borne basse « minimum sûr » en fourchette) : on ne
+  // pousse pas à virer de l'argent dont on n'est pas sûr — même chiffre que dans les textes.
   const openRecoTransfer = (reco: SmartRecommendation, dest: 'savings' | 'investment') => {
     markRecoUsed();
     const label = dest === 'savings' ? 'Épargne' : 'Investissement';
-    router.push(buildTransferUrl({ dest, amount: reco.amount, label: `${label} ${monthYearLabel()}`, recoComplete: reco.type }) as any);
+    router.push(buildTransferUrl({ dest, amount: reco.actionAmount ?? reco.amount, label: `${label} ${monthYearLabel()}`, recoComplete: reco.type }) as any);
   };
 
   // Ouvrir le virement global d'un cumul (depuis la modale)
@@ -700,6 +711,8 @@ export default function PilotageScreen() {
               // Montant affiché arrondi à la dizaine inférieure ; le détail « Ton Relyka » (au clic) garde le vrai calcul.
               relykaAmount={floorToTen(resteDisponible)}
               relykaColor={resteDisponible < 0 ? COLORS.danger : Math.round(resteDisponible) <= 0 ? COLORS.orange : COLORS.emerald}
+              // Message PÉDAGOGIQUE : imprimer ce qu'EST le Relyka (le reste estimé à la fin du
+              // mois, une fois les dépenses habituelles couvertes → utilisable via les recos).
               relykaMessage={
                 resteDisponible < 0
                   ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
@@ -707,7 +720,9 @@ export default function PilotageScreen() {
                   ? (Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
                       ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
                       : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.')
-                  : 'Voici ce qu\'il devrait te rester après tes dépenses habituelles. Utilise-le sagement, idéalement en suivant les recommandations.'
+                  : relConf?.relykaRange.isRange
+                  ? 'Voici c\'est ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
+                  : 'Voici c\'est ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.'
               }
               recommendations={recoList}
               doneByType={{
@@ -731,13 +746,13 @@ export default function PilotageScreen() {
               onCreateAccount={() => router.push('/(tabs)/comptes' as any)}
               onEpargner={(reco) => openRecoTransfer(reco, 'savings')}
               onInvestir={(reco) => openRecoTransfer(reco, 'investment')}
-              onCumuler={(type, reco) => { markRecoUsed(); setPreModalAmount(reco.amount); setPreModal(type); }}
+              onCumuler={(type, reco) => { markRecoUsed(); setPreModalAmount(reco.actionAmount ?? reco.amount); setPreModal(type); }}
               reservedThisMonth={reservationsTotal}
               onReserver={(reco, amount) => {
                 markRecoUsed();
                 // `amount` = nouveau TOTAL conservé du mois (incluant cette reco) → on remplace.
                 const monthYear = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                const newTotal = Math.round(amount ?? (reservationsTotal + reco.amount));
+                const newTotal = Math.round(amount ?? (reservationsTotal + (reco.actionAmount ?? reco.amount)));
                 setMonthlyReservation.mutate({ montant: newTotal, libelle: `Réservé ${monthYear}` });
               }}
             />
@@ -1932,7 +1947,7 @@ function makeStyles(c: AppColors) {
   detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   /* Feuille du bas — détail d'une transaction depuis les modaux Épargné/Investi */
   txSheetOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
-  txSheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  txSheet: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
   txSheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, marginBottom: 14 },
   txSheetAmount: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
   txSheetLabel: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },

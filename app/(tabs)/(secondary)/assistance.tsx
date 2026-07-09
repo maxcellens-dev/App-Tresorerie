@@ -11,6 +11,7 @@ import { useNavBack } from '../../../hooks/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useMySupportRequests, useCreateSupportRequest, type SupportRequest } from '../../../hooks/useSupport';
+import { sheetWidth } from '../../../lib/appLayout';
 import SupportThreadModal from '../../../components/SupportThreadModal';
 
 
@@ -220,7 +221,7 @@ function makeStyles(c: any) {
   faqA: { fontSize: 13, color: c.textSecondary, lineHeight: 18 },
   // Modal nouvelle demande
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalBox: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
+  modalBox: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
   modalLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 8, marginBottom: 6 },

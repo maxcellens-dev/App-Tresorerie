@@ -13,6 +13,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStep } from '../hooks/useOnboarding';
 import { useTour } from '../contexts/TourContext';
 import { subscribeChecklistOpen, openOnboardingChecklist, closeOnboardingChecklist } from '../lib/onboardingChecklist';
+import { sheetWidth } from '../lib/appLayout';
 
 export default function OnboardingChecklist() {
   const COLORS = useAppColors();
@@ -120,7 +121,7 @@ function makeStyles(c: any) {
     badgeCount: { },
     badgeCountText: { fontSize: 12, fontWeight: '800', color: c.emerald },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 20, paddingBottom: 32 },
+    sheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 20, paddingBottom: 32 },
     header: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
     title: { fontSize: 20, fontWeight: '800', color: c.text },
     subtitle: { fontSize: 13, color: c.textSecondary, marginTop: 2 },

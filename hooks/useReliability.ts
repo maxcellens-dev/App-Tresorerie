@@ -156,15 +156,19 @@ export function deriveRelykaConfidence(
   const result = computeConfidence({
     today: new Date(),
     lastVerifiedAt: inputs?.lastVerifiedAt ?? null,
+    lastActivityAt: inputs?.lastActivityAt ?? null,
     calibration: inputs?.calibration ?? null,
     relyka,
     floorBase: inputs?.floorBase ?? 0,
     config,
   });
   const relykaRange = toRange(relyka, result, config);
-  // Ratios de fourchette du Relyka, réappliqués proportionnellement à chaque sous-montant.
-  const lowRatio = relyka > 0 ? relykaRange.low / relyka : 1;
-  const highRatio = relyka > 0 ? relykaRange.high / relyka : 1;
+  // Ratios de fourchette réappliqués proportionnellement à chaque sous-montant. Calculés sur les
+  // bornes BRUTES (doute non arrondi) — pas sur relykaRange, arrondi au roundStep (centaine) : sinon
+  // l'erreur d'arrondi du Relyka se propage ×ratio à toutes les sous-fourchettes. L'arrondi des
+  // sous-montants n'intervient qu'à l'affichage (dizaine inférieure).
+  const lowRatio = relyka > 0 ? Math.max(0, relyka - result.uncertaintyEur) / relyka : 1;
+  const highRatio = relyka > 0 ? (relyka + result.uncertaintyEur * config.upBias) / relyka : 1;
   const proportional = (amount: number): Range => {
     if (!relykaRange.isRange) return { low: amount, high: amount, isRange: false };
     const low = Math.round(amount * lowRatio);

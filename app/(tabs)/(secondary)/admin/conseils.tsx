@@ -15,6 +15,7 @@ import { useAllConseils } from '../../../../hooks/useConseils';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/supabase';
+import { sheetWidth } from '../../../../lib/appLayout';
 import type { Conseil } from '../../../../hooks/useConseils';
 
 export default function AdminConseils() {
@@ -198,7 +199,7 @@ function makeStyles(c: any) {
     editBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start' },
     editBtnText: { fontSize: 12, color: c.textSecondary },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+    modalSheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
     modalTitle: { fontSize: 17, fontWeight: '800', color: c.text },
     critereInfo: { fontSize: 12.5, color: c.textSecondary, marginBottom: 10 },

@@ -57,21 +57,21 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   if (!i.hasBalance) {
     return {
       type: 'setup', title: 'Renseigne ton solde',
-      reason: 'tes chiffres seront fiables dès le départ', eta: '~30 s',
+      reason: 'tes chiffres seront fiables dès le départ', eta: '(~30 s)',
       deeplink: balanceLink, dismissKey: 'setup:balance',
     };
   }
   if (!i.hasIncome) {
     return {
       type: 'setup', title: 'Ajoute ton revenu principal',
-      reason: "l'app anticipera tes rentrées d'argent", eta: '~30 s',
+      reason: "l'app anticipera tes rentrées d'argent", eta: '(~30 s)',
       deeplink: '/(tabs)/transactions/add?type=income', dismissKey: 'setup:income',
     };
   }
   if (!i.hasFixed) {
     return {
       type: 'setup', title: 'Ajoute tes charges fixes',
-      reason: 'loyer, abonnements… pour un budget réaliste', eta: '~1 min',
+      reason: 'loyer, abonnements… pour un budget réaliste', eta: '(~1 min)',
       deeplink: '/(tabs)/transactions/add?type=expense', dismissKey: 'setup:fixed',
     };
   }
@@ -80,7 +80,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   if (i.sharedModePrompt) {
     return {
       type: 'shared_mode', title: 'Comment utilises-tu ce compte commun ?',
-      reason: `« ${i.sharedModePrompt.name} » — pour des chiffres justes`, eta: '~15 s',
+      reason: `« ${i.sharedModePrompt.name} » — pour des chiffres justes`, eta: '(~15 s)',
       deeplink: `/(tabs)/comptes/edit/${i.sharedModePrompt.accountId}`,
       dismissKey: `shared_mode:${i.sharedModePrompt.accountId}`,
     };
@@ -90,7 +90,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   if (i.closureEnabled && i.pendingClosureMonth) {
     return {
       type: 'soft_close', title: `Clôture ton mois de ${monthLabel(i.pendingClosureMonth)}`,
-      reason: 'fige le passé pour fiabiliser tes calculs', eta: '~30 s',
+      reason: 'fige le passé pour fiabiliser tes calculs', eta: '(~30 s)',
       deeplink: '/(tabs)/pilotage?closure=1', dismissKey: `soft_close:${i.pendingClosureMonth}`,
     };
   }
@@ -102,7 +102,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
     return {
       type: 'check_balance', title: 'Vérifie ton solde',
       reason: `tes montants sont des estimations - \ntes données ne sont sans doute plus à jour (solde non vérifié ${unverifiedSincePhrase(i.daysSinceVerification)})`,
-      eta: '~30 s', deeplink: balanceLink, dismissKey: 'check_balance',
+      eta: '(~30 s)', deeplink: balanceLink, dismissKey: 'check_balance',
     };
   }
 
@@ -110,7 +110,7 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
   if (i.jointLow) {
     return {
       type: 'joint_low', title: 'Compte commun bientôt à découvert',
-      reason: `« ${i.jointLow.name} » : pense à faire une contribution`, eta: '~30 s',
+      reason: `« ${i.jointLow.name} » : pense à faire une contribution`, eta: '(~30 s)',
       deeplink: `/(tabs)/comptes/${i.jointLow.accountId}`,
       dismissKey: `joint_low:${i.jointLow.accountId}`,
     };

@@ -27,6 +27,7 @@ import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
+import { sheetWidth } from '../../../lib/appLayout';
 import { iconForTransaction } from '../../../lib/categoryIcons';
 import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
 
@@ -1221,7 +1222,7 @@ function makeStyles(c: any) {
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, width: '100%', maxWidth: 340, padding: 20 },
   detailOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
-  detailSheet: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  detailSheet: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
   detailHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, marginBottom: 14 },
   detailAmount: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
   detailLabelText: { fontSize: 14, color: c.textSecondary, textAlign: 'center', marginTop: 2 },

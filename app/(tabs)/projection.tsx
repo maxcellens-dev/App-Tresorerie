@@ -1111,7 +1111,8 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
               const ci = pilotage?.confidence_inputs;
               if (!ci) return 1;
               const conf = computeConfidence({
-                today: new Date(), lastVerifiedAt: ci.lastVerifiedAt ?? null, calibration: ci.calibration ?? null,
+                today: new Date(), lastVerifiedAt: ci.lastVerifiedAt ?? null, lastActivityAt: ci.lastActivityAt ?? null,
+                calibration: ci.calibration ?? null,
                 relyka: pilotage?.safe_to_spend ?? 0, floorBase: ci.floorBase ?? 0, config: resolveReliabilityConfig(null),
               });
               return conf.level === 'high' ? 1 : conf.level === 'medium' ? 1.6 : 2.2;

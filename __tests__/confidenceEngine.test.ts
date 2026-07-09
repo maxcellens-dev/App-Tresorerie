@@ -81,9 +81,56 @@ describe('computeConfidence — niveaux', () => {
   });
 });
 
+describe('computeConfidence — amortisseur d’activité (saisies du mois courant)', () => {
+  // Dérive 20 €/j, vérif il y a 20 j → doute brut 400, ratio 0.20 → basse sans activité.
+  const calib: DriftCalibration = { medianAbsGap: 400, medianDaysBetween: 20, sampleCount: 4 };
+  const base = {
+    today: TODAY, lastVerifiedAt: iso('2026-06-25'), calibration: calib,
+    relyka: 2000, floorBase: 2000, config: cfg,
+  };
+
+  it('saisie du jour → doute réduit (× activityDampening) et niveau remonté bas → moyen', () => {
+    const r = computeConfidence({ ...base, lastActivityAt: iso('2026-07-15') });
+    expect(r.activityDamped).toBe(true);
+    expect(r.uncertaintyEur).toBeCloseTo(400 * cfg.activityDampening, 0); // 200
+    expect(r.level).toBe('medium'); // ratio 0.10, entre highMax et lowMin
+  });
+
+  it('amortissement dégressif : saisie en milieu de fenêtre → facteur intermédiaire', () => {
+    // Saisie il y a 3 j sur une fenêtre de 7 → damp = 0.5 + 0.5 × 3/7 ≈ 0.714
+    const r = computeConfidence({ ...base, lastActivityAt: iso('2026-07-12') });
+    expect(r.activityDamped).toBe(true);
+    expect(r.uncertaintyEur).toBeCloseTo(400 * (0.5 + 0.5 * (3 / 7)), 0);
+  });
+
+  it('saisie plus vieille que la fenêtre → aucun effet', () => {
+    const r = computeConfidence({ ...base, lastActivityAt: iso('2026-07-01') }); // 14 j > 7
+    expect(r.activityDamped).toBe(false);
+    expect(r.uncertaintyEur).toBeCloseTo(400, 0);
+    expect(r.level).toBe('low');
+  });
+
+  it('ne fait JAMAIS passer en confiance haute (« À jour » = vraie vérif uniquement)', () => {
+    // Doute brut juste au-dessus de highMax : 20 €/j × 6 j = 120, ratio 0.06 ; amorti → 0.03 < highMax
+    const r = computeConfidence({
+      ...base, lastVerifiedAt: iso('2026-07-09'), lastActivityAt: iso('2026-07-15'),
+    });
+    expect(r.doubtRatio).toBeLessThan(cfg.highMax);
+    expect(r.level).toBe('medium'); // plafonné : pas de « haute » par simple activité
+  });
+
+  it('confiance haute LÉGITIME (doute brut déjà sous le seuil) : reste haute malgré l’activité', () => {
+    const calmCalib: DriftCalibration = { medianAbsGap: 2, medianDaysBetween: 30, sampleCount: 6 };
+    const r = computeConfidence({
+      ...base, calibration: calmCalib, lastVerifiedAt: iso('2026-07-05'), lastActivityAt: iso('2026-07-15'),
+    });
+    expect(r.level).toBe('high');
+  });
+});
+
 describe('toRange', () => {
-  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, dailyDrift: 0, coldStart: false };
-  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, dailyDrift: 22, coldStart: false };
+  const highConf = { level: 'high' as const, doubtRatio: 0, uncertaintyEur: 0, daysSinceVerification: 1, dailyDrift: 0, coldStart: false, activityDamped: false };
+  const medConf = { level: 'medium' as const, doubtRatio: 0.1, uncertaintyEur: 220, daysSinceVerification: 10, dailyDrift: 22, coldStart: false, activityDamped: false };
 
   it('confiance haute = pas de fourchette', () => {
     expect(toRange(2000, highConf, cfg)).toEqual({ low: 2000, high: 2000, isRange: false });

@@ -131,7 +131,7 @@ export interface PilotageData {
   /** Écart-type mensuel des dépenses variables (mois fiables). 0 si historique insuffisant. */
   variable_sigma: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
-  confidence_inputs: { lastVerifiedAt: string | null; calibration: DriftCalibration | null; floorBase: number };
+  confidence_inputs: { lastVerifiedAt: string | null; lastActivityAt: string | null; calibration: DriftCalibration | null; floorBase: number };
   /** Soldes courants projetés en fin de mois sur 6 mois (index 0 = mois courant) — même trajectoire
    *  que l'écran Projection (lib/tresoProjection). Alimente le garde-fou marge des recommandations. */
   projection_balances_6m: number[];
@@ -1145,6 +1145,20 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   }
   const reliability_calib = ((profile as any)?.reliability_calib ?? null) as DriftCalibration | null;
   const confidence_floor_base = Math.max(avgMonthlyIncome, variable_envelope_initial, 0);
+  // lastActivityAt = dernière SAISIE MANUELLE d'une transaction du mois courant (date de saisie
+  // `created_at`, pas la date de la transaction). Signal de SUIVI ACTIF qui amortit le doute
+  // (confidenceEngine.activityDampening) : un user qui saisit le 20 est plutôt à jour, même si sa
+  // dernière régul date. Exclus : réguls (déjà des vérifs), occurrences matérialisées de
+  // récurrentes (automatiques, pas une action du user), modèles récurrents et brouillons.
+  const currentMonthPrefix = todayStr.slice(0, 7);
+  let lastActivityAt: string | null = null;
+  for (const t of transactions as any[]) {
+    if (t.is_draft || t.materialized_from || (t.is_recurring && t.recurrence_rule)) continue;
+    if (isRegul(t)) continue;
+    if (String(t.date ?? '').slice(0, 7) !== currentMonthPrefix) continue;
+    const created = String(t.created_at ?? '').slice(0, 10);
+    if (created && created <= todayStr && (!lastActivityAt || created > lastActivityAt)) lastActivityAt = created;
+  }
 
   // ── Soldes projetés 6 mois (trajectoire de l'écran Projection, virements épargne/invest inclus)
   // pour le garde-fou marge des recommandations. Overrides SIGNÉS tous mois, format `${id}:${y}:${m}`.
@@ -1240,7 +1254,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     joint_share_outside_perimeter,
     joint_share_in_checking,
     variable_sigma,
-    confidence_inputs: { lastVerifiedAt, calibration: reliability_calib, floorBase: confidence_floor_base },
+    confidence_inputs: { lastVerifiedAt, lastActivityAt, calibration: reliability_calib, floorBase: confidence_floor_base },
     projection_balances_6m,
     projection_balances_12m,
     projection_income_12m,

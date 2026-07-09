@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useSegments } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppState } from '../hooks/useAppState';
-import type { AppActionType } from '../lib/appStateEngine';
+import type { AppAction, AppActionType } from '../lib/appStateEngine';
 
 // Dismiss de SESSION : réinitialisé au prochain lancement de l'app (module rechargé) → l'action
 // pertinente réapparaît. Ne pas persister (c'est voulu).
@@ -52,6 +52,48 @@ const ICONS: Record<AppActionType, string> = {
   joint_low: 'warning-outline',
   ok: 'checkmark-circle',
 };
+
+/**
+ * Carte du bandeau (présentation pure) — partagée entre l'overlay réel et l'aperçu admin
+ * (admin/banners-preview) pour que l'aperçu reste EXACTEMENT le rendu de production.
+ */
+export function ActionBannerCard({ action, onPress, onDismiss }: {
+  action: AppAction;
+  onPress?: () => void;
+  onDismiss?: () => void;
+}) {
+  const COLORS = useAppColors();
+  const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
+  const accent = action.type === 'joint_low' ? COLORS.orange
+    : action.positive ? COLORS.green : COLORS.emerald;
+  return (
+    <TouchableOpacity
+      style={[styles.banner, action.positive && styles.bannerPositive, { borderColor: accent + '55' }]}
+      activeOpacity={action.deeplink && onPress ? 0.85 : 1}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
+      <View style={[styles.iconWrap, { backgroundColor: accent + '22' }]}>
+        <Ionicons name={ICONS[action.type] as any} size={23} color={accent} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.title}>{action.title}</Text>
+        {/* Message complet, jamais tronqué (peut faire plusieurs lignes). */}
+        <Text style={styles.reason}>
+          {action.reason}{action.eta ? ` · ${action.eta}` : ''}
+        </Text>
+      </View>
+      {action.deeplink && !action.positive && (
+        <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+      )}
+      {onDismiss && (
+        <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.close}>
+          <Ionicons name="close" size={16} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 export default function NextActionBanner() {
   const COLORS = useAppColors();
@@ -110,9 +152,6 @@ export default function NextActionBanner() {
   if (action.positive) memoryFlags.add(`shown_${okSeenKey()}`);           // affiché CETTE session → laisser finir le timer
   if (action.type === 'joint_low') memoryFlags.add(`shown_jl_${action.dismissKey}_${weekKey()}`);
 
-  const accent = action.type === 'joint_low' ? COLORS.orange
-    : action.positive ? COLORS.green : COLORS.emerald;
-
   const onPress = () => {
     if (action.deeplink) router.push(action.deeplink as any);
   };
@@ -127,29 +166,7 @@ export default function NextActionBanner() {
       ]}
       pointerEvents="box-none"
     >
-      <TouchableOpacity
-        style={[styles.banner, action.positive && styles.bannerPositive, { borderColor: accent + '55' }]}
-        activeOpacity={action.deeplink ? 0.85 : 1}
-        onPress={onPress}
-        accessibilityRole="button"
-      >
-        <View style={[styles.iconWrap, { backgroundColor: accent + '22' }]}>
-          <Ionicons name={ICONS[action.type] as any} size={23} color={accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{action.title}</Text>
-          {/* Message complet, jamais tronqué (peut faire plusieurs lignes). */}
-          <Text style={styles.reason}>
-            {action.reason}{action.eta ? ` · ${action.eta}` : ''}
-          </Text>
-        </View>
-        {action.deeplink && !action.positive && (
-          <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-        )}
-        <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.close}>
-          <Ionicons name="close" size={16} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-      </TouchableOpacity>
+      <ActionBannerCard action={action} onPress={onPress} onDismiss={onDismiss} />
     </Animated.View>
   );
 }

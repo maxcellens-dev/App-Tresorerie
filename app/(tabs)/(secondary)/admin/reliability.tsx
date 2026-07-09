@@ -23,6 +23,8 @@ const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; p
   { key: 'lowMin', label: 'Alerte si doute au-delà de…', help: '⑤ doute au-delà de cette part → fourchette large + invitation à vérifier son solde', pct: true },
   { key: 'upBias', label: 'Ouverture vers le haut', help: '⑥ une dépense oubliée fait plutôt baisser le solde : la fourchette descend à fond, mais ne monte que de X × le doute' },
   { key: 'roundStep', label: 'Arrondi des fourchettes (€)', help: '⑦ bornes arrondies à ce pas (100 = à la centaine)' },
+  { key: 'activityDampening', label: 'Amortisseur d’activité', help: '⑧ saisie manuelle du jour (mois courant) → le doute est multiplié par ce facteur (0,5 = moitié), puis revient à 1 sur la fenêtre · resserre la fourchette, peut remonter bas → moyen, jamais → haut (« À jour » = vraie vérif) · 1 = désactivé' },
+  { key: 'activityWindowDays', label: 'Fenêtre d’activité (jours)', help: '⑨ au-delà de X jours sans saisie manuelle, l’amortisseur ne s’applique plus' },
 ];
 
 export default function AdminReliability() {

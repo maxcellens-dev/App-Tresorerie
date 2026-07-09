@@ -14,6 +14,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
+import { sheetWidth } from '../../../../lib/appLayout';
 import { todayISO } from '../../../../lib/dateUtils';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
@@ -457,7 +458,7 @@ function makeStyles(c: any) {
     fab: { position: 'absolute', bottom: 16, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 13, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
     fabText: { fontSize: 15, fontWeight: '800', color: c.bg },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalCard: { backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 36, borderWidth: 1, borderColor: c.cardBorder, maxHeight: '85%' },
+    modalCard: { ...sheetWidth, backgroundColor: c.cardSolid ?? c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, paddingBottom: 36, borderWidth: 1, borderColor: c.cardBorder, maxHeight: '85%' },
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     modalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
     label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },

@@ -13,6 +13,7 @@ import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } fro
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { prorateClosureGap, isRegul } from '../lib/regul';
 import { todayISO } from '../lib/dateUtils';
+import { sheetWidth } from '../lib/appLayout';
 import { useRecalibrateReliability } from '../hooks/useReliability';
 
 interface Props {
@@ -22,6 +23,27 @@ interface Props {
   checkingAccounts?: { id: string; name: string; balance: number }[];
   /** Ouvre directement la modale (deeplink « Clôture ton mois » du bandeau prochain geste). */
   autoOpen?: boolean;
+}
+
+/**
+ * Bannière d'invitation à la clôture (présentation pure) — partagée entre le Pilotage et
+ * l'aperçu admin (admin/banners-preview) pour que l'aperçu reste le rendu de production.
+ */
+export function ClosureBannerCard({ pendingMonths, onPress }: { pendingMonths: string[]; onPress?: () => void }) {
+  const COLORS = useAppColors();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  if (pendingMonths.length === 0) return null;
+  const multiple = pendingMonths.length > 1;
+  return (
+    <TouchableOpacity style={styles.banner} activeOpacity={onPress ? 0.85 : 1} onPress={onPress}>
+      <Ionicons name="lock-closed-outline" size={18} color={COLORS.yellow} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.bannerTitle}>Clôturer {multiple ? `${pendingMonths.length} mois` : monthLabel(pendingMonths[0])}</Text>
+        <Text style={styles.bannerText}>Figez le passé pour fiabiliser vos calculs et recommandations.</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
+    </TouchableOpacity>
+  );
 }
 
 export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [], autoOpen = false }: Props) {
@@ -173,16 +195,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   return (
     <>
       {/* Bannière d'invitation */}
-      {pendingMonths.length > 0 && (
-        <TouchableOpacity style={styles.banner} activeOpacity={0.85} onPress={openModal}>
-          <Ionicons name="lock-closed-outline" size={18} color={COLORS.yellow} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>Clôturer {multiple ? `${pendingMonths.length} mois` : monthLabel(oldest)}</Text>
-            <Text style={styles.bannerText}>Figez le passé pour fiabiliser vos calculs et recommandations.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
-        </TouchableOpacity>
-      )}
+      <ClosureBannerCard pendingMonths={effectivePending} onPress={openModal} />
 
       {/* Modale de clôture */}
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeModal}>
@@ -360,7 +373,7 @@ function makeStyles(c: any) {
     bannerTitle: { fontSize: 14, fontWeight: '800', color: c.text },
     bannerText: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
+    sheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     title: { fontSize: 19, fontWeight: '800', color: c.text },
     sub: { fontSize: 14, color: c.textSecondary },

@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useKeyboardClearance } from '../hooks/useKeyboardClearance';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
+import { sheetWidth } from '../lib/appLayout';
 
 interface Props {
   visible: boolean;
@@ -140,7 +141,7 @@ function makeStyles(c: any) {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', paddingTop: '9%' },
     // flex:1 (au lieu d'une hauteur fixe) → la feuille se rétrécit par le bas quand le clavier remonte
     // (via paddingBottom = hauteur clavier sur l'overlay), gardant la saisie visible.
-    sheet: { flex: 1, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder },
+    sheet: { ...sheetWidth, flex: 1, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder },
     header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: c.cardBorder, gap: 8 },
     title: { fontSize: 16, fontWeight: '800', color: c.text },
     statusPill: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },

@@ -30,21 +30,27 @@ export interface RecoFinancials {
   currentChecking: number;
 }
 
-/** Retourne la phrase contextuelle (ou null si non pertinent / montant nul). */
-export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials): string | null {
+/**
+ * Retourne la phrase contextuelle (ou null si non pertinent / montant nul).
+ * `amount` = montant ACTIONNABLE de la reco (borne basse « minimum sûr » quand les montants sont
+ * affichés en fourchette — passer alors `isRange: true` pour l'expliciter dans la phrase).
+ */
+export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials, isRange = false): string | null {
   const S = CURRENCY_SYMBOL;
   if (!(amount > 0)) return null;
+  // En fourchette, les projections sont calculées sur le minimum sûr → on le nomme une fois.
+  const minSafe = isRange ? ' (ton minimum sûr)' : '';
 
   if (type === 'invest') {
     const monthly = amount; // la reco est un montant mensuel
     if (fin.totalInvested <= 0) {
       const y10 = futureValue(0, monthly, 10);
       const y20 = futureValue(0, monthly, 20);
-      return `💡 Et si tu te lançais ? ${fmt(monthly)} ${S}/mois à 7 %/an, ça pourrait faire ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans.`;
+      return `💡 Et si tu te lançais ? ${fmt(monthly)} ${S}/mois${minSafe} à 7 %/an, ça pourrait faire ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans.`;
     }
     const y10base = futureValue(fin.totalInvested, 0, 10);
     const y10plus = futureValue(fin.totalInvested, monthly, 10);
-    return `💡 Tes ${fmt(fin.totalInvested)} ${S} déjà investis pourraient devenir ~${fmt(y10base)} ${S} dans 10 ans à 7 %/an. En ajoutant ${fmt(monthly)} ${S}/mois : ~${fmt(y10plus)} ${S}.`;
+    return `💡 Tes ${fmt(fin.totalInvested)} ${S} déjà investis pourraient devenir ~${fmt(y10base)} ${S} dans 10 ans à 7 %/an. En ajoutant ${fmt(monthly)} ${S}/mois${minSafe} : ~${fmt(y10plus)} ${S}.`;
   }
 
   if (type === 'save') {
@@ -54,7 +60,7 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
   if (type === 'keep') {
     const nextMonth = fin.currentChecking + amount;
     const sixMonths = fin.currentChecking + amount * 6;
-    return `💡 En conservant ${fmt(amount)} ${S}/mois, ton compte courant passerait de ${fmt(fin.currentChecking)} ${S} à ~${fmt(nextMonth)} ${S} le mois prochain, et ~${fmt(sixMonths)} ${S} dans 6 mois.`;
+    return `💡 En conservant ${fmt(amount)} ${S}/mois${minSafe}, ton compte courant passerait de ${fmt(fin.currentChecking)} ${S} à ~${fmt(nextMonth)} ${S} le mois prochain, et ~${fmt(sixMonths)} ${S} dans 6 mois.`;
   }
 
   return null;

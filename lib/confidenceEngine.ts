@@ -33,6 +33,16 @@ export interface ReliabilityConfig {
   upBias: number;
   /** Pas d'arrondi des fourchettes (centaine par défaut). */
   roundStep: number;
+  /**
+   * AMORTISSEUR D'ACTIVITÉ : facteur appliqué au doute quand le user a saisi une transaction
+   * (mois courant) AUJOURD'HUI, interpolé linéairement vers 1 jusqu'à activityWindowDays.
+   * Saisir ≠ vérifier (des oublis restent possibles) mais c'est un signal de suivi actif →
+   * la fourchette se resserre. 1 = désactivé. Ne permet JAMAIS de repasser en confiance haute
+   * (« À jour » reste réservé à une vraie vérification).
+   */
+  activityDampening: number;
+  /** Fenêtre (jours) au-delà de laquelle la dernière saisie manuelle n'amortit plus le doute. */
+  activityWindowDays: number;
 }
 
 export const RELIABILITY_DEFAULTS: ReliabilityConfig = {
@@ -43,6 +53,8 @@ export const RELIABILITY_DEFAULTS: ReliabilityConfig = {
   absoluteFloor: 100,
   upBias: 0.3,
   roundStep: 100,
+  activityDampening: 0.5,
+  activityWindowDays: 7,
 };
 
 /** Fusionne les réglages admin (app_config.reliability) avec les défauts. */
@@ -62,6 +74,12 @@ export interface ConfidenceInput {
   today: Date;
   /** Dernière vérification (régul / clôture confirmée / « à jour »), ou null si aucune. */
   lastVerifiedAt: string | null;
+  /**
+   * Dernière SAISIE MANUELLE d'une transaction du mois courant (date de saisie, pas la date de la
+   * transaction ; hors réguls / occurrences matérialisées / brouillons), ou null. Amortit le doute
+   * (voir activityDampening) : un user qui saisit suit activement → chiffres plus fiables.
+   */
+  lastActivityAt?: string | null;
   /** Calibration par user, ou null (cold start). */
   calibration: DriftCalibration | null;
   /** Relyka net (resteDisponible). */
@@ -81,6 +99,8 @@ export interface ConfidenceResult {
   dailyDrift: number;
   /** true si le doute repose sur le cold start (pas encore de vérif réelle). */
   coldStart: boolean;
+  /** true si le doute a été amorti par une saisie manuelle récente (suivi actif). */
+  activityDamped: boolean;
 }
 
 export interface Range {
@@ -101,7 +121,7 @@ function roundTo(v: number, step: number): number {
 
 /** Calcule le niveau de confiance et le doute du jour. */
 export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
-  const { today, lastVerifiedAt, calibration, relyka, floorBase, config } = input;
+  const { today, lastVerifiedAt, lastActivityAt, calibration, relyka, floorBase, config } = input;
 
   const base = Math.max(Math.abs(relyka), Math.abs(floorBase), config.absoluteFloor);
 
@@ -127,15 +147,38 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     coldStart = true;
   }
 
-  const uncertaintyEur = dailyDrift * daysSinceVerification;
+  // AMORTISSEUR D'ACTIVITÉ : saisie manuelle récente (mois courant) → le doute est réduit,
+  // interpolation linéaire (saisie du jour = plein amortissement, puis retour à 1 sur la fenêtre)
+  // pour éviter un effet falaise à l'expiration.
+  let activityDamp = 1;
+  if (lastActivityAt && config.activityDampening < 1 && config.activityWindowDays > 0) {
+    const d = new Date(lastActivityAt.slice(0, 10) + 'T00:00:00');
+    if (!Number.isNaN(d.getTime())) {
+      const daysSinceActivity = daysBetween(today, d);
+      if (daysSinceActivity <= config.activityWindowDays) {
+        const t = daysSinceActivity / config.activityWindowDays;
+        activityDamp = config.activityDampening + (1 - config.activityDampening) * t;
+      }
+    }
+  }
+
+  const rawUncertainty = dailyDrift * daysSinceVerification;
+  const uncertaintyEur = rawUncertainty * activityDamp;
   const doubtRatio = base > 0 ? uncertaintyEur / base : 0;
+  const rawRatio = base > 0 ? rawUncertainty / base : 0;
 
   let level: ConfidenceLevel;
   if (doubtRatio < config.highMax) level = 'high';
   else if (doubtRatio < config.lowMin) level = 'medium';
   else level = 'low';
+  // L'activité resserre la fourchette et peut faire remonter bas → moyen, mais JAMAIS → haut :
+  // « À jour » (chiffres nets) reste réservé à une vraie vérification du solde.
+  if (level === 'high' && activityDamp < 1 && rawRatio >= config.highMax) level = 'medium';
 
-  return { level, doubtRatio, uncertaintyEur, daysSinceVerification, dailyDrift, coldStart };
+  return {
+    level, doubtRatio, uncertaintyEur, daysSinceVerification, dailyDrift, coldStart,
+    activityDamped: activityDamp < 1,
+  };
 }
 
 // ── Formulations VAGUES de l'ancienneté de vérification ──────────────────────

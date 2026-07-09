@@ -71,6 +71,7 @@ export default function AdminHub() {
         { href: '/(tabs)/admin/safe-to-spend', icon: 'calculator-outline', title: 'Formule À dépenser', desc: 'Calcul détaillé', color: '#60a5fa' },
         { href: '/(tabs)/admin/fiscal-rates', icon: 'cash-outline', title: 'Fiscalité', desc: 'Taux par enveloppe (PEA, AV…)', color: '#fbbf24' },
         { href: '/(tabs)/(secondary)/admin/reliability', icon: 'shield-checkmark-outline', title: 'Fiabilité & confiance', desc: 'Seuils de doute · notifications système', color: '#34d399' },
+        { href: '/(tabs)/(secondary)/admin/banners-preview', icon: 'eye-outline', title: 'Aperçu bandeaux', desc: 'Prochain geste · clôture · confiance (tous les textes)', color: '#f59e0b' },
       ],
     },
   ];

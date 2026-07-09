@@ -57,6 +57,8 @@ interface SmartRecommendationCardProps {
   daysSinceVerification?: number;
   /** Action « Vérifier mon solde » (deeplink saisie de solde). */
   onVerify?: () => void;
+  /** Aperçu admin (banners-preview) : ne persiste AUCUN masquage et n'applique pas ceux du compte. */
+  previewMode?: boolean;
 }
 
 export default function RecommendationCard({
@@ -84,6 +86,7 @@ export default function RecommendationCard({
   confidenceLevel = 'high',
   daysSinceVerification = 0,
   onVerify,
+  previewMode = false,
 }: SmartRecommendationCardProps) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -95,14 +98,15 @@ export default function RecommendationCard({
   const [reserveAmount, setReserveAmount] = useState('');
 
   const handleIgnore = (reco: SmartRecommendation) => {
-    addIgnored(reco.type, reco.amount);
+    if (!previewMode) addIgnored(reco.type, reco.amount);
     if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
 
   const handleConfirmReserve = (reco: SmartRecommendation) => {
     const parsed = parseFloat(reserveAmount.replace(',', '.'));
     // La saisie = montant COMPLÉMENTAIRE à conserver (à ajouter au déjà-conservé), pas le total.
-    const addition = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : reco.amount;
+    // Repli = montant actionnable (borne basse « minimum sûr » quand on est en fourchette).
+    const addition = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : (reco.actionAmount ?? reco.amount);
     onReserver?.(reco, Math.round(reservedThisMonth + addition));
     // On ne marque PAS « keep » comme traitée : la réservation est déjà comptée dans le suivi du
     // mois (alreadyAllocated.keep) → la reco « Conserver » se réduit du montant réservé et
@@ -111,7 +115,9 @@ export default function RecommendationCard({
     if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
 
-  const visible = recommendations.filter(r => !isHidden(r.type, r.amount, ignored, completed));
+  const visible = previewMode
+    ? recommendations
+    : recommendations.filter(r => !isHidden(r.type, r.amount, ignored, completed));
 
   // Slide 0 = jauge « Ton Relyka » (optionnelle) ; slides suivants = recos.
   const lead = showRelykaSlide ? 1 : 0;
@@ -307,7 +313,10 @@ export default function RecommendationCard({
         </View>
         <Text style={styles.recoDescription}>{currentReco.description}</Text>
         {financials && (() => {
-          const ctx = getRecoContextText(currentReco.type, currentReco.amount, financials);
+          // Tip calculé sur le montant ACTIONNABLE (borne basse si fourchette) → cohérent avec la
+          // description et les CTA ; le flag isRange ajoute « (ton minimum sûr) » dans la phrase.
+          const r = recoRange?.(currentReco.amount);
+          const ctx = getRecoContextText(currentReco.type, currentReco.actionAmount ?? currentReco.amount, financials, !!r?.isRange);
           return ctx ? (
             <View style={[styles.contextBox, { borderColor: currentReco.color + '40', backgroundColor: currentReco.color + '10' }]}>
               <Text style={[styles.contextText, { color: currentReco.color }]}>{ctx}</Text>
@@ -416,7 +425,7 @@ export default function RecommendationCard({
             {currentReco.type === 'keep' && (
               <TouchableOpacity
                 style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }, confidenceLevel === 'low' && styles.actionBtnMuted]}
-                onPress={() => { setReserveAmount(String(Math.round(currentReco.amount))); setConfirmReserve(true); }}
+                onPress={() => { setReserveAmount(String(Math.round(currentReco.actionAmount ?? currentReco.amount))); setConfirmReserve(true); }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="bookmark-outline" size={16} color={currentReco.color} />

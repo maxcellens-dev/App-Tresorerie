@@ -18,6 +18,7 @@ import ScreenHeader from '../../../components/ScreenHeader';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
+import { sheetWidth } from '../../../lib/appLayout';
 import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/txOrder';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -1449,7 +1450,7 @@ function makeModalStyles(c: any) {
 function makeTxDetailStyles(c: any) {
   return {
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' as const },
-    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
+    sheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36, borderTopWidth: 1, borderColor: c.cardBorder },
     handle: { width: 40, height: 4, backgroundColor: c.cardBorder, borderRadius: 2, alignSelf: 'center' as const, marginBottom: 20 },
     amount: (isIn: boolean) => ({ fontSize: 32, fontWeight: '700' as const, color: isIn ? c.green : c.text, textAlign: 'center' as const, marginBottom: 4 }),
     labelText: { fontSize: 16, color: c.textSecondary, textAlign: 'center' as const, marginBottom: 20 },

@@ -167,7 +167,9 @@ function makeStyles(c: any) {
     },
     barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', height: CHART_H - 4, gap: 8 },
     barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
-    barStack: { width: '76%', borderTopLeftRadius: 5, borderTopRightRadius: 5, overflow: 'hidden', justifyContent: 'flex-end' },
+    // Largeur de barre plafonnée : sans ça, avec 1 seule colonne le bloc (76 % de toute la carte)
+    // devient un gros pavé peu lisible. Le plafond garde des barres cohérentes de 1 à 4 colonnes.
+    barStack: { width: '76%', maxWidth: 64, borderTopLeftRadius: 5, borderTopRightRadius: 5, overflow: 'hidden', justifyContent: 'flex-end' },
     seg: { width: '100%' },
     segUncertain: { width: '100%', borderWidth: 1, borderStyle: 'dashed', borderBottomWidth: 0, borderTopLeftRadius: 5, borderTopRightRadius: 5 },
     labelsRow: { flexDirection: 'row', justifyContent: 'space-around', gap: 8, marginTop: 5 },

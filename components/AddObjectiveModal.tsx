@@ -16,6 +16,7 @@ import { useAccounts } from '../hooks/useAccounts';
 import type { Objective } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
+import { sheetWidth } from '../lib/appLayout';
 import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 
 
@@ -466,6 +467,7 @@ function makeStyles(c: any) {
     justifyContent: 'flex-end',
   },
   container: {
+    ...sheetWidth,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 16,

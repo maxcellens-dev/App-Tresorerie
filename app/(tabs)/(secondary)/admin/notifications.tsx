@@ -21,6 +21,7 @@ import { useNavBack } from '../../../../hooks/useNavBack';
 import { sendPushToTarget, type NotifTarget } from '../../../../lib/pushSend';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
 import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
+import { sheetWidth } from '../../../../lib/appLayout';
 import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/useReliability';
 import { useAdminNotifPrefs, useSaveAdminNotifPref, type AdminNotifKind } from '../../../../hooks/useUnreadBadges';
 
@@ -651,7 +652,7 @@ function makeStyles(c: any) {
     text: { color: c.text, padding: 20 },
     /* Modal */
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalSheet: { backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, maxHeight: '88%', borderWidth: 1, borderColor: c.cardBorder },
+    modalSheet: { ...sheetWidth, backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, maxHeight: '88%', borderWidth: 1, borderColor: c.cardBorder },
     modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     modalTitle: { fontSize: 18, fontWeight: '800', color: c.text },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
