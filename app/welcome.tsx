@@ -11,6 +11,7 @@ import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { signalAppReady } from '../lib/splashGate';
 import LandingPage from '../components/LandingPage';
+import PlayStoreBadge from '../components/PlayStoreBadge';
 
 const { width } = Dimensions.get('window');
 
@@ -106,6 +107,12 @@ export default function WelcomeScreen() {
                   <Text style={styles.secondaryLabel}>{L.mobileCtaSecondaryLabel}</Text>
                 </TouchableOpacity>
               </View>
+              {/* Badge Play Store — web uniquement (redondant dans l'app native déjà installée). */}
+              {Platform.OS === 'web' && !!L.androidStoreUrl && (
+                <View style={styles.storeBadgeRow}>
+                  <PlayStoreBadge url={L.androidStoreUrl} size="sm" />
+                </View>
+              )}
             </View>
           </View>
 
@@ -242,6 +249,7 @@ function makeStyles(c: any) {
     width: '100%',
     gap: 12,
   },
+  storeBadgeRow: { marginTop: 16, alignItems: 'center' },
   primaryBtn: {
     backgroundColor: c.emerald,
     paddingVertical: 16,

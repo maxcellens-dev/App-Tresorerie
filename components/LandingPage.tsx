@@ -14,6 +14,7 @@ import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig } from '../hooks/useLandingConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
+import PlayStoreBadge from './PlayStoreBadge';
 
 export default function LandingPage() {
   // Le mode (clair/sombre) suit app_config.landing.theme via useBrandColors.
@@ -110,6 +111,7 @@ export default function LandingPage() {
               <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.heroSecondary}>
                 <Text style={styles.heroSecondaryText}>{cfg.ctaSecondaryLabel}</Text>
               </TouchableOpacity>
+              <PlayStoreBadge url={cfg.androidStoreUrl} />
             </View>
           </View>
 
@@ -173,6 +175,7 @@ export default function LandingPage() {
               <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.heroSecondary}>
                 <Text style={styles.heroSecondaryText}>{cfg.ctaSecondaryLabel}</Text>
               </TouchableOpacity>
+              <PlayStoreBadge url={cfg.androidStoreUrl} />
             </View>
           </View>
         </View>

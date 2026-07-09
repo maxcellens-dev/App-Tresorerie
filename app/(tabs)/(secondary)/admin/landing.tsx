@@ -92,6 +92,13 @@ export default function AdminLanding() {
         </View>
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+          {/* Application mobile — commun aux deux présentations (badge « Google Play » sur l'accueil). */}
+          <View style={styles.card}>
+            <Text style={styles.section}>Application mobile (Google Play)</Text>
+            <Text style={styles.hint}>Lien vers la fiche de l'app sur le Play Store (Android). Un badge « Disponible sur Google Play » apparaît sur la page d'accueil (bureau + mobile web). Laisser vide pour le masquer.</Text>
+            <Field label="Lien Google Play" value={cfg.androidStoreUrl ?? ''} onChange={(v) => set({ androidStoreUrl: v })} styles={styles} c={COLORS} />
+          </View>
+
           {tab === 'bureau' && (<>
           {/* Général */}
           <View style={styles.card}>

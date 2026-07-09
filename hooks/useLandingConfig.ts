@@ -22,6 +22,8 @@ export interface LandingConfig {
   navLinks: LandingLink[];
   ctaPrimaryLabel: string;
   ctaSecondaryLabel: string;
+  /** Lien vers la fiche Play Store (Android). Vide → badge « Google Play » masqué. */
+  androidStoreUrl: string;
   heroBadge: string;
   heroTitle: string;
   heroSubtitle: string;
@@ -60,6 +62,7 @@ export const DEFAULT_LANDING: LandingConfig = {
   ],
   ctaPrimaryLabel: "S'inscrire",
   ctaSecondaryLabel: 'Se connecter',
+  androidStoreUrl: '',
   heroBadge: 'Votre trésorerie, enfin sereine',
   heroTitle: 'Reprenez le contrôle de votre argent',
   heroSubtitle:
