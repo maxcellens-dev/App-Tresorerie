@@ -737,7 +737,7 @@ export default function PilotageScreen() {
               daysSinceVerification={relConf?.result.daysSinceVerification}
               // « Vérifier » → page du COMPTE (pas l'écran de saisie d'un nouveau solde).
               onVerify={() => router.push((mainCheckingId ? `/(tabs)/comptes/${mainCheckingId}` : '/(tabs)/comptes') as any)}
-              financials={recoContextEnabled && pilotageData ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance } : undefined}
+              financials={recoContextEnabled && pilotageData ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance, projectedEndChecking: pilotageData.projection_balances_6m?.[0] } : undefined}
               tierLabel={pilotageData ? TIER_LABELS[getCurrentTier(pilotageData)] : ''}
               tierColor={pilotageData ? TIER_COLORS[getCurrentTier(pilotageData)] : '#94a3b8'}
               hasSavingsAccount={hasSavingsAccount}

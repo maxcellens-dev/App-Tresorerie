@@ -314,9 +314,8 @@ export default function RecommendationCard({
         <Text style={styles.recoDescription}>{currentReco.description}</Text>
         {financials && (() => {
           // Tip calculé sur le montant ACTIONNABLE (borne basse si fourchette) → cohérent avec la
-          // description et les CTA ; le flag isRange ajoute « (ton minimum sûr) » dans la phrase.
-          const r = recoRange?.(currentReco.amount);
-          const ctx = getRecoContextText(currentReco.type, currentReco.actionAmount ?? currentReco.amount, financials, !!r?.isRange);
+          // description et les CTA.
+          const ctx = getRecoContextText(currentReco.type, currentReco.actionAmount ?? currentReco.amount, financials);
           return ctx ? (
             <View style={[styles.contextBox, { borderColor: currentReco.color + '40', backgroundColor: currentReco.color + '10' }]}>
               <Text style={[styles.contextText, { color: currentReco.color }]}>{ctx}</Text>

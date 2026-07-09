@@ -2,7 +2,8 @@
  * recoContext — phrase motivante affichée sous chaque recommandation pour donner envie de l'utiliser.
  * - Investir : projection à 10/20 ans (estimation sur la reco si rien investi, sinon basée sur le réel).
  * - Épargner : invite à créer un projet d'épargne.
- * - Conserver : économie cumulée sur le compte courant (mois prochain + 6 mois si maintenu).
+ * - Conserver : effet sur le SOLDE DE FIN DE MOIS projeté (avec / sans la somme), pas le solde actuel,
+ *   + marge cumulée si on répète chaque mois.
  * Hypothèse de rendement : 7 %/an (intérêts composés mensuels).
  */
 import { CURRENCY_SYMBOL } from './currency';
@@ -28,29 +29,32 @@ export interface RecoFinancials {
   totalInvested: number;
   /** Solde courant actuel. */
   currentChecking: number;
+  /**
+   * Solde courant PROJETÉ en fin de mois courant (même trajectoire que l'écran Projection :
+   * revenus − dépenses habituelles − virements planifiés). Sert de base à la reco « Conserver »
+   * (bien plus juste que le solde actuel). Optionnel : repli sur `currentChecking` si absent.
+   */
+  projectedEndChecking?: number;
 }
 
 /**
  * Retourne la phrase contextuelle (ou null si non pertinent / montant nul).
- * `amount` = montant ACTIONNABLE de la reco (borne basse « minimum sûr » quand les montants sont
- * affichés en fourchette — passer alors `isRange: true` pour l'expliciter dans la phrase).
+ * `amount` = montant ACTIONNABLE de la reco (borne basse quand les montants sont en fourchette).
  */
-export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials, isRange = false): string | null {
+export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials): string | null {
   const S = CURRENCY_SYMBOL;
   if (!(amount > 0)) return null;
-  // En fourchette, les projections sont calculées sur le minimum sûr → on le nomme une fois.
-  const minSafe = isRange ? ' (ton minimum sûr)' : '';
 
   if (type === 'invest') {
     const monthly = amount; // la reco est un montant mensuel
     if (fin.totalInvested <= 0) {
       const y10 = futureValue(0, monthly, 10);
       const y20 = futureValue(0, monthly, 20);
-      return `💡 Et si tu te lançais ? ${fmt(monthly)} ${S}/mois${minSafe} à 7 %/an, ça pourrait faire ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans.`;
+      return `💡 Et si tu te lançais ? ${fmt(monthly)} ${S}/mois à 7 %/an, ça pourrait faire ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans.`;
     }
     const y10base = futureValue(fin.totalInvested, 0, 10);
     const y10plus = futureValue(fin.totalInvested, monthly, 10);
-    return `💡 Tes ${fmt(fin.totalInvested)} ${S} déjà investis pourraient devenir ~${fmt(y10base)} ${S} dans 10 ans à 7 %/an. En ajoutant ${fmt(monthly)} ${S}/mois${minSafe} : ~${fmt(y10plus)} ${S}.`;
+    return `💡 Tes ${fmt(fin.totalInvested)} ${S} déjà investis pourraient devenir ~${fmt(y10base)} ${S} dans 10 ans, avec un rendement à 7 %/an.`;
   }
 
   if (type === 'save') {
@@ -58,9 +62,12 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
   }
 
   if (type === 'keep') {
-    const nextMonth = fin.currentChecking + amount;
-    const sixMonths = fin.currentChecking + amount * 6;
-    return `💡 En conservant ${fmt(amount)} ${S}/mois${minSafe}, ton compte courant passerait de ${fmt(fin.currentChecking)} ${S} à ~${fmt(nextMonth)} ${S} le mois prochain, et ~${fmt(sixMonths)} ${S} dans 6 mois.`;
+    // Effet sur le solde de FIN DE MOIS projeté (pas le solde actuel) : conserver cette somme la
+    // laisse sur le compte, la dépenser la retire d'autant → on montre les deux (écart = la somme).
+    const endWith = fin.projectedEndChecking ?? fin.currentChecking;
+    const endWithout = endWith - amount;
+    const sixMonths = amount * 6;
+    return `💡 Conserver ${fmt(amount)} ${S}/mois te laisse ~${fmt(amount)} ${S} de plus sur ton compte en fin de mois : ~${fmt(endWith)} ${S} au lieu de ~${fmt(endWithout)} ${S} si tu la dépensais. Répété chaque mois, ~${fmt(sixMonths)} ${S} de marge sur 6 mois.`;
   }
 
   return null;
