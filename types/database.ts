@@ -144,6 +144,8 @@ export interface UiPrefs {
   reco_dismissals?: RecoDismissals;
   /** Conseils IA : ne plus demander confirmation avant d'utiliser une requête (envoi direct). */
   ai_confirm_skip?: boolean;
+  /** Horizon de la page Projection : 6 (défaut) ou 12 mois. */
+  projection_horizon?: 6 | 12;
 }
 
 export interface Account {

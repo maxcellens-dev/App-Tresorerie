@@ -68,6 +68,15 @@ export function useQuickAddPref(userId: string | undefined) {
   };
 }
 
+/** Horizon de la page Projection : 6 (défaut) ou 12 mois, persisté par compte. */
+export function useProjectionHorizon(userId: string | undefined) {
+  const { prefs, patch } = useUiPrefs(userId);
+  return {
+    horizon: (prefs.projection_horizon === 12 ? 12 : 6) as 6 | 12,
+    setHorizon: (v: 6 | 12) => patch({ projection_horizon: v }),
+  };
+}
+
 /** #2 — Filtre persistant des TOTAUX de la page Comptes : tout / comptes perso / comptes partagés. */
 export function useAccountsTotalsFilter(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);

@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import AnimatedSplash from '../components/AnimatedSplash';
@@ -25,11 +25,13 @@ import StreakRecoveryModal from '../components/StreakRecoveryModal';
 import FontApplier from '../components/FontApplier';
 import GamificationSync from '../components/GamificationSync';
 import AppDialogHost from '../components/AppDialogHost';
+import SeoHead from '../components/SeoHead';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRatesAutoRefresh } from '../hooks/useRatesAutoRefresh';
 import { useProfile } from '../hooks/useProfile';
-import { useSetPremium } from '../hooks/usePlan';
+import { useSetPremium, usePlan } from '../hooks/usePlan';
+import { handleUsageLimitError, setCachedIsPremium, getCachedIsPremium } from '../lib/usageLimits';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/purchases';
 import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/pushNotifications';
 import { maybeApplyUpdateOnLaunch } from '../lib/otaUpdate';
@@ -56,6 +58,11 @@ if (Platform.OS !== 'web') {
 }
 
 const queryClient = new QueryClient({
+  // Backstop GLOBAL : toute mutation bloquée par une limite serveur (USAGE_LIMIT_*) affiche le
+  // message convivial (→ page Plan / « supprime des éléments »), quel que soit le point de création.
+  mutationCache: new MutationCache({
+    onError: (error) => { handleUsageLimitError(error, getCachedIsPremium()); },
+  }),
   defaultOptions: {
     queries: {
       // Données considérées « fraîches » 2 min → moins de refetchs → moins de re-rendus.
@@ -70,6 +77,14 @@ const queryClient = new QueryClient({
 
 function ConfigSync() {
   useConfigSync(supabase);
+  return null;
+}
+
+// Tient à jour le statut premium pour le backstop global des limites (handler react-query hors React).
+function UsagePremiumSync() {
+  const { user } = useAuth();
+  const { isPremium } = usePlan(user?.id);
+  useEffect(() => { setCachedIsPremium(isPremium); }, [isPremium]);
   return null;
 }
 
@@ -247,6 +262,7 @@ function AppChrome() {
     <View style={styles.root}>
       <View style={limitWidth ? styles.webColumn : styles.fullColumn}>
       <AppDialogHost />
+      <SeoHead />
       <ImpersonationBanner />
       {!hideChrome && user && !isTabs && root !== 'legal' && root !== 'confidentialite' && (
         <SafeAreaView edges={['top']} style={styles.headerSafe}>
@@ -300,6 +316,7 @@ export default function RootLayout() {
         <AuthProvider>
           <CalculatorProvider>
             <ConfigSync />
+            <UsagePremiumSync />
             <FontApplier />
             <RecurringMaterializer />
             <GamificationSync />

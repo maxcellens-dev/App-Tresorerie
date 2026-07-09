@@ -21,6 +21,16 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
 
+        {/* SEO de BASE (statique) — repli pour les crawlers sans JS (aperçus sociaux). Les valeurs
+            fines sont appliquées au runtime par le SEO Center (composant SeoHead, admin-paramétrable). */}
+        <title>Relyka — Pilote ta trésorerie personnelle</title>
+        <meta name="description" content="Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité." />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Relyka" />
+        <meta property="og:title" content="Relyka — Pilote ta trésorerie personnelle" />
+        <meta property="og:description" content="Pilote ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement." />
+        <meta name="twitter:card" content="summary_large_image" />
+
         <ScrollViewStyleReset />
         {/* AVANT toute peinture : applique le dernier thème admin connu (localStorage) au loader
             statique → plus de flash sombre quand l'admin a paramétré le thème clair. */}

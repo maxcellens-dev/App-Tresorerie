@@ -10,6 +10,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
 import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions } from '../../../hooks/useTransactions';
+import { useUsageGuard } from '../../../hooks/useUsageLimits';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
@@ -81,6 +82,7 @@ export default function AddTransactionScreen() {
   // Verrou de clôture gaté par le flag de fonctionnalité (null si Clôture désactivée).
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  const { guard } = useUsageGuard(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
@@ -305,6 +307,9 @@ export default function AddTransactionScreen() {
     const endDateISO = isRecurring && recurrenceEndDateInput.trim()
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
+
+    // Limite d'usage (transactions) — comptée sur le mois/l'année de la DATE choisie.
+    if (!(await guard('transaction', { date }))) return;
 
     try {
       if (isTransfer) {

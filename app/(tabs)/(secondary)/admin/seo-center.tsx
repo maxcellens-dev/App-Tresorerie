@@ -1,169 +1,193 @@
-﻿import React, { useMemo, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+/**
+ * Admin — SEO Center.
+ * Édite la configuration complète du référencement (app_config.seo), organisée en sections :
+ * Général, Indexation (robots), Open Graph, Twitter/X, Réseaux sociaux, Vérification, Organisation
+ * (JSON-LD) et surcharges par page. Aperçu « résultat Google » en direct.
+ * Appliquée au <head> côté web par le composant SeoHead.
+ */
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Switch, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { supabase } from '../../../../lib/supabase';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
+import { useSeoConfig, useSaveSeoConfig } from '../../../../hooks/useSeo';
+import { SEO_DEFAULTS, resolveSeoConfig, seoTitleFor, seoDescriptionFor, type SeoConfig } from '../../../../lib/seo';
 
+type TextField = { kind: 'text'; path: string; label: string; placeholder?: string; multiline?: boolean };
+type SwitchField = { kind: 'switch'; path: string; label: string; help?: string };
+type Field = TextField | SwitchField;
+type Section = { key: string; title: string; icon: string; fields: Field[] };
 
-export default function SEOCenter() {
+const SECTIONS: Section[] = [
+  { key: 'general', title: 'Général', icon: 'globe-outline', fields: [
+    { kind: 'text', path: 'siteName', label: 'Nom du site' },
+    { kind: 'text', path: 'titleDefault', label: 'Titre par défaut' },
+    { kind: 'text', path: 'titleTemplate', label: 'Gabarit de titre', placeholder: '%s · Relyka' },
+    { kind: 'text', path: 'description', label: 'Description', multiline: true },
+    { kind: 'text', path: 'keywords', label: 'Mots-clés (séparés par des virgules)', multiline: true },
+    { kind: 'text', path: 'canonicalBase', label: 'URL de base (canonical)', placeholder: 'https://relyka.app' },
+    { kind: 'text', path: 'language', label: 'Langue', placeholder: 'fr' },
+    { kind: 'text', path: 'author', label: 'Auteur' },
+    { kind: 'text', path: 'themeColor', label: 'Couleur du thème', placeholder: '#0D2E2A' },
+  ] },
+  { key: 'robots', title: 'Indexation (robots)', icon: 'search-outline', fields: [
+    { kind: 'switch', path: 'index', label: 'Indexer le site', help: 'Décoché → noindex (le site n\'apparaît pas dans Google).' },
+    { kind: 'switch', path: 'follow', label: 'Suivre les liens', help: 'Décoché → nofollow.' },
+  ] },
+  { key: 'og', title: 'Open Graph (partage)', icon: 'share-social-outline', fields: [
+    { kind: 'text', path: 'ogType', label: 'Type', placeholder: 'website' },
+    { kind: 'text', path: 'ogImage', label: 'Image de partage (URL absolue)' },
+    { kind: 'text', path: 'ogImageAlt', label: 'Texte alternatif de l\'image' },
+  ] },
+  { key: 'twitter', title: 'Twitter / X', icon: 'logo-twitter', fields: [
+    { kind: 'text', path: 'twitterCard', label: 'Type de carte', placeholder: 'summary_large_image' },
+    { kind: 'text', path: 'twitterSite', label: 'Compte du site', placeholder: '@relyka' },
+    { kind: 'text', path: 'twitterCreator', label: 'Compte de l\'auteur' },
+  ] },
+  { key: 'social', title: 'Réseaux sociaux', icon: 'people-outline', fields: [
+    { kind: 'text', path: 'social.twitter', label: 'Twitter / X (URL)' },
+    { kind: 'text', path: 'social.facebook', label: 'Facebook (URL)' },
+    { kind: 'text', path: 'social.instagram', label: 'Instagram (URL)' },
+    { kind: 'text', path: 'social.linkedin', label: 'LinkedIn (URL)' },
+    { kind: 'text', path: 'social.youtube', label: 'YouTube (URL)' },
+  ] },
+  { key: 'verify', title: 'Vérification de propriété', icon: 'shield-checkmark-outline', fields: [
+    { kind: 'text', path: 'verifyGoogle', label: 'Google Search Console (code)' },
+    { kind: 'text', path: 'verifyBing', label: 'Bing Webmaster (code)' },
+  ] },
+  { key: 'org', title: 'Organisation (JSON-LD)', icon: 'business-outline', fields: [
+    { kind: 'text', path: 'orgName', label: 'Nom de l\'organisation' },
+    { kind: 'text', path: 'orgLogo', label: 'Logo (URL absolue)' },
+  ] },
+  { key: 'pages', title: 'Surcharges par page', icon: 'documents-outline', fields: [
+    { kind: 'text', path: 'pages.landing.title', label: 'Accueil — titre' },
+    { kind: 'text', path: 'pages.landing.description', label: 'Accueil — description', multiline: true },
+    { kind: 'text', path: 'pages.app.title', label: 'App — titre' },
+    { kind: 'text', path: 'pages.app.description', label: 'App — description', multiline: true },
+  ] },
+];
+
+function getPath(obj: any, path: string): any {
+  return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+function setPath(obj: any, path: string, value: any): any {
+  const keys = path.split('.');
+  const next = { ...obj };
+  let cur = next;
+  for (let i = 0; i < keys.length - 1; i++) {
+    cur[keys[i]] = { ...(cur[keys[i]] ?? {}) };
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = value;
+  return next;
+}
+
+export default function AdminSeoCenter() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const router = useRouter();
   const goBack = useNavBack();
-  const { user } = useAuth();
-  const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const { data: cfg } = useSeoConfig();
+  const save = useSaveSeoConfig();
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [seoData, setSeoData] = useState<Record<string, string>>({
-    pageTitle: 'Trésorerie – Gestion de trésorerie personnelle',
-    pageDescription: 'Gérez vos comptes, catégories et transactions en mode offline-first.',
-    keywords: 'trésorerie, finances, santé financière, offline-first',
-  });
+  const [draft, setDraft] = useState<SeoConfig>(SEO_DEFAULTS);
+  const [dirty, setDirty] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({ general: true });
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadConfig();
-  }, [isAdmin]);
+  useEffect(() => { if (cfg && !dirty) setDraft(cfg); }, [cfg, dirty]);
 
-  async function loadConfig() {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
+  const setText = (path: string, v: string) => { setDirty(true); setDraft((d) => setPath(d, path, v)); };
+  const setBool = (path: string, v: boolean) => { setDirty(true); setDraft((d) => setPath(d, path, v)); };
 
-    try {
-      const { data, error } = await supabase
-        .from('app_config')
-        .select('texts')
-        .eq('id', 'default')
-        .single();
+  const saveAll = () => {
+    // Nettoie les surcharges de page vides (ne pas stocker { title:'', description:'' }).
+    const clean = resolveSeoConfig(draft);
+    const pages: SeoConfig['pages'] = {};
+    Object.entries(draft.pages ?? {}).forEach(([k, v]) => {
+      const t = (v?.title ?? '').trim(); const de = (v?.description ?? '').trim();
+      if (t || de) pages[k] = { ...(t ? { title: t } : {}), ...(de ? { description: de } : {}) };
+    });
+    save.mutate({ ...clean, pages }, { onSuccess: () => { setDirty(false); setSavedAt(Date.now()); } });
+  };
 
-      if (data && data.texts?.seo) {
-        setSeoData(data.texts.seo as Record<string, string>);
-      }
-    } catch (e) {
-      console.warn(e);
-      setMessage('Erreur chargement config');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSave() {
-    if (!supabase) {
-      setMessage('Supabase non configuré');
-      return;
-    }
-    setSaving(true);
-    setMessage(null);
-
-    try {
-      const { error } = await supabase
-        .from('app_config')
-        .update({
-          texts: { seo: seoData },
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', 'default');
-
-      if (error) throw error;
-      setMessage('✓ SEO config enregistrée.');
-      Alert.alert('Succès', 'Configuration SEO enregistrée avec succès.');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erreur lors de l\'enregistrement';
-      setMessage(`✗ ${msg}`);
-      Alert.alert('Erreur', msg);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!isAdmin) {
-    return (
-      <View style={styles.root}>
-        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-          <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.root}>
-        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color={COLORS.emerald} />
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
+  const previewTitle = seoTitleFor(draft);
+  const previewDesc = seoDescriptionFor(draft);
+  const previewUrl = (draft.canonicalBase || 'https://relyka.app').replace(/\/$/, '');
 
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.back} onPress={goBack}><Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backTxt}>Retour</Text></TouchableOpacity>
+        <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Text style={styles.h1}>SEO Center</Text>
+          <Text style={styles.p}>Configuration du référencement, appliquée au site web. Sur mobile, ces réglages n'ont aucun effet.</Text>
 
-        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>SEO Center</Text>
-          <Text style={styles.subtitle}>Modifiez les titres, descriptions et mots-clés pour le référencement.</Text>
-
-          <View style={styles.card}>
-            {Object.keys(seoData).map((key) => (
-              <View key={key} style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>{key}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={seoData[key]}
-                  onChangeText={(val) => setSeoData((d) => ({ ...d, [key]: val }))}
-                  multiline={false}
-                  placeholderTextColor={COLORS.textSecondary}
-                />
-              </View>
-            ))}
-
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              <Ionicons name="checkmark" size={18} color={COLORS.bg} style={{ marginRight: 6 }} />
-              <Text style={styles.saveLabel}>{saving ? 'Enregistrement...' : 'Enregistrer'}</Text>
-            </TouchableOpacity>
-
-            {message && (
-              <Text style={[styles.message, message.startsWith('✗') ? { color: COLORS.danger } : { color: COLORS.emerald }]}>
-                {message}
-              </Text>
-            )}
+          {/* Aperçu résultat Google */}
+          <View style={styles.previewCard}>
+            <Text style={styles.previewTag}>Aperçu Google</Text>
+            <Text style={styles.previewUrl} numberOfLines={1}>{previewUrl}</Text>
+            <Text style={styles.previewTitle} numberOfLines={2}>{previewTitle}</Text>
+            <Text style={styles.previewDesc} numberOfLines={3}>{previewDesc}</Text>
           </View>
-        </KeyboardAwareScrollView>
+
+          {SECTIONS.map((sec) => {
+            const isOpen = open[sec.key] ?? false;
+            return (
+              <View key={sec.key} style={styles.section}>
+                <TouchableOpacity style={styles.sectionHead} onPress={() => setOpen((o) => ({ ...o, [sec.key]: !isOpen }))} activeOpacity={0.7}>
+                  <Ionicons name={sec.icon as any} size={17} color={COLORS.emerald} />
+                  <Text style={styles.sectionTitle}>{sec.title}</Text>
+                  <Ionicons name={isOpen ? 'chevron-up' : 'chevron-down'} size={17} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+                {isOpen && (
+                  <View style={styles.sectionBody}>
+                    {sec.fields.map((f) => f.kind === 'switch' ? (
+                      <View key={f.path} style={styles.switchRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.label}>{f.label}</Text>
+                          {!!f.help && <Text style={styles.help}>{f.help}</Text>}
+                        </View>
+                        <Switch
+                          value={!!getPath(draft, f.path)}
+                          onValueChange={(v) => setBool(f.path, v)}
+                          trackColor={{ true: COLORS.emerald, false: COLORS.cardBorder }}
+                          thumbColor="#fff"
+                        />
+                      </View>
+                    ) : (
+                      <View key={f.path} style={styles.fieldGroup}>
+                        <Text style={styles.label}>{f.label}</Text>
+                        <TextInput
+                          style={[styles.input, f.multiline && styles.inputMultiline]}
+                          value={String(getPath(draft, f.path) ?? '')}
+                          onChangeText={(v) => setText(f.path, v)}
+                          placeholder={f.placeholder}
+                          placeholderTextColor={COLORS.textSecondary}
+                          multiline={f.multiline}
+                          autoCapitalize="none"
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
+          <TouchableOpacity
+            style={[styles.saveBtn, (!dirty || save.isPending) && styles.saveBtnDisabled]}
+            onPress={saveAll}
+            disabled={!dirty || save.isPending}
+          >
+            {save.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="checkmark" size={18} color="#fff" />}
+            <Text style={styles.saveBtnTxt}>{save.isPending ? 'Enregistrement…' : 'Enregistrer'}</Text>
+          </TouchableOpacity>
+          {!dirty && savedAt != null && !save.isPending && <Text style={styles.savedTxt}>Modifications enregistrées ✓</Text>}
+          {save.isError && <Text style={styles.errorTxt}>Échec de l'enregistrement — réessaie.</Text>}
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -171,21 +195,31 @@ export default function SEOCenter() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-  root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
-  card: { backgroundColor: c.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.cardBorder },
-  fieldGroup: { marginBottom: 16 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { backgroundColor: '#ffffff10', color: c.text, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder, fontSize: 14 },
-  saveBtn: { marginTop: 20, backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  saveLabel: { color: c.bg, fontWeight: '700', fontSize: 16 },
-  message: { marginTop: 14, fontSize: 13, fontWeight: '500', textAlign: 'center' },
-  text: { color: c.text },
-});
+    root: { flex: 1, backgroundColor: c.bg },
+    safe: { flex: 1, paddingHorizontal: 18, paddingTop: 8 },
+    back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    backTxt: { fontSize: 14, fontWeight: '600', color: c.text },
+    h1: { fontSize: 22, fontWeight: '800', color: c.text, marginTop: 4 },
+    p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19, marginBottom: 12 },
+    previewCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14, marginBottom: 16 },
+    previewTag: { fontSize: 10.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    previewUrl: { fontSize: 12, color: c.textSecondary },
+    previewTitle: { fontSize: 17, fontWeight: '600', color: c.mode === 'light' ? '#1a0dab' : '#8ab4f8', marginTop: 2 },
+    previewDesc: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 3 },
+    section: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, marginBottom: 10, overflow: 'hidden', backgroundColor: c.card },
+    sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 13 },
+    sectionTitle: { flex: 1, fontSize: 14.5, fontWeight: '800', color: c.text },
+    sectionBody: { paddingHorizontal: 14, paddingBottom: 12, gap: 10 },
+    fieldGroup: { gap: 6 },
+    label: { fontSize: 13, fontWeight: '600', color: c.text },
+    help: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+    inputMultiline: { minHeight: 64, textAlignVertical: 'top' },
+    switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, marginTop: 14 },
+    saveBtnDisabled: { opacity: 0.5 },
+    saveBtnTxt: { fontSize: 15, fontWeight: '800', color: '#fff' },
+    savedTxt: { fontSize: 12.5, color: c.emerald, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+    errorTxt: { fontSize: 12.5, color: c.red, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+  });
 }

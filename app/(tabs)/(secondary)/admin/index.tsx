@@ -61,6 +61,7 @@ export default function AdminHub() {
         { href: '/(tabs)/(secondary)/admin/conseils', icon: 'newspaper-outline', title: 'Conseils', desc: 'Conseils du jour (généraux + contextuels)', color: '#f59e0b' },
         { href: '/(tabs)/(secondary)/admin/gamification', icon: 'trophy-outline', title: 'Gamification', desc: 'Badges, série, relyks, identité', color: '#f59e0b' },
         { href: '/(tabs)/(secondary)/admin/ads', icon: 'megaphone-outline', title: 'Publicités', desc: 'Bannières maison (zones activables)', color: '#ec4899' },
+        { href: '/(tabs)/(secondary)/admin/usage-limits', icon: 'lock-closed-outline', title: "Limites d'usage", desc: 'Quotas gratuit / premium (anti-abus)', color: '#f43f5e' },
       ],
     },
     {

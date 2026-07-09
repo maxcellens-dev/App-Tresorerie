@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAddAccount } from '../../../hooks/useAccounts';
+import { useUsageGuard } from '../../../hooks/useUsageLimits';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
@@ -30,6 +31,7 @@ export default function AddAccountScreen() {
   const params = useLocalSearchParams<{ joint?: string }>();
   const { user } = useAuth();
   const addAccount = useAddAccount(user?.id);
+  const { guard } = useUsageGuard(user?.id);
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
 
   const { data: profile } = useProfile(user?.id);
@@ -85,6 +87,9 @@ export default function AddAccountScreen() {
       showError('La date du solde est obligatoire.', ['initDate']);
       return;
     }
+
+    // Limite d'usage (comptes) — message amont ; le serveur reste le vrai garde-fou.
+    if (!(await guard('account'))) return;
 
     try {
       const created = await addAccount.mutateAsync({

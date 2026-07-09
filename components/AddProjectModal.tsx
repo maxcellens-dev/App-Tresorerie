@@ -24,6 +24,7 @@ import CalendarWithPicker from './CalendarWithPicker';
 import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import { useAuth } from '../contexts/AuthContext';
 import { useProjects, useAddProject, useUpdateProject, useDeleteProjectDissociating, useCheckProjectTransactions } from '../hooks/useProjects';
+import { useUsageGuard } from '../hooks/useUsageLimits';
 import { useAccounts } from '../hooks/useAccounts';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
@@ -78,6 +79,7 @@ export default function AddProjectModal() {
     [projects, params.id]
   );
   const addProjectMutation = useAddProject(user?.id || '');
+  const { guard } = useUsageGuard(user?.id);
   const updateProjectMutation = useUpdateProject(user?.id || '');
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts(user?.id || '');
 
@@ -365,6 +367,9 @@ export default function AddProjectModal() {
       // Succès : la liste se rafraîchit via l'invalidation des requêtes, on revient à l'écran précédent.
       router.back();
     };
+
+    // Limite d'usage (projets) — création uniquement ; le serveur reste le vrai garde-fou.
+    if (!editingProject && !(await guard('project'))) return;
 
     if (editingProject) {
       updateProjectMutation.mutate(

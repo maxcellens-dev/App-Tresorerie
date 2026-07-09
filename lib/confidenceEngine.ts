@@ -203,16 +203,26 @@ export function verifiedAgoPhrase(days: number): string {
 
 /**
  * Transforme un montant net en fourchette selon le doute courant.
- * Confiance haute → pas de fourchette. Sinon [net − doute ; net + doute×upBias], arrondi.
- * Le non-saisi tire surtout le Relyka vers le BAS → borne basse pleine, borne haute atténuée.
+ * Doute sous le seuil « chiffres nets » (highMax) → un seul chiffre. Sinon [net − doute ;
+ * net + doute×upBias], arrondi. Le non-saisi tire surtout le Relyka vers le BAS → borne basse
+ * pleine, borne haute atténuée.
+ *
+ * La décision fourchette/chiffre unique repose sur le RATIO de doute (pas sur le niveau ni sur
+ * l'arrondi) : quand une saisie récente réduit fortement le doute, le NIVEAU peut rester « moyen »
+ * (« À jour » réservé à une vraie vérif) mais on ne veut surtout pas d'une fausse fourchette
+ * « 750–750 ». Deuxième garde-fou : si le pas d'arrondi écrase l'écart (bornes égales), un seul
+ * chiffre aussi — quel que soit l'arrondi choisi par l'admin.
  */
 export function toRange(net: number, conf: ConfidenceResult, config: ReliabilityConfig): Range {
-  if (conf.level === 'high' || conf.uncertaintyEur <= 0) {
+  if (conf.doubtRatio < config.highMax || conf.uncertaintyEur <= 0) {
     return { low: net, high: net, isRange: false };
   }
   const low = roundTo(net - conf.uncertaintyEur, config.roundStep);
   const high = roundTo(net + conf.uncertaintyEur * config.upBias, config.roundStep);
-  return { low: Math.min(low, high), high: Math.max(low, high), isRange: true };
+  if (low >= high) {
+    return { low: net, high: net, isRange: false };
+  }
+  return { low, high, isRange: true };
 }
 
 /** Médiane d'une liste de nombres (0 si vide). */

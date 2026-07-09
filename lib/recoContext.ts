@@ -67,7 +67,7 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
     const endWith = fin.projectedEndChecking ?? fin.currentChecking;
     const endWithout = endWith - amount;
     const sixMonths = amount * 6;
-    return `💡 Conserver ${fmt(amount)} ${S}/mois te laisse ~${fmt(amount)} ${S} de plus sur ton compte en fin de mois : ~${fmt(endWith)} ${S} au lieu de ~${fmt(endWithout)} ${S} si tu la dépensais. Répété chaque mois, ~${fmt(sixMonths)} ${S} de marge sur 6 mois.`;
+    return `💡 Conserver ${fmt(amount)} ${S}/mois te laisse ~${fmt(amount)} ${S} de plus sur ton compte en fin de mois : ~${fmt(endWith)} ${S} au lieu de ~${fmt(endWithout)} ${S} si tu la dépensais.`;
   }
 
   return null;

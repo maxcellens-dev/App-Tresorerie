@@ -19,6 +19,7 @@ import { useCategories } from '../../../hooks/useCategories';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import { useProjects } from '../../../hooks/useProjects';
 import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/useCredits';
+import { useUsageGuard } from '../../../hooks/useUsageLimits';
 import CreditCurve from '../../../components/CreditCurve';
 import { computeAmortization, resolvePaliers } from '../../../lib/amortization';
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
@@ -55,6 +56,7 @@ export default function CreditAddScreen() {
   const editId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
   const addCredit = useAddCredit(user?.id);
+  const { guard } = useUsageGuard(user?.id);
   const updateCredit = useUpdateCredit(user?.id);
   const { data: allCredits = [] } = useCredits(user?.id);
   const editing = editId ? allCredits.find((c) => c.id === editId) : undefined;
@@ -307,6 +309,8 @@ export default function CreditAddScreen() {
       // modifiées à la main du tableau (elles masqueraient la nouvelle mensualité). « Écraser & réappliquer ».
       ...(editId && paymentTouched ? { schedule_overrides: null } : {}),
     };
+    // Limite d'usage (crédits) — création uniquement.
+    if (!editId && !(await guard('credit'))) return;
     try {
       if (editId) { await updateCredit.mutateAsync({ id: editId, ...payload }); router.back(); }
       else {

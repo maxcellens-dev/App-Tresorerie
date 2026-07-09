@@ -143,6 +143,21 @@ describe('toRange', () => {
     expect(r.high).toBe(2300); // 2200 + 220*0.3 = 2266 → 2300
     expect(r.low).toBeLessThan(r.high);
   });
+
+  it('niveau « moyen » mais doute sous highMax (saisie récente) = PAS de fourchette (évite « 750–750 »)', () => {
+    // Doute fortement réduit par l'amortisseur d'activité : ratio < highMax → un seul chiffre,
+    // même si le niveau reste « medium » (« À jour » réservé à une vraie vérif).
+    const damped = { level: 'medium' as const, doubtRatio: 0.03, uncertaintyEur: 20, daysSinceVerification: 8, dailyDrift: 2.5, coldStart: false, activityDamped: true };
+    expect(toRange(750, damped, cfg)).toEqual({ low: 750, high: 750, isRange: false });
+  });
+
+  it('garde-fou d’arrondi : bornes égales après arrondi → un seul chiffre (quel que soit le pas)', () => {
+    // Doute au-dessus de highMax mais faible en €, gros pas d'arrondi → les bornes se rejoignent.
+    const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, dailyDrift: 1.7, coldStart: false, activityDamped: false };
+    const r = toRange(720, smallEur, cfg); // roundStep 100 : 710→700 et 723→700
+    expect(r.isRange).toBe(false);
+    expect(r.low).toBe(720);
+  });
 });
 
 describe('resolveReliabilityConfig', () => {

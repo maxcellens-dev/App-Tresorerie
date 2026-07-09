@@ -32,6 +32,7 @@ import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOve
 import { useAccounts } from '../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useProjectionHorizon } from '../../hooks/useUiPrefs';
 import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../../hooks/useFiscalEnvelopes';
 import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/useProjectionAssumptions';
 import {
@@ -148,6 +149,7 @@ export default function ProjectionScreen() {
   const { width } = useWindowDimensions();
   const { user } = useAuth();
   const router = useRouter();
+  const { horizon: tresoHorizon, setHorizon: setTresoHorizon } = useProjectionHorizon(user?.id);
   const { data: pilotage } = usePilotageData(user?.id);
   const { data: rawTransactionsPerso = [] } = useTransactions(user?.id);
   const { data: monthOverrides = [] } = useTransactionMonthOverrides(user?.id);
@@ -567,7 +569,7 @@ export default function ProjectionScreen() {
           {/* ═══════ INVESTISSEMENTS ═══════ */}
           {/* ═══════ TRÉSORERIE SIMPLIFIÉE ═══════ */}
           {activeTab === 'treso' && (
-            <TresoSimplified transactions={fluxTransactions} accounts={fluxAccounts} pilotage={pilotage} overridesMap={overridesMap} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} />
+            <TresoSimplified transactions={fluxTransactions} accounts={fluxAccounts} pilotage={pilotage} overridesMap={overridesMap} COLORS={COLORS} styles={styles} onOpenDetail={() => router.push('/(tabs)/tresorerie')} horizon={tresoHorizon} onChangeHorizon={setTresoHorizon} />
           )}
 
           {activeTab === 'invest' && (<>
@@ -1072,8 +1074,9 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
 }
 
 // ── Trésorerie simplifiée : liste de mois (revenus / dépenses / variables / solde prévu) ──
-function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLORS, styles, onOpenDetail }: {
+function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLORS, styles, onOpenDetail, horizon, onChangeHorizon }: {
   transactions: any[]; accounts: any[]; pilotage: any; overridesMap: Record<string, number>; COLORS: any; styles: any; onOpenDetail: () => void;
+  horizon: 6 | 12; onChangeHorizon: (v: 6 | 12) => void;
 }) {
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
   const { width: winW } = useWindowDimensions();
@@ -1082,7 +1085,8 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
   const variableRemaining = pilotage?.variable_envelope_remaining ?? variableMonthly;
 
   // Calcul partagé avec le garde-fou marge du moteur de recos (une seule trajectoire).
-  const rows = computeTresoRows({ transactions, accounts, overridesMap, variableMonthly, variableRemaining });
+  // Horizon 6 (défaut) ou 12 mois, choisi par l'utilisateur (persisté).
+  const rows = computeTresoRows({ transactions, accounts, overridesMap, variableMonthly, variableRemaining, monthsCount: horizon });
 
   return (
     <View>
@@ -1091,7 +1095,23 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
         <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]}>Voir le plan de trésorerie détaillé</Text>
         <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
       </TouchableOpacity>
-      <Text style={styles.sectionHint}>Soldes et flux prévus sur les 6 prochains mois</Text>
+      {/* Bascule d'horizon 6 / 12 mois (persistée par compte). */}
+      <View style={styles.horizonToggle}>
+        {([6, 12] as const).map((h) => {
+          const active = horizon === h;
+          return (
+            <TouchableOpacity
+              key={h}
+              style={[styles.horizonToggleBtn, active && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}
+              onPress={() => onChangeHorizon(h)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.horizonToggleText, { color: active ? '#fff' : COLORS.textSecondary }]}>{h} mois</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={styles.sectionHint}>Soldes et flux prévus sur les {horizon} prochains mois</Text>
       {/* Courbe d'évolution des soldes prévus (points marqués) — au-dessus du 1er mois */}
       <View style={[styles.chartCard, { marginTop: 0, alignItems: 'stretch' }]}>
         <Text style={styles.chartTitle}>Prévision des soldes de trésorerie</Text>
@@ -1279,5 +1299,8 @@ function makeStyles(c: any) {
     tresoVal: { fontSize: 14, fontWeight: '600' },
     tresoDetailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 8, marginBottom: 8 },
     tresoDetailBtnText: { fontSize: 13, fontWeight: '700' },
+    horizonToggle: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+    horizonToggleBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
+    horizonToggleText: { fontSize: 13, fontWeight: '700' },
   });
 }

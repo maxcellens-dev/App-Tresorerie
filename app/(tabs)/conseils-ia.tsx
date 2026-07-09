@@ -13,6 +13,8 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
 import { useNavBack } from '../../hooks/useNavBack';
+import { useUsageGuard } from '../../hooks/useUsageLimits';
+import { parseUsageLimitError } from '../../lib/usageLimits';
 import { sheetWidth } from '../../lib/appLayout';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
@@ -69,6 +71,7 @@ export default function ConseilsIaScreen() {
   const createConv = useCreateConversation(uid);
   const renameConv = useRenameConversation(uid);
   const delConv = useDeleteConversation(uid);
+  const { guard: usageGuard } = useUsageGuard(uid);
   const currentConv = conversations.find((cv) => cv.id === conversationId) ?? null;
 
   const { data: history } = useAiMessages(uid, conversationId ?? null);
@@ -131,6 +134,9 @@ export default function ConseilsIaScreen() {
 
   // Envoi effectif (après validation) — consomme 1 requête en cas de succès.
   const execute = async (payload: RunPayload) => {
+    // Nouvelle conversation → une ligne sera créée en base : vérifier la limite AVANT (message +
+    // renvoi Premium / suppression). Le serveur reste le vrai garde-fou.
+    if (!conversationId && !(await usageGuard('ai_conversation'))) return;
     if (payload.kind === 'chat') setInput('');
     setPending(true);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
@@ -154,7 +160,8 @@ export default function ConseilsIaScreen() {
         else Alert.alert('Indisponible', `Le service de conseils est momentanément indisponible.${res.error ? `\n\n(détail : ${res.error})` : ''}`);
       }
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message ?? 'Échec de la requête.');
+      // Limite d'usage : déjà signalée par le backstop global (message convivial) → pas de doublon.
+      if (!parseUsageLimitError(e)) Alert.alert('Erreur', e?.message ?? 'Échec de la requête.');
     } finally {
       setPending(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
@@ -186,8 +193,10 @@ export default function ConseilsIaScreen() {
     run({ kind: 'chat', question: q });
   };
 
-  // Démarre un fil neuf (créé en base au premier message).
-  const newConversation = () => {
+  // Démarre un fil neuf (créé en base au premier message). Vérifie la limite AVANT (message
+  // immédiat au clic « + » si l'utilisateur est déjà au plafond de conversations).
+  const newConversation = async () => {
+    if (!(await usageGuard('ai_conversation'))) return;
     setConversationId(null);
     setInput('');
     setShowConvs(false);
