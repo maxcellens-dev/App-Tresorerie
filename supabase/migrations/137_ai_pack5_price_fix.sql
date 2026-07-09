@@ -1,8 +1,9 @@
 -- ============================================================================
--- 123 — Conseils IA : mise à jour des offres de recharge (packs click-to-pay).
--- Nouveaux paliers : 5 requêtes (0,99 €), 25 (3,99 €), 100 (11,99 €).
--- product_id = identifiants à créer dans RevenueCat / App Store / Google Play.
--- On force la valeur sur la ligne existante (la migration 122 ne s'applique qu'aux nouvelles bases).
+-- 137 — Conseils IA : correction du prix du pack 5 requêtes (0,99 € et non 1,99 €).
+--
+-- La migration 123 écrivait `"price_cents":099` — JSON INVALIDE (zéro en tête) → l'UPDATE échouait
+-- silencieusement, laissant le prix par défaut de la 122 (199 = 1,99 €). On force ici la valeur
+-- correcte (idempotent) sur la ligne existante. La 123 a aussi été corrigée pour les nouvelles bases.
 -- ============================================================================
 UPDATE public.ai_config
 SET extra_credit_packs = '[
