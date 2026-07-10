@@ -6,7 +6,7 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useKeyboardOverlap } from '../hooks/useKeyboardOverlap';
+import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
 import { sheetWidth } from '../lib/appLayout';
@@ -39,10 +39,9 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   // Clavier : rien ne redimensionne ce Modal (fenêtre à part, statusBarTranslucent) ni d'ailleurs la
-  // fenêtre principale (targetSdk 35). On remonte la feuille du chevauchement MESURÉ entre la ligne
-  // de saisie et le clavier — voir useKeyboardOverlap.
-  const inputRowRef = useRef<View>(null);
-  const kbPad = useKeyboardOverlap(inputRowRef);
+  // fenêtre principale (targetSdk 35). L'inset clavier est relatif à la fenêtre courante, donc
+  // valable ici tel quel : on rétrécit la feuille d'autant. Voir useKeyboardInset.
+  const kbPad = useKeyboardInset(8);
   useEffect(() => {
     if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [kbPad]);
@@ -116,7 +115,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
             )}
           </ScrollView>
 
-          <View ref={inputRowRef} style={styles.inputRow} collapsable={false}>
+          <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
               value={text}

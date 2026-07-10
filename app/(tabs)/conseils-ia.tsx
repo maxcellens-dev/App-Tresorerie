@@ -22,7 +22,7 @@ import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
 import { useUiPrefs } from '../../hooks/useUiPrefs';
-import { useKeyboardOverlap } from '../../hooks/useKeyboardOverlap';
+import { useKeyboardInset } from '../../hooks/useKeyboardInset';
 import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
@@ -35,10 +35,9 @@ export default function ConseilsIaScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
 
-  // Clavier : la barre est ÉPINGLÉE en bas, hors du scroll → on la remonte du chevauchement MESURÉ
-  // (targetSdk 35 : la fenêtre n'est plus redimensionnée, voir useKeyboardOverlap).
-  const inputBarRef = useRef<View>(null);
-  const kbPad = useKeyboardOverlap(inputBarRef);
+  // Clavier : la barre est ÉPINGLÉE en bas, hors du scroll (targetSdk 35 → la fenêtre n'est jamais
+  // redimensionnée). On la remonte de l'inset clavier réel, bandeaux de l'IME compris.
+  const kbPad = useKeyboardInset(8);
   useEffect(() => {
     if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [kbPad]);
@@ -381,9 +380,9 @@ export default function ConseilsIaScreen() {
             <View style={{ height: 48 }} />
           </ScrollView>
 
-          {/* Barre de saisie : remontée du chevauchement mesuré quand le clavier est ouvert. */}
+          {/* Barre de saisie : remontée de l'inset clavier quand celui-ci est ouvert. */}
           {!readOnly && (
-            <View ref={inputBarRef} style={[s.inputBar, kbPad > 0 && { marginBottom: kbPad }]} collapsable={false}>
+            <View style={[s.inputBar, kbPad > 0 && { marginBottom: kbPad }]}>
               <TextInput
                 style={s.input}
                 value={input}

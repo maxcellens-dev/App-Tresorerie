@@ -3,6 +3,7 @@ import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
 import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AnimatedSplash from '../components/AnimatedSplash';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../contexts/ThemeContext';
@@ -314,28 +315,33 @@ export default function RootLayout() {
   // tant que le flag dans lib/otaUpdate est à false ; voir ce fichier pour l'activation).
   useEffect(() => { maybeApplyUpdateOnLaunch(); }, []);
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <CalculatorProvider>
-            <ConfigSync />
-            <UsagePremiumSync />
-            <FontApplier />
-            <RecurringMaterializer />
-            <GamificationSync />
-            <PurchasesSync />
-            <PushRegistrar />
-            <AppChrome />
-            {!splashDone && (
-              <AnimatedSplash
-                onReady={() => { SplashScreen.hideAsync().catch(() => {}); }}
-                onDone={() => setSplashDone(true)}
-              />
-            )}
-          </CalculatorProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    // KeyboardProvider : source des insets clavier (useKeyboardInset). `statusBarTranslucent` doit
+    // refléter la prop du même nom passée à nos `Modal` (SupportThreadModal), sinon les insets
+    // seraient calculés dans le mauvais référentiel pour ces fenêtres.
+    <KeyboardProvider statusBarTranslucent>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <CalculatorProvider>
+              <ConfigSync />
+              <UsagePremiumSync />
+              <FontApplier />
+              <RecurringMaterializer />
+              <GamificationSync />
+              <PurchasesSync />
+              <PushRegistrar />
+              <AppChrome />
+              {!splashDone && (
+                <AnimatedSplash
+                  onReady={() => { SplashScreen.hideAsync().catch(() => {}); }}
+                  onDone={() => setSplashDone(true)}
+                />
+              )}
+            </CalculatorProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </KeyboardProvider>
   );
 }
 

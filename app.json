@@ -60,8 +60,6 @@
       "favicon": "./public/favicon.png",
       "name": "Relyka",
       "shortName": "Relyka",
-      "description": "Laissez-vous guider pour faire des économies.",
-      "themeColor": "#808F88",
       "backgroundColor": "#808F88"
     },
     "extra": {

@@ -4,19 +4,42 @@
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
-    <title>Relyka</title>
+    <title>Relyka — Pilote ta trésorerie personnelle</title>
 
     <!-- PWA -->
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0D2E2A" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <!-- Équivalent standard : sans lui, Chrome déprécie la balise `apple-` ci-dessus. -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Relyka" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <meta name="description" content="Laissez-vous guider pour faire des économies." />
+
+    <!--
+      SEO de BASE (statique). Indispensable : les robots qui n'exécutent PAS de JavaScript
+      (Facebook, LinkedIn, WhatsApp, Slack, Discord…) ne voient que ce fichier. Le SEO Center
+      (components/SeoHead → lib/seo.ts) n'applique ses valeurs qu'au runtime, donc après leur passage.
+
+      `data-seo="1"` est OBLIGATOIRE : `upsertMeta()` ne retrouve que les balises ainsi marquées et
+      les met à jour EN PLACE. Sans ce marqueur, le runtime en créerait un second exemplaire.
+
+      Les valeurs ci-dessous recopient SEO_DEFAULTS (lib/seo.ts) : les garder synchronisées.
+    -->
+    <meta name="description" data-seo="1" content="Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité." />
+    <meta name="theme-color" data-seo="1" content="#0D2E2A" />
+    <link rel="canonical" data-seo="1" href="https://relyka.app" />
+
+    <meta property="og:type" data-seo="1" content="website" />
+    <meta property="og:site_name" data-seo="1" content="Relyka" />
+    <meta property="og:title" data-seo="1" content="Relyka — Pilote ta trésorerie personnelle" />
+    <meta property="og:description" data-seo="1" content="Relyka t'aide à piloter ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement, en toute sérénité." />
+    <meta property="og:url" data-seo="1" content="https://relyka.app" />
+    <!-- Repli : pas d'image sociale dédiée (SEO_DEFAULTS.ogImage est vide) → le logo carré. Une image
+         1200×630 paramétrée dans l'admin la remplacera au runtime, mais PAS pour ces robots-là. -->
+    <meta property="og:image" data-seo="1" content="https://relyka.app/icon-512.png" />
+    <meta property="og:image:alt" data-seo="1" content="Relyka — pilote ta trésorerie" />
+    <meta name="twitter:card" data-seo="1" content="summary_large_image" />
 
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
@@ -36,6 +59,55 @@
         flex: 1;
       }
     </style>
+
+    <!--
+      Écran de chargement (avant le montage de React) — évite l'écran blanc.
+      LOGO SEUL, identique à components/AppLoading (même image `icon-512.png`, qui est aussi le logo
+      du splash natif ; le favicon est une AUTRE image). Sortie calquée sur le splash natif :
+      fondu du calque + logo qui file vers le haut.
+      NB : `app/+html.tsx` n'est PAS utilisé ici — avec `web.output: "single"` (app.json), Expo prend
+      CE fichier comme coquille. Toute modification du chargement web doit se faire ici.
+    -->
+    <style id="boot-loader">
+      #app-boot {
+        position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #808F88);
+        display: flex; align-items: center; justify-content: center;
+        transition: opacity .34s ease-in;
+      }
+      #app-boot .boot-logo {
+        width: 96px; height: 96px;
+        background: url('/icon-512.png') center / contain no-repeat;
+        transition: transform .34s cubic-bezier(.4, 0, 1, 1);
+      }
+      #app-boot.boot-out { opacity: 0; }
+      #app-boot.boot-out .boot-logo { transform: translateY(-64px); }
+      @media (prefers-reduced-motion: reduce) {
+        #app-boot .boot-logo { transition: none; }
+        #app-boot.boot-out .boot-logo { transform: none; }
+      }
+    </style>
+    <script>
+      // Applique le dernier thème connu AVANT la première peinture (clés alignées sur lib/themeBoot).
+      // Priorité au thème UTILISATEUR, repli sur le thème ADMIN, puis couleur neutre (1ʳᵉ visite).
+      (function () {
+        function mode() {
+          try {
+            var u = localStorage.getItem('relyka.user.theme');
+            if (u) { var m = JSON.parse(u).mode; if (m === 'light' || m === 'dark') return m; }
+          } catch (e) {}
+          try {
+            var a = localStorage.getItem('relyka.admin.theme');
+            if (a === 'light' || a === 'dark') return a;
+          } catch (e) {}
+          return null;
+        }
+        try {
+          var m = mode();
+          var bg = m === 'light' ? '#F4EFE6' : m === 'dark' ? '#0D2E2A' : '#808F88';
+          document.documentElement.style.setProperty('--boot-bg', bg);
+        } catch (e) {}
+      })();
+    </script>
   </head>
 
   <body>
@@ -43,8 +115,41 @@
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
+    <div id="app-boot"><div class="boot-logo"></div></div>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
+
+    <script>
+      // Retire le calque quand la VRAIE app est peinte. Pas « dès que React a monté » : React monte
+      // souvent sur AppLoading, qui affiche le MÊME logo au même endroit — sortir là ferait glisser
+      // un logo par-dessus un logo immobile. On attend donc la disparition de [data-app-loading].
+      (function () {
+        var done = false;
+        function hide() {
+          if (done) return;
+          done = true;
+          var el = document.getElementById('app-boot');
+          if (!el) return;
+          el.className = 'boot-out';
+          setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 400);
+        }
+        function painted(root) {
+          return root.childNodes.length > 0 && !root.querySelector('[data-app-loading]');
+        }
+        function start() {
+          var root = document.getElementById('root');
+          if (!root) { window.addEventListener('load', function () { setTimeout(hide, 300); }); return; }
+          if (painted(root)) { setTimeout(hide, 150); return; }
+          var obs = new MutationObserver(function () {
+            if (painted(root)) { obs.disconnect(); setTimeout(hide, 150); }
+          });
+          obs.observe(root, { childList: true, subtree: true });
+          setTimeout(hide, 8000); // filet de sécurité : ne jamais rester bloqué sur le logo
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+        else start();
+      })();
+    </script>
 
     <script>
       if ('serviceWorker' in navigator) {

@@ -1,4 +1,12 @@
 // Document HTML racine pour le rendu web (Expo Router).
+//
+// ⚠️ NON UTILISÉ EN L'ÉTAT : `app.json` déclare `web.output: "single"`, et Expo prend alors
+// `public/index.html` comme coquille — ce fichier n'est appliqué qu'en rendu STATIQUE
+// (`output: "static"`). Vérifié : le `index.html` d'`expo export --platform web` est bien la copie
+// de `public/index.html`. Toute modification du <head> ou du chargement web doit donc se faire
+// dans `public/index.html`, sous peine de n'avoir aucun effet en production.
+// Conservé pour le jour d'un passage au rendu statique (SEO sans JS).
+//
 // Contrôle le viewport pour une expérience type "app" sur iPhone :
 // pas de zoom par pincement, pas de rebond/overscroll, page verrouillée à l'écran.
 import { ScrollViewStyleReset } from 'expo-router/html';
