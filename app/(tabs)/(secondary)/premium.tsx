@@ -79,10 +79,16 @@ export default function PremiumScreen() {
     }
   };
 
+  /**
+   * Gérer / annuler l'abonnement. Une app ne peut PAS résilier elle-même : on renvoie vers les
+   * réglages d'abonnement du store. Disponible partout, y compris sur le WEB (où l'on ne peut pas
+   * souscrire, mais où la page Google Play permet bien d'annuler).
+   */
   const onManage = () => {
     const url = sub?.managementURL
       ?? (Platform.OS === 'ios' ? 'https://apps.apple.com/account/subscriptions' : 'https://play.google.com/store/account/subscriptions');
-    Linking.openURL(url).catch(() => {});
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.open(url, '_blank', 'noopener');
+    else Linking.openURL(url).catch(() => {});
   };
 
   const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '');
@@ -188,16 +194,22 @@ export default function PremiumScreen() {
                 </View>
               )}
 
-              {PURCHASES_SUPPORTED ? (
-                <>
-                  <TouchableOpacity style={[styles.cta, { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder }]} activeOpacity={0.85} onPress={onManage}>
-                    <Text style={[styles.ctaText, { color: COLORS.text }]}>{sub && !sub.willRenew ? 'Gérer l’abonnement' : 'Gérer / annuler l’abonnement'}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.legal}>L'annulation se fait depuis les réglages d'abonnement de ton store. L'accès Premium reste actif jusqu'à la fin de la période déjà payée.</Text>
-                </>
-              ) : (
-                <Text style={styles.legal}>Gère ou annule ton abonnement depuis l'application mobile Relyka (réglages d'abonnement {Platform.OS === 'ios' ? 'App Store' : 'Google Play'}).</Text>
-              )}
+              {/* Toujours proposé, même sur le web : on ne peut pas y SOUSCRIRE, mais la page
+                  d'abonnements du store permet bien d'ANNULER. */}
+              <TouchableOpacity
+                style={[styles.cta, { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder, flexDirection: 'row', gap: 8 }]}
+                activeOpacity={0.85}
+                onPress={onManage}
+                accessibilityRole="button"
+              >
+                <Ionicons name="open-outline" size={17} color={COLORS.text} />
+                <Text style={[styles.ctaText, { color: COLORS.text }]}>{sub && !sub.willRenew ? 'Gérer l’abonnement' : 'Gérer / annuler l’abonnement'}</Text>
+              </TouchableOpacity>
+              <Text style={styles.legal}>
+                {PURCHASES_SUPPORTED
+                  ? "L'annulation se fait depuis les réglages d'abonnement de ton store. L'accès Premium reste actif jusqu'à la fin de la période déjà payée."
+                  : `L'abonnement se souscrit depuis l'application mobile Relyka, mais tu peux l'annuler ici : ce bouton ouvre tes réglages d'abonnement ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. L'accès Premium reste actif jusqu'à la fin de la période déjà payée.`}
+              </Text>
               {purchaseMsg && <Text style={styles.purchaseMsg}>{purchaseMsg}</Text>}
             </>
           )}

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable, Keyboard } from 'react-native';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -626,7 +626,9 @@ export default function EditTransactionScreen() {
             placeholderTextColor={COLORS.textSecondary}
             keyboardType="decimal-pad"
             returnKeyType="done"
-            onSubmitEditing={() => handleSubmitWithDraft(false)}
+            // La touche du clavier ne DOIT PAS enregistrer : le bouton « Enregistrer » est masqué par
+            // le clavier, l'utilisateur croirait avoir validé par erreur. On referme juste le clavier.
+            onSubmitEditing={Keyboard.dismiss}
           />
 
           {/* Date */}

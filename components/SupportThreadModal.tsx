@@ -42,7 +42,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   // KeyboardAvoidingView et le simple `endCoordinates.height` mesurent faux dans un Modal
   // statusBarTranslucent sur Android edge-to-edge → saisie masquée.
   const inputRowRef = useRef<View>(null);
-  const kbPad = useKeyboardClearance(inputRowRef);
+  const kbPad = useKeyboardClearance(inputRowRef, 28);
   useEffect(() => {
     if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [kbPad]);

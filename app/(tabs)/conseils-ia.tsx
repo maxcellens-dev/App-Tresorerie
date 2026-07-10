@@ -37,7 +37,9 @@ export default function ConseilsIaScreen() {
 
   // Clavier : compensation mesurée de la barre de saisie (+ scroll en bas quand le clavier s'ouvre).
   const inputBarRef = useRef<View>(null);
-  const kbPad = useKeyboardClearance(inputBarRef);
+  // Marge généreuse : la barre de saisie doit rester nettement au-dessus du clavier (et de sa barre
+  // de suggestions), pas la frôler.
+  const kbPad = useKeyboardClearance(inputBarRef, 28);
   useEffect(() => {
     if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [kbPad]);

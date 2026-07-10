@@ -214,7 +214,7 @@ export default function RecommendationCard({
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
           <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
           <Text style={styles.amberText} numberOfLines={2}>
-            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Ton relyka est une estimation — vérifie ton solde pour un suivi fiable.
+            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Ton relyka est une estimation — vérifie le pour un suivi fiable.
           </Text>
           <Text style={styles.amberCta}>Vérifier</Text>
         </TouchableOpacity>

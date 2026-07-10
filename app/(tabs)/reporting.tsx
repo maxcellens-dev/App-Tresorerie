@@ -11,7 +11,7 @@ import { Animated, Easing } from 'react-native';
 // onPress n'est pas reconnu par les éléments SVG sur web — on utilise onClick à la place
 const svgPress = (handler: () => void): Record<string, unknown> =>
   Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
-import Svg, { Rect, Text as SvgText, Line, Path, G } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Line, Path, G, Circle } from 'react-native-svg';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
@@ -201,6 +201,77 @@ function SavingsBars({ data, width }: { data: { label: string; saved: number; sa
           </View>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/* ═══ Courbe « Valeur de tes investissements » — regard sur le PASSÉ (≠ page Projection, qui
+   projette des années à venir). Un seul axe (€). Apports du mois affichés dans le bandeau détail. ═══ */
+function InvestmentValueChart({ points, apports, width }: {
+  points: { label: string; value: number }[]; apports: number[]; width: number;
+}) {
+  const C = useReportingColors();
+  const s = makeStyles(C);
+  const [active, setActive] = useState<number | null>(null);
+  if (points.length < 2) return <Text style={s.emptyChart}>Pas encore assez d'historique.</Text>;
+
+  const color = ACCOUNT_COLORS.investment;
+  const chartH = 150, padT = 12, padL = 48, padR = 12;
+  const usableW = width - padL - padR;
+  const usableH = chartH - padT;
+  const maxVal = Math.max(...points.map((p) => p.value), 1);
+  const minVal = Math.min(...points.map((p) => p.value), 0);
+  const range = maxVal - minVal || 1;
+  const x = (i: number) => padL + (i / (points.length - 1)) * usableW;
+  const y = (v: number) => padT + (1 - (v - minVal) / range) * usableH;
+
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.value)}`).join(' ');
+  const area = `${line} L ${x(points.length - 1)} ${chartH} L ${x(0)} ${chartH} Z`;
+  const sel = active != null && active < points.length ? active : points.length - 1;
+  const zoneW = usableW / Math.max(1, points.length - 1);
+
+  return (
+    <View>
+      <View>
+        <Svg width={width} height={chartH + 26}>
+          {[0, 0.5, 1].map((pct, i) => {
+            const yy = padT + (1 - pct) * usableH;
+            return (
+              <G key={i}>
+                <Line x1={padL} y1={yy} x2={width - padR} y2={yy} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={padL - 6} y={yy + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(minVal + pct * range)}</SvgText>
+              </G>
+            );
+          })}
+          <Path d={area} fill={color} fillOpacity={0.12} />
+          <Path d={line} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" />
+          {points.map((p, i) => (
+            <Circle key={i} cx={x(i)} cy={y(p.value)} r={sel === i ? 5.5 : 3.5} fill={sel === i ? color : C.card} stroke={color} strokeWidth={2} />
+          ))}
+          {points.map((p, i) => (
+            <SvgText key={`l${i}`} x={x(i)} y={chartH + 14} fill={sel === i ? C.text : C.textSecondary} fontSize={9} fontWeight={sel === i ? '700' : '400'} textAnchor="middle">{p.label}</SvgText>
+          ))}
+        </Svg>
+        {/* Zones tapables centrées sur chaque point (Views RN : fiables web + natif). */}
+        <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
+          {points.map((_, i) => (
+            <TouchableOpacity
+              key={i}
+              style={{ position: 'absolute', top: 0, bottom: 0, left: x(i) - zoneW / 2, width: zoneW }}
+              activeOpacity={0.55}
+              onPress={() => setActive(i)}
+              accessibilityRole="button"
+            />
+          ))}
+        </View>
+      </View>
+      <View style={s.ieDetail}>
+        <Text style={s.ieDetailMonth}>{points[sel].label}</Text>
+        <View style={s.ieDetailVals}>
+          <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: color }]} /><Text style={s.ieDetailTxt}>{fmtFull(points[sel].value)}</Text></View>
+          <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Apports</Text><Text style={s.ieDetailTxt}>{fmtFull(apports[sel] ?? 0)}</Text></View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -447,6 +518,11 @@ export default function ReportingScreen() {
   // Série de patrimoine : plus de graphe dédié, mais elle alimente le KPI « Patrimoine net » et le bilan.
   const netWorthTotal = useMemo(() => buildBalanceSeries(allIds, allAccounts as any, allTx as ReportTx[], months, today), [allIds, allAccounts, allTx, months, today]);
 
+  // ── Investissements : valeur du portefeuille dans le temps + apports mensuels. ──
+  const hasInvestAccounts = useMemo(() => (allAccounts as any[]).some((a) => a.type === 'investment'), [allAccounts]);
+  const investIds = useMemo(() => new Set((allAccounts as any[]).filter((a) => a.type === 'investment').map((a) => a.id)), [allAccounts]);
+  const investSeries = useMemo(() => buildBalanceSeries(investIds, allAccounts as any, allTx as ReportTx[], months, today), [investIds, allAccounts, allTx, months, today]);
+
   const curYm = today.substring(0, 7);
   const prevYm = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }, []);
   const categoryBreakdown = useMemo(() => buildCategoryBreakdown(fluxTx, curYm, grandCategoryName, categoryType, 7), [fluxTx, curYm, catById, catTypeById]);
@@ -462,6 +538,14 @@ export default function ReportingScreen() {
   // Écart de dépenses vs mois précédent : en € (toujours affichable, même si M-1 = 0 €) + % si calculable.
   const expenseDiff = lastFlux && prevFlux ? lastFlux.expense - prevFlux.expense : null;
   const expensePct = lastFlux && prevFlux && prevFlux.expense > 0 ? Math.round(((lastFlux.expense - prevFlux.expense) / prevFlux.expense) * 100) : null;
+
+  // Apports (virements entrants) par mois, et « gain hors apports » : la variation de valeur qui
+  // n'est PAS due à de l'argent ajouté. `buildBalanceSeries` renvoie le solde de FIN de mois, donc
+  // les apports du 1ᵉʳ mois sont déjà inclus dans le point de départ → on ne compte que les suivants.
+  const investApports = useMemo(() => savingsSeries.map((m) => m.invest), [savingsSeries]);
+  const investValue = investSeries[investSeries.length - 1]?.value ?? 0;
+  const investApportsPeriod = useMemo(() => investApports.slice(1).reduce((a, b) => a + b, 0), [investApports]);
+  const investGain = investSeries.length >= 2 ? investValue - investSeries[0].value - investApportsPeriod : 0;
 
   // ── Bilan intelligent. ──
   const insights = useMemo(() => buildInsights({
@@ -606,8 +690,8 @@ export default function ReportingScreen() {
             </View>
           </FadeIn>
 
-          {/* ══ ÉPARGNE ══ */}
-          <FadeIn delay={410}><GroupHeader icon="leaf-outline" title="Épargne" color={ACCOUNT_COLORS.savings} /></FadeIn>
+          {/* ══ ÉPARGNE & INVESTISSEMENT ══ */}
+          <FadeIn delay={410}><GroupHeader icon="leaf-outline" title="Épargne et Investissement" color={ACCOUNT_COLORS.savings} /></FadeIn>
           {pilotage ? (
             <FadeIn delay={440}>
               <View style={s.section}>
@@ -634,6 +718,31 @@ export default function ReportingScreen() {
               <View style={s.chartCard}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
             </View>
           </FadeIn>
+          {hasInvestAccounts && (
+            <FadeIn delay={520}>
+              <View style={s.section}>
+                <View style={s.sectionHeader}><Ionicons name="trending-up-outline" size={20} color={ACCOUNT_COLORS.investment} /><Text style={s.sectionTitle}>Tes investissements</Text></View>
+                <Text style={s.sectionSub}>Valeur du portefeuille sur {months.length} mois · touche un mois pour le détail</Text>
+                <View style={s.chartCard}>
+                  <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(investValue)}</Text>
+                  <InvestmentValueChart points={investSeries} apports={investApports} width={chartWidth} />
+                  {/* Ce que la Projection ne dit pas : ce qui, dans la hausse, vient de TES apports
+                      et ce qui vient de la performance. */}
+                  <View style={s.investStatRow}>
+                    <View style={s.investStat}>
+                      <Text style={s.investStatLabel}>Apports sur la période</Text>
+                      <Text style={[s.investStatValue, { color: ACCOUNT_COLORS.investment }]}>{fmtFull(investApportsPeriod)}</Text>
+                    </View>
+                    <View style={s.investStatDivider} />
+                    <View style={s.investStat}>
+                      <Text style={s.investStatLabel}>Gain hors apports</Text>
+                      <Text style={[s.investStatValue, { color: investGain >= 0 ? C.income : C.expense }]}>{fmtSigned(investGain)}</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </FadeIn>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -701,6 +810,12 @@ function makeStyles(C: any) {
     ieDetailItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     ieDetailTxt: { fontSize: 13, fontWeight: '700', color: C.text },
     ieDetailNetLabel: { fontSize: 11, color: C.textSecondary, fontWeight: '600' },
+
+    investStatRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.cardBorder },
+    investStat: { flex: 1, alignItems: 'center' },
+    investStatDivider: { width: 1, alignSelf: 'stretch', backgroundColor: C.cardBorder, marginHorizontal: 10 },
+    investStatLabel: { fontSize: 11, color: C.textSecondary, marginBottom: 3, textAlign: 'center' },
+    investStatValue: { fontSize: 16, fontWeight: '800' },
 
     healthRow: { flexDirection: 'row' },
     healthItem: { flex: 1, alignItems: 'center' },
