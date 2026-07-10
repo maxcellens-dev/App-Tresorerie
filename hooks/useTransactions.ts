@@ -717,8 +717,12 @@ export function useDeleteTransaction(profileId: string | undefined) {
         }
       }
 
-      // Recalcul de l'allocation mensuelle en mode "Date cible" si suppression d'un débit projet
-      if (projectId && txAmount < 0) {
+      // Recalcul de l'allocation mensuelle en mode « Date cible » si suppression d'un débit projet.
+      // UNIQUEMENT pour un versement RÉALISÉ (is_draft = false) : la régénération ci-dessous recrée
+      // TOUT l'échéancier futur (de la prochaine échéance jusqu'à la date cible). Sur un BROUILLON,
+      // elle recréait donc aussitôt l'échéance qu'on venait de supprimer — d'où la corbeille « sans
+      // effet » et la ligne qui réapparaît toute seule. Supprimer un brouillon le supprime, point.
+      if (projectId && txAmount < 0 && !isDraft) {
         const today = localTodayISO();
         const { data: project } = await supabase
           .from('projects')

@@ -11,7 +11,7 @@ import { Animated, Easing } from 'react-native';
 // onPress n'est pas reconnu par les éléments SVG sur web — on utilise onClick à la place
 const svgPress = (handler: () => void): Record<string, unknown> =>
   Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
-import Svg, { Rect, Text as SvgText, Line, Circle, Path, G, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Line, Path, G } from 'react-native-svg';
 import { useTransactions } from '../../hooks/useTransactions';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
@@ -59,22 +59,6 @@ const fmtK = (n: number) => {
 };
 const fmtFull = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 const fmtSigned = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}`;
-
-/* ═══ Tooltip SVG ═══ */
-function ChartTooltip({ cx, cy, text, color, chartWidth, padR = 0 }: { cx: number; cy: number; text: string; color: string; chartWidth: number; padR?: number }) {
-  const C = useReportingColors();
-  const boxW = 92, boxH = 28, gap = 10;
-  const fromRight = cx + gap + boxW > chartWidth - padR;
-  const tx = fromRight ? cx - gap - boxW : cx + gap;
-  const ty = Math.max(2, cy - boxH / 2);
-  return (
-    <G>
-      <Line x1={cx} y1={cy} x2={fromRight ? cx - gap : cx + gap} y2={cy} stroke={color} strokeWidth={1} strokeOpacity={0.6} />
-      <Rect x={tx} y={ty} width={boxW} height={boxH} rx={8} fill={C.card} stroke={color} strokeWidth={1.5} />
-      <SvgText x={tx + boxW / 2} y={ty + boxH / 2 + 4} fill={C.text} fontSize={11} fontWeight="700" textAnchor="middle">{text}</SvgText>
-    </G>
-  );
-}
 
 /* ═══ Barres groupées Revenus vs Dépenses — colonne entière cliquable + bandeau détail.
    Les zones tapables sont des Views RN SUPERPOSÉES au SVG : les événements de clic sur les
@@ -140,43 +124,6 @@ function IncomeExpenseBars({ data, width }: { data: { label: string; income: num
         </View>
       ) : null}
     </View>
-  );
-}
-
-/* ═══ Aire + ligne : patrimoine net TOTAL (une seule série, hero) ═══ */
-function AreaLineChart({ points, width, color, height = 120, showAxis = true }: { points: { label: string; value: number }[]; width: number; color: string; height?: number; showAxis?: boolean }) {
-  const C = useReportingColors();
-  const [active, setActive] = useState<number | null>(null);
-  const padL = showAxis ? 48 : 6, padR = 12;
-  const usable = width - padL - padR;
-  if (points.length < 2) return <Text style={{ color: C.textSecondary, padding: 16, fontSize: 12 }}>Pas encore assez d'historique.</Text>;
-  const maxVal = Math.max(...points.map((p) => p.value), 1);
-  const minVal = Math.min(...points.map((p) => p.value), 0);
-  const range = maxVal - minVal || 1;
-  const coords = points.map((p, i) => ({ x: padL + (i / (points.length - 1)) * usable, y: 8 + (1 - (p.value - minVal) / range) * (height - 16) }));
-  const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ');
-  const areaPath = linePath + ` L ${coords[coords.length - 1].x} ${height} L ${coords[0].x} ${height} Z`;
-  // id UNIQUE par couleur ET dimensions : sur web les <linearGradient> partagent le DOM → deux
-  // sparklines de même taille mais couleur différente prendraient sinon le même dégradé.
-  const gid = `ar${color.replace('#', '')}${Math.round(width)}${height}`;
-  return (
-    <Svg width={width} height={height + (showAxis ? 26 : 6)}>
-      <Rect x={0} y={0} width={width} height={height + 26} fill="rgba(0,0,0,0.001)" {...svgPress(() => setActive(null))} />
-      <Defs><LinearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={color} stopOpacity="0.28" /><Stop offset="1" stopColor={color} stopOpacity="0.02" /></LinearGradient></Defs>
-      {showAxis && [0, 0.5, 1].map((pct, i) => {
-        const y = 8 + (1 - pct) * (height - 16);
-        return <G key={i}><Line x1={padL} y1={y} x2={width - padR} y2={y} stroke={C.cardBorder} strokeWidth={1} strokeDasharray="4,4" /><SvgText x={padL - 6} y={y + 4} fill={C.textSecondary} fontSize={9} textAnchor="end">{fmtK(minVal + pct * range)}</SvgText></G>;
-      })}
-      <Path d={areaPath} fill={`url(#${gid})`} {...svgPress(() => setActive(null))} />
-      <Path d={linePath} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" {...svgPress(() => setActive(null))} />
-      {coords.map((c, i) => <Circle key={i} cx={c.x} cy={c.y} r={showAxis ? 4 : 3} fill={C.card} stroke={color} strokeWidth={2} {...svgPress(() => setActive(i === active ? null : i))} />)}
-      {active !== null ? <ChartTooltip cx={coords[active].x} cy={coords[active].y} text={fmtFull(points[active].value)} color={color} chartWidth={width} padR={padR} /> : null}
-      {showAxis && points.map((p, i) => {
-        const step = Math.max(1, Math.ceil(points.length / 6));
-        if (i % step !== 0 && i !== points.length - 1) return null;
-        return <SvgText key={i} x={coords[i].x} y={height + 14} fill={C.textSecondary} fontSize={9} textAnchor="middle">{p.label}</SvgText>;
-      })}
-    </Svg>
   );
 }
 
@@ -368,7 +315,11 @@ function SafetyGauge({ value, min, optimal, comfort, monthsCovered }: { value: n
         <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: status.color, borderRadius: 6 }} />
       </View>
       <Text style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 9, lineHeight: 18 }}>
-        {monthsCovered != null && monthsCovered > 0 ? `Tu peux tenir environ ${monthsCovered} mois sans rentrée d'argent. ` : ''}
+        {monthsCovered != null && monthsCovered > 0
+          ? (monthsCovered < 0.75
+              ? 'Tu tiendrais moins d’1 mois sans rentrée d’argent. '
+              : `Tu peux tenir environ ${Math.round(monthsCovered)} mois sans rentrée d’argent. `)
+          : ''}
         {target > value ? `Objectif conseillé : ${fmtFull(target)} — encore ${fmtFull(target - value)}.` : 'Objectif atteint 🎉'}
       </Text>
     </View>
@@ -387,22 +338,6 @@ function KpiCard({ icon, label, value, color, sub }: { icon: string; label: stri
       </View>
       <Text style={[s.kpiValue, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
       {sub ? <Text style={s.kpiSub} numberOfLines={1}>{sub}</Text> : null}
-    </View>
-  );
-}
-
-/* ═══ Tuile composition patrimoine (mini sparkline) ═══ */
-function CompositionTile({ label, value, color, points, width }: { label: string; value: number; color: string; points: { label: string; value: number }[]; width: number }) {
-  const C = useReportingColors();
-  const s = makeStyles(C);
-  return (
-    <View style={[s.chartCard, { flex: 1, padding: 11, minWidth: 0 }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-        <Text style={{ color: C.textSecondary, fontSize: 11, fontWeight: '600', flex: 1 }} numberOfLines={1}>{label}</Text>
-      </View>
-      <Text style={{ color: C.text, fontSize: 15, fontWeight: '800' }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(value)}</Text>
-      <AreaLineChart points={points} width={width} color={color} height={38} showAxis={false} />
     </View>
   );
 }
@@ -498,22 +433,19 @@ export default function ReportingScreen() {
     for (const t of allTx as any[]) { const ym = (t.date ?? '').substring(0, 7); if (ym && (!earliest || ym < earliest)) earliest = ym; }
     return earliest;
   }, [allAccounts, allTx]);
-  // Fenêtres fixes (plus de sélecteur) : 12 mois pour les tendances, 6 mois pour les barres (lisibilité).
-  const months = useMemo(() => monthsWindow(12, dataStartYM), [dataStartYM]);
-  const monthsBars = useMemo(() => monthsWindow(6, dataStartYM), [dataStartYM]);
+  // Fenêtre fixe unique : 6 mois (plus de sélecteur). Bornée à la 1ʳᵉ donnée.
+  const months = useMemo(() => monthsWindow(6, dataStartYM), [dataStartYM]);
+  const monthsBars = months;
 
   // ── Séries. ──
   const monthlyFlux = useMemo(() => buildMonthlyFlux(fluxTx, months, categoryType), [fluxTx, months, catTypeById]);
   const monthlyFluxBars = useMemo(() => buildMonthlyFlux(fluxTx, monthsBars, categoryType), [fluxTx, monthsBars, catTypeById]);
   const savingsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], months, typeById), [allTx, months, typeById]);
   const savingsBarsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], monthsBars, typeById), [allTx, monthsBars, typeById]);
-  const idsOfType = (t: string) => new Set(allAccounts.filter((a: any) => a.type === t).map((a: any) => a.id));
   const allIds = useMemo(() => new Set(allAccounts.map((a: any) => a.id)), [allAccounts]);
   const today = todayISO();
+  // Série de patrimoine : plus de graphe dédié, mais elle alimente le KPI « Patrimoine net » et le bilan.
   const netWorthTotal = useMemo(() => buildBalanceSeries(allIds, allAccounts as any, allTx as ReportTx[], months, today), [allIds, allAccounts, allTx, months, today]);
-  const checkingSeries = useMemo(() => buildBalanceSeries(idsOfType('checking'), allAccounts as any, allTx as ReportTx[], months, today), [allAccounts, allTx, months, today]);
-  const savingsBalSeries = useMemo(() => buildBalanceSeries(idsOfType('savings'), allAccounts as any, allTx as ReportTx[], months, today), [allAccounts, allTx, months, today]);
-  const investSeries = useMemo(() => buildBalanceSeries(idsOfType('investment'), allAccounts as any, allTx as ReportTx[], months, today), [allAccounts, allTx, months, today]);
 
   const curYm = today.substring(0, 7);
   const prevYm = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }, []);
@@ -530,9 +462,6 @@ export default function ReportingScreen() {
   // Écart de dépenses vs mois précédent : en € (toujours affichable, même si M-1 = 0 €) + % si calculable.
   const expenseDiff = lastFlux && prevFlux ? lastFlux.expense - prevFlux.expense : null;
   const expensePct = lastFlux && prevFlux && prevFlux.expense > 0 ? Math.round(((lastFlux.expense - prevFlux.expense) / prevFlux.expense) * 100) : null;
-  const avgMonthlyExpense = useMemo(() => { const v = monthlyFlux.map((m) => m.expense).filter((x) => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; }, [monthlyFlux]);
-
-  const balanceByType = { checking: (allAccounts as any[]).filter((a) => a.type === 'checking').reduce((s2, a) => s2 + Number(a.balance), 0), savings: (allAccounts as any[]).filter((a) => a.type === 'savings').reduce((s2, a) => s2 + Number(a.balance), 0), investment: (allAccounts as any[]).filter((a) => a.type === 'investment').reduce((s2, a) => s2 + Number(a.balance), 0) };
 
   // ── Bilan intelligent. ──
   const insights = useMemo(() => buildInsights({
@@ -610,80 +539,14 @@ export default function ReportingScreen() {
             </FadeIn>
           )}
 
-          {/* ══ PATRIMOINE ══ */}
-          <FadeIn delay={180}><GroupHeader icon="layers-outline" title="Patrimoine" color={ACCOUNT_COLORS.checking} /></FadeIn>
+          {/* ══ RÉCAPITULATIF ══ */}
+          <FadeIn delay={180}><GroupHeader icon="grid-outline" title="Récapitulatif" color={C.violet} /></FadeIn>
+          {/* Un seul titre pour les deux vues d'une MÊME donnée : le tableau (détail chiffré) et
+              les barres (lecture rapide). D'où l'en-tête unique posé au-dessus du tableau. */}
           <FadeIn delay={210}>
             <View style={s.section}>
-              <Text style={[s.sectionSub, { marginTop: 2 }]}>Patrimoine net total · {months.length} mois</Text>
-              <View style={s.chartCard}>
-                <Text style={{ fontSize: 28, fontWeight: '800', color: C.text, letterSpacing: -0.5 }}>{fmtFull(patrimoineTotal)}</Text>
-                <AreaLineChart points={netWorthTotal} width={chartWidth} color={ACCOUNT_COLORS.checking} height={120} />
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                <CompositionTile label="Courant" value={balanceByType.checking} color={ACCOUNT_COLORS.checking} points={checkingSeries} width={(chartWidth + 12) / 3 - 22} />
-                <CompositionTile label="Épargne" value={balanceByType.savings} color={ACCOUNT_COLORS.savings} points={savingsBalSeries} width={(chartWidth + 12) / 3 - 22} />
-                <CompositionTile label="Invest." value={balanceByType.investment} color={ACCOUNT_COLORS.investment} points={investSeries} width={(chartWidth + 12) / 3 - 22} />
-              </View>
-            </View>
-          </FadeIn>
-
-          {/* ══ DÉPENSES ══ */}
-          <FadeIn delay={260}><GroupHeader icon="card-outline" title="Dépenses" color={C.expense} /></FadeIn>
-          <FadeIn delay={290}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="pie-chart-outline" size={20} color={C.cat[0]} /><Text style={s.sectionTitle}>Où part mon argent</Text></View>
-              <Text style={s.sectionSub}>Répartition des dépenses du mois en cours</Text>
-              <View style={s.chartCard}><CategoryDonut data={categoryBreakdown} width={chartWidth} /></View>
-            </View>
-          </FadeIn>
-          <FadeIn delay={330}>
-            <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="bar-chart-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Revenus vs Dépenses</Text></View>
-              <Text style={s.sectionSub}>{monthsBars.length} mois · touche un mois pour le détail</Text>
-              <View style={s.chartCard}>
-                <View style={s.legendRow}>
-                  <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.legendSmall}>Revenus</Text></View>
-                  <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.legendSmall}>Dépenses</Text></View>
-                </View>
-                {monthlyFluxBars.length > 0 ? <IncomeExpenseBars data={monthlyFluxBars} width={chartWidth} /> : <Text style={s.emptyChart}>Aucune transaction</Text>}
-              </View>
-            </View>
-          </FadeIn>
-          <FadeIn delay={370}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="podium-outline" size={20} color={C.violet} /><Text style={s.sectionTitle}>Top postes de dépense</Text></View>
-              <Text style={s.sectionSub}>Par grande catégorie · ce mois vs précédent</Text>
-              <View style={s.chartCard}><HBarCompare rows={topCategories} width={chartWidth} /></View>
-            </View>
-          </FadeIn>
-
-          {/* ══ ÉPARGNE ══ */}
-          <FadeIn delay={410}><GroupHeader icon="leaf-outline" title="Épargne" color={ACCOUNT_COLORS.savings} /></FadeIn>
-          {pilotage ? (
-            <FadeIn delay={440}>
-              <View style={s.section}>
-                <View style={s.sectionHeader}><Ionicons name="shield-checkmark-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Épargne de sécurité</Text></View>
-                <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
-                <View style={s.chartCard}>
-                  <SafetyGauge value={pilotage.current_savings} min={pilotage.safety_threshold_min} optimal={pilotage.safety_threshold_optimal} comfort={pilotage.safety_threshold_comfort} monthsCovered={avgMonthlyExpense > 0 ? Math.round(pilotage.current_savings / avgMonthlyExpense) : null} />
-                </View>
-              </View>
-            </FadeIn>
-          ) : null}
-          <FadeIn delay={480}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={ACCOUNT_COLORS.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
-              <Text style={s.sectionSub}>Virements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
-              <View style={s.chartCard}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
-            </View>
-          </FadeIn>
-
-          {/* ══ RÉCAPITULATIF ══ */}
-          <FadeIn delay={540}><GroupHeader icon="grid-outline" title="Récapitulatif" color={C.violet} /></FadeIn>
-          <FadeIn delay={570}>
-            <View style={s.section}>
-              <View style={s.sectionHeader}><Ionicons name="calendar-outline" size={20} color={C.violet} /><Text style={s.sectionTitle}>Récapitulatif mensuel</Text></View>
-              <Text style={s.sectionSub}>Revenus, dépenses et net par mois</Text>
+              <Text style={s.sectionSub}>Revenus, dépenses et net par mois · {months.length} mois</Text>
               <View style={s.tableCard}>
                 <View style={s.tableHeaderRow}>
                   <Text style={[s.tableHeaderCell, { flex: 2 }]}>Mois</Text>
@@ -711,6 +574,64 @@ export default function ReportingScreen() {
                   );
                 })()}
               </View>
+            </View>
+          </FadeIn>
+          <FadeIn delay={250}>
+            <View style={[s.section, { marginTop: 12 }]}>
+              <Text style={[s.sectionSub, { marginTop: 0 }]}>{monthsBars.length} derniers mois · touche un mois pour le détail</Text>
+              <View style={s.chartCard}>
+                <View style={s.legendRow}>
+                  <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.legendSmall}>Revenus</Text></View>
+                  <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.legendSmall}>Dépenses</Text></View>
+                </View>
+                {monthlyFluxBars.length > 0 ? <IncomeExpenseBars data={monthlyFluxBars} width={chartWidth} /> : <Text style={s.emptyChart}>Aucune transaction</Text>}
+              </View>
+            </View>
+          </FadeIn>
+
+          {/* ══ DÉPENSES ══ */}
+          <FadeIn delay={300}><GroupHeader icon="card-outline" title="Dépenses" color={C.expense} /></FadeIn>
+          <FadeIn delay={330}>
+            <View style={s.section}>
+              <View style={s.sectionHeader}><Ionicons name="pie-chart-outline" size={20} color={C.cat[0]} /><Text style={s.sectionTitle}>Où part mon argent</Text></View>
+              <Text style={s.sectionSub}>Répartition des dépenses du mois en cours</Text>
+              <View style={s.chartCard}><CategoryDonut data={categoryBreakdown} width={chartWidth} /></View>
+            </View>
+          </FadeIn>
+          <FadeIn delay={370}>
+            <View style={s.section}>
+              <View style={s.sectionHeader}><Ionicons name="podium-outline" size={20} color={C.violet} /><Text style={s.sectionTitle}>Top postes de dépense</Text></View>
+              <Text style={s.sectionSub}>Par grande catégorie · ce mois vs précédent</Text>
+              <View style={s.chartCard}><HBarCompare rows={topCategories} width={chartWidth} /></View>
+            </View>
+          </FadeIn>
+
+          {/* ══ ÉPARGNE ══ */}
+          <FadeIn delay={410}><GroupHeader icon="leaf-outline" title="Épargne" color={ACCOUNT_COLORS.savings} /></FadeIn>
+          {pilotage ? (
+            <FadeIn delay={440}>
+              <View style={s.section}>
+                <View style={s.sectionHeader}><Ionicons name="shield-checkmark-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Épargne de sécurité</Text></View>
+                <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
+                <View style={s.chartCard}>
+                  {/* « Mois de sécurité » = épargne / revenu mensuel moyen — MÊME définition que les
+                      recommandations (recommendationEngine), pas la moyenne des dépenses. */}
+                  <SafetyGauge
+                    value={pilotage.current_savings}
+                    min={pilotage.safety_threshold_min}
+                    optimal={pilotage.safety_threshold_optimal}
+                    comfort={pilotage.safety_threshold_comfort}
+                    monthsCovered={pilotage.avg_monthly_income > 0 ? pilotage.current_savings / pilotage.avg_monthly_income : null}
+                  />
+                </View>
+              </View>
+            </FadeIn>
+          ) : null}
+          <FadeIn delay={480}>
+            <View style={s.section}>
+              <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={ACCOUNT_COLORS.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
+              <Text style={s.sectionSub}>Virements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
+              <View style={s.chartCard}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
             </View>
           </FadeIn>
 

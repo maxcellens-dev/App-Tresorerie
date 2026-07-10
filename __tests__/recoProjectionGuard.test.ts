@@ -47,8 +47,8 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     expect(r.invest.amount).toBe(100);
     expect(r.save.guardNote).toBeUndefined();
     // Tenable en récurrent : min((5000−2000)/(k+1)) = 500 ≥ 400.
-    expect(r.save.recurringNote).toContain('Tenable chaque mois');
-    expect(r.invest.recurringNote).toContain('Tenable chaque mois');
+    expect(r.save.recurringFit).toEqual({ kind: 'sustainable', monthly: 400 });
+    expect(r.invest.recurringFit).toEqual({ kind: 'sustainable', monthly: 100 });
   });
 
   it('headroom insuffisant : invest réduit en premier, excédent vers Conserver', () => {
@@ -88,9 +88,9 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     });
     const r = byType(recos);
     expect(r.save.amount).toBe(400);
-    expect(r.save.recurringNote).toContain('reste sous 100');
+    expect(r.save.recurringFit).toEqual({ kind: 'capped', monthly: 100 });
     // invest 100 ≤ 100 → tenable.
-    expect(r.invest.recurringNote).toContain('Tenable chaque mois');
+    expect(r.invest.recurringFit).toEqual({ kind: 'sustainable', monthly: 100 });
   });
 
   it('point bas déjà sous la marge : tout en réserve (frein complet)', () => {
@@ -110,6 +110,6 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     const r = byType(recos);
     expect(r.save.amount).toBe(400);
     expect(r.save.guardNote).toBeUndefined();
-    expect(r.save.recurringNote).toBeUndefined();
+    expect(r.save.recurringFit).toBeUndefined();
   });
 });

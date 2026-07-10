@@ -13,20 +13,31 @@ export const UNLOCK_COLOR = '#f59e0b';
  *  à la 1ʳᵉ visite de la page Succès (voir AchievementCelebration & écran Succès). */
 export const WELCOME_BADGE_KEY = 'premiere_connexion';
 
-/** Métriques calculables qui pilotent le déblocage automatique des badges. */
+/**
+ * Métriques calculables qui pilotent le déblocage automatique des badges.
+ * Toute métrique listée ici DOIT être alimentée par `GamificationSync` (ou par l'état de
+ * gamification lu dans `evaluate`) — sinon les badges qui s'en servent ne se débloquent jamais.
+ * `variable_savings_pct` (badges « sniper ») a été RETIRÉ pour cette raison : l'enveloppe variable
+ * n'est pas historisée par mois, la métrique n'était donc calculable qu'au prix d'une approximation.
+ */
 export type BadgeMetric =
   | 'streak_weeks'           // série hebdo (record)
   | 'gems_earned'            // cumul de gemmes gagnées
   | 'closures_count'         // nb de clôtures mensuelles effectuées
   | 'consecutive_closures'   // plus longue série de mois consécutifs clôturés (fiabilité)
   | 'surplus_months_streak'  // mois consécutifs terminés avec excédent variable > 0
-  | 'variable_savings_pct'   // meilleure éco. vs enveloppe sur un mois (%)
   | 'invest_followed'        // nb de fois où la reco d'investir a été suivie
   | 'account_age_days'       // ancienneté du compte (jours depuis l'inscription)
   | 'login_streak_days'      // jours consécutifs de connexion (série quotidienne)
   | 'onboarding_done'        // 1 si toutes les étapes du guide « Pour bien démarrer » sont faites
   | 'profile_photo'          // 1 si une photo de profil est définie
   | 'manual';                // attribué manuellement (code dédié)
+
+/** Métriques encore supportées (garde-fou runtime : une config admin en base peut être obsolète). */
+const SUPPORTED_METRICS: ReadonlySet<string> = new Set<BadgeMetric>([
+  'streak_weeks', 'gems_earned', 'closures_count', 'consecutive_closures', 'surplus_months_streak',
+  'invest_followed', 'account_age_days', 'login_streak_days', 'onboarding_done', 'profile_photo', 'manual',
+]);
 
 export interface BadgeDef {
   key: string;
@@ -179,10 +190,6 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'econome_1', category: 'Économie', metric: 'surplus_months_streak', label: 'Premier excédent', description: 'Termine un mois avec un excédent positif.', icon: 'leaf', threshold: 1, gems: 30 },
     { key: 'econome_3', category: 'Économie', metric: 'surplus_months_streak', label: 'Économe régulier', description: '3 mois consécutifs en excédent.', icon: 'leaf', threshold: 3, gems: 80 },
     { key: 'econome_6', category: 'Économie', metric: 'surplus_months_streak', label: 'Fourmi prévoyante', description: '6 mois consécutifs en excédent.', icon: 'leaf', threshold: 6, gems: 200 },
-    // ── Budget (éco. vs enveloppe) ──
-    { key: 'sniper_10', category: 'Budget', metric: 'variable_savings_pct', label: 'Bonne visée', description: 'Dépense 10 % de moins que ton enveloppe.', icon: 'locate', threshold: 10, gems: 30 },
-    { key: 'sniper_25', category: 'Budget', metric: 'variable_savings_pct', label: 'Tireur d’élite', description: 'Dépense 25 % de moins que ton enveloppe.', icon: 'locate', threshold: 25, gems: 80 },
-    { key: 'sniper_50', category: 'Budget', metric: 'variable_savings_pct', label: 'Maître du budget', description: 'Dépense 50 % de moins que ton enveloppe.', icon: 'locate', threshold: 50, gems: 200 },
     // ── Rigueur (clôtures) ──
     { key: 'cloture_1', category: 'Rigueur', metric: 'closures_count', label: 'Première clôture', description: 'Effectue ta première clôture mensuelle.', icon: 'time', threshold: 1, gems: 20 },
     { key: 'cloture_3', category: 'Rigueur', metric: 'closures_count', label: 'Rigueur', description: '3 clôtures mensuelles effectuées.', icon: 'time', threshold: 3, gems: 60 },
@@ -286,9 +293,12 @@ function mergeBadges(stored: BadgeDef[] | undefined): BadgeDef[] {
   if (!stored || stored.length === 0) return DEFAULT_GAMIFICATION.badges;
   const oldFormat = stored.some((b) => (b as any).levels !== undefined || (b as any).threshold === undefined);
   if (oldFormat) return DEFAULT_GAMIFICATION.badges;
-  const keys = new Set(stored.map((b) => b.key));
+  // Garde-fou : la config admin stockée en base peut contenir des badges dont la métrique a été
+  // retirée (ex. « sniper » / variable_savings_pct) → indéblocables. On ne les ressuscite pas.
+  const usable = stored.filter((b) => SUPPORTED_METRICS.has(b.metric));
+  const keys = new Set(usable.map((b) => b.key));
   const missing = DEFAULT_GAMIFICATION.badges.filter((b) => !keys.has(b.key));
-  return [...stored, ...missing];
+  return [...usable, ...missing];
 }
 
 /** Forme plurielle du nom de la monnaie (« Relyk » → « Relyks »). */

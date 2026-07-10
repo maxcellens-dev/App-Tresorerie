@@ -25,7 +25,6 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'gems_earned', label: 'Relyks gagnés (cumul)' },
   { value: 'closures_count', label: 'Clôtures effectuées' },
   { value: 'surplus_months_streak', label: 'Mois consécutifs en excédent' },
-  { value: 'variable_savings_pct', label: 'Éco. vs enveloppe (%)' },
   { value: 'invest_followed', label: 'Recos investir suivies' },
   { value: 'onboarding_done', label: 'Guide terminé (1/0)' },
   { value: 'profile_photo', label: 'Photo de profil (1/0)' },

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput, type StyleProp, type TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
 import { useAppColors } from '../hooks/useAppColors';
@@ -10,6 +10,24 @@ import { unverifiedSincePhrase, verifiedAgoPhrase } from '../lib/confidenceEngin
 import { isHidden } from '../lib/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
 import RelykaColumns from './RelykaColumns';
+
+/* ── Mise en gras des MONTANTS dans les textes des recos ──────────────────────
+   Les phrases sont construites côté moteur (chaînes simples). Plutôt que d'y injecter du balisage,
+   on repère ici les montants (« 1 500 € », « ~63 594 € »…) et on les rend en gras. Le séparateur de
+   milliers de toLocaleString('fr-FR') est une espace insécable (U+00A0 / U+202F) → incluse. */
+const CURRENCY_RE = CURRENCY_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const AMOUNT_RE = new RegExp(`(~?\\d[\\d\\s\\u00a0\\u202f.,]*\\s?${CURRENCY_RE})`, 'g');
+
+/** Rend un texte avec les montants en gras (le reste garde le poids du style parent). */
+function RichAmounts({ text, style }: { text: string; style?: StyleProp<TextStyle> }) {
+  // `split` avec un groupe capturant place les montants aux index IMPAIRS.
+  const parts = text.split(AMOUNT_RE);
+  return (
+    <Text style={style}>
+      {parts.map((p, i) => (i % 2 === 1 ? <Text key={i} style={{ fontWeight: '800' }}>{p}</Text> : p))}
+    </Text>
+  );
+}
 
 
 interface SmartRecommendationCardProps {
@@ -311,14 +329,16 @@ export default function RecommendationCard({
             </Text>
           </View>
         </View>
-        <Text style={styles.recoDescription}>{currentReco.description}</Text>
+        <RichAmounts text={currentReco.description} style={styles.recoDescription} />
+        {/* UN SEUL bloc coloré : tenue en virement récurrent + projection, composés ensemble
+            (lib/recoContext) — on ne veut pas 3 messages sous le montant. */}
         {financials && (() => {
           // Tip calculé sur le montant ACTIONNABLE (borne basse si fourchette) → cohérent avec la
           // description et les CTA.
-          const ctx = getRecoContextText(currentReco.type, currentReco.actionAmount ?? currentReco.amount, financials);
+          const ctx = getRecoContextText(currentReco.type, currentReco.actionAmount ?? currentReco.amount, financials, currentReco.recurringFit);
           return ctx ? (
             <View style={[styles.contextBox, { borderColor: currentReco.color + '40', backgroundColor: currentReco.color + '10' }]}>
-              <Text style={[styles.contextText, { color: currentReco.color }]}>{ctx}</Text>
+              <RichAmounts text={ctx} style={[styles.contextText, { color: currentReco.color }]} />
             </View>
           ) : null;
         })()}
@@ -326,13 +346,6 @@ export default function RecommendationCard({
         {!!currentReco.guardNote && (
           <View style={[styles.contextBox, { marginTop: 0, borderColor: COLORS.orange + '44', backgroundColor: COLORS.orange + '12' }]}>
             <Text style={[styles.contextText, { color: COLORS.orange }]}>{currentReco.guardNote}</Text>
-          </View>
-        )}
-        {/* Conseil « virement récurrent » : tenable (ou non) en répétant le montant chaque mois. */}
-        {!!currentReco.recurringNote && (
-          <View style={styles.recurringNoteRow}>
-            <Ionicons name="repeat-outline" size={13} color={COLORS.textSecondary} style={{ marginTop: 2 }} />
-            <Text style={styles.recurringNoteText}>{currentReco.recurringNote}</Text>
           </View>
         )}
       </View>
@@ -676,10 +689,7 @@ function makeStyles(c: any) {
   contextText: {
     fontSize: 12,
     lineHeight: 17,
-    fontWeight: '600',
   },
-  recurringNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, paddingHorizontal: 2 },
-  recurringNoteText: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic' },
 
   /* Actions */
   actionRow: {

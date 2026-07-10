@@ -63,6 +63,21 @@ describe('buildSavingsSeries', () => {
     expect(r.savings).toBe(200);
     expect(r.invest).toBe(150);
   });
+
+  it('exclut les virements entre comptes de MÊME type (épargne↔épargne, invest↔invest)', () => {
+    const months = [M('2026-07')];
+    const typeById = { chk: 'checking', sav: 'savings', sav2: 'savings', inv: 'investment', inv2: 'investment' };
+    const tx: ReportTx[] = [
+      { date: '2026-07-01', amount: 200, account_id: 'sav', linked_account_id: 'chk' },  // courant → épargne ✓
+      { date: '2026-07-02', amount: 150, account_id: 'inv', linked_account_id: 'sav' },  // épargne → invest ✓ (types ≠)
+      { date: '2026-07-03', amount: 999, account_id: 'sav2', linked_account_id: 'sav' }, // épargne → épargne ✗
+      { date: '2026-07-04', amount: 500, account_id: 'inv2', linked_account_id: 'inv' }, // invest → invest ✗
+    ];
+    const r = buildSavingsSeries(tx, months, typeById)[0];
+    expect(r.savings).toBe(200);
+    expect(r.invest).toBe(150);
+    expect(r.saved).toBe(350);
+  });
 });
 
 describe('buildCategoryBreakdown', () => {

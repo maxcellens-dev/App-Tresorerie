@@ -48,9 +48,24 @@ export interface SmartRecommendation {
   actionLabel: string;
   /** Garde-fou marge × projection : le montant a été réduit (ou mis en réserve) — message d'explication. */
   guardNote?: string;
-  /** Conseil « virement récurrent » : tenable (ou pas) en répétant ce montant chaque mois sur 6 mois. */
-  recurringNote?: string;
+  /**
+   * Tenue du montant en VIREMENT RÉCURRENT sur 6 mois. Donnée STRUCTURÉE (pas une phrase) : le texte
+   * est composé avec la projection dans un seul bloc (lib/recoContext) — on ne veut pas 3 messages.
+   */
+  recurringFit?: RecurringFit;
 }
+
+/**
+ * Le montant est-il tenable chaque mois sans entamer la marge de sécurité ?
+ *  • sustainable : oui, à `monthly` €/mois ;
+ *  • capped      : non — le maximum tenable en récurrent est `monthly` €/mois ;
+ *  • month_only  : rien n'est tenable en récurrent (à gérer mois par mois).
+ * `null`/absent = trajectoire indisponible (pas de conclusion possible).
+ */
+export type RecurringFit =
+  | { kind: 'sustainable'; monthly: number }
+  | { kind: 'capped'; monthly: number }
+  | { kind: 'month_only' };
 
 export type SavingsTier = 'critical' | 'below_optimal' | 'healthy' | 'p4_dynamic' | 'comfortable';
 
@@ -439,7 +454,7 @@ export function computeRecommendations(
       const note = guardNotes[reco.type];
       if (note) reco.guardNote = note;
       if ((reco.type === 'save' || reco.type === 'invest') && !note) {
-        reco.recurringNote = buildRecurringNote(reco.actionAmount, guard!.balances, guard!.margin);
+        reco.recurringFit = computeRecurringFit(reco.actionAmount, guard!.balances, guard!.margin);
       }
     }
   }
@@ -447,25 +462,19 @@ export function computeRecommendations(
 }
 
 /**
- * Conseil « virement récurrent » : le montant est-il tenable en le répétant chaque mois ?
- * Au mois k (0 = mois courant), le solde projeté supporte (k+1) exécutions cumulées →
- * tenable ⟺ montant ≤ min sur k de (solde_k − marge) ÷ (k+1).
+ * Le montant est-il tenable en le répétant chaque mois ? Au mois k (0 = mois courant), le solde
+ * projeté supporte (k+1) exécutions cumulées → tenable ⟺ montant ≤ min sur k de (solde_k − marge) ÷ (k+1).
  */
-function buildRecurringNote(amount: number, balances: number[], margin: number): string | undefined {
+export function computeRecurringFit(amount: number, balances: number[], margin: number): RecurringFit | undefined {
   if (amount <= 0 || balances.length === 0) return undefined;
   let maxSustainable = Infinity;
   for (let k = 0; k < balances.length; k++) {
     maxSustainable = Math.min(maxSustainable, (balances[k] - margin) / (k + 1));
   }
   if (!Number.isFinite(maxSustainable)) return undefined;
-  if (amount <= maxSustainable) {
-    return `Tenable chaque mois : tu peux en faire un virement récurrent de ${amount.toLocaleString('fr-FR')} €/mois sans entamer ta marge de sécurité sur 6 mois.`;
-  }
+  if (amount <= maxSustainable) return { kind: 'sustainable', monthly: amount };
   const maxMonthly = Math.max(0, floorToTen(maxSustainable));
-  if (maxMonthly > 0) {
-    return `OK pour ce mois-ci, mais pas tenable chaque mois : en virement récurrent, reste sous ${maxMonthly.toLocaleString('fr-FR')} €/mois pour préserver ta marge.`;
-  }
-  return `OK pour ce mois-ci, mais pas tenable chaque mois — gère plutôt mois par mois.`;
+  return maxMonthly > 0 ? { kind: 'capped', monthly: maxMonthly } : { kind: 'month_only' };
 }
 
 /** Renvoie le palier d'épargne courant (utile pour l'affichage) */
@@ -682,17 +691,17 @@ function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: Pilot
 
   // Revenu non détecté → on n'affiche pas les « mois de sécurité » (juste le total + l'appréciation).
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
-  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. \nPlace ${amountPhrase(action)} ce mois-ci pour la consolider.`;
+  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. \nTu peux placer ${amountPhrase(action)} ce mois-ci pour la consolider.`;
 }
 
 function getInvestDescription(tier: SavingsTier, action: ActionAmount, _data: PilotageData): string {
   if (tier === 'comfortable') {
-    return `Ton épargne est confortable. Place ${amountPhrase(action)} sur tes investissements pour faire fructifier ton patrimoine.`;
+    return `Ton épargne est confortable. Tu peux placer ${amountPhrase(action)} ce mois-ci sur tes investissements, pour faire fructifier ton patrimoine.`;
   }
   if (tier === 'healthy') {
-    return `Bonne santé financière ! Investis ${amountPhrase(action)} pour diversifier ton patrimoine.`;
+    return `Bonne santé financière ! Tu peux investir ${amountPhrase(action)} ce mois-ci pour diversifier ton patrimoine.`;
   }
-  return `Commence à investir ${amountPhrase(action)}, même modestement, pour préparer l'avenir.`;
+  return `Tu peux investir ${amountPhrase(action)} ce mois-ci pour préparer l'avenir.`;
 }
 
 function getEnjoyDescription(action: ActionAmount, _data: PilotageData): string {

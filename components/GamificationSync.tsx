@@ -3,7 +3,7 @@
  * actif cette semaine (au moins une transaction saisie), puis (ré)évalue les succès.
  * Monté une fois (dans le layout racine). Sans effet si la gamification est désactivée en admin.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactions } from '../hooks/useTransactions';
 import { useGamification } from '../hooks/useGamification';
@@ -49,30 +49,26 @@ export default function GamificationSync() {
   const { enabled: closureEnabled, closures } = useMonthlyClosure(user?.id);
   const { data: profile } = useProfile(user?.id);
   const { allDone: onboardingDone } = useOnboarding(user?.id);
-  const { validateWeek, evaluate, recordLogin } = useGamification(user?.id);
+  const { state, validateWeek, evaluate, recordLogin } = useGamification(user?.id);
   const ranFor = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (isImpersonating) return; // pas d'effet de bord gamification en mode consultation admin
-    if (!user?.id || !config?.identity.enabled) return;
-    if (txLoading) return; // attendre la fin du chargement des transactions (vide = OK)
-
+  /** Actif cette semaine = au moins une transaction SAISIE depuis lundi. */
+  const activeThisWeek = useMemo(() => {
     const monday = mondayOf(new Date());
-    const activeThisWeek = transactions.some(
-      (t: any) => typeof t.created_at === 'string' && t.created_at >= `${monday}T00:00:00`,
-    );
-    // Signature des métriques déclencheuses : on RÉÉVALUE dès qu'une d'elles change (ex. photo de
-    // profil ajoutée après le 1er passage). Un simple verrou par user.id ne débloquait le succès
-    // qu'au prochain lancement de l'app.
-    const avatarPresent = (profile as any)?.avatar_url ? 1 : 0;
-    const sig = [user.id, avatarPresent, onboardingDone ? 1 : 0, (closures ?? []).length, transactions.length, activeThisWeek ? 1 : 0].join('|');
-    if (ranFor.current === sig) return;
-    ranFor.current = sig;
-    // Contexte des métriques « classiques » (ancienneté, photo, guide). La série de
-    // connexion quotidienne est renseignée par recordLogin et relue dans evaluate().
+    return transactions.some((t: any) => typeof t.created_at === 'string' && t.created_at >= `${monday}T00:00:00`);
+  }, [transactions]);
+
+  /**
+   * Contexte COMPLET des métriques de succès calculables côté client.
+   * Volontairement mémoïsé sur ses vraies sources (dont `transactions`) : c'est lui qui pilote la
+   * réévaluation. Les métriques portées par l'état de gamification (séries, relyks cumulés) ne sont
+   * PAS mises ici — `evaluate()` les relit à la source (DB), plus fraîches que le cache.
+   */
+  const ctx = useMemo<BadgeContext | null>(() => {
+    if (!user?.id || txLoading) return null; // attendre les transactions (vide = OK)
     const createdAt = (profile as any)?.created_at ?? (user as any)?.created_at ?? null;
     const accountAgeDays = createdAt ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000) : 0;
-    // Métriques de fiabilité (clôtures) : total confirmé + plus longue série de mois consécutifs.
+    // Fiabilité (clôtures) : total confirmé + plus longue série de mois consécutifs.
     const confirmedKeys = (closures ?? [])
       .filter((c: any) => (c.status ?? 'confirmed') === 'confirmed')
       .map((c: any) => c.month_key as string)
@@ -82,7 +78,7 @@ export default function GamificationSync() {
       run = i > 0 && confirmedKeys[i] === addMonthKey(confirmedKeys[i - 1], 1) ? run + 1 : 1;
       if (run > bestRun) bestRun = run;
     }
-    const ctx: BadgeContext = {
+    return {
       ...buildContext(transactions),
       account_age_days: accountAgeDays,
       // Succès « photo de profil » : seulement une image TÉLÉVERSÉE (pas l'avatar Google seedé à la création).
@@ -91,6 +87,23 @@ export default function GamificationSync() {
       closures_count: confirmedKeys.length,
       consecutive_closures: bestRun,
     };
+  }, [user?.id, txLoading, transactions, profile, closures, onboardingDone]);
+
+  useEffect(() => {
+    if (isImpersonating) return; // pas d'effet de bord gamification en mode consultation admin
+    if (!user?.id || !config?.identity.enabled || !ctx) return;
+
+    // Signature dérivée des MÉTRIQUES ELLES-MÊMES (et non d'une liste d'entrées choisie à la main) :
+    // dès qu'une valeur bouge — même sans changer le nombre de transactions (ex. une transaction
+    // éditée qui devient un virement d'investissement) — l'évaluation est relancée. On y ajoute les
+    // métriques de l'état (relyks cumulés, séries) : un achat de relyks doit débloquer aussitôt.
+    const sig = [
+      user.id, activeThisWeek ? 1 : 0, JSON.stringify(ctx),
+      state?.gems_earned_total ?? -1, state?.login_streak ?? -1, state?.best_streak ?? -1,
+    ].join('|');
+    if (ranFor.current === sig) return;
+    ranFor.current = sig;
+
     const opts = { closureEnabled: !!closureEnabled };
     (async () => {
       try {
@@ -100,7 +113,7 @@ export default function GamificationSync() {
       } catch { ranFor.current = null; }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, config?.identity.enabled, closureEnabled, txLoading, profile, onboardingDone, closures]);
+  }, [ctx, activeThisWeek, state, user?.id, config?.identity.enabled, closureEnabled, isImpersonating]);
 
   return null;
 }

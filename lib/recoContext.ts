@@ -7,7 +7,7 @@
  * Hypothèse de rendement : 7 %/an (intérêts composés mensuels).
  */
 import { CURRENCY_SYMBOL } from './currency';
-import type { RecoType } from './recommendationEngine';
+import type { RecoType, RecurringFit } from './recommendationEngine';
 
 const ANNUAL_RATE = 0.07; // 7 %/an
 
@@ -37,39 +37,68 @@ export interface RecoFinancials {
   projectedEndChecking?: number;
 }
 
+/** Phrase de tenue en virement récurrent (vide si la trajectoire est indisponible). */
+function fitSentence(fit: RecurringFit | undefined, S: string): string {
+  if (!fit) return '';
+  if (fit.kind === 'sustainable') return `Tenable chaque mois : ${fmt(fit.monthly)} ${S}/mois sans entamer ta marge.`;
+  if (fit.kind === 'capped') return `En virement récurrent, reste sous ${fmt(fit.monthly)} ${S}/mois pour préserver ta marge.`;
+  return 'Pas tenable chaque mois : garde ce geste ponctuel.';
+}
+
 /**
  * Retourne la phrase contextuelle (ou null si non pertinent / montant nul).
  * `amount` = montant ACTIONNABLE de la reco (borne basse quand les montants sont en fourchette).
+ * `fit` = tenue en virement récurrent : la projection est calculée sur le montant RÉELLEMENT
+ * tenable (sinon on projetterait 350 €/mois juste après avoir dit « reste sous 160 €/mois »).
  */
-export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials): string | null {
+export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials, fit?: RecurringFit): string | null {
   const S = CURRENCY_SYMBOL;
   if (!(amount > 0)) return null;
 
-  if (type === 'invest') {
-    const monthly = amount; // la reco est un montant mensuel
-    if (fin.totalInvested <= 0) {
-      const y10 = futureValue(0, monthly, 10);
-      const y20 = futureValue(0, monthly, 20);
-      return `💡 Et si tu te lançais ? ${fmt(monthly)} ${S}/mois à 7 %/an, ça pourrait faire ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans.`;
-    }
-    // Projection en RÉPÉTANT le versement chaque mois (avec l'existant comme capital de départ) —
-    // bien plus parlant que la seule croissance de l'existant.
-    const y10 = futureValue(fin.totalInvested, monthly, 10);
-    const y20 = futureValue(fin.totalInvested, monthly, 20);
-    return `💡 En investissant ${fmt(monthly)} ${S}/mois (en plus de tes ${fmt(fin.totalInvested)} ${S} déjà placés), tu pourrais avoir ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans, à 7 %/an.`;
-  }
+  if (type === 'invest' || type === 'save') {
+    const a = fitSentence(fit, S);
+    // Rythme mensuel retenu pour la projection : le montant tenable, 0 si rien n'est tenable,
+    // et le montant de la reco quand la trajectoire est inconnue (hypothèse « si tu le refais »).
+    const rate = fit ? (fit.kind === 'month_only' ? 0 : fit.monthly) : amount;
 
-  if (type === 'save') {
-    return `💡 Et si tu créais un projet d'épargne ? Donne un cap à ces ${fmt(amount)} ${S} (voyage, apport, sécurité…) et vois-les grandir mois après mois.`;
+    let b: string;
+    if (type === 'invest') {
+      if (rate > 0) {
+        const y10 = futureValue(fin.totalInvested, rate, 10);
+        const y20 = futureValue(fin.totalInvested, rate, 20);
+        const tail = `tu pourrais atteindre ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans, avec un placement à 7 %/an.`;
+        if (fin.totalInvested > 0) {
+          b = a
+            ? `En plus de tes ${fmt(fin.totalInvested)} ${S} déjà placés, ${tail}`
+            : `En investissant ${fmt(rate)} ${S}/mois, en plus de tes ${fmt(fin.totalInvested)} ${S} déjà placés, ${tail}`;
+        } else {
+          b = a ? `À ce rythme, ${tail}` : `En investissant ${fmt(rate)} ${S}/mois, ${tail}`;
+        }
+      } else {
+        // Versement ponctuel : on projette le capital, sans versement récurrent.
+        const y10 = futureValue(fin.totalInvested + amount, 0, 10);
+        b = fin.totalInvested > 0
+          ? `Tes ${fmt(fin.totalInvested)} ${S} déjà placés + ces ${fmt(amount)} ${S} pourraient devenir ~${fmt(y10)} ${S} dans 10 ans, à 7 %/an.`
+          : `Ces ${fmt(amount)} ${S} pourraient devenir ~${fmt(y10)} ${S} dans 10 ans, à 7 %/an.`;
+      }
+    } else {
+      // Épargne : accumulation SIMPLE (pas de rendement supposé sur un livret).
+      if (rate > 0) {
+        const tail = `tu aurais mis de côté ~${fmt(rate * 12)} ${S} en 1 an et ~${fmt(rate * 60)} ${S} en 5 ans.`;
+        b = a ? `À ce rythme, ${tail}` : `En épargnant ${fmt(rate)} ${S}/mois, ${tail}`;
+      } else {
+        b = `Ces ${fmt(amount)} ${S} renforcent directement ton épargne de sécurité.`;
+      }
+    }
+    return `💡 ${a ? a + ' ' : ''}${b}`;
   }
 
   if (type === 'keep') {
-    // Effet sur le solde de FIN DE MOIS projeté (pas le solde actuel) : conserver cette somme la
-    // laisse sur le compte, la dépenser la retire d'autant → on montre les deux (écart = la somme).
+    // Effet sur le solde de FIN DE MOIS projeté (pas le solde actuel). On annonce directement le
+    // solde obtenu (et celui qu'on aurait sans) : dire « ça te laisse X de plus » était une évidence.
     const endWith = fin.projectedEndChecking ?? fin.currentChecking;
     const endWithout = endWith - amount;
-    const sixMonths = amount * 6;
-    return `💡 Conserver ${fmt(amount)} ${S}/mois te laisse ~${fmt(amount)} ${S} de plus sur ton compte en fin de mois : ~${fmt(endWith)} ${S} au lieu de ~${fmt(endWithout)} ${S} si tu la dépensais.`;
+    return `💡 Conserver ${fmt(amount)} ${S} te laissera ~${fmt(endWith)} ${S} sur ton compte en fin de mois, au lieu de ~${fmt(endWithout)} ${S} si tu les dépensais.`;
   }
 
   return null;

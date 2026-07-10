@@ -38,8 +38,18 @@ export default function AchievementCelebration() {
   const [current, setCurrent] = useState<BadgeDef | null>(null);
   // App réellement révélée (le splash animé s'est effacé) : on ne célèbre JAMAIS avant que
   // l'utilisateur soit arrivé sur l'app — sinon l'animation joue derrière l'écran de chargement.
-  const [appReady, setAppReady] = useState(isAppReady());
-  useEffect(() => onAppReady(() => setAppReady(true)), []);
+  // MAIS `signalAppReady()` n'est émis que par Pilotage / Accueil / Questionnaire : si la session
+  // démarre ailleurs (Boutique, Succès, rafraîchissement web sur une autre page), le signal
+  // n'arrivait jamais et la célébration restait bloquée en file d'attente indéfiniment.
+  //  • web  : aucun splash animé → prêt immédiatement ;
+  //  • natif : on attend le signal, avec un filet de sécurité pour ne jamais rester bloqué.
+  const [appReady, setAppReady] = useState(() => isAppReady() || Platform.OS === 'web');
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const off = onAppReady(() => setAppReady(true));
+    const fallback = setTimeout(() => setAppReady(true), 4000);
+    return () => { off(); clearTimeout(fallback); };
+  }, []);
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
