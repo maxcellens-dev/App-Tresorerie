@@ -252,7 +252,7 @@ export default function ConseilsIaScreen() {
           </View>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
             <Ionicons name="sparkles-outline" size={48} color={c.amber} />
-            <Text style={s.payTitle}>Conseils IA réservés aux abonnés Premium</Text>
+            <Text style={s.payTitle}>Conseils Intelligents réservés aux abonnés Premium</Text>
             <Text style={s.paySub}>Analyses personnalisées de tes finances et conseiller en discussion : passe Premium pour en profiter.</Text>
             <TouchableOpacity style={s.payBtn} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
               <Ionicons name="star" size={16} color="#0f172a" />
@@ -296,7 +296,7 @@ export default function ConseilsIaScreen() {
             <View style={s.titleRow}>
               <View style={s.iconBadge}><Ionicons name="sparkles" size={20} color={c.emerald} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={s.title}>Conseils IA</Text>
+                <Text style={s.title}>Conseils Intelligents</Text>
                 <TouchableOpacity onPress={() => setShowConvs(true)} activeOpacity={0.7}>
                   <Text style={s.sub} numberOfLines={1}>
                     {currentConv ? currentConv.title : 'Nouvelle conversation'}
@@ -410,7 +410,7 @@ export default function ConseilsIaScreen() {
             <View style={{ alignItems: 'center', marginBottom: 6 }}>
               <View style={s.iconBadge}><Ionicons name="flash" size={22} color={c.emerald} /></View>
             </View>
-            <Text style={s.paySheetTitle}>Recharge tes conseils IA</Text>
+            <Text style={s.paySheetTitle}>Recharge tes conseils intelligents</Text>
             <Text style={s.paySheetSub}>
               {available > 0
                 ? `Il te reste ${available} requête${available > 1 ? 's' : ''}. Ajoutes-en autant que tu veux : les requêtes achetées ne périment pas.`
@@ -538,7 +538,9 @@ function Bubble({ m, s, c }: { m: AiMessage; s: any; c: any }) {
         </View>
       )}
       <AiRichText text={m.content} style={s.bubbleAssistantTxt} />
-      <Text style={s.modelTag}>{isAdminMsg ? 'Réponse de l\'équipe Relyka' : (m.model ?? 'IA')}</Text>
+      {/* Le modèle utilisé n'est pas affiché (détail d'implémentation). On garde en revanche la
+          mention « équipe Relyka », qui distingue une réponse humaine d'une réponse de l'IA. */}
+      {isAdminMsg && <Text style={s.modelTag}>Réponse de l'équipe Relyka</Text>}
     </View>
   );
 }

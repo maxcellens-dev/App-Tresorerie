@@ -391,7 +391,7 @@ export function useAdminReplyAi() {
       if (error) throw new Error(error.message);
       if (input.ticketId) await supabase.from('ai_tickets').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', input.ticketId);
       // Notifie le user que sa demande a reçu une réponse.
-      sendPushToProfile(input.profileId, 'Conseils IA', 'Une réponse à ta demande est disponible.').catch(() => {});
+      sendPushToProfile(input.profileId, 'Conseils Intelligents', 'Une réponse à ta demande est disponible.').catch(() => {});
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['ai_tickets'] });
@@ -413,7 +413,7 @@ export function useAdminRelaunchAi() {
       if (error) throw new Error(error.message || 'Échec de la relance');
       const res = data as AskAiResult;
       // Réponse postée dans le fil du user → on le notifie.
-      if (res.ok) sendPushToProfile(input.profileId, 'Conseils IA', 'Ton analyse est prête, ouvre l\'app pour la consulter.').catch(() => {});
+      if (res.ok) sendPushToProfile(input.profileId, 'Conseils Intelligents', 'Ton analyse est prête, ouvre l\'app pour la consulter.').catch(() => {});
       return res;
     },
     onSuccess: (_d, v) => {

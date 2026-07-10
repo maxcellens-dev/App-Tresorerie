@@ -48,7 +48,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
     { icon: 'person-circle-outline', label: 'Mon Profil', route: '/(tabs)/(secondary)/profile' },
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
     reportingVisible && { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: true },
-    { icon: 'sparkles-outline', label: 'Conseils IA', route: '/(tabs)/conseils-ia', color: '#10b981', premium: true },
+    { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: true },
     { icon: 'bag-handle-outline', label: 'Boutique', route: '/(tabs)/(secondary)/boutique', color: '#22d3ee' },
     { icon: 'star-outline', label: 'Plan', route: '/(tabs)/(secondary)/premium', color: '#fbbf24' },
     { icon: 'options-outline', label: 'Paramètres', route: '/(tabs)/(secondary)/parametres' },

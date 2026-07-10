@@ -21,7 +21,7 @@ const BENEFITS = [
   { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.' },
   { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.' },
   { icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.' },
-  { icon: 'sparkles', title: 'Conseils IA personnalisés', desc: 'Des analyses sur-mesure selon ton profil.' },
+  { icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.' },
 ];
 
 // Prix affichés (alignés sur ceux du store Google Play).
