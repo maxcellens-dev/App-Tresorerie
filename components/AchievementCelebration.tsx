@@ -10,9 +10,9 @@
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSegments } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
-import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import { useTour } from '../contexts/TourContext';
 import { isAppReady, onAppReady } from '../lib/splashGate';
@@ -23,14 +23,14 @@ export default function AchievementCelebration() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user, isImpersonating } = useAuth();
   const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
-  const { data: profile } = useProfile(user?.id);
   const tour = useTour();
-  // On célèbre dès que le QUESTIONNAIRE est terminé et que le tour de présentation n'est PAS en
-  // cours d'affichage. (Auparavant on exigeait app_tour_done=true, mais ce drapeau reste false pour
-  // qui n'a jamais lancé/terminé le tour → plus AUCUNE célébration n'apparaissait. On se base donc
-  // sur tour.active, qui redevient false dès que le tour est passé/terminé.)
-  const onboardingDone =
-    Boolean((profile as any)?.initial_onboarding_completed) && !tour.active;
+  const segments = useSegments();
+  // Quand peut-on célébrer ? Quand l'utilisateur est RÉELLEMENT dans l'app (onglets) et que le guide
+  // de présentation n'est pas en cours. On ne se fie plus à `profiles.initial_onboarding_completed` :
+  // son écriture est best-effort (questionnaire.tsx l'avale en cas d'échec) et il reste faux sur les
+  // comptes créés avant son introduction → plus AUCUNE célébration ne se mettait en file, jamais.
+  // Être dans `(tabs)` exclut de fait welcome / login / questionnaire.
+  const onboardingDone = segments[0] === '(tabs)' && !tour.active;
 
   // Succès déjà pris en charge cette session (évite de re-traiter avant le refetch du serveur).
   const handledRef = useRef<Set<string>>(new Set());
