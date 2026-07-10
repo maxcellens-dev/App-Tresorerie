@@ -22,6 +22,7 @@ import { supabase } from '../../../../lib/supabase';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 import { useKeyboardAwareScroll } from '../../../../hooks/useKeyboardAwareScroll';
+import { notePlaceholder } from '../../../../lib/txPlaceholders';
 
 
 export default function EditTransactionScreen() {
@@ -585,7 +586,7 @@ export default function EditTransactionScreen() {
             value={note}
             onChangeText={setNote}
             onFocus={handleFocus}
-            placeholder="....."
+            placeholder={notePlaceholder(isVirement ? 'transfer' : isExpense ? 'expense' : 'income')}
             placeholderTextColor={COLORS.textSecondary}
             returnKeyType="next"
           />

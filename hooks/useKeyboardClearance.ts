@@ -1,36 +1,42 @@
 /**
- * useKeyboardClearance — décalage à appliquer à une barre ancrée en BAS d'écran (zone de saisie)
- * pour qu'elle reste nettement au-dessus du clavier.
+ * useKeyboardClearance — décalage à appliquer à une barre de saisie pour la garder au-dessus du clavier.
  *
- * Historique des ratés, pour ne pas y revenir :
- *  1. `KeyboardAvoidingView` / `adjustResize` : ignorés en edge-to-edge (Android récent) et dans les
- *     modaux `statusBarTranslucent` → saisie masquée.
- *  2. Mesure du chevauchement (`measureInWindow` vs `endCoordinates.screenY`) : mélange deux repères.
- *     `measureInWindow` est relatif à la FENÊTRE, `screenY` à l'ÉCRAN. Dès qu'il y a un décalage
- *     (barre de statut, encoche…), le chevauchement est sous-estimé d'une constante → la barre
- *     remonte « mais pas assez », et aucune itération ne rattrape l'écart.
+ * Contexte : les deux mondes coexistent et on ne peut PAS deviner lequel s'applique.
+ *  • écran normal : Android redimensionne la fenêtre (adjustResize) → la barre remonte toute seule ;
+ *  • dans une `Modal` : la fenêtre du modal ne se redimensionne pas → la barre reste sous le clavier.
  *
- * Approche retenue : on n'essaie plus de localiser la cible. Elle est ancrée en bas, donc il suffit
- * de la remonter de TOUTE la hauteur occupée par le clavier (barre de suggestions/outils incluse :
- * elle fait partie de la fenêtre de l'IME et est donc comprise dans `height` / dans l'écart entre le
- * haut du clavier et le bas de l'écran), plus une marge de confort.
+ * Approches écartées (ne pas y revenir) :
+ *  1. `KeyboardAvoidingView` : mesure faux en edge-to-edge et dans les modaux `statusBarTranslucent`.
+ *  2. Ajouter aveuglément la hauteur du clavier : propulse la barre deux fois trop haut sur les
+ *     écrans que le système a déjà redimensionnés.
+ *  3. Détecter le redimensionnement via `Dimensions.get('window')` : la valeur ne se met pas à jour
+ *     de façon fiable au moment où `keyboardDidShow` est émis (course), d'où des résultats opposés
+ *     d'un écran à l'autre.
  *
- * Seule exception : si le système a réellement redimensionné la fenêtre de l'app (adjustResize
- * effectif), la barre est déjà remontée toute seule → on n'ajoute rien, sinon on la propulserait
- * deux fois trop haut. On le détecte en comparant la hauteur de fenêtre avant/pendant le clavier.
+ * Approche retenue : on MESURE le chevauchement réellement restant, puis on ITÈRE. Chaque passe
+ * ajoute ce qui manque encore ; le calcul converge (le padding déjà appliqué déplace la cible, donc
+ * la passe suivante mesure 0). Cela s'auto-adapte aux deux mondes, et rattrape les claviers qui
+ * GRANDISSENT après coup (barre de suggestions, outils, emojis).
+ *
+ * Piège corrigé : `measureInWindow` renvoie des coordonnées FENÊTRE, alors que `endCoordinates.screenY`
+ * est en coordonnées ÉCRAN. Quand la fenêtre démarre sous la barre de statut, le chevauchement était
+ * sous-estimé d'une constante — la barre remontait « mais pas assez », et aucune itération ne
+ * pouvait rattraper l'écart.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Dimensions, Keyboard, Platform, type View } from 'react-native';
+import { Dimensions, Keyboard, Platform, StatusBar, type View } from 'react-native';
 
-export function useKeyboardClearance(_targetRef: React.RefObject<View | null>, margin = 12): number {
+/** Instants de re-mesure après l'apparition du clavier (stabilisation du layout + barres tardives). */
+const PASSES_MS = [0, 120, 320, 650];
+
+export function useKeyboardClearance(targetRef: React.RefObject<View | null>, margin = 12): number {
   const [pad, setPad] = useState(0);
   const padRef = useRef(0);
-  /** Hauteur de fenêtre clavier FERMÉ — référence pour détecter un vrai redimensionnement système. */
-  const baseWinH = useRef(Dimensions.get('window').height);
 
   useEffect(() => {
     const showEv = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEv = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     const apply = (n: number) => {
       if (Math.abs(n - padRef.current) < 0.5) return;
@@ -41,28 +47,44 @@ export function useKeyboardClearance(_targetRef: React.RefObject<View | null>, m
     const compute = (e: any) => {
       const kbTop = e?.endCoordinates?.screenY;
       const reported = e?.endCoordinates?.height ?? 0;
-      const screenH = Dimensions.get('screen').height;
-      // `height` remonte parfois 0 en edge-to-edge → on le reconstruit depuis le haut du clavier.
-      const kbH = reported > 0 ? reported : (kbTop != null && kbTop > 0 ? Math.max(0, screenH - kbTop) : 0);
+      if (kbTop == null || kbTop <= 0) return;
+      // `height` remonte parfois 0 en edge-to-edge → on la reconstruit depuis le haut du clavier.
+      const kbH = reported > 0 ? reported : Math.max(0, Dimensions.get('screen').height - kbTop);
       if (kbH <= 0) return;
 
-      // La fenêtre s'est-elle réellement rétrécie ? (tolérance : barres système)
-      const winH = Dimensions.get('window').height;
-      const systemResized = winH < baseWinH.current - 40;
+      // Passage fenêtre → écran. Sur Android sans edge-to-edge, la fenêtre commence sous la barre
+      // de statut. En edge-to-edge l'offset vaut 0 et on surcompense de ~30 px : sans conséquence
+      // (un peu plus d'air), là où sous-compenser laissait la saisie masquée.
+      const winOffset = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
 
-      apply(systemResized ? 0 : kbH + margin);
+      const measure = () => {
+        targetRef.current?.measureInWindow((_x, y, _w, h) => {
+          if (y == null || h == null) return;
+          const overlap = y + h + winOffset - kbTop + margin;
+          if (overlap <= 0) return; // déjà dégagée (fenêtre redimensionnée par le système)
+          apply(Math.min(kbH + margin, padRef.current + overlap));
+        });
+      };
+
+      timers.forEach(clearTimeout);
+      timers.length = 0;
+      PASSES_MS.forEach((d) => timers.push(setTimeout(() => requestAnimationFrame(measure), d)));
     };
 
     const s = Keyboard.addListener(showEv, compute);
-    // Android ré-émet `keyboardDidShow` quand l'IME change de taille (barre de suggestions, emojis,
-    // clavier vocal…) → la compensation suit. `keyboardDidChangeFrame` n'existe que sur iOS.
+    // Android ré-émet `keyboardDidShow` quand l'IME change de taille. `keyboardDidChangeFrame` est iOS.
     const chg = Platform.OS === 'ios' ? Keyboard.addListener('keyboardDidChangeFrame', compute) : null;
     const hddn = Keyboard.addListener(hideEv, () => {
-      baseWinH.current = Dimensions.get('window').height;
+      timers.forEach(clearTimeout);
+      timers.length = 0;
       apply(0);
     });
-    return () => { s.remove(); chg?.remove(); hddn.remove(); };
-  }, [margin]);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      s.remove(); chg?.remove(); hddn.remove();
+    };
+  }, [targetRef, margin]);
 
   return pad;
 }

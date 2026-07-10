@@ -22,6 +22,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
+import { notePlaceholder } from '../../../lib/txPlaceholders';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -455,7 +456,7 @@ export default function AddTransactionScreen() {
 
                 {/* Libellé */}
                 <Text style={styles.label}>Libellé (optionnel)</Text>
-                <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder="....." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+                <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder={notePlaceholder(isExpense ? 'expense' : 'income')} placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
 
                 {/* Sous-catégorie */}
                 <CategoryPicker
@@ -488,7 +489,7 @@ export default function AddTransactionScreen() {
               {isTransfer && (
                 <>
                   <Text style={styles.label}>Libellé (optionnel)</Text>
-                  <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder="Ex. Virement épargne..." placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
+                  <TextInput style={styles.input} value={note} onChangeText={setNote} onFocus={handleFocus} placeholder={notePlaceholder('transfer')} placeholderTextColor={COLORS.textSecondary} returnKeyType="next" />
                   <Text style={styles.label}>Montant {isCross ? 'envoyé ' : ''}({currencySymbolFor(srcCurrency)}) *</Text>
                   <TextInput style={[styles.input, errorFields.includes('amount') && styles.inputError]} value={amount} onChangeText={(v) => { amountToTouched.current = false; setAmount(v); setErrorFields((p) => p.filter((f) => f !== 'amount')); setFormError(null); }} onFocus={handleFocus} placeholder="0,00" placeholderTextColor={COLORS.textSecondary} keyboardType="decimal-pad" returnKeyType={isCross ? 'next' : 'done'} onSubmitEditing={isCross ? undefined : Keyboard.dismiss} />
                   {isCross && (
