@@ -164,9 +164,20 @@ export function useUpdateProfile(profileId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev !== undefined) queryClient.setQueryData([KEY, profileId], ctx.prev);
     },
-    onSuccess: () => {
+    onSuccess: (_data, payload) => {
       queryClient.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
       queryClient.invalidateQueries({ queryKey: ['questionnaire_answers', profileId] });
+      // Un changement de nom est propagé par le serveur (migration 138) au `display_name` des
+      // participants inscrits : on recharge les vues qui l'affichent (projets, comptes, crédits).
+      if (payload.full_name !== undefined) {
+        for (const key of [
+          'rw_project', 'rw_projects_stats',                                  // projets partagés
+          'account_members', 'account_participants', 'acct_all_participants', // comptes partagés
+          'all_member_names', 'credit_members',                               // annotations + crédits
+        ]) {
+          queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      }
     },
     // Réconcilie le profil avec la vérité serveur une fois la requête terminée (succès ou échec).
     onSettled: () => {

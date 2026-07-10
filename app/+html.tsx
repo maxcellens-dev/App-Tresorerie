@@ -39,11 +39,10 @@ export default function Root({ children }: PropsWithChildren) {
         <style dangerouslySetInnerHTML={{ __html: BOOT_LOADER_CSS }} />
       </head>
       <body>
-        {/* Écran de chargement instantané (avant le montage de React) — évite l'écran blanc */}
+        {/* Écran de chargement instantané (avant le montage de React) — évite l'écran blanc.
+            Logo seul, identique à AppLoading → aucune jonction visible pendant le chargement. */}
         <div id="app-boot">
           <div className="boot-logo" />
-          <div className="boot-brand">Relyka</div>
-          <div className="boot-ring" />
         </div>
         {children}
         <script dangerouslySetInnerHTML={{ __html: BOOT_HIDE_JS }} />
@@ -91,58 +90,64 @@ const BOOT_THEME_JS = `
   try {
     var m = mode();
     var bg = m === 'light' ? '#F4EFE6' : m === 'dark' ? '#0D2E2A' : '#808F88';
-    var fg = m === 'dark' ? '#fff' : '#191C1F';
-    var r = document.documentElement.style;
-    r.setProperty('--boot-bg', bg);
-    r.setProperty('--boot-fg', fg);
+    document.documentElement.style.setProperty('--boot-bg', bg);
   } catch (e) {}
 })();
 `;
 
 // Loader affiché immédiatement (HTML statique) le temps que le bundle JS charge et que React monte.
-// Visuellement identique au composant AppLoading → transition invisible.
+// LOGO SEUL, visuellement identique au composant AppLoading (même image, même taille, même centrage)
+// → aucune jonction visible. Sortie calquée sur le splash natif : fondu + glissement vers le haut.
+// `icon-512.png` est l'exact même fichier que assets/logo.png (utilisé par le splash natif) ; le
+// favicon, lui, est une autre image → il ferait un saut visuel au montage de React.
 const BOOT_LOADER_CSS = `
 #app-boot {
   position: fixed; inset: 0; z-index: 99999; background: var(--boot-bg, #808F88);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  transition: opacity .4s ease;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .34s ease-in;
 }
 #app-boot .boot-logo {
   width: 96px; height: 96px;
-  background: url('/favicon.png') center / contain no-repeat;
-  animation: bootPulse 1.7s ease-in-out infinite;
+  background: url('/icon-512.png') center / contain no-repeat;
+  transition: transform .34s cubic-bezier(.4,0,1,1);
 }
-#app-boot .boot-brand {
-  margin-top: 22px; color: var(--boot-fg, #fff); font-weight: 800; letter-spacing: .5px; font-size: 22px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/* Sortie : le calque s'efface pendant que le logo file vers le haut (comme AnimatedSplash). */
+#app-boot.boot-out { opacity: 0; }
+#app-boot.boot-out .boot-logo { transform: translateY(-64px); }
+/* Respect des préférences système : pas de mouvement si l'utilisateur le demande. */
+@media (prefers-reduced-motion: reduce) {
+  #app-boot .boot-logo { transition: none; }
+  #app-boot.boot-out .boot-logo { transform: none; }
 }
-#app-boot .boot-ring {
-  margin-top: 26px; width: 30px; height: 30px; border-radius: 50%;
-  border: 3px solid rgba(0,182,122,.2); border-top-color: #00B67A;
-  animation: bootSpin 1s linear infinite;
-}
-@keyframes bootPulse { 0%,100% { transform: scale(.92); opacity: .65 } 50% { transform: scale(1.06); opacity: 1 } }
-@keyframes bootSpin { to { transform: rotate(360deg) } }
 `;
 
-// Retire le loader dès que React a injecté du contenu dans #root (avec un léger fondu).
+// Retire le loader quand la VRAIE app est peinte, avec la même sortie que le splash natif.
+// Pas seulement « React a monté » : React monte souvent sur AppLoading, qui affiche le MÊME logo au
+// même endroit. Sortir à ce moment ferait glisser un logo vers le haut par-dessus un logo immobile.
+// On attend donc que le marqueur [data-app-loading] ait disparu du DOM (cf. components/AppLoading).
 const BOOT_HIDE_JS = `
 (function () {
+  var done = false;
   function hide() {
+    if (done) return;
+    done = true;
     var el = document.getElementById('app-boot');
     if (!el) return;
-    el.style.opacity = '0';
+    el.className = 'boot-out'; // fondu + logo vers le haut (cf. BOOT_LOADER_CSS)
     setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 400);
+  }
+  function painted(root) {
+    return root.childNodes.length > 0 && !root.querySelector('[data-app-loading]');
   }
   function start() {
     var root = document.getElementById('root');
     if (!root) { window.addEventListener('load', function () { setTimeout(hide, 300); }); return; }
-    if (root.childNodes.length > 0) { setTimeout(hide, 150); return; }
+    if (painted(root)) { setTimeout(hide, 150); return; }
     var obs = new MutationObserver(function () {
-      if (root.childNodes.length > 0) { obs.disconnect(); setTimeout(hide, 150); }
+      if (painted(root)) { obs.disconnect(); setTimeout(hide, 150); }
     });
-    obs.observe(root, { childList: true });
-    setTimeout(hide, 8000); // filet de sécurité
+    obs.observe(root, { childList: true, subtree: true });
+    setTimeout(hide, 8000); // filet de sécurité : ne jamais rester bloqué sur le logo
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
