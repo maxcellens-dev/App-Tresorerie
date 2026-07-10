@@ -1095,26 +1095,32 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
         <Text style={[styles.tresoDetailBtnText, { color: COLORS.blue }]}>Voir le plan de trésorerie détaillé</Text>
         <Ionicons name="chevron-forward" size={15} color={COLORS.blue} />
       </TouchableOpacity>
-      {/* Bascule d'horizon 6 / 12 mois (persistée par compte). */}
-      <View style={styles.horizonToggle}>
-        {([6, 12] as const).map((h) => {
-          const active = horizon === h;
-          return (
-            <TouchableOpacity
-              key={h}
-              style={[styles.horizonToggleBtn, active && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}
-              onPress={() => onChangeHorizon(h)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.horizonToggleText, { color: active ? '#fff' : COLORS.textSecondary }]}>{h} mois</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <Text style={styles.sectionHint}>Soldes et flux prévus sur les {horizon} prochains mois</Text>
       {/* Courbe d'évolution des soldes prévus (points marqués) — au-dessus du 1er mois */}
       <View style={[styles.chartCard, { marginTop: 0, alignItems: 'stretch' }]}>
-        <Text style={styles.chartTitle}>Prévision des soldes de trésorerie</Text>
+        {/* La bascule d'horizon (persistée) vit dans l'en-tête du graphique : elle qualifie l'axe des
+            abscisses, et n'occupe plus une rangée entière au-dessus. */}
+        <View style={styles.chartHeader}>
+          {/* « de trésorerie » répétait l'onglet actif : titre raccourci pour loger la bascule. */}
+          <Text style={[styles.chartTitle, { marginBottom: 0, flexShrink: 1 }]} numberOfLines={1}>Prévision des soldes</Text>
+          <View style={styles.horizonPills}>
+            {([6, 12] as const).map((h) => {
+              const active = horizon === h;
+              return (
+                <TouchableOpacity
+                  key={h}
+                  style={[styles.horizonPill, active && { backgroundColor: COLORS.blue }]}
+                  onPress={() => onChangeHorizon(h)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`Horizon ${h} mois`}
+                >
+                  <Text style={[styles.horizonPillText, { color: active ? '#fff' : COLORS.textSecondary }]}>{h} mois</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
         <View style={{ alignItems: 'center' }}>
           <BalanceCurve
             rows={rows}
@@ -1299,8 +1305,10 @@ function makeStyles(c: any) {
     tresoVal: { fontSize: 14, fontWeight: '600' },
     tresoDetailBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, marginTop: 8, marginBottom: 8 },
     tresoDetailBtnText: { fontSize: 13, fontWeight: '700' },
-    horizonToggle: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-    horizonToggleBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
-    horizonToggleText: { fontSize: 13, fontWeight: '700' },
+    // En-tête du graphique : titre à gauche, bascule d'horizon à droite.
+    chartHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
+    horizonPills: { flexDirection: 'row', gap: 2, padding: 2, borderRadius: 999, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder },
+    horizonPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+    horizonPillText: { fontSize: 11.5, fontWeight: '700' },
   });
 }

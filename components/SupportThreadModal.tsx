@@ -6,7 +6,7 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useKeyboardClearance } from '../hooks/useKeyboardClearance';
+import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
 import { sheetWidth } from '../lib/appLayout';
@@ -38,11 +38,10 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-  // Clavier : compensation MESURÉE de la ligne de saisie (position réelle vs haut réel du clavier) —
-  // KeyboardAvoidingView et le simple `endCoordinates.height` mesurent faux dans un Modal
-  // statusBarTranslucent sur Android edge-to-edge → saisie masquée.
-  const inputRowRef = useRef<View>(null);
-  const kbPad = useKeyboardClearance(inputRowRef, 28);
+  // Clavier : ce Modal est `transparent` + `statusBarTranslucent`, donc sans limites de fenêtre →
+  // Android ignore `adjustResize` et ne remonte RIEN. On rétrécit la feuille de la hauteur du clavier
+  // nous-mêmes. (Un écran normal, lui, est redimensionné par le système : ne rien y ajouter.)
+  const kbPad = useKeyboardHeight();
   useEffect(() => {
     if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [kbPad]);
@@ -67,7 +66,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      {/* Clavier ouvert : on remonte la feuille du chevauchement MESURÉ. Fermé : inset bas (gestes). */}
+      {/* Clavier ouvert : la feuille se rétrécit de sa hauteur exacte. Fermé : inset bas (gestes). */}
       <View style={[styles.overlay, { paddingBottom: kbPad > 0 ? kbPad : insets.bottom }]}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -116,7 +115,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
             )}
           </ScrollView>
 
-          <View ref={inputRowRef} style={styles.inputRow} collapsable={false}>
+          <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
               value={text}

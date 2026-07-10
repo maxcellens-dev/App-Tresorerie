@@ -4,7 +4,7 @@
  * l'historique. L'appel au modèle passe par l'Edge Function `ai-advice` (clé API jamais côté client).
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable, KeyboardAvoidingView, Keyboard } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -22,7 +22,6 @@ import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
 import { useUiPrefs } from '../../hooks/useUiPrefs';
-import { useKeyboardClearance } from '../../hooks/useKeyboardClearance';
 import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
@@ -35,14 +34,15 @@ export default function ConseilsIaScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
 
-  // Clavier : compensation mesurée de la barre de saisie (+ scroll en bas quand le clavier s'ouvre).
-  const inputBarRef = useRef<View>(null);
-  // Marge généreuse : la barre de saisie doit rester nettement au-dessus du clavier (et de sa barre
-  // de suggestions), pas la frôler.
-  const kbPad = useKeyboardClearance(inputBarRef, 28);
+  // Clavier : rien à compenser. `app.json` déclare `softwareKeyboardLayoutMode: "resize"` → Android
+  // redimensionne la fenêtre et la barre de saisie remonte d'elle-même, exactement comme sur l'écran
+  // d'ajout d'une transaction. On se contente de recoller le fil de discussion en bas.
   useEffect(() => {
-    if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-  }, [kbPad]);
+    const sub = Keyboard.addListener('keyboardDidShow', () =>
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60),
+    );
+    return () => sub.remove();
+  }, []);
 
   const { isPremium } = usePlan(uid);
   const { data: profile } = useProfile(uid);
@@ -271,10 +271,9 @@ export default function ConseilsIaScreen() {
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
-        {/* Clavier : compensation MESURÉE (useKeyboardClearance sur la barre de saisie) — pas de
-            KeyboardAvoidingView, qui mesure faux sur Android edge-to-edge et laissait la saisie
-            masquée sous le clavier. */}
-        <View style={{ flex: 1 }}>
+        {/* Même dispositif que l'écran d'ajout de transaction : sur Android c'est le redimensionnement
+            de la fenêtre qui dégage la barre de saisie, sur iOS ce KeyboardAvoidingView. */}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           {/* Header */}
           <View style={s.header}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack}>
@@ -385,9 +384,9 @@ export default function ConseilsIaScreen() {
             <View style={{ height: 48 }} />
           </ScrollView>
 
-          {/* Barre de saisie — remontée EXACTEMENT au-dessus du clavier (compensation mesurée). */}
+          {/* Barre de saisie : collée au bas de la fenêtre, que le système redimensionne. */}
           {!readOnly && (
-            <View ref={inputBarRef} style={[s.inputBar, kbPad > 0 && { marginBottom: kbPad }]} collapsable={false}>
+            <View style={s.inputBar}>
               <TextInput
                 style={s.input}
                 value={input}
@@ -404,7 +403,7 @@ export default function ConseilsIaScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
 
       {/* Paywall « click-to-pay » : offres de recharge de requêtes. */}
