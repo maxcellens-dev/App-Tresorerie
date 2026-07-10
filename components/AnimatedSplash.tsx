@@ -48,6 +48,36 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
   const [gone, setGone] = useState(false);
   const [winH, setWinH] = useState<number | null>(null);  // hauteur réelle du calque (mesurée)
   const outRef = useRef(false);
+  const rootRef = useRef<View>(null);
+  const readySent = useRef(false);
+
+  // Ne masquer le splash NATIF que quand la fenêtre est STABILISÉE. Au démarrage, KeyboardProvider
+  // (react-native-keyboard-controller) bascule la fenêtre en edge-to-edge : pendant quelques frames
+  // le contenu est décalé sous la barre d'état (bande blanche + logo plus bas), puis se recale à
+  // y = 0. Ce décalage arrive APRÈS le premier onLayout : une mesure unique passait AVANT lui et
+  // exposait le blip. On exige donc une STABILITÉ CONTINUE — y ≈ 0 pendant STABLE_MS d'affilée —
+  // avant d'effacer le natif (opaque, il couvre toute la bascule). Plafond dur en garde-fou.
+  const sendReadyWhenSettled = () => {
+    if (readySent.current) return;
+    const STABLE_MS = 300;   // durée d'immobilité exigée (la bascule dure quelques frames)
+    const STEP_MS = 50;
+    const CAP_MS = 1500;     // ne jamais bloquer le boot (+ filet 4 s dans app/_layout)
+    const started = Date.now();
+    let stableFor = 0;
+    const done = () => { readySent.current = true; onReady?.(); };
+    const check = () => {
+      if (readySent.current) return;
+      if (Date.now() - started > CAP_MS) { done(); return; }
+      if (!rootRef.current) { done(); return; }
+      rootRef.current.measureInWindow((_x, y) => {
+        if (readySent.current) return;
+        stableFor = Math.abs(y ?? 0) < 1 ? stableFor + STEP_MS : 0;
+        if (stableFor >= STABLE_MS) done();
+        else setTimeout(check, STEP_MS);
+      });
+    };
+    check();
+  };
 
   // Centre de l'écran physique (voir ► Centrage dans l'en-tête). Pas d'animation d'entrée : le logo
   // doit être là, au bon endroit, dès la première frame — c'est lui qui « est » le splash natif.
@@ -88,8 +118,9 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
 
   return (
     <Animated.View
+      ref={rootRef}
       pointerEvents="none"
-      onLayout={(e) => { setWinH(e.nativeEvent.layout.height); onReady?.(); }}
+      onLayout={(e) => { setWinH(e.nativeEvent.layout.height); sendReadyWhenSettled(); }}
       style={[StyleSheet.absoluteFill, styles.root, { opacity: overlay }]}
     >
       {/* Fonds : plein écran (sous les barres système) */}

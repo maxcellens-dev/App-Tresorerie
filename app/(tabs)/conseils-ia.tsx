@@ -22,7 +22,9 @@ import { usePlan } from '../../hooks/usePlan';
 import { useProfile } from '../../hooks/useProfile';
 import { useUserSnapshot } from '../../hooks/useUserSnapshot';
 import { useUiPrefs } from '../../hooks/useUiPrefs';
-import { useKeyboardInset } from '../../hooks/useKeyboardInset';
+import { KeyboardEvents, useKeyboardHandler } from 'react-native-keyboard-controller';
+import Reanimated, { useAnimatedStyle, useSharedValue, interpolate } from 'react-native-reanimated';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
@@ -35,12 +37,45 @@ export default function ConseilsIaScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
 
-  // Clavier : la barre est ÉPINGLÉE en bas, hors du scroll (targetSdk 35 → la fenêtre n'est jamais
-  // redimensionnée). On la remonte de l'inset clavier réel, bandeaux de l'IME compris.
-  const kbPad = useKeyboardInset(8);
+  // Clavier : STRICTEMENT la même source que le KeyboardAvoidingView de la lib (validé sur appareil
+  // dans SupportThreadModal) — les événements useKeyboardHandler (hauteur à onStart, interpolée par
+  // progress), PAS la valeur partagée `reanimated.height` du contexte (constatée divergente ici).
+  // Géométrie : cet écran est un ONGLET → son bas s'arrête AU-DESSUS de la barre d'onglets, que le
+  // clavier recouvre. Le déplacement exact est donc (hauteur clavier − hauteur barre d'onglets),
+  // cette dernière étant la hauteur RÉELLE mesurée par React Navigation — c'était le « vide sous la
+  // barre » : lever de toute la hauteur du clavier sur-levait d'une barre d'onglets.
+  // Ne PAS utiliser un KeyboardAvoidingView ici : son calcul repose sur un onLayout RELATIF AU
+  // PARENT, faux dès que le contenu ne part pas du haut de la fenêtre.
+  const tabBarHeight = useBottomTabBarHeight();
+  const kbProgress = useSharedValue(0);
+  const kbHeightOpened = useSharedValue(0);
+  useKeyboardHandler({
+    onStart: (e) => {
+      'worklet';
+      if (e.height > 0) kbHeightOpened.value = e.height;
+    },
+    onMove: (e) => {
+      'worklet';
+      kbProgress.value = e.progress;
+    },
+    onInteractive: (e) => {
+      'worklet';
+      kbProgress.value = e.progress;
+    },
+    onEnd: (e) => {
+      'worklet';
+      kbProgress.value = e.progress;
+    },
+  }, []);
+  const kbAvoid = useAnimatedStyle(() => ({
+    paddingBottom: Math.max(0, interpolate(kbProgress.value, [0, 1], [0, kbHeightOpened.value]) - tabBarHeight),
+  }), [tabBarHeight]);
   useEffect(() => {
-    if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-  }, [kbPad]);
+    const sub = KeyboardEvents.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    });
+    return () => sub.remove();
+  }, []);
 
   const { isPremium } = usePlan(uid);
   const { data: profile } = useProfile(uid);
@@ -269,7 +304,8 @@ export default function ConseilsIaScreen() {
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
-        <View style={{ flex: 1 }}>
+        {/* La colonne se rétrécit de la hauteur visible du clavier → la barre reste posée dessus. */}
+        <Reanimated.View style={[{ flex: 1 }, kbAvoid]}>
           {/* Header */}
           <View style={s.header}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }} onPress={goBack}>
@@ -380,9 +416,9 @@ export default function ConseilsIaScreen() {
             <View style={{ height: 48 }} />
           </ScrollView>
 
-          {/* Barre de saisie : remontée de l'inset clavier quand celui-ci est ouvert. */}
+          {/* Barre de saisie : collée au bas de la colonne, que le KAV rétrécit. */}
           {!readOnly && (
-            <View style={[s.inputBar, kbPad > 0 && { marginBottom: kbPad }]}>
+            <View style={s.inputBar}>
               <TextInput
                 style={s.input}
                 value={input}
@@ -399,7 +435,7 @@ export default function ConseilsIaScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </View>
+        </Reanimated.View>
       </SafeAreaView>
 
       {/* Paywall « click-to-pay » : offres de recharge de requêtes. */}

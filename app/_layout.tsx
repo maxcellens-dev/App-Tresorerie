@@ -13,6 +13,7 @@ import { CalculatorProvider } from '../contexts/CalculatorContext';
 import Calculator from '../components/Calculator';
 import UpdateBanner from '../components/UpdateBanner';
 import AchievementCelebration from '../components/AchievementCelebration';
+import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/useConfigSync';
 import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
 import { supabase } from '../lib/supabase';
@@ -302,6 +303,9 @@ function AppChrome() {
       <UpdateBanner />
       {/* Célébration globale d'un succès débloqué (par-dessus tout) */}
       <AchievementCelebration />
+      {/* Cible des portails racine (guide de présentation) — MÊME fenêtre que le contenu, au-dessus
+          de la navigation → surlignages alignés au pixel sur les boutons réels. Voir lib/rootPortal. */}
+      <RootPortalHost />
     </View>
     </TourProvider>
   );
@@ -315,9 +319,10 @@ export default function RootLayout() {
   // tant que le flag dans lib/otaUpdate est à false ; voir ce fichier pour l'activation).
   useEffect(() => { maybeApplyUpdateOnLaunch(); }, []);
   return (
-    // KeyboardProvider : source des insets clavier (useKeyboardInset). `statusBarTranslucent` doit
-    // refléter la prop du même nom passée à nos `Modal` (SupportThreadModal), sinon les insets
-    // seraient calculés dans le mauvais référentiel pour ces fenêtres.
+    // KeyboardProvider : pilote les KeyboardAvoidingView de react-native-keyboard-controller (chats).
+    // `statusBarTranslucent` : l'app dessine derrière la barre d'état. ⚠️ La lib PATCHE le module
+    // StatusBar de react-native : monter le <StatusBar> de RN (défaut translucent:false) écrase cette
+    // prop → barre blanche en haut. Toujours utiliser expo-status-bar dans les écrans.
     <KeyboardProvider statusBarTranslucent>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>

@@ -1,5 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable } from 'react-native';
+// ⚠️ Ne JAMAIS monter le <StatusBar> de react-native : react-native-keyboard-controller patche son
+// module natif, et le défaut `translucent: false` de RN écrase alors le `statusBarTranslucent` du
+// KeyboardProvider → barre blanche en haut + tout le contenu décalé. Utiliser expo-status-bar.
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/ScreenGradient';
 import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
@@ -614,7 +618,7 @@ export default function PilotageScreen() {
   if (isLoading && !pilotageData) {
     return (
       <View style={styles.root}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar style="light" />
         <SafeAreaView style={styles.safe} edges={['left', 'right']}>
           <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
         </SafeAreaView>
@@ -625,7 +629,7 @@ export default function PilotageScreen() {
   if (pilotageError || !pilotageData) {
     return (
       <View style={styles.root}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar style="light" />
         <SafeAreaView style={styles.safe} edges={['left', 'right']}>
           <View style={styles.loader}>
             <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 }}>
@@ -642,7 +646,7 @@ export default function PilotageScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar style="light" />
       <ScreenGradient />
       <PageIntroModal pageKey="pilotage" />
       <OnboardingHintBanner />

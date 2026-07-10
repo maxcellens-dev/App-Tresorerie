@@ -10,19 +10,27 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
-  findNodeHandle, Platform, ScrollView, Modal, StatusBar,
+  findNodeHandle, Platform, ScrollView, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
+import { RootPortal } from '../lib/rootPortal';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
 export interface BubbleStep {
-  /** Retourne la ref de la View à mettre en avant. */
+  /** Retourne la ref de la View à mettre en avant (MESURÉE au moment de l'affichage). */
   getRef?: () => React.RefObject<any>;
-  /** Alternative : rectangle calculé (ex. bouton d'onglet/header) — prioritaire sur getRef. */
+  /** Plusieurs cibles : chacune est mesurée et reçoit SON cadre ; le trou de l'overlay les couvre toutes. */
+  getRefs?: () => React.RefObject<any>[];
+  /** Alternative : rectangle calculé — prioritaire sur getRef. À éviter (fragile selon l'appareil) :
+      préférer une ref réelle, au besoin via lib/guideAnchors pour les composants partagés. */
   getRect?: () => { x: number; y: number; w: number; h: number };
+  /** Cadre circulaire (ex. avatar) au lieu d'arrondi. */
+  circle?: boolean;
+  /** 'bottom' : bulle épinglée en bas de l'écran, quoi qu'il arrive (jamais sur la cible). */
+  placement?: 'bottom';
   icon: string;
   iconColor: string;
   title: string;
@@ -57,7 +65,8 @@ export default function GuideOverlay({
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0);
   const TOP_SAFE = topInset + 12;
   const BOTTOM_SAFE = Math.max(insets.bottom, 16) + 12;
-  const [rect, setRect] = useState<Rect | null>(null);
+  // Cibles mesurées : chacune reçoit son cadre ; le trou de l'overlay = leur enveloppe commune.
+  const [frames, setFrames] = useState<Rect[] | null>(null);
   const [measuring, setMeasuring] = useState(true);
   // Hauteur RÉELLE de la bulle (mesurée) → positionnement fiable quel que soit le texte/écran.
   const [bubbleH, setBubbleH] = useState(BUBBLE_H);
@@ -71,54 +80,63 @@ export default function GuideOverlay({
     attemptRef.current += 1;
     const myAttempt = attemptRef.current;
     setMeasuring(true);
-    setRect(null);
+    setFrames(null);
 
-    // Étape à rectangle calculé (bouton de navigation) : pas de mesure ni de scroll.
+    // Étape à rectangle calculé (héritage) : pas de mesure ni de scroll.
     if (step.getRect) {
       const r = step.getRect();
-      if (r) { setRect(r); setMeasuring(false); return; }
+      if (r) { setFrames([r]); setMeasuring(false); return; }
     }
 
-    const node = step.getRef?.()?.current;
-    if (!node) {
+    // Cibles réelles : une ou plusieurs refs, TOUTES mesurées au moment de l'affichage
+    // (measureInWindow) — jamais de position estimée ni mise en cache.
+    const nodes = (step.getRefs ? step.getRefs() : step.getRef ? [step.getRef()] : [])
+      .map((r) => r?.current)
+      .filter((n) => n && typeof n.measureInWindow === 'function');
+    if (nodes.length === 0) {
       // Pas de cible → bulle centrée
       setMeasuring(false);
       return;
     }
 
-    const measure = (retries = 0) => {
+    const measureAll = (retries = 0) => {
       if (cancelled || myAttempt !== attemptRef.current) return;
-      if (typeof node.measureInWindow !== 'function') {
-        setMeasuring(false);
-        return;
-      }
-      node.measureInWindow((x: number, y: number, w: number, h: number) => {
-        if (cancelled || myAttempt !== attemptRef.current) return;
-        if (w === 0 && h === 0 && retries < 5) {
-          setTimeout(() => measure(retries + 1), 120);
-          return;
-        }
-        setRect({ x, y, w, h });
-        setMeasuring(false);
+      const out: (Rect | null)[] = new Array(nodes.length).fill(null);
+      let pending = nodes.length;
+      nodes.forEach((node, i) => {
+        node.measureInWindow((x: number, y: number, w: number, h: number) => {
+          out[i] = { x, y, w, h };
+          pending -= 1;
+          if (pending > 0) return;
+          if (cancelled || myAttempt !== attemptRef.current) return;
+          // Une cible pas encore posée (0×0) → retenter, le layout n'est pas fini.
+          if (out.some((r) => !r || (r.w === 0 && r.h === 0)) && retries < 5) {
+            setTimeout(() => measureAll(retries + 1), 120);
+            return;
+          }
+          const good = out.filter((r): r is Rect => !!r && r.w > 0 && r.h > 0);
+          setFrames(good.length > 0 ? good : null);
+          setMeasuring(false);
+        });
       });
     };
 
-    // 1) Scroller pour rendre la cible visible (via measureLayout vs ScrollView)
+    // 1) Scroller pour rendre la (première) cible visible (via measureLayout vs ScrollView)
     const scrollNode = scrollRef?.current ? findNodeHandle(scrollRef.current) : null;
-    if (scrollNode && typeof node.measureLayout === 'function') {
-      node.measureLayout(
+    if (scrollNode && typeof nodes[0].measureLayout === 'function') {
+      nodes[0].measureLayout(
         scrollNode,
-        (_lx: number, ly: number, _lw: number, lh: number) => {
+        (_lx: number, ly: number) => {
           if (cancelled || myAttempt !== attemptRef.current) return;
           // Positionner la cible vers le tiers haut de l'écran
           const targetY = Math.max(0, ly - SH * 0.28);
           scrollRef?.current?.scrollTo({ y: targetY, animated: true });
-          setTimeout(() => measure(), 380);
+          setTimeout(() => measureAll(), 380);
         },
-        () => measure(),
+        () => measureAll(),
       );
     } else {
-      measure();
+      measureAll();
     }
 
     return () => { cancelled = true; };
@@ -128,13 +146,20 @@ export default function GuideOverlay({
 
   const isLast = currentStep === steps.length - 1;
 
-  // Spotlight rect (clampé à l'écran)
-  const spot = rect
+  // Spotlight = enveloppe de TOUTES les cibles (clampée à l'écran) : la découpe de l'overlay les
+  // laisse toutes en pleine lumière, chacune recevant en plus son propre cadre.
+  const union = frames && frames.length > 0
+    ? frames.reduce((a, r) => ({
+        x1: Math.min(a.x1, r.x), y1: Math.min(a.y1, r.y),
+        x2: Math.max(a.x2, r.x + r.w), y2: Math.max(a.y2, r.y + r.h),
+      }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity })
+    : null;
+  const spot = union
     ? {
-        x: Math.max(0, rect.x - PAD),
-        y: Math.max(0, rect.y - PAD),
-        w: Math.min(SW, rect.w + PAD * 2),
-        h: rect.h + PAD * 2,
+        x: Math.max(0, union.x1 - PAD),
+        y: Math.max(0, union.y1 - PAD),
+        w: Math.min(SW, union.x2 - union.x1 + PAD * 2),
+        h: union.y2 - union.y1 + PAD * 2,
       }
     : null;
 
@@ -143,7 +168,11 @@ export default function GuideOverlay({
   const maxTop = SH - BOTTOM_SAFE - bubbleH; // plus haut possible pour que la bulle tienne en bas
   let bubbleTop: number;
   let pointer: 'up' | 'down' | null = null;
-  if (spot) {
+  if (step.placement === 'bottom') {
+    // Épinglée en bas, TOUJOURS : ne recouvre jamais la cible (demandé pour « Commence ici »).
+    bubbleTop = Math.max(TOP_SAFE, maxTop);
+    pointer = spot && spot.y + spot.h + 14 <= bubbleTop ? 'up' : null;
+  } else if (spot) {
     const belowY = spot.y + spot.h + 14;
     const aboveY = spot.y - bubbleH - 14;
     if (belowY <= maxTop) {
@@ -168,8 +197,14 @@ export default function GuideOverlay({
     : SW / 2 - 8;
 
   return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent>
+    // RootPortal (pas Modal) : rendu dans la MÊME fenêtre que les boutons ciblés → measureInWindow
+    // et le dessin partagent le même repère, les cadres tombent PILE sur les boutons. Voir lib/rootPortal.
+    <RootPortal>
     <View style={styles.fill} pointerEvents="box-none">
+      {/* Capteur plein écran (le guide est bloquant) : sans le Modal, le trou du spotlight laisserait
+          sinon passer les taps vers le vrai bouton dessous. Les masques et la bulle, rendus APRÈS,
+          restent prioritaires là où ils se trouvent. */}
+      <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
       {/* ── Overlay sombre avec trou (spotlight) ── */}
       {spot && !measuring ? (
         <>
@@ -185,10 +220,22 @@ export default function GuideOverlay({
           {/* Droite */}
           <TouchableOpacity activeOpacity={1} onPress={onSkip}
             style={[styles.mask, { top: spot.y, left: spot.x + spot.w, right: 0, height: spot.h }]} />
-          {/* Cadre lumineux autour de la cible */}
-          <View pointerEvents="none" style={[styles.highlight, {
-            top: spot.y, left: spot.x, width: spot.w, height: spot.h,
-          }]} />
+          {/* Cadre lumineux autour de CHAQUE cible (cercle si demandé, ex. avatar) */}
+          {frames?.map((f, i) => {
+            const inflate = 4;
+            const w = f.w + inflate * 2;
+            const h = f.h + inflate * 2;
+            return (
+              <View
+                key={i}
+                pointerEvents="none"
+                style={[styles.highlight, {
+                  top: f.y - inflate, left: f.x - inflate, width: w, height: h,
+                  borderRadius: step.circle ? Math.min(w, h) / 2 : 14,
+                }]}
+              />
+            );
+          })}
         </>
       ) : (
         // Pas de cible mesurée → overlay plein
@@ -257,7 +304,7 @@ export default function GuideOverlay({
         </View>
       )}
     </View>
-    </Modal>
+    </RootPortal>
   );
 }
 
@@ -267,7 +314,7 @@ function makeStyles(c: any) {
   mask: { position: 'absolute', backgroundColor: 'rgba(2, 6, 23, 0.55)' },
   highlight: {
     position: 'absolute', borderRadius: 14,
-    borderWidth: 2, borderColor: c.emerald,
+    borderWidth: 3, borderColor: c.emerald,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 0 0 9999px rgba(2,6,23,0.0), 0 0 24px rgba(52,211,153,0.5)' } as any
       : {}),

@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Dimensions, Alert, ActivityIndicator, TextInput, Modal,
+  Animated, Dimensions, Alert, ActivityIndicator, TextInput, Modal, Image,
 } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppNameFont } from '../hooks/useBrandFont';
@@ -330,9 +330,8 @@ export default function QuestionnaireScreen() {
           {/* ── Écran 0 : Welcome ────────────────────────── */}
           {step === 0 && (
             <ScrollView contentContainerStyle={styles.centeredScreen} showsVerticalScrollIndicator={false}>
-              <View style={styles.welcomeIconCircle}>
-                <Ionicons name="stats-chart" size={40} color={COLORS.emerald} />
-              </View>
+              {/* Logo de l'app (le même que le splash) — continuité visuelle depuis l'ouverture. */}
+              <Image source={require('../assets/logo.png')} style={styles.welcomeLogo} resizeMode="contain" fadeDuration={0} />
               <Text style={styles.welcomeTitle}>Bienvenue sur <Text style={{ fontFamily: appNameFont }}>Relyka</Text></Text>
               <Text style={styles.welcomeSub}>Ton coach financier personnel</Text>
               <View style={styles.welcomeDivider} />
@@ -663,11 +662,7 @@ function makeStyles(c: any) {
   welcomeCurrency: { width: '100%', marginTop: 24, gap: 8 },
   welcomeCurrencyLabel: { fontSize: 14, fontWeight: '700', color: c.text },
   welcomeCurrencyHint: { fontSize: 12, color: c.textSecondary },
-  welcomeIconCircle: {
-    width: 84, height: 84, borderRadius: 42, marginBottom: 12,
-    backgroundColor: c.emerald + '1A', borderWidth: 1, borderColor: c.emerald + '33',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  welcomeLogo: { width: 84, height: 84, borderRadius: 20, marginBottom: 12 },
   welcomeTitle: { fontSize: 28, fontWeight: '800', color: c.text, textAlign: 'center' },
   welcomeSub: { fontSize: 16, color: c.emerald, fontWeight: '600', marginBottom: 4 },
   welcomeDivider: { width: 40, height: 2, backgroundColor: c.cardBorder, marginVertical: 8 },

@@ -4,9 +4,9 @@
  */
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useKeyboardInset } from '../hooks/useKeyboardInset';
+import { KeyboardAvoidingView, KeyboardEvents } from 'react-native-keyboard-controller';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
 import { sheetWidth } from '../lib/appLayout';
@@ -37,14 +37,15 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const setStatus = useSetSupportStatus();
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
-  const insets = useSafeAreaInsets();
-  // Clavier : rien ne redimensionne ce Modal (fenêtre à part, statusBarTranslucent) ni d'ailleurs la
-  // fenêtre principale (targetSdk 35). L'inset clavier est relatif à la fenêtre courante, donc
-  // valable ici tel quel : on rétrécit la feuille d'autant. Voir useKeyboardInset.
-  const kbPad = useKeyboardInset(8);
+  // Clavier : KeyboardAvoidingView de react-native-keyboard-controller (voir le JSX). La lib attache
+  // son écouteur à la fenêtre du Modal (ModalAttachedWatcher) → hauteur juste, bandeaux compris.
+  // Ici on recolle seulement le fil en bas quand le clavier s'ouvre.
   useEffect(() => {
-    if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
-  }, [kbPad]);
+    const sub = KeyboardEvents.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    });
+    return () => sub.remove();
+  }, []);
 
   // Marque la demande comme lue à l'ouverture (efface le drapeau du rôle courant).
   useEffect(() => {
@@ -66,8 +67,12 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      {/* Clavier ouvert : la feuille se rétrécit de sa hauteur exacte. Fermé : inset bas (gestes). */}
-      <View style={[styles.overlay, { paddingBottom: kbPad > 0 ? kbPad : insets.bottom }]}>
+      {/* KeyboardAvoidingView de la LIB, à la racine du Modal : sa frame = la fenêtre entière du
+          Modal, la seule position où son calcul (onLayout relatif au parent) est juste. Le
+          paddingTop '9%' reste sur une View SIMPLE : posé sur le SafeAreaView natif, il était
+          avalé et l'en-tête passait sous la barre d'état. */}
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -115,22 +120,28 @@ export default function SupportThreadModal({ visible, requestId, subject, status
             )}
           </ScrollView>
 
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              value={text}
-              onChangeText={setText}
-              placeholder={isClosed ? 'Répondre rouvre la demande…' : 'Votre message…'}
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
-            />
-            <TouchableOpacity style={[styles.sendBtn, (!text.trim() || addMessage.isPending) && { opacity: 0.5 }]} onPress={send} disabled={!text.trim() || addMessage.isPending}>
-              <Ionicons name="send" size={18} color={COLORS.bg} />
-            </TouchableOpacity>
-          </View>
+          {/* SafeAreaView NATIF (edges bottom) : mesure les insets de SA fenêtre (celle du Modal) →
+              la saisie reste au-dessus de la barre de navigation, clavier fermé comme ouvert.
+              (useSafeAreaInsets lirait le provider de la fenêtre PRINCIPALE : toujours faux ici.) */}
+          <SafeAreaView edges={['bottom']}>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                value={text}
+                onChangeText={setText}
+                placeholder={isClosed ? 'Répondre rouvre la demande…' : 'Votre message…'}
+                placeholderTextColor={COLORS.textSecondary}
+                multiline
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
+              />
+              <TouchableOpacity style={[styles.sendBtn, (!text.trim() || addMessage.isPending) && { opacity: 0.5 }]} onPress={send} disabled={!text.trim() || addMessage.isPending}>
+                <Ionicons name="send" size={18} color={COLORS.bg} />
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
         </View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -138,8 +149,8 @@ export default function SupportThreadModal({ visible, requestId, subject, status
 function makeStyles(c: any) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', paddingTop: '9%' },
-    // flex:1 (au lieu d'une hauteur fixe) → la feuille se rétrécit par le bas quand le clavier remonte
-    // (via paddingBottom = hauteur clavier sur l'overlay), gardant la saisie visible.
+    // flex:1 (au lieu d'une hauteur fixe) → la feuille se rétrécit par le bas quand le clavier
+    // remonte (KeyboardAvoidingView) ou que la barre de navigation existe (SafeAreaView bottom).
     sheet: { ...sheetWidth, flex: 1, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder },
     header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: c.cardBorder, gap: 8 },
     title: { fontSize: 16, fontWeight: '800', color: c.text },
