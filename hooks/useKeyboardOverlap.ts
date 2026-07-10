@@ -30,6 +30,18 @@ import { Keyboard, Platform, type View } from 'react-native';
 /** Passes de re-mesure : layout à stabiliser, modal qui glisse (~300 ms), bandeaux IME tardifs. */
 const PASSES_MS = [50, 150, 350, 700];
 
+/**
+ * Bandeau d'outils/suggestions de Gboard (~48 dp). Gboard déclare ses insets SANS ce bandeau
+ * (`onComputeInsets`), et tout ce que RN expose en JS en dérive (`Keyboard.metrics()`, événements,
+ * visible frame) : la position du clavier est donc systématiquement rapportée une rangée trop bas,
+ * de façon identique dans toutes les fenêtres (vérifié sur appareil : les deux chats coupés à la
+ * même hauteur). Aucune API JS ne peut mesurer ce bandeau → tolérance fixe. Coût quand le bandeau
+ * est absent : la barre flotte de ~48 dp au-dessus des touches, préférable à une saisie masquée.
+ * La vraie correction (insets du système, WindowInsets.ime) exige un module natif
+ * (react-native-keyboard-controller) → prochaine build store.
+ */
+const IME_ACCESSORY = Platform.OS === 'android' ? 48 : 0;
+
 export function useKeyboardOverlap(barRef: React.RefObject<View | null>, margin = 16): number {
   const [pad, setPad] = useState(0);
   const padRef = useRef(0);
@@ -51,9 +63,9 @@ export function useKeyboardOverlap(barRef: React.RefObject<View | null>, margin 
       if (!kb || kb.height <= 0) return; // refermé entre-temps → le handler hide a déjà remis 0
       barRef.current?.measureInWindow((_x, y, _w, h) => {
         if (y == null || h == null || h <= 0) return;
-        const overlap = y + h + margin - kb.screenY;
+        const overlap = y + h + margin + IME_ACCESSORY - kb.screenY;
         if (Math.abs(overlap) < 2) return; // en place (à l'arrondi près) : ne pas osciller
-        apply(Math.min(padRef.current + overlap, kb.height + margin));
+        apply(Math.min(padRef.current + overlap, kb.height + IME_ACCESSORY + margin));
       });
     };
 

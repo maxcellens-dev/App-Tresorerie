@@ -53,6 +53,9 @@ if (__DEV__) {
 // soit à l'écran (transition invisible natif → animé). Natif uniquement (no-op / non requis sur web).
 if (Platform.OS !== 'web') {
   SplashScreen.preventAutoHideAsync().catch(() => {});
+  // Le splash natif s'efface en FONDU au-dessus d'AnimatedSplash (première frame identique :
+  // même logo, même taille, même position) → jonction invisible.
+  try { SplashScreen.setOptions({ fade: true, duration: 350 }); } catch { /* API absente : masquage sec */ }
   // Filet de sécurité : ne jamais rester bloqué sur le splash natif si l'UI tarde / échoue.
   setTimeout(() => { SplashScreen.hideAsync().catch(() => {}); }, 4000);
 }
