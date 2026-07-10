@@ -6,7 +6,7 @@ import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TextInput, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
+import { useKeyboardOverlap } from '../hooks/useKeyboardOverlap';
 import { useAppColors } from '../hooks/useAppColors';
 import { useSupportMessages, useAddSupportMessage, useMarkSupportRead, useSetSupportStatus, useSupportRequest } from '../hooks/useSupport';
 import { sheetWidth } from '../lib/appLayout';
@@ -38,10 +38,11 @@ export default function SupportThreadModal({ visible, requestId, subject, status
   const [text, setText] = useState('');
   const scrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
-  // Clavier : ce Modal est `transparent` + `statusBarTranslucent`, donc sans limites de fenêtre →
-  // Android ignore `adjustResize` et ne remonte RIEN. On rétrécit la feuille de la hauteur du clavier
-  // nous-mêmes. (Un écran normal, lui, est redimensionné par le système : ne rien y ajouter.)
-  const kbPad = useKeyboardHeight();
+  // Clavier : rien ne redimensionne ce Modal (fenêtre à part, statusBarTranslucent) ni d'ailleurs la
+  // fenêtre principale (targetSdk 35). On remonte la feuille du chevauchement MESURÉ entre la ligne
+  // de saisie et le clavier — voir useKeyboardOverlap.
+  const inputRowRef = useRef<View>(null);
+  const kbPad = useKeyboardOverlap(inputRowRef);
   useEffect(() => {
     if (kbPad > 0) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
   }, [kbPad]);
@@ -115,7 +116,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
             )}
           </ScrollView>
 
-          <View style={styles.inputRow}>
+          <View ref={inputRowRef} style={styles.inputRow} collapsable={false}>
             <TextInput
               style={styles.input}
               value={text}
