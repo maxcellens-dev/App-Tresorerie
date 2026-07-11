@@ -11,7 +11,6 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { currencySymbolFor } from '../../../lib/currency';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { useAppNameFont } from '../../../hooks/useBrandFont';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 import { headerProfileRect } from '../../../lib/tourTargets';
@@ -44,7 +43,6 @@ function isNewerVersion(a: string, b: string): boolean {
 }
 
 export default function SettingsScreen() {
-  const appNameFont = useAppNameFont();
   const router = useRouter();
   const goBack = useNavBack();
   const { user, signOut } = useAuth();
@@ -515,7 +513,6 @@ function makeStyles(c: AppColors) {
     },
 
     versionCard: { alignItems: 'center', marginBottom: 20, gap: 4, marginTop: 8 },
-    appName: { fontSize: 18, fontWeight: '800', color: c.text, fontFamily: 'Arial Rounded MT Bold' },
     versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 16, marginTop: 2 },
 
     signOutBtn: { backgroundColor: c.card, paddingVertical: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: c.cardBorder, marginBottom: 8 },

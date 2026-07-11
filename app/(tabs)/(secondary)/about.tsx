@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
-import { useAppNameFont } from '../../../hooks/useBrandFont';
+import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../../../hooks/useBrandFont';
 import { APP_VERSION } from '../../../lib/appVersion';
 
 export default function AboutScreen() {
@@ -23,7 +23,7 @@ export default function AboutScreen() {
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Version */}
           <View style={styles.versionCard}>
-            <Text style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, { fontFamily: appNameFont }]}>Relyka</Text>
             <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
             <View style={styles.versionBadge}>
               <Text style={styles.versionText}>Version {APP_VERSION}</Text>
