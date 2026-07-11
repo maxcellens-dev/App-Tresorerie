@@ -9,7 +9,7 @@ import {
   Animated, Dimensions, Alert, ActivityIndicator, TextInput, Modal, Image,
 } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
-import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import ScreenGradient from '../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -94,7 +94,7 @@ function OptionCard({
 
 export default function QuestionnaireScreen() {
   const COLORS = useAppColors();
-  const appNameFont = useAppNameFont();
+  const appNameFontStyle = useAppNameFontStyle();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Écran de destination (onboarding) prêt → libère le splash animé.
   useEffect(() => { signalAppReady(); }, []);
@@ -332,7 +332,7 @@ export default function QuestionnaireScreen() {
             <ScrollView contentContainerStyle={styles.centeredScreen} showsVerticalScrollIndicator={false}>
               {/* Logo de l'app (le même que le splash) — continuité visuelle depuis l'ouverture. */}
               <Image source={require('../assets/logo.png')} style={styles.welcomeLogo} resizeMode="contain" fadeDuration={0} />
-              <Text style={styles.welcomeTitle}>Bienvenue sur <Text {...APP_NAME_TEXT_PROPS} style={{ fontFamily: appNameFont }}>Relyka</Text></Text>
+              <Text style={styles.welcomeTitle}>Bienvenue sur <Text {...APP_NAME_TEXT_PROPS} style={appNameFontStyle}>Relyka</Text></Text>
               <Text style={styles.welcomeSub}>Ton coach financier personnel</Text>
               <View style={styles.welcomeDivider} />
               <Text style={styles.welcomeBody}>

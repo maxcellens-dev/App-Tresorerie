@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWindowDimensions } from 'react-native';
 import { useBrandColors } from '../hooks/useBrandColors';
-import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { signalAppReady } from '../lib/splashGate';
 import LandingPage from '../components/LandingPage';
@@ -19,7 +19,7 @@ const { width } = Dimensions.get('window');
 export default function WelcomeScreen() {
   const COLORS = useBrandColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const appNameFont = useAppNameFont();
+  const appNameFontStyle = useAppNameFontStyle();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: winWidth } = useWindowDimensions();
@@ -71,7 +71,7 @@ export default function WelcomeScreen() {
           <Animated.View style={[styles.hero, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
-            <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, { fontFamily: appNameFont }]}>{L.brandName}</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, appNameFontStyle]}>{L.brandName}</Text>
             {/* Accroche BÉNÉFICE (éditable en admin → « Page d'accueil » section Mobile). */}
             <Text style={styles.tagline}>{L.mobileTagline}</Text>
             <Text
@@ -79,7 +79,7 @@ export default function WelcomeScreen() {
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
-              style={[styles.subtag, { fontFamily: appNameFont }]}
+              style={[styles.subtag, appNameFontStyle]}
             >{L.mobileSubtag}</Text>
           </Animated.View>
 

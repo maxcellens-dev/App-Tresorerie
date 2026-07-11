@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBrandColors } from '../hooks/useBrandColors';
-import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig } from '../hooks/useLandingConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
@@ -19,7 +19,7 @@ import PlayStoreBadge from './PlayStoreBadge';
 export default function LandingPage() {
   // Le mode (clair/sombre) suit app_config.landing.theme via useBrandColors.
   const COLORS = useBrandColors();
-  const appNameFont = useAppNameFont();
+  const appNameFontStyle = useAppNameFontStyle();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { data: cfg } = useLandingConfig();
@@ -71,7 +71,7 @@ export default function LandingPage() {
         <View style={styles.headerInner}>
           <View style={styles.brandRow}>
             <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
-            <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, appNameFontStyle]}>{cfg.brandName}</Text>
           </View>
           <View style={styles.headerBtns}>
             <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.8} style={styles.ghostBtn}>
@@ -122,7 +122,7 @@ export default function LandingPage() {
             ) : (
               <View style={styles.mockCard}>
                 <Text style={styles.mockLabel}>{cfg.heroBalanceLabel}</Text>
-                <Text style={[styles.mockValue, { fontFamily: appNameFont }]}>{cfg.heroBalanceValue}</Text>
+                <Text style={[styles.mockValue, appNameFontStyle]}>{cfg.heroBalanceValue}</Text>
                 <View style={styles.mockBarTrack}><View style={styles.mockBarFill} /></View>
                 <View style={styles.mockTx}>
                   <View style={styles.mockTxIcon}><Ionicons name="cash-outline" size={18} color={COLORS.emerald} /></View>
@@ -182,7 +182,7 @@ export default function LandingPage() {
 
         {/* ── Pied de page ── */}
         <View style={styles.footer}>
-          <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, { fontFamily: appNameFont }]}>{cfg.brandName}</Text>
+          <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, appNameFontStyle]}>{cfg.brandName}</Text>
           <Text style={styles.footerText}>{cfg.footerText}</Text>
           <View style={styles.footerLinks}>
             {cfg.footerLinks.map((l) => (

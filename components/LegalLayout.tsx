@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { usePublicColors } from '../hooks/usePublicColors';
-import { useAppNameFont, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { useNavBack } from '../hooks/useNavBack';
 import HeaderWithProfile from './HeaderWithProfile';
@@ -29,7 +29,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
   // Connecté → préférence perso ; public → thème de la vitrine (clair/sombre).
   const COLORS = usePublicColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const appNameFont = useAppNameFont();
+  const appNameFontStyle = useAppNameFontStyle();
   const router = useRouter();
   const { data: landing } = useLandingConfig();
   const L = landing ?? DEFAULT_LANDING; // même config que la page d'accueil (rien en dur)
@@ -59,7 +59,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
             <View style={styles.siteHeaderInner}>
               <TouchableOpacity style={styles.brandRow} onPress={() => router.replace(user ? '/(tabs)/pilotage' : '/welcome')} activeOpacity={0.8}>
                 <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
-                <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, { fontFamily: appNameFont }]}>{L.brandName}</Text>
+                <Text {...APP_NAME_TEXT_PROPS} style={[styles.brand, appNameFontStyle]}>{L.brandName}</Text>
               </TouchableOpacity>
               <View style={styles.siteHeaderBtns}>
                 {user ? (
@@ -94,7 +94,7 @@ export default function LegalLayout({ title, children }: { title: string; childr
 
           {/* Pied de page site — IDENTIQUE à la page d'accueil (config admin). */}
           <View style={styles.siteFooter}>
-            <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, { fontFamily: appNameFont }]}>{L.brandName}</Text>
+            <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, appNameFontStyle]}>{L.brandName}</Text>
             <Text style={styles.footerText}>{L.footerText}</Text>
             <View style={styles.footerLinks}>
               {L.footerLinks.map((l) => (
