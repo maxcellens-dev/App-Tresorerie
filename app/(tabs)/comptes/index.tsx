@@ -16,6 +16,7 @@ import { useAccountInvitations, useRespondAccountInvitation } from '../../../hoo
 import { ACCOUNT_ICONS } from '../../../theme/colors';
 import { semanticText } from '../../../theme/palette';
 import GuideOverlay from '../../../components/GuideOverlay';
+import GuideRing from '../../../components/GuideRing';
 import CreditsTab from '../../../components/CreditsTab';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
@@ -62,36 +63,34 @@ export default function AccountsListScreen() {
   const openCreate = (joint: boolean) => { setShowCreateType(false); router.push(`/(tabs)/comptes/add${joint ? '?joint=1' : ''}` as any); };
 
   // ── Guide "bulles" ──
-  // Cibles = UNIQUEMENT des refs de composants réels, mesurées par GuideOverlay au moment de
-  // l'affichage (measureInWindow). Aucun rectangle estimé (Dimensions/insets), aucune position en
-  // cache : c'était la cause des cadres à côté des boutons selon l'appareil. La barre d'onglets et
-  // l'avatar du header vivent dans des composants partagés → ils publient leur ref via guideAnchors.
+  // Chaque étape ne fait que NOMMER l'élément à mettre en avant (`highlightKey`) : c'est le bouton
+  // lui-même qui trace sa bordure (<GuideRing>), il n'y a donc AUCUNE position à mesurer ni estimer.
+  // `placement` place la bulle en haut ou en bas, sans jamais recouvrir la cible.
   const guide = useScreenGuide('comptes', user?.id);
   const scrollRef = useRef<ScrollView>(null);
-  const addBtnRef = useRef<any>(null);
-  const transferBtnRef = useRef<any>(null);
+  const actionsRef = useRef<any>(null); // ancre de la bulle « Commence ici » (posée juste dessous)
 
   const GUIDE_STEPS: BubbleStep[] = [
     {
-      // Un cadre par bouton (Créer Compte + Virement), découpe de l'overlay sur les deux ; bulle
-      // ÉPINGLÉE EN BAS pour ne jamais les recouvrir.
-      getRefs: () => [addBtnRef, transferBtnRef],
-      placement: 'bottom',
+      highlightKey: 'accountActions',
+      anchorRef: () => actionsRef,
       icon: 'add-circle',
       iconColor: COLORS.green,
       title: 'Commence ici',
       description: 'Ajoute tes comptes (courant, épargne, investissement) avec leur solde réel du jour.\n\nUn « Virement » déplace de l\'argent d\'un compte à l\'autre.',
     },
     {
-      getRef: () => getGuideAnchor('tabbar'),
+      highlightKey: 'tabbar',
+      anchorRef: () => getGuideAnchor('tabbar'),
+      anchorPlacement: 'above', // bulle juste AU-DESSUS de la barre du bas
       icon: 'apps',
       iconColor: COLORS.green,
       title: 'Ta navigation',
       description: 'En bas de l\'écran, la barre de navigation réunit tout l\'essentiel : Comptes, Transactions, Pilotage, Projets et Projection.',
     },
     {
-      getRef: () => getGuideAnchor('headerProfile'),
-      circle: true,
+      highlightKey: 'headerProfile',
+      placement: 'top',
       icon: 'person-circle',
       iconColor: COLORS.green,
       title: 'Ton menu',
@@ -268,26 +267,27 @@ export default function AccountsListScreen() {
 
             {/* Quick actions + zone pub compacte (maison) à droite, gérable en admin */}
             <View style={styles.quickActions}>
-              <View style={styles.quickBtnGroup} collapsable={false}>
+              <View ref={actionsRef} style={styles.quickBtnGroup} collapsable={false}>
                 <TouchableOpacity
-                  ref={addBtnRef}
                   style={styles.quickBtn}
                   activeOpacity={0.75}
                   onPress={() => setShowCreateType(true)}
                 >
                   <View style={styles.quickIcon}>
                     <Ionicons name="add" size={22} color={COLORS.emerald} />
+                    {/* Bordure du guide tracée SUR le bouton lui-même (aucune mesure). */}
+                    <GuideRing target="accountActions" circle />
                   </View>
                   <Text style={styles.quickLabel}>Créer Compte</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  ref={transferBtnRef}
                   style={styles.quickBtn}
                   activeOpacity={0.75}
                   onPress={() => router.push('/(tabs)/comptes/transfer')}
                 >
                   <View style={styles.quickIcon}>
                     <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
+                    <GuideRing target="accountActions" circle />
                   </View>
                   <Text style={styles.quickLabel}>Virement</Text>
                 </TouchableOpacity>

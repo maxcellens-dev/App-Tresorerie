@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 import { RootPortal } from '../lib/rootPortal';
+import { setGuideHighlight, type GuideHighlightKey } from '../lib/guideHighlight';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -29,8 +30,16 @@ export interface BubbleStep {
   getRect?: () => { x: number; y: number; w: number; h: number };
   /** Cadre circulaire (ex. avatar) au lieu d'arrondi. */
   circle?: boolean;
-  /** 'bottom' : bulle épinglée en bas de l'écran, quoi qu'il arrive (jamais sur la cible). */
-  placement?: 'bottom';
+  /** Méthode privilégiée : NOMME l'élément à surligner. C'est le bouton qui trace sa bordure
+      (<GuideRing>), donc AUCUNE mesure. Ni spotlight sombre : la cible ressort d'elle-même. */
+  highlightKey?: GuideHighlightKey;
+  /** Place la bulle en haut ou en bas de l'écran (ne recouvre jamais la cible). */
+  placement?: 'top' | 'bottom';
+  /** Mode auto-bordure : réf. d'un élément près duquel poser la bulle. Mesuré UNIQUEMENT pour la
+      hauteur de la bulle (tolérant à un petit écart) — la mise en avant, elle, reste auto-tracée. */
+  anchorRef?: () => React.RefObject<any>;
+  /** Côté où poser la bulle par rapport à l'ancre (défaut 'below'). */
+  anchorPlacement?: 'above' | 'below';
   icon: string;
   iconColor: string;
   title: string;
@@ -68,14 +77,42 @@ export default function GuideOverlay({
   // Cibles mesurées : chacune reçoit son cadre ; le trou de l'overlay = leur enveloppe commune.
   const [frames, setFrames] = useState<Rect[] | null>(null);
   const [measuring, setMeasuring] = useState(true);
+  // Rect vertical de l'ancre (mode auto-bordure) : bornes pour poser la bulle juste au-dessus/dessous.
+  const [anchor, setAnchor] = useState<{ top: number; bottom: number } | null>(null);
   // Hauteur RÉELLE de la bulle (mesurée) → positionnement fiable quel que soit le texte/écran.
   const [bubbleH, setBubbleH] = useState(BUBBLE_H);
   const attemptRef = useRef(0);
 
   const step = steps[currentStep];
+  const selfMode = !!step?.highlightKey; // le bouton trace sa propre bordure → aucune mesure
+
+  // Pilote le registre de mise en avant : la clé de l'étape courante (ou rien) → le bouton concerné
+  // affiche/retire son <GuideRing>. Nettoyé à la fermeture / au démontage.
+  useEffect(() => {
+    setGuideHighlight(visible && step ? step.highlightKey ?? null : null);
+    return () => setGuideHighlight(null);
+  }, [visible, step]);
 
   useEffect(() => {
     if (!visible || !step) return;
+    // Mode auto-bordure : la mise en avant est auto-tracée (rien à mesurer). On mesure seulement,
+    // le cas échéant, le bas de l'ancre pour poser la bulle juste dessous (tolérant, même fenêtre).
+    if (selfMode) {
+      setFrames(null);
+      setMeasuring(false);
+      setAnchor(null);
+      const aref = step.anchorRef?.().current;
+      if (aref?.measureInWindow) {
+        let tries = 0;
+        const m = () => aref.measureInWindow((_x: number, y: number, _w: number, h: number) => {
+          if (h > 0) setAnchor({ top: y, bottom: y + h });
+          else if (tries++ < 5) setTimeout(m, 120);
+        });
+        const t = setTimeout(m, 60); // laisser le layout se poser
+        return () => clearTimeout(t);
+      }
+      return;
+    }
     let cancelled = false;
     attemptRef.current += 1;
     const myAttempt = attemptRef.current;
@@ -168,7 +205,20 @@ export default function GuideOverlay({
   const maxTop = SH - BOTTOM_SAFE - bubbleH; // plus haut possible pour que la bulle tienne en bas
   let bubbleTop: number;
   let pointer: 'up' | 'down' | null = null;
-  if (step.placement === 'bottom') {
+  if (selfMode) {
+    // Mode auto-bordure : bulle posée juste sous l'ancre (ex. sous « Créer Compte ») ou juste
+    // au-dessus (ex. au-dessus de la barre du bas), avec une marge confortable. Sinon repli haut/bas.
+    // Jamais sur la cible, qui s'éclaire via sa propre bordure.
+    if (anchor) {
+      const raw = step.anchorPlacement === 'above'
+        ? anchor.top - bubbleH - 18
+        : anchor.bottom + 30;
+      bubbleTop = Math.min(Math.max(raw, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
+    } else {
+      bubbleTop = step.placement === 'top' ? TOP_SAFE + 56 : Math.max(TOP_SAFE, maxTop);
+    }
+    pointer = null;
+  } else if (step.placement === 'bottom') {
     // Épinglée en bas, TOUJOURS : ne recouvre jamais la cible (demandé pour « Commence ici »).
     bubbleTop = Math.max(TOP_SAFE, maxTop);
     pointer = spot && spot.y + spot.h + 14 <= bubbleTop ? 'up' : null;
@@ -201,12 +251,13 @@ export default function GuideOverlay({
     // et le dessin partagent le même repère, les cadres tombent PILE sur les boutons. Voir lib/rootPortal.
     <RootPortal>
     <View style={styles.fill} pointerEvents="box-none">
-      {/* Capteur plein écran (le guide est bloquant) : sans le Modal, le trou du spotlight laisserait
-          sinon passer les taps vers le vrai bouton dessous. Les masques et la bulle, rendus APRÈS,
-          restent prioritaires là où ils se trouvent. */}
-      <View style={StyleSheet.absoluteFill} onStartShouldSetResponder={() => true} />
-      {/* ── Overlay sombre avec trou (spotlight) ── */}
-      {spot && !measuring ? (
+      {/* Mode auto-bordure : AUCUN voile sombre — la cible ressort d'elle-même via sa bordure. Un
+          calque transparent capte le tap (bloquant) et permet de sortir en touchant à côté. */}
+      {selfMode && (
+        <TouchableOpacity activeOpacity={1} onPress={onSkip} style={StyleSheet.absoluteFill} />
+      )}
+      {/* Modes hérités (autres écrans) : voile sombre avec trou (spotlight) mesuré. */}
+      {!selfMode && spot && !measuring ? (
         <>
           {/* Haut */}
           <TouchableOpacity activeOpacity={1} onPress={onSkip}
@@ -237,10 +288,10 @@ export default function GuideOverlay({
             );
           })}
         </>
-      ) : (
+      ) : !selfMode ? (
         // Pas de cible mesurée → overlay plein
         <TouchableOpacity activeOpacity={1} onPress={onSkip} style={[styles.mask, StyleSheet.absoluteFillObject]} />
-      )}
+      ) : null}
 
       {/* ── Flèche pointeur ── */}
       {spot && !measuring && pointer && (

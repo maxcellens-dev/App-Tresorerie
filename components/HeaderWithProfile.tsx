@@ -13,6 +13,7 @@ import { useCosmetics } from '../hooks/useCosmetics';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
 import ProfileMenuModal from './ProfileMenuModal';
+import GuideRing from './GuideRing';
 
 /** Mélange opaque base + overlay à alpha (0-1). */
 function blendHex(base: string, overlay: string, alpha: number): string {
@@ -199,6 +200,8 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
               </View>
             )}
           </View>
+          {/* Bordure du guide tracée SUR l'avatar lui-même (aucune mesure). */}
+          <GuideRing target="headerProfile" circle inset={-3} />
           <UnreadBadge count={userUnread} style={{ top: -2, right: -4 }} />
         </TouchableOpacity>
       </View>}

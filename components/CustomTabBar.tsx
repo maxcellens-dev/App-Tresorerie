@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform, DeviceEventEmitter } from 'react-native';
 import { registerGuideAnchor, unregisterGuideAnchor } from '../lib/guideAnchors';
+import GuideRing from './GuideRing';
 
 /** Événement émis quand on tape l'onglet « Comptes » → la page réinitialise son sous-onglet sur « Comptes ». */
 export const COMPTES_TAB_PRESSED = 'comptesTabPressed';
@@ -59,6 +60,8 @@ export default function CustomTabBar({ state }: any) {
     // au-dessus des boutons du téléphone, et le fond couvre toute la zone (pas de bande vide).
     <View ref={barRef} collapsable={false} style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.topBorder} />
+      {/* Bordure du guide tracée SUR la barre elle-même (aucune mesure). */}
+      <GuideRing target="tabbar" radius={12} inset={-2} />
       {ITEMS.map((it) => {
         const focused = activeRoute === it.name;
         const color = focused ? COLORS.tabActive : COLORS.tabInactive;
