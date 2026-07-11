@@ -62,9 +62,21 @@ hydrateThemeCache();
 // Détection RÉSEAU (NetInfo → onlineManager de react-query). Hors-ligne, les requêtes se METTENT EN
 // PAUSE (au lieu d'échouer en boucle et de vider le cache) ; à la RECONNEXION elles reprennent
 // automatiquement (refetchOnReconnect par défaut) → plus besoin de redémarrer l'app.
-onlineManager.setEventListener((setOnline) =>
-  NetInfo.addEventListener((state) => setOnline(state.isConnected !== false)),
-);
+//
+// ⚠️ BLINDAGE : si le module natif NetInfo est ABSENT (build/OTA reçue par un binaire qui ne l'a pas
+// encore), toute erreur ici doit être avalée — sinon crash au démarrage = app figée. En cas d'échec,
+// onlineManager reste en mode par défaut (« toujours en ligne ») → comportement d'avant (les requêtes
+// échouent hors-ligne au lieu de se mettre en pause), mais l'app DÉMARRE.
+if (typeof NetInfo?.addEventListener === 'function') {
+  onlineManager.setEventListener((setOnline) => {
+    try {
+      return NetInfo.addEventListener((state) => setOnline(state.isConnected !== false));
+    } catch {
+      setOnline(true); // natif indisponible → on considère « en ligne »
+      return () => {};
+    }
+  });
+}
 
 // Empêche le splash natif de se cacher tout seul : on le garde jusqu'à ce que notre splash animé
 // soit à l'écran (transition invisible natif → animé). Natif uniquement (no-op / non requis sur web).
