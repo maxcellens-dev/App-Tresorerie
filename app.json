@@ -3,7 +3,7 @@
     "name": "Relyka",
     "owner": "relykadevs-team",
     "slug": "relyka-app",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "scheme": "relyka-app",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -19,7 +19,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 36
+      "versionCode": 37
     },
     "plugins": [
       "./plugins/withJitpackAuth",
@@ -49,6 +49,15 @@
             "targetSdkVersion": 35
           }
         }
+      ],
+      [
+        "react-native-edge-to-edge",
+        {
+          "android": {
+            "parentTheme": "Default",
+            "enforceNavigationBarContrast": false
+          }
+        }
       ]
     ],
     "experiments": {
@@ -70,7 +79,7 @@
         "projectId": "fc209ff9-5d8b-4c7e-a83e-a3036f45930a"
       }
     },
-    "runtimeVersion": "1.0.2",
+    "runtimeVersion": "1.0.3",
     "updates": {
       "url": "https://u.expo.dev/fc209ff9-5d8b-4c7e-a83e-a3036f45930a",
       "checkAutomatically": "ON_LOAD",

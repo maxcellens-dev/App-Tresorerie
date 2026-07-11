@@ -4,11 +4,11 @@
  * - card_alpha, custom_accents, extra_presets : globaux (app_config via useStyleConfig)
  * Fallback : sombre / émeraude.
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { useStyleConfig } from './useStyleConfig';
-import { getCachedUserTheme, setCachedUserTheme } from '../lib/themeBoot';
+import { getCachedUserTheme, setCachedUserTheme, subscribeThemeCache, themeCacheVersion } from '../lib/themeBoot';
 import {
   buildColors, DEFAULT_MODE, DEFAULT_PRESET,
   type AppColors, type ThemeMode,
@@ -19,8 +19,10 @@ export function useAppColors(): AppColors {
   const { data: profile } = useProfile(user?.id);
   const { data: styleConfig } = useStyleConfig();
 
-  // Au rechargement web, le profil n'est pas encore chargé : on repart du dernier thème
-  // utilisateur mémorisé (localStorage) au lieu du défaut sombre → pas de flash de fond noir.
+  // Tant que le profil n'est pas chargé (rechargement, ou HORS-LIGNE où il ne se chargera pas) :
+  // on repart du dernier thème utilisateur mémorisé (localStorage web / AsyncStorage natif) au lieu
+  // du défaut sombre. L'abonnement re-render quand le cache natif finit de s'hydrater au démarrage.
+  useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
   const cachedUser = getCachedUserTheme();
   const mode = (profile?.theme_mode ?? cachedUser?.mode ?? DEFAULT_MODE) as ThemeMode;
   const preset = (profile?.theme_preset ?? cachedUser?.preset ?? DEFAULT_PRESET) as string;

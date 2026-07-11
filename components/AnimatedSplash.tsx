@@ -110,7 +110,9 @@ export default function AnimatedSplash({ onReady, onDone }: { onReady?: () => vo
     // Petit délai (100 ms) APRÈS le signal « prêt » : laisse la page de destination finir de se
     // peindre avant de révéler → pas de flash de page à moitié rendue.
     const unsub = onAppReady(() => { delayTimer = setTimeout(fadeOut, 100); });
-    const cap = setTimeout(fadeOut, 8000);
+    // Filet : ne jamais garder le splash au-delà de 3,5 s même sans signal (Pilotage signale déjà
+    // « prêt » sous 900 ms max). Évite un splash bloqué hors-ligne.
+    const cap = setTimeout(fadeOut, 3500);
     return () => { unsub(); clearTimeout(cap); clearTimeout(delayTimer); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

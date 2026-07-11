@@ -281,12 +281,18 @@ export default function PilotageScreen() {
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const isLoading = pilotageLoading;
+  // Hors-ligne, la requête est « en pause » (onlineManager/NetInfo) : ni données, ni erreur.
+  const isOffline = pilotageQuery.fetchStatus === 'paused';
 
-  // Signale au splash animé que la page de destination est prête (données chargées, ou erreur) →
-  // il ne s'efface qu'à ce moment, jamais sur le cercle de chargement de pilotage.
+  // Signale au splash animé que l'app peut s'afficher : dès que les données sont là OU en erreur,
+  // sinon au bout de 900 ms MAX. On n'attend plus la fin du (lourd) chargement pour OUVRIR l'app :
+  // l'utilisateur voit le tableau de bord tout de suite, les données finissent d'arriver derrière
+  // (indicateur de chargement in-app). Crucial hors-ligne : plus de splash bloqué ~15 s.
   React.useEffect(() => {
-    if (pilotageData || pilotageError) signalAppReady();
-  }, [pilotageData, pilotageError]);
+    if (pilotageData || pilotageError || isOffline) { signalAppReady(); return; }
+    const t = setTimeout(signalAppReady, 900);
+    return () => clearTimeout(t);
+  }, [pilotageData, pilotageError, isOffline]);
 
   // Messages contextuels des recos (projection invest, économie…) — activables en admin (défaut : oui).
   const { data: featureFlags } = useFeatureFlags();
@@ -615,7 +621,9 @@ export default function PilotageScreen() {
     }
   };
 
-  if (isLoading && !pilotageData) {
+  // Chargement actif (en ligne, données en route) : cercle. Hors-ligne, on ne « charge » pas → on
+  // saute ce bloc pour afficher le message de connexion (ci-dessous).
+  if (isLoading && !pilotageData && !isOffline) {
     return (
       <View style={styles.root}>
         <StatusBar style="light" />
@@ -626,18 +634,28 @@ export default function PilotageScreen() {
     );
   }
 
-  if (pilotageError || !pilotageData) {
+  // Écran d'erreur UNIQUEMENT s'il n'y a AUCUNE donnée (cache compris). Si des données existent —
+  // même anciennes/hors-ligne (cache persisté) — on affiche le tableau de bord malgré l'erreur de
+  // fond : mieux vaut des infos datées qu'un écran vide. La reconnexion rafraîchira.
+  if (!pilotageData) {
+    const isNetwork = isOffline
+      || (pilotageError && /network|fetch|timeout|failed/i.test((pilotageError as Error).message ?? ''));
     return (
       <View style={styles.root}>
         <StatusBar style="light" />
         <SafeAreaView style={styles.safe} edges={['left', 'right']}>
           <View style={styles.loader}>
-            <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16 }}>
-              {pilotageError ? `Erreur : ${(pilotageError as Error).message}` : 'Données indisponibles'}
+            <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginBottom: 16, lineHeight: 21 }}>
+              {isNetwork
+                ? 'Pas de connexion Internet.\nVérifie ta connexion — la page se rechargera automatiquement.'
+                : pilotageError ? `Une erreur est survenue : ${(pilotageError as Error).message}` : 'Données indisponibles'}
             </Text>
-            <TouchableOpacity onPress={() => pilotageQuery.refetch()}>
-              <Text style={{ color: COLORS.emerald, textAlign: 'center' }}>Réessayer</Text>
-            </TouchableOpacity>
+            {/* Hors-ligne : reprise automatique à la reconnexion (onlineManager) → pas de bouton. */}
+            {!isNetwork && (
+              <TouchableOpacity onPress={() => pilotageQuery.refetch()}>
+                <Text style={{ color: COLORS.emerald, textAlign: 'center', fontWeight: '600' }}>Réessayer</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </SafeAreaView>
       </View>

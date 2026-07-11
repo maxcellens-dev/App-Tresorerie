@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
 import { convertAmount, type RatesMap } from '../lib/currency';
@@ -1261,18 +1261,33 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   };
 }
 
+const PILOTAGE_STALE_MS = 45 * 1000;
+
+/** Clé + fetcher partagés entre le hook et le préchargement (une seule source de vérité). */
+const pilotageQueryOptions = (profileId: string) => ({
+  queryKey: ['pilotage_data', profileId],
+  queryFn: async () => computePilotageData(await fetchPilotageData(profileId)),
+  staleTime: PILOTAGE_STALE_MS,
+});
+
+/**
+ * Précharge les données de Pilotage AU PLUS TÔT (dès que l'utilisateur est connu), en parallèle du
+ * profil — au lieu d'attendre la redirection vers l'écran d'accueil. Écrit dans la MÊME clé de cache
+ * que `usePilotageData` → quand Pilotage monte, les données sont déjà là (ou en vol), pas de 2ᵉ
+ * aller-retour en cascade. Sans effet si déjà frais. Les erreurs sont avalées (le hook réessaiera).
+ */
+export function prefetchPilotageData(qc: QueryClient, profileId: string | undefined): void {
+  if (!supabase || !profileId) return;
+  qc.prefetchQuery(pilotageQueryOptions(profileId)).catch(() => {});
+}
+
 export function usePilotageData(profileId: string | undefined) {
   return useQuery({
-    queryKey: ['pilotage_data', profileId],
-    queryFn: async () => {
-      if (!profileId) throw new Error('No profile ID');
-      const data = await fetchPilotageData(profileId);
-      return computePilotageData(data);
-    },
+    ...pilotageQueryOptions(profileId ?? ''),
     enabled: !!profileId,
     // PERF : ce fetch est LOURD (toutes les transactions + jointures + partagés + crédits).
     // 45 s de fraîcheur → changer d'onglet ne re-télécharge pas tout ; les MUTATIONS (ajout/édition
     // de transaction, virement, régul…) invalident déjà cette clé → les données restent justes.
-    staleTime: 45 * 1000,
+    // Hors-ligne : la requête se met en PAUSE (onlineManager/NetInfo) et REPREND à la reconnexion.
   });
 }

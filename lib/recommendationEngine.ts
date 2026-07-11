@@ -429,9 +429,8 @@ export function computeRecommendations(
     if (moved > 0) {
       nets.keep = (nets.keep ?? 0) + moved;
       if (!filtered.includes('keep')) filtered.push('keep');
-      if (moved > 10) {
-        guardNotes.keep = `Dont ${moved.toLocaleString('fr-FR')} € mis en réserve pour garder ton solde au-dessus de ta marge de sécurité sur les 6 prochains mois.`;
-      }
+      // (Cas B) Pas de message orange sur « Conserver » ici : la mise en réserve est déjà reflétée
+      // par le montant, et le message « Dont X € mis en réserve… » n'apportait rien.
     }
   }
 

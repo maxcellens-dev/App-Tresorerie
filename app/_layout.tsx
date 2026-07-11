@@ -1,7 +1,11 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { Stack, useSegments, useRouter, usePathname } from 'expo-router';
-import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
-import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler } from 'react-native';
+import { QueryClient, QueryClientProvider, MutationCache, useQueryClient, onlineManager } from '@tanstack/react-query';
+import NetInfo from '@react-native-community/netinfo';
+import { prefetchPilotageData } from '../hooks/usePilotageData';
+import { hydrateThemeCache } from '../lib/themeBoot';
+import { hydrateQueryCache, startQueryPersist } from '../lib/queryPersist';
+import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler, AppState } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import AnimatedSplash from '../components/AnimatedSplash';
@@ -51,6 +55,17 @@ if (__DEV__) {
   ]);
 }
 
+// Charge AU PLUS TÔT le dernier thème connu (AsyncStorage natif) → l'app s'ouvre dans le thème de
+// l'utilisateur même hors-ligne (le profil ne se chargera pas), au lieu du sombre par défaut.
+hydrateThemeCache();
+
+// Détection RÉSEAU (NetInfo → onlineManager de react-query). Hors-ligne, les requêtes se METTENT EN
+// PAUSE (au lieu d'échouer en boucle et de vider le cache) ; à la RECONNEXION elles reprennent
+// automatiquement (refetchOnReconnect par défaut) → plus besoin de redémarrer l'app.
+onlineManager.setEventListener((setOnline) =>
+  NetInfo.addEventListener((state) => setOnline(state.isConnected !== false)),
+);
+
 // Empêche le splash natif de se cacher tout seul : on le garde jusqu'à ce que notre splash animé
 // soit à l'écran (transition invisible natif → animé). Natif uniquement (no-op / non requis sur web).
 if (Platform.OS !== 'web') {
@@ -80,8 +95,38 @@ const queryClient = new QueryClient({
   },
 });
 
+// Offline : réhydrate le cache persisté (dernières données connues) AVANT le montage des écrans, puis
+// sauvegarde en continu. Fire-and-forget : la lecture AsyncStorage est rapide et couverte par le splash.
+hydrateQueryCache(queryClient);
+startQueryPersist(queryClient);
+
 function ConfigSync() {
   useConfigSync(supabase);
+  return null;
+}
+
+// PERF démarrage : précharge les données de Pilotage (écran d'accueil) DÈS que l'utilisateur est
+// connu, en parallèle du profil — au lieu d'attendre la redirection puis un 2ᵉ aller-retour. Collapse
+// la cascade session → profil → pilotage. Voir prefetchPilotageData.
+function PilotagePrefetch() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  useEffect(() => { prefetchPilotageData(qc, user?.id); }, [user?.id, qc]);
+  return null;
+}
+
+// Reconnexion sans redémarrer : au retour en AVANT-PLAN, on rafraîchit les requêtes actives PÉRIMÉES
+// (`stale: true` respecte la fraîcheur → pas de churn si tout est frais). Rattrape « il faut
+// actualiser page par page » après une coupure. NB : détecter la reconnexion pendant que l'app reste
+// au premier plan exige NetInfo (module natif → prochaine build) ; ceci couvre le cas courant.
+function ForegroundRefetch() {
+  const qc = useQueryClient();
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') qc.refetchQueries({ type: 'active', stale: true }).catch(() => {});
+    });
+    return () => sub.remove();
+  }, [qc]);
   return null;
 }
 
@@ -329,6 +374,8 @@ export default function RootLayout() {
           <AuthProvider>
             <CalculatorProvider>
               <ConfigSync />
+              <PilotagePrefetch />
+              <ForegroundRefetch />
               <UsagePremiumSync />
               <FontApplier />
               <RecurringMaterializer />

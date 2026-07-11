@@ -5,16 +5,18 @@
  * piloté en admin → toute la vitrine bascule ensemble. L'accent reste émeraude.
  * Respecte les réglages globaux du Style Editor (transparence cartes, presets, couleurs sémantiques).
  */
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { useStyleConfig } from './useStyleConfig';
 import { useLandingConfig } from './useLandingConfig';
-import { getCachedAdminTheme } from '../lib/themeBoot';
+import { getCachedAdminTheme, subscribeThemeCache, themeCacheVersion } from '../lib/themeBoot';
 import { buildColors, type AppColors, type ThemeMode } from '../theme/palette';
 
 export function useBrandColors(): AppColors {
   const { data: styleConfig } = useStyleConfig();
   const { data: landing } = useLandingConfig();
-  // Avant la réponse réseau : dernier thème admin connu (localStorage web) → pas de flash sombre.
+  // Avant la réponse réseau : dernier thème admin connu (localStorage web / AsyncStorage natif après
+  // hydratation) → pas de flash sombre. L'abonnement re-render à l'hydratation du cache natif.
+  useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
   const mode = (landing?.theme ?? getCachedAdminTheme() ?? 'dark') as ThemeMode;
   return useMemo(
     () => buildColors(mode, 'emerald', {

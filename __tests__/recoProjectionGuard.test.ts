@@ -62,7 +62,8 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     expect(r.save.amount).toBe(300);
     expect(r.save.guardNote).toContain('repasserait sous ta marge de sécurité');
     expect(r.keep.amount).toBe(500);
-    expect(r.keep.guardNote).toContain('mis en réserve');
+    // Le message orange « mis en réserve » sur Conserver a été retiré (sans utilité) : pas de guardNote.
+    expect(r.keep.guardNote).toBeUndefined();
     // Σ recos = budget (invariant de la jauge Relyka).
     const sum = recos.reduce((s, x) => s + x.amount, 0);
     expect(sum).toBe(1000);
