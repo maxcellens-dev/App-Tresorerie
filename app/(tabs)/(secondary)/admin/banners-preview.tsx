@@ -171,8 +171,8 @@ export default function AdminBannersPreview() {
                   relykaAmount={floorToTen(SAMPLE_RELYKA)}
                   relykaColor={COLORS.emerald}
                   relykaMessage={conf.relykaRange.isRange
-                    ? 'Voici c\'est ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
-                    : 'Voici c\'est ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.'}
+                    ? 'Voici ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
+                    : 'Voici ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.'}
                   relykaRange={conf.relykaRange}
                   recoRange={conf.proportional}
                   confidenceLevel={conf.result.level}
