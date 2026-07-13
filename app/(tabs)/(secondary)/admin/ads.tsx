@@ -133,6 +133,29 @@ export default function AdminAds() {
         <Text style={styles.sub}>Affichées dans les zones de pub si le flag « Publicités » est activé (et masquées pour les Premium). Plusieurs bannières au même emplacement défilent en fondu enchaîné.</Text>
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
+          {/* Formats des images — rappel utile au moment de téléverser (l'image est recadrée en
+              « cover » : hors du bon ratio, les bords sont rognés). */}
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Ionicons name="resize-outline" size={18} color={COLORS.emerald} />
+              <Text style={styles.cardTitle}>Formats des bannières</Text>
+            </View>
+            <Text style={styles.formatLine}>
+              <Text style={styles.formatBold}>Grande bannière</Text> (tous les emplacements sauf « À côté des actions ») :
+              pleine largeur, ratio <Text style={styles.formatBold}>3,5 : 1</Text> → image idéale <Text style={styles.formatBold}>1400 × 400 px</Text>.
+            </Text>
+            <Text style={styles.formatLine}>
+              <Text style={styles.formatBold}>Bannière compacte</Text> (Comptes › « À côté des actions ») :
+              hauteur fixe 64 pt, largeur variable selon l'écran (~150 à 220 pt), soit un ratio d'environ
+              <Text style={styles.formatBold}> 3 : 1</Text> → image idéale <Text style={styles.formatBold}>600 × 200 px</Text>.
+            </Text>
+            <Text style={styles.hintInline}>
+              L'image remplit toute la zone et est recadrée au centre (« cover ») : gardez le sujet et le texte
+              au milieu, et évitez les détails collés aux bords. PNG, JPEG ou WebP. Sans image, c'est le texte
+              de la bannière qui s'affiche.
+            </Text>
+          </View>
+
           {/* Masquage global — retire toutes les pubs sans rien supprimer */}
           <TouchableOpacity
             style={[styles.card, styles.globalToggle, disabled && { borderColor: COLORS.danger }]}
@@ -338,6 +361,8 @@ function makeStyles(c: any) {
     linkTypeRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
     linkTypeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 8 },
     linkTypeText: { fontSize: 12, color: c.text, fontWeight: '700' },
+    formatLine: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 4 },
+    formatBold: { fontWeight: '800', color: c.text },
     hintInline: { fontSize: 11, color: c.textSecondary, marginTop: 6, fontStyle: 'italic' },
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginBottom: 8 },
     addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },

@@ -136,10 +136,12 @@ const styles = StyleSheet.create({
   // Image pleine largeur à RATIO FORCÉ (≈3,5:1) → même forme sur toutes les pages, quelle que
   // soit la largeur disponible. Uploader au ratio 3,5:1 (ex. 1400×400) pour éviter tout recadrage.
   img: { width: '100%', aspectRatio: 3.5 },
-  tagOverlay: { position: 'absolute', top: 7, left: 7, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  tagOverlayText: { fontSize: 8.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, color: '#fff', textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  // Pastille « Sponsorisé » : discrète (−20 % par rapport à la taille d'origine) — elle doit se
+  // lire, pas concurrencer le message de la bannière.
+  tagOverlay: { position: 'absolute', top: 6, left: 6, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 5.5, paddingVertical: 2.5, borderRadius: 5 },
+  tagOverlayText: { fontSize: 7, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, color: '#fff', textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   textWrap: { padding: 12 },
-  tag: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  tag: { fontSize: 7, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 },
   textRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   text: { flex: 1, fontSize: 13, fontWeight: '600' },
 });
