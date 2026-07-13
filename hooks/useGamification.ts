@@ -143,7 +143,12 @@ export function useGamification(userId: string | undefined) {
     return newStreak;
   }
 
-  /** Valide la semaine en cours (incrémente le streak) — à appeler lors d'une activité. */
+  /**
+   * Valide la semaine en cours (incrémente la série) — appelée à chaque OUVERTURE de l'app :
+   * la série hebdo compte les semaines où l'utilisateur est venu (lundi → dimanche).
+   * Ne jamais l'appeler tant qu'une perte de série est en attente de décision (`streakLoss`) :
+   * elle remettrait silencieusement la série à 1 avant que l'utilisateur ait pu la racheter.
+   */
   async function validateWeek(extraCtx: BadgeContext = {}, opts?: { closureEnabled?: boolean }) {
     if (!userId || !supabase || !config) return;
     const state = await fetchOrCreateState(userId);
@@ -268,8 +273,14 @@ export function useGamification(userId: string | undefined) {
   /** true si le cadeau du jour est encore réclamable aujourd'hui. */
   const canClaimDailyGems = (stateQuery.data?.last_free_gems_day ?? null) !== dayKey(new Date());
 
-  /** Série perdue : l'utilisateur a manqué des semaines au-delà de ses gels → proposition de récupération.
-   *  null si aucune perte (ou couverte par les gels). Le prix = prix de récup × semaines non couvertes. */
+  /**
+   * Série en danger : l'utilisateur n'est pas venu pendant une ou plusieurs semaines ENTIÈRES
+   * (au-delà de ses gels) → proposition de rachat avant que la série ne retombe à 1.
+   * null si aucune semaine manquée (ou tout couvert par les gels).
+   *
+   * `newStreak` = ce que vaudra la série une fois les semaines rachetées ET la semaine en cours
+   * validée (l'utilisateur est là aujourd'hui) : série actuelle + semaines manquées + 1.
+   */
   const streakLoss = (() => {
     const st = stateQuery.data;
     if (!st || !st.last_validated_week || !config) return null;
@@ -280,10 +291,14 @@ export function useGamification(userId: string | undefined) {
     const weeksMissed = missed - freezesUsed;
     if (weeksMissed < 1) return null; // entièrement couvert par les gels
     const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
-    return { weeksMissed, missed, freezesUsed, previousStreak: st.streak, newStreak: st.streak + missed, price: perWeek * weeksMissed };
+    return { weeksMissed, missed, freezesUsed, previousStreak: st.streak, newStreak: st.streak + missed + 1, price: perWeek * weeksMissed };
   })();
 
-  /** Restaure la série perdue (paye en gemmes les semaines non couvertes + consomme les gels). */
+  /**
+   * Rachète les semaines manquées (gemmes + gels consommés). On date la dernière semaine rachetée
+   * à la semaine PRÉCÉDENTE : la semaine en cours reste à valider normalement par la visite du jour
+   * (validateWeek), qui l'incrémentera et créditera ses relyks — d'où `newStreak` = +missed +1.
+   */
   async function restoreLostStreak(): Promise<{ ok: boolean; reason?: string }> {
     if (!userId || !supabase || !config) return { ok: false, reason: 'indisponible' };
     const st = await fetchOrCreateState(userId);
@@ -296,14 +311,30 @@ export function useGamification(userId: string | undefined) {
     const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
     const cost = perWeek * weeksMissed;
     if (st.gems < cost) return { ok: false, reason: 'relyks insuffisants' };
+    const lastCoveredWeek = mondayOf(new Date(Date.now() - 7 * 86400000)); // lundi de la semaine passée
     await supabase.from('user_gamification').update({
       gems: st.gems - cost,
       freezes: st.freezes - freezesUsed,
       streak: st.streak + missed,
       best_streak: Math.max(st.best_streak, st.streak + missed),
-      last_validated_week: mondayOf(new Date()),
+      last_validated_week: lastCoveredWeek,
       updated_at: new Date().toISOString(),
     }).eq('profile_id', userId);
+    invalidate();
+    return { ok: true };
+  }
+
+  /**
+   * L'utilisateur refuse de racheter : la perte est APPLIQUÉE TOUT DE SUITE (série à 0). Sans ça,
+   * l'état restait inchangé → la modale revenait à chaque ouverture et la série continuait de
+   * s'afficher comme si de rien n'était. `best_streak` (record) est conservé.
+   * La semaine en cours sera ensuite validée normalement → la série repart à 1.
+   */
+  async function declineLostStreak(): Promise<{ ok: boolean }> {
+    if (!userId || !supabase) return { ok: false };
+    await supabase.from('user_gamification')
+      .update({ streak: 0, updated_at: new Date().toISOString() })
+      .eq('profile_id', userId);
     invalidate();
     return { ok: true };
   }
@@ -323,5 +354,6 @@ export function useGamification(userId: string | undefined) {
     canClaimDailyGems,
     streakLoss,
     restoreLostStreak,
+    declineLostStreak,
   };
 }

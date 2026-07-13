@@ -195,8 +195,9 @@ export default function ProfileScreen() {
       const { error } = await supabase.rpc('delete_own_account');
       if (error) throw error;
       setShowDeleteModal(false);
-      await signOut();
+      // Accueil d'abord, session vidée ensuite (sinon l'écran courant clignote « vide » entre les deux).
       router.replace('/welcome');
+      await signOut();
     } catch (e: unknown) {
       Alert.alert('Erreur', e instanceof Error ? e.message : 'Impossible de supprimer le compte.');
     } finally {

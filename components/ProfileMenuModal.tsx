@@ -37,7 +37,10 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   const cosmeticTitles = (profileTitle ? [profileTitle] : []).sort((a, b) => a.localeCompare(b, 'fr'));
 
   const go = (route: string) => { onClose(); router.push(route as any); };
-  const logout = async () => { onClose(); await signOut(); router.replace('/welcome'); };
+  // Déconnexion : on va sur l'accueil D'ABORD, on vide la session ENSUITE. Dans l'autre sens, la
+  // session tombe alors qu'on est encore sur un écran de l'app → il se re-rend « vide » (chargement)
+  // le temps de la redirection : c'est l'écran intermédiaire qu'on voyait passer.
+  const logout = async () => { onClose(); router.replace('/welcome'); await signOut(); };
 
   // Reporting masqué aux utilisateurs tant que le flag n'est pas activé (les admins y accèdent toujours).
   const reportingVisible = Boolean(featureFlags?.reporting_enabled) || isAdmin;

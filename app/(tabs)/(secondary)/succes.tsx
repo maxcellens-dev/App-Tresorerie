@@ -145,7 +145,10 @@ export default function SuccesScreen() {
             <View style={styles.summaryItem}>
               <Text style={styles.summaryEmoji}>{config?.identity.streakIcon || '🔥'}</Text>
               <Text style={styles.summaryValue}>{state?.streak ?? 0}</Text>
-              <Text style={styles.summaryLabel}>{(state?.streak ?? 0) > 1 ? 'semaines' : 'semaine'} d'affilée{'\n'}(record {state?.best_streak ?? 0})</Text>
+              {/* La série compte les semaines où l'utilisateur est VENU (une visite entre lundi et
+                  dimanche suffit) — le libellé doit le dire, sinon la perte de série est incomprise. */}
+              <Text style={styles.summaryLabel}>{(state?.streak ?? 0) > 1 ? 'semaines' : 'semaine'} de suite{'\n'}(record {state?.best_streak ?? 0})</Text>
+              <Text style={styles.summaryHint}>Viens au moins une fois par semaine</Text>
             </View>
             <View style={styles.summaryDivider} />
             {/* Toucher ses Relyks → boutique (onglet « Recharger en relyks »). */}
@@ -255,6 +258,7 @@ function makeStyles(c: any) {
     summaryEmoji: { fontSize: 22 },
     summaryValue: { fontSize: 20, fontWeight: '800', color: c.text },
     summaryLabel: { fontSize: 10, color: c.textSecondary, textAlign: 'center', paddingHorizontal: 4 },
+    summaryHint: { fontSize: 9, color: c.textSecondary, textAlign: 'center', paddingHorizontal: 4, marginTop: 3, opacity: 0.75, fontStyle: 'italic' },
     actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 12 },
     actionText: { fontSize: 13, fontWeight: '700', color: c.text },

@@ -53,8 +53,15 @@ export default function AdminAds() {
   const [disabled, setDisabled] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  // Emplacements repliés par défaut (résumé sur 1 ligne) → carte bannière compacte.
+  // Emplacements ET destination interne repliés par défaut (résumé sur 1 ligne) → carte compacte.
   const [openPlacements, setOpenPlacements] = useState<Record<string, boolean>>({});
+  const [openTargets, setOpenTargets] = useState<Record<string, boolean>>({});
+
+  /** Destination interne choisie, en une ligne : « Actions · Projets › + Projet ». */
+  const targetSummary = (b: AdBanner) => {
+    const t = AD_LINK_TARGETS.find((x) => x.value === b.target);
+    return t ? `${t.group} · ${t.label}` : 'Aucune destination choisie — bannière non cliquable';
+  };
 
   // Résumé court des emplacements sélectionnés, groupé par page : « Comptes (2) · Pilotage ».
   const placementSummary = (b: AdBanner) => {
@@ -243,29 +250,41 @@ export default function AdminAds() {
                 <TextInput style={styles.input} value={b.url ?? ''} onChangeText={(v) => update(i, { url: v })} placeholder="https://…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
               ) : (
                 <>
-                  {TARGET_GROUPS.map(([group, items]) => (
-                    <View key={group} style={styles.placementGroup}>
-                      <Text style={styles.placementGroupLabel}>{group}</Text>
-                      <View style={styles.placementRow}>
-                        {items.map((t) => {
-                          const active = b.target === t.value;
-                          return (
-                            <TouchableOpacity
-                              key={t.value}
-                              onPress={() => update(i, { target: t.value as AdLinkTarget })}
-                              style={[styles.placementChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}
-                            >
-                              <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
-                              <Text style={[styles.placementChipText, active && { color: COLORS.bg }]}>{t.label}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                  {/* Replié par défaut : la destination tient sur une ligne (la liste complète prend
+                      tout l'écran). On la déplie pour changer de cible. */}
+                  <TouchableOpacity style={styles.placementToggle} onPress={() => setOpenTargets((s) => ({ ...s, [b.id]: !s[b.id] }))} activeOpacity={0.7}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.placementSummary} numberOfLines={1}>{targetSummary(b)}</Text>
                     </View>
-                  ))}
-                  <Text style={styles.hintInline}>
-                    Une « Action » ouvre la page ET déclenche son bouton (ex. Projets › + Projet → la fenêtre « Quel type de projet ? » s'ouvre à l'arrivée). Sans destination choisie, la bannière n'est pas cliquable.
-                  </Text>
+                    <Ionicons name={openTargets[b.id] ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                  {openTargets[b.id] && (
+                    <>
+                      {TARGET_GROUPS.map(([group, items]) => (
+                        <View key={group} style={styles.placementGroup}>
+                          <Text style={styles.placementGroupLabel}>{group}</Text>
+                          <View style={styles.placementRow}>
+                            {items.map((t) => {
+                              const active = b.target === t.value;
+                              return (
+                                <TouchableOpacity
+                                  key={t.value}
+                                  onPress={() => { update(i, { target: t.value as AdLinkTarget }); setOpenTargets((s) => ({ ...s, [b.id]: false })); }}
+                                  style={[styles.placementChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}
+                                >
+                                  <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
+                                  <Text style={[styles.placementChipText, active && { color: COLORS.bg }]}>{t.label}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      ))}
+                      <Text style={styles.hintInline}>
+                        Une « Action » ouvre la page ET déclenche son bouton (ex. Projets › + Projet → la fenêtre « Quel type de projet ? » s'ouvre à l'arrivée).
+                      </Text>
+                    </>
+                  )}
                 </>
               )}
 

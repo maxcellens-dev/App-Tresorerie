@@ -5,7 +5,7 @@
  * - Plusieurs bannières sur le même emplacement → rotation en fondu enchaîné, durée
  *   paramétrable en admin (rotation_seconds).
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -17,6 +17,22 @@ import { logEvent } from '../lib/analytics';
 
 // Impressions déjà comptées dans la session (1 par bannière × emplacement) → évite le flood.
 const seenImpressions = new Set<string>();
+
+// Graine tirée UNE fois par session d'app : deux ouvertures ne démarrent pas sur la même bannière.
+const SESSION_SEED = Math.floor(Math.random() * 9973);
+
+/**
+ * Décalage de départ dans la liste des bannières, propre à chaque emplacement.
+ * Sans lui, tous les emplacements partent de la bannière 1 : en naviguant d'une page à l'autre,
+ * l'utilisateur reverrait la MÊME pub partout (et au même rythme). Avec ce décalage, la page A
+ * commence sur la bannière 1, la page B sur la 3, etc. — la rotation reste ensuite identique.
+ */
+function placementOffset(placement: string, count: number): number {
+  if (count < 2) return 0;
+  let h = 0;
+  for (let i = 0; i < placement.length; i++) h = (h * 31 + placement.charCodeAt(i)) % 9973;
+  return (h + SESSION_SEED) % count;
+}
 
 export default function AdSlot({ placement, compact = false, style }: { placement: AdPlacement; compact?: boolean; style?: ViewStyle }) {
   const COLORS = useAppColors();
@@ -33,7 +49,10 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
   // Opacité globale des bannières (réglable en admin).
   const baseOpacity = Math.max(0, Math.min(1, (data?.opacity ?? 100) / 100));
 
+  // `idx` = tour de rotation ; la bannière réellement affichée est décalée par l'emplacement.
   const [idx, setIdx] = useState(0);
+  const offset = useMemo(() => placementOffset(placement, count), [placement, count]);
+  const pos = count > 0 ? (idx + offset) % count : 0;
   const opacity = useRef(new Animated.Value(1)).current;
 
   // Rotation en fondu si plusieurs bannières au même emplacement.
@@ -54,17 +73,17 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
   // Impression publicitaire (1 fois par bannière et par emplacement dans la session).
   useEffect(() => {
     if (!showAds || count === 0) return;
-    const b = banners[Math.min(idx, count - 1)];
+    const b = banners[pos];
     if (!b) return;
     const key = `${placement}:${b.id}`;
     if (seenImpressions.has(key)) return;
     seenImpressions.add(key);
     logEvent('ad_impression', placement, { bannerId: b.id, label: b.label });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, count, showAds, placement]);
+  }, [pos, count, showAds, placement]);
 
   if (!showAds || count === 0) return null;
-  const banner = banners[Math.min(idx, count - 1)];
+  const banner = banners[pos];
   // Lien de la bannière : page/bouton de l'app (interne) ou site externe. `null` = non cliquable.
   const link = bannerLink(banner);
   const open = () => {

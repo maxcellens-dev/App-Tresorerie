@@ -34,6 +34,10 @@ const ANDROID_PACKAGE = 'com.relyka.myapp';
 // Réglage « Bouton de saisie rapide » (position / masquage) : masqué de l'écran, code conservé.
 // Le bouton « + » est désormais un élément fixe de l'app (Pilotage, Comptes, Transactions).
 const SHOW_QUICK_ADD_SETTING = false;
+
+// Réglage « Marge de sécurité » : masqué ici — il se règle dans le Pilotage, et un même réglage à
+// deux endroits prête à confusion. Code conservé (passer à `true` pour le rétablir).
+const SHOW_SAFETY_MARGIN = false;
 /** Renvoie true si `a` est une version plus récente que `b` ("1.0.2" > "1.0.1"). */
 function isNewerVersion(a: string, b: string): boolean {
   const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
@@ -152,13 +156,15 @@ export default function SettingsScreen() {
       title: 'Gérer les catégories',
       description: 'Ajoutez, renommez ou supprimez vos catégories et sous-catégories de dépenses et de recettes. Elles structurent votre plan de trésorerie et vos statistiques.',
     },
-    {
+    // L'étape « Marge de sécurité » n'est présentée ici que si le réglage y est affiché ; sinon elle
+    // pointerait sur un élément absent (le réglage vit dans le Pilotage).
+    ...(SHOW_SAFETY_MARGIN ? [{
       getRef: () => marginRowRef,
       icon: 'shield-outline',
       iconColor: '#60a5fa',
       title: 'Marge de sécurité',
       description: 'Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
-    },
+    }] as BubbleStep[] : []),
   ];
 
   // ── Safety margin (montant en €) ──
@@ -178,9 +184,11 @@ export default function SettingsScreen() {
   const setPreset = (preset: ThemePreset) => updateProfile.mutate({ theme_preset: preset });
 
   // ── Sign out ──
+  // On navigue AVANT de vider la session : sinon l'écran courant se re-rend sans données (état de
+  // chargement) le temps de la redirection → l'utilisateur voit passer un écran intermédiaire.
   async function handleSignOut() {
-    await signOut();
     router.replace('/welcome');
+    await signOut();
   }
 
   if (!user) {
@@ -223,24 +231,18 @@ export default function SettingsScreen() {
             </View>
           )}
 
-          {/* ── Profil financier ── */}
-          <Text style={styles.sectionTitle}>Profil financier</Text>
+          {/* ── Gestion ── */}
+          <Text style={styles.sectionTitle}>Gestion</Text>
           <View style={styles.card}>
-            <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}>
+            <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/profil-financier')}>
               <Ionicons name="trending-up-outline" size={20} color="#a78bfa" />
               <Text style={styles.rowLabel}>Mon profil financier</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
-          </View>
 
-          {/* ── Gestion ── */}
-          <Text style={styles.sectionTitle}>Gestion</Text>
-          <View style={styles.card}>
-            <TouchableOpacity ref={categoriesRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
-              <Ionicons name="pie-chart-outline" size={20} color={COLORS.textSecondary} />
-              <Text style={styles.rowLabel}>Gérer les catégories</Text>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
+            {/* Marge de sécurité : réglage MASQUÉ ici — il se définit dans le Pilotage (une seule
+                place pour un même réglage). Code conservé (SHOW_SAFETY_MARGIN pour le rétablir). */}
+            {SHOW_SAFETY_MARGIN && (
             <View ref={marginRowRef} style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' }}>
                 <Ionicons name="shield-outline" size={20} color={COLORS.textSecondary} />
@@ -272,6 +274,7 @@ export default function SettingsScreen() {
                 Montant que vous souhaitez avoir au minimum sur vos comptes courants à la fin du mois, par sécurité.
               </Text>
             </View>
+            )}
 
             {/* Prudence : pilote la confiance dans les revenus à venir et l'horizon de projection */}
             <View style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0, marginTop: 4 }]}>
@@ -321,6 +324,24 @@ export default function SettingsScreen() {
                   ))}
                 </View>
               </View>
+            </View>
+          </View>
+
+          {/* ── Paramétrage (catégories + devise de référence) ── */}
+          <Text style={styles.sectionTitle}>Paramétrage</Text>
+          <View style={styles.card}>
+            <TouchableOpacity ref={categoriesRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
+              <Ionicons name="pie-chart-outline" size={20} color={COLORS.textSecondary} />
+              <Text style={styles.rowLabel}>Gérer les catégories</Text>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
+              <Text style={styles.rowLabel}>Devise de référence</Text>
+              <CurrencyPicker
+                value={profile?.currency_code ?? 'EUR'}
+                onChange={(code) => updateProfile.mutate({ currency_code: code })}
+              />
+              <Text style={styles.currencyHint}>Devise de tes totaux (Vue d'ensemble, Pilotage, Projection…). Chaque compte garde sa propre devise ; les totaux y sont convertis au taux du jour (≈ si plusieurs devises).</Text>
             </View>
           </View>
 
@@ -406,19 +427,6 @@ export default function SettingsScreen() {
                 </>
               );
             })()}
-          </View>
-
-          {/* ── Devise ── */}
-          <Text style={styles.sectionTitle}>Devise</Text>
-          <View style={styles.card}>
-            <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 10, borderBottomWidth: 0 }]}>
-              <Text style={styles.rowLabel}>Devise de référence</Text>
-              <CurrencyPicker
-                value={profile?.currency_code ?? 'EUR'}
-                onChange={(code) => updateProfile.mutate({ currency_code: code })}
-              />
-              <Text style={styles.currencyHint}>Devise de tes totaux (Total liquidités, Pilotage, Projection…). Chaque compte garde sa propre devise ; les totaux y sont convertis au taux du jour (≈ si plusieurs devises).</Text>
-            </View>
           </View>
 
           {/* ── Application (notifications + mise à jour) ── */}
