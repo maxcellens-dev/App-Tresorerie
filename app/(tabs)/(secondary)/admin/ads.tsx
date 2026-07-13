@@ -141,7 +141,7 @@ export default function AdminAds() {
               <Text style={styles.cardTitle}>Formats des bannières</Text>
             </View>
             <Text style={styles.formatLine}>
-              <Text style={styles.formatBold}>Grande bannière</Text> (tous les emplacements sauf « À côté des actions ») :
+              <Text style={styles.formatBold}>Grande bannière</Text> (tous sauf « À côté des actions ») :
               pleine largeur, ratio <Text style={styles.formatBold}>3,5 : 1</Text> → image idéale <Text style={styles.formatBold}>1400 × 400 px</Text>.
             </Text>
             <Text style={styles.formatLine}>
