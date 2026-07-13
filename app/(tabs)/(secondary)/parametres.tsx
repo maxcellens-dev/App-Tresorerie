@@ -30,6 +30,10 @@ import type { FinancialProfileId } from '../../../types/database';
 import { APP_VERSION } from '../../../lib/appVersion';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
+
+// Réglage « Bouton de saisie rapide » (position / masquage) : masqué de l'écran, code conservé.
+// Le bouton « + » est désormais un élément fixe de l'app (Pilotage, Comptes, Transactions).
+const SHOW_QUICK_ADD_SETTING = false;
 /** Renvoie true si `a` est une version plus récente que `b` ("1.0.2" > "1.0.1"). */
 function isNewerVersion(a: string, b: string): boolean {
   const pa = a.split('.').map((n) => parseInt(n, 10) || 0);
@@ -363,7 +367,7 @@ export default function SettingsScreen() {
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
               Affiche un bouton d'accès rapide à une calculatrice flottante, déplaçable, sur les écrans de saisie et de projection.
             </Text>
-            {featureFlags?.quick_add_enabled !== false && (() => {
+            {SHOW_QUICK_ADD_SETTING && featureFlags?.quick_add_enabled !== false && (() => {
               const bubbleMode = (featureFlags?.quick_add_mode ?? 'tabbar') === 'bubble';
               const opts = bubbleMode
                 ? ([['right', 'Afficher'], ['hidden', 'Masquer']] as const)

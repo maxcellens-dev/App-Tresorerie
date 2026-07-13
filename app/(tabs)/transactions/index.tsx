@@ -29,7 +29,13 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
 import { sheetWidth } from '../../../lib/appLayout';
 import { iconForTransaction } from '../../../lib/categoryIcons';
+import { isProjectSpendTx } from '../../../lib/projectTx';
 import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
+
+// Les 3 boutons « Virement / Dépense / Recette » en haut de l'écran font doublon avec le bouton de
+// saisie rapide (« + »), désormais présent ici aussi. On les masque, mais on garde le code : passer
+// cette constante à `true` les rétablit tels quels.
+const SHOW_TOP_ACTIONS = false;
 
 
 function formatDate(dateStr: string) {
@@ -133,13 +139,20 @@ export default function TransactionsListScreen() {
       title: 'Onglet Transactions',
       description: 'Touchez « Transactions » dans la barre du bas pour saisir et consulter vos opérations.',
     },
-    {
-      getRef: () => actionsRef,
-      icon: 'swap-vertical',
-      iconColor: COLORS.green,
-      title: 'Saisir une opération',
-      description: 'Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
-    },
+    SHOW_TOP_ACTIONS
+      ? {
+          getRef: () => actionsRef,
+          icon: 'swap-vertical',
+          iconColor: COLORS.green,
+          title: 'Saisir une opération',
+          description: 'Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
+        }
+      : {
+          icon: 'add-circle',
+          iconColor: COLORS.green,
+          title: 'Saisir une opération',
+          description: 'Le bouton « + » ouvre la saisie rapide : Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
+        },
   ];
   // Multi-compte : ensemble des IDs sélectionnés ([] = tous)
   const [accountFilterIds, setAccountFilterIds] = useState<string[]>([]);
@@ -331,6 +344,9 @@ export default function TransactionsListScreen() {
   // Filtrer par catégorie si nécessaire (inclure enfants si parent est sélectionné)
   const filtered = useMemo(() => {
     let list = displayedTransactions;
+    // Les transactions de projet sont hors « catégories » (virements / réservations) — SAUF les
+    // dépenses d'un projet « Dépenser petit à petit », qui sont des dépenses catégorisées normales.
+    const outOfCategories = (t: any) => !!t.project_id && !isProjectSpendTx(t);
     if (categoryFilterId) {
       const selectedCategory = categories.find(c => c.id === categoryFilterId);
       if (selectedCategory) {
@@ -339,14 +355,14 @@ export default function TransactionsListScreen() {
           const allIdsToFilter = [selectedCategory.id, ...childIds];
           const isFraisVariables = selectedCategory.name === 'Frais variables';
           list = list.filter((t) =>
-            !(t as any).project_id &&
+            !outOfCategories(t) &&
             (
               (t.category_id && allIdsToFilter.includes(t.category_id)) ||
               (isFraisVariables && (t.note?.startsWith('Régularisation') || t.note === 'Ajustement de solde'))
             )
           );
         } else {
-          list = list.filter((t) => !(t as any).project_id && t.category_id === categoryFilterId);
+          list = list.filter((t) => !outOfCategories(t) && t.category_id === categoryFilterId);
         }
       }
     }
@@ -360,7 +376,8 @@ export default function TransactionsListScreen() {
       list = list.filter((t) => {
         const isChecking = t.account?.type === 'checking';
         const linkedType = t.linked_account?.type;
-        const isProjectTx = !!(t as any).project_id;
+        // Les dépenses de projet ne sont pas des « mouvements » (elles vivent dans leur catégorie).
+        const isProjectTx = outOfCategories(t);
         if (mouvTypeFilter === 'epargne') return isChecking && linkedType === 'savings' && !isProjectTx;
         if (mouvTypeFilter === 'invest') return isChecking && linkedType === 'investment' && !isProjectTx;
         if (mouvTypeFilter === 'projets') return isProjectTx;
@@ -371,9 +388,9 @@ export default function TransactionsListScreen() {
     if (recettesFilter) {
       list = list.filter((t) => t.category?.type === 'income');
     }
-    // Filtre Dépenses (hors projets qui sont dans Mouvements)
+    // Filtre Dépenses (hors virements/réservations de projet, qui sont dans Mouvements)
     if (depensesFilter) {
-      list = list.filter((t) => t.category?.type === 'expense' && !(t as any).project_id);
+      list = list.filter((t) => t.category?.type === 'expense' && !outOfCategories(t));
     }
     // Filtre par comptes sélectionnés
     if (accountFilterIds.length > 0) {
@@ -475,7 +492,9 @@ export default function TransactionsListScreen() {
 
   function confirmValidateDraft(item: TransactionWithDetails) {
     const label = item.note || item.category?.name || 'ce brouillon';
-    const isProjectDebit = !!(item as any).project_id && Number(item.amount) < 0;
+    // Seul un brouillon de VIREMENT de projet (compte de destination) se valide en virement à 2 jambes.
+    // Une dépense de projet se valide comme une dépense ordinaire.
+    const isProjectDebit = !!(item as any).project_id && Number(item.amount) < 0 && !!(item as any).linked_account_id;
     showConfirm({
       title: 'Valider la transaction',
       message: isProjectDebit
@@ -583,6 +602,8 @@ export default function TransactionsListScreen() {
 
     const isDraft = !!(item as any).is_draft;
     const isProjectDraft = isDraft && isProject;
+    // « Conserver » (mettre en Réservé) n'a de sens que pour un VIREMENT de projet en attente.
+    const isProjectTransferDraft = isProjectDraft && !!(item as any).linked_account_id;
     const isReserved = !!(item as any).is_reserved;
     // Boutons valider/supprimer visibles sur tous les brouillons (passés, courants ET futurs)
     const isDraftQuickAction = isDraft;
@@ -655,7 +676,7 @@ export default function TransactionsListScreen() {
                   <Ionicons name="checkmark" size={14} color={COLORS.green} />
                   <Text style={styles.draftActionValidateText}>Valider</Text>
                 </TouchableOpacity>
-                {isProjectDraft && (
+                {isProjectTransferDraft && (
                   <TouchableOpacity style={styles.draftActionConserve} onPress={() => confirmConserveDraft(item)} activeOpacity={0.7}>
                     <Ionicons name="bookmark-outline" size={14} color={COLORS.blue} />
                     <Text style={styles.draftActionConserveText}>Conserver</Text>
@@ -827,6 +848,7 @@ export default function TransactionsListScreen() {
             })}
           </ScrollView>
         )}
+        {SHOW_TOP_ACTIONS && (
         <View style={[styles.header, onbRecurring ? onbGlow(COLORS, true) : null]} ref={actionsRef}>
           {/* Ordre : Virement, Dépense, Recette (identique à l'écran de création). */}
           <TouchableOpacity
@@ -860,6 +882,7 @@ export default function TransactionsListScreen() {
             <Text style={[styles.addBtnLabel, { color: COLORS.green }]}>Recette</Text>
           </TouchableOpacity>
         </View>
+        )}
         {hasFilter && (
           <View style={styles.activeFilters}>
             {selectedCategoryName && (

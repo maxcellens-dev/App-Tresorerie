@@ -2,7 +2,7 @@
  * CreditsTab (#6 module Crédit) — onglet « Crédits ». Liste des crédits (CRD + mensualité), section
  * « Crédits partagés » (reçus d'autres users), invitations en attente, et création perso/partagé.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -21,7 +21,11 @@ const TYPE_META: Record<string, { label: string; icon: string }> = {
   autre: { label: 'Autre', icon: 'ellipsis-horizontal' },
 };
 
-export default function CreditsTab({ userId }: { userId?: string }) {
+/**
+ * `openCreateSignal` : jeton posé par la page Comptes quand une bannière interne cible
+ * « Ajouter un crédit » → ouvre directement la modale « Quel type de crédit ? ».
+ */
+export default function CreditsTab({ userId, openCreateSignal }: { userId?: string; openCreateSignal?: string }) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
@@ -31,6 +35,7 @@ export default function CreditsTab({ userId }: { userId?: string }) {
   const respond = useRespondCreditInvitation(userId);
   useSharedCreditsRealtime(userId);
   const [showType, setShowType] = useState(false);
+  useEffect(() => { if (openCreateSignal) setShowType(true); }, [openCreateSignal]);
   const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   const today = todayISO();
 

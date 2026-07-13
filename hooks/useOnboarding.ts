@@ -58,8 +58,8 @@ export const ALL_PAGE_INTRO_KEYS: PageIntroKey[] = ['transactions', 'pilotage', 
 
 const STEP_META: { key: OnboardingStepKey; label: string; hint: string; route: string }[] = [
   { key: 'account_initialized', label: 'Renseigner le solde de vos comptes', route: '/(tabs)/comptes',     hint: 'Ouvrez votre compte courant → « Nouveau Solde » et saisissez votre solde réel à ce jour.' },
-  { key: 'recurring_tx',      label: 'Ajouter une transaction récurrente',  route: '/(tabs)/transactions', hint: 'Bouton « Dépense » ou « Recette » → activez « Récurrent » avant d\'enregistrer.' },
-  { key: 'project',           label: 'Créer un projet',                     route: '/(tabs)/projects',     hint: 'Appuyez sur « + Projet » pour définir un projet d\'épargne (voiture, voyage…).' },
+  { key: 'recurring_tx',      label: 'Ajouter une transaction récurrente',  route: '/(tabs)/transactions', hint: 'Bouton « + » → « Dépense » ou « Recette », puis activez « Récurrent » avant d\'enregistrer.' },
+  { key: 'project',           label: 'Créer un projet',                     route: '/(tabs)/projects',     hint: 'Appuyez sur « + Projet » : mettre de côté, conserver, ou dépenser petit à petit.' },
   { key: 'reco_validated',    label: 'Suivre une recommandation',           route: '/(tabs)/pilotage',     hint: 'Section Recommandations → Épargner, Investir, Conserver ou Cumuler, puis enregistrez l\'action.' },
   { key: 'reserved_consulted',label: 'Consulter vos montants réservés',     route: '/(tabs)/pilotage',     hint: 'Suivi du mois → appuyez sur la ligne « Réservé » pour voir le détail.' },
   { key: 'projection_edited', label: 'Personnaliser une projection',        route: '/(tabs)/projection',   hint: 'Saisissez une valeur dans « Hypothèse » ou « Épargne personnalisée ».' },

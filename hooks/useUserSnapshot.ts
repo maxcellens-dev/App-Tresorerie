@@ -26,6 +26,7 @@ import { useAllAccounts } from './useAccounts';
 import { useProjects } from './useProjects';
 import { useSharedContribution } from './useSharedContribution';
 import { computeAmortization, addMonthsISO } from '../lib/amortization';
+import { projectMode } from '../lib/projectTx';
 import { todayISO } from '../lib/dateUtils';
 import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../lib/aiSnapshot';
 import { detectUpcomingChanges, type UpcomingTx } from '../lib/aiUpcoming';
@@ -494,6 +495,9 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
         status: pr.status,
         startISO: (src?.first_payment_date || src?.created_at || '').slice(0, 10) || null,
         destType,
+        // Ce que le projet FAIT (virements / réservation / dépenses) : sans ça, un projet « dépenser »
+        // serait lu comme de l'épargne par le modèle.
+        mode: src ? projectMode(src) : undefined,
       };
     });
   }, [pilotage, projects, allAccounts]);

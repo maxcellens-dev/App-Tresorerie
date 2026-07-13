@@ -13,7 +13,7 @@ import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { supabase } from '../../../../lib/supabase';
-import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, type AdBanner } from '../../../../hooks/useAdsConfig';
+import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, AD_LINK_TARGETS, type AdBanner, type AdLinkTarget } from '../../../../hooks/useAdsConfig';
 
 // Emplacements regroupés par page (ordre stable) → sélection compacte.
 type Placement = (typeof AD_PLACEMENTS)[number];
@@ -23,6 +23,18 @@ const PLACEMENT_GROUPS: [string, Placement[]][] = (() => {
     const arr = map.get(p.group) ?? [];
     arr.push(p);
     map.set(p.group, arr);
+  }
+  return Array.from(map.entries());
+})();
+
+// Destinations internes regroupées (Pages / Actions) → même présentation que les emplacements.
+type LinkTarget = (typeof AD_LINK_TARGETS)[number];
+const TARGET_GROUPS: [string, LinkTarget[]][] = (() => {
+  const map = new Map<string, LinkTarget[]>();
+  for (const t of AD_LINK_TARGETS) {
+    const arr = map.get(t.group) ?? [];
+    arr.push(t);
+    map.set(t.group, arr);
   }
   return Array.from(map.entries());
 })();
@@ -208,8 +220,55 @@ export default function AdminAds() {
               )}
               <Text style={styles.label}>Texte (si pas d'image)</Text>
               <TextInput style={styles.input} value={b.text ?? ''} onChangeText={(v) => update(i, { text: v })} placeholder="Découvrez notre partenaire…" placeholderTextColor={COLORS.textSecondary} />
+
+              {/* ── Lien au clic : site externe OU page/bouton de l'app ── */}
               <Text style={styles.label}>Lien au clic (optionnel)</Text>
-              <TextInput style={styles.input} value={b.url ?? ''} onChangeText={(v) => update(i, { url: v })} placeholder="https://…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
+              <View style={styles.linkTypeRow}>
+                {([['external', 'Site externe'], ['internal', 'Dans l\'app']] as const).map(([val, lbl]) => {
+                  const active = (b.link_type ?? 'external') === val;
+                  return (
+                    <TouchableOpacity
+                      key={val}
+                      style={[styles.linkTypeBtn, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}
+                      onPress={() => update(i, { link_type: val })}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={val === 'external' ? 'open-outline' : 'phone-portrait-outline'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
+                      <Text style={[styles.linkTypeText, active && { color: COLORS.bg }]}>{lbl}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {(b.link_type ?? 'external') === 'external' ? (
+                <TextInput style={styles.input} value={b.url ?? ''} onChangeText={(v) => update(i, { url: v })} placeholder="https://…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
+              ) : (
+                <>
+                  {TARGET_GROUPS.map(([group, items]) => (
+                    <View key={group} style={styles.placementGroup}>
+                      <Text style={styles.placementGroupLabel}>{group}</Text>
+                      <View style={styles.placementRow}>
+                        {items.map((t) => {
+                          const active = b.target === t.value;
+                          return (
+                            <TouchableOpacity
+                              key={t.value}
+                              onPress={() => update(i, { target: t.value as AdLinkTarget })}
+                              style={[styles.placementChip, active && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]}
+                            >
+                              <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={13} color={active ? COLORS.bg : COLORS.textSecondary} />
+                              <Text style={[styles.placementChipText, active && { color: COLORS.bg }]}>{t.label}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={styles.hintInline}>
+                    Une « Action » ouvre la page ET déclenche son bouton (ex. Projets › + Projet → la fenêtre « Quel type de projet ? » s'ouvre à l'arrivée). Sans destination choisie, la bannière n'est pas cliquable.
+                  </Text>
+                </>
+              )}
+
               <Text style={styles.label}>Image (optionnel)</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput style={[styles.input, { flex: 1 }]} value={b.image ?? ''} onChangeText={(v) => update(i, { image: v })} placeholder="URL image" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
@@ -257,6 +316,9 @@ function makeStyles(c: any) {
     placementRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     placementChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
     placementChipText: { fontSize: 11, color: c.text, fontWeight: '600' },
+    linkTypeRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    linkTypeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 8 },
+    linkTypeText: { fontSize: 12, color: c.text, fontWeight: '700' },
     hintInline: { fontSize: 11, color: c.textSecondary, marginTop: 6, fontStyle: 'italic' },
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, marginBottom: 8 },
     addText: { color: c.emerald, fontWeight: '700', fontSize: 13 },

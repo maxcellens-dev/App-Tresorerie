@@ -32,7 +32,7 @@ const CONTENT: Record<PageIntroKey, { icon: string; colorKey: string; title: str
   },
   projets: {
     icon: 'flag-outline', colorKey: 'blue', title: 'Projets',
-    text: "Crée tes projets d'épargne (voyage, voiture, apport…) et suis leur avancement mois après mois. \nL'app calcule et met de côté ce qu'il faut. \n\nTu peux aussi lancer un projet partagé pour suivre des dépenses communes avec d'autres utilisateurs.\n\n Création automatique des transactions sur tes comptes.",
+    text: "Crée tes projets (voyage, voiture, cours de piano…) et suis-les mois après mois. \n\nÀ toi de dire ce que l'app doit faire : \n- Mettre de côté (virements vers ton épargne) \n- Conserver pour plus tard (l'argent reste sur ton compte, réservé) \n- Dépenser petit à petit (de vraies dépenses, au rythme du projet) \n\nTu peux aussi lancer un projet partagé pour suivre des dépenses communes avec d'autres utilisateurs.\n\n Création automatique des transactions sur tes comptes.",
   },
   projection: {
     icon: 'trending-up-outline', colorKey: 'violet', title: 'Projection',

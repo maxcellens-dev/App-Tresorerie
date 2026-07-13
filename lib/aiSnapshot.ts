@@ -16,7 +16,7 @@ import type { PilotageData } from '../hooks/usePilotageData';
 import { computeHealthScore, deriveEngaged } from './aiScore';
 
 export interface SnapshotCredit { principal: number; monthly: number; ratePct: number; crd: number; endYM: string | null; impactPct: number; remainingMonths?: number | null }
-export interface SnapshotProject { target: number; monthly: number; progressPct: number; startISO: string | null; status: string; destType?: string | null }
+export interface SnapshotProject { target: number; monthly: number; progressPct: number; startISO: string | null; status: string; destType?: string | null; mode?: 'transfer' | 'reserve' | 'spend' }
 /** Revenu de RÉFÉRENCE : moyenne des sommes de recettes par mois (mois avec recettes, ≤ 6 mois),
  *  avec en parallèle la moyenne des virements entrants depuis un compte « autre » (revenu de fait). */
 export interface SnapshotIncomeRef {
@@ -482,8 +482,11 @@ export function buildSnapshot(input: SnapshotInput): string {
     projects.forEach((pr, i) => {
       const age = pr.startISO ? monthsBetween(pr.startISO, today) : null;
       const ageTxt = age == null ? '' : age <= 0 ? ', démarré ce mois-ci' : `, démarré il y a ${age} mois`;
-      // Nature du projet = type du compte de destination des virements (toujours anonyme).
-      const destTxt = pr.destType === 'investment' ? ', virements courant → INVESTISSEMENT (ce projet consiste à investir)'
+      // Nature du projet : ce qu'il fait vraiment (dépenses / réservation / virements + destination).
+      const destTxt = pr.mode === 'spend'
+        ? ', ce projet GÉNÈRE DES DÉPENSES au fil du temps (déjà comptées dans les dépenses et la projection — ce n\'est PAS de l\'épargne)'
+        : pr.mode === 'reserve' ? ', montant RÉSERVÉ sur le compte courant (l\'argent ne bouge pas)'
+        : pr.destType === 'investment' ? ', virements courant → INVESTISSEMENT (ce projet consiste à investir)'
         : pr.destType === 'savings' ? ', virements courant → ÉPARGNE (ce projet consiste à épargner)'
         : pr.destType === 'checking' ? ', provision conservée sur le COURANT' : '';
       L.push(`- Projet ${i + 1} : cible ${m(pr.target)}, ${m(pr.monthly)}/mois, ${Math.round(pr.progressPct)}% atteint${ageTxt}${destTxt} (${pr.status}).`);

@@ -21,7 +21,7 @@ import { tabRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { computeContributed } from '../../lib/contributed';
 import { computeTresoRows } from '../../lib/tresoProjection';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Path, Line, Circle, Rect, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePilotageData } from '../../hooks/usePilotageData';
@@ -249,6 +249,14 @@ export default function ProjectionScreen() {
   React.useEffect(() => {
     if (onbHypo) setActiveTab('invest');
   }, [onbHypo]);
+
+  // Bannière interne ciblant un onglet de cette page. `adNonce` change à chaque clic → l'onglet
+  // se rouvre même si l'on est déjà sur la page.
+  const adParams = useLocalSearchParams<{ adAction?: string; adNonce?: string }>();
+  React.useEffect(() => {
+    const a = adParams.adAction;
+    if (a === 'treso' || a === 'invest' || a === 'epargne') setActiveTab(a);
+  }, [adParams.adAction, adParams.adNonce]);
 
   // ── Comptes d'investissement (simulation libre si aucun, toujours au moins un) ──
   const investAccounts = useMemo(() => {

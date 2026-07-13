@@ -6,6 +6,7 @@ import { fetchSharedContribution } from './useSharedContribution';
 import { buildCreditPilotTxs } from './useCreditFlows';
 import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } from '../lib/perimeter';
 import { isRegul } from '../lib/regul';
+import { isProjectSpendTx, projectMode } from '../lib/projectTx';
 import { computeTresoRows } from '../lib/tresoProjection';
 import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
@@ -601,7 +602,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // et les SORTIES vers épargne/invest (déduites séparément) sont exclus. Montants = RÉEL (overrides).
   const events: { date: string; amount: number }[] = [];
   for (const t of transactions) {
-    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id) continue;
+    // Les transactions de projet sont exclues (elles sont comptées à part), SAUF les dépenses d'un
+    // projet « Dépenser petit à petit » : ce sont de vraies sorties d'argent → elles creusent le point bas.
+    if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved) continue;
+    if ((t as any).project_id && !isProjectSpendTx(t)) continue;
     if (t.linked_account_id) {
       if (Number(t.amount) <= 0 || checkingIds.has(t.linked_account_id)) continue; // garder les seules entrées depuis hors-courant
     }
@@ -790,14 +794,13 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const accountTypeById: Record<string, string> = {};
   accounts.forEach(a => { accountTypeById[a.id] = a.type; });
 
-  // Projets : distinguer ceux qui transfèrent vers un autre compte (épargne)
-  // de ceux qui réservent sur le même compte courant (tagué « Réservé »).
+  // Projets : distinguer ceux qui transfèrent vers un autre compte (épargne), ceux qui réservent sur
+  // le même compte courant (tagué « Réservé ») et ceux qui DÉPENSENT (comptés dans les dépenses).
   const activeProjects = projects.filter(p => p.status === 'active');
-  const isSameAccountProject = (p: Project) =>
-    !!(p.source_account_id && p.linked_account_id && p.source_account_id === p.linked_account_id);
+  const isTransferProject = (p: Project) => projectMode(p) === 'transfer';
 
   const project_savings_monthly = activeProjects
-    .filter(p => !isSameAccountProject(p))
+    .filter(isTransferProject)
     .reduce((s, p) => s + Number(p.monthly_allocation || 0), 0);
 
   let transfer_savings = 0;   // virements vers comptes épargne (depuis courant)
@@ -862,8 +865,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       // Virement réel vers un compte d'épargne
       transfer_savings += monthlyAmt;
       transfer_savings_past += pastAmt;
-    } else if (!t.linked_account_id && !hasProject && srcType === 'checking') {
-      // Vraie dépense : depuis un compte courant, catégorie dépense, hors régularisation
+    } else if (!t.linked_account_id && srcType === 'checking' && (!hasProject || isProjectSpendTx(t))) {
+      // Vraie dépense : depuis un compte courant, catégorie dépense, hors régularisation.
+      // Les dépenses d'un projet « Dépenser petit à petit » en font partie (elles sortent vraiment).
       const cat = (t as TransactionWithCategory).category;
       const isExpenseCat = !cat || cat.type === 'expense';
       const isRegul = !!(cat?.name && /r[ée]gularisation/i.test(cat.name));
@@ -923,7 +927,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   // Épargne/invest déjà exécutée ce mois (solde courant déjà impacté) → ne pas redéduire du budget libre
   let project_savings_executed = 0;
-  for (const p of activeProjects.filter(ap => !isSameAccountProject(ap))) {
+  for (const p of activeProjects.filter(isTransferProject)) {
     project_savings_executed += transactions
       .filter(t => t.project_id === p.id && !(t as any).is_draft && Number(t.amount) < 0)
       .filter(t => {

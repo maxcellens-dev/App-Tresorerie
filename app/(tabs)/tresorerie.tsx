@@ -13,6 +13,7 @@ import { tabRect } from '../../lib/tourTargets';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
+import { isProjectSpendTx } from '../../lib/projectTx';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useSharedContribution } from '../../hooks/useSharedContribution';
 import { useCreditFlows } from '../../hooks/useCreditFlows';
@@ -355,7 +356,9 @@ export default function TreasuryPlanScreen() {
       // Exclure l'autre côté d'un virement (compte non-courant avec linked_account_id)
       const isExcluded = !!t.linked_account_id && !isChecking;
 
-      const isProjectTx = !!(t as any).project_id;
+      // Une dépense d'un projet « Dépenser petit à petit » n'est pas un « mouvement projet » : c'est
+      // une dépense normale, qui doit s'afficher dans SA catégorie (traitement classique plus bas).
+      const isProjectTx = !!(t as any).project_id && !isProjectSpendTx(t);
 
       if (isExcluded) continue;
       // Une transaction de projet « conservée » (réservée) → Réservé, pas Épargne/Invest.
@@ -412,7 +415,7 @@ export default function TreasuryPlanScreen() {
     const hasDraftInvest: Record<string, boolean> = {};
     for (const t of transactions as TransactionWithDetails[]) {
       if (!(t as any).is_draft) continue;
-      const isProjectTxDraft = !!(t as any).project_id;
+      const isProjectTxDraft = !!(t as any).project_id && !isProjectSpendTx(t);
       if (isProjectTxDraft) {
         const [y, mo] = t.date.split('-').map(Number);
         const key = getMonthKey(y, mo);

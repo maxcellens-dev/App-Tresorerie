@@ -42,7 +42,7 @@ export default function AccountsListScreen() {
   const onbAccount = useOnbHighlight('account_initialized');
   const router = useRouter();
   const { user, isImpersonating } = useAuth();
-  const { welcome } = useLocalSearchParams<{ welcome?: string }>();
+  const { welcome, adAction, adNonce } = useLocalSearchParams<{ welcome?: string; adAction?: string; adNonce?: string }>();
   const [refreshing, setRefreshing] = useState(false);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
@@ -61,6 +61,16 @@ export default function AccountsListScreen() {
     return () => sub.remove();
   }, []);
   const openCreate = (joint: boolean) => { setShowCreateType(false); router.push(`/(tabs)/comptes/add${joint ? '?joint=1' : ''}` as any); };
+
+  // Bannière interne ciblant un bouton de cette page (« Créer Compte », onglet « Crédits »,
+  // « Ajouter un crédit »). `adNonce` change à chaque clic → l'action rejoue même si l'on est
+  // déjà sur la page. Le signal est relayé à CreditsTab, qui possède sa modale de création.
+  const [creditCreateSignal, setCreditCreateSignal] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (adAction === 'new-account') setShowCreateType(true);
+    else if (adAction === 'credits') setTab('credits');
+    else if (adAction === 'credit-new') { setTab('credits'); setCreditCreateSignal(adNonce ?? 'go'); }
+  }, [adAction, adNonce]);
 
   // ── Guide "bulles" ──
   // Chaque étape ne fait que NOMMER l'élément à mettre en avant (`highlightKey`) : c'est le bouton
@@ -200,7 +210,9 @@ export default function AccountsListScreen() {
           {accounts.length > 0 && (
             <View>
             <View style={styles.overviewHeaderRow}>
-              <Text style={styles.overviewTitle}>Patrimoine</Text>
+              {/* « Vue d'ensemble » et non « Patrimoine » : ce total ne couvre que l'argent DES COMPTES
+                  (courant + épargne + investissement), pas les biens possédés (logement, véhicule…). */}
+              <Text style={styles.overviewTitle}>Vue d'ensemble</Text>
               {/* #2 — filtre persistant des totaux (visible s'il y a des comptes partagés) */}
               {accounts.some(isShared) && (
                 <View style={styles.totalsFilterRow}>
@@ -259,7 +271,7 @@ export default function AccountsListScreen() {
           </View>
 
           {tab === 'credits' ? (
-            <CreditsTab userId={user?.id} />
+            <CreditsTab userId={user?.id} openCreateSignal={creditCreateSignal} />
           ) : (
           <>
           {/* ── Actions rapides du compte ── */}

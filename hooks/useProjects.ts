@@ -2,71 +2,105 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Project } from '../types/database';
 import { CURRENCY_SYMBOL } from '../lib/currency';
-import { reverseBalanceAndDeleteTransactions, TX_REVERSAL_COLS } from './useTransactions';
+import { todayISO } from '../lib/dateUtils';
+import { buildProjectTransactions, projectMode, type ProjectMode } from '../lib/projectTx';
+import { reverseBalanceAndDeleteTransactions, recomputeBalances, TX_REVERSAL_COLS } from './useTransactions';
 
 const PROJECTS_KEY = 'projects';
 const TRANSACTIONS_KEY = 'transactions';
 
-/**
- * Helper: crée les transactions initiales d'un projet (1 seule entrée si même compte, 2 sinon).
- * Retourne les objets à insérer (sans effectuer l'insertion).
- */
-function buildProjectTransactions(opts: {
+/** Nombre maximal d'échéances générées d'avance pour un projet sans date de fin. */
+const MAX_SCHEDULE_MONTHS = 24;
+
+interface ScheduleInput {
   profileId: string;
   projectId: string;
   projectName: string;
+  mode: ProjectMode;
+  allocationType: 'monthly' | 'date' | 'ponctuel';
   monthlyAllocation: number;
-  sourceAccountId: string | null;
-  linkedAccountId: string | null;
-  date: string;
-  endDate: string | null;
+  /** Date de la 1ʳᵉ échéance (modes 'monthly' / 'date'). */
+  startDate: string;
+  /** Date cible (mode 'date') — borne la génération. */
+  targetDate: string | null;
+  /** Échéances saisies une à une (mode 'ponctuel'). */
+  ponctuelEntries?: { date: string; amount: number }[];
+  sourceId: string | null;
+  linkedId: string | null;
   projetsCategoryId: string | null;
-}): any[] {
-  const { profileId, projectId, projectName, monthlyAllocation, sourceAccountId, linkedAccountId, date, projetsCategoryId } = opts;
-  const sameAccount = sourceAccountId && linkedAccountId && sourceAccountId === linkedAccountId;
-  const txns: any[] = [];
+  expenseCategoryId: string | null;
+  /** N'inclure que les échéances STRICTEMENT postérieures à cette date (passé figé). */
+  afterDate?: string | null;
+  /** Mois (YYYY-MM) déjà pourvus d'une transaction validée → ne pas y recréer de brouillon. */
+  skipMonths?: Set<string>;
+}
 
-  if (sameAccount) {
-    // Même compte : brouillon « Conservé » d'office (réservation pure sur le compte).
-    txns.push({
-      profile_id: profileId,
-      account_id: sourceAccountId,
-      category_id: projetsCategoryId,
-      amount: -monthlyAllocation,
+/**
+ * Construit toutes les lignes de transaction de l'échéancier d'un projet (rien n'est inséré ici).
+ * Utilisé à la création ET à la régénération (mise à jour, suppression d'une échéance).
+ */
+function buildScheduleRows(input: ScheduleInput): any[] {
+  const today = todayISO();
+  const one = (amount: number, date: string) =>
+    buildProjectTransactions({
+      profileId: input.profileId,
+      projectId: input.projectId,
+      projectName: input.projectName,
+      mode: input.mode,
+      amount,
       date,
-      note: `🔒 ${projectName}`,
-      is_forecast: false,
-      is_recurring: false,
-      recurrence_rule: null,
-      recurrence_end_date: null,
-      project_id: projectId,
-      is_draft: true,
-      is_reserved: true,
-      posted: false, // brouillon → jamais porté au solde (cohérence du drapeau)
+      accountId: input.sourceId,
+      linkedAccountId: input.linkedId,
+      projetsCategoryId: input.projetsCategoryId,
+      expenseCategoryId: input.expenseCategoryId,
+      today,
     });
-  } else {
-    // Virement vers un autre compte (épargne / investissement) : le brouillon est un VIREMENT
-    // (linked_account_id renseigné), pas une dépense. Le crédit de destination est créé à la validation.
-    if (sourceAccountId) {
-      txns.push({
-        profile_id: profileId,
-        account_id: sourceAccountId,
-        category_id: null,                 // un virement n'a pas de catégorie de dépense
-        linked_account_id: linkedAccountId, // ← en fait un virement (et non une dépense)
-        amount: -monthlyAllocation,
-        date,
-        note: projectName,
-        is_forecast: false,
-        is_recurring: false,
-        recurrence_rule: null,
-        recurrence_end_date: null,
-        project_id: projectId,
-        is_draft: true,
-        posted: false, // brouillon → jamais porté au solde (cohérence du drapeau)
-      });
+
+  const keep = (date: string) => !input.afterDate || date > input.afterDate;
+  const rows: any[] = [];
+
+  if (input.allocationType === 'ponctuel') {
+    for (const e of input.ponctuelEntries ?? []) {
+      if (e.amount > 0 && keep(e.date)) rows.push(...one(e.amount, e.date));
     }
+    return rows;
   }
-  return txns;
+
+  if (!(input.monthlyAllocation > 0)) return rows;
+  const cursor = new Date(input.startDate + 'T00:00:00');
+  const endLimit = input.targetDate ? new Date(input.targetDate + 'T23:59:59') : null;
+  for (let i = 0; i < MAX_SCHEDULE_MONTHS; i++) {
+    if (endLimit && cursor > endLimit) break;
+    const d = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+    if (keep(d) && !input.skipMonths?.has(d.slice(0, 7))) rows.push(...one(input.monthlyAllocation, d));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return rows;
+}
+
+/** Catégorie « Projets » du profil (porte les réservations du mode « Conserver »). */
+async function fetchProjetsCategoryId(profileId: string): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase
+    .from('categories')
+    .select('id')
+    .eq('profile_id', profileId)
+    .eq('name', 'Projets')
+    .eq('type', 'expense')
+    .maybeSingle();
+  return (data as any)?.id ?? null;
+}
+
+/**
+ * Comptes du projet selon son mode :
+ *  - 'transfer' : source ≠ destination (virements) ;
+ *  - 'reserve'  : destination = source (réservation sur place) ;
+ *  - 'spend'    : un seul compte (celui des dépenses), aucune destination.
+ */
+function normalizeAccounts(mode: ProjectMode, sourceId: string | null, linkedId: string | null) {
+  if (mode === 'spend') return { sourceId, linkedId: null };
+  if (mode === 'reserve') return { sourceId, linkedId: sourceId };
+  return { sourceId, linkedId };
 }
 
 export function useProjects(profileId: string | undefined) {
@@ -101,6 +135,8 @@ export function useAddProject(profileId: string | undefined) {
       allocation_type?: 'monthly' | 'date' | 'ponctuel';
       target_date?: string;
       current_accumulated?: number;
+      mode?: ProjectMode;
+      expense_category_id?: string | null;
       source_account_id?: string;
       linked_account_id?: string;
       transaction_day?: number;
@@ -108,17 +144,24 @@ export function useAddProject(profileId: string | undefined) {
       ponctuel_entries?: { date: string; amount: number }[];
     }) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
+      const mode: ProjectMode = input.mode ?? 'transfer';
+      const { sourceId, linkedId } = normalizeAccounts(mode, input.source_account_id || null, input.linked_account_id || null);
+      const expenseCategoryId = mode === 'spend' ? (input.expense_category_id ?? null) : null;
+      const allocationType = input.allocation_type || 'monthly';
+
       const payload = {
         profile_id: profileId,
         name: input.name,
         description: input.description || null,
         target_amount: input.target_amount,
         monthly_allocation: input.monthly_allocation,
-        allocation_type: input.allocation_type || 'monthly',
+        allocation_type: allocationType,
         target_date: input.target_date || null,
         current_accumulated: input.current_accumulated || 0,
-        source_account_id: input.source_account_id || null,
-        linked_account_id: input.linked_account_id || null,
+        mode,
+        expense_category_id: expenseCategoryId,
+        source_account_id: sourceId,
+        linked_account_id: linkedId,
         transaction_day: input.transaction_day || null,
         first_payment_date: input.first_payment_date || null,
         status: 'active',
@@ -130,71 +173,34 @@ export function useAddProject(profileId: string | undefined) {
         .single();
       if (error) throw error;
 
-      // Récupérer la catégorie "Projets" du profil
-      const { data: projetsCat } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('profile_id', profileId)
-        .eq('name', 'Projets')
-        .eq('type', 'expense')
-        .maybeSingle();
-      const projetsCategoryId = projetsCat?.id ?? null;
+      const startDate = input.first_payment_date || (() => {
+        const now = new Date();
+        const day = input.transaction_day || now.getDate();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      })();
 
-      if (input.allocation_type === 'ponctuel' && input.ponctuel_entries && input.ponctuel_entries.length > 0) {
-        // Apport ponctuel : une transaction par entrée saisie
-        const txnsToInsert: any[] = [];
-        for (const entry of input.ponctuel_entries) {
-          const monthTxns = buildProjectTransactions({
-            profileId,
-            projectId: data.id,
-            projectName: input.name,
-            monthlyAllocation: entry.amount,
-            sourceAccountId: input.source_account_id || null,
-            linkedAccountId: input.linked_account_id || null,
-            date: entry.date,
-            endDate: null,
-            projetsCategoryId,
-          });
-          txnsToInsert.push(...monthTxns);
-        }
-        if (txnsToInsert.length > 0) {
-          const { error: txErr } = await supabase.from('transactions').insert(txnsToInsert);
-          if (txErr) console.warn('Transaction(s) non créée(s):', txErr);
-        }
-      } else if (data && input.monthly_allocation > 0) {
-        const startDate = input.first_payment_date || (() => {
-          const now = new Date();
-          const day = input.transaction_day || now.getDate();
-          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        })();
+      const txnsToInsert = buildScheduleRows({
+        profileId,
+        projectId: data.id,
+        projectName: input.name,
+        mode,
+        allocationType,
+        monthlyAllocation: input.monthly_allocation,
+        startDate,
+        targetDate: input.target_date || null,
+        ponctuelEntries: input.ponctuel_entries,
+        sourceId,
+        linkedId,
+        projetsCategoryId: mode === 'reserve' ? await fetchProjetsCategoryId(profileId) : null,
+        expenseCategoryId,
+      });
 
-        const cursor = new Date(startDate + 'T00:00:00');
-        const endLimit = input.target_date ? new Date(input.target_date + 'T23:59:59') : null;
-        const maxMonths = 24;
-        const txnsToInsert: any[] = [];
-
-        for (let i = 0; i < maxMonths; i++) {
-          if (endLimit && cursor > endLimit) break;
-          const d = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-          const monthTxns = buildProjectTransactions({
-            profileId,
-            projectId: data.id,
-            projectName: input.name,
-            monthlyAllocation: input.monthly_allocation,
-            sourceAccountId: input.source_account_id || null,
-            linkedAccountId: input.linked_account_id || null,
-            date: d,
-            endDate: input.target_date || null,
-            projetsCategoryId,
-          });
-          txnsToInsert.push(...monthTxns);
-          cursor.setMonth(cursor.getMonth() + 1);
-        }
-
-        if (txnsToInsert.length > 0) {
-          const { error: txErr } = await supabase.from('transactions').insert(txnsToInsert);
-          if (txErr) console.warn('Transaction(s) non créée(s):', txErr);
-        }
+      if (txnsToInsert.length > 0) {
+        const { error: txErr } = await supabase.from('transactions').insert(txnsToInsert);
+        if (txErr) console.warn('Transaction(s) non créée(s):', txErr);
+        // Mode « Dépenser » : ce sont de vraies dépenses validées → le solde du compte doit en tenir
+        // compte tout de suite (les échéances futures, posted=false, seront portées le jour venu).
+        else if (mode === 'spend') await recomputeBalances([sourceId]);
       }
 
       return data;
@@ -220,6 +226,8 @@ export function useUpdateProject(profileId: string | undefined) {
       allocation_type?: 'monthly' | 'date' | 'ponctuel';
       target_date?: string | null;
       current_accumulated?: number;
+      /** Catégorie des dépenses (mode 'spend'). Le MODE, lui, n'est jamais modifiable. */
+      expense_category_id?: string | null;
       source_account_id?: string | null;
       linked_account_id?: string | null;
       transaction_day?: number | null;
@@ -228,15 +236,27 @@ export function useUpdateProject(profileId: string | undefined) {
       ponctuel_entries?: { date: string; amount: number }[];
     }) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
+      const today = todayISO();
 
       // État AVANT pour détecter si l'ÉCHÉANCIER change réellement (sinon : pas de
       // régénération, on préserve les transactions déjà validées — cf. renommage).
       const { data: before } = await supabase
         .from('projects')
-        .select('monthly_allocation, allocation_type, target_date, source_account_id, linked_account_id, transaction_day, first_payment_date')
+        .select('mode, expense_category_id, monthly_allocation, allocation_type, target_date, source_account_id, linked_account_id, transaction_day, first_payment_date')
         .eq('id', input.id)
         .eq('profile_id', profileId)
         .maybeSingle();
+
+      // Le mode est FIGÉ à la création : on le relit du projet, jamais de l'entrée.
+      const mode = projectMode(before);
+      const { sourceId, linkedId } = normalizeAccounts(
+        mode,
+        input.source_account_id !== undefined ? input.source_account_id : (before as any)?.source_account_id ?? null,
+        input.linked_account_id !== undefined ? input.linked_account_id : (before as any)?.linked_account_id ?? null,
+      );
+      const expenseCategoryId = mode === 'spend'
+        ? (input.expense_category_id !== undefined ? input.expense_category_id : (before as any)?.expense_category_id ?? null)
+        : null;
 
       // 1. Mettre à jour le projet
       const { data, error } = await supabase
@@ -249,8 +269,9 @@ export function useUpdateProject(profileId: string | undefined) {
           ...(input.allocation_type && { allocation_type: input.allocation_type }),
           ...(input.target_date !== undefined && { target_date: input.target_date }),
           ...(input.current_accumulated !== undefined && { current_accumulated: input.current_accumulated }),
-          ...(input.source_account_id !== undefined && { source_account_id: input.source_account_id }),
-          ...(input.linked_account_id !== undefined && { linked_account_id: input.linked_account_id }),
+          expense_category_id: expenseCategoryId,
+          source_account_id: sourceId,
+          linked_account_id: linkedId,
           ...(input.transaction_day !== undefined && { transaction_day: input.transaction_day }),
           ...(input.first_payment_date !== undefined && { first_payment_date: input.first_payment_date || null }),
           ...(input.status && { status: input.status }),
@@ -261,101 +282,82 @@ export function useUpdateProject(profileId: string | undefined) {
         .single();
       if (error) throw error;
 
+      // Changement de catégorie (mode « Dépenser ») : on re-catégorise TOUTES les dépenses du projet,
+      // passées comprises — c'est un simple reclassement, sans effet sur les soldes.
+      const categoryChanged = mode === 'spend' && expenseCategoryId !== ((before as any)?.expense_category_id ?? null);
+      if (categoryChanged) {
+        await supabase
+          .from('transactions')
+          .update({ category_id: expenseCategoryId })
+          .eq('project_id', input.id)
+          .eq('profile_id', profileId)
+          .is('linked_account_id', null)
+          .lt('amount', 0);
+      }
+
       // Régénérer les transactions UNIQUEMENT si un champ d'échéancier change réellement.
       // Un simple renommage / changement de description / statut ne doit PAS nuker + recréer
       // les transactions (ce qui dé-validait les paiements passés et brassait les soldes).
-      const changed = (field: keyof NonNullable<typeof before>, val: unknown) =>
+      const changed = (field: string, val: unknown) =>
         val !== undefined && String((before as any)?.[field] ?? '') !== String((val as any) ?? '');
       const scheduleChanged =
         changed('monthly_allocation', input.monthly_allocation) ||
         changed('allocation_type', input.allocation_type) ||
         changed('target_date', input.target_date) ||
-        changed('source_account_id', input.source_account_id) ||
-        changed('linked_account_id', input.linked_account_id) ||
+        changed('source_account_id', sourceId) ||
+        changed('linked_account_id', linkedId) ||
         changed('transaction_day', input.transaction_day) ||
         changed('first_payment_date', input.first_payment_date) ||
         input.ponctuel_entries !== undefined;
       if (!scheduleChanged) return data;
 
       const projectName = input.name ?? data.name;
-      const sourceId = input.source_account_id !== undefined ? input.source_account_id : data.source_account_id;
-      const linkedId = input.linked_account_id !== undefined ? input.linked_account_id : data.linked_account_id;
       const endDate = input.target_date !== undefined ? input.target_date : data.target_date;
-      const allocType = input.allocation_type ?? data.allocation_type ?? 'monthly';
+      const allocType = (input.allocation_type ?? data.allocation_type ?? 'monthly') as 'monthly' | 'date' | 'ponctuel';
 
-      // Récupérer la catégorie "Projets" du profil
-      const { data: projetsCat } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('profile_id', profileId)
-        .eq('name', 'Projets')
-        .eq('type', 'expense')
-        .maybeSingle();
-      const projetsCategoryId = projetsCat?.id ?? null;
-
-      // 2. Supprimer UNIQUEMENT les brouillons (is_draft=true) du projet à régénérer.
-      //    Les transactions VALIDÉES (is_draft=false) ne sont JAMAIS touchées par une mise à jour :
-      //    elles ne peuvent être modifiées que manuellement (page Transactions). On les préserve donc
-      //    et on régénère seulement les brouillons à venir.
+      // 2. Supprimer les échéances À REFAIRE.
+      //  • 'spend' : les dépenses sont validées d'emblée ; le PASSÉ est un fait acquis (on n'y touche
+      //    pas), seules les dépenses à VENIR (date > aujourd'hui, non encore portées au solde) sont
+      //    régénérées.
+      //  • 'transfer' / 'reserve' : on ne supprime que les BROUILLONS. Les transactions validées ne
+      //    sont jamais touchées par une mise à jour (elles ne se modifient qu'à la main).
       let delQuery = supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', input.id)
-        .eq('profile_id', profileId)
-        .eq('is_draft', true);
-      if (allocType === 'ponctuel') {
-        // Ponctuel : on ne régénère que le mois courant + futurs → préserver aussi les brouillons
-        // des mois PASSÉS (affichés « figés · passé » dans le formulaire).
-        const nowDel = new Date();
-        const currentMonthStart = `${nowDel.getFullYear()}-${String(nowDel.getMonth() + 1).padStart(2, '0')}-01`;
-        delQuery = delQuery.gte('date', currentMonthStart);
+        .eq('profile_id', profileId);
+      if (mode === 'spend') {
+        delQuery = delQuery.gt('date', today);
+      } else {
+        delQuery = delQuery.eq('is_draft', true);
+        if (allocType === 'ponctuel') {
+          // Ponctuel : on ne régénère que le mois courant + futurs → préserver aussi les brouillons
+          // des mois PASSÉS (affichés « figés · passé » dans le formulaire).
+          const nowDel = new Date();
+          const currentMonthStart = `${nowDel.getFullYear()}-${String(nowDel.getMonth() + 1).padStart(2, '0')}-01`;
+          delQuery = delQuery.gte('date', currentMonthStart);
+        }
       }
       const { data: toDelete } = await delQuery;
-      // (brouillons → posted=false : aucune réversion de solde, simple suppression.)
       await reverseBalanceAndDeleteTransactions(profileId, (toDelete ?? []) as any);
 
       // Mois qui possèdent déjà une transaction VALIDÉE : en mensuel/date, on n'y recrée pas de
       // brouillon (sinon doublon avec la validée). En ponctuel, plusieurs virements/mois sont permis,
-      // donc on n'applique PAS ce filtre (les entrées fournies font foi).
-      const { data: validatedTxns } = await supabase
-        .from('transactions')
-        .select('date')
-        .eq('project_id', input.id)
-        .eq('profile_id', profileId)
-        .eq('is_draft', false)
-        .lt('amount', 0);
-      const validatedMonths = new Set((validatedTxns ?? []).map((t: any) => String(t.date).slice(0, 7)));
-
-      // 3a. Ponctuel : régénérer depuis les entrées fournies
-      if (allocType === 'ponctuel') {
-        const entries = input.ponctuel_entries ?? [];
-        if (entries.length === 0) return data;
-        const txnsToInsert: any[] = [];
-        for (const entry of entries) {
-          const monthTxns = buildProjectTransactions({
-            profileId,
-            projectId: input.id,
-            projectName,
-            monthlyAllocation: entry.amount,
-            sourceAccountId: sourceId,
-            linkedAccountId: linkedId,
-            date: entry.date,
-            endDate: null,
-            projetsCategoryId,
-          });
-          txnsToInsert.push(...monthTxns);
-        }
-        if (txnsToInsert.length > 0) {
-          const { error: insErr } = await supabase.from('transactions').insert(txnsToInsert);
-          if (insErr) console.warn('Erreur régénération txns ponctuel:', insErr);
-        }
-        return data;
+      // donc on n'applique PAS ce filtre (les entrées fournies font foi). En mode 'spend', le passé
+      // est déjà protégé par `afterDate` → pas de filtre par mois (sinon on perdrait le mois courant).
+      let skipMonths: Set<string> | undefined;
+      if (mode !== 'spend' && allocType !== 'ponctuel') {
+        const { data: validatedTxns } = await supabase
+          .from('transactions')
+          .select('date')
+          .eq('project_id', input.id)
+          .eq('profile_id', profileId)
+          .eq('is_draft', false)
+          .lt('amount', 0);
+        skipMonths = new Set((validatedTxns ?? []).map((t: any) => String(t.date).slice(0, 7)));
       }
 
-      // 3b. Mensuel / date cible : régénérer depuis la date de début
-      const monthlyAlloc = input.monthly_allocation !== undefined ? input.monthly_allocation : Number(data.monthly_allocation);
-      if (!monthlyAlloc || monthlyAlloc <= 0) return data;
-
+      // 3. Point de départ de l'échéancier (mensuel / date cible).
       const paymentDay = input.transaction_day ?? data.transaction_day ?? new Date().getDate();
       let startDate: string;
       if (input.first_payment_date) {
@@ -374,39 +376,30 @@ export function useUpdateProject(profileId: string | undefined) {
         })();
       }
 
-      const cursor = new Date(startDate + 'T00:00:00');
-      const endLimit = endDate ? new Date(endDate + 'T23:59:59') : null;
-      const maxMonths = 24;
-      const txnsToInsert: any[] = [];
-
-      for (let i = 0; i < maxMonths; i++) {
-        if (endLimit && cursor > endLimit) break;
-
-        const txDate = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-
-        // Ne pas recréer de brouillon sur un mois qui a déjà une transaction validée (préservée).
-        if (validatedMonths.has(txDate.slice(0, 7))) { cursor.setMonth(cursor.getMonth() + 1); continue; }
-
-        const monthTxns = buildProjectTransactions({
-          profileId,
-          projectId: input.id,
-          projectName,
-          monthlyAllocation: monthlyAlloc,
-          sourceAccountId: sourceId,
-          linkedAccountId: linkedId,
-          date: txDate,
-          endDate: endDate || null,
-          projetsCategoryId,
-        });
-        txnsToInsert.push(...monthTxns);
-
-        cursor.setMonth(cursor.getMonth() + 1);
-      }
+      const txnsToInsert = buildScheduleRows({
+        profileId,
+        projectId: input.id,
+        projectName,
+        mode,
+        allocationType: allocType,
+        monthlyAllocation: input.monthly_allocation !== undefined ? input.monthly_allocation : Number(data.monthly_allocation),
+        startDate,
+        targetDate: endDate || null,
+        ponctuelEntries: input.ponctuel_entries,
+        sourceId,
+        linkedId,
+        projetsCategoryId: mode === 'reserve' ? await fetchProjetsCategoryId(profileId) : null,
+        expenseCategoryId,
+        // Mode « Dépenser » : ne jamais recréer une dépense déjà passée (elle a réellement eu lieu).
+        afterDate: mode === 'spend' ? today : null,
+        skipMonths,
+      });
 
       if (txnsToInsert.length > 0) {
         const { error: insErr } = await supabase.from('transactions').insert(txnsToInsert);
         if (insErr) console.warn('Erreur régénération txns projet:', insErr);
       }
+      if (mode === 'spend') await recomputeBalances([sourceId]);
 
       return data;
     },
@@ -423,7 +416,7 @@ export function useCheckProjectTransactions(profileId: string | undefined) {
   return {
     check: async (projectId: string) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayISO();
       const { data: all, error } = await supabase
         .from('transactions')
         .select('id, date, is_draft')
@@ -437,16 +430,19 @@ export function useCheckProjectTransactions(profileId: string | undefined) {
       // validées (is_draft=false) = conservées+dissociées à la suppression ; brouillons = supprimés.
       const validated = rows.filter((t) => t.is_draft === false);
       const drafts = rows.filter((t) => t.is_draft !== false);
-      return { past, future, validated, drafts };
+      // Mode « Dépenser » : tout est validé → ce qui est conservé/supprimé se joue sur la DATE.
+      const pastValidated = validated.filter((t) => t.date <= today);
+      const futureValidated = validated.filter((t) => t.date > today);
+      return { past, future, validated, drafts, pastValidated, futureValidated };
     },
   };
 }
 
 /**
  * Suppression « douce » du projet (comportement par défaut) :
- *  - les transactions VALIDÉES (is_draft=false) sont DÉTACHÉES (project_id → null) → elles
- *    deviennent de simples virements classiques (l'argent reste sur les comptes) ;
- *  - les BROUILLONS (is_draft=true, jamais validés, sans impact sur les soldes) sont supprimés ;
+ *  - ce qui a RÉELLEMENT eu lieu est DÉTACHÉ (project_id → null) et conservé dans les comptes :
+ *    virements validés (→ virements classiques) et, en mode « Dépenser », dépenses déjà passées ;
+ *  - le reste est supprimé : brouillons jamais validés + dépenses à venir (jamais réalisées) ;
  *  - le projet est supprimé.
  */
 export function useDeleteProjectDissociating(profileId: string | undefined) {
@@ -454,24 +450,37 @@ export function useDeleteProjectDissociating(profileId: string | undefined) {
   return useMutation({
     mutationFn: async (projectId: string) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
+      const today = todayISO();
 
-      // 1. Détacher les validées (les 2 jambes d'un virement portent project_id) → virements classiques.
-      const { error: unlinkErr } = await supabase
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('mode, source_account_id, linked_account_id')
+        .eq('id', projectId)
+        .eq('profile_id', profileId)
+        .maybeSingle();
+      const mode = projectMode(proj);
+
+      // 1. Détacher ce qui est conservé (les 2 jambes d'un virement portent project_id).
+      //    Mode « Dépenser » : seules les dépenses DÉJÀ PASSÉES sont conservées — celles à venir
+      //    n'ont pas eu lieu, elles disparaissent avec le projet.
+      let unlink = supabase
         .from('transactions')
         .update({ project_id: null })
         .eq('project_id', projectId)
         .eq('profile_id', profileId)
         .eq('is_draft', false);
+      if (mode === 'spend') unlink = unlink.lte('date', today);
+      const { error: unlinkErr } = await unlink;
       if (unlinkErr) throw unlinkErr;
 
-      // 2. Supprimer les brouillons restants (aucun impact solde → simple suppression via le helper).
-      const { data: drafts } = await supabase
+      // 2. Supprimer tout ce qui reste rattaché au projet (brouillons + dépenses à venir).
+      const { data: rest } = await supabase
         .from('transactions')
         .select(TX_REVERSAL_COLS)
         .eq('project_id', projectId)
-        .eq('profile_id', profileId)
-        .eq('is_draft', true);
-      await reverseBalanceAndDeleteTransactions(profileId, (drafts ?? []) as any);
+        .eq('profile_id', profileId);
+      await reverseBalanceAndDeleteTransactions(profileId, (rest ?? []) as any);
+      if (mode === 'spend') await recomputeBalances([(proj as any)?.source_account_id]);
 
       // 3. Supprimer le projet.
       const { error } = await supabase
@@ -570,7 +579,7 @@ export function useArchiveProject(profileId: string | undefined) {
   return useMutation({
     mutationFn: async (projectId: string) => {
       if (!supabase || !profileId) throw new Error('Not authenticated');
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayISO();
       // Delete future transactions only
       const { error: txErr } = await supabase
         .from('transactions')
@@ -678,7 +687,7 @@ export function useAutoArchiveProjects(profileId: string | undefined) {
   return useMutation({
     mutationFn: async ({ projects, progressById }: { projects: Project[]; progressById: Record<string, number> }) => {
       if (!supabase || !profileId) return;
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayISO();
 
       const toArchive = projects.filter((p) => {
         if (p.status !== 'active' && p.status !== 'completed') return false;

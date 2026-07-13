@@ -18,7 +18,7 @@ import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import GuideOverlay from '../../../components/GuideOverlay';
 import type { BubbleStep } from '../../../components/GuideOverlay';
@@ -37,12 +37,20 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../../../lib/currency';
 import { useCredits } from '../../../hooks/useCredits';
 import { computeAmortization } from '../../../lib/amortization';
+import { projectMode, type ProjectMode } from '../../../lib/projectTx';
 import { todayISO } from '../../../lib/dateUtils';
 import { useProfile } from '../../../hooks/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/useRelykaWorld';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
+
+/** Vocabulaire de la carte selon le mode du projet (cf. lib/projectTx). */
+const MODE_CARD: Record<ProjectMode, { badge: string; icon: string; target: string; monthly: string; progress: string; remaining: string }> = {
+  transfer: { badge: 'Mis de côté', icon: 'trending-up', target: 'Cible', monthly: 'Chaque mois', progress: 'Avancement', remaining: 'Restant à verser' },
+  reserve: { badge: 'Réservé', icon: 'lock-closed', target: 'Cible', monthly: 'Chaque mois', progress: 'Avancement', remaining: 'Restant à réserver' },
+  spend: { badge: 'Dépenses', icon: 'card', target: 'Budget', monthly: 'Chaque mois', progress: 'Déjà dépensé', remaining: 'Restant à dépenser' },
+};
 
 
 export default function ProjectsScreen() {
@@ -66,6 +74,12 @@ export default function ProjectsScreen() {
   const RW_MEMBER_COLORS = [COLORS.emerald, COLORS.violet, COLORS.orange, COLORS.blue, COLORS.teal];
   const [showInfo, setShowInfo] = useState(false);
   const [showTypeChoice, setShowTypeChoice] = useState(false);
+  // Bannière interne « Projets › + Projet » : on arrive ici avec le choix du type déjà ouvert.
+  // `adNonce` change à chaque clic → l'action rejoue même si l'on est déjà sur la page.
+  const adParams = useLocalSearchParams<{ adAction?: string; adNonce?: string }>();
+  useEffect(() => {
+    if (adParams.adAction === 'new') setShowTypeChoice(true);
+  }, [adParams.adAction, adParams.adNonce]);
   const [showRwCreate, setShowRwCreate] = useState(false);
   const [rwName, setRwName] = useState('');
   const [rwEmoji, setRwEmoji] = useState('💸');
@@ -225,6 +239,9 @@ export default function ProjectsScreen() {
   const renderProjectItem = ({ item: project }: { item: any }) => {
     const targetAmount = parseFloat(project.target_amount);
     const monthlyAllocation = parseFloat(project.monthly_allocation);
+    // Le mode change le VOCABULAIRE de la carte : un projet « dépenser » ne met rien de côté.
+    const pMode = projectMode(project);
+    const mCfg = MODE_CARD[pMode];
     const pm = progressMap[project.id];
     const currentAccumulated = pm ? pm.accumulated : parseFloat(project.current_accumulated || '0');
     const progress = pm ? Math.min(100, Math.round(pm.percentage)) : (targetAmount > 0 ? Math.min(100, Math.round((currentAccumulated / targetAmount) * 100)) : 0);
@@ -274,9 +291,16 @@ export default function ProjectsScreen() {
       >
         <View style={styles.projectHeader}>
           <View style={styles.projectInfo}>
-            <Text style={[styles.projectName, { color: COLORS.text }]} numberOfLines={1}>
-              {project.name}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.projectName, { color: COLORS.text, flexShrink: 1 }]} numberOfLines={1}>
+                {project.name}
+              </Text>
+              {/* Ce que fait le projet : virements / réservation / dépenses. */}
+              <View style={[styles.modeBadge, { borderColor: COLORS.primary + '55', backgroundColor: COLORS.primary + '14' }]}>
+                <Ionicons name={mCfg.icon as any} size={10} color={COLORS.primary} />
+                <Text style={[styles.modeBadgeText, { color: COLORS.primary }]}>{mCfg.badge}</Text>
+              </View>
+            </View>
             <Text style={[styles.projectDescription, { color: COLORS.textSecondary }]}>
               {project.description || 'Pas de description'}
             </Text>
@@ -311,7 +335,7 @@ export default function ProjectsScreen() {
           <View style={styles.detailRow}>
             <View>
               <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
-                Cible
+                {mCfg.target}
               </Text>
               <Text style={[styles.detailValue, { color: COLORS.text }]}>
                 {CURRENCY_SYMBOL}{targetAmount.toFixed(2)}
@@ -320,7 +344,7 @@ export default function ProjectsScreen() {
             {project.allocation_type === 'ponctuel' ? (
               <View>
                 <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
-                  Restant à verser
+                  {mCfg.remaining}
                 </Text>
                 <Text style={[styles.detailValue, { color: COLORS.primary }]}>
                   {CURRENCY_SYMBOL}{Math.max(0, targetAmount - currentAccumulated).toFixed(2)}
@@ -330,7 +354,7 @@ export default function ProjectsScreen() {
               <>
                 <View>
                   <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
-                    Allocation mensuelle
+                    {mCfg.monthly}
                   </Text>
                   <Text style={[styles.detailValue, { color: COLORS.primary }]}>
                     {CURRENCY_SYMBOL}{monthlyAllocation.toFixed(2)}/mois
@@ -354,7 +378,7 @@ export default function ProjectsScreen() {
           <View style={styles.progressSection}>
             <View style={styles.progressHeader}>
               <Text style={[styles.detailLabel, { color: COLORS.textSecondary }]}>
-                Avancement
+                {mCfg.progress}
               </Text>
               <Text style={[styles.progressPercentage, { color: isComplete ? '#10b981' : COLORS.primary }]}>
                 {progress}%
@@ -387,7 +411,7 @@ export default function ProjectsScreen() {
           <View style={styles.completeBanner}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
             <Text style={styles.completeBannerText}>
-              Objectif atteint ! Vous pouvez archiver ce projet.
+              {pMode === 'spend' ? 'Budget consommé ! Vous pouvez archiver ce projet.' : 'Objectif atteint ! Vous pouvez archiver ce projet.'}
             </Text>
           </View>
         )}
@@ -601,7 +625,11 @@ export default function ProjectsScreen() {
             </View>
             <Text style={styles.infoModalTitle}>À quoi servent les projets ?</Text>
             <Text style={styles.infoModalText}>
-              Un projet, c'est une cagnotte pour un objectif (voiture, voyage…). Accumulez de l'argent par des virements vers un compte dédié, ou en <Text style={{ fontWeight: '700', color: COLORS.text }}>réservant</Text> la somme sur place. Choisissez un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des versements <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuels</Text>.
+              Un projet, c'est un objectif d'argent (voiture, voyage, cours de piano…) que l'app suit pour vous. À la création, vous choisissez ce qu'elle doit faire :
+              {'\n\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Mettre de côté</Text> : elle prépare des virements vers votre épargne ou vos investissements.
+              {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Conserver pour plus tard</Text> : l'argent ne bouge pas, il est juste « Réservé » sur votre compte.
+              {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Dépenser petit à petit</Text> : elle crée de vraies dépenses au rythme du projet.
+              {'\n\n'}Puis vous choisissez le rythme : un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des échéances <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuelles</Text>.
               {'\n\n'}Un <Text style={{ fontWeight: '700', color: COLORS.text }}>projet partagé</Text> permet de suivre des dépenses communes et de les équilibrer entre plusieurs personnes.
             </Text>
             <TouchableOpacity style={[styles.infoModalBtn, { backgroundColor: COLORS.primary }]} onPress={() => setShowInfo(false)} activeOpacity={0.85}>
@@ -622,7 +650,7 @@ export default function ProjectsScreen() {
               <View style={[styles.rwChoiceIcon, { backgroundColor: COLORS.primary + '22' }]}><Ionicons name="flag" size={22} color={COLORS.primary} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rwChoiceTitle}>Personnel</Text>
-                <Text style={styles.rwChoiceSub}>Une cagnotte pour un objectif (épargne, investissement voyage…)</Text>
+                <Text style={styles.rwChoiceSub}>Mettre de côté, conserver, ou dépenser petit à petit</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -983,6 +1011,11 @@ function makeStyles(c: any) {
   projectDescription: {
     fontSize: 12,
   },
+  modeBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
+  },
+  modeBadgeText: { fontSize: 10, fontWeight: '700' },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 6,

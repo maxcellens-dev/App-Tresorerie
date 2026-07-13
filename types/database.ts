@@ -372,6 +372,10 @@ export interface Project {
   first_payment_date?: string | null;
   current_accumulated?: number;
   allocation_type?: 'monthly' | 'date' | 'ponctuel';
+  /** Mode de financement, figé à la création (migration 139) — cf. lib/projectTx. */
+  mode?: 'transfer' | 'reserve' | 'spend';
+  /** Catégorie des dépenses générées (mode 'spend' uniquement). */
+  expense_category_id?: string | null;
   status: ProjectStatus;
   created_at: string;
   updated_at: string;

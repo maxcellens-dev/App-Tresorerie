@@ -4,6 +4,7 @@ import type { Transaction, TransactionWithDetails, RecurrenceRule } from '../typ
 import { appConfirm, appPrompt } from '../lib/appDialog';
 import { convertAmount } from '../lib/currency';
 import { formatDateFrench } from '../lib/dateUtils';
+import { buildProjectTransactions, projectMode } from '../lib/projectTx';
 
 const KEY = 'transactions';
 
@@ -68,7 +69,7 @@ async function regulOnSameDay(accountId: string, date: string): Promise<{ accoun
  * Source de vérité unique du solde → à appeler après TOUTE mutation qui modifie des transactions.
  * Élimine toute dérive : le solde ne dépend plus d'additions/réversions incrémentales.
  */
-async function recomputeBalances(accountIds: Array<string | null | undefined>): Promise<void> {
+export async function recomputeBalances(accountIds: Array<string | null | undefined>): Promise<void> {
   if (!supabase) return;
   const today = localTodayISO();
   const seen = new Set<string>();
@@ -726,7 +727,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
         const today = localTodayISO();
         const { data: project } = await supabase
           .from('projects')
-          .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day, name')
+          .select('allocation_type, target_date, target_amount, source_account_id, linked_account_id, transaction_day, name, mode, expense_category_id')
           .eq('id', projectId)
           .eq('profile_id', profileId)
           .single();
@@ -767,43 +768,41 @@ export function useDeleteTransaction(profileId: string | undefined) {
           const newFirstPaymentDate = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
           await supabase.from('projects').update({ monthly_allocation: newMonthly, first_payment_date: newFirstPaymentDate }).eq('id', projectId);
 
-          // Supprimer les transactions futures brouillon du projet
-          await supabase.from('transactions').delete()
-            .eq('project_id', projectId).eq('profile_id', profileId)
-            .eq('is_draft', true).gt('date', today);
+          const mode = projectMode(project);
+          // Supprimer les échéances FUTURES à refaire : brouillons (virement / réservation) ou, en
+          // mode « Dépenser », les dépenses à venir (validées d'emblée mais pas encore réalisées).
+          let futureQuery = supabase.from('transactions').select(TX_REVERSAL_COLS)
+            .eq('project_id', projectId).eq('profile_id', profileId).gt('date', today);
+          if (mode !== 'spend') futureQuery = futureQuery.eq('is_draft', true);
+          const { data: futureRows } = await futureQuery;
+          await reverseBalanceAndDeleteTransactions(profileId, (futureRows ?? []) as any);
 
-          const { data: projetsCat } = await supabase.from('categories').select('id')
-            .eq('profile_id', profileId).eq('name', 'Projets').eq('type', 'expense').maybeSingle();
-          const projetsCategoryId = projetsCat?.id ?? null;
-          const sameAccount = project!.source_account_id && project!.linked_account_id &&
-            project!.source_account_id === project!.linked_account_id;
+          const projetsCategoryId = mode === 'reserve'
+            ? ((await supabase.from('categories').select('id')
+                .eq('profile_id', profileId).eq('name', 'Projets').eq('type', 'expense').maybeSingle()).data?.id ?? null)
+            : null;
           const txnsToInsert: any[] = [];
 
           while (cursor <= endLimit) {
             const d = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-            if (sameAccount) {
-              txnsToInsert.push({
-                profile_id: profileId, account_id: project!.source_account_id,
-                category_id: projetsCategoryId, amount: 0, date: d,
-                note: project!.name ?? null, is_forecast: false, is_recurring: false,
-                recurrence_rule: null, recurrence_end_date: null,
-                project_id: projectId, is_draft: true,
-              });
-            } else if (project!.source_account_id) {
-              // Virement vers un autre compte → brouillon de VIREMENT (linked_account_id), pas une dépense.
-              txnsToInsert.push({
-                profile_id: profileId, account_id: project!.source_account_id,
-                category_id: null, linked_account_id: project!.linked_account_id ?? null,
-                amount: -newMonthly, date: d,
-                note: project!.name ?? null, is_forecast: false, is_recurring: false,
-                recurrence_rule: null, recurrence_end_date: null,
-                project_id: projectId, is_draft: true,
-              });
-            }
+            txnsToInsert.push(...buildProjectTransactions({
+              profileId,
+              projectId,
+              projectName: project!.name ?? '',
+              mode,
+              amount: newMonthly,
+              date: d,
+              accountId: project!.source_account_id ?? null,
+              linkedAccountId: project!.linked_account_id ?? null,
+              projetsCategoryId,
+              expenseCategoryId: (project as any)!.expense_category_id ?? null,
+              today,
+            }));
             cursor.setMonth(cursor.getMonth() + 1);
           }
           if (txnsToInsert.length > 0) {
             await supabase.from('transactions').insert(txnsToInsert);
+            if (mode === 'spend') await recomputeBalances([project!.source_account_id]);
           }
         }
       }

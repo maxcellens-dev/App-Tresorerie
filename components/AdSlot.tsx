@@ -8,10 +8,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Linking, Platform, Animated, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { usePlan } from '../hooks/usePlan';
-import { useAdsConfig, bannerPlacements, type AdPlacement } from '../hooks/useAdsConfig';
+import { useAdsConfig, bannerPlacements, bannerLink, type AdPlacement } from '../hooks/useAdsConfig';
 import { logEvent } from '../lib/analytics';
 
 // Impressions déjà comptées dans la session (1 par bannière × emplacement) → évite le flood.
@@ -19,6 +20,7 @@ const seenImpressions = new Set<string>();
 
 export default function AdSlot({ placement, compact = false, style }: { placement: AdPlacement; compact?: boolean; style?: ViewStyle }) {
   const COLORS = useAppColors();
+  const router = useRouter();
   const { user } = useAuth();
   const { showAds } = usePlan(user?.id);
   const { data } = useAdsConfig();
@@ -63,9 +65,13 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
 
   if (!showAds || count === 0) return null;
   const banner = banners[Math.min(idx, count - 1)];
+  // Lien de la bannière : page/bouton de l'app (interne) ou site externe. `null` = non cliquable.
+  const link = bannerLink(banner);
   const open = () => {
-    logEvent('ad_click', placement, { bannerId: banner.id, label: banner.label });
-    if (banner.url) Linking.openURL(banner.url).catch(() => {});
+    if (!link) return;
+    logEvent('ad_click', placement, { bannerId: banner.id, label: banner.label, kind: link.kind, href: link.href });
+    if (link.kind === 'internal') router.push(link.href as any);
+    else Linking.openURL(link.href).catch(() => {});
   };
 
   return (
@@ -73,8 +79,8 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
       <TouchableOpacity
         style={[styles.slot, compact && styles.slotCompact, { backgroundColor: COLORS.card, borderColor: COLORS.cardBorder, opacity: baseOpacity }]}
         onPress={open}
-        activeOpacity={banner.url ? 0.85 : 1}
-        disabled={!banner.url}
+        activeOpacity={link ? 0.85 : 1}
+        disabled={!link}
       >
         {banner.image ? (
           // Image quasi pleine zone + tag « Sponsorisé » en overlay (pastille sombre
@@ -91,7 +97,7 @@ export default function AdSlot({ placement, compact = false, style }: { placemen
             <Animated.View style={styles.textRow}>
               <Ionicons name="megaphone-outline" size={compact ? 15 : 18} color={COLORS.emerald} />
               <Text style={[compact ? styles.textCompact : styles.text, { color: COLORS.text }]} numberOfLines={2}>{banner.text ?? banner.label ?? 'Découvrez nos partenaires'}</Text>
-              {banner.url ? <Ionicons name="chevron-forward" size={compact ? 13 : 16} color={COLORS.textSecondary} /> : null}
+              {link ? <Ionicons name="chevron-forward" size={compact ? 13 : 16} color={COLORS.textSecondary} /> : null}
             </Animated.View>
           </View>
         )}

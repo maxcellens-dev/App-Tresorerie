@@ -7,6 +7,7 @@
  * Pour chaque mois : revenus, dépenses prévues, dépenses variables estimées, autres sorties
  * (épargne / invest / projets), et le solde prévu de fin de mois (cumulatif).
  */
+import { isProjectSpendTx } from './projectTx';
 
 export interface ForecastMonth {
   year: number;
@@ -73,7 +74,9 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
     const isChecking = onChecking(t);
     const linkedType = t.linked_account_id ? accountTypeById[t.linked_account_id] : null;
     if (t.linked_account_id && !isChecking) return false;
-    const isProjectTx = !!t.project_id;
+    // Une dépense de projet « Dépenser petit à petit » n'est PAS une « autre sortie » (épargne/
+    // réservation) : c'est une dépense, déjà comptée comme telle par `usable()` → sinon double compte.
+    const isProjectTx = !!t.project_id && !isProjectSpendTx(t);
     if (isChecking && linkedType === 'savings' && isProjectTx) return true;
     if (isChecking && linkedType === 'savings') return true;
     if (isChecking && linkedType === 'investment') return true;
