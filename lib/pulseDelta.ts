@@ -42,19 +42,32 @@ export interface PulseFeedback {
 
 const eur = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('fr-FR')} €`;
 
+/** Libellé du compte touché — une plus-value saisie sur un compte d'investissement ne doit pas
+ *  s'annoncer « Compte courant » (cas réel : saisie gain/perte depuis le détail de compte). */
+const ACCOUNT_LABEL: Record<string, string> = {
+  checking: 'Compte courant',
+  savings: 'Épargne',
+  investment: 'Investissement',
+};
+
 /** Effet direct : la phrase que l'utilisateur attend juste après avoir validé. */
 function directChip(op: PulseOp): PulseDeltaChip {
   const amount = Math.abs(op.amount);
+  const accountLabel = ACCOUNT_LABEL[op.accountType ?? ''] ?? 'Compte courant';
 
   if (op.kind === 'income') {
     return {
       key: 'direct',
-      text: op.isFuture ? `Recette prévue : +${eur(amount)}` : `Compte courant : +${eur(amount)}`,
+      text: op.isFuture ? `Recette prévue : +${eur(amount)}` : `${accountLabel} : +${eur(amount)}`,
       tone: 'good',
     };
   }
 
   if (op.kind === 'expense') {
+    // Sortie directe sur l'épargne ou l'invest (moins-value, retrait) : on nomme le compte.
+    if (op.accountType === 'savings' || op.accountType === 'investment') {
+      return { key: 'direct', text: `${accountLabel} : −${eur(amount)}`, tone: 'watch' };
+    }
     // Constat, pas jugement : une dépense normale n'a pas à s'afficher en orange.
     // C'est le signal « Dépenses du mois » en dessous qui dit si ça dérape.
     return {

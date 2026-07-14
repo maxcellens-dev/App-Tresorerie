@@ -97,7 +97,9 @@ describe('computePulse — les jugements', () => {
     const s = r.signals.find((x) => x.id === 'spending')!;
     expect(s.status).toBe('alert');
     expect(s.headline).toContain('500 €');
-    expect(s.detail).toMatch(/finiras le mois/);
+    // Projection → CONDITIONNEL (« finirais »), et enveloppe « estimée » (pas « prévue »).
+    expect(s.detail).toMatch(/finirais le mois/);
+    expect(s.headline).toContain('estimés');
   });
 
   it('sans enveloppe estimable, les dépenses sont montrées mais PAS jugées', () => {
@@ -166,6 +168,13 @@ describe('computePulse — pas d’« idéal » subjectif', () => {
     expect(s.detail).not.toMatch(/idéal/i);
     expect(s.amountLine).toContain('+180 € de gains'); // le user voit ce que ça lui a rapporté
   });
+
+  it('une capacité d’investissement dérisoire (< 20 €) n’est pas jugée en rouge', () => {
+    const r = computePulse(inputs({ profileId: 'P4', investCapacity: 8, investedThisMonth: 0 }));
+    const s = r.signals.find((x) => x.id === 'investing')!;
+    expect(s.status).toBe('neutral');
+    expect(s.detail).toMatch(/ne laisse pas de place/);
+  });
 });
 
 describe('computePulse — fiabilité', () => {
@@ -194,6 +203,12 @@ describe('computePulse — synthèse', () => {
 describe('resolvePulseConfig', () => {
   it('une config vide retombe sur les défauts', () => {
     expect(resolvePulseConfig(null)).toEqual(DEFAULT_PULSE_CONFIG);
+  });
+
+  it('chaque profil affiche 5 signaux par défaut', () => {
+    for (const ids of Object.values(DEFAULT_PULSE_CONFIG.signalsByProfile)) {
+      expect(ids).toHaveLength(5);
+    }
   });
 
   it('un signal supprimé du code est ignoré (config stockée obsolète)', () => {
@@ -246,6 +261,22 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
   it('une recette annonce l’entrée d’argent', () => {
     const f = computeOpFeedback({ kind: 'income', amount: 1800 }, null, null, null, null);
     expect(plain(f.chips[0].text)).toBe('Compte courant : +1 800 €');
+  });
+
+  it('une plus-value saisie sur un compte d’investissement ne dit PAS « compte courant »', () => {
+    const f = computeOpFeedback({ kind: 'income', amount: 200, accountType: 'investment' }, null, null, null, null);
+    expect(f.chips[0].text).toBe('Investissement : +200 €');
+  });
+
+  it('un virement invest daté dans le futur ne montre pas « rien de placé » : seule la fin de mois est impactée', () => {
+    // En production, le host cherche dans l'union hebdo+complet — l'hebdo contient toujours « Fin de mois ».
+    const weekBefore = computePulse(inputs(), DEFAULT_PULSE_CONFIG, 'week');
+    const weekAfter = computePulse(inputs({ spendingSoFar: 500 }), DEFAULT_PULSE_CONFIG, 'week');
+    const f = computeOpFeedback(
+      { kind: 'transfer', amount: 100, fromType: 'checking', toType: 'investment', isFuture: true },
+      weekBefore, weekAfter, 400, 300,
+    );
+    expect(f.signal?.id).toBe('end_of_month');
   });
 });
 

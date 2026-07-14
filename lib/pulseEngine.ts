@@ -119,7 +119,8 @@ export interface PulseConfig {
 }
 
 /**
- * Défauts : les signaux MONTENT avec le profil.
+ * Défauts : les signaux MONTENT avec le profil — 5 par profil (sans plafond : l'admin en ajoute
+ * autant qu'il veut, l'état des lieux défile).
  *  P1 — tenir le mois, ne pas déraper, poser un premier matelas (jamais d'investissement).
  *  P2 — construire la réserve, garder les dépenses sous contrôle.
  *  P3 — réserve tenue, l'investissement entre en jeu.
@@ -128,11 +129,11 @@ export interface PulseConfig {
  * Les PROJETS PERSO sont présents pour TOUS les profils (décision produit).
  */
 export const DEFAULT_PULSE_SIGNALS: Record<FinancialProfileId, PulseSignalId[]> = {
-  P1: ['end_of_month', 'spending', 'cushion', 'projects'],
+  P1: ['end_of_month', 'spending', 'cushion', 'no_overdraft', 'projects'],
   P2: ['cushion', 'saving', 'spending', 'no_overdraft', 'projects'],
   P3: ['cushion', 'investing', 'saving', 'spending', 'projects'],
   P4: ['investing', 'cushion', 'spending', 'no_overdraft', 'projects'],
-  P5: ['investing', 'wealth', 'cushion', 'projects'],
+  P5: ['investing', 'wealth', 'cushion', 'no_overdraft', 'projects'],
 };
 
 export const DEFAULT_PULSE_BENCHMARKS: Record<FinancialProfileId, PulseBenchmark> = {
@@ -277,11 +278,12 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
   const status: PulseStatus =
     left < 0 ? 'alert' : above < 0 ? 'watch' : 'good';
 
+  // Une PROJECTION se dit toujours au conditionnel (« tu serais », « devrait ») : rien n'est acquis.
   const detail = margin > 0
     ? (above >= 0
-        ? `Ta marge de sécurité est de ${eur(margin)} : tu es ${eur(above)} au-dessus.`
+        ? `Ta marge de sécurité est de ${eur(margin)} : tu serais ${eur(above)} au-dessus.`
         : `Ta marge de sécurité est de ${eur(margin)} : là, tu passerais en dessous.`)
-    : (left >= 0 ? 'Ton compte reste dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
+    : (left >= 0 ? 'Ton compte devrait rester dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
 
   return {
     id: 'end_of_month',
@@ -289,10 +291,10 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
     emoji: '🗓️',
     status,
     headline: left >= 0
-      ? `Il te restera ${eur(left)} ${firstOfNextMonthLabel(i.today)}`
+      ? `Il devrait te rester ${eur(left)} ${firstOfNextMonthLabel(i.today)}`
       : `Tu serais à ${eur(left)} ${firstOfNextMonthLabel(i.today)}`,
     detail,
-    chip: status === 'good' ? 'Tu passes le mois' : status === 'watch' ? 'Ça va être juste' : 'Découvert prévu',
+    chip: status === 'good' ? 'Bien parti' : status === 'watch' ? 'Ça va être juste' : 'Découvert en vue',
   };
 }
 
@@ -317,14 +319,15 @@ function buildSpending(i: PulseInputs): PulseSignal {
   if (elapsed < 0.15 && spent < budget * 0.5) {
     return {
       id: 'spending', label: 'Dépenses du mois', emoji: '🛒', status: 'neutral',
-      headline: `${eur(spent)} dépensés sur les ${eur(budget)} prévus`,
+      // « estimés » (pas « prévus ») : l'enveloppe variable est une ESTIMATION, pas un plan.
+      headline: `${eur(spent)} dépensés sur les ${eur(budget)} estimés`,
       detail: 'Le mois vient de commencer : trop tôt pour juger ton rythme.',
       chip: 'Début de mois',
       progress: { value: spent / budget, target: 1 },
     };
   }
 
-  // Fin de mois estimée SI l'utilisateur continue au même rythme.
+  // Fin de mois estimée SI l'utilisateur continue au même rythme — donc au CONDITIONNEL.
   const projected = spent / elapsed;
   const overshoot = projected - budget;
   const status: PulseStatus = overshoot > budget * 0.1 ? 'alert' : overshoot > 0 ? 'watch' : 'good';
@@ -334,11 +337,11 @@ function buildSpending(i: PulseInputs): PulseSignal {
     label: 'Dépenses du mois',
     emoji: '🛒',
     status,
-    headline: `${eur(spent)} dépensés sur les ${eur(budget)} prévus`,
+    headline: `${eur(spent)} dépensés sur les ${eur(budget)} estimés`,
     detail: status === 'good'
-      ? `À ce rythme, tu finiras le mois vers ${eur(projected)} : dans ton budget.`
-      : `À ce rythme, tu finiras le mois vers ${eur(projected)}, soit ${eur(overshoot)} de trop.`,
-    chip: status === 'good' ? 'Dans ton budget' : status === 'watch' ? 'Ça monte vite' : 'Tu vas dépasser',
+      ? `À ce rythme, tu finirais le mois vers ${eur(projected)} : dans ton budget.`
+      : `À ce rythme, tu finirais le mois vers ${eur(projected)}, soit ${eur(overshoot)} de trop.`,
+    chip: status === 'good' ? 'Dans ton budget' : status === 'watch' ? 'Ça monte vite' : 'Tu risques de dépasser',
     progress: { value: spent / budget, target: 1 },
   };
 }
@@ -433,6 +436,9 @@ function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   };
 }
 
+/** En-dessous de ce montant plaçable, on ne juge pas : un « À lancer » rouge pour 5 € serait absurde. */
+const MIN_JUDGEABLE_CAPACITY = 20;
+
 function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   const placed = Math.max(0, i.investedThisMonth);
   const capacity = Math.max(0, i.investCapacity);
@@ -442,12 +448,14 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     : ` · ${gains > 0 ? '+' : '−'}${eur(Math.abs(gains))} ${gains > 0 ? 'de gains' : 'de pertes'}`;
   const amountLine = `Total investi : ${eur(i.investedBalance)}${gainLine}`;
 
-  // Pas de capacité d'investissement ce mois (budget libre nul) → on ne juge pas.
-  if (capacity <= 0 || b.investOfCapacityPct <= 0) {
+  // Pas (ou presque pas) de capacité d'investissement ce mois → on ne juge pas.
+  if (capacity < MIN_JUDGEABLE_CAPACITY || b.investOfCapacityPct <= 0) {
     return {
       id: 'investing', label: 'Investissement du mois', emoji: '📈', status: 'neutral',
       headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
-      detail: capacity <= 0 ? 'Ton budget du mois ne laisse pas de place pour investir : c’est normal, ça reviendra.' : undefined,
+      detail: capacity < MIN_JUDGEABLE_CAPACITY
+        ? 'Ton budget du mois ne laisse pas de place pour investir : c’est normal, ça reviendra.'
+        : undefined,
       amountLine,
       chip: placed > 0 ? 'C’est fait' : 'Pas ce mois-ci',
     };
@@ -465,7 +473,7 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     emoji: '📈',
     status,
     headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
-    detail: `Ce mois-ci, tu pouvais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`,
+    detail: `Ce mois-ci, tu pourrais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`,
     amountLine,
     chip: status === 'good' ? 'Bon rythme' : status === 'watch' ? 'Tu peux aller plus loin' : 'À lancer',
     // La barre se remplit sur ce qui était RÉELLEMENT plaçable ; le trait marque le seuil du profil.
@@ -537,7 +545,7 @@ function buildProjects(i: PulseInputs): PulseSignal | null {
     status,
     headline: `${p.name} : ${eur(p.saved)} sur ${eur(p.target)}`,
     detail: late
-      ? 'Tu mets moins de côté que prévu pour ce projet : il prendra du retard.'
+      ? 'Tu mets moins de côté que prévu pour ce projet : il risque de prendre du retard.'
       : 'Tu es dans les temps pour ce projet.',
     amountLine: others > 0 ? `Et ${others} autre${others > 1 ? 's' : ''} projet${others > 1 ? 's' : ''} en cours` : undefined,
     chip: late ? 'En retard' : 'Dans les temps',

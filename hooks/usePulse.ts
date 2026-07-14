@@ -72,6 +72,8 @@ export interface PulseData {
   result: PulseResult;
   /** Le pouls HEBDO, léger (3 signaux max) — la carte de la semaine. */
   weekly: PulseResult;
+  /** Chiffres bruts de l'anneau hebdo : épargné + investi du mois vs capacité du mois. */
+  weeklyStats: { saved: number; invested: number; capacity: number };
   profileId: FinancialProfileId;
   /** Relyka du jour — sert aux delta chips (avant / après une saisie). */
   relyka: number;
@@ -128,8 +130,16 @@ export function usePulse(): PulseData | null {
     // ── Capacité d'investissement du mois : ce qu'il POUVAIT placer (budget libre + déjà placé),
     // à hauteur de l'allocation de son profil. Sans ça, la capacité tomberait à 0 en fin de mois.
     const investPct = Number((profile as any)?.allocation_invest_percent ?? 25);
+    const savePct = Number((profile as any)?.allocation_save_percent ?? 25);
     const investedThisMonth = Math.max(0, pilotage.real_invest ?? 0);
+    const savedThisMonth = Math.max(0, pilotage.real_savings_excl_projects ?? 0);
     const investCapacity = Math.max(0, (relyka + investedThisMonth) * (investPct / 100));
+    // Anneau hebdo : épargné + investi vs la capacité COMBINÉE du mois (parts épargne + invest).
+    const weeklyStats = {
+      saved: savedThisMonth,
+      invested: investedThisMonth,
+      capacity: Math.max(0, (relyka + savedThisMonth + investedThisMonth) * ((savePct + investPct) / 100)),
+    };
 
     // ── Investissement : ce que ça a rapporté (plus/moins-values saisies sur les comptes d'invest).
     const { gains } = computeInvestmentGains(transactions as any[]);
@@ -178,7 +188,7 @@ export function usePulse(): PulseData | null {
       spendingSoFar: pilotage.variable_envelope_spent ?? 0,
       savingsBalance: pilotage.total_savings,
       // Ce qui est RÉELLEMENT parti à l'épargne ce mois-ci (hors projets : ils ont leur propre signal).
-      savedThisMonth: Math.max(0, pilotage.real_savings_excl_projects ?? 0),
+      savedThisMonth,
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
       questionnaireQ3: (answers as any)?.q3 ?? null,
       investedBalance: pilotage.total_invested,
@@ -200,6 +210,7 @@ export function usePulse(): PulseData | null {
     return {
       result: computePulse(inputs, config, 'full'),
       weekly: computePulse(inputs, config, 'week'),
+      weeklyStats,
       profileId,
       relyka,
       wealth,

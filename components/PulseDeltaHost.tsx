@@ -175,11 +175,13 @@ export default function PulseDeltaHost() {
     <View style={styles.root} pointerEvents="box-none">
       {/* Tap n'importe où → on referme. Non bloquant : rien n'est modal. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fermer" />
+      {/* Wrapper centré : sur web desktop, la carte reste à largeur « mobile » au centre
+          (le host est monté HORS de la colonne d'app — cf. sheetWidth dans lib/appLayout). */}
+      <View style={[styles.center, { top: insets.top + 58 }]} pointerEvents="box-none">
       <Animated.View
         {...panResponder.panHandlers}
         style={[
           styles.card,
-          { top: insets.top + 58 }, // sous l'en-tête, comme le bandeau « prochain geste »
           {
             opacity: anim,
             transform: [
@@ -211,6 +213,7 @@ export default function PulseDeltaHost() {
         <Text style={styles.hint}>Touche pour fermer</Text>
         <View style={styles.grabber} />
       </Animated.View>
+      </View>
     </View>
   );
 }
@@ -218,8 +221,9 @@ export default function PulseDeltaHost() {
 function makeStyles(c: AppColors) {
   return StyleSheet.create({
     root: { ...StyleSheet.absoluteFillObject, zIndex: 60, elevation: 60 },
+    center: { position: 'absolute', left: 12, right: 12, alignItems: 'center' },
     card: {
-      position: 'absolute', left: 12, right: 12,
+      width: '100%', maxWidth: 560,
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 20, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 10,
       ...Platform.select({

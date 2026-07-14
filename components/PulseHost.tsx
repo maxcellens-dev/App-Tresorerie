@@ -2,12 +2,11 @@
  * POULS — les rendez-vous. Monté UNE fois au niveau racine.
  *
  * TROIS VUES, pour trois moments :
- *  • 'week'  — le Pouls de la semaine, LÉGER (3 signaux max) : s'ouvre seul à la 1ʳᵉ ouverture de
- *              la semaine, et au tap sur la pastille 🫀 du Pilotage. Un lien en bas ouvre la vue
- *              complète pour qui veut creuser.
+ *  • 'week'  — le Pouls de la semaine, LÉGER et VISUEL (anneau + 2 lignes + série) : s'ouvre seul
+ *              à la 1ʳᵉ ouverture de la semaine.
  *  • 'month' — l'État des lieux du mois écoulé, COMPLET : s'ouvre seul après la fin du mois.
- *  • 'now'   — l'État des lieux d'aujourd'hui, COMPLET : à la demande (depuis la vue hebdo ou
- *              l'aperçu admin). Ne consomme rien, n'archive rien.
+ *  • 'now'   — l'État des lieux d'aujourd'hui, COMPLET : au tap sur la pilule du mois du Pilotage
+ *              (ou l'aperçu admin). Ne consomme rien, n'archive rien.
  *
  * HIÉRARCHIE STRICTE : jamais deux rendez-vous le même jour (mensuel > hebdo).
  * FERMETURE : tap à côté ou balayage vers le haut. Aucune auto-disparition.
@@ -22,16 +21,18 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { useTour } from '../contexts/TourContext';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
-import { usePulse } from '../hooks/usePulse';
+import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
-import { usePulseSeen, useSavePulseSnapshot } from '../hooks/usePulseState';
+import { useGamification } from '../hooks/useGamification';
+import { usePulseSeen, useSavePulseSnapshot, type PulseSeenState } from '../hooks/usePulseState';
 import { isAppReady, onAppReady } from '../lib/splashGate';
 import { PROFILE_INFO } from '../lib/financialProfileEngine';
-import { monthKey, weekKey, weekRangeLabel, type PulseResult } from '../lib/pulseEngine';
+import { monthKey, weekKey, weekRangeLabel, type PulseResult, type PulseSignalId } from '../lib/pulseEngine';
 import PulseSignalCard, { pulseColor } from './PulseSignalCard';
 
 type PulseView = 'week' | 'month' | 'now';
@@ -58,10 +59,19 @@ export default function PulseHost() {
   const pulse = usePulse();
   const { seen, isLoading: seenLoading, markSeen } = usePulseSeen(user?.id);
   const saveSnapshot = useSavePulseSnapshot();
+  // Série hebdo de suivi (la même que la flamme du header) — affichée en pied du Pouls hebdo.
+  const { state: gamState } = useGamification(user?.id);
+  const weekStreak = gamState?.streak ?? 0;
 
   const [view, setView] = useState<PulseView | null>(null);
   /** Aperçu (admin) : à la fermeture, rien n'est marqué vu ni archivé. */
   const [preview, setPreview] = useState(false);
+  /**
+   * Périodes consommées CETTE session, tenues en local et synchrones : le `markSeen` serveur est
+   * asynchrone — sans ce garde, l'effet d'auto-ouverture relisait l'ancien « vu » juste après une
+   * fermeture et rouvrait le hebdo dans la foulée (exactement la double sollicitation interdite).
+   */
+  const localSeen = useRef<PulseSeenState>({});
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
 
@@ -80,12 +90,20 @@ export default function PulseHost() {
   const inTabs = segments[0] === '(tabs)';
   const canShow = appReady && inTabs && !tour.active && !isImpersonating && !seenLoading && !!config?.enabled && !!pulse;
 
-  const open = useCallback((next: PulseView) => {
-    setView(next);
+  // `open` pose seulement la vue : l'animation d'entrée est pilotée par l'effet ci-dessous, qui
+  // attend que les DONNÉES soient là (un tap sur la pastille pendant le chargement ne doit pas
+  // faire surgir une feuille déjà « ouverte » sans animation quand les données arrivent).
+  const open = useCallback((next: PulseView) => { setView(next); }, []);
+
+  const animatedFor = useRef<PulseView | null>(null);
+  useEffect(() => {
+    if (!view) { animatedFor.current = null; return; }
+    if (!pulse || animatedFor.current === view) return;
+    animatedFor.current = view;
     drag.setValue(0);
     anim.setValue(0);
     Animated.timing(anim, { toValue: 1, duration: 380, useNativeDriver: true, easing: Easing.out(Easing.cubic) }).start();
-  }, [anim, drag]);
+  }, [view, pulse, anim, drag]);
 
   // Ouvertures manuelles : pastille du Pilotage (consomme la semaine) et aperçu admin (ne consomme rien).
   useEffect(() => {
@@ -97,21 +115,36 @@ export default function PulseHost() {
   // On attend d'avoir des signaux réellement JUGÉS : pas de bilan pour dire qu'on ne sait rien.
   useEffect(() => {
     if (!canShow || view || !pulse) return;
+    const monthSeen = seen.month === lastMonth || localSeen.current.month === lastMonth;
+    const weekSeen = seen.week === currentWeek || localSeen.current.week === currentWeek;
     // L'état des lieux du mois écoulé n'a de sens que si l'utilisateur l'a vécu dans l'app.
-    if (config?.monthly && pulse.hadActivityLastMonth && pulse.result.judgedCount > 0 && seen.month !== lastMonth) {
+    if (config?.monthly && pulse.hadActivityLastMonth && pulse.result.judgedCount > 0 && !monthSeen) {
       open('month');
       return;
     }
-    if (config?.weekly && pulse.weekly.judgedCount > 0 && seen.week !== currentWeek) {
+    if (config?.weekly && pulse.weekly.judgedCount > 0 && !weekSeen) {
       open('week');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canShow, view, pulse, seen.month, seen.week, config?.monthly, config?.weekly, currentWeek, lastMonth, open]);
 
-  /** Consomme la période affichée : marquée vue + bilan archivé tel qu'il a été montré. */
+  /**
+   * Consomme la période affichée : marquée vue + bilan archivé tel qu'il a été montré.
+   *  • 'week'  — consomme la semaine.
+   *  • 'month' — consomme le mois ET la semaine (le mensuel absorbe l'hebdo : après un bilan
+   *              complet, recevoir un sous-ensemble serait une sollicitation de trop). Le bilan
+   *              hebdo est archivé quand même (la série « tout au vert » a besoin d'un point/semaine).
+   *  • 'now'   — simple consultation (pastille) : RIEN n'est consommé côté serveur — les rendez-vous
+   *              hebdo/mensuel reviendront — mais plus d'auto-ouverture CETTE session (pas de dos-à-dos).
+   */
   const consume = useCallback((closing: PulseView) => {
-    if (preview || !pulse || closing === 'now') return;
+    if (preview || !pulse) return;
+    if (closing === 'now') {
+      localSeen.current = { week: currentWeek, month: lastMonth };
+      return;
+    }
     if (closing === 'week') {
+      localSeen.current.week = currentWeek;
       markSeen.mutate({ week: currentWeek });
       saveSnapshot.mutate({
         periodKind: 'week', periodKey: currentWeek,
@@ -119,8 +152,7 @@ export default function PulseHost() {
       });
       return;
     }
-    // Mensuel : il couvre aussi la semaine (jamais deux rendez-vous d'affilée) → semaine marquée vue
-    // ET archivée quand même (la série « tout au vert » a besoin d'un bilan hebdo chaque semaine).
+    localSeen.current = { week: currentWeek, month: lastMonth };
     markSeen.mutate({ month: lastMonth, week: currentWeek });
     saveSnapshot.mutate({
       periodKind: 'month', periodKey: lastMonth,
@@ -141,13 +173,6 @@ export default function PulseHost() {
         drag.setValue(0);
       });
   }, [anim, drag, view, consume]);
-
-  /** Hebdo → état des lieux complet : la semaine est consommée, la vue complète ne consomme rien. */
-  const expandToNow = useCallback(() => {
-    consume('week');
-    setPreview(true);
-    setView('now');
-  }, [consume]);
 
   const panResponder = useMemo(
     () => PanResponder.create({
@@ -177,11 +202,14 @@ export default function PulseHost() {
   return (
     <View style={styles.root} pointerEvents="box-none">
       <Pressable style={styles.backdrop} onPress={close} accessibilityRole="button" accessibilityLabel="Fermer" />
+      {/* Wrapper centré : sur web desktop, la feuille reste à largeur « mobile » au centre
+          (les hosts sont montés HORS de la colonne d'app — cf. sheetWidth dans lib/appLayout). */}
+      <View style={[styles.center, { top: insets.top + 48 }]} pointerEvents="box-none">
       <Animated.View
         {...panResponder.panHandlers}
         style={[
           styles.sheet,
-          { maxHeight: screenHeight - insets.top - 60, marginTop: insets.top + 48 },
+          { maxHeight: screenHeight - insets.top - 60 },
           {
             opacity: anim,
             transform: [
@@ -202,34 +230,151 @@ export default function PulseHost() {
           </Pressable>
         </View>
 
-        {/* Le profil + une pastille par signal jugé : l'état se lit sans lire une ligne. */}
-        <View style={styles.summary}>
-          <Text style={styles.profile} numberOfLines={1}>{info.emoji} {info.name}</Text>
-          <StatusDots result={result} COLORS={COLORS} />
-        </View>
+        {view === 'week' ? (
+          /* ── HEBDO : un POINT D'ÉTAPE visuel et compact — anneau épargné+investi, deux lignes,
+                la série. Rien d'autre : pas de synthèse, pas de bouton, pas de note. ── */
+          <>
+            <ScrollView showsVerticalScrollIndicator={false} style={[styles.list, { marginTop: 12 }]}>
+              <View style={styles.weekCard}>
+                <View style={styles.weekRow}>
+                  {pulse.weeklyStats.capacity >= 20 && (
+                    <WeeklyRing stats={pulse.weeklyStats} COLORS={COLORS} />
+                  )}
+                  <View style={styles.weekStats}>
+                    {weeklyRows(result, pulse.weeklyStats.capacity >= 20).map((signal) => {
+                      const color = pulseColor(COLORS, signal.status);
+                      return (
+                        <View key={signal.id} style={styles.weekStatRow}>
+                          <View style={styles.weekStatHead}>
+                            <Text style={styles.weekStatLabel} numberOfLines={1}>
+                              {signal.emoji} {WEEKLY_SHORT_LABELS[signal.id] ?? signal.label}
+                            </Text>
+                            <View style={[styles.weekChip, { backgroundColor: color + '1F', borderColor: color + '55' }]}>
+                              <Text style={[styles.weekChipTxt, { color }]} numberOfLines={1}>{signal.chip}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.weekStatSub} numberOfLines={2}>{signal.headline}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+                {pulse.weeklyStats.capacity >= 20 && (
+                  <View style={styles.weekLegend}>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
+                    <Text style={styles.legendTxt}>Épargné {eurFmt(pulse.weeklyStats.saved)}</Text>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.violet }]} />
+                    <Text style={styles.legendTxt}>Investi {eurFmt(pulse.weeklyStats.invested)}</Text>
+                    <Text style={[styles.legendTxt, { color: COLORS.textSecondary }]}>
+                      · capacité : {eurFmt(pulse.weeklyStats.capacity)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
 
-        <Text style={styles.headline}>{result.headline}</Text>
+            {weekStreak > 0 && (
+              <View style={styles.weekFooter}>
+                <Text style={styles.streakTxt}>
+                  🔥 <Text style={{ fontWeight: '800', color: COLORS.text }}>{weekStreak} semaine{weekStreak > 1 ? 's' : ''}</Text> de suivi d’affilée
+                </Text>
+              </View>
+            )}
+          </>
+        ) : (
+          /* ── COMPLET (mensuel / aujourd'hui) : tous les signaux du profil, en détail. ── */
+          <>
+            {/* Le profil + une pastille par signal jugé : l'état se lit sans lire une ligne. */}
+            <View style={styles.summary}>
+              <Text style={styles.profile} numberOfLines={1}>{info.emoji} {info.name}</Text>
+              <StatusDots result={result} COLORS={COLORS} />
+            </View>
 
-        <ScrollView
-          style={styles.list}
-          contentContainerStyle={{ paddingBottom: 8 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {result.signals.map((signal, index) => (
-            <PulseSignalCard key={`${view}-${signal.id}`} signal={signal} delay={120 + index * 90} />
-          ))}
-        </ScrollView>
+            <Text style={styles.headline}>{result.headline}</Text>
 
-        {/* Hebdo → accès à la vue complète, pour qui veut creuser. */}
-        {view === 'week' && (
-          <TouchableOpacity style={styles.expand} onPress={expandToNow} accessibilityRole="button">
-            <Text style={styles.expandTxt}>Mon état des lieux complet</Text>
-            <Ionicons name="arrow-forward" size={14} color={COLORS.emerald} />
-          </TouchableOpacity>
+            <ScrollView
+              style={styles.list}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {result.signals.map((signal, index) => (
+                <PulseSignalCard key={`${view}-${signal.id}`} signal={signal} delay={120 + index * 90} />
+              ))}
+            </ScrollView>
+
+            <Text style={styles.footer}>Repères liés à ton profil.</Text>
+          </>
         )}
-
-        <Text style={styles.footer}>Repères liés à ton profil, réévalués chaque mois.</Text>
       </Animated.View>
+      </View>
+    </View>
+  );
+}
+
+const eurFmt = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+
+/** Libellés courts des lignes hebdo (« Dépenses du mois » se tronquait à côté de la pastille). */
+const WEEKLY_SHORT_LABELS: Partial<Record<PulseSignalId, string>> = {
+  spending: 'Dépenses',
+  end_of_month: 'Fin de mois',
+  saving: 'Épargne',
+  investing: 'Invest',
+};
+
+/**
+ * Lignes compactes du Pouls hebdo. Quand l'anneau est affiché, il représente déjà l'épargne et
+ * l'investissement du mois → seuls « Dépenses » et « Fin de mois » passent en ligne ; sans anneau
+ * (aucune capacité ce mois-ci), tous les signaux hebdo passent en ligne.
+ */
+function weeklyRows(result: PulseResult, ringShown: boolean) {
+  if (!ringShown) return result.signals;
+  return result.signals.filter((s) => s.id === 'spending' || s.id === 'end_of_month');
+}
+
+/** L'anneau du Pouls hebdo : épargné (vert) + investi (violet) vs la capacité du mois. */
+function WeeklyRing({ stats, COLORS }: { stats: PulseData['weeklyStats']; COLORS: AppColors }) {
+  const size = 112;
+  const strokeWidth = 11;
+  const cx = size / 2;
+  const r = (size - strokeWidth) / 2;
+  const C = 2 * Math.PI * r;
+
+  const total = stats.saved + stats.invested;
+  const filled = stats.capacity > 0 ? Math.min(1, total / stats.capacity) : 0;
+  const pct = stats.capacity > 0 ? Math.round((total / stats.capacity) * 100) : 0;
+  // Petit écart entre les deux segments quand les deux existent (lisibilité).
+  const gap = stats.saved > 0 && stats.invested > 0 ? 3 : 0;
+  const savedLen = Math.max(0, C * filled * (total > 0 ? stats.saved / total : 0) - gap);
+  const investedLen = Math.max(0, C * filled * (total > 0 ? stats.invested / total : 0) - gap);
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={COLORS.cardBorder} strokeWidth={strokeWidth} />
+        {savedLen > 0 && (
+          <Circle
+            cx={cx} cy={cx} r={r} fill="none"
+            stroke={COLORS.green} strokeWidth={strokeWidth}
+            strokeDasharray={`${savedLen} ${C - savedLen}`}
+            transform={`rotate(-90 ${cx} ${cx})`}
+          />
+        )}
+        {investedLen > 0 && (
+          <Circle
+            cx={cx} cy={cx} r={r} fill="none"
+            stroke={COLORS.violet} strokeWidth={strokeWidth}
+            strokeDasharray={`${investedLen} ${C - investedLen}`}
+            strokeDashoffset={-(savedLen + gap)}
+            transform={`rotate(-90 ${cx} ${cx})`}
+          />
+        )}
+      </Svg>
+      <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
+        <Text style={{ fontSize: 21, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 }}>{pct} %</Text>
+        <Text style={{ fontSize: 9, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 12, maxWidth: 76 }}>
+          épargne + invest{'\n'}du mois
+        </Text>
+      </View>
     </View>
   );
 }
@@ -258,8 +403,9 @@ function makeStyles(c: AppColors) {
   return StyleSheet.create({
     root: { ...StyleSheet.absoluteFillObject, zIndex: 55, elevation: 55 },
     backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+    center: { position: 'absolute', left: 12, right: 12, alignItems: 'center' },
     sheet: {
-      position: 'absolute', left: 12, right: 12, top: 0,
+      width: '100%', maxWidth: 560,
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 24, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14,
       ...Platform.select({
@@ -281,11 +427,32 @@ function makeStyles(c: AppColors) {
     profile: { flex: 1, fontSize: 12.5, fontWeight: '700', color: c.text },
     headline: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19, marginTop: 10, marginBottom: 12 },
     list: { flexGrow: 0 },
-    expand: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      borderWidth: 1, borderColor: c.emerald + '66', borderRadius: 12, paddingVertical: 11, marginTop: 2,
+
+    // ── Pouls hebdo (point d'étape compact) ──
+    weekCard: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+      borderRadius: 18, padding: 14,
     },
-    expandTxt: { fontSize: 13, fontWeight: '800', color: c.emerald },
+    weekRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    weekStats: { flex: 1, gap: 10, minWidth: 0 },
+    weekStatRow: {
+      backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
+      borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11,
+    },
+    weekStatHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+    weekStatLabel: { flex: 1, fontSize: 12.5, fontWeight: '700', color: c.text },
+    weekChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, maxWidth: 120 },
+    weekChipTxt: { fontSize: 10, fontWeight: '800' },
+    weekStatSub: { fontSize: 11, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
+    weekLegend: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+    legendDot: { width: 8, height: 8, borderRadius: 999 },
+    legendTxt: { fontSize: 11, fontWeight: '600', color: c.text, marginRight: 6 },
+    weekFooter: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      marginTop: 12, paddingHorizontal: 2,
+    },
+    streakTxt: { fontSize: 12, color: c.textSecondary },
+
     footer: { fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 10 },
   });
 }

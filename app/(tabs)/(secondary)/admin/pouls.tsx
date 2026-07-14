@@ -311,7 +311,7 @@ export default function AdminPouls() {
             <View style={styles.field}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.fieldLabel}>Heure d’envoi</Text>
-                <Text style={styles.fieldHelp}>Heure locale du serveur. L’envoi automatique est assuré par la tâche planifiée (cron) ; ci-dessous, l’envoi immédiat pour tester.</Text>
+                <Text style={styles.fieldHelp}>Jour et heure prévus pour l’envoi automatique (cron serveur, à brancher — il lira cette config). En attendant : l’envoi immédiat ci-dessous.</Text>
               </View>
               <TextInput
                 style={styles.input}
