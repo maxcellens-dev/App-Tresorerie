@@ -281,8 +281,8 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
   // Une PROJECTION se dit toujours au conditionnel (« tu serais », « devrait ») : rien n'est acquis.
   const detail = margin > 0
     ? (above >= 0
-        ? `Ta marge de sécurité est de ${eur(margin)} : tu serais ${eur(above)} au-dessus.`
-        : `Ta marge de sécurité est de ${eur(margin)} : là, tu passerais en dessous.`)
+        ? `Ta marge de sécurité est de ${eur(margin)} : tu devrais être ${eur(above)} au-dessus.`
+        : `Ta marge de sécurité est de ${eur(margin)} : là, tu devrais passer en dessous.`)
     : (left >= 0 ? 'Ton compte devrait rester dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
 
   return {
@@ -429,7 +429,7 @@ function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     emoji: '🐖',
     status,
     headline: `${eur(saved)} mis de côté ce mois-ci`,
-    detail: `Soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois). Le repère de ton profil est ${eur(targetAmount)}.`,
+    detail: `Soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois).`,
     amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
     chip: status === 'good' ? 'Repère atteint' : status === 'watch' ? 'À mi-chemin' : 'Presque rien',
     progress: { value: Math.min(1, targetAmount > 0 ? saved / targetAmount : 0), target: 1 },
