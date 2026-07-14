@@ -1,25 +1,26 @@
 /**
- * POULS — les rendez-vous (hebdo & mensuel). Monté UNE fois au niveau racine.
+ * POULS — les rendez-vous. Monté UNE fois au niveau racine.
  *
- * HIÉRARCHIE STRICTE : jamais deux sollicitations le même jour.
- *   1. « État des lieux » du mois (le plus fort) — une fois par mois ;
- *   2. « Pouls de la semaine » — une fois par semaine, s'il n'y a pas d'état des lieux à montrer.
+ * TROIS VUES, pour trois moments :
+ *  • 'week'  — le Pouls de la semaine, LÉGER (3 signaux max) : s'ouvre seul à la 1ʳᵉ ouverture de
+ *              la semaine, et au tap sur la pastille 🫀 du Pilotage. Un lien en bas ouvre la vue
+ *              complète pour qui veut creuser.
+ *  • 'month' — l'État des lieux du mois écoulé, COMPLET : s'ouvre seul après la fin du mois.
+ *  • 'now'   — l'État des lieux d'aujourd'hui, COMPLET : à la demande (depuis la vue hebdo ou
+ *              l'aperçu admin). Ne consomme rien, n'archive rien.
  *
- * FERMETURE : au tap (à côté) ou en balayant vers le haut. Aucune auto-disparition — l'utilisateur
- * lit à son rythme. Une fois fermé, on marque la période comme vue (et on archive le bilan).
- *
- * GARDE-FOUS :
- *   • jamais avant que l'app soit réellement révélée (post-splash) ni pendant le guide ;
- *   • jamais en consultation admin (« connecté en tant que ») ;
- *   • jamais tant que l'utilisateur n'a pas de quoi être jugé (aucun signal).
+ * HIÉRARCHIE STRICTE : jamais deux rendez-vous le même jour (mensuel > hebdo).
+ * FERMETURE : tap à côté ou balayage vers le haut. Aucune auto-disparition.
+ * GARDE-FOUS : jamais avant la fin du splash, pendant le guide, en consultation admin,
+ * ni tant qu'aucun signal n'est réellement jugé.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Animated, Easing, Pressable, PanResponder, Platform,
-  useWindowDimensions,
+  TouchableOpacity, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useSegments } from 'expo-router';
+import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTour } from '../contexts/TourContext';
@@ -33,16 +34,15 @@ import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import { monthKey, weekKey, weekRangeLabel, type PulseResult } from '../lib/pulseEngine';
 import PulseSignalCard, { pulseColor } from './PulseSignalCard';
 
-type PulseKind = 'week' | 'month';
+type PulseView = 'week' | 'month' | 'now';
 
 /**
- * Ouverture manuelle du Pouls (pastille du Pilotage, aperçu admin).
- * `consume: false` → l'ouverture ne « brûle » pas la période (aperçu admin : le vrai rendez-vous
- * hebdo doit toujours arriver ensuite, et rien n'est archivé).
+ * Ouverture manuelle (pastille du Pilotage, aperçu admin).
+ * `consume: false` → rien n'est marqué vu ni archivé (aperçu admin).
  */
-let openManually: ((kind: PulseKind, consume: boolean) => void) | null = null;
-export function openPulse(kind: PulseKind = 'week', consume = true): void {
-  openManually?.(kind, consume);
+let openManually: ((view: PulseView, consume: boolean) => void) | null = null;
+export function openPulse(view: PulseView = 'week', consume = true): void {
+  openManually?.(view, consume);
 }
 
 export default function PulseHost() {
@@ -50,18 +50,17 @@ export default function PulseHost() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const router = useRouter();
   const segments = useSegments();
   const tour = useTour();
   const { user, isImpersonating } = useAuth();
 
   const { data: config } = usePulseConfig();
   const pulse = usePulse();
-  const { seen, markSeen } = usePulseSeen(user?.id);
+  const { seen, isLoading: seenLoading, markSeen } = usePulseSeen(user?.id);
   const saveSnapshot = useSavePulseSnapshot();
 
-  const [kind, setKind] = useState<PulseKind | null>(null);
-  /** Aperçu (admin) : à la fermeture, on ne marque rien comme vu et on n'archive pas. */
+  const [view, setView] = useState<PulseView | null>(null);
+  /** Aperçu (admin) : à la fermeture, rien n'est marqué vu ni archivé. */
   const [preview, setPreview] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
@@ -77,59 +76,78 @@ export default function PulseHost() {
 
   const today = new Date();
   const currentWeek = weekKey(today);
+  const lastMonth = monthKey(new Date(today.getFullYear(), today.getMonth() - 1, 1));
   const inTabs = segments[0] === '(tabs)';
-  // Rien à juger (utilisateur tout neuf) → on ne le sollicite pas pour lui dire qu'on ne sait rien.
-  const hasSignals = (pulse?.result.signals.length ?? 0) > 0;
-  const canShow = appReady && inTabs && !tour.active && !isImpersonating && !!config?.enabled && hasSignals;
+  const canShow = appReady && inTabs && !tour.active && !isImpersonating && !seenLoading && !!config?.enabled && !!pulse;
 
-  const open = useCallback((next: PulseKind) => {
-    setKind(next);
+  const open = useCallback((next: PulseView) => {
+    setView(next);
     drag.setValue(0);
     anim.setValue(0);
     Animated.timing(anim, { toValue: 1, duration: 380, useNativeDriver: true, easing: Easing.out(Easing.cubic) }).start();
   }, [anim, drag]);
 
-  // Ouvertures manuelles : pastille du Pilotage (consomme la période) et aperçu admin (ne consomme rien).
+  // Ouvertures manuelles : pastille du Pilotage (consomme la semaine) et aperçu admin (ne consomme rien).
   useEffect(() => {
-    openManually = (k, consume) => { setPreview(!consume); open(k); };
+    openManually = (v, consume) => { setPreview(!consume); open(v); };
     return () => { openManually = null; };
   }, [open]);
 
-  // Quel rendez-vous montrer ? Le mensuel prime toujours sur l'hebdo — jamais les deux le même jour.
+  // Quel rendez-vous ouvrir tout seul ? Le mensuel prime — jamais les deux le même jour.
+  // On attend d'avoir des signaux réellement JUGÉS : pas de bilan pour dire qu'on ne sait rien.
   useEffect(() => {
-    if (!canShow || kind) return;
-    // L'état des lieux du mois écoulé n'a de sens que si l'utilisateur l'a VÉCU dans l'app : sinon on
-    // lui servirait le bilan d'un mois où il n'existait pas.
-    const lastMonth = monthKey(new Date(today.getFullYear(), today.getMonth() - 1, 1));
-    if (config?.monthly && pulse?.hadActivityLastMonth && seen.month !== lastMonth) { open('month'); return; }
-    if (config?.weekly && seen.week !== currentWeek) { open('week'); return; }
+    if (!canShow || view || !pulse) return;
+    // L'état des lieux du mois écoulé n'a de sens que si l'utilisateur l'a vécu dans l'app.
+    if (config?.monthly && pulse.hadActivityLastMonth && pulse.result.judgedCount > 0 && seen.month !== lastMonth) {
+      open('month');
+      return;
+    }
+    if (config?.weekly && pulse.weekly.judgedCount > 0 && seen.week !== currentWeek) {
+      open('week');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canShow, kind, seen.month, seen.week, config?.monthly, config?.weekly, currentWeek, pulse?.hadActivityLastMonth, open]);
+  }, [canShow, view, pulse, seen.month, seen.week, config?.monthly, config?.weekly, currentWeek, lastMonth, open]);
+
+  /** Consomme la période affichée : marquée vue + bilan archivé tel qu'il a été montré. */
+  const consume = useCallback((closing: PulseView) => {
+    if (preview || !pulse || closing === 'now') return;
+    if (closing === 'week') {
+      markSeen.mutate({ week: currentWeek });
+      saveSnapshot.mutate({
+        periodKind: 'week', periodKey: currentWeek,
+        profileTier: pulse.profileId, result: pulse.weekly, wealth: pulse.wealth,
+      });
+      return;
+    }
+    // Mensuel : il couvre aussi la semaine (jamais deux rendez-vous d'affilée) → semaine marquée vue
+    // ET archivée quand même (la série « tout au vert » a besoin d'un bilan hebdo chaque semaine).
+    markSeen.mutate({ month: lastMonth, week: currentWeek });
+    saveSnapshot.mutate({
+      periodKind: 'month', periodKey: lastMonth,
+      profileTier: pulse.profileId, result: pulse.result, wealth: pulse.wealth,
+    });
+    saveSnapshot.mutate({
+      periodKind: 'week', periodKey: currentWeek,
+      profileTier: pulse.profileId, result: pulse.weekly, wealth: pulse.wealth,
+    });
+  }, [preview, pulse, currentWeek, lastMonth, markSeen, saveSnapshot]);
 
   const close = useCallback(() => {
     Animated.timing(anim, { toValue: 0, duration: 200, useNativeDriver: true, easing: Easing.in(Easing.cubic) })
       .start(() => {
-        const closing = kind;
-        setKind(null);
+        if (view) consume(view);
+        setView(null);
+        setPreview(false);
         drag.setValue(0);
-        if (preview) { setPreview(false); return; } // aperçu admin : rien n'est consommé ni archivé
-        if (!closing || !pulse) return;
-        // Vu → ne revient plus cette période. Et on ARCHIVE le constat tel qu'il a été montré
-        // (évolution du patrimoine, série « tout au vert », statistiques admin).
-        const periodKey = closing === 'week'
-          ? currentWeek
-          : monthKey(new Date(today.getFullYear(), today.getMonth() - 1, 1));
-        markSeen.mutate(closing === 'week' ? { week: currentWeek } : { month: periodKey });
-        saveSnapshot.mutate({
-          periodKind: closing,
-          periodKey,
-          profileTier: pulse.profileId,
-          result: pulse.result,
-          wealth: pulse.wealth,
-        });
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anim, drag, kind, preview, pulse, currentWeek, markSeen, saveSnapshot]);
+  }, [anim, drag, view, consume]);
+
+  /** Hebdo → état des lieux complet : la semaine est consommée, la vue complète ne consomme rien. */
+  const expandToNow = useCallback(() => {
+    consume('week');
+    setPreview(true);
+    setView('now');
+  }, [consume]);
 
   const panResponder = useMemo(
     () => PanResponder.create({
@@ -143,11 +161,18 @@ export default function PulseHost() {
     [drag, close],
   );
 
-  if (!kind || !pulse) return null;
-  const { result } = pulse;
-  const isMonth = kind === 'month';
-  const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  if (!view || !pulse) return null;
+
+  const result: PulseResult = view === 'week' ? pulse.weekly : pulse.result;
   const info = PROFILE_INFO[pulse.profileId];
+  const title = view === 'week' ? '🫀 Pouls de la semaine' : '📍 État des lieux';
+  // Les signaux décrivent TOUJOURS la situation d'aujourd'hui : le rendez-vous mensuel est un
+  // point d'étape « au sortir du mois écoulé », pas une photo du mois passé — le libellé le dit.
+  const period = view === 'week'
+    ? weekRangeLabel(today)
+    : view === 'month'
+      ? `après ton mois de ${new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`
+      : today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -167,58 +192,49 @@ export default function PulseHost() {
       >
         <View style={styles.grabber} />
 
-        {/* En-tête : le titre, la période, et le profil qui donne les repères. */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>
-              {isMonth ? '📍 État des lieux' : '🫀 Pouls de la semaine'}
-            </Text>
-            <Text style={styles.period}>
-              {isMonth
-                ? previousMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-                : weekRangeLabel(today)}
-            </Text>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.period}>{period}</Text>
           </View>
           <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
             <Ionicons name="close" size={20} color={COLORS.textSecondary} />
           </Pressable>
         </View>
 
-        {/* Le profil + les pastilles d'état : lisible sans lire une ligne de texte. */}
+        {/* Le profil + une pastille par signal jugé : l'état se lit sans lire une ligne. */}
         <View style={styles.summary}>
-          <Text style={styles.profile} numberOfLines={1}>
-            {info.emoji} {info.name}
-          </Text>
+          <Text style={styles.profile} numberOfLines={1}>{info.emoji} {info.name}</Text>
           <StatusDots result={result} COLORS={COLORS} />
         </View>
 
         <Text style={styles.headline}>{result.headline}</Text>
 
-        {/* Les signaux — scrollables : il peut y en avoir plus que la hauteur d'écran. */}
         <ScrollView
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 8 }}
           showsVerticalScrollIndicator={false}
         >
           {result.signals.map((signal, index) => (
-            <PulseSignalCard
-              key={signal.id}
-              signal={signal}
-              delay={120 + index * 90}
-              onAction={(route) => { close(); router.push(route as any); }}
-            />
+            <PulseSignalCard key={`${view}-${signal.id}`} signal={signal} delay={120 + index * 90} />
           ))}
         </ScrollView>
 
-        <Text style={styles.footer}>
-          Repères liés à ton profil, réévalués chaque mois. Balaie vers le haut pour fermer.
-        </Text>
+        {/* Hebdo → accès à la vue complète, pour qui veut creuser. */}
+        {view === 'week' && (
+          <TouchableOpacity style={styles.expand} onPress={expandToNow} accessibilityRole="button">
+            <Text style={styles.expandTxt}>Mon état des lieux complet</Text>
+            <Ionicons name="arrow-forward" size={14} color={COLORS.emerald} />
+          </TouchableOpacity>
+        )}
+
+        <Text style={styles.footer}>Repères liés à ton profil, réévalués chaque mois.</Text>
       </Animated.View>
     </View>
   );
 }
 
-/** Les pastilles de résumé : une par signal jugé, dans l'ordre. */
+/** Une pastille par signal jugé, dans l'ordre d'affichage. */
 function StatusDots({ result, COLORS }: { result: PulseResult; COLORS: AppColors }) {
   const judged = result.signals.filter((s) => s.status !== 'neutral');
   return (
@@ -255,7 +271,7 @@ function makeStyles(c: AppColors) {
     grabber: { alignSelf: 'center', width: 38, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginBottom: 12 },
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
     title: { fontSize: 19, fontWeight: '800', color: c.text, letterSpacing: -0.3 },
-    period: { fontSize: 12, color: c.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+    period: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
     closeBtn: { padding: 4 },
     summary: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -265,6 +281,11 @@ function makeStyles(c: AppColors) {
     profile: { flex: 1, fontSize: 12.5, fontWeight: '700', color: c.text },
     headline: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19, marginTop: 10, marginBottom: 12 },
     list: { flexGrow: 0 },
-    footer: { fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 15 },
+    expand: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      borderWidth: 1, borderColor: c.emerald + '66', borderRadius: 12, paddingVertical: 11, marginTop: 2,
+    },
+    expandTxt: { fontSize: 13, fontWeight: '800', color: c.emerald },
+    footer: { fontSize: 10.5, color: c.textSecondary, textAlign: 'center', marginTop: 10 },
   });
 }

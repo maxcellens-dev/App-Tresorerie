@@ -19,7 +19,6 @@ function inputs(over: Partial<PulseInputs> = {}): PulseInputs {
     savedThisMonth: 300,
     avgMonthlyIncome: 2000,
     questionnaireQ3: null,
-    avgMonthlyExpenses: 1500,
     investedBalance: 4000,
     investedThisMonth: 200,
     investmentGains: 180,
@@ -33,11 +32,11 @@ function inputs(over: Partial<PulseInputs> = {}): PulseInputs {
   };
 }
 
-describe('securityCushion — base REVENUS, uniforme dans toute l’app', () => {
-  it('compte des mois de REVENUS (pas de dépenses)', () => {
-    const c = computeSecurityCushion({ availableSavings: 6000, avgMonthlyIncome: 2000, avgMonthlyExpenses: 1000 });
+describe('securityCushion — base RECETTES, uniforme dans toute l’app', () => {
+  it('compte des mois de REVENUS, jamais de dépenses', () => {
+    const c = computeSecurityCushion({ availableSavings: 6000, avgMonthlyIncome: 2000 });
     expect(c.base).toBe('income');
-    expect(c.months).toBe(3); // 6000 / 2000 — et non 6000 / 1000
+    expect(c.months).toBe(3);
   });
 
   it('sans revenu constaté, se replie sur la tranche du questionnaire', () => {
@@ -48,15 +47,10 @@ describe('securityCushion — base REVENUS, uniforme dans toute l’app', () => 
     expect(c.months).toBe(2); // 3600 / 1800 (borne basse prudente)
   });
 
-  it('sans revenu ni questionnaire, se replie sur les dépenses (dernier recours)', () => {
-    const c = computeSecurityCushion({ availableSavings: 3000, avgMonthlyIncome: 0, avgMonthlyExpenses: 1500 });
-    expect(c.base).toBe('expenses');
-    expect(c.months).toBe(2);
-  });
-
-  it('sans aucune base, ne renvoie PAS 0 mois mais « inconnu »', () => {
+  it('sans revenu ni questionnaire, ne renvoie PAS 0 mois mais « inconnu » (rien d’affiché)', () => {
     const c = computeSecurityCushion({ availableSavings: 3000, avgMonthlyIncome: 0 });
     expect(c.months).toBeNull();
+    expect(c.base).toBeNull();
   });
 });
 
@@ -89,9 +83,7 @@ describe('computePulse — les signaux dépendent du profil', () => {
 describe('computePulse — les jugements', () => {
   it('une fin de mois sous la marge passe en « à surveiller »', () => {
     const r = computePulse(inputs({ profileId: 'P1', endOfMonthBalance: 100, safetyMargin: 300 }));
-    const s = r.signals.find((x) => x.id === 'end_of_month')!;
-    expect(s.status).toBe('watch');
-    expect(s.actionRoute).toBeTruthy(); // un signal qui alerte propose TOUJOURS un geste
+    expect(r.signals.find((x) => x.id === 'end_of_month')!.status).toBe('watch');
   });
 
   it('un découvert prévu passe en alerte', () => {
@@ -111,6 +103,44 @@ describe('computePulse — les jugements', () => {
   it('sans enveloppe estimable, les dépenses sont montrées mais PAS jugées', () => {
     const r = computePulse(inputs({ profileId: 'P1', spendingBudget: 0, spendingSoFar: 120 }));
     expect(r.signals.find((x) => x.id === 'spending')!.status).toBe('neutral');
+  });
+
+  it('en tout début de mois, un resto ne fait pas « exploser » le jugement', () => {
+    // 2 juillet : 45 € dépensés → projection naïve ≈ 700 € > 600 €, mais on ne juge pas encore.
+    const r = computePulse(inputs({ profileId: 'P1', today: new Date(2026, 6, 2), spendingSoFar: 45 }));
+    const s = r.signals.find((x) => x.id === 'spending')!;
+    expect(s.status).toBe('neutral');
+    expect(s.chip).toBe('Début de mois');
+  });
+});
+
+describe('computePulse — hebdo léger vs état des lieux complet', () => {
+  it('l’hebdo est limité à 3 signaux : dépenses, fin de mois + le signal « du mois » du profil', () => {
+    const week = computePulse(inputs({ profileId: 'P3' }), DEFAULT_PULSE_CONFIG, 'week');
+    expect(week.signals.length).toBeLessThanOrEqual(3);
+    expect(week.signals.map((s) => s.id)).toEqual(expect.arrayContaining(['spending', 'end_of_month']));
+  });
+
+  it('l’hebdo d’un P5 parle d’investissement, jamais de matelas ni de patrimoine', () => {
+    const week = computePulse(inputs({ profileId: 'P5' }), DEFAULT_PULSE_CONFIG, 'week');
+    const ids = week.signals.map((s) => s.id);
+    expect(ids).toContain('investing');
+    expect(ids).not.toContain('wealth');
+    expect(ids).not.toContain('cushion');
+  });
+
+  it('la vue complète garde tous les signaux du profil', () => {
+    const full = computePulse(inputs({ profileId: 'P5' }), DEFAULT_PULSE_CONFIG, 'full');
+    expect(full.signals.map((s) => s.id)).toEqual(expect.arrayContaining(['investing', 'wealth', 'cushion']));
+  });
+});
+
+describe('computePulse — orthographe de la synthèse', () => {
+  it('accorde « signal / signaux » correctement (jamais « signalaux »)', () => {
+    // P2 : matelas orange (1 mois), le reste au vert → 3 signaux sur 4.
+    const r = computePulse(inputs({ profileId: 'P2', savingsBalance: 2000, savedThisMonth: 300, monthsWithoutOverdraft: 2 }));
+    expect(r.headline).not.toMatch(/signalaux/);
+    if (r.greenCount > 1) expect(r.headline).toContain(`${r.greenCount} signaux`);
   });
 });
 

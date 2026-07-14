@@ -804,11 +804,12 @@ export default function PilotageScreen() {
                 <Ionicons name="wallet" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Suivi du mois</Text>
               </View>
-              {/* Pilule du mois + LE POULS : « Juillet 2026 🫀 ●●●● ». Tap → l'état des lieux.
-                  Pas de bouton de plus dans un écran déjà dense : l'indicateur vit dans le libellé. */}
+              {/* Pilule du mois + LE POULS : « Juillet 2026 🫀 ●●●● ». Les pastilles reflètent l'état
+                  COMPLET → le tap ouvre l'état des lieux complet du jour (le Pouls hebdo léger, lui,
+                  s'ouvre tout seul une fois par semaine). */}
               <TouchableOpacity
                 style={styles.monthPill}
-                onPress={() => openPulse('week')}
+                onPress={() => openPulse('now')}
                 activeOpacity={0.8}
                 accessibilityRole="button"
               >

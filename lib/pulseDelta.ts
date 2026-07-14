@@ -55,10 +55,12 @@ function directChip(op: PulseOp): PulseDeltaChip {
   }
 
   if (op.kind === 'expense') {
+    // Constat, pas jugement : une dépense normale n'a pas à s'afficher en orange.
+    // C'est le signal « Dépenses du mois » en dessous qui dit si ça dérape.
     return {
       key: 'direct',
       text: op.isFuture ? `Dépense prévue : −${eur(amount)}` : `Dépense : −${eur(amount)}`,
-      tone: 'watch',
+      tone: 'neutral',
     };
   }
 
@@ -93,6 +95,11 @@ function relykaChip(before: number | null, after: number | null): PulseDeltaChip
  * le profil de l'utilisateur affiche réellement : inutile de parler d'investissement à un débutant).
  */
 function impactedSignalIds(op: PulseOp): PulseSignalId[] {
+  // Opération DATÉE PLUS TARD : rien n'a encore bougé aujourd'hui (montrer « Investissement du
+  // mois : rien de placé » juste après avoir planifié un virement serait contradictoire).
+  // Seule la projection de fin de mois est déjà impactée.
+  if (op.isFuture) return ['end_of_month'];
+
   if (op.kind === 'income') return ['end_of_month', 'spending'];
   if (op.kind === 'expense') return ['spending', 'end_of_month'];
 

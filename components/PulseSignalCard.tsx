@@ -1,13 +1,13 @@
 /**
- * POULS — une carte de signal (l'unité de base du Pouls hebdo ET de l'état des lieux mensuel).
- * Présentation PURE : elle ne sait rien du contexte, elle affiche ce que le moteur a jugé.
+ * POULS — une carte de signal (l'unité de base du Pouls hebdo ET de l'état des lieux).
+ * Présentation PURE : elle affiche ce que le moteur a jugé, rien d'autre.
+ * Le Pouls est un ÉTAT — aucune action, aucun bouton : le reste de l'app sert à agir.
  *
  * Couleurs : uniquement des clés SÉMANTIQUES du thème (green / orange / danger / blue / grey) —
  * elles suivent donc le Style Editor, comme le reste de l'app.
  */
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
 import { PULSE_STATUS_COLOR_KEY, type PulseSignal } from '../lib/pulseEngine';
@@ -20,10 +20,9 @@ interface Props {
   signal: PulseSignal;
   /** Animation d'entrée décalée (le bilan se « remplit » sous les yeux). */
   delay?: number;
-  onAction?: (route: string) => void;
 }
 
-export default function PulseSignalCard({ signal, delay = 0, onAction }: Props) {
+export default function PulseSignalCard({ signal, delay = 0 }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const color = pulseColor(COLORS, signal.status);
@@ -84,17 +83,6 @@ export default function PulseSignalCard({ signal, delay = 0, onAction }: Props) 
       )}
 
       {!!signal.amountLine && <Text style={styles.amount}>{signal.amountLine}</Text>}
-
-      {!!signal.actionLabel && !!signal.actionRoute && onAction && (
-        <TouchableOpacity
-          style={styles.action}
-          onPress={() => onAction(signal.actionRoute!)}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.actionText, { color: COLORS.emerald }]}>{signal.actionLabel}</Text>
-          <Ionicons name="arrow-forward" size={13} color={COLORS.emerald} />
-        </TouchableOpacity>
-      )}
     </Animated.View>
   );
 }
@@ -106,23 +94,21 @@ function makeStyles(c: AppColors) {
       borderWidth: 1,
       borderColor: c.cardBorder,
       borderRadius: 18,
-      padding: 14,
+      padding: 16,
       marginBottom: 10,
     },
-    head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
+    head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
     label: { flex: 1, fontSize: 13, fontWeight: '700', color: c.text },
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, maxWidth: 150 },
     chipText: { fontSize: 10.5, fontWeight: '800' },
-    headline: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2, marginTop: 2 },
-    detail: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 4 },
+    headline: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2, lineHeight: 22 },
+    detail: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 6 },
     track: {
       height: 6, borderRadius: 999, backgroundColor: c.cardBorder,
-      marginTop: 10, overflow: 'visible', position: 'relative',
+      marginTop: 12, overflow: 'visible', position: 'relative',
     },
     fill: { height: 6, borderRadius: 999 },
     tick: { position: 'absolute', top: -3, width: 2, height: 12, borderRadius: 2, backgroundColor: c.textSecondary },
-    amount: { fontSize: 11.5, color: c.textSecondary, marginTop: 8, fontWeight: '600' },
-    action: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
-    actionText: { fontSize: 12.5, fontWeight: '800' },
+    amount: { fontSize: 11.5, color: c.textSecondary, marginTop: 10, fontWeight: '600' },
   });
 }

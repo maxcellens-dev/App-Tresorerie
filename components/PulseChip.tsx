@@ -68,7 +68,7 @@ export default function PulseChip() {
   return (
     <TouchableOpacity
       style={styles.chip}
-      onPress={() => openPulse('week')}
+      onPress={() => openPulse('now')}
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={`Mon pouls : ${pulse.result.greenCount} signaux au vert sur ${pulse.result.judgedCount}`}

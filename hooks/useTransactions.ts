@@ -191,11 +191,21 @@ export function useAllTransactions(profileId: string | undefined) {
     enabled: !!profileId,
     queryFn: async (): Promise<TransactionWithDetails[]> => {
       if (!supabase || !profileId) return [];
-      // La RLS de `accounts` renvoie mes comptes accessibles → on charge les transactions de ces comptes
-      // (donc aussi celles des autres membres sur un compte joint).
-      const { data: accs, error: accErr } = await supabase.from('accounts').select('id');
-      if (accErr) throw accErr;
-      const accountIds = (accs ?? []).map((a: any) => a.id);
+      // ⚠️ RLS ≠ filtre de liste : un `select` NU sur accounts renvoyait « mes comptes » pour un
+      // utilisateur normal… mais TOUS les comptes de TOUT LE MONDE pour un admin (branche
+      // is_app_admin en OR dans la policy) → en « connecté en tant que », la page Transactions
+      // affichait les opérations de tous les utilisateurs. On résout donc EXPLICITEMENT les comptes
+      // accessibles au profil visité : ses comptes + ceux où il est membre (joints / partagés reçus),
+      // même logique que useAllAccounts.
+      const [ownRes, memRes] = await Promise.all([
+        supabase.from('accounts').select('id').eq('profile_id', profileId),
+        supabase.from('account_members').select('account_id').eq('user_id', profileId),
+      ]);
+      if (ownRes.error) throw ownRes.error;
+      const accountIds = [...new Set([
+        ...(ownRes.data ?? []).map((a: any) => a.id),
+        ...((memRes.data ?? []) as any[]).map((m: any) => m.account_id),
+      ])];
       if (accountIds.length === 0) return [];
       const { data, error } = await supabase
         .from('transactions')

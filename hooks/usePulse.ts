@@ -68,7 +68,10 @@ function computeMonthsWithoutOverdraft(
 }
 
 export interface PulseData {
+  /** L'état des lieux COMPLET (tous les signaux du profil) — mensuel + consultation à la demande. */
   result: PulseResult;
+  /** Le pouls HEBDO, léger (3 signaux max) — la carte de la semaine. */
+  weekly: PulseResult;
   profileId: FinancialProfileId;
   /** Relyka du jour — sert aux delta chips (avant / après une saisie). */
   relyka: number;
@@ -178,7 +181,6 @@ export function usePulse(): PulseData | null {
       savedThisMonth: Math.max(0, pilotage.real_savings_excl_projects ?? 0),
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
       questionnaireQ3: (answers as any)?.q3 ?? null,
-      avgMonthlyExpenses: pilotage.avg_variable_expenses_3m ?? 0,
       investedBalance: pilotage.total_invested,
       investedThisMonth,
       investmentGains: gains,
@@ -195,7 +197,14 @@ export function usePulse(): PulseData | null {
       (t) => !t.is_draft && String(t.date ?? '').slice(0, 7) === lastMonth,
     );
 
-    return { result: computePulse(inputs, config), profileId, relyka, wealth, hadActivityLastMonth };
+    return {
+      result: computePulse(inputs, config, 'full'),
+      weekly: computePulse(inputs, config, 'week'),
+      profileId,
+      relyka,
+      wealth,
+      hadActivityLastMonth,
+    };
   }, [
     pilotage, profile, transactions, accounts, projects, preSavings, reservations,
     financialProfile, answers, config, relCfg, snapshots, user?.id,

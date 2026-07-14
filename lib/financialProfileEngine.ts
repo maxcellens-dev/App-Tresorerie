@@ -22,21 +22,21 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
     name: 'Premiers repères',
     emoji: '🌱',
     tier: 'Épargne critique',
-    description: 'Structures tes finances. L\'objectif prioritaire est de constituer un premier matelas de sécurité.',
+    description: 'Structure tes finances. L\'objectif prioritaire est de constituer un premier matelas de sécurité.',
     color: '#ef4444',
   },
   P2: {
     name: 'Réserve à construire',
     emoji: '🌿',
     tier: 'Épargne à renforcer',
-    description: 'Les bases sont posées. Renforces ta réserve de sécurité pour atteindre 3 mois de dépenses.',
+    description: 'Les bases sont posées. Renforce ta réserve de sécurité pour couvrir 3 mois de revenus.',
     color: '#f59e0b',
   },
   P3: {
     name: 'Stabilité à améliorer',
     emoji: '⚖️',
     tier: 'Stabilité à améliorer',
-    description: 'Ta situation est stable. Commences à faire travailler ton argent au-delà de l\'épargne pure.',
+    description: 'Ta situation est stable. Commence à faire travailler ton argent au-delà de l\'épargne pure.',
     color: '#3b82f6',
   },
   P4: {
@@ -437,15 +437,6 @@ export function computeMonthlyMetrics(
     return false;
   }
 
-  // Dépenses mensuelles moyennes (exclure virements vers épargne)
-  const expTxs = transactions.filter(t =>
-    inWindow(t, windowExpenses) &&
-    t.amount < 0 &&
-    !t.linked_account_type // exclure virements inter-comptes
-  );
-  const totalExpenses = expTxs.reduce((s, t) => s + Math.abs(t.amount), 0);
-  const avgExpenses = windowExpenses > 0 ? totalExpenses / windowExpenses : 0;
-
   // Épargne disponible (comptes courants + épargne liquidable)
   const epargne_dispo = Math.max(0, savingsBalance) + Math.max(0, checkingBalance);
 
@@ -464,12 +455,12 @@ export function computeMonthlyMetrics(
 
   const avg_income_6m = rev6 / 6;
 
-  // Mois de sécurité — MÊME définition que partout dans l'app (base = REVENUS, cf. lib/securityCushion).
+  // Mois de sécurité — MÊME définition que partout : base = RECETTES (jamais les dépenses),
+  // repli sur la tranche du questionnaire tant qu'aucun revenu n'est constaté (lib/securityCushion).
   const mois_securite = computeSecurityCushion({
     availableSavings: epargne_dispo,
     avgMonthlyIncome: avg_income_6m,
     questionnaireQ3,
-    avgMonthlyExpenses: avgExpenses,
   }).months ?? 0;
 
   // Flux épargne & investissement sur 3 mois

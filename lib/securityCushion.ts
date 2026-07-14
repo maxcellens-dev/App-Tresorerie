@@ -3,18 +3,17 @@
  * ──────────────────────────────────────────────
  * Combien de temps l'utilisateur peut-il tenir SANS RENTRÉE D'ARGENT, avec son épargne disponible ?
  *
- * BASE = LE REVENU MENSUEL MOYEN (pas les dépenses). C'est la question du questionnaire (Q5 :
- * « si tes revenus s'arrêtaient demain… ») et la définition utilisée par le Reporting, les
- * recommandations, le Pouls et le moteur de profils P1–P5. Une seule formule partout :
+ * BASE = LES RECETTES (revenu mensuel moyen), JAMAIS les dépenses. C'est la question du
+ * questionnaire (Q5 : « si tes revenus s'arrêtaient demain… ») et la définition partagée par le
+ * Reporting, les recommandations, les conseils, le snapshot IA, le Pouls et le moteur de profils :
  *
  *     mois_de_sécurité = épargne_disponible ÷ revenu_mensuel_de_référence
  *
- * Ordre de repli du revenu de référence (le premier disponible gagne) :
- *   1. revenu mensuel moyen constaté (6 mois d'historique, hors virements/régul) ;
- *   2. estimation du questionnaire (tranche de revenu Q3) tant qu'il n'y a pas d'historique ;
- *   3. dépenses mensuelles moyennes — dernier recours seulement (un utilisateur sans revenu détecté
- *      ni questionnaire : mieux vaut une base imparfaite que pas de matelas du tout).
- * Aucune base exploitable → `null` : les écrans MASQUENT alors la mention (jamais « 0 mois »).
+ * Revenu de référence (le premier disponible gagne) :
+ *   1. revenu mensuel moyen constaté (recettes réelles, hors virements/régul) ;
+ *   2. estimation du questionnaire (tranche de revenu Q3), tant qu'il n'y a pas d'historique.
+ * Aucune base exploitable → `null` : les écrans MASQUENT la mention (jamais « 0 mois », et
+ * surtout jamais un calcul sur les dépenses — base subjective et incohérente avec le reste).
  */
 
 /** Bornes basses (prudentes) des tranches de revenu du questionnaire (Q3). */
@@ -38,34 +37,30 @@ export interface SecurityCushionInputs {
   avgMonthlyIncome: number;
   /** Tranche de revenu du questionnaire (repli quand l'historique est vide). */
   questionnaireQ3?: string | null;
-  /** Dépenses mensuelles moyennes (dernier repli seulement). */
-  avgMonthlyExpenses?: number;
 }
 
-export type SecurityCushionBase = 'income' | 'questionnaire' | 'expenses';
+export type SecurityCushionBase = 'income' | 'questionnaire';
 
 export interface SecurityCushion {
   /** Nombre de mois couverts, ou null si aucune base exploitable (→ ne rien afficher). */
   months: number | null;
   /** Montant mensuel utilisé comme diviseur. */
   reference: number;
-  /** D'où vient la référence (pour l'affichage : « estimé » tant qu'on est sur le questionnaire). */
+  /** D'où vient la référence (« estimé » tant qu'on est sur le questionnaire). */
   base: SecurityCushionBase | null;
 }
 
 export function computeSecurityCushion(i: SecurityCushionInputs): SecurityCushion {
   const savings = Math.max(0, i.availableSavings);
 
-  const income = i.avgMonthlyIncome > 0 ? i.avgMonthlyIncome : 0;
-  if (income > 0) return { months: savings / income, reference: income, base: 'income' };
+  if (i.avgMonthlyIncome > 0) {
+    return { months: savings / i.avgMonthlyIncome, reference: i.avgMonthlyIncome, base: 'income' };
+  }
 
   const fromQuestionnaire = incomeFromQ3(i.questionnaireQ3);
   if (fromQuestionnaire > 0) {
     return { months: savings / fromQuestionnaire, reference: fromQuestionnaire, base: 'questionnaire' };
   }
-
-  const expenses = i.avgMonthlyExpenses ?? 0;
-  if (expenses > 0) return { months: savings / expenses, reference: expenses, base: 'expenses' };
 
   return { months: null, reference: 0, base: null };
 }

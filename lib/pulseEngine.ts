@@ -16,7 +16,8 @@
  *   2. Tout pourcentage est accompagné de sa base en euros (« 14 % de tes revenus (1 500 €) »).
  *   3. Le signal montre AUSSI où on en est en valeur absolue (total épargné, total investi + ce que
  *      ça a rapporté, solde…), pas seulement une progression.
- *   4. Un signal orange/rouge n'est jamais un reproche : il porte une action faisable tout de suite.
+ *   4. Le Pouls est un ÉTAT, pas un menu : aucun bouton d'action dans les signaux — le reste de
+ *      l'app (Pilotage, recommandations, virements) sert à agir.
  *
  * FIABILITÉ : quand la confiance est basse (confidenceEngine), tous les signaux passent en
  * `estimated` — pas de rouge, pas de jugement sur des chiffres douteux (cf. `estimated` ci-dessous).
@@ -91,9 +92,6 @@ export interface PulseSignal {
   /** Pastille de droite (état lisible sans lire le texte). */
   chip: string;
   progress?: PulseProgress;
-  /** Action concrète quand ça dérape (deeplink expo-router). */
-  actionLabel?: string;
-  actionRoute?: string;
 }
 
 /* ── Repères par profil (éditables en admin) ─────────────────── */
@@ -211,10 +209,8 @@ export interface PulseInputs {
   savedThisMonth: number;
   /** Revenu mensuel moyen constaté (0 = non détecté). */
   avgMonthlyIncome: number;
-  /** Tranche de revenu du questionnaire (repli du matelas). */
+  /** Tranche de revenu du questionnaire (repli du matelas tant qu'aucune recette n'est constatée). */
   questionnaireQ3?: string | null;
-  /** Dépenses mensuelles moyennes (dernier repli du matelas). */
-  avgMonthlyExpenses?: number;
 
   // Investissement
   investedBalance: number;
@@ -283,8 +279,8 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
 
   const detail = margin > 0
     ? (above >= 0
-        ? `C’est ${eur(above)} de plus que les ${eur(margin)} que tu gardes toujours sur ton compte.`
-        : `C’est moins que les ${eur(margin)} que tu gardes toujours sur ton compte.`)
+        ? `Ta marge de sécurité est de ${eur(margin)} : tu es ${eur(above)} au-dessus.`
+        : `Ta marge de sécurité est de ${eur(margin)} : là, tu passerais en dessous.`)
     : (left >= 0 ? 'Ton compte reste dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
 
   return {
@@ -297,10 +293,6 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
       : `Tu serais à ${eur(left)} ${firstOfNextMonthLabel(i.today)}`,
     detail,
     chip: status === 'good' ? 'Tu passes le mois' : status === 'watch' ? 'Ça va être juste' : 'Découvert prévu',
-    ...(status !== 'good' ? {
-      actionLabel: 'Voir ce qui est prévu d’ici la fin du mois',
-      actionRoute: '/(tabs)/tresorerie',
-    } : {}),
   };
 }
 
@@ -313,13 +305,26 @@ function buildSpending(i: PulseInputs): PulseSignal {
     return {
       id: 'spending', label: 'Dépenses du mois', emoji: '🛒', status: 'neutral',
       headline: `${eur(spent)} dépensés ce mois-ci`,
-      detail: 'Encore un peu de suivi et Relyka saura te dire si c’est beaucoup ou non pour toi.',
+      detail: 'Encore un peu de suivi et Relyka saura te dire si c’est beaucoup pour toi.',
       chip: 'À suivre',
     };
   }
 
   const elapsed = monthElapsedRatio(i.today);
-  // Fin de mois estimée SI l'utilisateur continue au même rythme qu'aujourd'hui.
+
+  // Tout début de mois : un resto le 2 ferait « exploser » la projection. Tant que le mois vient de
+  // commencer et que l'enveloppe n'est pas sérieusement entamée, on constate sans juger.
+  if (elapsed < 0.15 && spent < budget * 0.5) {
+    return {
+      id: 'spending', label: 'Dépenses du mois', emoji: '🛒', status: 'neutral',
+      headline: `${eur(spent)} dépensés sur les ${eur(budget)} prévus`,
+      detail: 'Le mois vient de commencer : trop tôt pour juger ton rythme.',
+      chip: 'Début de mois',
+      progress: { value: spent / budget, target: 1 },
+    };
+  }
+
+  // Fin de mois estimée SI l'utilisateur continue au même rythme.
   const projected = spent / elapsed;
   const overshoot = projected - budget;
   const status: PulseStatus = overshoot > budget * 0.1 ? 'alert' : overshoot > 0 ? 'watch' : 'good';
@@ -331,14 +336,10 @@ function buildSpending(i: PulseInputs): PulseSignal {
     status,
     headline: `${eur(spent)} dépensés sur les ${eur(budget)} prévus`,
     detail: status === 'good'
-      ? `Si tu continues comme ça, tu finiras le mois vers ${eur(projected)} : c’est dans ton budget.`
-      : `Si tu continues comme ça, tu finiras le mois vers ${eur(projected)} — soit ${eur(overshoot)} de trop.`,
+      ? `À ce rythme, tu finiras le mois vers ${eur(projected)} : dans ton budget.`
+      : `À ce rythme, tu finiras le mois vers ${eur(projected)}, soit ${eur(overshoot)} de trop.`,
     chip: status === 'good' ? 'Dans ton budget' : status === 'watch' ? 'Ça monte vite' : 'Tu vas dépasser',
-    progress: { value: budget > 0 ? spent / budget : 0, target: 1 },
-    ...(status !== 'good' ? {
-      actionLabel: 'Voir où part l’argent ce mois-ci',
-      actionRoute: '/(tabs)/reporting',
-    } : {}),
+    progress: { value: spent / budget, target: 1 },
   };
 }
 
@@ -359,7 +360,6 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     availableSavings: i.savingsBalance,
     avgMonthlyIncome: i.avgMonthlyIncome,
     questionnaireQ3: i.questionnaireQ3,
-    avgMonthlyExpenses: i.avgMonthlyExpenses,
   });
 
   // Aucune base de revenu : on montre le montant épargné, sans le convertir en « mois ».
@@ -369,8 +369,6 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
       headline: `${eur(i.savingsBalance)} d’épargne de côté`,
       detail: 'Ajoute ton revenu pour savoir combien de temps tu tiendrais sans rentrée d’argent.',
       chip: 'À compléter',
-      actionLabel: 'Ajouter mon revenu',
-      actionRoute: '/(tabs)/transactions/add?type=income',
     };
   }
 
@@ -379,13 +377,14 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   const status: PulseStatus =
     months >= threshold ? 'good' : months >= threshold * 0.5 ? 'watch' : 'alert';
   const base: SecurityCushionBase = cushion.base ?? 'income';
-  const estimated = base === 'income' ? '' : ' (estimation)';
 
-  // Le constat, toujours. L'encouragement, seulement s'il reste un palier à franchir.
+  // Le titre dit déjà les mois, la ligne du bas dit déjà l'épargne totale : le détail ne répète
+  // rien — juste le prochain palier s'il en reste un, ou rien à viser sinon.
   const next = nextCushionMilestone(months);
+  const estimated = base === 'income' ? '' : ' · estimation basée sur ton questionnaire';
   const detail = next
-    ? `Ton épargne (${eur(i.savingsBalance)}) couvre ${securityMonthsLabel(months)} de revenus${estimated}. Prochain palier : ${next} mois.`
-    : `Ton épargne (${eur(i.savingsBalance)}) couvre ${securityMonthsLabel(months)} de revenus${estimated}. Tu as de quoi voir venir.`;
+    ? `Prochain palier : ${next} mois.${estimated}`
+    : `Tu as de quoi voir venir.${estimated}`;
 
   return {
     id: 'cushion',
@@ -398,10 +397,6 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     chip: status === 'good' ? 'Solide' : status === 'watch' ? 'À renforcer' : 'Trop juste',
     // La barre se remplit vers le PROCHAIN palier ; tous franchis → pleine.
     progress: { value: next ? Math.min(1, months / next) : 1, target: 1 },
-    ...(status !== 'good' ? {
-      actionLabel: 'Mettre de l’argent de côté',
-      actionRoute: '/(tabs)/comptes/transfer',
-    } : {}),
   };
 }
 
@@ -435,10 +430,6 @@ function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
     chip: status === 'good' ? 'Repère atteint' : status === 'watch' ? 'À mi-chemin' : 'Presque rien',
     progress: { value: Math.min(1, targetAmount > 0 ? saved / targetAmount : 0), target: 1 },
-    ...(status !== 'good' ? {
-      actionLabel: 'Mettre de l’argent de côté',
-      actionRoute: '/(tabs)/comptes/transfer',
-    } : {}),
   };
 }
 
@@ -479,10 +470,6 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     chip: status === 'good' ? 'Bon rythme' : status === 'watch' ? 'Tu peux aller plus loin' : 'À lancer',
     // La barre se remplit sur ce qui était RÉELLEMENT plaçable ; le trait marque le seuil du profil.
     progress: { value: Math.min(1, capacity > 0 ? placed / capacity : 0), target: b.investOfCapacityPct / 100 },
-    ...(status !== 'good' ? {
-      actionLabel: 'Investir maintenant',
-      actionRoute: '/(tabs)/comptes/transfer',
-    } : {}),
   };
 }
 
@@ -555,7 +542,6 @@ function buildProjects(i: PulseInputs): PulseSignal | null {
     amountLine: others > 0 ? `Et ${others} autre${others > 1 ? 's' : ''} projet${others > 1 ? 's' : ''} en cours` : undefined,
     chip: late ? 'En retard' : 'Dans les temps',
     progress: { value: Math.min(1, p.progressPct / 100), target: 1 },
-    ...(late ? { actionLabel: 'Alimenter ce projet', actionRoute: '/(tabs)/projects' } : {}),
   };
 }
 
@@ -574,9 +560,35 @@ const BUILDERS: Record<PulseSignalId, (i: PulseInputs, b: PulseBenchmark) => Pul
 
 const SEVERITY: Record<PulseStatus, number> = { good: 0, neutral: 0, estimated: 1, watch: 2, alert: 3 };
 
-export function computePulse(inputs: PulseInputs, config: PulseConfig = DEFAULT_PULSE_CONFIG): PulseResult {
+/**
+ * Deux formats, un seul moteur :
+ *  • 'full' — l'état des lieux complet (tous les signaux du profil) : rendez-vous mensuel + à la demande ;
+ *  • 'week' — le pouls HEBDO, volontairement léger : 3 signaux max, centrés sur ce qui bouge d'une
+ *    semaine à l'autre (dépenses, fin de mois, + l'épargne OU l'invest du mois selon le profil).
+ *    Le patrimoine, le matelas ou les projets ne changent pas en 7 jours : ils restent au mensuel.
+ */
+export type PulseKind = 'full' | 'week';
+
+/** Signaux qui ont du sens à l'échelle d'une semaine. */
+const WEEKLY_CANDIDATES: PulseSignalId[] = ['spending', 'end_of_month', 'saving', 'investing'];
+
+function weeklyIds(profileIds: PulseSignalId[]): PulseSignalId[] {
+  // Dépenses + fin de mois pour tout le monde, puis les signaux « du mois » du profil.
+  const ids = [...new Set<PulseSignalId>([
+    'spending', 'end_of_month',
+    ...profileIds.filter((id) => WEEKLY_CANDIDATES.includes(id)),
+  ])];
+  return ids.slice(0, 3);
+}
+
+export function computePulse(
+  inputs: PulseInputs,
+  config: PulseConfig = DEFAULT_PULSE_CONFIG,
+  kind: PulseKind = 'full',
+): PulseResult {
   const benchmark = config.benchmarks[inputs.profileId] ?? DEFAULT_PULSE_BENCHMARKS[inputs.profileId];
-  const ids = config.signalsByProfile[inputs.profileId] ?? DEFAULT_PULSE_SIGNALS[inputs.profileId];
+  const profileIds = config.signalsByProfile[inputs.profileId] ?? DEFAULT_PULSE_SIGNALS[inputs.profileId];
+  const ids = kind === 'week' ? weeklyIds(profileIds) : profileIds;
 
   const signals: PulseSignal[] = [];
   for (const id of ids) {
@@ -590,8 +602,6 @@ export function computePulse(inputs: PulseInputs, config: PulseConfig = DEFAULT_
     for (const s of signals) {
       s.status = 'estimated';
       s.chip = 'Estimé';
-      s.actionLabel = 'Vérifier mon solde';
-      s.actionRoute = '/(tabs)/comptes';
     }
   }
 
@@ -613,17 +623,18 @@ export function computePulse(inputs: PulseInputs, config: PulseConfig = DEFAULT_
   };
 }
 
-/** La phrase de synthèse en tête de carte : encourageante, jamais culpabilisante. */
+/** La phrase de synthèse en tête de carte : courte, encourageante, jamais culpabilisante. */
 function buildHeadline(signals: PulseSignal[], green: number, judged: number, lowConfidence: boolean): string {
-  if (lowConfidence) return 'Tes chiffres ne sont plus à jour : vérifie ton solde pour un vrai bilan.';
-  if (judged === 0) return 'Continue à saisir tes opérations : ton bilan arrive.';
+  if (lowConfidence) return 'Tes chiffres ne sont plus à jour. Vérifie ton solde pour un vrai bilan.';
+  if (judged === 0) return 'Saisis tes premières opérations : ton bilan arrive.';
   if (green === judged) return 'Tout est au vert. Continue comme ça !';
 
   const worst = signals.find((s) => s.status === 'alert') ?? signals.find((s) => s.status === 'watch');
-  if (green === 0) return worst ? `Un point à reprendre en priorité : ${worst.label.toLowerCase()}.` : 'Quelques points à reprendre.';
+  if (green === 0) return worst ? `À reprendre en priorité : ${worst.label.toLowerCase()}.` : 'Plusieurs points à reprendre.';
+  const count = green === 1 ? '1 signal' : `${green} signaux`;
   return worst
-    ? `${green} signal${green > 1 ? 'aux' : ''} sur ${judged} au vert — reste ${worst.label.toLowerCase()}.`
-    : `${green} sur ${judged} au vert.`;
+    ? `${count} sur ${judged} au vert. À suivre : ${worst.label.toLowerCase()}.`
+    : `${count} sur ${judged} au vert.`;
 }
 
 /* ── Clés de période (hebdo / mensuel) ───────────────────────── */

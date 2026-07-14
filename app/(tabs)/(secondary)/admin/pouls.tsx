@@ -169,7 +169,7 @@ export default function AdminPouls() {
             <ToggleRow
               styles={styles} COLORS={COLORS}
               label="Pouls de la semaine"
-              help="La carte de bilan, à la 1ʳᵉ ouverture de la semaine."
+              help="Carte LÉGÈRE (3 signaux max : dépenses, fin de mois + le signal du mois du profil), à la 1ʳᵉ ouverture de la semaine."
               value={draft.weekly}
               onChange={(v) => patch({ weekly: v })}
             />
