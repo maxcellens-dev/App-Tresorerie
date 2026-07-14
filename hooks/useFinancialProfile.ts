@@ -289,10 +289,12 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
       const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
       if (fp.last_auto_evaluation === currentMonthStr) return;
 
-      // Charger la config de la matrice
-      const { data: configs } = await supabase
-        .from('profile_matrix_config')
-        .select('*');
+      // Charger la config de la matrice + la tranche de revenu déclarée (repli du matelas de sécurité
+      // tant qu'aucune recette n'a encore été constatée — cf. lib/securityCushion).
+      const [{ data: configs }, { data: answers }] = await Promise.all([
+        supabase.from('profile_matrix_config').select('*'),
+        supabase.from('user_questionnaire_answers').select('q3').eq('user_id', userId).maybeSingle(),
+      ]);
 
       const configMap: Record<string, any> = {};
       (configs ?? []).forEach((c: any) => { configMap[c.transition] = c; });
@@ -330,7 +332,7 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         linked_account_type: t.linked_account_id ? (accountTypeMap[t.linked_account_id] ?? null) : null,
       }));
 
-      const metrics = computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance);
+      const metrics = computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, (answers as any)?.q3 ?? null);
       const result = evaluateAutoTransition(
         fp.profile_id as FinancialProfileId,
         metrics,

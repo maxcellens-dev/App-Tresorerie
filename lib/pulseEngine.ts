@@ -1,0 +1,655 @@
+/**
+ * LE POULS — moteur pur.
+ * ──────────────────────
+ * Un « état des lieux » de la santé financière : des CONSTATS ponctuels, jugés par des REPÈRES
+ * génériques attachés au profil P1–P5. On ne demande aucun objectif chiffré à l'utilisateur :
+ * les repères viennent du profil (calculé et réévalué chaque mois par financialProfileEngine).
+ *
+ * Trois temps, un seul moteur :
+ *   • live    — après chaque saisie : les signaux impactés bougent (delta chips) ;
+ *   • hebdo   — carte « Pouls de la semaine » à la 1ʳᵉ ouverture de la semaine ;
+ *   • mensuel — « État des lieux », offert à la clôture du mois.
+ *
+ * RÈGLES D'ÉCRITURE DES SIGNAUX (non négociables) :
+ *   1. Chaque signal se lit d'un coup d'œil, sans jargon : pas de « rythme », pas de « % du rythme
+ *      prévu ». On dit un MONTANT, sur quoi il porte, et si c'est bien ou pas.
+ *   2. Tout pourcentage est accompagné de sa base en euros (« 14 % de tes revenus (1 500 €) »).
+ *   3. Le signal montre AUSSI où on en est en valeur absolue (total épargné, total investi + ce que
+ *      ça a rapporté, solde…), pas seulement une progression.
+ *   4. Un signal orange/rouge n'est jamais un reproche : il porte une action faisable tout de suite.
+ *
+ * FIABILITÉ : quand la confiance est basse (confidenceEngine), tous les signaux passent en
+ * `estimated` — pas de rouge, pas de jugement sur des chiffres douteux (cf. `estimated` ci-dessous).
+ */
+
+import type { FinancialProfileId } from '../types/database';
+import { computeSecurityCushion, securityMonthsLabel, type SecurityCushionBase } from './securityCushion';
+
+/* ── Signaux ─────────────────────────────────────────────────── */
+
+export type PulseSignalId =
+  | 'end_of_month'    // « Fin de mois » : ce qu'il restera au 1er, vs la marge de sécurité
+  | 'spending'        // « Dépenses du mois » : dépensé / prévu, et où on finira à ce rythme
+  | 'cushion'         // « Matelas de sécurité » : combien de temps tenir sans revenus
+  | 'saving'          // « Épargne du mois » : mis de côté ce mois + total épargné
+  | 'investing'       // « Investissement du mois » : placé ce mois + total investi + plus-value
+  | 'no_overdraft'    // « Jamais dans le rouge » : mois consécutifs sans découvert
+  | 'wealth'          // « Ton patrimoine » : total + évolution sur 3 mois
+  | 'projects';       // « Tes projets » : projet perso le plus avancé / en retard
+
+export const PULSE_SIGNAL_IDS: PulseSignalId[] = [
+  'end_of_month', 'spending', 'cushion', 'saving', 'investing', 'no_overdraft', 'wealth', 'projects',
+];
+
+/** Libellés admin (liste de sélection des signaux par profil). */
+export const PULSE_SIGNAL_LABELS: Record<PulseSignalId, string> = {
+  end_of_month: 'Fin de mois (ce qu’il restera)',
+  spending:     'Dépenses du mois',
+  cushion:      'Matelas de sécurité',
+  saving:       'Épargne du mois',
+  investing:    'Investissement du mois',
+  no_overdraft: 'Jamais dans le rouge',
+  wealth:       'Patrimoine',
+  projects:     'Projets perso',
+};
+
+/**
+ * `good` tout va bien · `watch` à surveiller · `alert` ça dérape · `neutral` info sans jugement
+ * (ex. série en cours) · `estimated` chiffres non fiables → on n'émet aucun jugement.
+ */
+export type PulseStatus = 'good' | 'watch' | 'alert' | 'neutral' | 'estimated';
+
+/** Couleur SÉMANTIQUE (clé du thème, jamais une valeur hex) — pilotée par le Style Editor. */
+export const PULSE_STATUS_COLOR_KEY: Record<PulseStatus, string> = {
+  good: 'green',
+  watch: 'orange',
+  alert: 'danger',
+  neutral: 'blue',
+  estimated: 'grey',
+};
+
+export interface PulseProgress {
+  /** Part remplie (0..1). */
+  value: number;
+  /** Repère à atteindre, en part (0..1) — le petit trait sur la barre. Absent = pas de repère. */
+  target?: number;
+}
+
+export interface PulseSignal {
+  id: PulseSignalId;
+  /** Titre court, sans jargon. */
+  label: string;
+  /** Emoji du signal (identité visuelle rapide). */
+  emoji: string;
+  status: PulseStatus;
+  /** LA phrase du signal : un montant, ce qu'il représente. Ex. « Il te restera 512 € le 1er août ». */
+  headline: string;
+  /** La précision utile (repère, base du %, échéance…). Une phrase, jamais deux. */
+  detail?: string;
+  /** Où on en est en valeur absolue. Ex. « Total investi : 3 400 € · +180 € de gains ». */
+  amountLine?: string;
+  /** Pastille de droite (état lisible sans lire le texte). */
+  chip: string;
+  progress?: PulseProgress;
+  /** Action concrète quand ça dérape (deeplink expo-router). */
+  actionLabel?: string;
+  actionRoute?: string;
+}
+
+/* ── Repères par profil (éditables en admin) ─────────────────── */
+
+export interface PulseBenchmark {
+  /** Matelas visé, en mois de revenus. */
+  cushionMonths: number;
+  /** Part des revenus à mettre de côté chaque mois (%). 0 = signal non jugé. */
+  savingRatePct: number;
+  /** Part de la capacité d'investissement du mois à utiliser pour être « au vert » (%). */
+  investOfCapacityPct: number;
+}
+
+export interface PulseConfig {
+  enabled: boolean;
+  /** Les trois temps, activables séparément. */
+  live: boolean;
+  weekly: boolean;
+  monthly: boolean;
+  /** Signaux retenus, par profil, dans l'ordre d'affichage. */
+  signalsByProfile: Record<FinancialProfileId, PulseSignalId[]>;
+  benchmarks: Record<FinancialProfileId, PulseBenchmark>;
+  /** Notification hebdo (envoi réel : cron / admin — cf. écran admin Pouls). */
+  weeklyPush: { enabled: boolean; weekday: number; hour: number; title: string; body: string };
+}
+
+/**
+ * Défauts : les signaux MONTENT avec le profil.
+ *  P1 — tenir le mois, ne pas déraper, poser un premier matelas (jamais d'investissement).
+ *  P2 — construire la réserve, garder les dépenses sous contrôle.
+ *  P3 — réserve tenue, l'investissement entre en jeu.
+ *  P4 — l'investissement devient le sujet principal, le matelas s'entretient.
+ *  P5 — patrimoine et projets : l'épargne pure n'est plus un enjeu (repère à 0 %).
+ * Les PROJETS PERSO sont présents pour TOUS les profils (décision produit).
+ */
+export const DEFAULT_PULSE_SIGNALS: Record<FinancialProfileId, PulseSignalId[]> = {
+  P1: ['end_of_month', 'spending', 'cushion', 'projects'],
+  P2: ['cushion', 'saving', 'spending', 'no_overdraft', 'projects'],
+  P3: ['cushion', 'investing', 'saving', 'spending', 'projects'],
+  P4: ['investing', 'cushion', 'spending', 'no_overdraft', 'projects'],
+  P5: ['investing', 'wealth', 'cushion', 'projects'],
+};
+
+export const DEFAULT_PULSE_BENCHMARKS: Record<FinancialProfileId, PulseBenchmark> = {
+  P1: { cushionMonths: 1, savingRatePct: 5,  investOfCapacityPct: 0 },
+  P2: { cushionMonths: 3, savingRatePct: 10, investOfCapacityPct: 50 },
+  P3: { cushionMonths: 3, savingRatePct: 15, investOfCapacityPct: 60 },
+  P4: { cushionMonths: 6, savingRatePct: 10, investOfCapacityPct: 70 },
+  P5: { cushionMonths: 3, savingRatePct: 0,  investOfCapacityPct: 70 },
+};
+
+export const DEFAULT_PULSE_CONFIG: PulseConfig = {
+  enabled: true,
+  live: true,
+  weekly: true,
+  monthly: true,
+  signalsByProfile: DEFAULT_PULSE_SIGNALS,
+  benchmarks: DEFAULT_PULSE_BENCHMARKS,
+  weeklyPush: {
+    enabled: true,
+    weekday: 0, // 0 = dimanche
+    hour: 21,
+    title: 'Ton pouls de la semaine 🫀',
+    body: 'Ouvre Relyka pour voir où tu en es cette semaine.',
+  },
+};
+
+/** Fusionne la config stockée (admin) avec les défauts — une config partielle reste valide. */
+export function resolvePulseConfig(stored: Partial<PulseConfig> | null | undefined): PulseConfig {
+  if (!stored) return DEFAULT_PULSE_CONFIG;
+  const profiles: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
+  const signalsByProfile = {} as Record<FinancialProfileId, PulseSignalId[]>;
+  const benchmarks = {} as Record<FinancialProfileId, PulseBenchmark>;
+  for (const p of profiles) {
+    const raw = stored.signalsByProfile?.[p];
+    // Garde-fou : une config stockée peut contenir un signal retiré du code → on le filtre.
+    const kept = Array.isArray(raw) ? raw.filter((s) => PULSE_SIGNAL_IDS.includes(s)) : null;
+    signalsByProfile[p] = kept && kept.length > 0 ? kept : DEFAULT_PULSE_SIGNALS[p];
+    benchmarks[p] = { ...DEFAULT_PULSE_BENCHMARKS[p], ...(stored.benchmarks?.[p] ?? {}) };
+  }
+  return {
+    enabled: stored.enabled ?? DEFAULT_PULSE_CONFIG.enabled,
+    live: stored.live ?? DEFAULT_PULSE_CONFIG.live,
+    weekly: stored.weekly ?? DEFAULT_PULSE_CONFIG.weekly,
+    monthly: stored.monthly ?? DEFAULT_PULSE_CONFIG.monthly,
+    signalsByProfile,
+    benchmarks,
+    weeklyPush: { ...DEFAULT_PULSE_CONFIG.weeklyPush, ...(stored.weeklyPush ?? {}) },
+  };
+}
+
+/* ── Entrées du moteur ───────────────────────────────────────── */
+
+export interface PulseInputs {
+  profileId: FinancialProfileId;
+  /** Aujourd'hui (injecté → testable). */
+  today: Date;
+
+  // Fin de mois
+  /** Solde courant projeté au 1er du mois prochain (trajectoire de l'écran Projection). */
+  endOfMonthBalance: number;
+  /** Montant que l'utilisateur veut toujours garder sur son compte (questionnaire Q8). */
+  safetyMargin: number;
+
+  // Dépenses du mois
+  /** Enveloppe de dépenses variables estimée pour le mois. 0 = pas encore estimable. */
+  spendingBudget: number;
+  /** Déjà dépensé (variables) depuis le 1er. */
+  spendingSoFar: number;
+
+  // Épargne / matelas
+  /** Total sur les comptes d'épargne. */
+  savingsBalance: number;
+  /** Mis de côté ce mois-ci (virements vers l'épargne, hors projets). */
+  savedThisMonth: number;
+  /** Revenu mensuel moyen constaté (0 = non détecté). */
+  avgMonthlyIncome: number;
+  /** Tranche de revenu du questionnaire (repli du matelas). */
+  questionnaireQ3?: string | null;
+  /** Dépenses mensuelles moyennes (dernier repli du matelas). */
+  avgMonthlyExpenses?: number;
+
+  // Investissement
+  investedBalance: number;
+  investedThisMonth: number;
+  /** Plus/moins-values cumulées (ce que le placement a rapporté). */
+  investmentGains: number;
+  /** Capacité d'investissement du mois = budget libre × allocation du profil. */
+  investCapacity: number;
+
+  // Patrimoine
+  totalWealth: number;
+  /** Patrimoine 3 mois plus tôt (snapshot). null = pas encore d'historique. */
+  wealth3mAgo: number | null;
+
+  // Séries
+  /** Mois consécutifs terminés sans découvert. */
+  monthsWithoutOverdraft: number;
+
+  // Projets perso
+  projects: { id: string; name: string; target: number; saved: number; progressPct: number; onTrack: boolean }[];
+
+  /** Confiance basse → tous les signaux en « estimé » (aucun jugement sur des chiffres douteux). */
+  lowConfidence: boolean;
+}
+
+export interface PulseResult {
+  signals: PulseSignal[];
+  greenCount: number;
+  /** Signaux réellement jugés (hors `neutral`/`estimated`) — dénominateur des pastilles. */
+  judgedCount: number;
+  /** Tous les signaux jugés sont au vert. */
+  allGreen: boolean;
+  /** État global : le pire statut rencontré. */
+  worst: PulseStatus;
+  /** La phrase de synthèse (une seule, en tête de carte). */
+  headline: string;
+  /** Chiffres non fiables → le Pouls s'affiche en « estimé ». */
+  estimated: boolean;
+}
+
+/* ── Formatage ───────────────────────────────────────────────── */
+
+const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+const pct = (n: number) => `${Math.round(n)} %`;
+
+/** « le 1er août » — le jour où le mois bascule (parlant, pas « fin de période »). */
+function firstOfNextMonthLabel(today: Date): string {
+  const d = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  return `le 1er ${d.toLocaleDateString('fr-FR', { month: 'long' })}`;
+}
+
+/** Part du mois déjà écoulée (0..1) — sert à projeter les dépenses de fin de mois. */
+export function monthElapsedRatio(today: Date): number {
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  return Math.min(1, Math.max(1 / daysInMonth, today.getDate() / daysInMonth));
+}
+
+/* ── Construction de chaque signal ───────────────────────────── */
+
+function buildEndOfMonth(i: PulseInputs): PulseSignal {
+  const left = i.endOfMonthBalance;
+  const margin = Math.max(0, i.safetyMargin);
+  const above = left - margin;
+  const status: PulseStatus =
+    left < 0 ? 'alert' : above < 0 ? 'watch' : 'good';
+
+  const detail = margin > 0
+    ? (above >= 0
+        ? `C’est ${eur(above)} de plus que les ${eur(margin)} que tu gardes toujours sur ton compte.`
+        : `C’est moins que les ${eur(margin)} que tu gardes toujours sur ton compte.`)
+    : (left >= 0 ? 'Ton compte reste dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
+
+  return {
+    id: 'end_of_month',
+    label: 'Fin de mois',
+    emoji: '🗓️',
+    status,
+    headline: left >= 0
+      ? `Il te restera ${eur(left)} ${firstOfNextMonthLabel(i.today)}`
+      : `Tu serais à ${eur(left)} ${firstOfNextMonthLabel(i.today)}`,
+    detail,
+    chip: status === 'good' ? 'Tu passes le mois' : status === 'watch' ? 'Ça va être juste' : 'Découvert prévu',
+    ...(status !== 'good' ? {
+      actionLabel: 'Voir ce qui est prévu d’ici la fin du mois',
+      actionRoute: '/(tabs)/tresorerie',
+    } : {}),
+  };
+}
+
+function buildSpending(i: PulseInputs): PulseSignal {
+  const budget = Math.max(0, i.spendingBudget);
+  const spent = Math.max(0, i.spendingSoFar);
+
+  // Pas d'enveloppe estimable (nouvel utilisateur) → on montre le montant, sans juger.
+  if (budget <= 0) {
+    return {
+      id: 'spending', label: 'Dépenses du mois', emoji: '🛒', status: 'neutral',
+      headline: `${eur(spent)} dépensés ce mois-ci`,
+      detail: 'Encore un peu de suivi et Relyka saura te dire si c’est beaucoup ou non pour toi.',
+      chip: 'À suivre',
+    };
+  }
+
+  const elapsed = monthElapsedRatio(i.today);
+  // Fin de mois estimée SI l'utilisateur continue au même rythme qu'aujourd'hui.
+  const projected = spent / elapsed;
+  const overshoot = projected - budget;
+  const status: PulseStatus = overshoot > budget * 0.1 ? 'alert' : overshoot > 0 ? 'watch' : 'good';
+
+  return {
+    id: 'spending',
+    label: 'Dépenses du mois',
+    emoji: '🛒',
+    status,
+    headline: `${eur(spent)} dépensés sur les ${eur(budget)} prévus`,
+    detail: status === 'good'
+      ? `Si tu continues comme ça, tu finiras le mois vers ${eur(projected)} : c’est dans ton budget.`
+      : `Si tu continues comme ça, tu finiras le mois vers ${eur(projected)} — soit ${eur(overshoot)} de trop.`,
+    chip: status === 'good' ? 'Dans ton budget' : status === 'watch' ? 'Ça monte vite' : 'Tu vas dépasser',
+    progress: { value: budget > 0 ? spent / budget : 0, target: 1 },
+    ...(status !== 'good' ? {
+      actionLabel: 'Voir où part l’argent ce mois-ci',
+      actionRoute: '/(tabs)/reporting',
+    } : {}),
+  };
+}
+
+/**
+ * Paliers du matelas de sécurité : 1 mois (le coup dur encaissé), 3 mois (le trou d'air),
+ * 6 mois (la vraie tranquillité). Au-delà du dernier palier, on n'affiche PLUS d'objectif :
+ * « il faudrait X » n'aurait aucun sens pour quelqu'un qui a déjà largement de quoi tenir.
+ */
+const CUSHION_MILESTONES = [1, 3, 6];
+
+/** Prochain palier à viser, ou `null` si tous sont franchis. */
+function nextCushionMilestone(months: number): number | null {
+  return CUSHION_MILESTONES.find((m) => months < m) ?? null;
+}
+
+function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
+  const cushion = computeSecurityCushion({
+    availableSavings: i.savingsBalance,
+    avgMonthlyIncome: i.avgMonthlyIncome,
+    questionnaireQ3: i.questionnaireQ3,
+    avgMonthlyExpenses: i.avgMonthlyExpenses,
+  });
+
+  // Aucune base de revenu : on montre le montant épargné, sans le convertir en « mois ».
+  if (cushion.months == null) {
+    return {
+      id: 'cushion', label: 'Matelas de sécurité', emoji: '🛟', status: 'neutral',
+      headline: `${eur(i.savingsBalance)} d’épargne de côté`,
+      detail: 'Ajoute ton revenu pour savoir combien de temps tu tiendrais sans rentrée d’argent.',
+      chip: 'À compléter',
+      actionLabel: 'Ajouter mon revenu',
+      actionRoute: '/(tabs)/transactions/add?type=income',
+    };
+  }
+
+  const months = cushion.months;
+  const threshold = Math.max(0.5, b.cushionMonths);
+  const status: PulseStatus =
+    months >= threshold ? 'good' : months >= threshold * 0.5 ? 'watch' : 'alert';
+  const base: SecurityCushionBase = cushion.base ?? 'income';
+  const estimated = base === 'income' ? '' : ' (estimation)';
+
+  // Le constat, toujours. L'encouragement, seulement s'il reste un palier à franchir.
+  const next = nextCushionMilestone(months);
+  const detail = next
+    ? `Ton épargne (${eur(i.savingsBalance)}) couvre ${securityMonthsLabel(months)} de revenus${estimated}. Prochain palier : ${next} mois.`
+    : `Ton épargne (${eur(i.savingsBalance)}) couvre ${securityMonthsLabel(months)} de revenus${estimated}. Tu as de quoi voir venir.`;
+
+  return {
+    id: 'cushion',
+    label: 'Matelas de sécurité',
+    emoji: '🛟',
+    status,
+    headline: `Tu pourrais tenir ${securityMonthsLabel(months)} sans rentrée d’argent`,
+    detail,
+    amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
+    chip: status === 'good' ? 'Solide' : status === 'watch' ? 'À renforcer' : 'Trop juste',
+    // La barre se remplit vers le PROCHAIN palier ; tous franchis → pleine.
+    progress: { value: next ? Math.min(1, months / next) : 1, target: 1 },
+    ...(status !== 'good' ? {
+      actionLabel: 'Mettre de l’argent de côté',
+      actionRoute: '/(tabs)/comptes/transfer',
+    } : {}),
+  };
+}
+
+function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
+  const saved = Math.max(0, i.savedThisMonth);
+  const income = i.avgMonthlyIncome;
+  const targetPct = b.savingRatePct;
+
+  // Profil qui n'a plus à épargner (P5) ou revenu inconnu → constat simple, sans jugement.
+  if (targetPct <= 0 || income <= 0) {
+    return {
+      id: 'saving', label: 'Épargne du mois', emoji: '🐖', status: 'neutral',
+      headline: `${eur(saved)} mis de côté ce mois-ci`,
+      amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
+      chip: saved > 0 ? 'C’est fait' : 'Rien pour l’instant',
+    };
+  }
+
+  const targetAmount = (targetPct / 100) * income;
+  const ratePct = (saved / income) * 100;
+  const status: PulseStatus =
+    saved >= targetAmount ? 'good' : saved >= targetAmount * 0.5 ? 'watch' : 'alert';
+
+  return {
+    id: 'saving',
+    label: 'Épargne du mois',
+    emoji: '🐖',
+    status,
+    headline: `${eur(saved)} mis de côté ce mois-ci`,
+    detail: `Soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois). Le repère de ton profil est ${eur(targetAmount)}.`,
+    amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
+    chip: status === 'good' ? 'Repère atteint' : status === 'watch' ? 'À mi-chemin' : 'Presque rien',
+    progress: { value: Math.min(1, targetAmount > 0 ? saved / targetAmount : 0), target: 1 },
+    ...(status !== 'good' ? {
+      actionLabel: 'Mettre de l’argent de côté',
+      actionRoute: '/(tabs)/comptes/transfer',
+    } : {}),
+  };
+}
+
+function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
+  const placed = Math.max(0, i.investedThisMonth);
+  const capacity = Math.max(0, i.investCapacity);
+  const gains = i.investmentGains;
+  const gainLine = gains === 0
+    ? ''
+    : ` · ${gains > 0 ? '+' : '−'}${eur(Math.abs(gains))} ${gains > 0 ? 'de gains' : 'de pertes'}`;
+  const amountLine = `Total investi : ${eur(i.investedBalance)}${gainLine}`;
+
+  // Pas de capacité d'investissement ce mois (budget libre nul) → on ne juge pas.
+  if (capacity <= 0 || b.investOfCapacityPct <= 0) {
+    return {
+      id: 'investing', label: 'Investissement du mois', emoji: '📈', status: 'neutral',
+      headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
+      detail: capacity <= 0 ? 'Ton budget du mois ne laisse pas de place pour investir : c’est normal, ça reviendra.' : undefined,
+      amountLine,
+      chip: placed > 0 ? 'C’est fait' : 'Pas ce mois-ci',
+    };
+  }
+
+  // Le seuil de « bon rythme » reste piloté en admin, mais on ne l'ANNONCE pas comme un idéal :
+  // on donne le fait (« tu pouvais placer jusqu'à X »), la couleur fait le reste.
+  const threshold = (b.investOfCapacityPct / 100) * capacity;
+  const status: PulseStatus =
+    placed >= threshold ? 'good' : placed > 0 ? 'watch' : 'alert';
+
+  return {
+    id: 'investing',
+    label: 'Investissement du mois',
+    emoji: '📈',
+    status,
+    headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
+    detail: `Ce mois-ci, tu pouvais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`,
+    amountLine,
+    chip: status === 'good' ? 'Bon rythme' : status === 'watch' ? 'Tu peux aller plus loin' : 'À lancer',
+    // La barre se remplit sur ce qui était RÉELLEMENT plaçable ; le trait marque le seuil du profil.
+    progress: { value: Math.min(1, capacity > 0 ? placed / capacity : 0), target: b.investOfCapacityPct / 100 },
+    ...(status !== 'good' ? {
+      actionLabel: 'Investir maintenant',
+      actionRoute: '/(tabs)/comptes/transfer',
+    } : {}),
+  };
+}
+
+function buildNoOverdraft(i: PulseInputs): PulseSignal {
+  const n = Math.max(0, i.monthsWithoutOverdraft);
+  return {
+    id: 'no_overdraft',
+    label: 'Jamais dans le rouge',
+    emoji: '✅',
+    status: n > 0 ? 'good' : 'neutral',
+    headline: n === 0
+      ? 'Ce mois-ci, garde ton compte au-dessus de zéro'
+      : n === 1
+        ? 'Le mois dernier, tu as fini dans le vert'
+        : `${n} mois de suite sans jamais être dans le rouge`,
+    chip: n >= 3 ? '🔥 Série' : n > 0 ? 'Tenu' : 'À démarrer',
+  };
+}
+
+function buildWealth(i: PulseInputs): PulseSignal {
+  const total = i.totalWealth;
+  const before = i.wealth3mAgo;
+
+  if (before == null || before <= 0) {
+    return {
+      id: 'wealth', label: 'Ton patrimoine', emoji: '🌍', status: 'neutral',
+      headline: `${eur(total)} au total`,
+      detail: 'Tes comptes courants, ton épargne et tes investissements réunis. On te montrera son évolution dans quelques mois.',
+      chip: 'Point de départ',
+    };
+  }
+
+  const diff = total - before;
+  const changePct = (diff / before) * 100;
+  const status: PulseStatus = diff > 0 ? 'good' : diff < 0 ? 'watch' : 'neutral';
+
+  return {
+    id: 'wealth',
+    label: 'Ton patrimoine',
+    emoji: '🌍',
+    status,
+    headline: `${eur(total)} au total`,
+    detail: diff === 0
+      ? 'Stable depuis 3 mois.'
+      : `${diff > 0 ? '+' : '−'}${eur(Math.abs(diff))} en 3 mois (${diff > 0 ? '+' : '−'}${pct(Math.abs(changePct))}).`,
+    amountLine: 'Comptes courants + épargne + investissements',
+    chip: diff > 0 ? 'Ça monte' : diff < 0 ? 'En baisse' : 'Stable',
+  };
+}
+
+function buildProjects(i: PulseInputs): PulseSignal | null {
+  if (i.projects.length === 0) return null;
+
+  // On met en avant le projet qui a le plus besoin d'attention, sinon le plus avancé.
+  const late = i.projects.filter((p) => !p.onTrack).sort((a, b) => a.progressPct - b.progressPct)[0];
+  const best = [...i.projects].sort((a, b) => b.progressPct - a.progressPct)[0];
+  const p = late ?? best;
+  const others = i.projects.length - 1;
+  const status: PulseStatus = late ? 'watch' : 'good';
+
+  return {
+    id: 'projects',
+    label: i.projects.length > 1 ? 'Tes projets' : 'Ton projet',
+    emoji: '🎯',
+    status,
+    headline: `${p.name} : ${eur(p.saved)} sur ${eur(p.target)}`,
+    detail: late
+      ? 'Tu mets moins de côté que prévu pour ce projet : il prendra du retard.'
+      : 'Tu es dans les temps pour ce projet.',
+    amountLine: others > 0 ? `Et ${others} autre${others > 1 ? 's' : ''} projet${others > 1 ? 's' : ''} en cours` : undefined,
+    chip: late ? 'En retard' : 'Dans les temps',
+    progress: { value: Math.min(1, p.progressPct / 100), target: 1 },
+    ...(late ? { actionLabel: 'Alimenter ce projet', actionRoute: '/(tabs)/projects' } : {}),
+  };
+}
+
+/* ── Moteur ──────────────────────────────────────────────────── */
+
+const BUILDERS: Record<PulseSignalId, (i: PulseInputs, b: PulseBenchmark) => PulseSignal | null> = {
+  end_of_month: (i) => buildEndOfMonth(i),
+  spending: (i) => buildSpending(i),
+  cushion: (i, b) => buildCushion(i, b),
+  saving: (i, b) => buildSaving(i, b),
+  investing: (i, b) => buildInvesting(i, b),
+  no_overdraft: (i) => buildNoOverdraft(i),
+  wealth: (i) => buildWealth(i),
+  projects: (i) => buildProjects(i),
+};
+
+const SEVERITY: Record<PulseStatus, number> = { good: 0, neutral: 0, estimated: 1, watch: 2, alert: 3 };
+
+export function computePulse(inputs: PulseInputs, config: PulseConfig = DEFAULT_PULSE_CONFIG): PulseResult {
+  const benchmark = config.benchmarks[inputs.profileId] ?? DEFAULT_PULSE_BENCHMARKS[inputs.profileId];
+  const ids = config.signalsByProfile[inputs.profileId] ?? DEFAULT_PULSE_SIGNALS[inputs.profileId];
+
+  const signals: PulseSignal[] = [];
+  for (const id of ids) {
+    const signal = BUILDERS[id]?.(inputs, benchmark);
+    if (signal) signals.push(signal);
+  }
+
+  // Confiance basse : on N'ÉMET AUCUN JUGEMENT. Les chiffres restent affichés (ils ont une valeur
+  // indicative) mais tout passe en « estimé » — pas de rouge sur des données probablement fausses.
+  if (inputs.lowConfidence) {
+    for (const s of signals) {
+      s.status = 'estimated';
+      s.chip = 'Estimé';
+      s.actionLabel = 'Vérifier mon solde';
+      s.actionRoute = '/(tabs)/comptes';
+    }
+  }
+
+  const judged = signals.filter((s) => s.status === 'good' || s.status === 'watch' || s.status === 'alert');
+  const greenCount = judged.filter((s) => s.status === 'good').length;
+  const worst = signals.reduce<PulseStatus>(
+    (acc, s) => (SEVERITY[s.status] > SEVERITY[acc] ? s.status : acc),
+    'good',
+  );
+
+  return {
+    signals,
+    greenCount,
+    judgedCount: judged.length,
+    allGreen: judged.length > 0 && greenCount === judged.length,
+    worst,
+    headline: buildHeadline(signals, greenCount, judged.length, inputs.lowConfidence),
+    estimated: inputs.lowConfidence,
+  };
+}
+
+/** La phrase de synthèse en tête de carte : encourageante, jamais culpabilisante. */
+function buildHeadline(signals: PulseSignal[], green: number, judged: number, lowConfidence: boolean): string {
+  if (lowConfidence) return 'Tes chiffres ne sont plus à jour : vérifie ton solde pour un vrai bilan.';
+  if (judged === 0) return 'Continue à saisir tes opérations : ton bilan arrive.';
+  if (green === judged) return 'Tout est au vert. Continue comme ça !';
+
+  const worst = signals.find((s) => s.status === 'alert') ?? signals.find((s) => s.status === 'watch');
+  if (green === 0) return worst ? `Un point à reprendre en priorité : ${worst.label.toLowerCase()}.` : 'Quelques points à reprendre.';
+  return worst
+    ? `${green} signal${green > 1 ? 'aux' : ''} sur ${judged} au vert — reste ${worst.label.toLowerCase()}.`
+    : `${green} sur ${judged} au vert.`;
+}
+
+/* ── Clés de période (hebdo / mensuel) ───────────────────────── */
+
+/** Semaine ISO au format « 2026-W29 » (lundi = début de semaine). */
+export function weekKey(d: Date): string {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  // Jeudi de la semaine courante → détermine l'année ISO.
+  x.setDate(x.getDate() + 3 - ((x.getDay() + 6) % 7));
+  const isoYear = x.getFullYear();
+  const week1 = new Date(isoYear, 0, 4);
+  const diff = (x.getTime() - week1.getTime()) / 86400000;
+  const weekNo = 1 + Math.round((diff - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return `${isoYear}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+/** Mois au format « 2026-07 ». */
+export function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** « 8 – 14 juil. » — la semaine (lundi → dimanche) contenant `d`. */
+export function weekRangeLabel(d: Date): string {
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  const fmt = (x: Date, withMonth: boolean) =>
+    withMonth ? x.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : String(x.getDate());
+  return `${fmt(monday, monday.getMonth() !== sunday.getMonth())} – ${fmt(sunday, true)}`;
+}

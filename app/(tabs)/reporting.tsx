@@ -25,6 +25,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
+import { computeSecurityCushion } from '../../lib/securityCushion';
 import { buildPerimeterCtx, transformFluxTransactions } from '../../lib/perimeter';
 import {
   monthsWindow, buildMonthlyFlux, buildSavingsSeries, buildCategoryBreakdown,
@@ -698,14 +699,18 @@ export default function ReportingScreen() {
                 <View style={s.sectionHeader}><Ionicons name="shield-checkmark-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Épargne de sécurité</Text></View>
                 <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
                 <View style={s.chartCard}>
-                  {/* « Mois de sécurité » = épargne / revenu mensuel moyen — MÊME définition que les
-                      recommandations (recommendationEngine), pas la moyenne des dépenses. */}
+                  {/* « Mois de sécurité » : UNE seule définition dans toute l'app (lib/securityCushion) —
+                      épargne ÷ revenu mensuel moyen. Partagée avec le Pouls, les recommandations et le
+                      moteur de profils P1–P5. */}
                   <SafetyGauge
                     value={pilotage.current_savings}
                     min={pilotage.safety_threshold_min}
                     optimal={pilotage.safety_threshold_optimal}
                     comfort={pilotage.safety_threshold_comfort}
-                    monthsCovered={pilotage.avg_monthly_income > 0 ? pilotage.current_savings / pilotage.avg_monthly_income : null}
+                    monthsCovered={computeSecurityCushion({
+                      availableSavings: pilotage.current_savings,
+                      avgMonthlyIncome: pilotage.avg_monthly_income,
+                    }).months}
                   />
                 </View>
               </View>

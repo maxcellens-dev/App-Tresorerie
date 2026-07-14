@@ -32,6 +32,7 @@ import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { currencySymbolFor } from '../../../lib/currency';
+import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } from '../../../lib/investment';
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
 
 
@@ -43,15 +44,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const VIREMENT_NOTE = 'Virement interne';
-const INVESTMENT_GAIN_NOTE = 'Plus-value';
-const INVESTMENT_LOSS_NOTE = 'Moins-value';
 
 function isTransferNote(note: string | null): boolean {
   return note === VIREMENT_NOTE || (note != null && note.trim().toLowerCase().startsWith('virement'));
-}
-
-function isInvestmentGainLossNote(note: string | null | undefined): boolean {
-  return !!note && /plus|moins|gain|perte/i.test(note);
 }
 
 /** Cherche la transaction symétrique (même note + date + montant opposé sur un autre compte, sans catégorie). */

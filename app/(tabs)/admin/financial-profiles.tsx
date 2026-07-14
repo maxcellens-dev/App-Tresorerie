@@ -373,10 +373,13 @@ function MatrixSection({ userId }: { userId: string }) {
             {isEditing ? (
               <View style={styles.editForm}>
                 {[
-                  { field: 'upgrade_months_threshold',   label: 'Montée — mois de sécurité ≥' },
+                  // « Mois de sécurité » = épargne ÷ revenu mensuel moyen (lib/securityCushion) —
+                  // MÊME définition partout dans l'app (Pouls, Reporting, recommandations).
+                  { field: 'upgrade_months_threshold',   label: 'Montée — mois de revenus couverts ≥' },
                   { field: 'upgrade_flux_threshold',     label: 'Montée — flux total ≥ (%)' },
-                  { field: 'downgrade_months_threshold', label: 'Descente — mois de sécurité <' },
+                  { field: 'downgrade_months_threshold', label: 'Descente — mois de revenus couverts <' },
                   { field: 'downgrade_flux_threshold',   label: 'Descente — flux total < (%)' },
+
                   { field: 'anti_yoyo_months',           label: 'Mois consécutifs requis (montée)' },
                 ].map(({ field, label: fl }) => (
                   <View key={field} style={styles.matrixRow}>

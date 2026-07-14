@@ -5,6 +5,8 @@ import { appConfirm, appPrompt } from '../lib/appDialog';
 import { convertAmount } from '../lib/currency';
 import { formatDateFrench } from '../lib/dateUtils';
 import { buildProjectTransactions, projectMode } from '../lib/projectTx';
+import { isRegul } from '../lib/regul';
+import { emitPulseOp } from '../lib/pulseBus';
 
 const KEY = 'transactions';
 
@@ -307,10 +309,24 @@ export function useAddTransaction(profileId: string | undefined) {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+
+      // POULS — l'utilisateur vient d'enregistrer une opération : on lui montre ce qui bouge.
+      // On ignore : les brouillons (rien n'est engagé), les régularisations (c'est une vérification,
+      // pas une dépense) et les JAMBES de virement (createTransferLegs émet UN événement pour les deux).
+      const isTransferLeg = !!input.transfer_group_id || !!input.linked_account_id;
+      const amount = Number(input.amount);
+      if (!input.is_draft && !isTransferLeg && amount !== 0 && !isRegul(input)) {
+        emitPulseOp({
+          kind: amount > 0 ? 'income' : 'expense',
+          amount: Math.abs(amount),
+          accountId: input.account_id,
+          isFuture: input.date > localTodayISO(),
+        });
+      }
     },
   });
 }
@@ -387,6 +403,17 @@ export async function createTransferLegs(
   } catch (legErr) {
     if (firstLegId) { try { await del.mutateAsync(firstLegId); } catch { /* best-effort */ } }
     throw legErr;
+  }
+
+  // POULS — un virement = UN événement (les 2 jambes ne s'annoncent pas séparément).
+  if (!(p.isDraft ?? false)) {
+    emitPulseOp({
+      kind: 'transfer',
+      amount: num,
+      fromAccountId: p.fromAccountId,
+      toAccountId: p.toAccountId,
+      isFuture: p.date > localTodayISO(),
+    });
   }
 }
 

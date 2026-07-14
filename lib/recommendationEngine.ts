@@ -14,6 +14,7 @@
 import type { PilotageData } from '../hooks/usePilotageData';
 import type { FinancialProfile, FinancialProfileId } from '../types/database';
 import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
+import { computeSecurityCushion, securityMonthsLabel } from './securityCushion';
 import { floorToTen } from './currency';
 
 /* ── Types ───────────────────────────────────────────────── */
@@ -666,19 +667,15 @@ function buildRecommendation(
 
 /* ── Descriptions contextuelles ──────────────────────────── */
 
-/** Nombre de mois de revenus couverts par l'épargne (mois de sécurité), en libellé générique. */
-function securityMonthsLabel(months: number): string {
-  if (months < 0.75) return 'moins d’1 mois';
-  return `${Math.round(months)} mois`;
-}
-
 function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: PilotageData): string {
   // Approche générique : épargne de sécurité totale + nb de mois de sécurité (= mois de REVENUS
   // couverts par l'épargne) + appréciation de niveau. Plus parlant qu'un écart à un « seuil » abstrait.
   const savings = Math.max(0, data.current_savings);
-  // Mois de sécurité = épargne / revenu mensuel moyen (6 mois, hors 1er mois incomplet).
-  const monthlyIncome = data.avg_monthly_income;
-  const months = monthlyIncome > 0 ? savings / monthlyIncome : null;
+  // Mois de sécurité — MÊME définition que partout (lib/securityCushion) : base = revenus.
+  const months = computeSecurityCushion({
+    availableSavings: savings,
+    avgMonthlyIncome: data.avg_monthly_income,
+  }).months;
 
   const QUAL: Record<SavingsTier, string> = {
     critical:      'Niveau encore faible, à renforcer en priorité',

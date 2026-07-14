@@ -33,6 +33,8 @@ import { useReleaseReservedByProject } from '../../hooks/useTransactions';
 import { useRecoThresholds } from '../../hooks/useRecoThresholds';
 import RecommendationCard from '../../components/RecommendationCard';
 import ConseilsBanner from '../../components/ConseilsBanner';
+import { PulseDots } from '../../components/PulseChip';
+import { openPulse } from '../../components/PulseHost';
 import { usePilotageTips } from '../../hooks/useUiPrefs';
 import AdSlot from '../../components/AdSlot';
 import { useProjects } from '../../hooks/useProjects';
@@ -802,11 +804,19 @@ export default function PilotageScreen() {
                 <Ionicons name="wallet" size={18} color={COLORS.text} />
                 <Text style={styles.sectionTitle}>Suivi du mois</Text>
               </View>
-              <View style={styles.monthPill}>
+              {/* Pilule du mois + LE POULS : « Juillet 2026 🫀 ●●●● ». Tap → l'état des lieux.
+                  Pas de bouton de plus dans un écran déjà dense : l'indicateur vit dans le libellé. */}
+              <TouchableOpacity
+                style={styles.monthPill}
+                onPress={() => openPulse('week')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
                 <Text style={styles.monthPillText}>
                   {new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
                 </Text>
-              </View>
+                <PulseDots />
+              </TouchableOpacity>
             </View>
             <View style={styles.sectionDivider} />
 
@@ -1787,6 +1797,9 @@ function makeStyles(c: AppColors) {
     marginHorizontal: 4,
   },
   monthPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: c.card,
     borderWidth: 1,
     borderColor: c.cardBorder,

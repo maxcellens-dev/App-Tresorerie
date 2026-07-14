@@ -18,6 +18,50 @@ import { useNavBack } from '../../../../hooks/useNavBack';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
 
+/** Bilan du Pouls archivé (pulse_snapshots) — sert à mesurer la santé financière du parc. */
+interface RawPulse {
+  profile_id: string;
+  period_kind: string;
+  all_green: boolean;
+  estimated: boolean;
+  green_count: number;
+  judged_count: number;
+  signals: { id: string; label: string; status: string }[];
+  created_at: string;
+}
+
+/** Agrégat du Pouls : qui va bien, et surtout QUEL signal bloque le plus de monde. */
+function computePulseStats(rows: RawPulse[]) {
+  const real = rows.filter((r) => !r.estimated);
+  const users = new Set(real.map((r) => r.profile_id));
+  const allGreen = real.filter((r) => r.all_green).length;
+  const estimated = rows.length - real.length;
+
+  // Par signal : combien de fois il est au vert, sur combien de fois il est jugé.
+  const bySignal = new Map<string, { label: string; green: number; judged: number }>();
+  for (const row of real) {
+    for (const s of row.signals ?? []) {
+      if (s.status === 'neutral' || s.status === 'estimated') continue;
+      const entry = bySignal.get(s.id) ?? { label: s.label, green: 0, judged: 0 };
+      entry.judged += 1;
+      if (s.status === 'good') entry.green += 1;
+      bySignal.set(s.id, entry);
+    }
+  }
+  const signals = [...bySignal.values()]
+    .map((s) => ({ ...s, pct: s.judged > 0 ? Math.round((s.green / s.judged) * 100) : 0 }))
+    .sort((a, b) => a.pct - b.pct); // le plus problématique en premier : c'est lui qu'on veut voir
+
+  return {
+    bilans: rows.length,
+    users: users.size,
+    allGreenPct: real.length > 0 ? Math.round((allGreen / real.length) * 100) : 0,
+    estimatedPct: rows.length > 0 ? Math.round((estimated / rows.length) * 100) : 0,
+    signals,
+    maxJudged: Math.max(1, ...signals.map((s) => s.judged)),
+  };
+}
+
 const PERIODS = [
   { days: 7, label: '7 j' },
   { days: 30, label: '30 j' },
@@ -47,6 +91,7 @@ export default function StatsHub() {
   const [events, setEvents] = useState<RawEvent[]>([]);
   const [counts, setCounts] = useState<{ users: number; accounts: number; transactions: number; newUsers: number }>({ users: 0, accounts: 0, transactions: 0, newUsers: 0 });
   const [monthly, setMonthly] = useState<MonthAgg[]>([]);
+  const [pulse, setPulse] = useState<RawPulse[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string>('');
 
   useEffect(() => { if (isAdmin) loadStats(days); /* eslint-disable-next-line */ }, [isAdmin, days]);
@@ -96,6 +141,14 @@ export default function StatsHub() {
         .limit(50000);
       if (!mErr) setMonthly(computeMonthly((mdata ?? []) as RawEvent[]));
 
+      // Le Pouls : bilans archivés sur la période (table absente = migration 140 non appliquée → on ignore).
+      const { data: pdata, error: pErr } = await supabase
+        .from('pulse_snapshots')
+        .select('profile_id, period_kind, all_green, estimated, green_count, judged_count, signals, created_at')
+        .gte('created_at', since)
+        .limit(20000);
+      setPulse(pErr ? [] : ((pdata ?? []) as RawPulse[]));
+
       setUpdatedAt(new Date().toLocaleString('fr-FR'));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Erreur de chargement.');
@@ -105,6 +158,7 @@ export default function StatsHub() {
   }
 
   const agg = useMemo(() => computeAggregates(events, days), [events, days]);
+  const pulseAgg = useMemo(() => computePulseStats(pulse), [pulse]);
 
   if (!isAdmin) {
     return (
@@ -168,6 +222,38 @@ export default function StatsHub() {
                 <RefRow label="Ouvertures d'app / utilisateur actif" value={agg.opensPerUser} styles={styles} />
                 <RefRow label="Utilisateurs actifs / jour (moy.)" value={agg.avgDailyUsers} styles={styles} />
                 <RefRow label="Évènements / jour (moy.)" value={agg.avgDailyViews} styles={styles} />
+              </Section>
+
+              {/* Le Pouls — santé financière du parc. Le tableau des signaux dit CE QUI bloque
+                  le plus de monde : c'est la donnée qui doit guider les prochains conseils. */}
+              <Section title="Le Pouls (santé financière)" hint={`Bilans archivés sur ${days} jours`} styles={styles}>
+                <View style={styles.adKpiRow}>
+                  <AdKpi value={pulseAgg.bilans} label="Bilans" color={COLORS.emerald} styles={styles} />
+                  <AdKpi value={pulseAgg.users} label="Utilisateurs" color="#60a5fa" styles={styles} />
+                  <AdKpi value={`${pulseAgg.allGreenPct}%`} label="Tout au vert" color="#22c55e" styles={styles} />
+                  <AdKpi value={`${pulseAgg.estimatedPct}%`} label="Chiffres douteux" color="#f59e0b" styles={styles} />
+                </View>
+                {pulseAgg.signals.length > 0 ? (
+                  <View style={{ marginTop: 6 }}>
+                    <Text style={styles.sectionHint}>Taux de « au vert » par signal (le plus bas en premier)</Text>
+                    <View style={{ marginTop: 8 }}>
+                      {pulseAgg.signals.map((s) => (
+                        <HBar
+                          key={s.label}
+                          label={s.label}
+                          value={s.judged}
+                          sub={`${s.pct}% au vert`}
+                          max={pulseAgg.maxJudged}
+                          color={s.pct >= 60 ? COLORS.green : s.pct >= 30 ? COLORS.orange : COLORS.danger}
+                          styles={styles}
+                          c={COLORS}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={styles.empty}>Aucun bilan sur cette période (les bilans s'archivent quand l'utilisateur consulte son Pouls).</Text>
+                )}
               </Section>
 
               {/* Régie publicitaire — argumentaire pour vendre les espaces */}

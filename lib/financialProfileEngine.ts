@@ -7,6 +7,7 @@
  */
 
 import type { FinancialProfileId } from '../types/database';
+import { computeSecurityCushion } from './securityCushion';
 
 // ── Référentiel des profils ────────────────────────────────────
 
@@ -410,6 +411,8 @@ export function computeMonthlyMetrics(
   checkingBalance: number,
   windowExpenses: number = 6,
   windowFlux: number = 3,
+  /** Tranche de revenu du questionnaire (Q3) — repli du matelas tant qu'aucun revenu n'est constaté. */
+  questionnaireQ3?: string | null,
 ): MonthlyMetrics {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -446,14 +449,34 @@ export function computeMonthlyMetrics(
   // Épargne disponible (comptes courants + épargne liquidable)
   const epargne_dispo = Math.max(0, savingsBalance) + Math.max(0, checkingBalance);
 
-  // Mois de sécurité
-  const mois_securite = avgExpenses > 0 ? epargne_dispo / avgExpenses : 0;
+  // Recettes RÉELLES (virements inter-comptes exclus : un virement entrant n'est pas un revenu).
+  const isIncome = (t: RawTransaction) =>
+    t.amount > 0 && t.account_type === 'checking' && !t.linked_account_type;
+
+  // Revenus moyens 6 mois vs 2 mois (règles exceptionnelles + base du matelas de sécurité)
+  const rev6 = transactions
+    .filter(t => inWindow(t, 6) && isIncome(t))
+    .reduce((s, t) => s + t.amount, 0);
+
+  const rev2 = transactions
+    .filter(t => inWindow(t, 2) && isIncome(t))
+    .reduce((s, t) => s + t.amount, 0);
+
+  const avg_income_6m = rev6 / 6;
+
+  // Mois de sécurité — MÊME définition que partout dans l'app (base = REVENUS, cf. lib/securityCushion).
+  const mois_securite = computeSecurityCushion({
+    availableSavings: epargne_dispo,
+    avgMonthlyIncome: avg_income_6m,
+    questionnaireQ3,
+    avgMonthlyExpenses: avgExpenses,
+  }).months ?? 0;
 
   // Flux épargne & investissement sur 3 mois
   const fluxTxs = transactions.filter(t => inWindow(t, windowFlux));
 
   const revenusBruts = fluxTxs
-    .filter(t => t.amount > 0 && t.account_type === 'checking')
+    .filter(isIncome)
     .reduce((s, t) => s + t.amount, 0);
 
   const virEpargne = fluxTxs
@@ -468,19 +491,10 @@ export function computeMonthlyMetrics(
   const flux_invest = revenusBruts > 0 ? (virInvest / revenusBruts) * 100 : 0;
   const flux_total = flux_epargne + flux_invest;
 
-  // Revenus moyens 6 mois vs 2 mois (pour règles exceptionnelles)
-  const rev6 = transactions
-    .filter(t => inWindow(t, 6) && t.amount > 0 && t.account_type === 'checking')
-    .reduce((s, t) => s + t.amount, 0);
-
-  const rev2 = transactions
-    .filter(t => inWindow(t, 2) && t.amount > 0 && t.account_type === 'checking')
-    .reduce((s, t) => s + t.amount, 0);
-
   return {
     mois_securite,
     flux_total,
-    avg_income_6m: rev6 / 6,
+    avg_income_6m,
     avg_income_2m: rev2 / 2,
   };
 }
