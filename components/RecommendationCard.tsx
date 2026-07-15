@@ -29,6 +29,33 @@ function RichAmounts({ text, style }: { text: string; style?: StyleProp<TextStyl
   );
 }
 
+/**
+ * Compose LE message orange du garde-fou marge × projection (affiché sur la slide « Ton Relyka »).
+ *  • épargne ET invest plafonnés → UN SEUL message combiné (« investir X et épargner Y de plus… ») ;
+ *  • un seul des deux → message avec le total possible entre parenthèses ;
+ *  • trajectoire déjà sous la marge (tout conserver) → message tout prêt (reco.guardNote).
+ * Le verbe est DANS le message (plus de préfixe « Investir — »).
+ */
+function composeGuardMessage(recos: SmartRecommendation[]): string | null {
+  const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+  const tail = 'mais ton solde repasserait sous ta marge de sécurité d\'ici 6 mois.';
+  const inv = recos.find((r) => r.type === 'invest')?.guard;
+  const sav = recos.find((r) => r.type === 'save')?.guard;
+
+  if (inv && sav) {
+    return `Tu pourrais investir ${eur(inv.addMore)} et épargner ${eur(sav.addMore)} de plus ce mois-ci, ${tail}`;
+  }
+  if (inv) {
+    return `Tu pourrais investir ${eur(inv.addMore)} de plus ce mois-ci (soit ${eur(inv.total)} au total), ${tail}`;
+  }
+  if (sav) {
+    return `Tu pourrais épargner ${eur(sav.addMore)} de plus ce mois-ci (soit ${eur(sav.total)} au total), ${tail}`;
+  }
+  // Cas « tout conserver » : message autonome (majuscule initiale).
+  const keepNote = recos.find((r) => r.guardNote)?.guardNote;
+  return keepNote ? keepNote.charAt(0).toUpperCase() + keepNote.slice(1) : null;
+}
+
 
 interface SmartRecommendationCardProps {
   recommendations: SmartRecommendation[];
@@ -214,7 +241,7 @@ export default function RecommendationCard({
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
           <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
           <Text style={styles.amberText} numberOfLines={2}>
-            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Ton relyka est une estimation — vérifie le pour un suivi fiable.
+            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Ton Relyka est une estimation — vérifie le pour un suivi fiable.
           </Text>
           <Text style={styles.amberCta}>Vérifier</Text>
         </TouchableOpacity>
@@ -289,6 +316,17 @@ export default function RecommendationCard({
             onCenterPress={onOpenRelyka}
           />
           {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}
+          {/* Garde-fou marge × projection — REGROUPÉ ici sur la slide « Ton Relyka » (plus visible
+              qu'enfoui sur chaque reco). Épargne + invest plafonnés → UN SEUL message combiné. */}
+          {(() => {
+            const guardMsg = composeGuardMessage(visible);
+            if (!guardMsg) return null;
+            return (
+              <View style={[styles.contextBox, { marginTop: 8, borderColor: COLORS.orange + '44', backgroundColor: COLORS.orange + '12' }]}>
+                <Text style={[styles.contextText, { color: COLORS.orange }]}>{guardMsg}</Text>
+              </View>
+            );
+          })()}
         </View>
       ) : currentReco ? (
       <View style={styles.recoSlide}>
@@ -342,12 +380,8 @@ export default function RecommendationCard({
             </View>
           ) : null;
         })()}
-        {/* Garde-fou marge × projection : montant réduit / mis en réserve (encadré orange). */}
-        {!!currentReco.guardNote && (
-          <View style={[styles.contextBox, { marginTop: 0, borderColor: COLORS.orange + '44', backgroundColor: COLORS.orange + '12' }]}>
-            <Text style={[styles.contextText, { color: COLORS.orange }]}>{currentReco.guardNote}</Text>
-          </View>
-        )}
+        {/* Le garde-fou marge × projection n'est plus affiché ici : il est REGROUPÉ sur la slide
+            « Ton Relyka » (slide 1) pour être plus visible. */}
       </View>
       </View>
 

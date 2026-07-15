@@ -115,7 +115,8 @@ export function usePulse(): PulseData | null {
       .filter((r) => String(r.created_at ?? '').slice(0, 7) === currentMonth)
       .reduce((s, r) => s + Number(r.montant), 0);
     const cumulsTotal = (preSavings?.epargne.total_cumule ?? 0) + (preSavings?.invest.total_cumule ?? 0);
-    const relyka = computeRelyka({
+    const safetyMargin = pilotage.safety_margin_amount ?? 0;
+    const relykaInputs = {
       cashflowTrough: pilotage.cashflow_trough ?? pilotage.current_checking_balance ?? 0,
       savingsFuture: pilotage.month_savings_future ?? 0,
       investFuture: pilotage.month_invest_future ?? 0,
@@ -123,8 +124,20 @@ export function usePulse(): PulseData | null {
       reservationsTotal,
       cumulsTotal,
       variableEnvelopeRemaining: pilotage.variable_envelope_remaining ?? 0,
-      safetyMargin: pilotage.safety_margin_amount ?? 0,
-    });
+      safetyMargin,
+    };
+    const relyka = computeRelyka(relykaInputs);
+
+    // ── « Fin de mois » = ce qui devrait RESTER SUR LE COMPTE courant au 1er du mois prochain :
+    // le point bas de trésorerie (récurrentes déjà dedans) MOINS ce qui va SORTIR du compte d'ici là
+    // — virements épargne/invest à venir + dépenses variables restantes estimées.
+    // On NE déduit PAS les montants RÉSERVÉS / cumulés : cet argent est mentalement mis de côté mais
+    // reste PHYSIQUEMENT sur le compte (le déduire ici le compterait en double). Non clampé (peut
+    // passer sous 0 = découvert prévu).
+    const endOfMonthLeft =
+      relykaInputs.cashflowTrough
+      - relykaInputs.savingsFuture - relykaInputs.investFuture
+      - relykaInputs.variableEnvelopeRemaining;
 
     // ── Confiance : chiffres douteux → le Pouls ne juge pas (tout passe en « estimé »).
     const confidence = relCfg ? deriveRelykaConfidence(pilotage, relyka, relCfg) : null;
@@ -185,8 +198,8 @@ export function usePulse(): PulseData | null {
     const inputs: PulseInputs = {
       profileId,
       today,
-      endOfMonthBalance: pilotage.projection_balances_6m?.[0] ?? pilotage.cashflow_trough ?? 0,
-      safetyMargin: pilotage.safety_margin_amount ?? 0,
+      endOfMonthBalance: endOfMonthLeft,
+      safetyMargin,
       spendingBudget: pilotage.variable_envelope_initial ?? 0,
       spendingSoFar: pilotage.variable_envelope_spent ?? 0,
       savingsBalance: pilotage.total_savings,

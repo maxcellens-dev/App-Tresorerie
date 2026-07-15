@@ -47,6 +47,9 @@ export default function PulseDeltaHost() {
 
   const [feedback, setFeedback] = useState<PulseFeedback | null>(null);
   const pending = useRef<Pending | null>(null);
+  // L'opération ACTUELLEMENT affichée : conservée tant que la carte est visible → on la RECALCULE
+  // à chaque arrivée de données fraîches (le refetch peut aboutir juste après le 1er affichage).
+  const active = useRef<Pending | null>(null);
   const minDelayDone = useRef(false);
   const minDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,12 +86,8 @@ export default function PulseDeltaHost() {
     };
   }, []);
 
-  /** Affiche la carte, complète, avec l'état LE PLUS FRAIS disponible. */
-  const showNow = useCallback(() => {
-    const p = pending.current;
-    if (!p) return;
-    pending.current = null;
-    clearTimers();
+  /** (Re)calcule le retour de l'opération `p` avec l'état LE PLUS FRAIS. */
+  const renderFor = useCallback((p: Pending) => {
     const now = pulseRef.current;
     setFeedback(
       computeOpFeedback(
@@ -99,10 +98,20 @@ export default function PulseDeltaHost() {
         now?.relyka ?? null,
       ),
     );
+  }, [toOp]);
+
+  /** Affiche la carte pour la 1ʳᵉ fois, puis la garde « active » pour se corriger sur données fraîches. */
+  const showNow = useCallback(() => {
+    const p = pending.current;
+    if (!p) return;
+    pending.current = null;
+    active.current = p;
+    clearTimers();
+    renderFor(p);
     drag.setValue(0);
     anim.setValue(0);
     Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 70, friction: 11 }).start();
-  }, [toOp, anim, drag, clearTimers]);
+  }, [renderFor, anim, drag, clearTimers]);
 
   /** Montre la carte SI le délai minimal est passé ET que plus rien ne se recharge. */
   const attemptShow = useCallback(() => {
@@ -126,8 +135,13 @@ export default function PulseDeltaHost() {
     });
   }, [liveEnabled, attemptShow, showNow, clearTimers]);
 
-  // Chaque fois que l'état des requêtes ou le Pouls bouge : nouvelle tentative d'affichage.
-  useEffect(() => { attemptShow(); }, [fetching, pulse, attemptShow]);
+  // Chaque fois que l'état des requêtes ou le Pouls bouge : tentative d'affichage, ET si une carte
+  // est déjà visible, on la RECALCULE avec les données fraîches (le refetch a pu aboutir juste après
+  // le 1er rendu → « rien de placé » se corrige tout seul en « 100 € placés »).
+  useEffect(() => {
+    attemptShow();
+    if (active.current && fetchingRef.current === 0) renderFor(active.current);
+  }, [fetching, pulse, attemptShow, renderFor]);
 
   // Nettoyage à la dépose (déconnexion, etc.).
   useEffect(() => () => clearTimers(), [clearTimers]);
@@ -137,6 +151,7 @@ export default function PulseDeltaHost() {
       .start(() => {
         setFeedback(null);
         pending.current = null;
+        active.current = null;
         clearTimers();
         drag.setValue(0);
       });

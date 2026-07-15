@@ -47,8 +47,15 @@ export interface SmartRecommendation {
   actionRoute: string | null;
   /** Libellé du bouton d'action */
   actionLabel: string;
-  /** Garde-fou marge × projection : le montant a été réduit (ou mis en réserve) — message d'explication. */
+  /** Garde-fou marge × projection — message tout prêt (cas « tout conserver » : trajectoire déjà sous la marge). */
   guardNote?: string;
+  /**
+   * Garde-fou marge × projection — cas « reco RÉDUITE » (épargne/invest plafonnés). Donnée STRUCTURÉE :
+   * `addMore` = ce qu'on pourrait ajouter en plus, `total` = le total possible sans le garde-fou.
+   * Le TEXTE est composé côté écran (RecommendationCard) → un seul message combiné si épargne + invest
+   * sont tous deux plafonnés.
+   */
+  guard?: { addMore: number; total: number };
   /**
    * Tenue du montant en VIREMENT RÉCURRENT sur 6 mois. Donnée STRUCTURÉE (pas une phrase) : le texte
    * est composé avec la projection dans un seul bloc (lib/recoContext) — on ne veut pas 3 messages.
@@ -300,7 +307,7 @@ export function computeRecommendations(
     if (budget <= 0) return [];
     return [{
       ...buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts),
-      guardNote: `Ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : il vaut mieux conserver ce mois-ci.`,
+      guardNote: `ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : il vaut mieux conserver ton Relyka ce mois-ci.`,
     }];
   }
 
@@ -406,7 +413,7 @@ export function computeRecommendations(
   // des 6 mois − marge) pour qu'exécuter les recos ne fasse pas plonger la trajectoire sous la marge.
   // Invest réduit en PREMIER (illiquide), épargne ensuite ; l'excédent file vers « Conserver »
   // (Σ recos = Relyka préservé). Réduit sous son seuil d'affichage → tout le reste part en réserve.
-  const guardNotes: Partial<Record<RecoType, string>> = {};
+  const guardInfo: Partial<Record<RecoType, { addMore: number; total: number }>> = {};
   if (guardTrough != null) {
     const headroom = Math.max(0, Math.round(guardTrough - guard!.margin));
     let remaining = Math.max(0, (nets.save ?? 0) + (nets.invest ?? 0) - headroom);
@@ -422,9 +429,10 @@ export function computeRecommendations(
       remaining = Math.max(0, remaining - take);
       moved += take;
       nets[type] = rest;
-      // Message seulement si la reco reste visible et que la réduction est significative (> 10 €).
+      // Donnée structurée seulement si la reco reste visible et que la réduction est significative (> 10 €).
+      // `total` = ce qui était possible AVANT le garde-fou (rest visible + ce qu'on a retiré).
       if (rest > 0 && take > 10) {
-        guardNotes[type] = `Ce mois-ci tu pourrais rajouter ${take.toLocaleString('fr-FR')} € à cette recommandation : mais ton solde repasserait sous ta marge de sécurité d'ici 6 mois.`;
+        guardInfo[type] = { addMore: take, total: rest + take };
       }
     }
     if (moved > 0) {
@@ -451,9 +459,9 @@ export function computeRecommendations(
   // ACTIONNABLE (borne basse en fourchette) : c'est lui qu'on propose en virement.
   if (guardTrough != null) {
     for (const reco of result) {
-      const note = guardNotes[reco.type];
-      if (note) reco.guardNote = note;
-      if ((reco.type === 'save' || reco.type === 'invest') && !note) {
+      const info = guardInfo[reco.type];
+      if (info) reco.guard = info;
+      if ((reco.type === 'save' || reco.type === 'invest') && !info) {
         reco.recurringFit = computeRecurringFit(reco.actionAmount, guard!.balances, guard!.margin);
       }
     }

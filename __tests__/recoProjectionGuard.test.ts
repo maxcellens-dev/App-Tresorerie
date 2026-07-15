@@ -45,7 +45,7 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     // headroom = 3000 ≥ save+invest (500) → rien ne bouge.
     expect(r.save.amount).toBe(400);
     expect(r.invest.amount).toBe(100);
-    expect(r.save.guardNote).toBeUndefined();
+    expect(r.save.guard).toBeUndefined();
     // Tenable en récurrent : min((5000−2000)/(k+1)) = 500 ≥ 400.
     expect(r.save.recurringFit).toEqual({ kind: 'sustainable', monthly: 400 });
     expect(r.invest.recurringFit).toEqual({ kind: 'sustainable', monthly: 100 });
@@ -60,10 +60,11 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     // invest (100) consommé en entier et disparaît ; save réduit de 100 → 300 ; keep 300+200 = 500.
     expect(r.invest).toBeUndefined();
     expect(r.save.amount).toBe(300);
-    expect(r.save.guardNote).toContain('repasserait sous ta marge de sécurité');
+    // Garde-fou STRUCTURÉ : on pourrait ajouter 100 € (total possible 400 €). Texte composé côté écran.
+    expect(r.save.guard).toEqual({ addMore: 100, total: 400 });
     expect(r.keep.amount).toBe(500);
-    // Le message orange « mis en réserve » sur Conserver a été retiré (sans utilité) : pas de guardNote.
-    expect(r.keep.guardNote).toBeUndefined();
+    // Pas de garde-fou sur Conserver (la mise en réserve est déjà reflétée par le montant).
+    expect(r.keep.guard).toBeUndefined();
     // Σ recos = budget (invariant de la jauge Relyka).
     const sum = recos.reduce((s, x) => s + x.amount, 0);
     expect(sum).toBe(1000);

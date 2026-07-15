@@ -3,10 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import {
-  resolveReliabilityConfig, computeConfidence, toRange, computeCalibration,
+  resolveReliabilityConfig, computeConfidence, toRange,
   type ReliabilityConfig, type ConfidenceResult, type Range,
 } from '../lib/confidenceEngine';
-import { todayISO } from '../lib/dateUtils';
+import { recomputeReliabilityCalibration } from '../lib/reliabilityCalib';
 import type { PilotageData } from './usePilotageData';
 import type { SystemNotificationsConfig } from '../lib/systemNotifications';
 
@@ -81,50 +81,11 @@ export function useSaveSystemNotificationsConfig() {
 export function useRecalibrateReliability(profileId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
+    // Logique PURE partagée (lib/reliabilityCalib) : la MÊME est appelée à la suppression d'une régul
+    // (useDeleteTransaction) pour ne pas laisser une dérive figée quand une régul est retirée.
     mutationFn: async () => {
-      if (!supabase || !profileId) return;
-      const [txRes, clRes, cfgRes, profRes] = await Promise.all([
-        supabase.from('transactions')
-          .select('date, amount, regul_target')
-          .eq('profile_id', profileId)
-          .not('regul_target', 'is', null)
-          .lte('date', todayISO())
-          .order('date', { ascending: true }),
-        supabase.from('month_closures').select('month_key, status').eq('profile_id', profileId),
-        supabase.from('app_config').select('reliability').eq('id', 'default').single(),
-        supabase.from('profiles').select('created_at').eq('id', profileId).single(),
-      ]);
-      const cfg = resolveReliabilityConfig((cfgRes.data as any)?.reliability ?? null);
-      const estimated = new Set(
-        ((clRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key),
-      );
-      // Une « vérification » = un JOUR de régul (multi-comptes le même jour → écarts sommés).
-      const byDay = new Map<string, number>();
-      for (const t of (txRes.data ?? []) as any[]) {
-        const d = String(t.date).slice(0, 10);
-        if (estimated.has(d.slice(0, 7))) continue;
-        byDay.set(d, (byDay.get(d) ?? 0) + Math.abs(Number(t.amount)));
-      }
-      const days = [...byDay.keys()].sort();
-      const samples: { absGap: number; daysBetween: number }[] = [];
-      for (let i = 1; i < days.length; i++) {
-        const gapDays = Math.round((new Date(days[i] + 'T00:00:00').getTime() - new Date(days[i - 1] + 'T00:00:00').getTime()) / 86400000);
-        samples.push({ absGap: byDay.get(days[i])!, daysBetween: gapDays });
-      }
-      if (samples.length === 0 && days.length > 0) {
-        // Amorçage 1ʳᵉ régul : l'écart s'est accumulé depuis la création du profil.
-        const lastDay = days[days.length - 1];
-        const createdAt = String((profRes.data as any)?.created_at ?? '').slice(0, 10);
-        let span = cfg.coldStartDays;
-        if (createdAt) {
-          const d = Math.round((new Date(lastDay + 'T00:00:00').getTime() - new Date(createdAt + 'T00:00:00').getTime()) / 86400000);
-          if (Number.isFinite(d)) span = Math.min(Math.max(1, d), cfg.coldStartDays);
-        }
-        samples.push({ absGap: byDay.get(lastDay)!, daysBetween: span });
-      }
-      const calib = computeCalibration(samples);
-      await supabase.from('profiles').update({ reliability_calib: calib }).eq('id', profileId);
-      return calib;
+      if (!profileId) return;
+      await recomputeReliabilityCalibration(profileId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['profile', profileId] });

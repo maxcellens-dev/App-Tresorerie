@@ -127,18 +127,14 @@ export function useSavePulseSnapshot() {
 }
 
 /**
- * Semaines consécutives « tout au vert » (la plus récente d'abord). Les bilans ESTIMÉS (chiffres
- * douteux) ne cassent pas la série mais ne la nourrissent pas non plus : on les saute.
- * Alimente le succès « semaine tout au vert » (lib/gamification).
+ * Nombre de MOIS « validés au vert » (TOTAL, pas forcément consécutifs) — alimente les succès
+ * état des lieux (lib/gamification). Un mois est validé quand, à son bilan MENSUEL, aucun signal
+ * n'est orange ni rouge : tout est vert ou bleu (neutre). On compare donc les signaux JUGÉS (hors
+ * neutres) tous au vert : `green_count === judged_count` (vrai aussi quand tout est neutre → 0 = 0).
+ * Les bilans ESTIMÉS (chiffres douteux) ne comptent pas. Chaque bilan reflète déjà le profil du mois.
  */
-export function computeGreenWeekStreak(snapshots: PulseSnapshot[]): number {
-  const weeks = snapshots
-    .filter((s) => s.period_kind === 'week' && !s.estimated)
-    .sort((a, b) => b.period_key.localeCompare(a.period_key));
-  let streak = 0;
-  for (const w of weeks) {
-    if (!w.all_green) break;
-    streak++;
-  }
-  return streak;
+export function computeGreenMonthCount(snapshots: PulseSnapshot[]): number {
+  return snapshots.filter(
+    (s) => s.period_kind === 'month' && !s.estimated && s.green_count === s.judged_count,
+  ).length;
 }

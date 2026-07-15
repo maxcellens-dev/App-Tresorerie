@@ -7,6 +7,7 @@ import { formatDateFrench } from '../lib/dateUtils';
 import { buildProjectTransactions, projectMode } from '../lib/projectTx';
 import { isRegul } from '../lib/regul';
 import { emitPulseOp } from '../lib/pulseBus';
+import { recomputeReliabilityCalibration } from '../lib/reliabilityCalib';
 
 const KEY = 'transactions';
 
@@ -680,10 +681,14 @@ export function useDeleteTransaction(profileId: string | undefined) {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data: row, error: fetchErr } = await supabase
         .from('transactions')
-        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id, transfer_group_id')
+        .select('account_id, amount, is_draft, is_recurring, project_id, date, linked_account_id, note, category_id, transfer_group_id, regul_target')
         .eq('id', id)
         .single(); // pas de filtre profile_id : la RLS autorise mes lignes + celles d'un compte où je suis owner/write
       if (fetchErr) throw fetchErr;
+      // Supprimer une RÉGULARISATION change l'ensemble des « vérifications » → il faut recalibrer la
+      // dérive de fiabilité (sinon une régul ajoutée puis retirée fige une dérive surestimée et tout
+      // passe en « estimé »). Détecté avant la suppression, appliqué après (best-effort, plus bas).
+      const wasRegul = isRegul(row as any);
 
       const isDraft = !!(row as any).is_draft;
       const isRecurringRow = !!(row as any).is_recurring;
@@ -843,12 +848,18 @@ export function useDeleteTransaction(profileId: string | undefined) {
           }
         }
       }
+
+      // Régul supprimée → recalibrer la dérive depuis les régularisations restantes (best-effort).
+      if (wasRegul) {
+        try { await recomputeReliabilityCalibration(profileId); } catch { /* non bloquant */ }
+      }
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['accounts', profileId] });
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
       client.invalidateQueries({ queryKey: ['projects', profileId] });
+      client.invalidateQueries({ queryKey: ['profile', profileId] });
     },
   });
 }

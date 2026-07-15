@@ -11,7 +11,7 @@ import { useGamificationConfig } from '../hooks/useGamificationConfig';
 import { useMonthlyClosure, addMonthKey } from '../hooks/useMonthlyClosure';
 import { useProfile } from '../hooks/useProfile';
 import { useOnboarding } from '../hooks/useOnboarding';
-import { usePulseSnapshots, computeGreenWeekStreak } from '../hooks/usePulseState';
+import { usePulseSnapshots, computeGreenMonthCount } from '../hooks/usePulseState';
 import { type BadgeContext } from '../lib/gamification';
 import { isUploadedAvatar } from '../services/avatarService';
 
@@ -82,8 +82,8 @@ export default function GamificationSync() {
       onboarding_done: onboardingDone ? 1 : 0,
       closures_count: confirmedKeys.length,
       consecutive_closures: bestRun,
-      // Le Pouls : semaines consécutives où TOUS les signaux étaient au vert (bilans archivés).
-      pulse_green_weeks: computeGreenWeekStreak(pulseSnapshots),
+      // Le Point : nombre de MOIS validés au vert à l'état des lieux (total, bilans archivés).
+      pulse_green_months: computeGreenMonthCount(pulseSnapshots),
     };
   }, [user?.id, txLoading, transactions, profile, closures, onboardingDone, pulseSnapshots]);
 

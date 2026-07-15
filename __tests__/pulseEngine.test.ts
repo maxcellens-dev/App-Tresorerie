@@ -234,6 +234,18 @@ describe('computePulse — synthèse', () => {
     const r = computePulse(inputs({ profileId: 'P1', endOfMonthBalance: -50 }));
     expect(r.worst).toBe('alert');
   });
+
+  it('un projet NEUTRE (saisie manuelle) ne bloque pas la validation « tout au vert »', () => {
+    // Tous les signaux jugés au vert, + un projet manuel (neutre/bleu) → allGreen doit rester vrai.
+    const projects = [{ id: 'p', name: 'Voiture', target: 1500, saved: 200, progressPct: 13, onTrack: null }];
+    const r = computePulse(inputs({
+      profileId: 'P3', savingsBalance: 20000, savedThisMonth: 600, investedThisMonth: 300, projects,
+    }));
+    expect(r.signals.some((s) => s.id === 'projects' && s.status === 'neutral')).toBe(true);
+    expect(r.allGreen).toBe(true); // le projet neutre est HORS des signaux jugés
+    // Validation mensuelle = green_count === judged_count (le neutre n'entre pas dans judged).
+    expect(r.greenCount).toBe(r.judgedCount);
+  });
 });
 
 describe('resolvePulseConfig', () => {

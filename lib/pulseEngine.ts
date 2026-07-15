@@ -400,7 +400,7 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   const estimated = base === 'income' ? '' : ' (estimation)';
   const detail = next
     ? `Prochain palier : ${next} mois${estimated} (${eur(i.savingsBalance)} / ~${eur(next * cushion.reference)}).`
-    : `Tu as de quoi voir venir${estimated}.`;
+    : `Tu as de quoi voir venir (${eur(i.savingsBalance)} d'épargne)${estimated}.`;
 
   return {
     id: 'cushion',

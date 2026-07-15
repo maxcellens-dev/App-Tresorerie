@@ -22,7 +22,7 @@ export const WELCOME_BADGE_KEY = 'premiere_connexion';
  */
 export type BadgeMetric =
   | 'streak_weeks'           // série hebdo (record)
-  | 'pulse_green_weeks'      // semaines consécutives où TOUS les signaux du Pouls étaient au vert
+  | 'pulse_green_months'     // nb de MOIS (total) validés au vert à l'état des lieux (vert ou bleu)
   | 'gems_earned'            // cumul de gemmes gagnées
   | 'closures_count'         // nb de clôtures mensuelles effectuées
   | 'consecutive_closures'   // plus longue série de mois consécutifs clôturés (fiabilité)
@@ -36,7 +36,7 @@ export type BadgeMetric =
 
 /** Métriques encore supportées (garde-fou runtime : une config admin en base peut être obsolète). */
 const SUPPORTED_METRICS: ReadonlySet<string> = new Set<BadgeMetric>([
-  'streak_weeks', 'pulse_green_weeks', 'gems_earned', 'closures_count', 'consecutive_closures',
+  'streak_weeks', 'pulse_green_months', 'gems_earned', 'closures_count', 'consecutive_closures',
   'surplus_months_streak', 'invest_followed', 'account_age_days', 'login_streak_days',
   'onboarding_done', 'profile_photo', 'manual',
 ]);
@@ -188,10 +188,10 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'serie_4', category: 'Régularité', metric: 'streak_weeks', label: 'Un mois de suivi', description: '4 semaines de suivi d’affilée.', icon: 'pulse', threshold: 4, gems: 30 },
     { key: 'serie_12', category: 'Régularité', metric: 'streak_weeks', label: 'Trimestre suivi', description: '12 semaines de suivi d’affilée.', icon: 'pulse', threshold: 12, gems: 80 },
     { key: 'serie_52', category: 'Régularité', metric: 'streak_weeks', label: 'Année complète', description: '52 semaines de suivi d’affilée.', icon: 'medal', threshold: 52, gems: 300 },
-    // ── Santé financière (Le Pouls) : tous les signaux au vert sur la semaine ──
-    { key: 'pouls_vert_1', category: 'Santé financière', metric: 'pulse_green_weeks', label: 'Tout au vert', description: 'Termine une semaine avec tous tes signaux au vert.', icon: 'pulse', threshold: 1, gems: 40 },
-    { key: 'pouls_vert_4', category: 'Santé financière', metric: 'pulse_green_weeks', label: 'Un mois au vert', description: '4 semaines d’affilée avec tous tes signaux au vert.', icon: 'pulse', threshold: 4, gems: 120 },
-    { key: 'pouls_vert_12', category: 'Santé financière', metric: 'pulse_green_weeks', label: 'Santé de fer', description: '12 semaines d’affilée avec tous tes signaux au vert.', icon: 'heart', threshold: 12, gems: 350 },
+    // ── Santé financière (Le Point) : mois validés au vert à l'état des lieux (vert ou bleu) ──
+    { key: 'point_vert_1', category: 'Santé financière', metric: 'pulse_green_months', label: 'Premier mois au vert', description: 'Termine un mois avec tout ton état des lieux au vert.', icon: 'compass', threshold: 1, gems: 60 },
+    { key: 'point_vert_3', category: 'Santé financière', metric: 'pulse_green_months', label: 'Trois mois au vert', description: '3 mois validés au vert (pas forcément de suite).', icon: 'compass', threshold: 3, gems: 160 },
+    { key: 'point_vert_12', category: 'Santé financière', metric: 'pulse_green_months', label: 'Une année au vert', description: '12 mois validés au vert (pas forcément de suite).', icon: 'trophy', threshold: 12, gems: 450 },
     // ── Économie (mois en excédent) ──
     { key: 'econome_1', category: 'Économie', metric: 'surplus_months_streak', label: 'Premier excédent', description: 'Termine un mois avec un excédent positif.', icon: 'leaf', threshold: 1, gems: 30 },
     { key: 'econome_3', category: 'Économie', metric: 'surplus_months_streak', label: 'Économe régulier', description: '3 mois consécutifs en excédent.', icon: 'leaf', threshold: 3, gems: 80 },
