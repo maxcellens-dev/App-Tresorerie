@@ -1,6 +1,6 @@
 /**
  * AchievementCelebration — overlay GLOBAL qui célèbre un succès dès qu'il est débloqué,
- * quelle que soit la page affichée. Animation d'apparition, on touche pour fermer, et
+ * quelle que soit la page affichée. Animation d'apparition, on swipe vers le haut pour fermer, et
  * chaque succès n'est célébré qu'UNE seule fois — mémorisé CÔTÉ COMPTE (colonne
  * user_badges.celebrated_at), donc pas de rejeu sur un autre appareil/écran.
  *

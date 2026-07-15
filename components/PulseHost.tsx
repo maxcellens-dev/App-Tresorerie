@@ -16,7 +16,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Animated, Easing, Pressable, PanResponder, Platform,
-  TouchableOpacity, useWindowDimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
@@ -190,13 +190,13 @@ export default function PulseHost() {
 
   const result: PulseResult = view === 'week' ? pulse.weekly : pulse.result;
   const info = PROFILE_INFO[pulse.profileId];
-  const title = view === 'week' ? '🫀 Pouls de la semaine' : '📍 État des lieux';
+  const title = view === 'week' ? '🧭 Point de la semaine' : '🧭 État des lieux';
   // Les signaux décrivent TOUJOURS la situation d'aujourd'hui : le rendez-vous mensuel est un
   // point d'étape « au sortir du mois écoulé », pas une photo du mois passé — le libellé le dit.
   const period = view === 'week'
     ? weekRangeLabel(today)
     : view === 'month'
-      ? `après ton mois de ${new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`
+      ? new Date(today.getFullYear(), today.getMonth() - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
       : today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
@@ -220,10 +220,11 @@ export default function PulseHost() {
       >
         <View style={styles.grabber} />
 
+        {/* Titre + date sur la MÊME ligne (gain de place) : « État des lieux · 15 juillet 2026 ». */}
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.period}>{period}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title} numberOfLines={1}>{title}</Text>
+            <Text style={styles.period} numberOfLines={1}>· {period}</Text>
           </View>
           <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
             <Ionicons name="close" size={20} color={COLORS.textSecondary} />
@@ -241,17 +242,17 @@ export default function PulseHost() {
                     <WeeklyRing stats={pulse.weeklyStats} COLORS={COLORS} />
                   )}
                   <View style={styles.weekStats}>
+                    {/* Point HEBDO : pas de pastille d'état (elle masquait les titres) — juste une
+                        pointe de couleur + le titre + le chiffre. L'état se lit à la couleur. */}
                     {weeklyRows(result, pulse.weeklyStats.capacity >= 20).map((signal) => {
                       const color = pulseColor(COLORS, signal.status);
                       return (
                         <View key={signal.id} style={styles.weekStatRow}>
                           <View style={styles.weekStatHead}>
+                            <View style={[styles.weekStatDot, { backgroundColor: color }]} />
                             <Text style={styles.weekStatLabel} numberOfLines={1}>
                               {signal.emoji} {WEEKLY_SHORT_LABELS[signal.id] ?? signal.label}
                             </Text>
-                            <View style={[styles.weekChip, { backgroundColor: color + '1F', borderColor: color + '55' }]}>
-                              <Text style={[styles.weekChipTxt, { color }]} numberOfLines={1}>{signal.chip}</Text>
-                            </View>
                           </View>
                           <Text style={styles.weekStatSub} numberOfLines={2}>{signal.headline}</Text>
                         </View>
@@ -285,15 +286,13 @@ export default function PulseHost() {
           /* ── COMPLET (mensuel / aujourd'hui) : tous les signaux du profil, en détail. ── */
           <>
             {/* Le profil + une pastille par signal jugé : l'état se lit sans lire une ligne. */}
-            <View style={styles.summary}>
+            <View style={[styles.summary, { marginBottom: 4 }]}>
               <Text style={styles.profile} numberOfLines={1}>{info.emoji} {info.name}</Text>
               <StatusDots result={result} COLORS={COLORS} />
             </View>
 
-            <Text style={styles.headline}>{result.headline}</Text>
-
             <ScrollView
-              style={styles.list}
+              style={[styles.list, { marginTop: 12 }]}
               contentContainerStyle={{ paddingBottom: 8 }}
               showsVerticalScrollIndicator={false}
             >
@@ -301,8 +300,6 @@ export default function PulseHost() {
                 <PulseSignalCard key={`${view}-${signal.id}`} signal={signal} delay={120 + index * 90} />
               ))}
             </ScrollView>
-
-            <Text style={styles.footer}>Repères liés à ton profil.</Text>
           </>
         )}
       </Animated.View>
@@ -313,9 +310,9 @@ export default function PulseHost() {
 
 const eurFmt = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
 
-/** Libellés courts des lignes hebdo (« Dépenses du mois » se tronquait à côté de la pastille). */
+/** Libellés courts des lignes hebdo (compacts à côté de l'anneau). */
 const WEEKLY_SHORT_LABELS: Partial<Record<PulseSignalId, string>> = {
-  spending: 'Dépenses',
+  spending: 'Dépenses variables',
   end_of_month: 'Fin de mois',
   saving: 'Épargne',
   investing: 'Invest',
@@ -415,9 +412,10 @@ function makeStyles(c: AppColors) {
       }),
     },
     grabber: { alignSelf: 'center', width: 38, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginBottom: 12 },
-    header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-    title: { fontSize: 19, fontWeight: '800', color: c.text, letterSpacing: -0.3 },
-    period: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    titleRow: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+    title: { flexShrink: 1, fontSize: 18, fontWeight: '800', color: c.text, letterSpacing: -0.3 },
+    period: { flexShrink: 0, fontSize: 12, color: c.textSecondary, textTransform: 'capitalize' },
     closeBtn: { padding: 4 },
     summary: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -428,7 +426,7 @@ function makeStyles(c: AppColors) {
     headline: { fontSize: 13.5, color: c.textSecondary, lineHeight: 19, marginTop: 10, marginBottom: 12 },
     list: { flexGrow: 0 },
 
-    // ── Pouls hebdo (point d'étape compact) ──
+    // ── Point hebdo (point d'étape compact) ──
     weekCard: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 18, padding: 14,
@@ -439,10 +437,9 @@ function makeStyles(c: AppColors) {
       backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder,
       borderRadius: 13, paddingVertical: 9, paddingHorizontal: 11,
     },
-    weekStatHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+    weekStatHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    weekStatDot: { width: 8, height: 8, borderRadius: 999, flexShrink: 0 },
     weekStatLabel: { flex: 1, fontSize: 12.5, fontWeight: '700', color: c.text },
-    weekChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, maxWidth: 120 },
-    weekChipTxt: { fontSize: 10, fontWeight: '800' },
     weekStatSub: { fontSize: 11, color: c.textSecondary, marginTop: 3, lineHeight: 15 },
     weekLegend: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 12 },
     legendDot: { width: 8, height: 8, borderRadius: 999 },

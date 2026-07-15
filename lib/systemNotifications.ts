@@ -18,9 +18,9 @@ export interface SystemNotificationDef {
 export const SYSTEM_NOTIFICATIONS: SystemNotificationDef[] = [
   {
     id: 'pulse_weekly',
-    title: 'Ton pouls de la semaine',
-    bodyExample: 'Ton pouls de la semaine 🫀 — ouvre Relyka pour voir où tu en es.',
-    condition: 'Rendez-vous hebdomadaire (jour et heure réglables dans l’écran admin « Le Pouls »).',
+    title: 'Ton point de la semaine',
+    bodyExample: 'Ton point de la semaine 🧭 — ouvre Relyka pour voir où tu en es.',
+    condition: 'Rendez-vous hebdomadaire (jour et heure réglables dans l’écran admin « Le Point »).',
     maxFrequency: '1 par semaine',
     defaultEnabled: true,
   },

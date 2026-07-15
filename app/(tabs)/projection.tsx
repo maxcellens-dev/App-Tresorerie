@@ -476,15 +476,32 @@ export default function ProjectionScreen() {
   }, [pilotage, savSynced]);
 
   // Sauvegarde des hypothèses (debounced) — inclut l'épargne « perso » (§P5).
+  // Le payload le plus récent est tenu dans un ref → il peut être FLUSHÉ à la sortie de l'écran
+  // (sinon quitter la Projection < 500 ms après une saisie annulait le timer → dernière saisie perdue).
+  const latestPayloadRef = React.useRef<any>(null);
+  latestPayloadRef.current = { hypos, years, savingsMonthlyPerso, savingsInitial, savingsSource: pickedSource };
   useEffect(() => {
     if (!loaded) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveAssumptions.mutate({ hypos, years, savingsMonthlyPerso, savingsInitial, savingsSource: pickedSource });
+      saveAssumptions.mutate(latestPayloadRef.current);
+      saveTimerRef.current = null;
     }, 500);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    // Pas de clearTimeout ici : un changement de deps re-planifie déjà le timer (ligne ci-dessus).
+    // Annuler à chaque rendu risquerait de perdre une sauvegarde au démontage.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hypos, years, loaded, savingsMonthlyPerso, savingsInitial, pickedSource]);
+
+  // Flush à la SORTIE de l'écran : si une sauvegarde est encore en attente, on l'exécute tout de suite.
+  const loadedRef = React.useRef(loaded);
+  loadedRef.current = loaded;
+  useEffect(() => () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      if (loadedRef.current) saveAssumptions.mutate(latestPayloadRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const savingsMonthly =
     savingsSource === 'reel' ? realMonthlySavings :

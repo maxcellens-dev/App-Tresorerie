@@ -24,7 +24,6 @@ import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../lib/pulseBus';
 import { computeOpFeedback, type PulseFeedback, type PulseOp } from '../lib/pulseDelta';
-import type { PulseResult } from '../lib/pulseEngine';
 import PulseSignalCard, { pulseColor } from './PulseSignalCard';
 
 /** Instantané du Pouls juste avant la saisie (pour mesurer ce qui a bougé). */
@@ -35,19 +34,6 @@ interface Pending {
 
 /** Requêtes dont dépend le Pouls : on attend qu'elles soient revenues avant d'afficher. */
 const WATCHED_QUERIES = new Set(['pilotage_data', 'transactions', 'accounts']);
-
-/**
- * Espace de recherche du signal impacté : hebdo D'ABORD (il contient toujours « Dépenses du mois »
- * et « Fin de mois », même pour un profil P5 qui ne les affiche pas dans sa vue complète), puis le
- * reste de la vue complète (matelas, invest…).
- */
-function unionResult(d: PulseData): PulseResult {
-  const weeklyIds = new Set(d.weekly.signals.map((s) => s.id));
-  return {
-    ...d.result,
-    signals: [...d.weekly.signals, ...d.result.signals.filter((s) => !weeklyIds.has(s.id))],
-  };
-}
 
 export default function PulseDeltaHost() {
   const COLORS = useAppColors();
@@ -107,8 +93,8 @@ export default function PulseDeltaHost() {
     setFeedback(
       computeOpFeedback(
         toOp(p.event),
-        p.before ? unionResult(p.before) : null,
-        now ? unionResult(now) : null,
+        p.before?.live ?? null,
+        now?.live ?? null,
         p.before?.relyka ?? null,
         now?.relyka ?? null,
       ),
@@ -190,7 +176,7 @@ export default function PulseDeltaHost() {
           },
         ]}
       >
-        <Text style={styles.title}>C’est enregistré 🫀</Text>
+        <Text style={styles.title}>C’est enregistré 🧭</Text>
 
         <View style={styles.chips}>
           {feedback.chips.map((chip) => {
@@ -210,7 +196,7 @@ export default function PulseDeltaHost() {
           </View>
         )}
 
-        <Text style={styles.hint}>Touche pour fermer</Text>
+        <Text style={styles.hint}>Swipe vers le haut pour fermer</Text>
         <View style={styles.grabber} />
       </Animated.View>
       </View>

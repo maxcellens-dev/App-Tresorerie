@@ -71,7 +71,7 @@ export default function AdminHub() {
         { href: '/(tabs)/admin/recommendations', icon: 'bulb-outline', title: 'Recommandations', desc: 'Moteur & paliers', color: COLORS.green },
         { href: '/(tabs)/admin/safe-to-spend', icon: 'calculator-outline', title: 'Formule À dépenser', desc: 'Calcul détaillé', color: '#60a5fa' },
         { href: '/(tabs)/admin/fiscal-rates', icon: 'cash-outline', title: 'Fiscalité', desc: 'Taux par enveloppe (PEA, AV…)', color: '#fbbf24' },
-        { href: '/(tabs)/(secondary)/admin/pouls', icon: 'pulse-outline', title: 'Le Pouls', desc: 'Signaux par profil · repères · notif hebdo', color: '#ef4444' },
+        { href: '/(tabs)/(secondary)/admin/pouls', icon: 'compass-outline', title: 'Le Point', desc: 'Signaux par profil · repères · notif hebdo', color: '#ef4444' },
         { href: '/(tabs)/(secondary)/admin/reliability', icon: 'shield-checkmark-outline', title: 'Fiabilité & confiance', desc: 'Seuils de doute · notifications système', color: '#34d399' },
         { href: '/(tabs)/(secondary)/admin/banners-preview', icon: 'eye-outline', title: 'Aperçu bandeaux', desc: 'Prochain geste · clôture · confiance (tous les textes)', color: '#f59e0b' },
       ],

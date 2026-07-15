@@ -1,6 +1,6 @@
 import {
-  computePulse, resolvePulseConfig, DEFAULT_PULSE_CONFIG, weekKey, monthKey, monthElapsedRatio,
-  type PulseInputs,
+  computePulse, resolvePulseConfig, DEFAULT_PULSE_CONFIG, PULSE_SIGNAL_IDS,
+  weekKey, monthKey, monthElapsedRatio, type PulseInputs,
 } from '../lib/pulseEngine';
 import { computeSecurityCushion } from '../lib/securityCushion';
 import { computeOpFeedback } from '../lib/pulseDelta';
@@ -78,6 +78,24 @@ describe('computePulse — les signaux dépendent du profil', () => {
     const r = computePulse(inputs({ projects: [] }));
     expect(r.signals.some((s) => s.id === 'projects')).toBe(false);
   });
+
+  it('un projet en saisie manuelle (onTrack null) est NEUTRE, jamais « dans les temps »', () => {
+    const projects = [{ id: 'p', name: 'Voiture', target: 1500, saved: 200, progressPct: 13, onTrack: null }];
+    const s = computePulse(inputs({ projects })).signals.find((x) => x.id === 'projects')!;
+    expect(s.status).toBe('neutral');
+    expect(s.chip).toBe('En cours');
+  });
+
+  it('un projet en retard (onTrack false) est mis en avant et signalé', () => {
+    const projects = [
+      { id: 'a', name: 'Avance', target: 1000, saved: 900, progressPct: 90, onTrack: true },
+      { id: 'b', name: 'Retard', target: 2000, saved: 200, progressPct: 10, onTrack: false },
+    ];
+    const s = computePulse(inputs({ projects })).signals.find((x) => x.id === 'projects')!;
+    expect(s.status).toBe('watch');
+    expect(s.headline).toContain('Retard');
+    expect(s.chip).toBe('En retard');
+  });
 });
 
 describe('computePulse — les jugements', () => {
@@ -105,6 +123,21 @@ describe('computePulse — les jugements', () => {
   it('sans enveloppe estimable, les dépenses sont montrées mais PAS jugées', () => {
     const r = computePulse(inputs({ profileId: 'P1', spendingBudget: 0, spendingSoFar: 120 }));
     expect(r.signals.find((x) => x.id === 'spending')!.status).toBe('neutral');
+  });
+
+  it('enveloppe DÉJÀ dépassée : constat (pas projection) avec le montant de dépassement', () => {
+    const r = computePulse(inputs({ profileId: 'P1', spendingBudget: 400, spendingSoFar: 520 }));
+    const s = r.signals.find((x) => x.id === 'spending')!;
+    expect(s.status).toBe('alert');
+    expect(s.chip).toBe('Budget dépassé');
+    expect(s.detail).toContain('dépassé ton budget de 120 €');
+    expect(s.detail).not.toMatch(/rythme|finirais/); // plus une projection : c'est un fait
+  });
+
+  it('la marge de sécurité en fin de mois se lit « au-dessus de ta marge »', () => {
+    const r = computePulse(inputs({ profileId: 'P1', endOfMonthBalance: 900, safetyMargin: 300 }));
+    const s = r.signals.find((x) => x.id === 'end_of_month')!;
+    expect(s.detail).toContain('au-dessus de ta marge de sécurité');
   });
 
   it('en tout début de mois, un resto ne fait pas « exploser » le jugement', () => {
@@ -147,11 +180,14 @@ describe('computePulse — orthographe de la synthèse', () => {
 });
 
 describe('computePulse — pas d’« idéal » subjectif', () => {
-  it('le matelas encourage vers le PROCHAIN palier tant qu’il en reste un', () => {
+  it('le matelas chiffre le prochain palier : épargne actuelle / épargne visée', () => {
     const r = computePulse(inputs({ savingsBalance: 4000, avgMonthlyIncome: 2000 })); // 2 mois
     const s = r.signals.find((x) => x.id === 'cushion')!;
-    expect(s.detail).toContain('Prochain palier : 3 mois');
-    expect(s.detail).not.toMatch(/idéal/i);
+    const detail = s.detail!.replace(/\s/g, ' '); // normalise les espaces insécables de toLocaleString
+    expect(detail).toContain('Prochain palier : 3 mois');
+    expect(detail).toContain('4 000 € / ~6 000 €'); // 3 mois × 2000 € de revenu
+    expect(detail).not.toMatch(/idéal/i);
+    expect(s.amountLine).toBeUndefined(); // plus de « Épargne totale » sous la barre
   });
 
   it('au-delà du dernier palier, aucun objectif n’est affiché', () => {
@@ -223,8 +259,14 @@ describe('resolvePulseConfig', () => {
 });
 
 describe('computeOpFeedback — la réponse à une saisie', () => {
-  const before = computePulse(inputs());
-  const after = computePulse(inputs({ spendingSoFar: 500 }));
+  // Pool LIVE : TOUS les signaux (comme usePulse.live) → une saisie d'épargne peut montrer la carte
+  // « Épargne » même si le profil ne l'affiche pas dans son état des lieux.
+  const allCfg = {
+    ...DEFAULT_PULSE_CONFIG,
+    signalsByProfile: { ...DEFAULT_PULSE_CONFIG.signalsByProfile, P3: [...PULSE_SIGNAL_IDS] },
+  };
+  const before = computePulse(inputs(), allCfg, 'full');
+  const after = computePulse(inputs({ spendingSoFar: 500 }), allCfg, 'full');
   /** Node formate les milliers en espace INSÉCABLE : on normalise pour comparer du texte lisible. */
   const plain = (s: string) => s.replace(/[  ]/g, ' ');
 
@@ -240,21 +282,30 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
     expect(f.chips.some((c) => c.text.includes('Ton Relyka'))).toBe(true);
   });
 
-  it('un virement vers l’épargne fait remonter le MATELAS', () => {
+  it('un virement vers l’épargne montre la carte ÉPARGNE (pas Fin de mois)', () => {
     const f = computeOpFeedback(
       { kind: 'transfer', amount: 200, fromType: 'checking', toType: 'savings' },
       before, after, 400, 200,
     );
     expect(f.chips[0].text).toBe('Épargne : +200 €');
-    expect(f.signal?.id).toBe('cushion');
+    expect(f.signal?.id).toBe('saving');
   });
 
-  it('un virement courant → courant ne fabrique aucun signal', () => {
+  it('un virement vers l’investissement montre la carte INVESTISSEMENT', () => {
+    const f = computeOpFeedback(
+      { kind: 'transfer', amount: 200, fromType: 'checking', toType: 'investment' },
+      before, after, 400, 200,
+    );
+    expect(f.chips[0].text).toBe('Investi : +200 €');
+    expect(f.signal?.id).toBe('investing');
+  });
+
+  it('un virement courant → courant garde la carte FIN DE MOIS', () => {
     const f = computeOpFeedback(
       { kind: 'transfer', amount: 100, fromType: 'checking', toType: 'checking' },
       before, after, 400, 400,
     );
-    expect(f.signal).toBeNull();
+    expect(f.signal?.id).toBe('end_of_month');
     expect(f.chips[0].text).toMatch(/ton budget ne change pas/);
   });
 
@@ -269,12 +320,9 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
   });
 
   it('un virement invest daté dans le futur ne montre pas « rien de placé » : seule la fin de mois est impactée', () => {
-    // En production, le host cherche dans l'union hebdo+complet — l'hebdo contient toujours « Fin de mois ».
-    const weekBefore = computePulse(inputs(), DEFAULT_PULSE_CONFIG, 'week');
-    const weekAfter = computePulse(inputs({ spendingSoFar: 500 }), DEFAULT_PULSE_CONFIG, 'week');
     const f = computeOpFeedback(
       { kind: 'transfer', amount: 100, fromType: 'checking', toType: 'investment', isFuture: true },
-      weekBefore, weekAfter, 400, 300,
+      before, after, 400, 300,
     );
     expect(f.signal?.id).toBe('end_of_month');
   });

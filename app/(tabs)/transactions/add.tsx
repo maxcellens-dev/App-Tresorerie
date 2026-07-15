@@ -130,6 +130,27 @@ export default function AddTransactionScreen() {
   const isIncome = transactionType === 'income';
   const isTransfer = transactionType === 'transfer';
 
+  // Remet le formulaire à son état initial (appelé après un enregistrement réussi). On garde le TYPE
+  // courant (l'utilisateur enchaîne souvent le même type), mais on repart à l'étape 1, champs vides.
+  const resetForm = useCallback(() => {
+    setAmount('');
+    setAmountTo('');
+    amountToTouched.current = false;
+    setDate(todayISO());
+    setDateDisplay(formatDateFrench(todayISO()));
+    setNote('');
+    setCategoryId('');
+    setTargetAccountId('');
+    setIsRefund(false);
+    setIsRecurring(false);
+    setRecurrenceRule('monthly');
+    setRecurrenceEndDateInput('');
+    setShowCalendar(false);
+    setFormError(null);
+    setErrorFields([]);
+    setStep(1);
+  }, []);
+
   // Changer de type → revenir à l'étape 1.
   const changeType = (t: TransactionType) => { setTransactionType(t); setStep(1); setFormError(null); setErrorFields([]); };
 
@@ -347,6 +368,9 @@ export default function AddTransactionScreen() {
         });
       }
 
+      // Cet écran reste MONTÉ dans la pile (expo-router) → sans remise à zéro, la saisie suivante
+      // rouvrirait pré-remplie avec les valeurs précédentes, directement à l'étape 2. On repart propre.
+      resetForm();
       if (params.origin) { router.replace(decodeURIComponent(String(params.origin)) as any); }
       else router.back();
     } catch (e: unknown) {

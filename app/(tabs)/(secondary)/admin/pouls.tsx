@@ -143,7 +143,7 @@ export default function AdminPouls() {
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-          <Text style={styles.h1}>🫀 Le Pouls</Text>
+          <Text style={styles.h1}>🧭 Le Point</Text>
           <Text style={styles.p}>
             L’état des lieux de la santé financière : des constats jugés par des repères liés au profil
             P1–P5. Aucun objectif n’est demandé à l’utilisateur — tout vient d’ici.
@@ -154,8 +154,8 @@ export default function AdminPouls() {
           <View style={styles.card}>
             <ToggleRow
               styles={styles} COLORS={COLORS}
-              label="Le Pouls est actif"
-              help="Désactivé : plus aucun Pouls nulle part (pastille, cartes, pastilles de saisie)."
+              label="Le Point est actif"
+              help="Désactivé : plus aucun Point nulle part (pastille, cartes, pastilles de saisie)."
               value={draft.enabled}
               onChange={(v) => patch({ enabled: v })}
             />
@@ -168,7 +168,7 @@ export default function AdminPouls() {
             />
             <ToggleRow
               styles={styles} COLORS={COLORS}
-              label="Pouls de la semaine"
+              label="Point de la semaine"
               help="Carte LÉGÈRE (3 signaux max : dépenses, fin de mois + le signal du mois du profil), à la 1ʳᵉ ouverture de la semaine."
               value={draft.weekly}
               onChange={(v) => patch({ weekly: v })}
@@ -186,7 +186,7 @@ export default function AdminPouls() {
           <View style={styles.previewRow}>
             <TouchableOpacity style={styles.previewBtn} onPress={() => openPulse('week', false)}>
               <Ionicons name="eye-outline" size={15} color={COLORS.emerald} />
-              <Text style={styles.previewTxt}>Voir le Pouls hebdo</Text>
+              <Text style={styles.previewTxt}>Voir le Point hebdo</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.previewBtn} onPress={() => openPulse('month', false)}>
               <Ionicons name="eye-outline" size={15} color={COLORS.emerald} />
@@ -194,7 +194,7 @@ export default function AdminPouls() {
             </TouchableOpacity>
           </View>
           <Text style={styles.note}>
-            L’aperçu ouvre le VRAI Pouls sur ton propre compte, sans consommer la période (le rendez-vous
+            L’aperçu ouvre le VRAI Point sur ton propre compte, sans consommer la période (le rendez-vous
             de l’utilisateur arrivera quand même).
           </Text>
 
@@ -269,7 +269,7 @@ export default function AdminPouls() {
             <ToggleRow
               styles={styles} COLORS={COLORS}
               label="Notification active"
-              help="Prévient l’utilisateur que son pouls de la semaine est prêt. Le détail reste dans l’app (rien de personnel dans la notification)."
+              help="Prévient l’utilisateur que son point de la semaine est prêt. Le détail reste dans l’app (rien de personnel dans la notification)."
               value={pushOn}
               onChange={(v) => saveNotifCfg.mutate({ pulse_weekly: { enabled: v } })}
             />
@@ -279,7 +279,7 @@ export default function AdminPouls() {
               style={styles.inputWide}
               value={draft.weeklyPush.title}
               onChangeText={(v) => patch({ weeklyPush: { ...draft.weeklyPush, title: v } })}
-              placeholder="Ton pouls de la semaine 🫀"
+              placeholder="Ton point de la semaine 🧭"
               placeholderTextColor={COLORS.textSecondary}
             />
             <Text style={styles.blockLabel}>Message</Text>
@@ -347,7 +347,7 @@ export default function AdminPouls() {
             >
               {sending
                 ? <ActivityIndicator color={COLORS.bg} size="small" />
-                : <><Ionicons name="send" size={15} color={COLORS.bg} /><Text style={styles.sendTxt}>Envoyer le pouls hebdo maintenant</Text></>}
+                : <><Ionicons name="send" size={15} color={COLORS.bg} /><Text style={styles.sendTxt}>Envoyer le point hebdo maintenant</Text></>}
             </TouchableOpacity>
             {!!sendResult && <Text style={styles.sendResult}>{sendResult}</Text>}
             {!pushOn && <Text style={styles.note}>Active la notification ci-dessus pour pouvoir l’envoyer.</Text>}

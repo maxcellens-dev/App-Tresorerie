@@ -91,15 +91,19 @@ function directChip(op: PulseOp): PulseDeltaChip {
   return { key: 'direct', text: `${eur(amount)} déplacés — ton budget ne change pas`, tone: 'neutral' };
 }
 
-/** Le Relyka a bougé : on le dit, c'est LA métrique que l'utilisateur suit. */
+/**
+ * Le Relyka, TOUJOURS affiché (c'est LA métrique que l'utilisateur suit) — juste sa nouvelle valeur,
+ * sans l'écart (qui ferait doublon avec le montant de la transaction affiché à côté).
+ * On l'affiche même si le montant n'a pas bougé : une dépense dans l'enveloppe variable ne change
+ * pas le Relyka (elle était déjà budgétée), mais le voir stable est rassurant, pas déroutant.
+ */
 function relykaChip(before: number | null, after: number | null): PulseDeltaChip | null {
-  if (before == null || after == null) return null;
-  const diff = Math.round(after) - Math.round(before);
-  if (diff === 0) return null;
+  if (after == null) return null;
+  const diff = before != null ? Math.round(after) - Math.round(before) : 0;
   return {
     key: 'relyka',
-    text: `Ton Relyka : ${eur(after)} (${diff > 0 ? '+' : '−'}${eur(diff)})`,
-    tone: diff > 0 ? 'good' : after <= 0 ? 'alert' : 'watch',
+    text: `Ton Relyka : ${eur(after)}`,
+    tone: after <= 0 ? 'alert' : diff < 0 ? 'watch' : 'good',
   };
 }
 
@@ -116,10 +120,13 @@ function impactedSignalIds(op: PulseOp): PulseSignalId[] {
   if (op.kind === 'income') return ['end_of_month', 'spending'];
   if (op.kind === 'expense') return ['spending', 'end_of_month'];
 
-  if (op.toType === 'savings') return ['cushion', 'saving', 'end_of_month'];
+  // Virement : la carte reflète OÙ va l'argent — épargne → « Épargne du mois », invest →
+  // « Investissement du mois ». Courant → courant : rien ne bouge côté épargne/invest, on garde
+  // « Fin de mois » (le seul repère pertinent d'un déplacement dans le budget du quotidien).
+  if (op.toType === 'savings') return ['saving', 'cushion', 'end_of_month'];
   if (op.toType === 'investment') return ['investing', 'end_of_month'];
   if (op.fromType === 'savings' || op.fromType === 'investment') return ['cushion', 'end_of_month'];
-  return []; // courant → courant : rien ne bouge, on ne fabrique pas un signal pour rien
+  return ['end_of_month']; // courant → courant
 }
 
 const MAX_CHIPS = 3;

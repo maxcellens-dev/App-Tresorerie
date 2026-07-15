@@ -17,7 +17,7 @@ import { useFinancialProfile, useQuestionnaireAnswers } from './useFinancialProf
 import { usePulseConfig } from './usePulseConfig';
 import { useReliabilityConfig, deriveRelykaConfidence } from './useReliability';
 import { usePulseSnapshots } from './usePulseState';
-import { computePulse, monthKey, type PulseInputs, type PulseResult } from '../lib/pulseEngine';
+import { computePulse, monthKey, PULSE_SIGNAL_IDS, type PulseInputs, type PulseResult } from '../lib/pulseEngine';
 import { computeInvestmentGains } from '../lib/investment';
 import { computeRelyka } from '../lib/relyka';
 import type { FinancialProfileId } from '../types/database';
@@ -72,6 +72,9 @@ export interface PulseData {
   result: PulseResult;
   /** Le pouls HEBDO, léger (3 signaux max) — la carte de la semaine. */
   weekly: PulseResult;
+  /** TOUS les signaux calculés (au-delà de ceux affichés au profil) — pool de recherche du live :
+   *  une saisie d'épargne doit pouvoir montrer la carte « Épargne » même si le profil ne l'affiche pas. */
+  live: PulseResult;
   /** Chiffres bruts de l'anneau hebdo : épargné + investi du mois vs capacité du mois. */
   weeklyStats: { saved: number; invested: number; capacity: number };
   profileId: FinancialProfileId;
@@ -207,9 +210,17 @@ export function usePulse(): PulseData | null {
       (t) => !t.is_draft && String(t.date ?? '').slice(0, 7) === lastMonth,
     );
 
+    // Pool LIVE : tous les signaux calculés (pas seulement ceux affichés au profil), pour que la
+    // carte de saisie puisse montrer « Épargne » / « Investissement » quel que soit le profil.
+    const allConfig = {
+      ...config,
+      signalsByProfile: { ...config.signalsByProfile, [profileId]: PULSE_SIGNAL_IDS },
+    };
+
     return {
       result: computePulse(inputs, config, 'full'),
       weekly: computePulse(inputs, config, 'week'),
+      live: computePulse(inputs, allConfig, 'full'),
       weeklyStats,
       profileId,
       relyka,
@@ -225,32 +236,34 @@ export function usePulse(): PulseData | null {
 /**
  * Le projet suit-il son plan ? On compare ce qui est mis de côté à ce qui aurait dû l'être :
  *  • versement mensuel prévu → mois écoulés × versement ;
- *  • sinon échéance → part du temps écoulé × montant cible ;
- *  • ni l'un ni l'autre (projet ponctuel) → rien à juger, il est « dans les temps ».
+ *  • échéance (allocation_type 'date') → part du temps écoulé × montant cible ;
+ *  • saisie MANUELLE / ponctuelle (ni versement récurrent ni échéance) → INDÉTERMINÉ : on ne peut
+ *    pas savoir s'il est en retard, donc `null` → le Pouls affiche un état neutre (« En cours »).
  * Tolérance de 10 % : un mois de décalage ne doit pas afficher « en retard ».
  */
-function isProjectOnTrack(project: any, saved: number, target: number, today: Date): boolean {
-  const start = String(project.first_payment_date ?? project.created_at ?? '').slice(0, 10);
-  if (!start) return true;
-  const startDate = new Date(start + 'T00:00:00');
-  if (Number.isNaN(startDate.getTime()) || startDate > today) return true;
-
-  const monthsElapsed =
-    (today.getFullYear() - startDate.getFullYear()) * 12 + (today.getMonth() - startDate.getMonth());
-
+function isProjectOnTrack(project: any, saved: number, target: number, today: Date): boolean | null {
+  // Versement mensuel prévu : on compare l'épargné au cumul attendu → détecte les échéances sautées.
   const monthly = Number(project.monthly_allocation) || 0;
-  if (monthly > 0) {
+  const start = String(project.first_payment_date ?? project.created_at ?? '').slice(0, 10);
+  const startDate = start ? new Date(start + 'T00:00:00') : null;
+  const started = startDate && !Number.isNaN(startDate.getTime()) && startDate <= today;
+
+  if (monthly > 0 && started) {
+    const monthsElapsed =
+      (today.getFullYear() - startDate!.getFullYear()) * 12 + (today.getMonth() - startDate!.getMonth());
     const expected = Math.max(0, monthsElapsed) * monthly;
     return saved >= expected * 0.9;
   }
 
+  // Échéance fixe : rythme attendu proportionnel au temps écoulé jusqu'à la date cible.
   const targetDate = project.target_date ? new Date(String(project.target_date) + 'T00:00:00') : null;
-  if (targetDate && !Number.isNaN(targetDate.getTime()) && targetDate > startDate && target > 0) {
-    const total = targetDate.getTime() - startDate.getTime();
-    const done = Math.min(total, Math.max(0, today.getTime() - startDate.getTime()));
+  if (started && targetDate && !Number.isNaN(targetDate.getTime()) && targetDate > startDate! && target > 0) {
+    const total = targetDate.getTime() - startDate!.getTime();
+    const done = Math.min(total, Math.max(0, today.getTime() - startDate!.getTime()));
     const expected = (done / total) * target;
     return saved >= expected * 0.9;
   }
 
-  return true;
+  // Aucun plan de financement daté → on ne juge pas.
+  return null;
 }

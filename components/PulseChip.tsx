@@ -49,7 +49,7 @@ export function PulseDots() {
       <Animated.Text
         style={[styles.heart, { transform: [{ scale: beat.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }) }] }]}
       >
-        🫀
+        🧭
       </Animated.Text>
       {judged.slice(0, 5).map((signal) => (
         <View key={signal.id} style={[styles.dot, { backgroundColor: pulseColor(COLORS, signal.status) }]} />

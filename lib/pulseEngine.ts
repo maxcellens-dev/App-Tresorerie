@@ -45,7 +45,7 @@ export const PULSE_SIGNAL_IDS: PulseSignalId[] = [
 /** Libellés admin (liste de sélection des signaux par profil). */
 export const PULSE_SIGNAL_LABELS: Record<PulseSignalId, string> = {
   end_of_month: 'Fin de mois (ce qu’il restera)',
-  spending:     'Dépenses du mois',
+  spending:     'Dépenses variables',
   cushion:      'Matelas de sécurité',
   saving:       'Épargne du mois',
   investing:    'Investissement du mois',
@@ -155,7 +155,7 @@ export const DEFAULT_PULSE_CONFIG: PulseConfig = {
     enabled: true,
     weekday: 0, // 0 = dimanche
     hour: 21,
-    title: 'Ton pouls de la semaine 🫀',
+    title: 'Ton point de la semaine 🧭',
     body: 'Ouvre Relyka pour voir où tu en es cette semaine.',
   },
 };
@@ -231,7 +231,8 @@ export interface PulseInputs {
   monthsWithoutOverdraft: number;
 
   // Projets perso
-  projects: { id: string; name: string; target: number; saved: number; progressPct: number; onTrack: boolean }[];
+  // onTrack : true = dans les temps · false = en retard · null = INDÉTERMINÉ (saisie manuelle → neutre).
+  projects: { id: string; name: string; target: number; saved: number; progressPct: number; onTrack: boolean | null }[];
 
   /** Confiance basse → tous les signaux en « estimé » (aucun jugement sur des chiffres douteux). */
   lowConfidence: boolean;
@@ -278,11 +279,11 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
   const status: PulseStatus =
     left < 0 ? 'alert' : above < 0 ? 'watch' : 'good';
 
-  // Une PROJECTION se dit toujours au conditionnel (« tu serais », « devrait ») : rien n'est acquis.
+  // Une PROJECTION se dit toujours au conditionnel (« devrais », « passerais ») : rien n'est acquis.
   const detail = margin > 0
     ? (above >= 0
-        ? `Ta marge de sécurité est de ${eur(margin)} : tu devrais être ${eur(above)} au-dessus.`
-        : `Ta marge de sécurité est de ${eur(margin)} : là, tu devrais passer en dessous.`)
+        ? `Tu devrais être ${eur(above)} au-dessus de ta marge de sécurité (${eur(margin)}).`
+        : `Tu devrais passer sous ta marge de sécurité (${eur(margin)}).`)
     : (left >= 0 ? 'Ton compte devrait rester dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
 
   return {
@@ -305,7 +306,7 @@ function buildSpending(i: PulseInputs): PulseSignal {
   // Pas d'enveloppe estimable (nouvel utilisateur) → on montre le montant, sans juger.
   if (budget <= 0) {
     return {
-      id: 'spending', label: 'Dépenses du mois', emoji: '🛒', status: 'neutral',
+      id: 'spending', label: 'Dépenses variables', emoji: '🛒', status: 'neutral',
       headline: `${eur(spent)} dépensés ce mois-ci`,
       detail: 'Encore un peu de suivi et Relyka saura te dire si c’est beaucoup pour toi.',
       chip: 'À suivre',
@@ -318,7 +319,7 @@ function buildSpending(i: PulseInputs): PulseSignal {
   // commencer et que l'enveloppe n'est pas sérieusement entamée, on constate sans juger.
   if (elapsed < 0.15 && spent < budget * 0.5) {
     return {
-      id: 'spending', label: 'Dépenses du mois', emoji: '🛒', status: 'neutral',
+      id: 'spending', label: 'Dépenses variables', emoji: '🛒', status: 'neutral',
       // « estimés » (pas « prévus ») : l'enveloppe variable est une ESTIMATION, pas un plan.
       headline: `${eur(spent)} dépensés sur les ${eur(budget)} estimés`,
       detail: 'Le mois vient de commencer : trop tôt pour juger ton rythme.',
@@ -327,14 +328,26 @@ function buildSpending(i: PulseInputs): PulseSignal {
     };
   }
 
-  // Fin de mois estimée SI l'utilisateur continue au même rythme — donc au CONDITIONNEL.
+  // Enveloppe DÉJÀ dépassée : ce n'est plus une projection, c'est un fait → on dit juste de combien.
+  if (spent > budget) {
+    const over = spent - budget;
+    return {
+      id: 'spending', label: 'Dépenses variables', emoji: '🛒', status: 'alert',
+      headline: `${eur(spent)} dépensés sur les ${eur(budget)} estimés`,
+      detail: `Tu as dépassé ton budget de ${eur(over)}.`,
+      chip: 'Budget dépassé',
+      progress: { value: 1, target: 1 },
+    };
+  }
+
+  // Pas encore dépassé : on PROJETTE la fin de mois au rythme actuel → conditionnel.
   const projected = spent / elapsed;
   const overshoot = projected - budget;
   const status: PulseStatus = overshoot > budget * 0.1 ? 'alert' : overshoot > 0 ? 'watch' : 'good';
 
   return {
     id: 'spending',
-    label: 'Dépenses du mois',
+    label: 'Dépenses variables',
     emoji: '🛒',
     status,
     headline: `${eur(spent)} dépensés sur les ${eur(budget)} estimés`,
@@ -381,13 +394,13 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     months >= threshold ? 'good' : months >= threshold * 0.5 ? 'watch' : 'alert';
   const base: SecurityCushionBase = cushion.base ?? 'income';
 
-  // Le titre dit déjà les mois, la ligne du bas dit déjà l'épargne totale : le détail ne répète
-  // rien — juste le prochain palier s'il en reste un, ou rien à viser sinon.
+  // Prochain palier chiffré : « 6 mois (12 723 € / ~15 237 €) » — épargne actuelle / épargne visée.
+  // La cible est le nb de mois × le revenu de référence (reference = épargne ÷ mois couverts).
   const next = nextCushionMilestone(months);
-  const estimated = base === 'income' ? '' : ' · estimation basée sur ton questionnaire';
+  const estimated = base === 'income' ? '' : ' (estimation)';
   const detail = next
-    ? `Prochain palier : ${next} mois.${estimated}`
-    : `Tu as de quoi voir venir.${estimated}`;
+    ? `Prochain palier : ${next} mois${estimated} (${eur(i.savingsBalance)} / ~${eur(next * cushion.reference)}).`
+    : `Tu as de quoi voir venir${estimated}.`;
 
   return {
     id: 'cushion',
@@ -396,7 +409,6 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     status,
     headline: `Tu pourrais tenir ${securityMonthsLabel(months)} sans rentrée d’argent`,
     detail,
-    amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
     chip: status === 'good' ? 'Solide' : status === 'watch' ? 'À renforcer' : 'Trop juste',
     // La barre se remplit vers le PROCHAIN palier ; tous franchis → pleine.
     progress: { value: next ? Math.min(1, months / next) : 1, target: 1 },
@@ -431,7 +443,8 @@ function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     headline: `${eur(saved)} mis de côté ce mois-ci`,
     detail: `Soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois).`,
     amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
-    chip: status === 'good' ? 'Repère atteint' : status === 'watch' ? 'À mi-chemin' : 'Presque rien',
+    // Réel vs recommandé (le montant recommandé sert au calcul, sans être affiché comme un « repère »).
+    chip: status === 'good' ? 'Bien épargné' : status === 'watch' ? 'À mi-chemin' : 'Peu épargné',
     progress: { value: Math.min(1, targetAmount > 0 ? saved / targetAmount : 0), target: 1 },
   };
 }
@@ -531,12 +544,20 @@ function buildWealth(i: PulseInputs): PulseSignal {
 function buildProjects(i: PulseInputs): PulseSignal | null {
   if (i.projects.length === 0) return null;
 
-  // On met en avant le projet qui a le plus besoin d'attention, sinon le plus avancé.
-  const late = i.projects.filter((p) => !p.onTrack).sort((a, b) => a.progressPct - b.progressPct)[0];
+  // Priorité d'affichage : un projet EN RETARD (onTrack === false) d'abord, sinon le plus avancé.
+  const late = i.projects.filter((p) => p.onTrack === false).sort((a, b) => a.progressPct - b.progressPct)[0];
   const best = [...i.projects].sort((a, b) => b.progressPct - a.progressPct)[0];
   const p = late ?? best;
   const others = i.projects.length - 1;
-  const status: PulseStatus = late ? 'watch' : 'good';
+
+  // Saisie manuelle (onTrack null) et pas de projet en retard → on constate, sans juger le rythme.
+  const status: PulseStatus = late ? 'watch' : p.onTrack === null ? 'neutral' : 'good';
+  const detail = late
+    ? 'Tu mets moins de côté que prévu pour ce projet : il risque de prendre du retard.'
+    : p.onTrack === null
+      ? 'Tu l’alimentes à ton rythme, quand tu veux.'
+      : 'Tu es dans les temps pour ce projet.';
+  const chip = late ? 'En retard' : p.onTrack === null ? 'En cours' : 'Dans les temps';
 
   return {
     id: 'projects',
@@ -544,11 +565,9 @@ function buildProjects(i: PulseInputs): PulseSignal | null {
     emoji: '🎯',
     status,
     headline: `${p.name} : ${eur(p.saved)} sur ${eur(p.target)}`,
-    detail: late
-      ? 'Tu mets moins de côté que prévu pour ce projet : il risque de prendre du retard.'
-      : 'Tu es dans les temps pour ce projet.',
+    detail,
     amountLine: others > 0 ? `Et ${others} autre${others > 1 ? 's' : ''} projet${others > 1 ? 's' : ''} en cours` : undefined,
-    chip: late ? 'En retard' : 'Dans les temps',
+    chip,
     progress: { value: Math.min(1, p.progressPct / 100), target: 1 },
   };
 }

@@ -805,7 +805,7 @@ export default function PilotageScreen() {
                 <Text style={styles.sectionTitle}>Suivi du mois</Text>
               </View>
               {/* Pilule du mois + LE POULS : « Juillet 2026 🫀 ●●●● ». Les pastilles reflètent l'état
-                  COMPLET → le tap ouvre l'état des lieux complet du jour (le Pouls hebdo léger, lui,
+                  COMPLET → le tap ouvre l'état des lieux complet du jour (le Point hebdo léger, lui,
                   s'ouvre tout seul une fois par semaine). */}
               <TouchableOpacity
                 style={styles.monthPill}

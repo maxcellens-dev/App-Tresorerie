@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
-import { useFinancialProfile } from '../hooks/useFinancialProfile';
+import { useFinancialProfile, useQuestionnaireAnswers } from '../hooks/useFinancialProfile';
 import WelcomeScreen from './welcome';
 import AppLoading from '../components/AppLoading';
 
@@ -10,6 +10,9 @@ export default function Index() {
   const { user, loading } = useAuth();
   const profileQuery = useProfile(user?.id);
   const fpQuery = useFinancialProfile(user?.id);
+  // Réponses au questionnaire : signal DÉTERMINISTE pour rattraper les comptes qui l'ont sauté
+  // (un ancien démarrage lent/hors-ligne pouvait passer outre — cf. `fpUncertain` ci-dessous).
+  const qaQuery = useQuestionnaireAnswers(user?.id);
 
   // FILET GLOBAL : quoi qu'il arrive (hors-ligne, requêtes en pause, lenteur), on OUVRE l'app au bout
   // de 5 s max au lieu de rester bloqué sur le logo. Indispensable : sans ça, une requête « en pause »
@@ -45,10 +48,29 @@ export default function Index() {
     // Garde-fou : si la requête « profil financier » a échoué / est indisponible, on NE renvoie PAS
     // un utilisateur existant vers le questionnaire (faux positif). On le considère comme fait.
     const fpUncertain = fpQuery.isError || noNetwork;
+
+    // Les 3 PREMIÈRES réponses sont-elles présentes ? Signal fiable pour distinguer un compte neuf
+    // (questionnaire jamais commencé) d'un compte existant dont la lecture a juste échoué.
+    // `qaReadable` = la lecture a abouti (data éventuellement null) → verdict fiable.
+    const qa = qaQuery.data;
+    const first3Filled = !!(qa && qa.q1 && qa.q2 && qa.q3);
+    const qaReadable = qaQuery.isSuccess;
+
+    // RATTRAPAGE (prioritaire, override le flag legacy) : réponses LISIBLES, 3 premières vides et
+    // aucun profil financier → le questionnaire a été sauté (démarrage lent/hors-ligne d'une
+    // ancienne version) → on le rouvre au début. On attend que la lecture ait abouti (qaReadable)
+    // pour ne jamais renvoyer un compte existant par erreur.
+    if (qaReadable && !first3Filled && !hasFinancialProfile && profile) {
+      return <Redirect href="/questionnaire" />;
+    }
+
     const onboardingDone =
       hasFinancialProfile || fpUncertain || Boolean(profile?.initial_onboarding_completed);
     const questionnaireDone =
-      hasFinancialProfile || fpUncertain || Boolean(profile?.financial_profile_questionnaire_completed);
+      hasFinancialProfile
+      || first3Filled
+      || Boolean(profile?.financial_profile_questionnaire_completed)
+      || fpUncertain;
 
     if (!profile) {
       // Pas de profil chargé : si le réseau est indisponible / on force l'ouverture, on va sur

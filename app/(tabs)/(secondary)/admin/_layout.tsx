@@ -22,7 +22,7 @@ export default function AdminLayout() {
       <Stack.Screen name="users" options={{ title: 'Utilisateurs' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Stack.Screen name="app-update" options={{ title: "Mise à jour de l'App" }} />
-      <Stack.Screen name="pouls" options={{ title: 'Le Pouls' }} />
+      <Stack.Screen name="pouls" options={{ title: 'Le Point' }} />
       <Stack.Screen name="reliability" options={{ title: 'Fiabilité & confiance' }} />
       <Stack.Screen name="banners-preview" options={{ title: 'Aperçu bandeaux' }} />
       <Stack.Screen name="usage-limits" options={{ title: "Limites d'usage" }} />

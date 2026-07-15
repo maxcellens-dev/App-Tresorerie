@@ -226,7 +226,7 @@ export default function StatsHub() {
 
               {/* Le Pouls — santé financière du parc. Le tableau des signaux dit CE QUI bloque
                   le plus de monde : c'est la donnée qui doit guider les prochains conseils. */}
-              <Section title="Le Pouls (santé financière)" hint={`Bilans archivés sur ${days} jours`} styles={styles}>
+              <Section title="Le Point (santé financière)" hint={`Bilans archivés sur ${days} jours`} styles={styles}>
                 <View style={styles.adKpiRow}>
                   <AdKpi value={pulseAgg.bilans} label="Bilans" color={COLORS.emerald} styles={styles} />
                   <AdKpi value={pulseAgg.users} label="Utilisateurs" color="#60a5fa" styles={styles} />
@@ -252,7 +252,7 @@ export default function StatsHub() {
                     </View>
                   </View>
                 ) : (
-                  <Text style={styles.empty}>Aucun bilan sur cette période (les bilans s'archivent quand l'utilisateur consulte son Pouls).</Text>
+                  <Text style={styles.empty}>Aucun bilan sur cette période (les bilans s'archivent quand l'utilisateur consulte son Point).</Text>
                 )}
               </Section>
 
