@@ -671,17 +671,22 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // =====================================================================
   // STEP 2: Variable Expense Trend (using is_variable flag)
   // =====================================================================
-  const lastThreeMonths: Array<{ year: number; month: number }> = [];
-  for (let i = 2; i >= 0; i--) {
+  // Référence = les 3 mois PRÉCÉDENTS (le mois courant est comparé à eux). On l'EXCLUT de sa propre
+  // moyenne : sinon un gros mois gonfle sa référence et la tendance est sous-estimée (ex. +13 % affiché
+  // au lieu de +30 % réel). « moyenne des 3 derniers mois » = les 3 mois d'avant, pas celui en cours.
+  const priorThreeMonths: Array<{ year: number; month: number }> = [];
+  for (let i = 3; i >= 1; i--) {
     const d = new Date(currentYear, currentMonth - 1 - i, 1);
-    lastThreeMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    priorThreeMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
   }
 
-  // Variable expenses per month for last 3 months (using is_variable category flag)
+  // Variable expenses per month for the 3 PRIOR months (using is_variable category flag).
   const variableByMonth: Record<string, number> = {};
-  for (const m of lastThreeMonths) {
+  for (const m of priorThreeMonths) {
     variableByMonth[`${m.year}-${m.month}`] = 0;
   }
+  const currentMonthKey = `${currentYear}-${currentMonth}`;
+  let current_month_variable = 0;
 
   for (const t of transactions) {
     if (t.amount >= 0) continue;
@@ -689,26 +694,23 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     if (!cat?.is_variable) continue;
     const [tYear, tMonth] = t.date.split('-').map(Number);
     const key = `${tYear}-${tMonth}`;
-    if (key in variableByMonth) {
-      variableByMonth[key] += Math.abs(Number(t.amount));
-    }
+    if (key === currentMonthKey) current_month_variable += Math.abs(Number(t.amount));
+    else if (key in variableByMonth) variableByMonth[key] += Math.abs(Number(t.amount));
   }
 
   const monthlyTotals = Object.values(variableByMonth);
   const nonZeroMonths = monthlyTotals.filter(v => v > 0);
-  const avg_variable_expenses_3m = nonZeroMonths.length > 0
+  // Moyenne brute des 3 mois précédents — usage INTERNE (projected_surplus). La référence de variable
+  // EXPOSÉE (avg_variable_expenses_3m) est unifiée plus bas sur l'enveloppe (questionnaire < 2 mois,
+  // sinon historique jusqu'à 6 mois) pour être cohérente entre Pilotage et Reporting.
+  const _avgVarRaw3m = nonZeroMonths.length > 0
     ? nonZeroMonths.reduce((a, b) => a + b, 0) / nonZeroMonths.length
     : 0;
-
-  const currentMonthKey = `${currentYear}-${currentMonth}`;
-  const current_month_variable = variableByMonth[currentMonthKey] ?? 0;
-
-  const variable_trend_percentage = avg_variable_expenses_3m > 0 ? (current_month_variable / avg_variable_expenses_3m) * 100 : 0;
 
   // =====================================================================
   // STEP 3: Surplus & Recommendation
   // =====================================================================
-  const projected_surplus = Math.max(0, safe_to_spend - Math.max(0, avg_variable_expenses_3m - current_month_variable));
+  const projected_surplus = Math.max(0, safe_to_spend - Math.max(0, _avgVarRaw3m - current_month_variable));
   const recommendation: 'À ÉPARGNER' | 'À INVESTIR' = current_savings < safety_threshold_optimal ? 'À ÉPARGNER' : 'À INVESTIR';
 
   // =====================================================================
@@ -1120,6 +1122,16 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   }
 
   const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
+
+  // ── Référence de variable UNIFIÉE (Pilotage ET Reporting) ────────────────────────────────────
+  // C'est L'ENVELOPPE elle-même : le questionnaire tant qu'on n'a pas 2 mois de données réelles,
+  // puis la moyenne réelle sur jusqu'à 6 mois d'historique (plus l'historique grandit, plus la
+  // fenêtre s'élargit). Le Reporting compare donc à la MÊME référence que le curseur « dont variables »
+  // du Pilotage — plus d'écart « 600 € ici / 5 000 € là ».
+  const avg_variable_expenses_3m = variable_envelope_initial;
+  const variable_trend_percentage = avg_variable_expenses_3m > 0
+    ? (current_month_variable / avg_variable_expenses_3m) * 100
+    : 0;
 
   // σ des dépenses variables (mois FIABLES uniquement) — alimente le cône de la Projection.
   // < 2 mois fiables → 0 (les écrans utilisent alors leur repli : fraction de l'enveloppe).

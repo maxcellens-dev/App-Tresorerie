@@ -225,7 +225,6 @@ export interface InsightInputs {
   monthSaved: number;
   variableTrendPct: number | null; // 100 = pile la moyenne
   hasVariableBaseline: boolean;
-  daysSinceVerification: number | null;
 }
 
 /**
@@ -239,16 +238,13 @@ export function buildInsights(inp: InsightInputs): Insight[] {
   const prev = flux[flux.length - 2];
 
   // — ALERTES —
-  // Solde non vérifié (fiabilité).
-  if (inp.daysSinceVerification != null && inp.daysSinceVerification > 10) {
-    out.push({ tone: 'alert', icon: 'alert-circle', priority: 5,
-      text: `Ton solde n'a pas été vérifié depuis un moment — ces chiffres sont des estimations. Une vérif de 30 s et tout redevient net.` });
-  }
+  // (Le Reporting ne parle PAS de vérification de solde : c'est un bilan d'analyse, la fiabilité se
+  // gère sur le Pilotage. Aucun message « ces chiffres sont des estimations » ici.)
   // Dépenses variables au-dessus des habitudes.
   if (inp.hasVariableBaseline && inp.variableTrendPct != null) {
     const delta = Math.round(inp.variableTrendPct - 100);
     if (delta >= 12) out.push({ tone: 'alert', icon: 'trending-up', priority: 10,
-      text: `Tes dépenses variables sont ${delta} % au-dessus de ta moyenne des 3 derniers mois — surveille les sorties non prévues.` });
+      text: `Tes dépenses variables sont ${delta} % au-dessus de ton budget variable habituel — surveille les sorties non prévues.` });
   }
   // Mois déficitaire (dépenses > revenus).
   if (last && last.income > 0 && last.net < 0) {
@@ -291,7 +287,7 @@ export function buildInsights(inp: InsightInputs): Insight[] {
   if (inp.hasVariableBaseline && inp.variableTrendPct != null) {
     const delta = Math.round(inp.variableTrendPct - 100);
     if (delta <= -12) out.push({ tone: 'win', icon: 'trending-down', priority: 24,
-      text: `Tes dépenses variables sont ${Math.abs(delta)} % sous ta moyenne des 3 derniers mois. Beau contrôle 👌` });
+      text: `Tes dépenses variables sont ${Math.abs(delta)} % sous ton budget variable habituel. Beau contrôle 👌` });
   }
   // Dépenses en baisse vs mois dernier.
   if (last && prev && prev.expense > 0) {

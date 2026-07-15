@@ -553,7 +553,6 @@ export default function ReportingScreen() {
     monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved,
     variableTrendPct: pilotage?.variable_trend_percentage ?? null,
     hasVariableBaseline: (pilotage?.avg_variable_expenses_3m ?? 0) > 0,
-    daysSinceVerification: (() => { const lv = pilotage?.confidence_inputs?.lastVerifiedAt; if (!lv) return null; return Math.floor((Date.now() - new Date(lv + 'T00:00:00').getTime()) / 86400000); })(),
   }), [monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved, pilotage]);
 
   const toneMeta: Record<InsightTone, { color: string; label: string }> = {

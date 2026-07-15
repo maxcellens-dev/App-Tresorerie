@@ -125,7 +125,6 @@ describe('buildInsights', () => {
       monthSaved: 400,
       variableTrendPct: 130, // +30 % → alerte
       hasVariableBaseline: true,
-      daysSinceVerification: 40, // alerte
     });
     expect(ins.length).toBeGreaterThan(0);
     // Le premier constat est une alerte, et les tons sont ordonnés.
@@ -134,6 +133,15 @@ describe('buildInsights', () => {
       expect(order[ins[i].tone]).toBeGreaterThanOrEqual(order[ins[i - 1].tone]);
     }
     expect(ins[0].tone).toBe('alert');
+  });
+
+  it('le Reporting ne parle JAMAIS de vérification de solde', () => {
+    const ins = buildInsights({
+      monthlyFlux: [{ ym: '2026-07', label: 'juil.', income: 2000, expense: 2500, net: -500, rate: 0 }],
+      savingsSeries: [], netWorthTotal: [], categoryBreakdown: [],
+      monthIncome: 2000, monthSaved: 0, variableTrendPct: null, hasVariableBaseline: false,
+    });
+    expect(ins.every((i) => !/vérif/i.test(i.text))).toBe(true);
   });
 });
 
