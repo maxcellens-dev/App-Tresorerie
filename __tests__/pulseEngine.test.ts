@@ -130,7 +130,7 @@ describe('computePulse — les jugements', () => {
     const s = r.signals.find((x) => x.id === 'spending')!;
     expect(s.status).toBe('alert');
     expect(s.chip).toBe('Budget dépassé');
-    expect(s.detail).toContain('dépassé ton budget de 120 €');
+    expect(s.detail).toContain('dépassé ton estimation variable de 120 €');
     expect(s.detail).not.toMatch(/rythme|finirais/); // plus une projection : c'est un fait
   });
 
@@ -209,7 +209,7 @@ describe('computePulse — pas d’« idéal » subjectif', () => {
     const r = computePulse(inputs({ profileId: 'P4', investCapacity: 8, investedThisMonth: 0 }));
     const s = r.signals.find((x) => x.id === 'investing')!;
     expect(s.status).toBe('neutral');
-    expect(s.detail).toMatch(/ne laisse pas de place/);
+    expect(s.detail).toMatch(/ne laisse plus de place/);
   });
 });
 

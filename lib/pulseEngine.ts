@@ -346,7 +346,7 @@ function buildSpending(i: PulseInputs): PulseSignal {
     return {
       id: 'spending', label: 'Dépenses variables', emoji: '🛒', status: 'alert',
       headline: `${eur(spent)} dépensés sur les ${eur(budget)} estimés`,
-      detail: `Tu as dépassé ton budget de ${eur(over)}.`,
+      detail: `Tu as dépassé ton estimation variable de ${eur(over)}.`,
       chip: 'Budget dépassé',
       progress: { value: 1, target: 1 },
     };
@@ -479,7 +479,7 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
       id: 'investing', label: 'Investissement du mois', emoji: '📈', status: 'neutral',
       headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
       detail: capacity < MIN_JUDGEABLE_CAPACITY
-        ? 'Ton budget du mois ne laisse pas de place pour investir : c’est normal, ça reviendra.'
+        ? 'Ton budget du mois ne laisse plus de place pour investir : ça reviendra.'
         : undefined,
       amountLine,
       chip: placed > 0 ? 'C’est fait' : 'Pas ce mois-ci',

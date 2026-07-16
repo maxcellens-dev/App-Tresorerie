@@ -43,7 +43,8 @@ import PreSavingsModal from '../../components/PreSavingsModal';
 import CumulsPanel from '../../components/CumulsPanel';
 import CategoryDonut from '../../components/CategoryDonut';
 import { iconForTransaction, iconForCategory } from '../../lib/categoryIcons';
-import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS, resolveConsumptionMode, getConsumptionOrder } from '../../lib/recommendationEngine';
+import { computeRecommendations, getCurrentTier, TIER_LABELS, TIER_COLORS } from '../../lib/recommendationEngine';
+import { buildRecoOptions } from '../../lib/recoInputs';
 import type { SmartRecommendation } from '../../lib/recommendationEngine';
 import type { PreSavingType } from '../../types/database';
 import { useRecommendationTiers } from '../../hooks/useRecommendationTiers';
@@ -354,42 +355,20 @@ export default function PilotageScreen() {
   );
 
   // ── Budget de recommandation (§P7) ──
-  // Budget BRUT invariant = argent libre AVANT répartition volontaire (= point bas − dépenses
-  // variables estimées − marge). Il ne bouge PAS quand on cumule/réserve : on déduit ensuite
-  // SPÉCIFIQUEMENT de chaque catégorie ce qui y a déjà été affecté (`alreadyAllocated`).
-  // → cumuler 411 € d'invest met la reco invest à 0 sans toucher la reco « plaisir ».
-  const recoGrossBudget = Math.max(0, cashflowTrough - variableEnvelopeRemaining - safetyMarginDisplay);
-  // Dépassement de l'enveloppe variable : ce qui a été dépensé en plus des dépenses variables
-  // habituelles estimées (l'enveloppe restante est alors à 0). Ce surplus grignote les recos en
-  // cascade (« Confort » d'abord) au lieu de réduire toutes les recos au prorata.
-  const variableOverspend = Math.max(0,
-    (pilotageData?.variable_envelope_spent ?? 0) - (pilotageData?.variable_envelope_initial ?? 0),
-  );
-  // ÉXÉCUTÉ ce mois (virements épargne/invest déjà SORTIS du solde) : le point bas (trough) les a
-  // déjà déduits → sans correction, le moteur redistribuerait le budget restant sur TOUS les types
-  // et re-proposerait d'investir/épargner après un virement (ex. reco invest 325 € → j'investis
-  // 325 € → nouvelle reco invest sur le reste). On RECONSTITUE donc le budget d'avant-allocation
-  // (+exécuté) et on impute l'exécuté au type concerné (alreadyAllocated) → la reco tombe à 0.
-  const savingsExecuted = Math.max(0, (pilotageData?.month_savings_total ?? 0) - (pilotageData?.month_savings_future ?? 0));
-  const investExecuted = Math.max(0, (pilotageData?.month_invest_total ?? 0) - (pilotageData?.month_invest_future ?? 0));
-  // Budget « enveloppe juste atteinte » : on rajoute le dépassement (le moteur le re-déduira en
-  // cascade). Quand il n'y a pas de dépassement, ce budget est identique à recoGrossBudget.
-  const recoBaselineBudget = recoGrossBudget + variableOverspend + savingsExecuted + investExecuted;
-  // Ordre de consommation selon la prudence du budget (Auto → dérivé du profil financier).
-  const consumptionMode = resolveConsumptionMode(
-    ((profile as any)?.prudence_level ?? null) as number | null,
-    financialProfile?.profile_id as FinancialProfileId | undefined,
-    recoThresholds?.auto_profile_map,
-  );
-  const consumptionOrder = getConsumptionOrder(consumptionMode, recoThresholds?.consumption_orders);
-  const recoAlreadyAllocated = {
-    // Épargne / invest : EXÉCUTÉ ce mois + virements prévus (non exécutés) + cumuls fléchés.
-    // L'exécuté (manuel OU via reco) est bien déduit du type concerné → pas de re-proposition.
-    save: savingsExecuted + savingsRemaining + preEpargneTotal,
-    invest: investExecuted + investRemaining + preInvestTotal,
-    // Conserver : réservations (manuelles ou via reco) + réservé projets du mois.
-    keep: reservationsTotal + (pilotageData?.monthly_reserve_planned ?? 0),
-  };
+  // Options du moteur construites par lib/recoInputs (budget brut reconstitué, alreadyAllocated,
+  // cascade, garde-fou projection, plafond Relyka) — PARTAGÉES avec le Pouls (capacité de la carte
+  // « Investissement du mois ») : les deux écrans racontent la même histoire.
+  const recoOptions = pilotageData
+    ? buildRecoOptions(pilotageData, {
+        reservationsTotal,
+        preEpargneTotal,
+        preInvestTotal,
+        prudenceLevel: ((profile as any)?.prudence_level ?? null) as number | null,
+        financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
+        thresholds: recoThresholds,
+        customTierAllocations: customTiers,
+      })
+    : null;
   // Couleur d'affichage par type de reco — alignée sur les couleurs sémantiques du thème
   // (clair/sombre) plutôt que sur les teintes fixes de l'engine, qui restaient trop claires
   // en mode clair (ex. épargne #34d399 au lieu du vert défini #059669).
@@ -402,22 +381,9 @@ export default function PilotageScreen() {
   // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
   // Plafond passé AU MOTEUR (maxAmount) et non appliqué après coup : sinon la description et les
   // conseils interpolent le montant d'avant-plafond (ex. « Conserve 600 € » avec un titre à 270 €).
-  const recoList = pilotageData
+  const recoList = pilotageData && recoOptions
     ? computeRecommendations(pilotageData, {
-        customTierAllocations: customTiers,
-        financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
-        budget: recoBaselineBudget,
-        alreadyAllocated: recoAlreadyAllocated,
-        thresholds: recoThresholds,
-        overspend: variableOverspend,
-        consumptionOrder,
-        // Garde-fou marge × projection 6 mois : épargne/invest plafonnés pour que le point bas
-        // de la trajectoire (écran Projection) reste au-dessus de la marge de sécurité.
-        projectionGuard: {
-          balances: pilotageData.projection_balances_6m,
-          margin: pilotageData.safety_margin_amount ?? 0,
-        },
-        maxAmount: Math.max(0, floorToTen(resteDisponible)),
+        ...recoOptions,
         // Montant « actionnable » (textes + CTA) = borne basse « minimum sûr » quand les montants
         // sont en fourchette — la MÊME borne basse que le titre de la reco (relConf.proportional).
         actionAmountFor: (amount) => {

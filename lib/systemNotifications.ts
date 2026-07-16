@@ -15,15 +15,10 @@ export interface SystemNotificationDef {
   defaultEnabled: boolean;
 }
 
+// NB : le push hebdo du Point (`pulse_weekly`) n'est PLUS une notification système : il est géré
+// comme une NOTIFICATION PLANIFIÉE récurrente « Hebdo » (admin Notifications → Planifier, envoyée
+// par send-scheduled-notifications). Une seule commande — l'ancien toggle d'ici ne pilotait rien.
 export const SYSTEM_NOTIFICATIONS: SystemNotificationDef[] = [
-  {
-    id: 'pulse_weekly',
-    title: 'Ton point de la semaine',
-    bodyExample: 'Ton point de la semaine 🧭 — ouvre Relyka pour voir où tu en es.',
-    condition: 'Rendez-vous hebdomadaire (jour et heure réglables dans l’écran admin « Le Point »).',
-    maxFrequency: '1 par semaine',
-    defaultEnabled: true,
-  },
   {
     id: 'soft_close_reminder',
     title: 'Clôturer votre mois',
