@@ -9,7 +9,6 @@ import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
-import { useQueryClient } from '@tanstack/react-query';
 import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions } from '../../../hooks/useTransactions';
 import { parseUsageLimitError } from '../../../lib/usageLimits';
 import { appAlert } from '../../../lib/appDialog';
@@ -89,7 +88,6 @@ export default function AddTransactionScreen() {
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);
-  const queryClient = useQueryClient();
   // Rattachement à un projet EN COURS quand la saisie correspond à sa configuration (comptes d'un
   // virement / compte + catégorie d'une dépense) : le projet se tient à jour sans repasser par
   // l'écran Projets.
@@ -463,12 +461,8 @@ export default function AddTransactionScreen() {
         if ((row as any)?.id) insertedIds.push((row as any).id);
       }
 
-      // Sécurité post-navigation : l'écran peut être démonté quand la mutation aboutit (les
-      // invalidations du onSuccess du hook peuvent alors être sautées) → on invalide EXPLICITEMENT
-      // ici, dans une chaîne qui survit au démontage. Doublon éventuel = dédupliqué par react-query.
-      queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['pilotage_data', user?.id] });
+      // (Les invalidations de caches sont faites DANS la mutation — fin de mutationFn — donc elles
+      // survivent au démontage de cet écran, sans double refetch du lourd pilotage_data.)
 
       // Projet : mensualité recalculée (mode « date cible », apport validé) + échéance planifiée du
       // même mois remplacée (anti double-compte). L'avancement, lui, est dérivé des transactions.

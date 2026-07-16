@@ -516,10 +516,20 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   }
 
   // Le seuil de « bon rythme » reste piloté en admin, mais on ne l'ANNONCE pas comme un idéal :
-  // on donne le fait (« tu pouvais placer jusqu'à X »), la couleur fait le reste.
+  // on donne le fait, la couleur fait le reste.
   const threshold = (b.investOfCapacityPct / 100) * capacity;
   const status: PulseStatus =
     engaged >= threshold ? 'good' : engaged > 0 ? 'watch' : 'alert';
+
+  // Le détail parle du RESTANT plaçable (capacité − fait − prévu), jamais de la capacité brute :
+  // « tu pourrais placer jusqu'à 25 € » après avoir justement placé 25 € (capacité = fait + reco,
+  // reco tombée à 0) lisait comme « tu peux ENCORE placer 25 € » — contradictoire avec les recos.
+  const remaining = Math.max(0, capacity - engaged);
+  const detail = remaining >= MIN_JUDGEABLE_CAPACITY
+    ? (engaged > 0
+        ? `Tu peux encore placer ${eur(remaining)} sans te mettre en difficulté.`
+        : `Ce mois-ci, tu pourrais placer jusqu’à ${eur(remaining)} sans te mettre en difficulté.`)
+    : `Selon ton Relyka et la projection il n'est pas conseillé d'investir plus.`;
 
   const valuePart = Math.min(1, capacity > 0 ? placed / capacity : 0);
   return {
@@ -528,9 +538,7 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     emoji: '📈',
     status,
     headline,
-    detail: planned > 0
-      ? `Avec ${eur(planned)} encore prévus, tu pourrais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`
-      : `Ce mois-ci, tu pourrais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`,
+    detail,
     amountLine,
     chip: status === 'good' ? 'Bon rythme' : status === 'watch' ? 'Tu peux aller plus loin' : 'À lancer',
     // La barre se remplit sur ce qui était RÉELLEMENT plaçable (fait + segment « prévu » plus

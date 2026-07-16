@@ -41,9 +41,15 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
   const sharedIds = sharedAccounts.map((a) => a.id);
   if (sharedIds.length === 0) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
 
-  // Tous les membres des comptes partagés (part égale auto = 100/N) + le % ET le MODE explicites du courant.
-  const { data: allMems } = await supabase
-    .from('account_members').select('account_id, user_id, impact_pct, shared_mode').in('account_id', sharedIds);
+  // Membres des comptes partagés + TOUTES leurs transactions : les deux ne dépendent que de
+  // sharedIds → EN PARALLÈLE (1 aller-retour économisé sur ce fetch, qui est dans le chemin
+  // critique du pilotage — donc de l'enrichissement de la carte Pouls après chaque saisie).
+  const [{ data: allMems }, { data: tx }] = await Promise.all([
+    supabase.from('account_members').select('account_id, user_id, impact_pct, shared_mode').in('account_id', sharedIds),
+    supabase.from('transactions')
+      .select('*, account:accounts!account_id(name, currency, is_joint, profile_id), category:categories!category_id(*)')
+      .in('account_id', sharedIds),
+  ]);
   const membersByAcct: Record<string, any[]> = {};
   for (const m of (allMems ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
 
@@ -58,12 +64,6 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
     // Mode du USER COURANT (owner → colonne du compte ; membre → sa ligne account_members).
     modeByAccount[a.id] = iAmOwner ? (a.shared_mode ?? null) : (members.find((m) => m.user_id === profileId)?.shared_mode ?? null);
   }
-
-  // TOUTES les transactions de ces comptes (de tous les participants).
-  const { data: tx } = await supabase
-    .from('transactions')
-    .select('*, account:accounts!account_id(name, currency, is_joint, profile_id), category:categories!category_id(*)')
-    .in('account_id', sharedIds);
 
   // À 0% d'impact, le compte partagé n'a AUCUN effet (soldes + transactions exclus de l'app).
   const accounts = sharedAccounts

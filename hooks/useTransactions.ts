@@ -364,17 +364,17 @@ export function useAddTransaction(profileId: string | undefined) {
           await recomputeBalances([input.account_id]);
         } catch { /* best effort : le démarrage suivant rattrapera */ }
       }
-      return data;
-    },
-    onSuccess: (_data, input) => {
-      // (Le POULS est émis dans mutationFn, dès l'insert — pas ici.)
-      // Virement : la 1ʳᵉ jambe n'invalide RIEN (sinon pilotage_data — le fetch le plus lourd —
-      // repartirait deux fois : une par jambe). La 2ᵉ jambe déclenche les invalidations uniques.
+
+      // Invalidations ICI (fin de mutationFn) et pas en onSuccess : (1) elles tournent même si
+      // l'écran appelant est démonté (navigation optimiste) ; (2) UNE SEULE invalidation par
+      // enregistrement → jamais de double refetch de pilotage_data (le fetch le plus lourd).
+      // Virement : la 1ʳᵉ jambe saute (skipInvalidations), la 2ᵉ invalide pour les deux.
       if (!input.skipInvalidations) {
         client.invalidateQueries({ queryKey: [KEY, profileId] });
         client.invalidateQueries({ queryKey: ['accounts', profileId] });
         client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
       }
+      return data;
     },
   });
 }

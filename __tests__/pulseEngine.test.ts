@@ -197,10 +197,12 @@ describe('computePulse — pas d’« idéal » subjectif', () => {
     expect(s.status).toBe('good');
   });
 
-  it('l’investissement annonce ce qui était plaçable, jamais un idéal', () => {
+  it('l’investissement annonce le RESTANT plaçable, jamais un idéal', () => {
+    // Capacité 400, 100 placés → le détail parle des 300 restants (pas de la capacité brute :
+    // « jusqu'à 400 € » après avoir placé 100 lisait comme 400 de PLUS).
     const r = computePulse(inputs({ profileId: 'P4', investCapacity: 400, investedThisMonth: 100 }));
     const s = r.signals.find((x) => x.id === 'investing')!;
-    expect(s.detail).toContain('400 €');
+    expect(s.detail).toContain('300 €');
     expect(s.detail).not.toMatch(/idéal/i);
     expect(s.amountLine).toContain('+180 € de gains'); // le user voit ce que ça lui a rapporté
   });
@@ -311,6 +313,22 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
     expect(s.status).toBe('good');
     expect(plain(s.headline)).toContain('250 € d’investissement prévus');
     expect(s.progress?.planned).toBeGreaterThan(0);
+  });
+
+  it('investissement : capacité ÉPUISÉE (placé = capacité, reco à 0) → jamais « tu pourrais placer X »', () => {
+    // Cas réel : virement invest de 25 €, la reco « Investir » tombe sous son seuil → capacité = 25
+    // (= le placé). Dire « tu pourrais placer jusqu'à 25 € » contredirait les recos (Conserver seul).
+    const r = computePulse(inputs({ investedThisMonth: 25, investCapacity: 25 }), allCfg, 'full');
+    const s = r.signals.find((x) => x.id === 'investing')!;
+    expect(plain(s.detail ?? '')).toContain('utilisé ta capacité');
+    expect(plain(s.detail ?? '')).not.toContain('pourrais placer');
+  });
+
+  it('investissement : détail = le RESTANT plaçable, pas la capacité brute', () => {
+    // 200 placés sur 300 de capacité → « encore 100 € », pas « jusqu'à 300 € ».
+    const r = computePulse(inputs(), allCfg, 'full');
+    const s = r.signals.find((x) => x.id === 'investing')!;
+    expect(plain(s.detail ?? '')).toContain('encore placer 100 €');
   });
 
   it('une dépense ne fait jamais remonter une bascule « Investissement » (effet dérivé de la capacité)', () => {
