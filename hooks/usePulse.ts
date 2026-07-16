@@ -158,15 +158,20 @@ export function usePulse(): PulseData | null {
     });
     const investPct = alloc.invest;
     const savePct = alloc.save;
-    const investedThisMonth = Math.max(0, pilotage.real_invest ?? 0);
-    const savedThisMonth = Math.max(0, pilotage.real_savings_excl_projects ?? 0);
+    // Épargné / investi ce mois = virements EXÉCUTÉS (sortis du solde), PROJETS COMPRIS — mêmes
+    // chiffres que le Suivi du Pilotage. L'ancienne base « hors projets » (real_savings_excl_projects)
+    // affichait « 0 € mis de côté » à quelqu'un qui venait de valider un virement d'épargne de
+    // projet, alors que la ligne « Épargne totale » de la même carte l'incluait déjà. Le signal
+    // « Ton projet » mesure l'avancement vers la cible, pas l'effort du mois : pas de double compte.
+    const investExecuted = Math.max(0, (pilotage.month_invest_total ?? 0) - (pilotage.month_invest_future ?? 0));
+    const savingsExecuted = Math.max(0, (pilotage.month_savings_total ?? 0) - (pilotage.month_savings_future ?? 0));
+    const investedThisMonth = investExecuted;
+    const savedThisMonth = savingsExecuted;
     // Base = MÊME budget que le moteur de recos (recoBaselineBudget, cf. pilotage.tsx §P7) : budget
     // BRUT avant répartition volontaire (point bas − enveloppe variable restante − marge),
     // reconstitué des efforts déjà EXÉCUTÉS ce mois (épargne + invest sortis du solde) et du
     // dépassement variable. Le Relyka, lui, déduit AUSSI les virements prévus/réservations/cumuls
     // → il sous-estimait la capacité vs la reco (716 € ici vs 869 € théoriques côté recos).
-    const investExecuted = Math.max(0, (pilotage.month_invest_total ?? 0) - (pilotage.month_invest_future ?? 0));
-    const savingsExecuted = Math.max(0, (pilotage.month_savings_total ?? 0) - (pilotage.month_savings_future ?? 0));
     const variableOverspend = Math.max(0, (pilotage.variable_envelope_spent ?? 0) - (pilotage.variable_envelope_initial ?? 0));
     const grossBudget = Math.max(0, relykaInputs.cashflowTrough - relykaInputs.variableEnvelopeRemaining - safetyMargin)
       + variableOverspend + savingsExecuted + investExecuted;
@@ -234,10 +239,13 @@ export function usePulse(): PulseData | null {
       today,
       endOfMonthBalance: endOfMonthLeft,
       safetyMargin,
+      // Réservé + réserve prévue + cumuls : dans le solde de fin de mois, PAS dans le Relyka.
+      reservedOnAccount: relykaInputs.reservePlanned + relykaInputs.reservationsTotal + relykaInputs.cumulsTotal,
       spendingBudget: pilotage.variable_envelope_initial ?? 0,
       spendingSoFar: pilotage.variable_envelope_spent ?? 0,
       savingsBalance: pilotage.total_savings,
-      // Ce qui est RÉELLEMENT parti à l'épargne ce mois-ci (hors projets : ils ont leur propre signal).
+      // Ce qui est RÉELLEMENT parti à l'épargne ce mois-ci, virements de PROJET compris (le signal
+      // « Ton projet » mesure l'avancement vers la cible, pas l'effort d'épargne du mois).
       savedThisMonth,
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
       questionnaireQ3: (answers as any)?.q3 ?? null,

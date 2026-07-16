@@ -196,6 +196,10 @@ export interface PulseInputs {
   endOfMonthBalance: number;
   /** Montant que l'utilisateur veut toujours garder sur son compte (questionnaire Q8). */
   safetyMargin: number;
+  /** Réservé + cumuls fléchés : de l'argent mentalement mis de côté qui reste PHYSIQUEMENT sur le
+   *  compte. Il est DANS le solde de fin de mois mais PAS dans le Relyka — on l'affiche pour que
+   *  « il devrait te rester 724 € » et « Relyka 560 € » ne semblent pas se contredire. */
+  reservedOnAccount?: number;
 
   // Dépenses du mois
   /** Enveloppe de dépenses variables estimée pour le mois. 0 = pas encore estimable. */
@@ -286,6 +290,13 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
         : `Tu devrais passer sous ta marge de sécurité (${eur(margin)}).`)
     : (left >= 0 ? 'Ton compte devrait rester dans le vert jusqu’au bout du mois.' : 'Ton compte passerait dans le rouge avant la fin du mois.');
 
+  // Le réservé (projets, cumuls) reste SUR le compte : il est dans ce solde, mais pas dans le
+  // budget libre (Relyka). Le dire évite le faux paradoxe « il me reste 724 € mais Relyka 560 € ».
+  const reserved = Math.max(0, i.reservedOnAccount ?? 0);
+  const amountLine = reserved > 0 && left >= 0
+    ? `Dont ${eur(reserved)} réservés${margin > 0 ? ` et ${eur(margin)} de marge` : ''}.`
+    : undefined;
+
   return {
     id: 'end_of_month',
     label: 'Fin de mois',
@@ -295,6 +306,7 @@ function buildEndOfMonth(i: PulseInputs): PulseSignal {
       ? `Il devrait te rester ${eur(left)} ${firstOfNextMonthLabel(i.today)}`
       : `Tu serais à ${eur(left)} ${firstOfNextMonthLabel(i.today)}`,
     detail,
+    amountLine,
     chip: status === 'good' ? 'Bien parti' : status === 'watch' ? 'Ça va être juste' : 'Découvert en vue',
   };
 }
