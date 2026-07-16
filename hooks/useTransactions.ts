@@ -56,8 +56,22 @@ async function effectiveBalanceDelta(accountId: string, txDate: string, note: st
  * comptée dans le solde régularisé (→ ne pas réimpacter) ou s'agit-il d'une nouvelle opération
  * (→ impacter le solde) ? Renvoie le nom du compte si une régul existe ce jour-là, sinon null.
  */
-async function regulOnSameDay(accountId: string, date: string): Promise<{ accountName: string } | null> {
+async function regulOnSameDay(
+  accountId: string,
+  date: string,
+  cachedTxs?: Array<{ account_id: string; date: string; category_id?: string | null; note?: string | null; account?: { name?: string } | null }> | null,
+): Promise<{ accountName: string } | null> {
   if (!supabase) return null;
+  // CACHE-FIRST : si la liste des transactions est déjà en cache (cas normal — l'écran de saisie
+  // la charge), on décide localement, sans aller-retour réseau. Une régul créée à l'instant sur un
+  // AUTRE appareil pourrait manquer au cache : cas limite accepté (le prompt n'est qu'une aide de
+  // réconciliation, le recalcul du solde reste déterministe).
+  if (Array.isArray(cachedTxs)) {
+    const hit = cachedTxs.find((t) =>
+      t.account_id === accountId && t.date === date && t.category_id == null &&
+      (/gul/i.test(t.note ?? '') || t.note === 'Ajustement de solde'));
+    return hit ? { accountName: hit.account?.name ?? 'ce compte' } : null;
+  }
   const { data } = await supabase.from('transactions').select('id')
     .eq('account_id', accountId).eq('date', date).is('category_id', null)
     .or('note.ilike.%gul%,note.eq.Ajustement de solde')
@@ -75,12 +89,10 @@ async function regulOnSameDay(accountId: string, date: string): Promise<{ accoun
 export async function recomputeBalances(accountIds: Array<string | null | undefined>): Promise<void> {
   if (!supabase) return;
   const today = localTodayISO();
-  const seen = new Set<string>();
-  for (const id of accountIds) {
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    await supabase.rpc('recompute_account_balance', { p_account: id, p_today: today });
-  }
+  const ids = [...new Set(accountIds.filter((id): id is string => !!id))];
+  // EN PARALLÈLE : chaque recalcul est indépendant (une fonction SQL par compte) — sur un virement,
+  // les deux comptes se recalculent dans le même aller-retour au lieu de deux séquentiels.
+  await Promise.all(ids.map((id) => supabase!.rpc('recompute_account_balance', { p_account: id, p_today: today })));
 }
 
 /** Colonnes nécessaires pour réverser proprement l'impact solde avant suppression. */
@@ -256,6 +268,14 @@ export function useAddTransaction(profileId: string | undefined) {
       regul_target?: number | null;
       /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
       on_behalf_member_id?: string | null;
+      /** Virement : ne pas recalculer le solde ICI — la 2ᵉ jambe fait UN SEUL recalcul groupé
+       *  (`recomputeAccounts`) pour les deux comptes (2 allers-retours économisés par virement). */
+      skipBalanceRecompute?: boolean;
+      /** Comptes à recalculer À LA PLACE du seul compte de la ligne (recalcul groupé du virement),
+       *  DANS la mutation → les invalidations (onSuccess) repartent sur des soldes déjà justes. */
+      recomputeAccounts?: string[];
+      /** Virement : la 1ʳᵉ jambe n'invalide pas les caches (la 2ᵉ le fait une seule fois). */
+      skipInvalidations?: boolean;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
@@ -269,7 +289,11 @@ export function useAddTransaction(profileId: string | undefined) {
         const noteLc = (input.note ?? '').toLowerCase();
         const isRegulItself = noteLc.includes('gul') || input.note === 'Ajustement de solde';
         if (!isRegulItself) {
-          const conflict = await regulOnSameDay(input.account_id, input.date);
+          // CACHE-FIRST : le cas « régul le même jour » se décide depuis les transactions déjà en
+          // cache (elles y sont, réguls comprises) → 1 aller-retour réseau économisé par saisie.
+          // Repli réseau uniquement si le cache est absent (démarrage à froid).
+          const cachedAll = client.getQueryData<TransactionWithDetails[]>([KEY, profileId, 'all']);
+          const conflict = await regulOnSameDay(input.account_id, input.date, cachedAll ?? null);
           if (conflict) {
             const alreadyCounted = await appConfirm({
               title: 'Déjà comptée dans ce solde ?',
@@ -307,8 +331,9 @@ export function useAddTransaction(profileId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
-      // Solde = recalcul depuis les faits (source de vérité, anti-dérive).
-      await recomputeBalances([input.account_id]);
+      // Solde = recalcul depuis les faits (source de vérité, anti-dérive) — sauf si l'appelant
+      // regroupe le recalcul (virement : un seul recompute pour les deux jambes, sur la 2ᵉ).
+      if (!input.skipBalanceRecompute) await recomputeBalances(input.recomputeAccounts ?? [input.account_id]);
       // §P30 — Récurrente dont la 1ʳᵉ échéance est PASSÉE : on matérialise tout de suite les occurrences
       // dues (mars→aujourd'hui) au lieu d'attendre le prochain démarrage. Sinon une seule échéance est
       // déduite et l'historique/le solde/le « total dépensé » ignorent les suivantes jusqu'à déco/reco.
@@ -321,9 +346,13 @@ export function useAddTransaction(profileId: string | undefined) {
       return data;
     },
     onSuccess: (_data, input) => {
-      client.invalidateQueries({ queryKey: [KEY, profileId] });
-      client.invalidateQueries({ queryKey: ['accounts', profileId] });
-      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      // Virement : la 1ʳᵉ jambe n'invalide RIEN (sinon pilotage_data — le fetch le plus lourd —
+      // repartirait deux fois : une par jambe). La 2ᵉ jambe déclenche les invalidations uniques.
+      if (!input.skipInvalidations) {
+        client.invalidateQueries({ queryKey: [KEY, profileId] });
+        client.invalidateQueries({ queryKey: ['accounts', profileId] });
+        client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+      }
 
       // POULS — l'utilisateur vient d'enregistrer une opération : on lui montre ce qui bouge.
       // On ignore : les brouillons (rien n'est engagé), les régularisations (c'est une vérification,
@@ -403,6 +432,10 @@ export async function createTransferLegs(
     note: p.noteFrom ?? 'Virement interne',
     linked_account_id: p.toAccountId,
     ...common,
+    // La 1ʳᵉ jambe ne recalcule NI n'invalide rien : la 2ᵉ fait le recalcul GROUPÉ des deux comptes
+    // (dans sa mutation, donc avant les invalidations) et déclenche les invalidations uniques.
+    skipBalanceRecompute: true,
+    skipInvalidations: true,
   });
   const firstLegId = (firstLeg as any)?.id ?? null;
   try {
@@ -414,8 +447,10 @@ export async function createTransferLegs(
       note: p.noteTo ?? 'Virement interne',
       linked_account_id: p.fromAccountId,
       ...common,
+      recomputeAccounts: [p.fromAccountId, p.toAccountId],
     });
   } catch (legErr) {
+    // Rollback : la suppression recalcule elle-même le solde de la source (aucune dérive).
     if (firstLegId) { try { await del.mutateAsync(firstLegId); } catch { /* best-effort */ } }
     throw legErr;
   }

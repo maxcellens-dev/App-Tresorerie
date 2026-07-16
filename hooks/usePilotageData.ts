@@ -158,10 +158,22 @@ async function fetchPilotageData(profileId: string): Promise<{
 }> {
   if (!supabase || !profileId) throw new Error('Not authenticated');
 
+  // FENÊTRAGE des transactions : le moteur Pilotage ne regarde JAMAIS plus de 6 mois en arrière
+  // (revenu inféré 4 mois, revenu moyen 6 mois, net 3 mois, tendance/enveloppe variables 3-6 mois) ;
+  // le reste = mois courant + FUTUR + modèles récurrents. On borne donc le fetch à 8 mois glissants
+  // (marge) + toutes les récurrentes (quelle que soit leur date de départ) : un compte avec des
+  // années d'historique ne re-télécharge plus TOUT à chaque ouverture / après chaque saisie.
+  // (Le « 1ᵉʳ mois utilisateur » de computeAvgMonthlyIncome est sécurisé par profiles.created_at.)
+  const nowD = new Date();
+  const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
+
   const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes, closuresRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
-    supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(*)').eq('profile_id', profileId),
+    // Jointure catégorie réduite aux champs consommés par le moteur (type/name/is_variable/parent).
+    supabase.from('transactions').select('*, account:accounts!account_id(name), category:categories!category_id(id, name, type, is_variable, parent_id)')
+      .eq('profile_id', profileId)
+      .or(`date.gte.${histStart},is_recurring.eq.true`),
     supabase.from('projects').select('*').eq('profile_id', profileId),
     supabase.from('objectives').select('*').eq('profile_id', profileId),
     supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
@@ -420,10 +432,18 @@ function detectExpectedIncome(transactions: any[], checkingIds: Set<string>, tod
  * salaire pas forcément saisi) SAUF s'il contient déjà une vraie recette (> 1000 €, pas un simple
  * remboursement). Renvoie 0 si rien d'exploitable (mention « mois de sécurité » alors masquée).
  */
-function computeAvgMonthlyIncome(transactions: any[], checkingIds: Set<string>, todayStr: string): number {
+function computeAvgMonthlyIncome(
+  transactions: any[],
+  checkingIds: Set<string>,
+  todayStr: string,
+  /** Date de création du profil : compte créé AVANT la fenêtre = utilisateur établi (le fetch est
+   *  désormais FENÊTRÉ → on ne peut plus compter sur la présence de recettes très anciennes). */
+  profileCreatedAt?: string | null,
+): number {
   const REAL_INCOME_MIN = 1000; // seuil « vraie recette » (vs remboursement) pour valider le 1ᵉʳ mois
   const now = new Date(todayStr + 'T00:00:00');
   const windowStart = isoDay(new Date(now.getFullYear(), now.getMonth() - 5, 1)); // 6 mois (courant inclus)
+  const establishedByAge = !!profileCreatedAt && String(profileCreatedAt).slice(0, 10) < windowStart;
   const qualifies = (t: any) =>
     checkingIds.has(t.account_id) && !t.is_draft && !t.is_reserved && !t.linked_account_id
     && Number(t.amount) > 0 && t.date <= todayStr && !/r[ée]gul/i.test(t.note ?? '')
@@ -445,7 +465,7 @@ function computeAvgMonthlyIncome(transactions: any[], checkingIds: Set<string>, 
   let months = Object.keys(byMonth).sort(); // chronologique
   if (months.length === 0) return 0;
   // Si la fenêtre atteint le 1ᵉʳ mois de l'utilisateur, on ne le retient que s'il a une vraie recette.
-  if (!hasOlderIncome && byMonth[months[0]].maxOne <= REAL_INCOME_MIN) {
+  if (!hasOlderIncome && !establishedByAge && byMonth[months[0]].maxOne <= REAL_INCOME_MIN) {
     months = months.slice(1);
   }
   if (months.length === 0) return 0;
@@ -578,7 +598,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // au décalage de date de paie (le montant du creux ne bouge presque pas). Le revenu non saisi
   // est INFÉRÉ de l'historique et pondéré par la prudence (profil).
   const expectedIncome = detectExpectedIncome(transactions, checkingIds, todayStr);
-  const avgMonthlyIncome = computeAvgMonthlyIncome(transactions, checkingIds, todayStr);
+  const avgMonthlyIncome = computeAvgMonthlyIncome(transactions, checkingIds, todayStr, (data.profile as any)?.created_at ?? null);
 
   let nextIncomeDate: string | null = null;
   for (const t of transactions) {

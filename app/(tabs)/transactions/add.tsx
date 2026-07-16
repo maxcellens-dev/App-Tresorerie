@@ -10,7 +10,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
 import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions } from '../../../hooks/useTransactions';
-import { useUsageGuard } from '../../../hooks/useUsageLimits';
+import { parseUsageLimitError } from '../../../lib/usageLimits';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
@@ -24,7 +24,6 @@ import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 import { notePlaceholder } from '../../../lib/txPlaceholders';
 import { useProjects } from '../../../hooks/useProjects';
-import { usePilotageData } from '../../../hooks/usePilotageData';
 import { useProjectAttach } from '../../../hooks/useProjectAttach';
 import { matchProjectsForTransaction } from '../../../lib/projectMatch';
 
@@ -87,13 +86,11 @@ export default function AddTransactionScreen() {
   // Verrou de clôture gaté par le flag de fonctionnalité (null si Clôture désactivée).
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
-  const { guard } = useUsageGuard(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);
   // Rattachement à un projet EN COURS quand la saisie correspond à sa configuration (comptes d'un
   // virement / compte + catégorie d'une dépense) : le projet se tient à jour sans repasser par
-  // l'écran Projets. Avancement dérivé du pilotage (mêmes chiffres que la page Projets).
+  // l'écran Projets.
   const { data: projects = [] } = useProjects(user?.id);
-  const { data: pilotage } = usePilotageData(user?.id);
   const attachToProject = useProjectAttach(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
@@ -168,12 +165,23 @@ export default function AddTransactionScreen() {
   const changeType = (t: TransactionType) => { setTransactionType(t); setStep(1); setFormError(null); setErrorFields([]); };
 
   // ── Projets correspondant à la saisie (rattachement proposé à l'étape 2) ──
-  // Avancement (%) par projet — même source que la page Projets (dérivé des transactions).
+  // Avancement (%) par projet calculé LOCALEMENT depuis le cache transactions (déjà chargé ici) :
+  // même formule que le pilotage (Σ |débits| validés passés ÷ cible), sans embarquer le lourd
+  // usePilotageData sur cet écran de saisie (il déclenchait son fetch complet au montage).
   const progressPctById = useMemo(() => {
+    const today = todayISO();
+    const contributed: Record<string, number> = {};
+    for (const t of transactions as any[]) {
+      if (!t.project_id || t.is_draft || t.date > today || Number(t.amount) >= 0) continue;
+      contributed[t.project_id] = (contributed[t.project_id] ?? 0) + Math.abs(Number(t.amount));
+    }
     const m: Record<string, number> = {};
-    for (const p of pilotage?.projects_with_progress ?? []) m[p.id] = p.progress_percentage;
+    for (const p of projects) {
+      const target = Number(p.target_amount) || 0;
+      m[p.id] = target > 0 ? Math.min(100, ((contributed[p.id] ?? 0) / target) * 100) : 0;
+    }
     return m;
-  }, [pilotage?.projects_with_progress]);
+  }, [transactions, projects]);
   // Une récurrente ne se rattache pas (chaque occurrence devrait l'être individuellement) ; un
   // remboursement non plus (entrée d'argent). Virement → projets « Mettre de côté » aux mêmes
   // comptes ; dépense → projets « Dépenser petit à petit » au même compte + même catégorie.
@@ -368,8 +376,9 @@ export default function AddTransactionScreen() {
       ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
       : null;
 
-    // Limite d'usage (transactions) — comptée sur le mois/l'année de la DATE choisie.
-    if (!(await guard('transaction', { date }))) return;
+    // Limite d'usage : PAS de pré-comptage bloquant (1 aller-retour réseau économisé sur CHAQUE
+    // enregistrement). Le trigger serveur (migration 135) est la vraie barrière, et le backstop
+    // global (_layout) affiche le même dialog convivial si l'insert est rejeté (USAGE_LIMIT_*).
 
     // ── Rattachement à un projet (sélectionné à l'étape 2). Jamais pour une récurrente, ni pour
     // un remboursement, ni pour un brouillon de DÉPENSE (une dépense de projet est validée
@@ -446,22 +455,20 @@ export default function AddTransactionScreen() {
 
       // Projet : mensualité recalculée (mode « date cible », apport validé) + échéance planifiée du
       // même mois remplacée (anti double-compte). L'avancement, lui, est dérivé des transactions.
+      // EN ARRIÈRE-PLAN (pas d'await) : la transaction est déjà enregistrée et rattachée — inutile
+      // de faire attendre l'utilisateur 2 à 5 allers-retours de plus avant la confirmation. Best-
+      // effort : en cas d'échec, l'échéancier se réalignera à la prochaine modification du projet.
       if (attachedProject) {
         // « Validée » = compte déjà dans l'avancement : ni brouillon, ni datée dans le futur.
         const validated = !isDraft && date <= today;
-        try {
-          await attachToProject({
-            project: attachedProject,
-            amount: num,
-            date,
-            accumulatedBefore,
-            validated,
-            insertedIds,
-          });
-        } catch {
-          // Best-effort : la transaction est enregistrée et rattachée ; l'échéancier se réalignera
-          // à la prochaine modification du projet.
-        }
+        void attachToProject({
+          project: attachedProject,
+          amount: num,
+          date,
+          accumulatedBefore,
+          validated,
+          insertedIds,
+        }).catch(() => {});
       }
 
       // Cet écran reste MONTÉ dans la pile (expo-router) → sans remise à zéro, la saisie suivante
@@ -470,6 +477,8 @@ export default function AddTransactionScreen() {
       if (params.origin) { router.replace(decodeURIComponent(String(params.origin)) as any); }
       else router.back();
     } catch (e: unknown) {
+      // Limite d'usage serveur : le backstop global affiche déjà le dialog convivial → pas de doublon.
+      if (parseUsageLimitError(e)) return;
       showError(e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
     }
   }

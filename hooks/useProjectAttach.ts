@@ -15,6 +15,7 @@
  * La PROGRESSION du projet, elle, est dérivée des transactions (pilotage) → à jour automatiquement.
  * La suppression ultérieure de la saisie fait donc reculer l'avancement tout seul (2 sens).
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { todayISO } from '../lib/dateUtils';
 import { projectMode } from '../lib/projectTx';
@@ -33,6 +34,7 @@ function monthBounds(dateISO: string): { start: string; end: string } {
 
 export function useProjectAttach(profileId: string | undefined) {
   const updateProject = useUpdateProject(profileId);
+  const client = useQueryClient();
 
   /**
    * @param project            projet rattaché (la transaction vient d'être insérée avec son project_id)
@@ -67,27 +69,38 @@ export function useProjectAttach(profileId: string | undefined) {
     }
 
     // ── 2. Absorption de l'échéance planifiée du même mois (hors 'ponctuel').
-    if (allocType === 'ponctuel') return;
-    const { start, end } = monthBounds(o.date);
-    if (mode === 'transfer' || mode === 'reserve') {
-      const { data: drafts } = await supabase
-        .from('transactions').select(TX_REVERSAL_COLS)
-        .eq('project_id', p.id).eq('profile_id', profileId).eq('is_draft', true)
-        .gte('date', start).lte('date', end);
-      const rows = ((drafts ?? []) as any[]).filter((t) => !inserted.has(t.id));
-      if (rows.length > 0) await reverseBalanceAndDeleteTransactions(profileId, rows as any);
-    } else if (mode === 'spend') {
-      // Seules les dépenses générées FUTURES sont remplaçables (le passé a réellement eu lieu).
-      const { data: future } = await supabase
-        .from('transactions').select(TX_REVERSAL_COLS)
-        .eq('project_id', p.id).eq('profile_id', profileId).eq('is_draft', false)
-        .is('linked_account_id', null).lt('amount', 0)
-        .gt('date', today).gte('date', start).lte('date', end);
-      const rows = ((future ?? []) as any[]).filter((t) => !inserted.has(t.id));
-      if (rows.length > 0) {
-        await reverseBalanceAndDeleteTransactions(profileId, rows as any);
-        if (p.source_account_id) await recomputeBalances([p.source_account_id]);
+    let absorbed = false;
+    if (allocType !== 'ponctuel') {
+      const { start, end } = monthBounds(o.date);
+      if (mode === 'transfer' || mode === 'reserve') {
+        const { data: drafts } = await supabase
+          .from('transactions').select(TX_REVERSAL_COLS)
+          .eq('project_id', p.id).eq('profile_id', profileId).eq('is_draft', true)
+          .gte('date', start).lte('date', end);
+        const rows = ((drafts ?? []) as any[]).filter((t) => !inserted.has(t.id));
+        if (rows.length > 0) { await reverseBalanceAndDeleteTransactions(profileId, rows as any); absorbed = true; }
+      } else if (mode === 'spend') {
+        // Seules les dépenses générées FUTURES sont remplaçables (le passé a réellement eu lieu).
+        const { data: future } = await supabase
+          .from('transactions').select(TX_REVERSAL_COLS)
+          .eq('project_id', p.id).eq('profile_id', profileId).eq('is_draft', false)
+          .is('linked_account_id', null).lt('amount', 0)
+          .gt('date', today).gte('date', start).lte('date', end);
+        const rows = ((future ?? []) as any[]).filter((t) => !inserted.has(t.id));
+        if (rows.length > 0) {
+          await reverseBalanceAndDeleteTransactions(profileId, rows as any);
+          if (p.source_account_id) await recomputeBalances([p.source_account_id]);
+          absorbed = true;
+        }
       }
+    }
+
+    // Ce rattachement tourne EN ARRIÈRE-PLAN (la saisie a déjà rendu la main) → si une échéance a
+    // été absorbée, on rafraîchit les caches nous-mêmes, sinon la liste garderait la ligne supprimée.
+    if (absorbed) {
+      client.invalidateQueries({ queryKey: ['transactions', profileId] });
+      client.invalidateQueries({ queryKey: ['accounts', profileId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
     }
   };
 }
