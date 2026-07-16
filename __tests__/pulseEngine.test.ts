@@ -294,6 +294,25 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
     expect(f.chips.some((c) => c.text.includes('Ton Relyka'))).toBe(true);
   });
 
+  it('épargne : les virements À VENIR du mois comptent dans le jugement et remplissent le segment « prévu »', () => {
+    // 0 € fait mais 400 € programmés (cible 15 % × 2000 = 300) → « Bien épargné », pas rouge.
+    const r = computePulse(inputs({ savedThisMonth: 0, savingsPlannedThisMonth: 400 }), allCfg, 'full');
+    const s = r.signals.find((x) => x.id === 'saving')!;
+    expect(s.status).toBe('good');
+    expect(s.progress?.value).toBe(0);
+    expect(s.progress?.planned).toBeGreaterThan(0);
+    expect(plain(s.detail ?? '')).toContain('400 € encore prévus');
+  });
+
+  it('investissement : un virement programmé évite le « À lancer » et s’annonce dans le titre', () => {
+    // Rien de placé mais 250 € prévus sur 300 de capacité (seuil 60 % = 180) → good.
+    const r = computePulse(inputs({ investedThisMonth: 0, investPlannedThisMonth: 250 }), allCfg, 'full');
+    const s = r.signals.find((x) => x.id === 'investing')!;
+    expect(s.status).toBe('good');
+    expect(plain(s.headline)).toContain('250 € d’investissement prévus');
+    expect(s.progress?.planned).toBeGreaterThan(0);
+  });
+
   it('une dépense ne fait jamais remonter une bascule « Investissement » (effet dérivé de la capacité)', () => {
     // La dépense réduit le budget libre → la CAPACITÉ d'investissement baisse → le ratio placé/capacité
     // passe au vert tout seul. Vrai mécaniquement, absurde à annoncer après une dépense.

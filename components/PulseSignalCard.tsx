@@ -69,24 +69,44 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
         // Trait de seuil (ex. « bon rythme » = X % de la capacité) : affiché avec son % en dessous,
         // pour que le repère soit lisible sans deviner ce qu'il marque.
         const tickPct = signal.progress.target != null && signal.progress.target < 1 ? signal.progress.target : null;
+        // Segment « prévu » (virements à venir ce mois) : plus clair, posé APRÈS la part faite.
+        const plannedPct = Math.max(0, Math.min(1 - target, signal.progress.planned ?? 0));
         return (
-          <View style={[styles.track, tickPct != null && styles.trackWithTickLabel]}>
-            <Animated.View
-              style={[
-                styles.fill,
-                {
-                  backgroundColor: color,
-                  width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                },
-              ]}
-            />
-            {tickPct != null && (
-              <>
-                <View style={[styles.tick, { left: `${tickPct * 100}%` }]} />
-                <Text style={[styles.tickLabel, { left: `${tickPct * 100}%` }]}>{Math.round(tickPct * 100)} %</Text>
-              </>
+          <>
+            <View style={[styles.track, tickPct != null && styles.trackWithTickLabel]}>
+              <Animated.View
+                style={[
+                  styles.fill,
+                  {
+                    backgroundColor: color,
+                    width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                  },
+                ]}
+              />
+              {plannedPct > 0 && (
+                <View
+                  style={[
+                    styles.plannedFill,
+                    { backgroundColor: color + '55', left: `${target * 100}%`, width: `${plannedPct * 100}%` },
+                  ]}
+                />
+              )}
+              {tickPct != null && (
+                <>
+                  <View style={[styles.tick, { left: `${tickPct * 100}%` }]} />
+                  <Text style={[styles.tickLabel, { left: `${tickPct * 100}%` }]}>{Math.round(tickPct * 100)} %</Text>
+                </>
+              )}
+            </View>
+            {plannedPct > 0 && (
+              <View style={styles.legendRow}>
+                <View style={[styles.legendDot, { backgroundColor: color }]} />
+                <Text style={styles.legendTxt}>fait</Text>
+                <View style={[styles.legendDot, { backgroundColor: color + '55' }]} />
+                <Text style={styles.legendTxt}>prévu ce mois-ci</Text>
+              </View>
             )}
-          </View>
+          </>
         );
       })()}
 
@@ -116,6 +136,11 @@ function makeStyles(c: AppColors) {
       marginTop: 12, overflow: 'visible', position: 'relative',
     },
     fill: { height: 6, borderRadius: 999 },
+    // Segment « prévu » (à venir ce mois) — même piste, teinte plus claire, posé après le fait.
+    plannedFill: { position: 'absolute', top: 0, height: 6, borderRadius: 999 },
+    legendRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+    legendDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 6 },
+    legendTxt: { fontSize: 10.5, fontWeight: '600', color: c.textSecondary },
     tick: { position: 'absolute', top: -3, width: 2, height: 12, borderRadius: 2, backgroundColor: c.textSecondary },
     // Le % du seuil, centré sous son trait. La piste réserve la place en dessous (marge) pour que
     // le label ne chevauche pas la ligne de total qui suit.

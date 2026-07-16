@@ -72,6 +72,9 @@ export const PULSE_STATUS_COLOR_KEY: Record<PulseStatus, string> = {
 export interface PulseProgress {
   /** Part remplie (0..1). */
   value: number;
+  /** Part PRÉVUE (virements à venir ce mois), affichée en segment plus clair APRÈS `value`,
+   *  avec une légende « fait / prévu » sous la barre. Absent ou 0 = pas de segment. */
+  planned?: number;
   /** Repère à atteindre, en part (0..1) — le petit trait sur la barre. Absent = pas de repère. */
   target?: number;
 }
@@ -210,8 +213,10 @@ export interface PulseInputs {
   // Épargne / matelas
   /** Total sur les comptes d'épargne. */
   savingsBalance: number;
-  /** Mis de côté ce mois-ci (virements vers l'épargne, hors projets). */
+  /** Mis de côté ce mois-ci (virements EXÉCUTÉS vers l'épargne, projets compris). */
   savedThisMonth: number;
+  /** Virements d'épargne encore À VENIR ce mois-ci (datés > aujourd'hui) — segment « prévu ». */
+  savingsPlannedThisMonth?: number;
   /** Revenu mensuel moyen constaté (0 = non détecté). */
   avgMonthlyIncome: number;
   /** Tranche de revenu du questionnaire (repli du matelas tant qu'aucune recette n'est constatée). */
@@ -220,6 +225,8 @@ export interface PulseInputs {
   // Investissement
   investedBalance: number;
   investedThisMonth: number;
+  /** Virements d'investissement encore À VENIR ce mois-ci — segment « prévu ». */
+  investPlannedThisMonth?: number;
   /** Plus/moins-values cumulées (ce que le placement a rapporté). */
   investmentGains: number;
   /** Capacité d'investissement du mois = budget libre × allocation du profil. */
@@ -429,6 +436,11 @@ function buildCushion(i: PulseInputs, b: PulseBenchmark): PulseSignal {
 
 function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   const saved = Math.max(0, i.savedThisMonth);
+  // Virements d'épargne encore À VENIR ce mois : comptés dans le jugement (sinon la carte est
+  // « rouge » en début de mois alors que le virement du 25 est déjà programmé), affichés en
+  // segment plus clair sur la barre (légende « fait / prévu »).
+  const planned = Math.max(0, i.savingsPlannedThisMonth ?? 0);
+  const effort = saved + planned;
   const income = i.avgMonthlyIncome;
   const targetPct = b.savingRatePct;
 
@@ -437,27 +449,35 @@ function buildSaving(i: PulseInputs, b: PulseBenchmark): PulseSignal {
     return {
       id: 'saving', label: 'Épargne du mois', emoji: '🐖', status: 'neutral',
       headline: `${eur(saved)} mis de côté ce mois-ci`,
+      detail: planned > 0 ? `Et ${eur(planned)} encore prévus d’ici la fin du mois.` : undefined,
       amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
-      chip: saved > 0 ? 'C’est fait' : 'Rien pour l’instant',
+      chip: effort > 0 ? 'C’est fait' : 'Rien pour l’instant',
     };
   }
 
   const targetAmount = (targetPct / 100) * income;
-  const ratePct = (saved / income) * 100;
+  const ratePct = (effort / income) * 100;
   const status: PulseStatus =
-    saved >= targetAmount ? 'good' : saved >= targetAmount * 0.5 ? 'watch' : 'alert';
+    effort >= targetAmount ? 'good' : effort >= targetAmount * 0.5 ? 'watch' : 'alert';
 
+  const valuePart = Math.min(1, targetAmount > 0 ? saved / targetAmount : 0);
   return {
     id: 'saving',
     label: 'Épargne du mois',
     emoji: '🐖',
     status,
     headline: `${eur(saved)} mis de côté ce mois-ci`,
-    detail: `Soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois).`,
+    detail: planned > 0
+      ? `Avec ${eur(planned)} encore prévus, soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois).`
+      : `Soit ${pct(ratePct)} de tes revenus (${eur(income)} par mois).`,
     amountLine: `Épargne totale : ${eur(i.savingsBalance)}`,
     // Réel vs recommandé (le montant recommandé sert au calcul, sans être affiché comme un « repère »).
     chip: status === 'good' ? 'Bien épargné' : status === 'watch' ? 'À mi-chemin' : 'Peu épargné',
-    progress: { value: Math.min(1, targetAmount > 0 ? saved / targetAmount : 0), target: 1 },
+    progress: {
+      value: valuePart,
+      planned: Math.min(1 - valuePart, targetAmount > 0 ? planned / targetAmount : 0),
+      target: 1,
+    },
   };
 }
 
@@ -466,23 +486,32 @@ const MIN_JUDGEABLE_CAPACITY = 20;
 
 function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   const placed = Math.max(0, i.investedThisMonth);
+  // Virements d'invest encore À VENIR ce mois : comptés dans le jugement (un virement programmé
+  // le 25 ne doit pas laisser la carte « À lancer »), segment plus clair sur la barre.
+  const planned = Math.max(0, i.investPlannedThisMonth ?? 0);
+  const engaged = placed + planned;
   const capacity = Math.max(0, i.investCapacity);
   const gains = i.investmentGains;
   const gainLine = gains === 0
     ? ''
     : ` · ${gains > 0 ? '+' : '−'}${eur(Math.abs(gains))} ${gains > 0 ? 'de gains' : 'de pertes'}`;
   const amountLine = `Total investi : ${eur(i.investedBalance)}${gainLine}`;
+  const headline = placed > 0
+    ? `${eur(placed)} placés ce mois-ci`
+    : planned > 0
+      ? `${eur(planned)} d’investissement prévus ce mois-ci`
+      : 'Rien de placé ce mois-ci';
 
   // Pas (ou presque pas) de capacité d'investissement ce mois → on ne juge pas.
   if (capacity < MIN_JUDGEABLE_CAPACITY || b.investOfCapacityPct <= 0) {
     return {
       id: 'investing', label: 'Investissement du mois', emoji: '📈', status: 'neutral',
-      headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
+      headline,
       detail: capacity < MIN_JUDGEABLE_CAPACITY
         ? 'Ton budget du mois ne laisse plus de place pour investir : ça reviendra.'
         : undefined,
       amountLine,
-      chip: placed > 0 ? 'C’est fait' : 'Pas ce mois-ci',
+      chip: engaged > 0 ? 'C’est fait' : 'Pas ce mois-ci',
     };
   }
 
@@ -490,19 +519,27 @@ function buildInvesting(i: PulseInputs, b: PulseBenchmark): PulseSignal {
   // on donne le fait (« tu pouvais placer jusqu'à X »), la couleur fait le reste.
   const threshold = (b.investOfCapacityPct / 100) * capacity;
   const status: PulseStatus =
-    placed >= threshold ? 'good' : placed > 0 ? 'watch' : 'alert';
+    engaged >= threshold ? 'good' : engaged > 0 ? 'watch' : 'alert';
 
+  const valuePart = Math.min(1, capacity > 0 ? placed / capacity : 0);
   return {
     id: 'investing',
     label: 'Investissement du mois',
     emoji: '📈',
     status,
-    headline: placed > 0 ? `${eur(placed)} placés ce mois-ci` : 'Rien de placé ce mois-ci',
-    detail: `Ce mois-ci, tu pourrais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`,
+    headline,
+    detail: planned > 0
+      ? `Avec ${eur(planned)} encore prévus, tu pourrais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`
+      : `Ce mois-ci, tu pourrais placer jusqu’à ${eur(capacity)} sans te mettre en difficulté.`,
     amountLine,
     chip: status === 'good' ? 'Bon rythme' : status === 'watch' ? 'Tu peux aller plus loin' : 'À lancer',
-    // La barre se remplit sur ce qui était RÉELLEMENT plaçable ; le trait marque le seuil du profil.
-    progress: { value: Math.min(1, capacity > 0 ? placed / capacity : 0), target: b.investOfCapacityPct / 100 },
+    // La barre se remplit sur ce qui était RÉELLEMENT plaçable (fait + segment « prévu » plus
+    // clair) ; le trait marque le seuil du profil.
+    progress: {
+      value: valuePart,
+      planned: Math.min(1 - valuePart, capacity > 0 ? planned / capacity : 0),
+      target: b.investOfCapacityPct / 100,
+    },
   };
 }
 

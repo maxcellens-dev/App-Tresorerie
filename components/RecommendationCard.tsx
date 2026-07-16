@@ -240,8 +240,10 @@ export default function RecommendationCard({
       {confidenceLevel === 'low' && onVerify && (
         <TouchableOpacity style={styles.amberBanner} onPress={onVerify} activeOpacity={0.85}>
           <Ionicons name="alert-circle-outline" size={15} color={COLORS.orange} />
-          <Text style={styles.amberText} numberOfLines={2}>
-            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Ton Relyka est une estimation — vérifie le pour un suivi fiable.
+          {/* Message COMPLET (pas de numberOfLines) : tronquer une consigne la rend inutile.
+              (Le badge « Estimation » à côté de « Ton Relyka » porte déjà le statut.) */}
+          <Text style={styles.amberText}>
+            Solde non vérifié {unverifiedSincePhrase(daysSinceVerification)} — Fais une régul ou saisis tes dépenses pour l'actualiser.
           </Text>
           <Text style={styles.amberCta}>Vérifier</Text>
         </TouchableOpacity>
@@ -273,6 +275,11 @@ export default function RecommendationCard({
               <Text style={[styles.leadCompactAmount, { color: COLORS.text }]}>
                 {Math.round(relykaAmount).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
               </Text>
+              {confidenceLevel === 'low' && (
+                <View style={[styles.freshBadge, { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '44' }]}>
+                  <Text style={[styles.freshBadgeText, { color: COLORS.orange }]}>Estimation</Text>
+                </View>
+              )}
               {onOpenRelyka && count === 1 && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
             </TouchableOpacity>
             {count > 1 ? navControls : <View />}
@@ -295,6 +302,12 @@ export default function RecommendationCard({
               {confidenceLevel === 'medium' && (
                 <View style={[styles.freshBadge, { backgroundColor: COLORS.textSecondary + '18', borderColor: COLORS.textSecondary + '44' }]}>
                   <Text style={[styles.freshBadgeText, { color: COLORS.textSecondary }]}>Vérifié {verifiedAgoPhrase(daysSinceVerification)}</Text>
+                </View>
+              )}
+              {/* Confiance basse : badge « Estimation » — le bandeau ambre n'a plus à le répéter. */}
+              {confidenceLevel === 'low' && (
+                <View style={[styles.freshBadge, { backgroundColor: COLORS.orange + '18', borderColor: COLORS.orange + '44' }]}>
+                  <Text style={[styles.freshBadgeText, { color: COLORS.orange }]}>Estimation</Text>
                 </View>
               )}
             </View>
@@ -546,7 +559,9 @@ function makeStyles(c: any) {
 
   /* Bandeau ambre confiance basse */
   amberBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    // alignItems flex-start : le message s'affiche en ENTIER (3 lignes si besoin) — icône et CTA
+    // restent calés en haut plutôt que d'étirer/centrer bizarrement.
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
     backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '44',
     borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10,
   },

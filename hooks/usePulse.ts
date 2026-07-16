@@ -239,6 +239,11 @@ export function usePulse(): PulseData | null {
       // Ce qui est RÉELLEMENT parti à l'épargne ce mois-ci, virements de PROJET compris (le signal
       // « Ton projet » mesure l'avancement vers la cible, pas l'effort d'épargne du mois).
       savedThisMonth,
+      // Virements encore À VENIR ce mois (datés > aujourd'hui) : segment « prévu » des cartes
+      // Épargne / Investissement — comptés dans le jugement, affichés en teinte claire.
+      // (Sans les cumuls fléchés : pas datés, ils ne sont pas « prévus ce mois ».)
+      savingsPlannedThisMonth: Math.max(0, pilotage.month_savings_future ?? 0),
+      investPlannedThisMonth: Math.max(0, pilotage.month_invest_future ?? 0),
       avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
       questionnaireQ3: (answers as any)?.q3 ?? null,
       investedBalance: pilotage.total_invested,

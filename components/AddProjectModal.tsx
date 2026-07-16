@@ -968,23 +968,26 @@ export default function AddProjectModal() {
                                 </Text>
                               </View>
                             ))}
-                            {/* Ligne ÉDITABLE du mois (à venir) */}
+                            {/* Ligne ÉDITABLE du mois (à venir) — TOUTE la ligne active/désactive le
+                                mois (pas seulement la puce) ; le champ montant, lui, capte ses
+                                propres touches → taper dedans ne bascule pas la ligne. */}
                             {m.editable && (
-                              <View
+                              <TouchableOpacity
                                 style={[
                                   styles.ponctuelRow,
                                   !isLastMonth && { borderBottomWidth: 1, borderBottomColor: COLORS.border },
                                 ]}
+                                onPress={() => togglePonctuelMonth(m.key)}
+                                activeOpacity={0.7}
+                                disabled={isPending}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${enabled ? 'Désactiver' : 'Activer'} ${m.label}`}
                               >
-                                <TouchableOpacity
-                                  style={styles.ponctuelToggle}
-                                  onPress={() => togglePonctuelMonth(m.key)}
-                                  activeOpacity={0.7}
-                                >
+                                <View style={styles.ponctuelToggle}>
                                   <View style={[styles.ponctuelDot, enabled && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]}>
                                     {enabled && <View style={styles.ponctuelDotInner} />}
                                   </View>
-                                </TouchableOpacity>
+                                </View>
                                 <Text style={[styles.ponctuelLabel, { color: enabled ? COLORS.text : COLORS.textSecondary }]}>
                                   {m.label}{frozenRows.length > 0 ? (isSpend ? ' · autre dépense' : ' · autre versement') : ''}
                                 </Text>
@@ -1001,7 +1004,7 @@ export default function AddProjectModal() {
                                 ) : (
                                   <Text style={styles.ponctuelDash}>–</Text>
                                 )}
-                              </View>
+                              </TouchableOpacity>
                             )}
                           </React.Fragment>
                         );
