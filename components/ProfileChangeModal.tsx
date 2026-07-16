@@ -35,22 +35,23 @@ function getTransitionKey(prev: string | null, next: string, reason: string): { 
   return { transition: `P${nextNum}_P${prevNum}`, direction: 'downgrade' };
 }
 
+// Replis si la ligne n'existe pas en base — TUTOIEMENT, comme partout dans l'app (migration 145).
 const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
-  'P1_P2|upgrade':    { title: '🌿 Vous passez au profil "Réserve à construire"', body: 'Votre matelas de sécurité commence à se constituer. C\'est une vraie avancée.' },
-  'P2_P3|upgrade':    { title: '⚖️ Vous passez au profil "Stabilité à améliorer"', body: 'Votre base financière est solide et votre comportement d\'épargne est régulier.' },
-  'P3_P4|upgrade':    { title: '🚀 Vous passez au profil "Bonne dynamique"', body: 'Excellent travail. Votre réserve est confortable et vous investissez régulièrement.' },
-  'P4_P5|upgrade':    { title: '🎯 Vous passez au profil "Patrimoine en développement"', body: 'Vous avez atteint un niveau de maturité financière remarquable.' },
-  'P1_P2|downgrade':  { title: '🌱 Votre profil évolue vers "Premiers repères"', body: 'Votre réserve s\'est réduite ou votre épargne est à l\'arrêt. Pas d\'inquiétude.' },
-  'P2_P3|downgrade':  { title: '🌿 Votre profil évolue vers "Réserve à construire"', body: 'Votre réserve est en dessous du seuil recommandé.' },
-  'P3_P4|downgrade':  { title: '⚖️ Votre profil évolue vers "Stabilité à améliorer"', body: 'Votre réserve ou votre épargne a baissé temporairement.' },
-  'P4_P5|downgrade':  { title: '🚀 Votre profil évolue vers "Bonne dynamique"', body: 'Votre flux d\'investissement est passé en dessous du seuil.' },
-  'exceptional_one|exceptional': { title: '⚠️ Profil ajusté suite à une baisse de revenus', body: 'Vos revenus des 2 derniers mois sont inférieurs à votre moyenne habituelle.' },
+  'P1_P2|upgrade':    { title: '🌿 Tu passes au profil "Réserve à construire"', body: 'Ton matelas de sécurité commence à se constituer. C\'est une vraie avancée.' },
+  'P2_P3|upgrade':    { title: '⚖️ Tu passes au profil "Stabilité à améliorer"', body: 'Ta base financière est solide et ton comportement d\'épargne est régulier.' },
+  'P3_P4|upgrade':    { title: '🚀 Tu passes au profil "Bonne dynamique"', body: 'Excellent travail. Ta réserve est confortable et tu investis régulièrement.' },
+  'P4_P5|upgrade':    { title: '🎯 Tu passes au profil "Patrimoine en développement"', body: 'Tu as atteint un niveau de maturité financière remarquable.' },
+  'P1_P2|downgrade':  { title: '🌱 Ton profil évolue vers "Premiers repères"', body: 'Ta réserve s\'est réduite ou ton épargne est à l\'arrêt. Pas d\'inquiétude.' },
+  'P2_P3|downgrade':  { title: '🌿 Ton profil évolue vers "Réserve à construire"', body: 'Ta réserve est en dessous du seuil recommandé.' },
+  'P3_P4|downgrade':  { title: '⚖️ Ton profil évolue vers "Stabilité à améliorer"', body: 'Ta réserve ou ton épargne a baissé temporairement.' },
+  'P4_P5|downgrade':  { title: '🚀 Ton profil évolue vers "Bonne dynamique"', body: 'Ton flux d\'investissement est passé en dessous du seuil.' },
+  'exceptional_one|exceptional': { title: '⚠️ Profil ajusté suite à une baisse de revenus', body: 'Tes revenus des 2 derniers mois sont inférieurs à ta moyenne habituelle.' },
   'exceptional_two|exceptional': { title: '⚠️ Profil ajusté — aucun revenu détecté', body: 'Aucun revenu enregistré ces 2 derniers mois.' },
-  'P1|same': { title: '🌱 Toujours au profil "Premiers repères"', body: 'Ce mois-ci, votre profil reste inchangé. Continuez à constituer votre matelas de sécurité.' },
-  'P2|same': { title: '🌿 Toujours au profil "Réserve à construire"', body: 'Votre profil reste stable ce mois-ci. Poursuivez le renforcement de votre réserve.' },
-  'P3|same': { title: '⚖️ Toujours au profil "Stabilité à améliorer"', body: 'Votre situation reste stable ce mois-ci. Continuez sur cette lancée.' },
-  'P4|same': { title: '🚀 Toujours au profil "Bonne dynamique"', body: 'Votre profil reste solide ce mois-ci. Votre dynamique d\'investissement se confirme.' },
-  'P5|same': { title: '🎯 Toujours au profil "Patrimoine en développement"', body: 'Votre maturité financière se maintient ce mois-ci. Continuez à optimiser votre patrimoine.' },
+  'P1|same': { title: '🌱 Toujours au profil "Premiers repères"', body: 'Ce mois-ci, ton profil reste inchangé. \nContinue à constituer ton matelas de sécurité.' },
+  'P2|same': { title: '🌿 Toujours au profil "Réserve à construire"', body: 'Ton profil reste stable ce mois-ci. \nPoursuis le renforcement de ta réserve.' },
+  'P3|same': { title: '⚖️ Toujours au profil "Stabilité à améliorer"', body: 'Ta situation reste stable ce mois-ci. \nContinue sur cette lancée.' },
+  'P4|same': { title: '🚀 Toujours au profil "Bonne dynamique"', body: 'Ton profil reste solide ce mois-ci. \nTa dynamique d\'investissement se confirme.' },
+  'P5|same': { title: '🎯 Toujours au profil "Patrimoine en développement"', body: 'Ta maturité financière se maintient ce mois-ci. \nContinue à optimiser ton patrimoine.' },
 };
 
 export default function ProfileChangeModal({ userId }: Props) {
@@ -72,7 +73,7 @@ export default function ProfileChangeModal({ userId }: Props) {
     pendingChange.change_reason,
   );
 
-  let title = 'Votre profil a changé';
+  let title = 'Ton profil a changé';
   let body = '';
 
   if (key) {

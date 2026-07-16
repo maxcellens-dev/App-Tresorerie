@@ -64,7 +64,7 @@ export default function OnboardingHintBanner() {
               <Text style={styles.title}>Étape validée : {step.label}</Text>
               {next
                 ? <Text style={styles.hint}>Prochaine étape : {next.label}</Text>
-                : <Text style={styles.hint}>🎉 Bravo, vous avez terminé le guide !</Text>}
+                : <Text style={styles.hint}>🎉 Bravo, tu as terminé le guide !</Text>}
             </View>
             {next ? (
               <TouchableOpacity style={styles.nextBtn} onPress={openChecklist} activeOpacity={0.85}>

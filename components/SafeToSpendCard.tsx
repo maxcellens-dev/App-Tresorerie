@@ -32,7 +32,7 @@ export default function SafeToSpend({ amount, isLow = false, isNegative = false,
           ? 'Attention: solde insuffisant'
           : isLow
           ? 'Prudence requise'
-          : 'Vous êtes en bonne position'}
+          : 'Tu es en bonne position'}
       </Text>
     </View>
   );

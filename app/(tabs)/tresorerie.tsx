@@ -135,14 +135,14 @@ export default function TreasuryPlanScreen() {
       icon: 'calendar',
       iconColor: COLORS.green,
       title: 'Onglet Tréso',
-      description: 'Touchez « Tréso » dans la barre du bas pour votre plan de trésorerie sur 12 mois.',
+      description: 'Touche « Tréso » dans la barre du bas pour ton plan de trésorerie sur 12 mois.',
     },
     {
       getRef: () => tableRef,
       icon: 'pencil',
       iconColor: '#a78bfa',
-      title: 'Votre plan de trésorerie',
-      description: 'Vos recettes, dépenses et soldes anticipés, mois par mois. Naviguez entre les périodes avec les flèches, et sur les mois futurs appuyez sur un montant pour le modifier.',
+      title: 'Ton plan de trésorerie',
+      description: 'Tes recettes, dépenses et soldes anticipés, mois par mois. Navigue entre les périodes avec les flèches, et sur les mois futurs appuie sur un montant pour le modifier.',
     },
   ];
 
@@ -816,7 +816,7 @@ export default function TreasuryPlanScreen() {
     if (!draftModal || !user) return;
     const num = parseFloat(draftAmount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
-      Alert.alert('Montant invalide', 'Saisissez un montant.');
+      Alert.alert('Montant invalide', 'Saisis un montant.');
       return;
     }
     if (!draftAccountId) {
@@ -848,7 +848,7 @@ export default function TreasuryPlanScreen() {
     if (!virementDraftModal || !user) return;
     const num = parseFloat(virementAmount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
-      Alert.alert('Montant invalide', 'Saisissez un montant.');
+      Alert.alert('Montant invalide', 'Saisis un montant.');
       return;
     }
     if (!virementDestAccountId) {
@@ -888,7 +888,7 @@ export default function TreasuryPlanScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={['top']}>
-          <Text style={styles.hint}>Connectez-vous pour voir votre plan de trésorerie.</Text>
+          <Text style={styles.hint}>Connecte-toi pour voir ton plan de trésorerie.</Text>
         </SafeAreaView>
       </View>
     );
@@ -909,7 +909,7 @@ export default function TreasuryPlanScreen() {
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <View style={styles.subtitleRow}>
-          <Text style={[styles.subtitle, { flex: 1, marginBottom: 0 }]}>Alimenté par vos transactions et récurrences. Appuyez sur un montant pour voir le détail.</Text>
+          <Text style={[styles.subtitle, { flex: 1, marginBottom: 0 }]}>Alimenté par tes transactions et récurrences. Appuie sur un montant pour voir le détail.</Text>
           <TouchableOpacity style={[styles.simpleToggle, simplified && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]} onPress={toggleSimplified} activeOpacity={0.7} accessibilityRole="button">
             <Ionicons name={simplified ? 'contract-outline' : 'expand-outline'} size={14} color={simplified ? COLORS.bg : COLORS.emerald} />
             <Text style={[styles.simpleToggleText, simplified && { color: COLORS.bg }]}>{simplified ? 'Simplifié' : 'Détaillé'}</Text>
@@ -1182,7 +1182,7 @@ export default function TreasuryPlanScreen() {
             activeOpacity={1}
           >
             <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>Que voulez-vous faire?</Text>
+              <Text style={styles.menuTitle}>Que veux-tu faire ?</Text>
               <TouchableOpacity onPress={() => setMenuModalState({ visible: false })}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>

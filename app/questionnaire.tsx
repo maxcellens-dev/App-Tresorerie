@@ -200,7 +200,7 @@ export default function QuestionnaireScreen() {
     const q = QUESTIONS[step - 1];
     // Q8 et Q9 : vide = "je ne sais pas" (valeur 0), toujours valide
     if (q.key !== 'q8' && q.key !== 'q9' && !answers[q.key]) {
-      Alert.alert('Sélection requise', 'Choisissez une réponse pour continuer.');
+      Alert.alert('Sélection requise', 'Choisis une réponse pour continuer.');
       return;
     }
     if (step < 9) {
@@ -343,7 +343,7 @@ export default function QuestionnaireScreen() {
               <Text style={styles.welcomeTime}>⏱ Moins de 2 minutes</Text>
 
               <View style={styles.welcomeCurrency}>
-                <Text style={styles.welcomeCurrencyLabel}>Votre devise</Text>
+                <Text style={styles.welcomeCurrencyLabel}>Ta devise</Text>
                 <CurrencyPicker
                   value={userProfile?.currency_code ?? 'EUR'}
                   onChange={(code) => updateProfile.mutate({ currency_code: code })}

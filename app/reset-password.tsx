@@ -31,7 +31,7 @@ export default function ResetPasswordScreen() {
   const [sent, setSent] = useState(false);
 
   async function sendLink() {
-    if (!email.trim()) { showAlert('Email requis', 'Renseignez votre adresse e-mail.'); return; }
+    if (!email.trim()) { showAlert('Email requis', 'Renseigne ton adresse e-mail.'); return; }
     if (!supabase) { showAlert('Indisponible', 'Backend non configuré.'); return; }
     setLoading(true);
     try {
@@ -53,7 +53,7 @@ export default function ResetPasswordScreen() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       clearPasswordRecovery();
-      showAlert('Mot de passe modifié', 'Votre mot de passe a été mis à jour.');
+      showAlert('Mot de passe modifié', 'Ton mot de passe a été mis à jour.');
       router.replace('/');
     } catch (e: unknown) {
       showAlert('Erreur', e instanceof Error ? e.message : 'Mise à jour impossible.');
@@ -73,7 +73,7 @@ export default function ResetPasswordScreen() {
           {passwordRecovery ? (
             <>
               <Text style={styles.title}>Nouveau mot de passe</Text>
-              <Text style={styles.subtitle}>Choisissez un nouveau mot de passe pour votre compte.</Text>
+              <Text style={styles.subtitle}>Choisis un nouveau mot de passe pour ton compte.</Text>
               <Text style={styles.label}>Nouveau mot de passe (min. 6 caractères)</Text>
               <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry />
               <Text style={styles.label}>Confirmer</Text>
@@ -89,7 +89,7 @@ export default function ResetPasswordScreen() {
                 Si un compte existe pour <Text style={{ fontWeight: '700', color: COLORS.text }}>{email.trim()}</Text>, un e-mail de réinitialisation vient d'être envoyé. Cliquez sur le lien pour choisir un nouveau mot de passe.
               </Text>
               <Text style={styles.note}>
-                ℹ️ Vous ne recevez rien ? La messagerie n'est pas toujours disponible (offre gratuite). Contactez un administrateur pour réinitialiser votre mot de passe manuellement.
+                ℹ️ Tu ne reçois rien ? La messagerie n'est pas toujours disponible (offre gratuite). Contacte un administrateur pour réinitialiser ton mot de passe manuellement.
               </Text>
               <TouchableOpacity style={styles.btn} onPress={() => router.replace('/login')}>
                 <Text style={styles.btnLabel}>Retour à la connexion</Text>
@@ -98,7 +98,7 @@ export default function ResetPasswordScreen() {
           ) : (
             <>
               <Text style={styles.title}>Mot de passe oublié</Text>
-              <Text style={styles.subtitle}>Saisissez votre e-mail pour recevoir un lien de réinitialisation.</Text>
+              <Text style={styles.subtitle}>Saisis ton e-mail pour recevoir un lien de réinitialisation.</Text>
               <Text style={styles.label}>Email</Text>
               <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="vous@exemple.fr" placeholderTextColor={COLORS.textSecondary} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} onSubmitEditing={sendLink} returnKeyType="go" />
               <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={sendLink} disabled={loading}>

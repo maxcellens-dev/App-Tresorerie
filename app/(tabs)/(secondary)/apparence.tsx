@@ -197,7 +197,7 @@ export default function AppearanceScreen() {
 
               {colorsUnlocked ? (
                 <>
-                  <Text style={styles.hint}>Choisissez votre propre teinte d'accent.</Text>
+                  <Text style={styles.hint}>Choisis ta propre teinte d'accent.</Text>
 
                   <View style={styles.customRow}>
                     {/* SÉLECTEUR (à gauche) : ouvre la palette HSV/RVB — même modal sur toutes les
@@ -253,7 +253,7 @@ export default function AppearanceScreen() {
               <Text style={styles.label}>Cosmétique</Text>
               {ownedCosmetics.length === 0 ? (
                 <>
-                  <Text style={styles.hint}>Aucun cosmétique débloqué pour le moment. Procurez-vous-en en boutique pour personnaliser votre profil.</Text>
+                  <Text style={styles.hint}>Aucun cosmétique débloqué pour le moment. Procure-t'en en boutique pour personnaliser ton profil.</Text>
                   <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
                     <Ionicons name="bag-handle-outline" size={16} color={COLORS.bg} />
                     <Text style={styles.unlockBtnText}>Voir la boutique</Text>
@@ -261,7 +261,7 @@ export default function AppearanceScreen() {
                 </>
               ) : (
                 <>
-                  <Text style={styles.hint}>Cochez un cosmétique pour l'équiper. Il s'affichera sur votre profil et dans l'app.</Text>
+                  <Text style={styles.hint}>Coche un cosmétique pour l'équiper. Il s'affichera sur ton profil et dans l'app.</Text>
                   {cosmeticGroups.map((group) => (
                     <View key={group.slot}>
                       <Text style={styles.cosmeticGroupTitle}>{group.label}</Text>

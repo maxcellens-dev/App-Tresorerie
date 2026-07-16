@@ -46,7 +46,7 @@ export default function ObjectivesListCard({ objectives, isLoading = false, onVi
       ) : objectives.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>Aucun objectif</Text>
-          <Text style={styles.emptyHint}>Créez votre premier objectif</Text>
+          <Text style={styles.emptyHint}>Crée ton premier objectif</Text>
         </View>
       ) : (
         <Carousel

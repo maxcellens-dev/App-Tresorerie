@@ -42,11 +42,13 @@ const TRANSITIONS = [
   { key: 'P4_P5', label: 'P4 → P5', from: 'P4' as FinancialProfileId, to: 'P5' as FinancialProfileId },
 ];
 
+// Clés = convention du modal (ProfileChangeModal) : 'P<bas>_P<haut>', la DIRECTION distingue
+// montée/descente. Les anciennes clés 'P2_P1'… étaient stockées mais jamais lues (migration 145).
 const DOWNGRADE_TRANSITIONS = [
-  { key: 'P2_P1', label: 'P2 → P1' },
-  { key: 'P3_P2', label: 'P3 → P2' },
-  { key: 'P4_P3', label: 'P4 → P3' },
-  { key: 'P5_P4', label: 'P5 → P4' },
+  { key: 'P1_P2', label: 'P2 → P1' },
+  { key: 'P2_P3', label: 'P3 → P2' },
+  { key: 'P3_P4', label: 'P4 → P3' },
+  { key: 'P4_P5', label: 'P5 → P4' },
 ];
 
 const EXCEPTIONAL_TRANSITIONS = [
@@ -336,7 +338,7 @@ function MatrixSection({ userId }: { userId: string }) {
         upgrade_flux_threshold: parseFloat(editValues.upgrade_flux_threshold) || 0,
         downgrade_months_threshold: parseFloat(editValues.downgrade_months_threshold) || 0,
         downgrade_flux_threshold: parseFloat(editValues.downgrade_flux_threshold) || 0,
-        anti_yoyo_months: parseInt(editValues.anti_yoyo_months) || 2,
+        anti_yoyo_months: parseInt(editValues.anti_yoyo_months) || 1,
       });
       setEditingKey(null);
       Alert.alert('Sauvegardé');
@@ -475,7 +477,7 @@ function GlobalSection({ userId }: { userId: string }) {
   useEffect(() => {
     const first = configs[0] as any;
     if (first) {
-      setFreeze(String(first.freeze_months ?? 6));
+      setFreeze(String(first.freeze_months ?? 2));
       setFluxWindow(String(first.flux_window_months ?? 3));
       setExpWindow(String(first.expenses_window_months ?? 6));
       setDropThreshold(String(first.exceptional_drop_threshold_pct ?? 50));
@@ -489,7 +491,7 @@ function GlobalSection({ userId }: { userId: string }) {
       await Promise.all(transitions.map(t =>
         updateConfig.mutateAsync({
           transition: t,
-          freeze_months: parseInt(freeze) || 6,
+          freeze_months: parseInt(freeze) || 2,
           flux_window_months: parseInt(fluxWindow) || 3,
           expenses_window_months: parseInt(expWindow) || 6,
           exceptional_drop_threshold_pct: parseFloat(dropThreshold) || 50,
@@ -506,7 +508,7 @@ function GlobalSection({ userId }: { userId: string }) {
   return (
     <View style={styles.sectionContent}>
       {[
-        { label: 'Durée de gel du profil initial (mois)', value: freeze, setter: setFreeze },
+        { label: 'Durée de gel du profil initial (mois, sauf cas exceptionnels)', value: freeze, setter: setFreeze },
         { label: 'Fenêtre de calcul des flux (mois)', value: fluxWindow, setter: setFluxWindow },
         { label: 'Fenêtre de calcul des dépenses moy. (mois)', value: expWindow, setter: setExpWindow },
         { label: 'Seuil de chute de revenus (%)', value: dropThreshold, setter: setDropThreshold },

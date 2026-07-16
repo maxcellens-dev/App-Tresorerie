@@ -96,13 +96,13 @@ export default function EditAccountScreen() {
   function handleClose() {
     if (!id) return;
     const closeMessage =
-      "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l\u2019utiliser pour des virements ou nouvelles transactions. Confirmer ?";
+      "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Tu ne pourras plus l\u2019utiliser pour des virements ou nouvelles transactions. Confirmer ?";
     const isJoint = !!(account as any)?.is_joint;
     Alert.alert(
       isJoint ? 'Fermer le compte joint' : 'Fermer le compte',
       isJoint
         ? "Ce compte joint sera fermé pour TOUS les membres. S'il contient des écritures, il sera archivé (plus utilisable) ; vide, il sera supprimé. Pour le supprimer définitivement, supprimez d'abord toutes ses transactions. Confirmer ?"
-        : "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Vous ne pourrez plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
+        : "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Tu ne pourras plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
       [
         { text: 'Annuler', style: 'cancel' },
         {

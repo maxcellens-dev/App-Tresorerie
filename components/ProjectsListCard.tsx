@@ -46,7 +46,7 @@ export default function ProjectsListCard({ projects, isLoading = false, onViewAl
       ) : projects.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>Aucun projet</Text>
-          <Text style={styles.emptyHint}>Créez votre premier projet</Text>
+          <Text style={styles.emptyHint}>Crée ton premier projet</Text>
         </View>
       ) : (
         <Carousel

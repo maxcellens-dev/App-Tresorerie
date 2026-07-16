@@ -41,7 +41,7 @@ export default function RegisterScreen() {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) throw error;
         if (!data.session) {
-          showAlert('Inscription', 'Vérifiez votre email pour confirmer le compte.');
+          showAlert('Inscription', 'Vérifie ton email pour confirmer le compte.');
         }
         // Si session active, onAuthStateChange met à jour le contexte
         // et le guard dans _layout redirigera automatiquement vers home

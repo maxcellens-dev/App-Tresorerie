@@ -39,7 +39,7 @@ export default function NotificationsScreen() {
             />
           </View>
           <Text style={styles.hint}>
-            Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka). Les badges dans l'app restent affichés même si vous les désactivez.
+            Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka). Les badges dans l'app restent affichés même si tu les désactives.
           </Text>
         </View>
       </SafeAreaView>

@@ -5,6 +5,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/ScreenGradient';
+import CalculatorButton from '../../components/CalculatorButton';
 import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import MonthlyClosure from '../../components/MonthlyClosure';
@@ -265,21 +266,21 @@ export default function PilotageScreen() {
       icon: 'home',
       iconColor: COLORS.green,
       title: 'Onglet Pilotage',
-      description: 'Touchez « Pilotage » dans la barre du bas : c\'est votre tableau de bord.',
+      description: 'Touche « Pilotage » dans la barre du bas : c\'est ton tableau de bord.',
     },
     {
       getRef: () => suiviRef,
       icon: 'wallet-outline',
       iconColor: COLORS.green,
       title: 'Suivi du mois',
-      description: 'Vos engagements du mois (épargne, investissement, réservé) et vos dépenses. En bas, le « Budget libre à allouer » : ce qu\'il vous reste à dépenser librement.',
+      description: 'Tes engagements du mois (épargne, investissement, réservé) et tes dépenses. En bas, le « Budget libre à allouer » : ce qu\'il te reste à dépenser librement.',
     },
     {
       getRef: () => monthRef,
       icon: 'bulb-outline',
       iconColor: '#f59e0b',
       title: 'Recommandations',
-      description: 'Des conseils personnalisés selon votre profil financier pour optimiser votre mois : épargne, investissement, réserve…',
+      description: 'Des conseils personnalisés selon ton profil financier pour optimiser ton mois : épargne, investissement, réserve…',
     },
   ];
 
@@ -649,7 +650,7 @@ export default function PilotageScreen() {
           <View style={styles.safetyBanner}>
             <Ionicons name="warning-outline" size={18} color={COLORS.yellow} />
             <Text style={styles.safetyBannerText}>
-              Vos comptes courants ({pilotageData.total_checking.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}) sont en dessous de votre marge de sécurité ({(pilotageData.safety_margin_amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}).
+              Tes comptes courants ({pilotageData.total_checking.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}) sont en dessous de ta marge de sécurité ({(pilotageData.safety_margin_amount ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}).
             </Text>
           </View>
         )}
@@ -695,7 +696,7 @@ export default function PilotageScreen() {
               <View style={styles.overspendBox}>
                 <Ionicons name="warning-outline" size={16} color={COLORS.danger} />
                 <Text style={styles.overspendText}>
-                  Vos réservations mentales dépassent votre reste disponible. Réduisez ou annulez un cumul.
+                  Tes réservations mentales dépassent ton reste disponible. Réduis ou annule un cumul.
                 </Text>
               </View>
             )}
@@ -1383,10 +1384,10 @@ export default function PilotageScreen() {
                             <View style={{ gap: 6, paddingTop: 4 }}>
                               <Text style={styles.detailNote}>
                                 {pilotageData.variable_envelope_source === 'history'
-                                  ? `Estimation basée sur la moyenne de vos ${pilotageData.variable_envelope_months_used} derniers mois.`
+                                  ? `Estimation basée sur la moyenne de tes ${pilotageData.variable_envelope_months_used} derniers mois.`
                                   : pilotageData.variable_envelope_source === 'onboarding'
                                   ? 'Estimation basée sur le budget variable indiqué à l\'inscription.'
-                                  : 'Pas encore assez d\'historique pour estimer vos dépenses variables.'}
+                                  : 'Pas encore assez d\'historique pour estimer tes dépenses variables.'}
                               </Text>
                               {/* Info non renseignée (ex. questionnaire passé) → estimation à 0 €. On renvoie
                                   vers « Mon profil financier » pour la compléter (profil fiable). */}
@@ -1575,8 +1576,8 @@ export default function PilotageScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.troughInfoText}>
-              C'est le solde le plus bas qu'atteindront vos comptes courants d'ici votre prochaine rentrée d'argent, en simulant vos revenus et dépenses à venir dans l'ordre des dates.{'\n\n'}
-              On se base dessus plutôt que sur votre solde actuel pour ne jamais vous laisser dépenser de l'argent que vous n'avez pas encore reçu : votre budget libre reste fiable même si une grosse dépense tombe avant votre prochaine paie.
+              C'est le solde le plus bas qu'atteindront tes comptes courants d'ici ta prochaine rentrée d'argent, en simulant tes revenus et dépenses à venir dans l'ordre des dates.{'\n\n'}
+              On se base dessus plutôt que sur ton solde actuel pour ne jamais te laisser dépenser de l'argent que tu n'as pas encore reçu : ton budget libre reste fiable même si une grosse dépense tombe avant ta prochaine paie.
             </Text>
           </Pressable>
         </Pressable>
@@ -1588,7 +1589,7 @@ export default function PilotageScreen() {
           <Pressable style={styles.varModalBox} onPress={() => {}}>
             <Text style={styles.varModalTitle}>Dépenses variables</Text>
             <Text style={styles.varModalHint}>
-              Combien dépensez-vous environ pour vos courses, loisirs et dépenses variables ?
+              Combien dépenses-tu environ pour tes courses, loisirs et dépenses variables ?
             </Text>
             <View style={styles.varModalInputRow}>
               <TextInput
@@ -1640,7 +1641,7 @@ export default function PilotageScreen() {
           <Pressable style={styles.varModalBox} onPress={() => {}}>
             <Text style={styles.varModalTitle}>Marge de sécurité</Text>
             <Text style={styles.varModalHint}>
-              Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Il est déduit de votre « Budget libre ».
+              Montant que tu souhaites conserver au minimum sur tes comptes courants à la fin du mois, par sécurité. Il est déduit de ton « Budget libre ».
             </Text>
             <View style={styles.varModalInputRow}>
               <TextInput
@@ -1714,6 +1715,7 @@ export default function PilotageScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <CalculatorButton page="pilotage" />
     </View>
   );
 }

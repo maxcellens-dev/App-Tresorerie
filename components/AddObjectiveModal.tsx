@@ -89,7 +89,7 @@ export default function AddObjectiveModal({
       return;
     }
     if (!form.linked_account_id) {
-      setFormError('Veuillez sélectionner un compte lié.');
+      setFormError('Sélectionne un compte lié.');
       setErrorFields(['account']);
       return;
     }
@@ -318,7 +318,7 @@ export default function AddObjectiveModal({
                 <View style={[styles.accountHint, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40' }]}>
                   <Text style={[styles.accountHintIcon]}>💡</Text>
                   <Text style={[styles.accountHintText, { color: COLORS.textSecondary }]}>
-                    Sélectionnez ici le <Text style={{ fontWeight: '700', color: COLORS.text }}>compte d'épargne ou d'investissement</Text> sur lequel vous voulez atteindre cet objectif.
+                    Sélectionne ici le <Text style={{ fontWeight: '700', color: COLORS.text }}>compte d'épargne ou d'investissement</Text> sur lequel tu veux atteindre cet objectif.
                     {'\n'}L'avancement est calculé à partir des virements réalisés vers ce compte.
                   </Text>
                 </View>

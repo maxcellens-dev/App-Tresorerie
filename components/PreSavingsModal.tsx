@@ -65,7 +65,7 @@ export default function PreSavingsModal({
           </View>
 
           <Text style={styles.hint}>
-            Accumulez un montant à mettre de côté. Il est déduit de votre « Budget libre à allouer » tant que vous n'avez pas fait le virement.
+            Accumule un montant à mettre de côté. Il est déduit de ton « Budget libre à allouer » tant que tu n'as pas fait le virement.
           </Text>
 
           <Text style={styles.label}>Montant à ajouter</Text>
@@ -92,7 +92,7 @@ export default function PreSavingsModal({
             <View style={styles.warnBox}>
               <Ionicons name="warning-outline" size={15} color="#f87171" />
               <Text style={styles.warnText}>
-                Ce cumul dépasse votre reste disponible ({Math.round(base).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}).
+                Ce cumul dépasse ton reste disponible ({Math.round(base).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}).
               </Text>
             </View>
           )}

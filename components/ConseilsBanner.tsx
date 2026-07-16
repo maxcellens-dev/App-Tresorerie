@@ -36,7 +36,7 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
   // Liste ordonnée : "Pour vous" puis général.
   const slides: Slide[] = [];
   if (contextuel) slides.push({ id: contextuel.id, label: 'Pour vous', icon: 'person-circle-outline', iconColor: COLORS.violet, text: interpolate(contextuel.message, contextuel.vars) });
-  if (general) slides.push({ id: general.id, label: 'Le saviez-vous', icon: 'bulb-outline', iconColor: COLORS.yellow, text: general.message });
+  if (general) slides.push({ id: general.id, label: 'Le savais-tu', icon: 'bulb-outline', iconColor: COLORS.yellow, text: general.message });
   const slidesLen = slides.length;
 
   // ── Tous les hooks AVANT tout return conditionnel ──

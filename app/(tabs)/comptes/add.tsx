@@ -120,7 +120,7 @@ export default function AddAccountScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe}>
-          <Text style={styles.text}>Connectez-vous pour ajouter un compte.</Text>
+          <Text style={styles.text}>Connecte-toi pour ajouter un compte.</Text>
           <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
             <Text style={styles.btnLabel}>Retour</Text>
           </TouchableOpacity>
@@ -174,7 +174,7 @@ export default function AddAccountScreen() {
           {/* Périmètre quotidien : comment ce compte compte dans TON budget (modifiable ensuite). */}
           {isJoint && (
             <View style={{ marginBottom: 18 }}>
-              <Text style={styles.label}>Comment utilisez-vous ce compte ?</Text>
+              <Text style={styles.label}>Comment utilises-tu ce compte ?</Text>
               {([
                 { m: 'contribution', icon: 'home-outline', t: 'Pour les charges communes', d: 'Loyer, crédits… Tes virements vers ce compte comptent comme des dépenses ; les prélèvements internes à ce compte n’encombrent pas ton budget.' },
                 { m: 'tracked', icon: 'cart-outline', t: 'Au quotidien', d: 'Courses, sorties… Ses dépenses comptent dans ton budget, à hauteur de ta part.' },
@@ -248,7 +248,7 @@ export default function AddAccountScreen() {
                 keyboardType="decimal-pad"
               />
               <Text style={styles.hintSmall}>
-                Montant total que vous avez versé sur ce compte à ce jour (hors plus-values). Sert de base à l'« Apport » dans la page Projection.
+                Montant total que tu as versé sur ce compte à ce jour (hors plus-values). Sert de base à l'« Apport » dans la page Projection.
               </Text>
             </>
           )}
@@ -291,7 +291,7 @@ export default function AddAccountScreen() {
             <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} style={{ marginTop: 1 }} />
             <Text style={styles.initDateNoteText}>
               Indiquez la date exacte à laquelle ce solde a été constaté (ex. relevé bancaire du 12 mai → saisissez le 12 mai).
-              Les transactions que vous saisirez à une date antérieure mais dans ce même mois seront considérées comme déjà incluses dans ce solde — elles n'auront aucun impact sur celui-ci.
+              Les transactions que tu saisiras à une date antérieure mais dans ce même mois seront considérées comme déjà incluses dans ce solde — elles n'auront aucun impact sur celui-ci.
             </Text>
           </View>
 

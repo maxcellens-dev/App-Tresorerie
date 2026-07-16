@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import CalculatorButton from '../../../components/CalculatorButton';
 import PageIntroModal from '../../../components/PageIntroModal';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
@@ -101,7 +102,7 @@ export default function ProjectsScreen() {
   const guide = useScreenGuide('projets', user?.id);
   const addBtnRef = useRef<any>(null);
   const PROJETS_GUIDE: BubbleStep[] = [
-    { getRect: () => tabRect(4), icon: 'flag', iconColor: COLORS.primary, title: 'Onglet Projets', description: 'Touchez « Projets » pour gérer vos projets d\'épargne (voiture, voyage…).' },
+    { getRect: () => tabRect(4), icon: 'flag', iconColor: COLORS.primary, title: 'Onglet Projets', description: 'Touche « Projets » pour gérer tes projets d\'épargne (voiture, voyage…).' },
     { getRef: () => addBtnRef, icon: 'add-circle', iconColor: COLORS.primary, title: 'Créer un projet', description: 'Appuyez sur « + Projet » pour définir un objectif et son rythme d\'épargne.' },
   ];
 
@@ -411,7 +412,7 @@ export default function ProjectsScreen() {
           <View style={styles.completeBanner}>
             <Ionicons name="checkmark-circle" size={16} color="#10b981" />
             <Text style={styles.completeBannerText}>
-              {pMode === 'spend' ? 'Budget consommé ! Vous pouvez archiver ce projet.' : 'Objectif atteint ! Vous pouvez archiver ce projet.'}
+              {pMode === 'spend' ? 'Budget consommé ! Tu peux archiver ce projet.' : 'Objectif atteint ! Tu peux archiver ce projet.'}
             </Text>
           </View>
         )}
@@ -450,7 +451,7 @@ export default function ProjectsScreen() {
         Aucun projet
       </Text>
       <Text style={[styles.emptyStateSubtext, { color: COLORS.textSecondary }]}>
-        Créez un projet pour suivre vos objectifs
+        Crée un projet pour suivre tes objectifs
       </Text>
     </View>
   );
@@ -625,11 +626,11 @@ export default function ProjectsScreen() {
             </View>
             <Text style={styles.infoModalTitle}>À quoi servent les projets ?</Text>
             <Text style={styles.infoModalText}>
-              Un projet, c'est un objectif d'argent (voiture, voyage, cours de piano…) que l'app suit pour vous. À la création, vous choisissez ce qu'elle doit faire :
-              {'\n\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Mettre de côté</Text> : elle prépare des virements vers votre épargne ou vos investissements.
-              {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Conserver pour plus tard</Text> : l'argent ne bouge pas, il est juste « Réservé » sur votre compte.
+              Un projet, c'est un objectif d'argent (voiture, voyage, cours de piano…) que l'app suit pour toi. À la création, tu choisis ce qu'elle doit faire :
+              {'\n\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Mettre de côté</Text> : elle prépare des virements vers ton épargne ou tes investissements.
+              {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Conserver pour plus tard</Text> : l'argent ne bouge pas, il est juste « Réservé » sur ton compte.
               {'\n'}• <Text style={{ fontWeight: '700', color: COLORS.text }}>Dépenser petit à petit</Text> : elle crée de vraies dépenses au rythme du projet.
-              {'\n\n'}Puis vous choisissez le rythme : un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des échéances <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuelles</Text>.
+              {'\n\n'}Puis tu choisis le rythme : un montant <Text style={{ fontWeight: '700', color: COLORS.text }}>mensuel</Text>, une <Text style={{ fontWeight: '700', color: COLORS.text }}>date cible</Text>, ou des échéances <Text style={{ fontWeight: '700', color: COLORS.text }}>ponctuelles</Text>.
               {'\n\n'}Un <Text style={{ fontWeight: '700', color: COLORS.text }}>projet partagé</Text> permet de suivre des dépenses communes et de les équilibrer entre plusieurs personnes.
             </Text>
             <TouchableOpacity style={[styles.infoModalBtn, { backgroundColor: COLORS.primary }]} onPress={() => setShowInfo(false)} activeOpacity={0.85}>
@@ -717,7 +718,7 @@ export default function ProjectsScreen() {
             {showDeleteOptions ? (
               <>
                 <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
-                  Ce projet a des transactions passées. Choisissez comment procéder :
+                  Ce projet a des transactions passées. Choisis comment procéder :
                 </Text>
 
                 {/* Option 1 : Tout supprimer */}
@@ -916,6 +917,7 @@ export default function ProjectsScreen() {
         </View>
       )}
 
+      <CalculatorButton page="projets" />
     </View>
   );
 }

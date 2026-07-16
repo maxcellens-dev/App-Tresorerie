@@ -237,9 +237,9 @@ export default function ProjectionScreen() {
   }, [onbHypo]);
 
   const PROJECTION_GUIDE: BubbleStep[] = [
-    { getRect: () => tabRect(3), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touchez « Projection » dans la barre du bas pour projeter votre patrimoine.' },
-    { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Basculez entre la projection de vos investissements et celle de votre épargne.' },
-    { getRef: () => hypoRef, icon: 'options-outline', iconColor: COLORS.green, title: 'Vos hypothèses', description: 'Ajustez apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
+    { getRect: () => tabRect(3), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touche « Projection » dans la barre du bas pour projeter ton patrimoine.' },
+    { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Bascule entre la projection de tes investissements et celle de ton épargne.' },
+    { getRef: () => hypoRef, icon: 'options-outline', iconColor: COLORS.green, title: 'Tes hypothèses', description: 'Ajuste apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
   ];
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');
@@ -606,7 +606,7 @@ export default function ProjectionScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.kpiLabel}>Investi en {currentYear}</Text>
                 <Text style={[styles.kpiValue, { color: semanticText(INVEST_COLOR, COLORS) }]}>{fmt(yearlyInvested)}</Text>
-                <Text style={styles.kpiSub}>apports et virements réels sur vos comptes invest</Text>
+                <Text style={styles.kpiSub}>apports et virements réels sur tes comptes invest</Text>
               </View>
               <Ionicons name="checkmark-circle" size={22} color={SAVINGS_COLOR} />
             </View>
@@ -622,7 +622,7 @@ export default function ProjectionScreen() {
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Capital investi</Text>
               <Text style={styles.kpiValue}>{fmt(investFinal?.cumulativeContribution ?? 0)}</Text>
-              <Text style={styles.kpiSub}>vos apports</Text>
+              <Text style={styles.kpiSub}>tes apports</Text>
             </View>
           </View>
           <View style={styles.kpiRow}>
@@ -813,7 +813,7 @@ export default function ProjectionScreen() {
 
           {/* ═══════ ÉPARGNE ═══════ */}
           {activeTab === 'epargne' && (<>
-          <Text style={styles.sectionHint}>Combien aurez-vous selon votre rythme d'épargne</Text>
+          <Text style={styles.sectionHint}>Combien auras-tu selon ton rythme d'épargne</Text>
 
           <View style={styles.sourceRow}>
             {([
@@ -846,16 +846,16 @@ export default function ProjectionScreen() {
                   onPress={() => { setSavingsInitial(String(Math.round(realSavings))); markProjectionEdited(); }}
                 >
                   <Ionicons name="refresh" size={13} color={COLORS.emerald} />
-                  <Text style={styles.savingsResetText}>Réinitialiser à votre solde réel ({fmt(realSavings)})</Text>
+                  <Text style={styles.savingsResetText}>Réinitialiser à ton solde réel ({fmt(realSavings)})</Text>
                 </TouchableOpacity>
               )}
             </View>
           )}
           {savingsSource === 'reel' && realMonthlySavings > 0 && (
-            <Text style={styles.realHint}>💡 Moyenne lissée sur 12 mois (1 an) de vos virements et apports vers l'épargne, hors initialisation.</Text>
+            <Text style={styles.realHint}>💡 Moyenne lissée sur 12 mois (1 an) de tes virements et apports vers l'épargne, hors initialisation.</Text>
           )}
           {savingsSource === 'questionnaire' && (
-            <Text style={styles.realHint}>💡 Estimé depuis vos réponses au questionnaire ({fmt(questionnaireMonthlySavings)}/mois).</Text>
+            <Text style={styles.realHint}>💡 Estimé depuis tes réponses au questionnaire ({fmt(questionnaireMonthlySavings)}/mois).</Text>
           )}
 
           <View style={styles.horizonGrid}>
@@ -885,7 +885,7 @@ export default function ProjectionScreen() {
         scrollRef={scrollRef}
         screenTitle="Projection"
       />
-      <CalculatorButton />
+      <CalculatorButton page="projection" />
     </View>
   );
 }
@@ -1091,7 +1091,7 @@ function BalanceCurve({ rows, width, COLORS, marginAmount = 0, sigma = 0, confid
 
       {crossIdx > 0 && (
         <Text style={{ fontSize: 11.5, color: COLORS.orange, fontWeight: '600', marginTop: 4, paddingHorizontal: 4, lineHeight: 16 }}>
-          ⚠️ Dans le scénario le plus bas, vous passez sous votre marge en {rows[crossIdx].label}.
+          ⚠️ Dans le scénario le plus bas, tu passes sous ta marge en {rows[crossIdx].label}.
         </Text>
       )}
     </View>

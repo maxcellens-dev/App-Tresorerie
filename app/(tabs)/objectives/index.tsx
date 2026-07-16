@@ -65,7 +65,7 @@ export default function ObjectivesScreen() {
         icon: 'warning' as const,
         color: COLORS.danger,
         title: 'Épargne critique',
-        message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) est en dessous du seuil minimum (${safety_threshold_min.toFixed(0)} ${CURRENCY_SYMBOL}). Concentrez-vous sur la reconstitution de votre épargne de précaution avant de poursuivre vos objectifs.`,
+        message: `Ton épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) est en dessous du seuil minimum (${safety_threshold_min.toFixed(0)} ${CURRENCY_SYMBOL}). Concentre-toi sur la reconstitution de ton épargne de précaution avant de poursuivre tes objectifs.`,
       };
     }
     if (current_savings < safety_threshold_optimal) {
@@ -73,7 +73,7 @@ export default function ObjectivesScreen() {
         icon: 'alert-circle' as const,
         color: '#f59e0b',
         title: 'Épargne à renforcer',
-        message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) n'a pas encore atteint le seuil optimal (${safety_threshold_optimal.toFixed(0)} ${CURRENCY_SYMBOL}). Continuez à épargner et ajustez vos objectifs d'investissement en conséquence.`,
+        message: `Ton épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) n'a pas encore atteint le seuil optimal (${safety_threshold_optimal.toFixed(0)} ${CURRENCY_SYMBOL}). Continue à épargner et ajuste tes objectifs d'investissement en conséquence.`,
       };
     }
     if (current_savings < safety_threshold_comfort) {
@@ -81,14 +81,14 @@ export default function ObjectivesScreen() {
         icon: 'checkmark-circle' as const,
         color: '#a78bfa',
         title: 'Bonne dynamique',
-        message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil optimal. Vous pouvez avancer sereinement sur vos objectifs tout en visant le seuil de confort (${safety_threshold_comfort.toFixed(0)} ${CURRENCY_SYMBOL}).`,
+        message: `Ton épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil optimal. Tu peux avancer sereinement sur tes objectifs tout en visant le seuil de confort (${safety_threshold_comfort.toFixed(0)} ${CURRENCY_SYMBOL}).`,
       };
     }
     return {
       icon: 'shield-checkmark' as const,
       color: COLORS.green,
       title: 'Situation confortable',
-      message: `Votre épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil de confort. Vous êtes en excellente position pour investir et atteindre vos objectifs financiers.`,
+      message: `Ton épargne (${current_savings.toFixed(0)} ${CURRENCY_SYMBOL}) dépasse le seuil de confort. Tu es en excellente position pour investir et atteindre tes objectifs financiers.`,
     };
   }, [pilotage]);
 
@@ -331,7 +331,7 @@ export default function ObjectivesScreen() {
         Aucun objectif
       </Text>
       <Text style={[styles.emptyStateSubtext, { color: COLORS.textSecondary }]}>
-        Créez un objectif pour suivre vos investissements
+        Crée un objectif pour suivre tes investissements
       </Text>
     </View>
   );
@@ -381,7 +381,7 @@ export default function ObjectivesScreen() {
               <View style={styles.infoCard}>
                 <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} style={{ marginTop: 1 }} />
                 <Text style={styles.infoText}>
-                  Les objectifs sont un <Text style={{ fontWeight: '700', color: COLORS.text }}>suivi</Text> : ils ne déclenchent aucun virement ni transaction. L'app analyse <Text style={{ fontWeight: '700', color: COLORS.text }}>tous vos virements</Text> pour mesurer la progression. Par exemple, un virement (même récurrent) vers un compte d'<Text style={{ fontWeight: '700', color: COLORS.text }}>investissement</Text> fera automatiquement avancer vos objectifs d'investissement.
+                  Les objectifs sont un <Text style={{ fontWeight: '700', color: COLORS.text }}>suivi</Text> : ils ne déclenchent aucun virement ni transaction. L'app analyse <Text style={{ fontWeight: '700', color: COLORS.text }}>tous tes virements</Text> pour mesurer la progression. Par exemple, un virement (même récurrent) vers un compte d'<Text style={{ fontWeight: '700', color: COLORS.text }}>investissement</Text> fera automatiquement avancer tes objectifs d'investissement.
                 </Text>
               </View>
             }
@@ -406,7 +406,7 @@ export default function ObjectivesScreen() {
           <View style={styles.confirmDialog}>
             <Text style={[styles.confirmTitle, { color: COLORS.text }]}>Supprimer l'objectif</Text>
             <Text style={[styles.confirmMessage, { color: COLORS.textSecondary }]}>
-              Êtes-vous sûr de vouloir supprimer cet objectif ?
+              Es-tu sûr de vouloir supprimer cet objectif ?
             </Text>
             <View style={styles.confirmButtons}>
               <TouchableOpacity

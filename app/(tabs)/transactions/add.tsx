@@ -233,14 +233,14 @@ export default function AddTransactionScreen() {
   function goNext() {
     setFormError(null); setErrorFields([]);
     if (isTransfer) {
-      if (!accountId) return showError('Veuillez choisir un compte source.', ['account']);
-      if (!targetAccountId) return showError('Veuillez choisir un compte de destination.', ['targetAccount']);
+      if (!accountId) return showError('Choisis un compte source.', ['account']);
+      if (!targetAccountId) return showError('Choisis un compte de destination.', ['targetAccount']);
       if (accountId === targetAccountId) return showError('Le compte source et le compte de destination doivent être différents.', ['targetAccount']);
       // Cross-devises géré sur place (étape 2 : champ « montant reçu » pré-rempli au taux du jour).
     } else {
       const num = parseFloat(amount.replace(',', '.'));
       if (Number.isNaN(num) || num === 0) return showError('Le montant est obligatoire et doit être supérieur à 0.', ['amount']);
-      if (!accountId) return showError('Veuillez choisir un compte.', ['account']);
+      if (!accountId) return showError('Choisis un compte.', ['account']);
     }
     setStep(2);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -317,7 +317,7 @@ export default function AddTransactionScreen() {
       return;
     }
     if (!accountId) {
-      showError('Veuillez choisir un compte source.', ['account']);
+      showError('Choisis un compte source.', ['account']);
       return;
     }
 
@@ -329,14 +329,14 @@ export default function AddTransactionScreen() {
 
     // Sous-catégorie obligatoire pour une dépense / recette validée (les brouillons restent libres).
     if (!isTransfer && !isDraft && !categoryId) {
-      showError('Veuillez choisir une sous-catégorie.', ['category']);
+      showError('Choisis une sous-catégorie.', ['category']);
       return;
     }
 
     let numTo = num;
     if (isTransfer) {
       if (!targetAccountId) {
-        showError('Veuillez choisir un compte de destination.', ['targetAccount']);
+        showError('Choisis un compte de destination.', ['targetAccount']);
         return;
       }
       if (accountId === targetAccountId) {
@@ -351,7 +351,7 @@ export default function AddTransactionScreen() {
         }
         numTo = parseFloat(amountTo.replace(',', '.'));
         if (Number.isNaN(numTo) || numTo <= 0) {
-          showError(`Saisissez le montant réellement crédité sur « ${accounts.find(a => a.id === targetAccountId)?.name ?? 'la destination'} » (en ${dstCurrency}).`, ['amountTo']);
+          showError(`Saisis le montant réellement crédité sur « ${accounts.find(a => a.id === targetAccountId)?.name ?? 'la destination'} » (en ${dstCurrency}).`, ['amountTo']);
           return;
         }
       }
@@ -478,7 +478,7 @@ export default function AddTransactionScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={[]}>
-          <Text style={styles.text}>Connectez-vous pour ajouter une transaction.</Text>
+          <Text style={styles.text}>Connecte-toi pour ajouter une transaction.</Text>
           <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
             <Text style={styles.btnLabel}>Retour</Text>
           </TouchableOpacity>
@@ -561,7 +561,7 @@ export default function AddTransactionScreen() {
                     <AccountChipRow accounts={selectableAccounts} activeId={accountId} onSelect={setAccountId} styles={styles} COLORS={COLORS} />
                   </>
                 )}
-                {selectableAccounts.length === 0 && <Text style={styles.hint}>Aucun compte courant. Ajoutez-en un dans l'onglet Comptes.</Text>}
+                {selectableAccounts.length === 0 && <Text style={styles.hint}>Aucun compte courant. Ajoutes-en un dans l'onglet Comptes.</Text>}
 
                 {/* Remboursement (dépense) */}
                 {isExpense && (
@@ -781,7 +781,7 @@ export default function AddTransactionScreen() {
           </Pressable>
         </Modal>
       </SafeAreaView>
-      <CalculatorButton />
+      <CalculatorButton page="transactions" />
     </View>
   );
 }

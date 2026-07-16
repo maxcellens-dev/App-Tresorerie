@@ -102,8 +102,8 @@ export default function TransferScreen() {
   }, [amount, fromAccountId, toAccountId, accounts, rates]);
 
   function goNext() {
-    if (!fromAccountId) { Alert.alert('Compte source requis', 'Choisissez un compte source.'); return; }
-    if (!toAccountId) { Alert.alert('Compte cible requis', 'Choisissez un compte cible.'); return; }
+    if (!fromAccountId) { Alert.alert('Compte source requis', 'Choisis un compte source.'); return; }
+    if (!toAccountId) { Alert.alert('Compte cible requis', 'Choisis un compte cible.'); return; }
     if (fromAccountId === toAccountId) { Alert.alert('Comptes différents', 'Le compte source et le compte cible doivent être différents.'); return; }
     setStep(2);
   }
@@ -135,11 +135,11 @@ export default function TransferScreen() {
   async function handleSubmit() {
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num <= 0) {
-      Alert.alert('Montant invalide', 'Saisissez un montant positif.');
+      Alert.alert('Montant invalide', 'Saisis un montant positif.');
       return;
     }
     if (!fromAccountId || !toAccountId) {
-      Alert.alert('Comptes requis', 'Choisissez le compte source et le compte cible.');
+      Alert.alert('Comptes requis', 'Choisis le compte source et le compte cible.');
       return;
     }
     if (fromAccountId === toAccountId) {
@@ -156,7 +156,7 @@ export default function TransferScreen() {
     if (cross) {
       numTo = parseFloat(amountTo.replace(',', '.'));
       if (Number.isNaN(numTo) || numTo <= 0) {
-        Alert.alert('Montant reçu requis', `Saisissez le montant réellement crédité sur « ${dstAcc?.name ?? 'la destination'} » (en ${toCur}).`);
+        Alert.alert('Montant reçu requis', `Saisis le montant réellement crédité sur « ${dstAcc?.name ?? 'la destination'} » (en ${toCur}).`);
         return;
       }
       if (isRecurring) {
@@ -213,7 +213,7 @@ export default function TransferScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <Text style={styles.text}>Connectez-vous pour effectuer un virement.</Text>
+          <Text style={styles.text}>Connecte-toi pour effectuer un virement.</Text>
           <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
             <Text style={styles.btnLabel}>Retour</Text>
           </TouchableOpacity>
@@ -291,7 +291,7 @@ export default function TransferScreen() {
             ))}
           </ScrollView>
           {accounts.length === 0 && (
-            <Text style={styles.hint}>Aucun compte. Ajoutez-en un depuis l’onglet Comptes.</Text>
+            <Text style={styles.hint}>Aucun compte. Ajoutes-en un depuis l’onglet Comptes.</Text>
           )}
 
           <Text style={styles.label}>Compte cible (crédit)</Text>
@@ -511,7 +511,7 @@ export default function TransferScreen() {
           </Pressable>
         </Modal>
       </SafeAreaView>
-      <CalculatorButton />
+      <CalculatorButton page="comptes" />
     </View>
   );
 }

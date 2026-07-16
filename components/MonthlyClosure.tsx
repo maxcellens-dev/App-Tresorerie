@@ -39,7 +39,7 @@ export function ClosureBannerCard({ pendingMonths, onPress }: { pendingMonths: s
       <Ionicons name="lock-closed-outline" size={18} color={COLORS.yellow} />
       <View style={{ flex: 1 }}>
         <Text style={styles.bannerTitle}>Clôturer {multiple ? `${pendingMonths.length} mois` : monthLabel(pendingMonths[0])}</Text>
-        <Text style={styles.bannerText}>Figez le passé pour fiabiliser vos calculs et recommandations.</Text>
+        <Text style={styles.bannerText}>Fige le passé pour fiabiliser tes calculs et recommandations.</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={COLORS.yellow} />
     </TouchableOpacity>
@@ -237,7 +237,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
 
             {mode === 'direct' ? (
               <>
-                <Text style={styles.hint}>Vous avez saisi toutes vos transactions ? Validez simplement la clôture.</Text>
+                <Text style={styles.hint}>Tu as saisi toutes tes transactions ? Valide simplement la clôture.</Text>
                 {hasChecking && targetKey && (
                   <View style={styles.balanceList}>
                     {checkingAccounts.map((acc) => (
@@ -252,7 +252,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             ) : (
               <>
                 <Text style={styles.label}>
-                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de votre compte courant'} à fin {targetKey ? monthLabel(targetKey) : ''}
+                  {checkingAccounts.length > 1 ? 'Solde réel de chaque compte courant' : 'Solde réel de ton compte courant'} à fin {targetKey ? monthLabel(targetKey) : ''}
                 </Text>
                 {checkingAccounts.map((acc) => (
                   <View key={acc.id} style={styles.acctInputRow}>
@@ -343,14 +343,14 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                 <Text style={styles.bilanEmoji}>💰</Text>
                 <Text style={styles.bilanTitle}>Félicitations !</Text>
                 <Text style={styles.bilanText}>
-                  Il vous restait <Text style={{ color: COLORS.green, fontWeight: '800' }}>{fmt(bilan.surplus)}</Text> sur votre enveloppe le mois dernier. Vos recommandations ont été mises à jour pour intégrer ce surplus.
+                  Il te restait <Text style={{ color: COLORS.green, fontWeight: '800' }}>{fmt(bilan.surplus)}</Text> sur ton enveloppe le mois dernier. Tes recommandations ont été mises à jour pour intégrer ce surplus.
                 </Text>
               </>
             ) : (
               <>
                 <Ionicons name="checkmark-done-circle-outline" size={48} color={COLORS.emerald} />
                 <Text style={styles.bilanTitle}>Période clôturée</Text>
-                <Text style={styles.bilanText}>Votre mois est figé. Place au mois en cours !</Text>
+                <Text style={styles.bilanText}>Ton mois est figé. Place au mois en cours !</Text>
               </>
             )}
             <TouchableOpacity style={styles.bilanBtn} onPress={() => markBilanSeen.mutate()}>

@@ -22,7 +22,7 @@ import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
-import { usePilotageTips, useRecoDismissals, useQuickAddPref } from '../../../hooks/useUiPrefs';
+import { usePilotageTips, useRecoDismissals, useQuickAddPref, CALCULATOR_PAGES } from '../../../hooks/useUiPrefs';
 import { useRecoThresholds } from '../../../hooks/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
@@ -60,7 +60,7 @@ export default function SettingsScreen() {
 
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled } = useCalculator();
+  const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled, pages: calculatorPages, setPages: setCalculatorPages } = useCalculator();
   const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
   const { position: quickAddPos, setPosition: setQuickAddPos } = useQuickAddPref(user?.id);
   const { resetDismissals } = useRecoDismissals(user?.id);
@@ -147,14 +147,14 @@ export default function SettingsScreen() {
       icon: 'settings',
       iconColor: COLORS.emerald,
       title: 'Paramètres',
-      description: 'Accessible en haut à droite via votre avatar. Vous y réglez l\'app, vos catégories et l\'assistance.',
+      description: 'Accessible en haut à droite via ton avatar. Tu y règles l\'app, tes catégories et l\'assistance.',
     },
     {
       getRef: () => categoriesRowRef,
       icon: 'pie-chart-outline',
       iconColor: COLORS.emerald,
       title: 'Gérer les catégories',
-      description: 'Ajoutez, renommez ou supprimez vos catégories et sous-catégories de dépenses et de recettes. Elles structurent votre plan de trésorerie et vos statistiques.',
+      description: 'Ajoute, renomme ou supprime tes catégories et sous-catégories de dépenses et de recettes. Elles structurent ton plan de trésorerie et tes statistiques.',
     },
     // L'étape « Marge de sécurité » n'est présentée ici que si le réglage y est affiché ; sinon elle
     // pointerait sur un élément absent (le réglage vit dans le Pilotage).
@@ -163,7 +163,7 @@ export default function SettingsScreen() {
       icon: 'shield-outline',
       iconColor: '#60a5fa',
       title: 'Marge de sécurité',
-      description: 'Montant que vous souhaitez conserver au minimum sur vos comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
+      description: 'Montant que tu souhaites conserver au minimum sur tes comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
     }] as BubbleStep[] : []),
   ];
 
@@ -195,7 +195,7 @@ export default function SettingsScreen() {
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={[]}>
-          <Text style={styles.text}>Connectez-vous pour accéder aux paramètres.</Text>
+          <Text style={styles.text}>Connecte-toi pour accéder aux paramètres.</Text>
           <View style={{ marginTop: 16, gap: 12 }}>
             <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('/login')}>
               <Text style={styles.saveBtnLabel}>Se connecter</Text>
@@ -271,7 +271,7 @@ export default function SettingsScreen() {
                 )}
               </View>
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
-                Montant que vous souhaitez avoir au minimum sur vos comptes courants à la fin du mois, par sécurité.
+                Montant que tu souhaites avoir au minimum sur tes comptes courants à la fin du mois, par sécurité.
               </Text>
             </View>
             )}
@@ -303,12 +303,12 @@ export default function SettingsScreen() {
                 })}
               </View>
               <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingLeft: 30 }}>
-                Détermine si vos revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de votre Relyka — le montant que vous pouvez allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur l'argent déja encaissé.
+                Détermine si tes revenus à venir (ex. salaire pas encore reçu) sont pris en compte dans le calcul de ton Relyka — le montant que tu peux allouer aux recommandations.{'\n'}Plus on est prudent, plus on se base sur l'argent déja encaissé.
               </Text>
               {/* Ordre de déduction : dans quel ordre les recos sont grignotées si vous dépassez vos dépenses variables. */}
               <View style={{ paddingLeft: 30, gap: 6, marginTop: 2 }}>
                 <Text style={{ color: COLORS.textSecondary, fontSize: 11 }}>
-                  Si vous dépassez vos dépenses variables habituelles, vos recommandations diminuent dans cet ordre :
+                  Si tu dépasses tes dépenses variables habituelles, tes recommandations diminuent dans cet ordre :
                 </Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
                   {deductionOrder.map((type, i) => (
@@ -359,7 +359,7 @@ export default function SettingsScreen() {
               />
             </View>
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Affiche le bandeau de conseils en haut de la page Pilotage. Désactivez-le pour un écran plus épuré.
+              Affiche le bandeau de conseils en haut de la page Pilotage. Désactive-le pour un écran plus épuré.
             </Text>
             <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
             <TouchableOpacity
@@ -385,9 +385,37 @@ export default function SettingsScreen() {
                 thumbColor="#ffffff"
               />
             </View>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Affiche un bouton d'accès rapide à une calculatrice flottante, déplaçable, sur les écrans de saisie et de projection.
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: calculatorEnabled ? 8 : 14, marginTop: -4, lineHeight: 15 }}>
+              Affiche un bouton d'accès rapide à une calculatrice flottante et déplaçable, sur les pages choisies ci-dessous.
             </Text>
+            {calculatorEnabled && (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {CALCULATOR_PAGES.map((p) => {
+                    const on = calculatorPages.includes(p.id);
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[
+                          { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: COLORS.cardBorder },
+                          on && { backgroundColor: COLORS.emerald + '18', borderColor: COLORS.emerald },
+                        ]}
+                        onPress={() => setCalculatorPages(on ? calculatorPages.filter((id) => id !== p.id) : [...calculatorPages, p.id])}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                      >
+                        <Text style={{ fontSize: 12.5, fontWeight: on ? '700' : '600', color: on ? COLORS.emerald : COLORS.textSecondary }}>{p.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {calculatorPages.length === 0 && (
+                  <Text style={{ color: COLORS.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 8, fontStyle: 'italic' }}>
+                    Aucune page sélectionnée : le bouton n'apparaîtra nulle part.
+                  </Text>
+                )}
+              </View>
+            )}
             {SHOW_QUICK_ADD_SETTING && featureFlags?.quick_add_enabled !== false && (() => {
               const bubbleMode = (featureFlags?.quick_add_mode ?? 'tabbar') === 'bubble';
               const opts = bubbleMode

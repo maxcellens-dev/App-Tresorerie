@@ -55,7 +55,7 @@ export default function EditTransactionMonthModal({
   const handleSave = async () => {
     const amount = parseFloat(inputValue);
     if (isNaN(amount) || amount === 0) {
-      Alert.alert('Erreur', 'Veuillez entrer un montant valide');
+      Alert.alert('Erreur', 'Entre un montant valide');
       return;
     }
 

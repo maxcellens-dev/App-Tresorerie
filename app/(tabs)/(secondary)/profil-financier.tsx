@@ -32,15 +32,15 @@ import { useCurrencySymbol } from '../../../hooks/useCurrency';
 
 
 const QUESTIONS = [
-  { key: 'q1' as const, label: 'Quel type de revenu possédez-vous ?', options: Q1_OPTIONS },
-  { key: 'q2' as const, label: 'À quelle fréquence vos revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
-  { key: 'q3' as const, label: 'Quel est le montant moyen de vos revenus nets par mois ?', options: Q3_OPTIONS },
+  { key: 'q1' as const, label: 'Quel type de revenu possèdes-tu ?', options: Q1_OPTIONS },
+  { key: 'q2' as const, label: 'À quelle fréquence tes revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
+  { key: 'q3' as const, label: 'Quel est le montant moyen de tes revenus nets par mois ?', options: Q3_OPTIONS },
   { key: 'q9' as const, label: 'Dépenses variables hebdomadaires (courses, loisirs, imprévus)', options: [] as readonly string[] },
-  { key: 'q4' as const, label: 'Une fois toutes vos dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
-  { key: 'q5' as const, label: 'Si vos revenus s\'arrêtaient demain, combien de temps pourriez-vous maintenir votre niveau de vie grâce à votre épargne disponible ?', options: Q5_OPTIONS },
-  { key: 'q6' as const, label: 'Quel pourcentage approximatif de vos revenus mettez-vous de côté chaque mois ?', options: Q6_OPTIONS },
-  { key: 'q7' as const, label: 'Quel est votre objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
-  { key: 'q8' as const, label: 'Montant minimum conservé sur vos comptes courants (€)', options: [] as readonly string[] },
+  { key: 'q4' as const, label: 'Une fois toutes tes dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
+  { key: 'q5' as const, label: 'Si tes revenus s\'arrêtaient demain, combien de temps pourrais-tu maintenir ton niveau de vie grâce à ton épargne disponible ?', options: Q5_OPTIONS },
+  { key: 'q6' as const, label: 'Quel pourcentage approximatif de tes revenus mets-tu de côté chaque mois ?', options: Q6_OPTIONS },
+  { key: 'q7' as const, label: 'Quel est ton objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
+  { key: 'q8' as const, label: 'Montant minimum conservé sur tes comptes courants (€)', options: [] as readonly string[] },
 ];
 
 function OptionList({
@@ -167,7 +167,7 @@ export default function ProfilFinancierScreen() {
     if (missing.length > 0) {
       Alert.alert(
         'Réponses manquantes',
-        `Veuillez répondre à :\n• ${missing.join('\n• ')}`,
+        `Réponds à :\n• ${missing.join('\n• ')}`,
       );
       return;
     }
@@ -179,7 +179,7 @@ export default function ProfilFinancierScreen() {
         (e as any)?.message ??
         (e as any)?.details ??
         (e as any)?.hint ??
-        'Erreur inconnue. Vérifiez votre connexion.';
+        'Erreur inconnue. Vérifie ta connexion.';
       Alert.alert('Erreur lors de l\'enregistrement', String(msg));
       return;
     }
@@ -290,7 +290,7 @@ export default function ProfilFinancierScreen() {
                   );
                 })}
                 <Text style={styles.principleNote}>
-                  Après 6 mois d'utilisation, votre profil est réévalué chaque mois selon votre comportement (épargne, dépenses, revenus). Il peut monter, descendre ou rester le même — vous êtes informé à chaque bilan.
+                  Après la période de démarrage, ton profil est réévalué chaque mois selon ton comportement (épargne, dépenses, revenus). Il peut monter, descendre ou rester le même — tu es informé à chaque bilan.
                 </Text>
               </View>
 
@@ -302,7 +302,7 @@ export default function ProfilFinancierScreen() {
               {/* Récapitulatif des réponses au questionnaire */}
               {savedAnswers && (
                 <View style={styles.card}>
-                  <Text style={styles.sectionLabel}>Vos réponses</Text>
+                  <Text style={styles.sectionLabel}>Tes réponses</Text>
                   {QUESTIONS.map((q, i) => {
                     const answer = (savedAnswers as any)[q.key] as string | undefined;
                     const displayAnswer = q.key === 'q8' && answer
@@ -330,7 +330,7 @@ export default function ProfilFinancierScreen() {
               <View style={styles.editHeader}>
                 <Text style={styles.editTitle}>Modifier mes réponses</Text>
                 <Text style={styles.editSub}>
-                  Recalcule votre profil initial. Aucune notification ne sera envoyée.
+                  Recalcule ton profil initial. Aucune notification ne sera envoyée.
                 </Text>
               </View>
 

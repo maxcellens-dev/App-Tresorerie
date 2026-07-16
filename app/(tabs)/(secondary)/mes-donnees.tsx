@@ -312,7 +312,7 @@ export default function MesDonneesScreen() {
         </View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <Text style={styles.subtitle}>
-            Exportez l'ensemble des données personnelles vous concernant dans un fichier compatible Excel.
+            Exporte l'ensemble des données personnelles te concernant dans un fichier compatible Excel.
           </Text>
 
           <View style={styles.card}>
@@ -323,11 +323,11 @@ export default function MesDonneesScreen() {
             </View>
             <View style={styles.bullet}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.checking} />
-              <Text style={styles.bulletText}>Vos comptes (personnels, joints & partagés : rôle, part, mode) et leurs soldes {loading ? '' : `(${accounts.length} compte${accounts.length > 1 ? 's' : ''})`}, avec les membres de vos comptes partagés.</Text>
+              <Text style={styles.bulletText}>Tes comptes (personnels, joints & partagés : rôle, part, mode) et leurs soldes {loading ? '' : `(${accounts.length} compte${accounts.length > 1 ? 's' : ''})`}, avec les membres de tes comptes partagés.</Text>
             </View>
             <View style={styles.bullet}>
               <Ionicons name="list-outline" size={18} color={COLORS.emerald} />
-              <Text style={styles.bulletText}>Toutes vos transactions (avec récurrences et échéances modifiées).</Text>
+              <Text style={styles.bulletText}>Toutes tes transactions (avec récurrences et échéances modifiées).</Text>
             </View>
             <View style={styles.bullet}>
               <Ionicons name="flag-outline" size={18} color={COLORS.teal} />
@@ -339,7 +339,7 @@ export default function MesDonneesScreen() {
             </View>
             <View style={styles.bullet}>
               <Ionicons name="help-circle-outline" size={18} color={COLORS.violet} />
-              <Text style={styles.bulletText}>Vos réponses au questionnaire, à date.</Text>
+              <Text style={styles.bulletText}>Tes réponses au questionnaire, à date.</Text>
             </View>
           </View>
 
@@ -356,9 +356,9 @@ export default function MesDonneesScreen() {
 
           <Text style={styles.note}>
             {Platform.OS === 'web'
-              ? 'Le fichier Excel (.xlsx) est téléchargé sur votre appareil. Ouvrez-le avec Excel, Numbers ou Google Sheets.'
-              : 'Le fichier (.csv, compatible Excel) est partagé via le menu de partage de votre appareil.'}
-            {'\n'}Conformément au RGPD, vous pouvez exporter vos données à tout moment.
+              ? 'Le fichier Excel (.xlsx) est téléchargé sur ton appareil. Ouvre-le avec Excel, Numbers ou Google Sheets.'
+              : 'Le fichier (.csv, compatible Excel) est partagé via le menu de partage de ton appareil.'}
+            {'\n'}Conformément au RGPD, tu peux exporter tes données à tout moment.
           </Text>
         </ScrollView>
       </SafeAreaView>

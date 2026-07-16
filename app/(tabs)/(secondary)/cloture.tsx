@@ -75,7 +75,7 @@ export default function ClotureScreen() {
                       <Text style={styles.rowLabel}>{monthLabel(c.month_key)}</Text>
                       <TouchableOpacity
                         style={styles.actionBtn}
-                        onPress={() => askConfirm({ title: 'Rouvrir le mois', message: `Rouvrir ${monthLabel(c.month_key)} ? Vous pourrez de nouveau modifier ses transactions.`, confirmLabel: 'Rouvrir', confirmColor: COLORS.blue, onConfirm: () => reopenMonth.mutate(c.month_key) })}
+                        onPress={() => askConfirm({ title: 'Rouvrir le mois', message: `Rouvrir ${monthLabel(c.month_key)} ? Tu pourras de nouveau modifier ses transactions.`, confirmLabel: 'Rouvrir', confirmColor: COLORS.blue, onConfirm: () => reopenMonth.mutate(c.month_key) })}
                       >
                         <Ionicons name="lock-open-outline" size={14} color={COLORS.blue} />
                         <Text style={[styles.actionText, { color: COLORS.blue }]}>Rouvrir</Text>
@@ -84,7 +84,7 @@ export default function ClotureScreen() {
                   ))
                 )}
               </View>
-              <Text style={styles.note}>Astuce : pour clôturer avec saisie de votre solde réel, utilisez la bannière de clôture sur le Pilotage.</Text>
+              <Text style={styles.note}>Astuce : pour clôturer avec saisie de ton solde réel, utilise la bannière de clôture sur le Pilotage.</Text>
             </>
           )}
         </ScrollView>

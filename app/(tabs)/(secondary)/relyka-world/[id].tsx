@@ -161,7 +161,7 @@ export default function RelykaWorldDetail() {
       setArchived.mutate({ projectId: projectId!, archived: false });
       return;
     }
-    Alert.alert('Archiver le projet', 'Le projet sera masqué de la liste active mais conservé tel quel (dépenses, transactions et historique intacts). Vous pourrez le désarchiver à tout moment.', [
+    Alert.alert('Archiver le projet', 'Le projet sera masqué de la liste active mais conservé tel quel (dépenses, transactions et historique intacts). Tu pourras le désarchiver à tout moment.', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Archiver', onPress: async () => { await setArchived.mutateAsync({ projectId: projectId!, archived: true }); goBack(); } },
     ]);
@@ -243,7 +243,7 @@ export default function RelykaWorldDetail() {
                 <View style={styles.totalCol}><Text style={styles.totalLabel}>Total projet</Text><Text style={styles.totalValue}>{fmt(total)}</Text></View>
               </View>
               {expenses.length === 0 ? (
-                <Text style={styles.empty}>Aucune dépense. Ajoutez-en une !</Text>
+                <Text style={styles.empty}>Aucune dépense. Ajoutes-en une !</Text>
               ) : grouped.map(([date, items]) => (
                 <View key={date}>
                   <Text style={styles.dateHeader}>{new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</Text>
@@ -265,7 +265,7 @@ export default function RelykaWorldDetail() {
             <>
               <View style={[styles.balanceHeadCard, { borderColor: (myBalance >= 0 ? COLORS.emerald : COLORS.danger) + '55' }]}>
                 <Text style={styles.balanceHeadText}>
-                  {Math.abs(myBalance) < 0.01 ? 'Vous êtes à jour ✅' : myBalance > 0 ? `On vous doit ${fmt(myBalance)}` : `Vous devez ${fmt(-myBalance)}`}
+                  {Math.abs(myBalance) < 0.01 ? 'Tu es à jour ✅' : myBalance > 0 ? `On te doit ${fmt(myBalance)}` : `Tu dois ${fmt(-myBalance)}`}
                 </Text>
               </View>
               <Text style={styles.sectionLabel}>Soldes par participant</Text>

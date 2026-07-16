@@ -414,10 +414,10 @@ export default function AddProjectModal() {
       if (form.allocation_type === 'monthly') {
         if (!form.monthly_allocation.trim()) { setFormError(`${M.monthlyLabel} : montant obligatoire.`); setErrorFields(['monthly_allocation']); return false; }
       } else if (form.allocation_type === 'date') {
-        if (!form.target_date || !calculatedAllocation) { setFormError('Veuillez entrer une date cible valide.'); setErrorFields(['target_date']); return false; }
+        if (!form.target_date || !calculatedAllocation) { setFormError('Entre une date cible valide.'); setErrorFields(['target_date']); return false; }
       } else {
         const anyEnabled = Object.values(ponctuelEntries).some((e) => e?.enabled && parseFloat(e.amount || '0') > 0);
-        if (!anyEnabled) { setFormError('Veuillez activer au moins un mois avec un montant.'); return false; }
+        if (!anyEnabled) { setFormError('Active au moins un mois avec un montant.'); return false; }
       }
       return true;
     }
@@ -457,13 +457,13 @@ export default function AddProjectModal() {
       return;
     }
     if (!form.source_account_id) {
-      setFormError(isSpend ? 'Choisis le compte sur lequel tombent les dépenses.' : isReserve ? 'Choisis le compte sur lequel l’argent reste.' : 'Veuillez sélectionner un compte source.');
+      setFormError(isSpend ? 'Choisis le compte sur lequel tombent les dépenses.' : isReserve ? 'Choisis le compte sur lequel l’argent reste.' : 'Sélectionne un compte source.');
       setErrorFields(['source_account']);
       return;
     }
     if (mode === 'transfer') {
       if (!form.linked_account_id) {
-        setFormError('Veuillez sélectionner un compte de destination.');
+        setFormError('Sélectionne un compte de destination.');
         setErrorFields(['linked_account']);
         return;
       }
@@ -486,7 +486,7 @@ export default function AddProjectModal() {
       monthlyAlloc = parseFloat(form.monthly_allocation);
     } else if (form.allocation_type === 'date') {
       if (!form.target_date || !calculatedAllocation) {
-        setFormError('Veuillez entrer une date cible valide.');
+        setFormError('Entre une date cible valide.');
         setErrorFields(['target_date']);
         return;
       }
@@ -501,7 +501,7 @@ export default function AddProjectModal() {
       // En édition, des échéances déjà figées suffisent : on autorise l'enregistrement même sans
       // nouvelle ligne éditable (ex. simple renommage d'un projet déjà actif).
       if (!anyEnabled && frozenTxns.length === 0) {
-        setFormError('Veuillez activer au moins un mois avec un montant.');
+        setFormError('Active au moins un mois avec un montant.');
         return;
       }
       monthlyAlloc = ponctuelList.length > 0 ? ponctuelList.reduce((s, e) => s + e.amount, 0) / ponctuelList.length : 0;
@@ -582,8 +582,8 @@ export default function AddProjectModal() {
         // « Dépenser » : les dépenses passées ont vraiment eu lieu → conservées (détachées du projet).
         // Celles à venir n'ont jamais eu lieu → supprimées avec le projet.
         if (pastValidated.length > 0) {
-          lines.push('✓ Conservé dans vos comptes :');
-          lines.push(`  • ${pastValidated.length} dépense(s) déjà passée(s), détachée(s) du projet (elles restent dans vos dépenses)`);
+          lines.push('✓ Conservé dans tes comptes :');
+          lines.push(`  • ${pastValidated.length} dépense(s) déjà passée(s), détachée(s) du projet (elles restent dans tes dépenses)`);
           lines.push('');
         }
         lines.push('✗ Sera supprimé :');
@@ -596,7 +596,7 @@ export default function AddProjectModal() {
         const vCount = validated.length;
         const dCount = drafts.length;
         if (vCount > 0) {
-          lines.push('✓ Conservé dans vos comptes :');
+          lines.push('✓ Conservé dans tes comptes :');
           lines.push(`  • ${vCount} virement(s) validé(s), détaché(s) du projet (deviennent des virements classiques)`);
           lines.push('');
         }
@@ -757,7 +757,7 @@ export default function AddProjectModal() {
                     onChangeText={(t) => { setForm({ ...form, name: t }); setErrorFields((p) => p.filter((f) => f !== 'name')); setFormError(null); }}
                     editable={!isPending}
                   />
-                  <Text style={styles.fieldHint}>Ce nom apparaîtra sur chaque {isSpend ? 'dépense' : isReserve ? 'réservation' : 'virement'} du projet, dans vos transactions.</Text>
+                  <Text style={styles.fieldHint}>Ce nom apparaîtra sur chaque {isSpend ? 'dépense' : isReserve ? 'réservation' : 'virement'} du projet, dans tes transactions.</Text>
                 </View>
 
                 <View style={styles.field}>
@@ -835,8 +835,8 @@ export default function AddProjectModal() {
                     {form.allocation_type === 'monthly'
                       ? `Le même montant chaque mois, jusqu’à atteindre ${isSpend ? 'le budget' : 'l’objectif'}.`
                       : form.allocation_type === 'date'
-                        ? `Vous donnez une date : l’app calcule le montant mensuel qu’il faut pour y arriver.`
-                        : `Vous choisissez vous-même les mois et les montants (utile quand c’est irrégulier).`}
+                        ? `Tu donnes une date : l’app calcule le montant mensuel qu’il faut pour y arriver.`
+                        : `Tu choisis toi-même les mois et les montants (utile quand c’est irrégulier).`}
                   </Text>
                 </View>
 
@@ -855,7 +855,7 @@ export default function AddProjectModal() {
                     />
                     <Text style={[styles.label, { color: COLORS.textSecondary, fontSize: 12, marginTop: 6, fontWeight: '400' }]}>
                       {monthlyAllocEdited
-                        ? 'Vous fixez vous-même le montant mensuel.'
+                        ? 'Tu fixes toi-même le montant mensuel.'
                         : `Calculé automatiquement (${isSpend ? 'budget' : 'objectif'} étalé sur ${DEFAULT_PROJECT_MONTHS} mois) — modifiable.`}
                     </Text>
                     {/* ETA parlante : le user voit IMMÉDIATEMENT quand ce sera terminé (recalculée en direct). */}
@@ -1060,17 +1060,17 @@ export default function AddProjectModal() {
                       {isSpend ? (
                         <>
                           Chaque échéance deviendra une <Text style={{ fontWeight: '700', color: COLORS.text }}>dépense réelle</Text> sur ce compte, à sa date.
-                          Vous pourrez la modifier ou la supprimer une par une dans l’onglet Transactions, ou tout revoir d’un coup en rouvrant ce projet.
+                          Tu pourras la modifier ou la supprimer une par une dans l’onglet Transactions, ou tout revoir d’un coup en rouvrant ce projet.
                         </>
                       ) : isReserve ? (
                         <>
                           Chaque échéance sera <Text style={{ fontWeight: '700', color: COLORS.text }}>mise de côté sur ce compte</Text> (tag « Réservé »).
-                          Aucun virement n’est fait : l’argent ne bouge pas, il sort seulement de votre budget disponible.
+                          Aucun virement n’est fait : l’argent ne bouge pas, il sort seulement de ton budget disponible.
                         </>
                       ) : (
                         <>
                           Chaque versement sera préparé comme un <Text style={{ fontWeight: '700', color: COLORS.text }}>virement en brouillon</Text> à sa date.
-                          Vous pourrez ensuite <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou ajuster chaque versement un par un</Text> dans l’onglet Transactions.
+                          Tu pourras ensuite <Text style={{ fontWeight: '700', color: COLORS.text }}>valider ou ajuster chaque versement un par un</Text> dans l’onglet Transactions.
                         </>
                       )}
                     </Text>
@@ -1093,10 +1093,10 @@ export default function AddProjectModal() {
                   </TouchableOpacity>
                   <Text style={styles.fieldHint}>
                     {isSpend
-                      ? 'Le compte débité par les dépenses du projet (en général votre compte courant).'
+                      ? 'Le compte débité par les dépenses du projet (en général ton compte courant).'
                       : isReserve
                         ? 'L’argent reste sur ce compte : rien n’en sort, il est juste réservé au projet.'
-                        : 'Le compte d’où part l’argent (en général votre compte courant).'}
+                        : 'Le compte d’où part l’argent (en général ton compte courant).'}
                   </Text>
                 </View>
 

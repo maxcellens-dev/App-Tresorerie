@@ -33,7 +33,7 @@ export default function ChangePasswordScreen() {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      showAlert('Mot de passe modifié', 'Votre mot de passe a été mis à jour.');
+      showAlert('Mot de passe modifié', 'Ton mot de passe a été mis à jour.');
       router.back();
     } catch (e: unknown) {
       showAlert('Erreur', e instanceof Error ? e.message : 'Mise à jour impossible.');
@@ -50,7 +50,7 @@ export default function ChangePasswordScreen() {
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Changer de mot de passe</Text>
-        <Text style={styles.sub}>Choisissez un nouveau mot de passe pour votre compte.</Text>
+        <Text style={styles.sub}>Choisis un nouveau mot de passe pour ton compte.</Text>
 
         <Text style={styles.label}>Nouveau mot de passe (min. 6 caractères)</Text>
         <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry />

@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter, Dimensions } from 'react-native';
 import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
+import CalculatorButton from '../../../components/CalculatorButton';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
@@ -314,9 +315,9 @@ export default function AccountsListScreen() {
               <View style={styles.welcomeBannerRow}>
                 <Text style={styles.welcomeBannerEmoji}>🎉</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.welcomeBannerTitle}>Bienvenue ! Votre profil est créé.</Text>
+                  <Text style={styles.welcomeBannerTitle}>Bienvenue ! Ton profil est créé.</Text>
                   <Text style={styles.welcomeBannerText}>
-                    Commencez par ajouter vos comptes bancaires, d'épargne et d'investissement.
+                    Commence par ajouter tes comptes bancaires, d'épargne et d'investissement.
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => setWelcomeDismissed(true)} style={{ padding: 4 }}>
@@ -481,7 +482,7 @@ export default function AccountsListScreen() {
               )}
             </View>
           )}
-          <Text style={styles.hint}>Ajoutez un compte pour suivre vos soldes et faire des virements.</Text>
+          <Text style={styles.hint}>Ajoute un compte pour suivre tes soldes et faire des virements.</Text>
 
           {/* Zone publicité (maison) — en bas de page, activable en admin, masquée pour les Premium */}
           <View style={{ paddingHorizontal: 16 }}>
@@ -530,6 +531,7 @@ export default function AccountsListScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      <CalculatorButton page="comptes" />
     </View>
   );
 }

@@ -37,13 +37,13 @@ export default function LoginScreen() {
         if (error) throw error;
         // onAuthStateChange met à jour le contexte → le guard dans _layout redirigera vers home
       } else {
-        showAlert('Connexion', 'Backend non configuré. Utilisez l\u2019app en mode démo.');
+        showAlert('Connexion', 'Backend non configuré. Utilise l\u2019app en mode démo.');
         router.back();
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Connexion impossible.';
       if (msg.includes('Email not confirmed')) {
-        showAlert('Email non confirmé', 'Vérifiez votre boîte mail et cliquez sur le lien de confirmation avant de vous connecter.');
+        showAlert('Email non confirmé', 'Vérifie ta boîte mail et clique sur le lien de confirmation avant de te connecter.');
       } else {
         showAlert('Erreur', msg);
       }

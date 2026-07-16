@@ -129,7 +129,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
                 style={styles.input}
                 value={text}
                 onChangeText={setText}
-                placeholder={isClosed ? 'Répondre rouvre la demande…' : 'Votre message…'}
+                placeholder={isClosed ? 'Répondre rouvre la demande…' : 'Ton message…'}
                 placeholderTextColor={COLORS.textSecondary}
                 multiline
                 onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}

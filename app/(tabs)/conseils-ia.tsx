@@ -6,6 +6,7 @@
  */
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import CalculatorButton from '../../components/CalculatorButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -552,6 +553,7 @@ export default function ConseilsIaScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <CalculatorButton page="conseils-ia" />
     </View>
   );
 }

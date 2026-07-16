@@ -66,7 +66,7 @@ export default function AssistanceScreen() {
             <Ionicons name="chatbubbles-outline" size={28} color={COLORS.emerald} style={{ alignSelf: 'center', marginBottom: 12 }} />
             <Text style={styles.cardTitle}>Besoin d'aide ?</Text>
             <Text style={styles.cardText}>
-              Décrivez votre demande, nous vous répondons directement ici. Vous serez notifié des réponses.
+              Décris ta demande, nous te répondons directement ici. Tu seras notifié des réponses.
             </Text>
             <TouchableOpacity style={styles.btn} onPress={() => setShowNew(true)} activeOpacity={0.85}>
               <Ionicons name="add" size={18} color={COLORS.bg} />
@@ -116,11 +116,11 @@ export default function AssistanceScreen() {
             </View>
             <View style={styles.faqItem}>
               <Text style={styles.faqQ}>Comment fonctionne le "Budget libre à allouer" ?</Text>
-              <Text style={styles.faqA}>Ce montant prend votre solde courant et déduit les dépenses à venir (fixes, variables prévues, allocations projets et objectifs) ainsi qu'une marge de sécurité configurable dans les Paramètres.</Text>
+              <Text style={styles.faqA}>Ce montant prend ton solde courant et déduit les dépenses à venir (fixes, variables prévues, allocations projets et objectifs) ainsi qu'une marge de sécurité configurable dans les Paramètres.</Text>
             </View>
             <View style={styles.faqItem}>
               <Text style={styles.faqQ}>Les transactions récurrentes sont-elles automatiques ?</Text>
-              <Text style={styles.faqA}>Oui, une fois créée, une transaction récurrente se projette automatiquement sur les mois futurs dans votre plan de trésorerie.</Text>
+              <Text style={styles.faqA}>Oui, une fois créée, une transaction récurrente se projette automatiquement sur les mois futurs dans ton plan de trésorerie.</Text>
             </View>
           </View>
 
@@ -153,12 +153,12 @@ export default function AssistanceScreen() {
               placeholder="Ex. Problème de synchronisation"
               placeholderTextColor={COLORS.textSecondary}
             />
-            <Text style={styles.modalLabel}>Votre message</Text>
+            <Text style={styles.modalLabel}>Ton message</Text>
             <TextInput
               style={[styles.modalInput, styles.modalTextarea]}
               value={body}
               onChangeText={setBody}
-              placeholder="Décrivez votre demande en détail…"
+              placeholder="Décris ta demande en détail…"
               placeholderTextColor={COLORS.textSecondary}
               multiline
               autoFocus

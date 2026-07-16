@@ -132,7 +132,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
 
           <View style={styles.footer}>
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, appNameFontStyle]}>Relyka</Text>
-            <Text style={styles.footerTag}>Laissez-vous guider pour faire des économies.</Text>
+            <Text style={styles.footerTag}>Laisse-toi guider pour faire des économies.</Text>
             <Text style={styles.footerVersion}>Version {APP_VERSION} · © 2026 Relyka</Text>
           </View>
         </TouchableOpacity>

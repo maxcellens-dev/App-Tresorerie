@@ -59,6 +59,34 @@ export function useCalculatorEnabledPref(userId: string | undefined) {
   };
 }
 
+/** Pages pouvant afficher le bouton calculatrice (id stable + libellé pour les Paramètres). */
+export const CALCULATOR_PAGES = [
+  { id: 'comptes', label: 'Comptes' },
+  { id: 'transactions', label: 'Transactions' },
+  { id: 'pilotage', label: 'Pilotage' },
+  { id: 'projets', label: 'Projets' },
+  { id: 'projection', label: 'Projection' },
+  { id: 'reporting', label: 'Reporting' },
+  { id: 'conseils-ia', label: 'Conseils IA' },
+] as const;
+export type CalculatorPageId = (typeof CALCULATOR_PAGES)[number]['id'];
+
+/** Défaut : Transactions uniquement — les autres pages s'ajoutent dans les Paramètres. */
+export const DEFAULT_CALCULATOR_PAGES: CalculatorPageId[] = ['transactions'];
+
+/** Pages où le bouton calculatrice est affiché (multi-sélection, défaut = sélection historique). */
+export function useCalculatorPagesPref(userId: string | undefined) {
+  const { prefs, patch } = useUiPrefs(userId);
+  const valid = new Set<string>(CALCULATOR_PAGES.map((p) => p.id));
+  const stored = Array.isArray(prefs.calculator_pages)
+    ? (prefs.calculator_pages.filter((p) => valid.has(p)) as CalculatorPageId[])
+    : null;
+  return {
+    pages: stored ?? DEFAULT_CALCULATOR_PAGES,
+    setPages: (v: CalculatorPageId[]) => patch({ calculator_pages: v }),
+  };
+}
+
 /** Position du bouton « + » de saisie rapide (droite par défaut, gauche, ou masqué). */
 export function useQuickAddPref(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);

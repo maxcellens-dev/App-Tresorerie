@@ -8,7 +8,7 @@
  */
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { useCalculatorEnabledPref } from '../hooks/useUiPrefs';
+import { useCalculatorEnabledPref, useCalculatorPagesPref, type CalculatorPageId } from '../hooks/useUiPrefs';
 
 interface CalculatorContextValue {
   isOpen: boolean;
@@ -18,6 +18,9 @@ interface CalculatorContextValue {
   /** L'utilisateur a-t-il activé l'accès rapide à la calculatrice ? */
   enabled: boolean;
   setEnabled: (v: boolean) => void;
+  /** Pages où le bouton d'accès est affiché (Paramètres, multi-sélection). */
+  pages: CalculatorPageId[];
+  setPages: (v: CalculatorPageId[]) => void;
 }
 
 const CalculatorContext = createContext<CalculatorContextValue | undefined>(undefined);
@@ -25,6 +28,7 @@ const CalculatorContext = createContext<CalculatorContextValue | undefined>(unde
 export function CalculatorProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { enabled, setEnabled: setEnabledPref } = useCalculatorEnabledPref(user?.id);
+  const { pages, setPages } = useCalculatorPagesPref(user?.id);
   const [isOpen, setIsOpen] = useState(false);
 
   const setEnabled = useCallback((v: boolean) => {
@@ -37,8 +41,8 @@ export function CalculatorProvider({ children }: { children: React.ReactNode }) 
   const toggle = useCallback(() => setIsOpen((v) => !v), []);
 
   const value = useMemo(
-    () => ({ isOpen, open, close, toggle, enabled, setEnabled }),
-    [isOpen, open, close, toggle, enabled, setEnabled],
+    () => ({ isOpen, open, close, toggle, enabled, setEnabled, pages, setPages }),
+    [isOpen, open, close, toggle, enabled, setEnabled, pages, setPages],
   );
   return <CalculatorContext.Provider value={value}>{children}</CalculatorContext.Provider>;
 }

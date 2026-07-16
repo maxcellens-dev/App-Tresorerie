@@ -140,7 +140,7 @@ export default function TransactionsListScreen() {
       icon: 'list',
       iconColor: COLORS.green,
       title: 'Onglet Transactions',
-      description: 'Touchez « Transactions » dans la barre du bas pour saisir et consulter vos opérations.',
+      description: 'Touche « Transactions » dans la barre du bas pour saisir et consulter tes opérations.',
     },
     SHOW_TOP_ACTIONS
       ? {
@@ -1056,7 +1056,7 @@ export default function TransactionsListScreen() {
         onSkip={guide.skip}
         screenTitle="Transactions"
       />
-      <CalculatorButton />
+      <CalculatorButton page="transactions" />
     </View>
   );
 }

@@ -22,14 +22,14 @@ export default function AppTourModal({ visible, onFinish }: Props) {
   const [step, setStep] = useState(0);
 
   const slides: { icon: string; color: string; title: string; text: string }[] = [
-    { icon: 'sparkles-outline', color: COLORS.emerald, title: 'Bienvenue sur Relyka 👋', text: 'Pas d\'inquiétude : tout est simple et rapide. Quelques infos à saisir une fois, et l\'app s\'occupe du reste — vos finances deviennent claires, sans prise de tête.' },
-    { icon: 'apps-outline', color: COLORS.emerald, title: 'Tout au même endroit', text: 'En bas : Comptes, Transactions, Pilotage, Tréso et Projection. Vous passez de l\'un à l\'autre en un geste. En haut à droite : votre profil et vos réglages.' },
-    { icon: 'wallet-outline', color: COLORS.checking, title: 'Comptes', text: 'Ajoutez vos comptes en quelques secondes. Une fois faits, vos soldes se mettent à jour tout seuls — fini les calculs à la main.' },
-    { icon: 'list-outline', color: COLORS.emerald, title: 'Transactions', text: 'Notez une dépense ou une recette en deux tapes. Les opérations récurrentes (loyer, salaire…) se répètent automatiquement : vous ne saisissez qu\'une fois.' },
-    { icon: 'home-outline', color: COLORS.emerald, title: 'Pilotage', text: 'Votre tableau de bord clair : ce qu\'il vous reste à allouer et des recommandations sur mesure. L\'app vous guide, vous décidez sereinement.' },
-    { icon: 'calendar-outline', color: COLORS.blue, title: 'Tréso', text: 'Voyez vos prochains mois d\'un coup d\'œil. Plus de mauvaises surprises : vous anticipez tranquillement.' },
-    { icon: 'trending-up-outline', color: COLORS.violet, title: 'Projection', text: 'Visualisez votre épargne grandir dans le temps. Un vrai coup de pouce pour développer votre patrimoine, à votre rythme.' },
-    { icon: 'settings-outline', color: COLORS.orange, title: 'Toujours là pour vous', text: 'Personnalisez l\'app et contactez l\'assistance quand vous voulez. Allez, on commence — on vous guide pas à pas, rien d\'obligatoire.' },
+    { icon: 'sparkles-outline', color: COLORS.emerald, title: 'Bienvenue sur Relyka 👋', text: 'Pas d\'inquiétude : tout est simple et rapide. Quelques infos à saisir une fois, et l\'app s\'occupe du reste — tes finances deviennent claires, sans prise de tête.' },
+    { icon: 'apps-outline', color: COLORS.emerald, title: 'Tout au même endroit', text: 'En bas : Comptes, Transactions, Pilotage, Tréso et Projection. Tu passes de l\'un à l\'autre en un geste. En haut à droite : ton profil et tes réglages.' },
+    { icon: 'wallet-outline', color: COLORS.checking, title: 'Comptes', text: 'Ajoute tes comptes en quelques secondes. Une fois faits, tes soldes se mettent à jour tout seuls — fini les calculs à la main.' },
+    { icon: 'list-outline', color: COLORS.emerald, title: 'Transactions', text: 'Note une dépense ou une recette en deux tapes. Les opérations récurrentes (loyer, salaire…) se répètent automatiquement : tu ne saisis qu\'une fois.' },
+    { icon: 'home-outline', color: COLORS.emerald, title: 'Pilotage', text: 'Ton tableau de bord clair : ce qu\'il te reste à allouer et des recommandations sur mesure. L\'app te guide, tu décides sereinement.' },
+    { icon: 'calendar-outline', color: COLORS.blue, title: 'Tréso', text: 'Vois tes prochains mois d\'un coup d\'œil. Plus de mauvaises surprises : tu anticipes tranquillement.' },
+    { icon: 'trending-up-outline', color: COLORS.violet, title: 'Projection', text: 'Visualise ton épargne grandir dans le temps. Un vrai coup de pouce pour développer ton patrimoine, à ton rythme.' },
+    { icon: 'settings-outline', color: COLORS.orange, title: 'Toujours là pour toi', text: 'Personnalise l\'app et contacte l\'assistance quand tu veux. Allez, on commence — on te guide pas à pas, rien d\'obligatoire.' },
   ];
 
   const isLast = step === slides.length - 1;

@@ -166,7 +166,7 @@ export default function AccountDetailScreen() {
   async function handleBalance() {
     const newBalance = parseFloat(balanceInput.replace(',', '.'));
     if (Number.isNaN(newBalance)) {
-      Alert.alert('Solde invalide', 'Saisissez un solde valide.');
+      Alert.alert('Solde invalide', 'Saisis un solde valide.');
       return;
     }
     if (!account || !id || !user?.id) return;
@@ -199,7 +199,7 @@ export default function AccountDetailScreen() {
   async function handleApport() {
     const num = parseFloat(apportAmount.replace(',', '.'));
     if (Number.isNaN(num) || num <= 0) {
-      Alert.alert('Montant invalide', 'Saisissez un montant positif.');
+      Alert.alert('Montant invalide', 'Saisis un montant positif.');
       return;
     }
     if (!id || !user?.id) return;
@@ -241,7 +241,7 @@ export default function AccountDetailScreen() {
   async function saveApportBase() {
     if (!id) return;
     const v = parseFloat(apportBase.replace(',', '.'));
-    if (Number.isNaN(v)) { Alert.alert('Montant invalide', 'Saisissez un montant valide.'); return; }
+    if (Number.isNaN(v)) { Alert.alert('Montant invalide', 'Saisis un montant valide.'); return; }
     try {
       await updateAccount.mutateAsync({ id, current_contributed: v, initial_contributed: v } as any);
       setApportBaseDirty(false);
@@ -255,14 +255,14 @@ export default function AccountDetailScreen() {
     if (gainLossMode === 'amount') {
       num = parseFloat(gainLossAmount.replace(',', '.'));
       if (Number.isNaN(num) || num <= 0) {
-        Alert.alert('Montant invalide', 'Saisissez un montant positif.');
+        Alert.alert('Montant invalide', 'Saisis un montant positif.');
         return;
       }
       num = isLoss ? -Math.abs(num) : Math.abs(num);
     } else {
       const balance = parseFloat(gainLossBalance.replace(',', '.'));
       if (Number.isNaN(balance)) {
-        Alert.alert('Solde invalide', 'Saisissez un solde final valide.');
+        Alert.alert('Solde invalide', 'Saisis un solde final valide.');
         return;
       }
       if (!account) {
@@ -308,14 +308,14 @@ export default function AccountDetailScreen() {
     if (interestMode === 'amount') {
       num = parseFloat(interestAmount.replace(',', '.'));
       if (Number.isNaN(num) || num === 0) {
-        Alert.alert('Montant invalide', 'Saisissez un montant.');
+        Alert.alert('Montant invalide', 'Saisis un montant.');
         return;
       }
       num = Math.abs(num); // les intérêts sont toujours crédités
     } else {
       const balance = parseFloat(interestBalance.replace(',', '.'));
       if (Number.isNaN(balance)) {
-        Alert.alert('Solde invalide', 'Saisissez un solde final valide.');
+        Alert.alert('Solde invalide', 'Saisis un solde final valide.');
         return;
       }
       if (!account) {
@@ -515,7 +515,7 @@ export default function AccountDetailScreen() {
           >
             <Ionicons name="information-circle" size={22} color={COLORS.blue} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.setupBannerTitle}>Renseignez votre solde pour bien démarrer</Text>
+              <Text style={styles.setupBannerTitle}>Renseigne ton solde pour bien démarrer</Text>
               <Text style={styles.setupBannerText}>Appuyez ici pour saisir le solde réel de ce compte à aujourd'hui.</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
@@ -668,7 +668,7 @@ export default function AccountDetailScreen() {
             <Text style={modalStyles.helperText}>
               {(() => {
                 const v = parseFloat(balanceInput.replace(',', '.'));
-                if (Number.isNaN(v)) return 'Saisissez le solde réel relevé sur votre banque.';
+                if (Number.isNaN(v)) return 'Saisis le solde réel relevé sur ta banque.';
                 const diff = v - balanceAtDate;
                 if (diff === 0) return 'Aucune variation.';
                 return diff > 0

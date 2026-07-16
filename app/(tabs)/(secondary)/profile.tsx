@@ -63,9 +63,9 @@ export default function ProfileScreen() {
   const infoRef = useRef<View>(null);
   const pwdRef = useRef<View>(null);
   const PROFILE_GUIDE: BubbleStep[] = [
-    { getRef: () => avatarRef, icon: 'person-circle-outline', iconColor: COLORS.green, title: 'Votre profil', description: 'Ajoutez une photo et personnalisez votre compte.' },
-    { getRef: () => infoRef, icon: 'create-outline', iconColor: '#60a5fa', title: 'Vos informations', description: 'Modifiez votre nom puis enregistrez. L\'e-mail est géré par la connexion.' },
-    { getRef: () => pwdRef, icon: 'lock-closed-outline', iconColor: '#a78bfa', title: 'Sécurité', description: 'Changez votre mot de passe quand vous le souhaitez.' },
+    { getRef: () => avatarRef, icon: 'person-circle-outline', iconColor: COLORS.green, title: 'Ton profil', description: 'Ajoute une photo et personnalise ton compte.' },
+    { getRef: () => infoRef, icon: 'create-outline', iconColor: '#60a5fa', title: 'Tes informations', description: 'Modifie ton nom puis enregistre. L\'e-mail est géré par la connexion.' },
+    { getRef: () => pwdRef, icon: 'lock-closed-outline', iconColor: '#a78bfa', title: 'Sécurité', description: 'Change ton mot de passe quand tu le souhaites.' },
   ];
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export default function ProfileScreen() {
 
   async function handleDeleteAccount() {
     if (deleteConfirmText.trim().toLowerCase() !== 'supprimer') {
-      Alert.alert('Confirmation requise', 'Saisissez le mot « supprimer » pour confirmer.');
+      Alert.alert('Confirmation requise', 'Saisis le mot « supprimer » pour confirmer.');
       return;
     }
     if (!supabase) return;
@@ -210,7 +210,7 @@ export default function ProfileScreen() {
       <View style={styles.root}>
         <SafeAreaView style={styles.safe} edges={[]}>
           <ScreenHeader title="Mon profil" onBack={goBack} />
-          <Text style={styles.text}>Connectez-vous pour modifier votre profil.</Text>
+          <Text style={styles.text}>Connecte-toi pour modifier ton profil.</Text>
           <View style={styles.loginActions}>
             <TouchableOpacity
               style={styles.submitBtn}
@@ -323,7 +323,7 @@ export default function ProfileScreen() {
               style={styles.input}
               value={fullName}
               onChangeText={setFullName}
-              placeholder="Votre nom"
+              placeholder="Ton nom"
               placeholderTextColor={COLORS.textSecondary}
             />
 
@@ -378,7 +378,7 @@ export default function ProfileScreen() {
           <View style={styles.dangerZone}>
             <Text style={styles.dangerTitle}>Zone de danger</Text>
             <Text style={styles.dangerText}>
-              La suppression de votre compte efface définitivement toutes vos données : comptes, transactions, projets, objectifs, catégories et profil. Cette action est irréversible.
+              La suppression de ton compte efface définitivement toutes tes données : comptes, transactions, projets, objectifs, catégories et profil. Cette action est irréversible.
             </Text>
             <TouchableOpacity
               style={styles.deleteAccountBtn}
@@ -400,7 +400,7 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.modalTitle}>Supprimer définitivement</Text>
               <Text style={styles.modalText}>
-                Toutes vos données seront <Text style={{ fontWeight: '700', color: COLORS.danger }}>définitivement supprimées</Text> et ne pourront pas être récupérées.
+                Toutes tes données seront <Text style={{ fontWeight: '700', color: COLORS.danger }}>définitivement supprimées</Text> et ne pourront pas être récupérées.
               </Text>
               <Text style={styles.modalText}>
                 Pour confirmer, saisissez <Text style={{ fontWeight: '700', color: COLORS.text }}>supprimer</Text> ci-dessous.

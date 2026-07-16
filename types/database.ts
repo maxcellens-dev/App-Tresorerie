@@ -136,6 +136,8 @@ export interface UiPrefs {
   pilotage_tips_enabled?: boolean;
   /** Accès rapide à la calculatrice flottante (défaut : activé). */
   calculator_enabled?: boolean;
+  /** Pages où le bouton calculatrice est affiché (défaut : transactions uniquement). */
+  calculator_pages?: string[];
   /** Position du bouton « + » de saisie rapide dans la barre d'onglets (défaut : 'right'). */
   quick_add_position?: 'right' | 'left' | 'hidden';
   /** #2 — Filtre des totaux de la page Comptes : tout / perso / partagés. */

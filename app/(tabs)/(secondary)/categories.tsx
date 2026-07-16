@@ -166,7 +166,7 @@ export default function CategoriesScreen() {
 
   async function handleDelete(c: Category) {
     if (c.is_default && !isAdmin) {
-      Alert.alert('Action impossible', 'Les catégories par défaut ne peuvent pas être supprimées. Vous pouvez les renommer.');
+      Alert.alert('Action impossible', 'Les catégories par défaut ne peuvent pas être supprimées. Tu peux les renommer.');
       return;
     }
     // Blocage si des transactions utilisent cette (sous-)catégorie (§P3) : on demande à l'utilisateur
@@ -238,7 +238,7 @@ export default function CategoriesScreen() {
         </Text>
 
         {!user ? (
-          <Text style={styles.hint}>Connectez-vous pour gérer vos catégories.</Text>
+          <Text style={styles.hint}>Connecte-toi pour gérer tes catégories.</Text>
         ) : (
           <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             {categories.length === 0 && !isLoading && (

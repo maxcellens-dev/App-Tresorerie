@@ -24,7 +24,7 @@ export default function AboutScreen() {
           {/* Version */}
           <View style={styles.versionCard}>
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, appNameFontStyle]}>Relyka</Text>
-            <Text style={styles.tagline}>Laissez-vous guider pour faire les meilleurs choix pour vos économies.</Text>
+            <Text style={styles.tagline}>Laisse-toi guider pour faire les meilleurs choix pour tes économies.</Text>
             <View style={styles.versionBadge}>
               <Text style={styles.versionText}>Version {APP_VERSION}</Text>
             </View>
@@ -37,7 +37,7 @@ export default function AboutScreen() {
               <Ionicons name="headset-outline" size={22} color={COLORS.emerald} />
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>Assistance</Text>
-                <Text style={styles.rowHint}>Contactez notre équipe de support</Text>
+                <Text style={styles.rowHint}>Contacte notre équipe de support</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -53,7 +53,7 @@ export default function AboutScreen() {
               <Ionicons name="shield-checkmark-outline" size={22} color="#60a5fa" />
               <View style={styles.rowContent}>
                 <Text style={styles.rowLabel}>Politique de confidentialité</Text>
-                <Text style={styles.rowHint}>Comment nous protégeons vos données</Text>
+                <Text style={styles.rowHint}>Comment nous protégeons tes données</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>

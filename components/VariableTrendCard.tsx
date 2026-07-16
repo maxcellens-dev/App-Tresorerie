@@ -23,7 +23,7 @@ export default function VariableTrendCard({ current, average, percentage }: Vari
     percentage > 100
       ? `⚠️ Dépassement de ${(percentage - 100).toFixed(0)}% par rapport à la moyenne`
       : percentage > 70
-        ? 'Vous approchez la moyenne'
+        ? 'Tu approches la moyenne'
         : 'Bien maîtrisé';
 
   return (

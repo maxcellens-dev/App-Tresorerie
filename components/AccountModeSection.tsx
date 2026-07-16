@@ -18,12 +18,12 @@ const OPTIONS: { mode: SharedMode; icon: string; title: string; desc: string }[]
   {
     mode: 'contribution', icon: 'home-outline',
     title: 'Pour les charges communes',
-    desc: 'Loyer, crédits, copro… Vos virements vers ce compte comptent comme des dépenses ; ce qui s’y passe ensuite n’encombre pas votre budget.',
+    desc: 'Loyer, crédits, copro… Tes virements vers ce compte comptent comme des dépenses ; ce qui s’y passe ensuite n’encombre pas ton budget.',
   },
   {
     mode: 'tracked', icon: 'cart-outline',
     title: 'Au quotidien',
-    desc: 'Courses, sorties… Ses dépenses et recettes comptent dans votre budget, à hauteur de votre part.',
+    desc: 'Courses, sorties… Ses dépenses et recettes comptent dans ton budget, à hauteur de ta part.',
   },
 ];
 
@@ -76,9 +76,9 @@ export default function AccountModeSection({ account }: { account: Account }) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.title}>Comment utilisez-vous ce compte ?</Text>
+      <Text style={styles.title}>Comment utilises-tu ce compte ?</Text>
       <Text style={styles.subtitle}>
-        Cela n’affecte que la façon de compter dans VOTRE budget — jamais le solde du compte ni vos transactions.
+        Cela n’affecte que la façon de compter dans TON budget — jamais le solde du compte ni tes transactions.
       </Text>
 
       {OPTIONS.map((opt) => {
@@ -151,7 +151,7 @@ export default function AccountModeSection({ account }: { account: Account }) {
 
       {current === null && !pendingMode && (
         <Text style={styles.hint}>
-          Non défini pour l’instant → traité comme « Suivi partagé » (comportement actuel). Choisissez pour préciser.
+          Non défini pour l’instant → traité comme « Suivi partagé » (comportement actuel). Choisis pour préciser.
         </Text>
       )}
       {isLoading && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 8 }} />}

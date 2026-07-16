@@ -356,7 +356,7 @@ export function evaluateAutoTransition(
     }
   }
 
-  // ── Montée (2 mois consécutifs requis) ───────────────────
+  // ── Montée (anti-yoyo : `anti_yoyo_months` mois consécutifs requis — 1 par défaut) ───────
 
   if (up && configs[up]) {
     const cfg = configs[up];

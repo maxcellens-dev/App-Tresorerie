@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import CalculatorButton from '../../components/CalculatorButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -559,7 +560,7 @@ export default function ReportingScreen() {
     alert: { color: C.expense, label: 'À surveiller' }, win: { color: C.income, label: 'Bravo' }, tip: { color: C.violet, label: 'Opportunité' },
   };
 
-  if (!user) return <Gate C={C} s={s} icon="lock-closed-outline" text="Connectez-vous pour accéder au reporting." />;
+  if (!user) return <Gate C={C} s={s} icon="lock-closed-outline" text="Connecte-toi pour accéder au reporting." />;
   if (!reportingAllowed) return (
     <View style={s.root}>
       <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
@@ -751,6 +752,7 @@ export default function ReportingScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
+      <CalculatorButton page="reporting" />
     </View>
   );
 }

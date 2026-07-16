@@ -215,7 +215,7 @@ export default function EditTransactionScreen() {
 
     // Sous-catégorie obligatoire pour une dépense / recette validée (pas les virements ni les brouillons).
     if (!isVirement && !isRegul && !isDraft && !categoryId) {
-      showError('Veuillez choisir une sous-catégorie.', ['category']);
+      showError('Choisis une sous-catégorie.', ['category']);
       return;
     }
 
@@ -444,7 +444,7 @@ export default function EditTransactionScreen() {
       : 'toute la série (passées et futures)';
     showConfirm({
       title: 'Confirmer la suppression',
-      message: `Vous souhaitez supprimer ${label} ?`,
+      message: `Tu souhaites supprimer ${label} ?`,
       confirmLabel: 'Supprimer',
       confirmColor: '#f87171',
       onConfirm: () => { deleteRecurringScope(scope); },
@@ -880,7 +880,7 @@ export default function EditTransactionScreen() {
           <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setShowRecDelete(false)}>
             <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
               <Text style={styles.confirmTitle}>Supprimer la transaction récurrente</Text>
-              <Text style={styles.confirmMessage}>Que souhaitez-vous supprimer ?</Text>
+              <Text style={styles.confirmMessage}>Que souhaites-tu supprimer ?</Text>
               {instanceDate && (
                 <TouchableOpacity style={styles.recScopeBtn} onPress={() => confirmDeleteScope('one')}>
                   <Ionicons name="remove-circle-outline" size={18} color={COLORS.text} />

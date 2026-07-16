@@ -3,9 +3,8 @@
  *  • Activation globale + les trois temps (live / hebdo / mensuel).
  *  • Signaux retenus PAR PROFIL P1–P5 (l'ordre d'affichage est celui de la sélection).
  *  • Repères par profil (matelas visé, taux d'épargne, part de la capacité d'investissement).
- *  • Notification hebdo : ENVOI AUTOMATIQUE géré dans Admin → Notifications (planification
- *    récurrente « Hebdo » — Edge Function send-scheduled-notifications, appelée par le cron).
- *    Ici : seulement l'envoi de TEST immédiat (une seule commande, pas de double config).
+ *  • Notification hebdo : rien ici — c'est une notification PLANIFIÉE récurrente « Hebdo »
+ *    (Admin → Notifications → Planifier), envoyée par send-scheduled-notifications via le cron.
  *  • Aperçu du rendu réel (ouvre le vrai Pouls, sans consommer la période de l'utilisateur).
  *
  * Stocké dans app_config.pulse (migration 140).
@@ -17,12 +16,9 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import type { AppColors } from '../../../../theme/palette';
-import { useRouter } from 'expo-router';
 import { useNavBack } from '../../../../hooks/useNavBack';
-import { useAuth } from '../../../../contexts/AuthContext';
 import { usePulseConfig, useSavePulseConfig } from '../../../../hooks/usePulseConfig';
 import { openPulse } from '../../../../components/PulseHost';
-import { sendPushToTarget, type NotifTargetKind } from '../../../../lib/pushSend';
 import {
   PULSE_SIGNAL_IDS, PULSE_SIGNAL_LABELS, DEFAULT_PULSE_CONFIG,
   type PulseConfig, type PulseSignalId, type PulseBenchmark,
@@ -38,19 +34,10 @@ const BENCHMARK_FIELDS: { key: keyof PulseBenchmark; label: string; help: string
   { key: 'investOfCapacityPct', label: 'Investissement (% de la capacité)', help: 'Part de la capacité d’investissement du mois à utiliser pour être « au vert ». 0 = signal non jugé.' },
 ];
 
-const TARGETS: { kind: NotifTargetKind; label: string }[] = [
-  { kind: 'all', label: 'Tous' },
-  { kind: 'premium', label: 'Premium' },
-  { kind: 'normal', label: 'Gratuit' },
-];
-
 export default function AdminPouls() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const goBack = useNavBack();
-  const { user } = useAuth();
-
-  const router = useRouter();
   const { data: cfg } = usePulseConfig();
   const saveCfg = useSavePulseConfig();
 
@@ -58,9 +45,6 @@ export default function AdminPouls() {
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [openProfile, setOpenProfile] = useState<FinancialProfileId>('P1');
-  const [target, setTarget] = useState<NotifTargetKind>('all');
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<string | null>(null);
 
   // Ne jamais écraser une saisie en cours (la config se rafraîchit au retour de focus).
   useEffect(() => { if (cfg && !dirty) setDraft(cfg); }, [cfg, dirty]);
@@ -98,27 +82,6 @@ export default function AdminPouls() {
   };
 
   const resetDefaults = () => { setDraft(DEFAULT_PULSE_CONFIG); setDirty(true); };
-
-  /** Envoi RÉEL de la notification hebdo, tout de suite (test sans attendre le jour J). */
-  const sendNow = async () => {
-    if (!draft) return;
-    setSending(true);
-    setSendResult(null);
-    try {
-      const count = await sendPushToTarget(
-        { kind: target },
-        draft.weeklyPush.title,
-        draft.weeklyPush.body,
-      );
-      setSendResult(count > 0
-        ? `Envoyée à ${count} appareil${count > 1 ? 's' : ''}.`
-        : 'Aucun appareil ciblé (personne n’a activé les notifications).');
-    } catch {
-      setSendResult('Échec de l’envoi.');
-    } finally {
-      setSending(false);
-    }
-  };
 
   if (!draft) {
     return (
@@ -260,72 +223,9 @@ export default function AdminPouls() {
             ))}
           </View>
 
-          {/* ── Notification hebdo ── */}
-          <Text style={styles.h2}>Notification hebdomadaire</Text>
-          <View style={styles.card}>
-            {/* L'envoi AUTOMATIQUE se gère dans les notifications planifiées (une seule commande :
-                l'ancien toggle + jour/heure d'ici ne pilotaient rien côté serveur — double config). */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-              <Ionicons name="information-circle-outline" size={18} color={COLORS.blue} style={{ marginTop: 1 }} />
-              <Text style={[styles.p, { flex: 1, marginBottom: 0 }]}>
-                L’envoi automatique se gère dans <Text style={{ fontWeight: '800' }}>Notifications → Planifier</Text> :
-                créez une notification récurrente « Hebdo » (ex. dimanche 21:00). Elle sera envoyée par le
-                cron serveur existant, comme la notification mensuelle.
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: COLORS.blue, marginTop: 10 }]}
-              onPress={() => router.push('/(tabs)/(secondary)/admin/notifications' as any)}
-            >
-              <Ionicons name="calendar-outline" size={15} color={COLORS.bg} />
-              <Text style={styles.sendTxt}>Ouvrir les notifications planifiées</Text>
-            </TouchableOpacity>
-
-            {/* Envoi de TEST immédiat — contenu saisi ici, sans attendre le jour J. */}
-            <Text style={styles.blockLabel}>Titre (test)</Text>
-            <TextInput
-              style={styles.inputWide}
-              value={draft.weeklyPush.title}
-              onChangeText={(v) => patch({ weeklyPush: { ...draft.weeklyPush, title: v } })}
-              placeholder="Ton point de la semaine 🧭"
-              placeholderTextColor={COLORS.textSecondary}
-            />
-            <Text style={styles.blockLabel}>Message (test)</Text>
-            <TextInput
-              style={[styles.inputWide, { height: 68, textAlignVertical: 'top' }]}
-              value={draft.weeklyPush.body}
-              onChangeText={(v) => patch({ weeklyPush: { ...draft.weeklyPush, body: v } })}
-              multiline
-              placeholder="Ouvre Relyka pour voir où tu en es cette semaine."
-              placeholderTextColor={COLORS.textSecondary}
-            />
-
-            <Text style={styles.blockLabel}>Envoyer maintenant (test)</Text>
-            <View style={styles.targets}>
-              {TARGETS.map((t) => {
-                const on = target === t.kind;
-                return (
-                  <TouchableOpacity
-                    key={t.kind}
-                    style={[styles.day, on && { backgroundColor: COLORS.emerald + '1A', borderColor: COLORS.emerald }]}
-                    onPress={() => setTarget(t.kind)}
-                  >
-                    <Text style={[styles.dayTxt, on && { color: COLORS.text, fontWeight: '800' }]}>{t.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <TouchableOpacity
-              style={[styles.sendBtn, sending && { opacity: 0.5 }]}
-              onPress={sendNow}
-              disabled={sending}
-            >
-              {sending
-                ? <ActivityIndicator color={COLORS.bg} size="small" />
-                : <><Ionicons name="send" size={15} color={COLORS.bg} /><Text style={styles.sendTxt}>Envoyer le point hebdo maintenant</Text></>}
-            </TouchableOpacity>
-            {!!sendResult && <Text style={styles.sendResult}>{sendResult}</Text>}
-          </View>
+          {/* NB : plus de section « Notification hebdomadaire » ici — le push hebdo du Point est une
+              notification PLANIFIÉE récurrente (admin Notifications → Planifier), envoyée par le
+              cron serveur comme la mensuelle. Une seule commande, pas de double config. */}
 
           {/* ── Enregistrement ── */}
           <View style={styles.actions}>
@@ -408,20 +308,6 @@ function makeStyles(c: AppColors) {
       width: 76, backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
       paddingHorizontal: 10, paddingVertical: 9, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'center',
     },
-    inputWide: {
-      backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
-      paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: c.text,
-    },
-    days: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    targets: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-    day: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
-    dayTxt: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
-    sendBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-      backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13,
-    },
-    sendTxt: { fontSize: 14, fontWeight: '800', color: c.bg },
-    sendResult: { fontSize: 12, color: c.textSecondary, textAlign: 'center', marginTop: 8 },
     actions: { flexDirection: 'row', gap: 10, marginTop: 26 },
     resetBtn: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
     resetTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },

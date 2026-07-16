@@ -71,7 +71,7 @@ export default function OnboardingChecklist() {
             <View style={styles.header}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>Pour bien démarrer</Text>
-                <Text style={styles.subtitle}>Quelques actions rapides pour profiter pleinement de votre suivi · {ob.doneCount}/{ob.total}</Text>
+                <Text style={styles.subtitle}>Quelques actions rapides pour profiter pleinement de ton suivi · {ob.doneCount}/{ob.total}</Text>
               </View>
               <TouchableOpacity onPress={closeOnboardingChecklist} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />

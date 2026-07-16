@@ -66,7 +66,7 @@ export default function IdeasScreen() {
 
   const handleSubmit = async () => {
     if (!idea.trim()) {
-      Alert.alert('Champ requis', 'Veuillez décrire votre idée.');
+      Alert.alert('Champ requis', 'Décris ton idée.');
       return;
     }
     try {
@@ -85,13 +85,13 @@ export default function IdeasScreen() {
         <ScreenHeader title="Boîte à idées" onBack={goBack} />
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
           <Text style={styles.subtitle}>
-            Aidez-nous à améliorer Relyka ! Partagez vos suggestions, idées de fonctionnalités ou améliorations.
+            Aide-nous à améliorer Relyka ! Partage tes suggestions, idées de fonctionnalités ou améliorations.
           </Text>
 
           {submitted ? (
             <View style={styles.successCard}>
               <Ionicons name="checkmark-circle" size={48} color={COLORS.emerald} />
-              <Text style={styles.successTitle}>Merci pour votre idée !</Text>
+              <Text style={styles.successTitle}>Merci pour ton idée !</Text>
               <Text style={styles.successText}>
                 Nous examinons chaque suggestion avec attention. Les meilleures idées seront intégrées dans les prochaines mises à jour.
               </Text>
@@ -102,12 +102,12 @@ export default function IdeasScreen() {
           ) : (
             <View style={styles.card}>
               <Ionicons name="bulb" size={28} color="#f59e0b" style={{ alignSelf: 'center', marginBottom: 12 }} />
-              <Text style={styles.cardTitle}>Votre suggestion</Text>
+              <Text style={styles.cardTitle}>Ta suggestion</Text>
               <TextInput
                 style={styles.input}
                 value={idea}
                 onChangeText={setIdea}
-                placeholder="Décrivez votre idée en détail..."
+                placeholder="Décris ton idée en détail..."
                 placeholderTextColor={COLORS.textSecondary}
                 multiline
                 numberOfLines={6}

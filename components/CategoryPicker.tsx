@@ -84,7 +84,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
     if (!onCreateSubcategory) return;
     const name = newName.trim();
     if (!name) { setCreateError('Le nom est requis.'); return; }
-    if (!newParentId) { setCreateError('Choisissez une catégorie parente.'); return; }
+    if (!newParentId) { setCreateError('Choisis une catégorie parente.'); return; }
     setCreating(true); setCreateError(null);
     try {
       const icon = newIcon || iconForCategory({ name });
@@ -185,7 +185,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
             <Text style={[styles.rowText, isNoneSelected && styles.rowTextActive]}>Aucune</Text>
           </TouchableOpacity>
           {groups.length === 0 && (
-            <Text style={styles.hint}>Aucune sous-catégorie. Ajoutez-en dans l’onglet Catégories.</Text>
+            <Text style={styles.hint}>Aucune sous-catégorie. Ajoutes-en dans l’onglet Catégories.</Text>
           )}
           {groups.length > 0 && filteredGroups.length === 0 && (
             <Text style={styles.hint}>Aucun résultat pour « {query} ».</Text>

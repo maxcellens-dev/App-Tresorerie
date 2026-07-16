@@ -145,7 +145,6 @@ export function useSaveQuestionnaire(userId: string | undefined) {
       const profileId = computeInitialProfile(answers);
       const isIrregular = detectIrregularIncome(answers.q1, answers.q2);
       const now = new Date().toISOString();
-      const autoUnlockAt = new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString();
       const alloc = PROFILE_ALLOCATIONS[profileId];
 
       // 1. Upsert des réponses
@@ -162,9 +161,23 @@ export function useSaveQuestionnaire(userId: string | undefined) {
       // 2. Récupérer l'éventuel profil existant
       const { data: existing } = await supabase
         .from('user_financial_profile')
-        .select('profile_id')
+        .select('profile_id, auto_unlock_at')
         .eq('user_id', userId)
         .maybeSingle();
+
+      // Gel initial = config admin `freeze_months` (défaut 2 mois — migration 144) : pendant ce
+      // délai, aucun changement AUTOMATIQUE de profil, sauf cas exceptionnels (chute de revenus).
+      // Le gel ne se pose qu'au TOUT PREMIER questionnaire : une mise à jour ultérieure (via
+      // Paramètres → Profil financier) conserve la date d'origine — elle ne relance JAMAIS le gel.
+      let autoUnlockAt: string | null;
+      if (existing) {
+        autoUnlockAt = (existing as any).auto_unlock_at ?? null;
+      } else {
+        const { data: freezeCfg } = await supabase
+          .from('profile_matrix_config').select('freeze_months').limit(1).maybeSingle();
+        const freezeMonths = Number((freezeCfg as any)?.freeze_months ?? 2);
+        autoUnlockAt = new Date(Date.now() + freezeMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
+      }
 
       // 3. Upsert du profil
       const { error: pErr } = await supabase
@@ -280,9 +293,11 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
 
       if (!fp) return; // pas encore de profil
 
-      // Vérifier le gel des 6 premiers mois
+      // Gel initial (freeze_months, défaut 2 mois — migration 144) : pendant ce délai, pas de
+      // changement automatique NI de bilan mensuel… SAUF cas exceptionnels (chute de revenus) :
+      // on évalue quand même, et seul un résultat 'exceptional_revenue_drop' est appliqué.
       const autoUnlockAt = fp.auto_unlock_at ? new Date(fp.auto_unlock_at) : null;
-      if (autoUnlockAt && new Date() < autoUnlockAt) return;
+      const frozen = !!autoUnlockAt && new Date() < autoUnlockAt;
 
       // Vérifier si déjà évalué ce mois-ci
       const today = new Date();
@@ -341,6 +356,11 @@ export function useAutoProfileEvaluation(userId: string | undefined) {
         configMap,
         fp.is_irregular_income ?? false,
       );
+
+      // Pendant le gel : seul un CHANGEMENT exceptionnel (chute de revenus) passe. Sinon on ne
+      // touche à RIEN (ni compteurs, ni bilan, ni last_auto_evaluation) → le premier vrai bilan
+      // tombera au déblocage.
+      if (frozen && !(result.changed && result.reason === 'exceptional_revenue_drop')) return;
 
       // Mettre à jour le profil avec les nouveaux compteurs
       const now = new Date().toISOString();

@@ -222,7 +222,7 @@ export default function BoutiqueScreen() {
                 ) : (
                   <TouchableOpacity style={[styles.premiumBanner, { borderColor: COLORS.yellow + '66' }]} onPress={() => router.push('/(tabs)/(secondary)/premium' as any)} activeOpacity={0.85}>
                     <Ionicons name="star-outline" size={16} color={COLORS.yellow} />
-                    <Text style={styles.premiumText}>Passez Premium : −{discountPct}% sur la boutique + zéro pub.</Text>
+                    <Text style={styles.premiumText}>Passe Premium : −{discountPct}% sur la boutique + zéro pub.</Text>
                     <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
                   </TouchableOpacity>
                 )

@@ -3,7 +3,8 @@
  * Posé sur les écrans où l'on veut un accès rapide (création de transaction, projection…).
  * - Tap : ouvre / ferme la calculatrice.
  * - Glisser : déplace le bouton n'importe où à l'écran.
- * Par défaut : flottant en bas à droite. Surchargeable via `style`.
+ * Par défaut : flottant à droite, centré verticalement (au-dessus du pouce, loin du bouton « + »
+ * et de la barre d'onglets). Surchargeable via `style`.
  */
 import React, { useRef, useCallback } from 'react';
 import { StyleSheet, View, Animated, PanResponder, ViewStyle, StyleProp } from 'react-native';
@@ -11,9 +12,12 @@ import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCalculator } from '../contexts/CalculatorContext';
+import type { CalculatorPageId } from '../hooks/useUiPrefs';
 
 interface Props {
-  /** Position/dimensions personnalisées (sinon flottant en bas à droite). */
+  /** Page hôte : le bouton n'apparaît que si l'utilisateur l'a activé pour cette page (Paramètres). */
+  page: CalculatorPageId;
+  /** Position/dimensions personnalisées (sinon flottant à droite, centré verticalement). */
   style?: StyleProp<ViewStyle>;
   /** Taille du bouton (par défaut 48). */
   size?: number;
@@ -21,9 +25,9 @@ interface Props {
 
 const TAP_THRESHOLD = 5; // px : en-dessous, on considère un tap (pas un glissement)
 
-export default function CalculatorButton({ style, size = 48 }: Props) {
+export default function CalculatorButton({ page, style, size = 48 }: Props) {
   const COLORS = useAppColors();
-  const { isOpen, toggle, enabled } = useCalculator();
+  const { isOpen, toggle, enabled, pages } = useCalculator();
 
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const moved = useRef(false);
@@ -57,7 +61,8 @@ export default function CalculatorButton({ style, size = 48 }: Props) {
     })
   ).current;
 
-  if (!enabled) return null; // l'utilisateur a masqué l'accès à la calculatrice
+  if (!enabled) return null;               // l'utilisateur a masqué l'accès à la calculatrice
+  if (!pages.includes(page)) return null;  // page non retenue dans les Paramètres
 
   return (
     <Animated.View
@@ -85,7 +90,8 @@ export default function CalculatorButton({ style, size = 48 }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', bottom: 96, right: 16, zIndex: 50 },
+  // Milieu de l'écran à droite (marginTop = −taille/2 pour centrer vraiment, pas caler le haut).
+  wrap: { position: 'absolute', top: '50%', marginTop: -24, right: 16, zIndex: 50 },
   fab: {
     alignItems: 'center',
     justifyContent: 'center',
