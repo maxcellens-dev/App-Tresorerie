@@ -2,13 +2,12 @@
  * POULS — le « live ». Monté UNE fois au niveau racine : la réponse apparaît dès qu'une opération
  * est enregistrée, quel que soit l'écran d'où l'utilisateur a validé.
  *
- * Apparition EN UNE FOIS : on n'affiche rien tant que les données recalculées ne sont pas revenues
- * (sinon la carte se montrait en deux temps, et le signal pouvait dire « rien de placé » juste après
- * un virement d'investissement — calculé sur les données d'AVANT la saisie). Concrètement :
- *   1. saisie → on mémorise l'opération et l'état d'avant ;
- *   2. on attend que les requêtes (pilotage, transactions, comptes) aient fini de se recharger ;
- *   3. la carte apparaît complète : effet direct + Relyka + le signal impacté, à jour.
- * Filet de sécurité : si le réseau traîne (> 3,5 s), on affiche ce qu'on a.
+ * Apparition IMMÉDIATE, enrichissement progressif : la carte se montre à l'instant de la saisie
+ * avec l'EFFET DIRECT (toujours exact : « Dépense : −100 € ») — c'est la confirmation visuelle
+ * instantanée. Le Relyka et le signal impacté, qui dépendent des données recalculées, s'ajoutent
+ * dès que les refetchs aboutissent (jamais de valeur PÉRIMÉE affichée : tant que les données
+ * fraîches ne sont pas là, ces éléments sont simplement absents — pas faux).
+ * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 1,5 s.
  *
  * Fermeture : au tap (n'importe où) ou en balayant vers le haut. JAMAIS d'auto-disparition.
  */
@@ -30,6 +29,10 @@ import PulseSignalCard, { pulseColor } from './PulseSignalCard';
 interface Pending {
   event: PulseOpEvent;
   before: PulseData | null;
+  /** Un refetch a été observé depuis la saisie → une fois fini, les données sont FRAÎCHES. */
+  sawRefetch: boolean;
+  /** Filet : complète avec le cache même sans refetch observé (déjà frais / hors ligne). */
+  forceFull: boolean;
 }
 
 /** Requêtes dont dépend le Pouls : on attend qu'elles soient revenues avant d'afficher. */
@@ -46,12 +49,9 @@ export default function PulseDeltaHost() {
   const fetching = useIsFetching({ predicate: (q) => WATCHED_QUERIES.has(String(q.queryKey[0])) });
 
   const [feedback, setFeedback] = useState<PulseFeedback | null>(null);
-  const pending = useRef<Pending | null>(null);
   // L'opération ACTUELLEMENT affichée : conservée tant que la carte est visible → on la RECALCULE
   // à chaque arrivée de données fraîches (le refetch peut aboutir juste après le 1er affichage).
   const active = useRef<Pending | null>(null);
-  const minDelayDone = useRef(false);
-  const minDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Valeurs vivantes, lues sans re-souscrire (l'abonnement au bus reste monté une fois).
@@ -68,7 +68,6 @@ export default function PulseDeltaHost() {
   const liveEnabled = !!config?.enabled && !!config?.live;
 
   const clearTimers = useCallback(() => {
-    if (minDelayTimer.current) { clearTimeout(minDelayTimer.current); minDelayTimer.current = null; }
     if (fallbackTimer.current) { clearTimeout(fallbackTimer.current); fallbackTimer.current = null; }
   }, []);
 
@@ -86,62 +85,49 @@ export default function PulseDeltaHost() {
     };
   }, []);
 
-  /** (Re)calcule le retour de l'opération `p` avec l'état LE PLUS FRAIS. */
+  /** (Re)calcule le retour de l'opération `p`. Tant que les données ne sont pas FRAÎCHES (aucun
+   *  refetch abouti depuis la saisie), on passe `after = null` : la carte n'affiche que l'effet
+   *  direct — toujours exact — plutôt qu'un Relyka / signal PÉRIMÉS calculés sur l'état d'avant. */
   const renderFor = useCallback((p: Pending) => {
-    const now = pulseRef.current;
+    const fresh = (p.forceFull || p.sawRefetch) && fetchingRef.current === 0 ? pulseRef.current : null;
     setFeedback(
       computeOpFeedback(
         toOp(p.event),
         p.before?.live ?? null,
-        now?.live ?? null,
+        fresh?.live ?? null,
         p.before?.relyka ?? null,
-        now?.relyka ?? null,
+        fresh?.relyka ?? null,
       ),
     );
   }, [toOp]);
 
-  /** Affiche la carte pour la 1ʳᵉ fois, puis la garde « active » pour se corriger sur données fraîches. */
-  const showNow = useCallback(() => {
-    const p = pending.current;
-    if (!p) return;
-    pending.current = null;
-    active.current = p;
-    clearTimers();
-    renderFor(p);
-    drag.setValue(0);
-    anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 70, friction: 11 }).start();
-  }, [renderFor, anim, drag, clearTimers]);
-
-  /** Montre la carte SI le délai minimal est passé ET que plus rien ne se recharge. */
-  const attemptShow = useCallback(() => {
-    if (!pending.current || !minDelayDone.current) return;
-    if (fetchingRef.current > 0) return;
-    showNow();
-  }, [showNow]);
-
-  // Abonnement au bus (monté une fois).
+  // Abonnement au bus (monté une fois) : la carte apparaît IMMÉDIATEMENT (effet direct), puis
+  // s'enrichit (Relyka + signal) quand les refetchs aboutissent.
   useEffect(() => {
     if (!liveEnabled) return;
     return subscribePulseOp((event) => {
-      pending.current = { event, before: pulseRef.current };
       clearTimers();
-      // Délai minimal : laisse le temps aux invalidations de DÉMARRER leurs refetchs
-      // (sinon « plus rien ne charge » serait vrai un instant avant qu'ils commencent).
-      minDelayDone.current = false;
-      minDelayTimer.current = setTimeout(() => { minDelayDone.current = true; attemptShow(); }, 350);
-      // Filet : réseau lent → on affiche ce qu'on a plutôt que rien.
-      fallbackTimer.current = setTimeout(showNow, 3500);
+      const p: Pending = { event, before: pulseRef.current, sawRefetch: false, forceFull: false };
+      active.current = p;
+      renderFor(p);
+      drag.setValue(0);
+      anim.setValue(0);
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 70, friction: 11 }).start();
+      // Filet : aucun refetch observé (données déjà fraîches, hors ligne…) → compléter avec le cache.
+      fallbackTimer.current = setTimeout(() => {
+        if (active.current === p) { p.forceFull = true; renderFor(p); }
+      }, 1500);
     });
-  }, [liveEnabled, attemptShow, showNow, clearTimers]);
+  }, [liveEnabled, renderFor, anim, drag, clearTimers]);
 
-  // Chaque fois que l'état des requêtes ou le Pouls bouge : tentative d'affichage, ET si une carte
-  // est déjà visible, on la RECALCULE avec les données fraîches (le refetch a pu aboutir juste après
-  // le 1er rendu → « rien de placé » se corrige tout seul en « 100 € placés »).
+  // Chaque fois que l'état des requêtes ou le Pouls bouge : marquer le refetch observé, et
+  // RECALCULER la carte visible avec les données fraîches (« rien de placé » → « 100 € placés »).
   useEffect(() => {
-    attemptShow();
-    if (active.current && fetchingRef.current === 0) renderFor(active.current);
-  }, [fetching, pulse, attemptShow, renderFor]);
+    const p = active.current;
+    if (!p) return;
+    if (fetchingRef.current > 0) { p.sawRefetch = true; return; }
+    renderFor(p);
+  }, [fetching, pulse, renderFor]);
 
   // Nettoyage à la dépose (déconnexion, etc.).
   useEffect(() => () => clearTimers(), [clearTimers]);
@@ -150,7 +136,6 @@ export default function PulseDeltaHost() {
     Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true, easing: Easing.in(Easing.cubic) })
       .start(() => {
         setFeedback(null);
-        pending.current = null;
         active.current = null;
         clearTimers();
         drag.setValue(0);

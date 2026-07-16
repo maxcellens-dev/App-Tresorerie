@@ -9,8 +9,10 @@ import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
+import { useQueryClient } from '@tanstack/react-query';
 import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions } from '../../../hooks/useTransactions';
 import { parseUsageLimitError } from '../../../lib/usageLimits';
+import { appAlert } from '../../../lib/appDialog';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
@@ -87,6 +89,7 @@ export default function AddTransactionScreen() {
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);
+  const queryClient = useQueryClient();
   // Rattachement à un projet EN COURS quand la saisie correspond à sa configuration (comptes d'un
   // virement / compte + catégorie d'une dépense) : le projet se tient à jour sans repasser par
   // l'écran Projets.
@@ -397,7 +400,14 @@ export default function AddTransactionScreen() {
     // l'échéancier du projet — useValidateProjectDraft).
     const asProjectDraft = !!attachedProject && isTransfer && (isDraft || date > today);
 
-    try {
+    // ── NAVIGATION OPTIMISTE : on rend la main TOUT DE SUITE (retour à l'écran d'origine), la
+    // sauvegarde part en arrière-plan. La carte Pouls (host global) apparaît par-dessus l'écran
+    // d'origine dès l'insert ; en cas d'échec, une alerte globale prévient (appAlert), et le
+    // dialog « régul le même jour » (host global lui aussi) peut s'afficher après la navigation.
+    // Les valeurs du formulaire sont déjà CAPTURÉES dans des constantes locales → resetForm() ne
+    // change rien à la sauvegarde en vol.
+    const origin = params.origin ? decodeURIComponent(String(params.origin)) : null;
+    const finish = async () => {
       if (isTransfer && asProjectDraft) {
         const row = await addTransaction.mutateAsync({
           account_id: accountId,
@@ -453,11 +463,16 @@ export default function AddTransactionScreen() {
         if ((row as any)?.id) insertedIds.push((row as any).id);
       }
 
+      // Sécurité post-navigation : l'écran peut être démonté quand la mutation aboutit (les
+      // invalidations du onSuccess du hook peuvent alors être sautées) → on invalide EXPLICITEMENT
+      // ici, dans une chaîne qui survit au démontage. Doublon éventuel = dédupliqué par react-query.
+      queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['pilotage_data', user?.id] });
+
       // Projet : mensualité recalculée (mode « date cible », apport validé) + échéance planifiée du
       // même mois remplacée (anti double-compte). L'avancement, lui, est dérivé des transactions.
-      // EN ARRIÈRE-PLAN (pas d'await) : la transaction est déjà enregistrée et rattachée — inutile
-      // de faire attendre l'utilisateur 2 à 5 allers-retours de plus avant la confirmation. Best-
-      // effort : en cas d'échec, l'échéancier se réalignera à la prochaine modification du projet.
+      // Best-effort : en cas d'échec, l'échéancier se réalignera à la prochaine modification du projet.
       if (attachedProject) {
         // « Validée » = compte déjà dans l'avancement : ni brouillon, ni datée dans le futur.
         const validated = !isDraft && date <= today;
@@ -470,17 +485,22 @@ export default function AddTransactionScreen() {
           insertedIds,
         }).catch(() => {});
       }
+    };
 
-      // Cet écran reste MONTÉ dans la pile (expo-router) → sans remise à zéro, la saisie suivante
-      // rouvrirait pré-remplie avec les valeurs précédentes, directement à l'étape 2. On repart propre.
-      resetForm();
-      if (params.origin) { router.replace(decodeURIComponent(String(params.origin)) as any); }
-      else router.back();
-    } catch (e: unknown) {
+    // Retour IMMÉDIAT à l'écran d'origine (bouton d'accès rapide → origin ; sinon écran précédent),
+    // formulaire remis à neuf : l'utilisateur ne quitte jamais vraiment son écran.
+    resetForm();
+    if (origin) { router.replace(origin as any); }
+    else router.back();
+
+    finish().catch((e: unknown) => {
       // Limite d'usage serveur : le backstop global affiche déjà le dialog convivial → pas de doublon.
       if (parseUsageLimitError(e)) return;
-      showError(e instanceof Error ? e.message : 'Impossible d\'enregistrer.');
-    }
+      void appAlert({
+        title: 'Enregistrement impossible',
+        message: e instanceof Error ? e.message : 'La transaction n\'a pas pu être enregistrée. Réessaie.',
+      });
+    });
   }
 
   if (!user) {

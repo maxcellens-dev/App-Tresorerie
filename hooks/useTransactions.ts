@@ -276,6 +276,9 @@ export function useAddTransaction(profileId: string | undefined) {
       recomputeAccounts?: string[];
       /** Virement : la 1ʳᵉ jambe n'invalide pas les caches (la 2ᵉ le fait une seule fois). */
       skipInvalidations?: boolean;
+      /** Virement : émis par la 2ᵉ jambe dès son INSERT réussi (= virement committé) — la carte
+       *  Pouls apparaît sans attendre le recalcul des soldes. */
+      pulseTransferOp?: { amount: number; fromAccountId: string; toAccountId: string; isFuture: boolean } | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
@@ -331,6 +334,24 @@ export function useAddTransaction(profileId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
+
+      // POULS — émis DÈS l'insert réussi (la transaction existe : la confirmation peut apparaître),
+      // sans attendre le recalcul des soldes ni les invalidations. On ignore : brouillons, réguls,
+      // jambes de virement (la 2ᵉ jambe émet UN événement via pulseTransferOp).
+      const isTransferLeg = !!input.transfer_group_id || !!input.linked_account_id;
+      const signedAmount = Number(input.amount);
+      if (!input.is_draft && !isTransferLeg && signedAmount !== 0 && !isRegul(input)) {
+        emitPulseOp({
+          kind: signedAmount > 0 ? 'income' : 'expense',
+          amount: Math.abs(signedAmount),
+          accountId: input.account_id,
+          isFuture: input.date > localTodayISO(),
+        });
+      }
+      if (input.pulseTransferOp) {
+        emitPulseOp({ kind: 'transfer', ...input.pulseTransferOp });
+      }
+
       // Solde = recalcul depuis les faits (source de vérité, anti-dérive) — sauf si l'appelant
       // regroupe le recalcul (virement : un seul recompute pour les deux jambes, sur la 2ᵉ).
       if (!input.skipBalanceRecompute) await recomputeBalances(input.recomputeAccounts ?? [input.account_id]);
@@ -346,26 +367,13 @@ export function useAddTransaction(profileId: string | undefined) {
       return data;
     },
     onSuccess: (_data, input) => {
+      // (Le POULS est émis dans mutationFn, dès l'insert — pas ici.)
       // Virement : la 1ʳᵉ jambe n'invalide RIEN (sinon pilotage_data — le fetch le plus lourd —
       // repartirait deux fois : une par jambe). La 2ᵉ jambe déclenche les invalidations uniques.
       if (!input.skipInvalidations) {
         client.invalidateQueries({ queryKey: [KEY, profileId] });
         client.invalidateQueries({ queryKey: ['accounts', profileId] });
         client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
-      }
-
-      // POULS — l'utilisateur vient d'enregistrer une opération : on lui montre ce qui bouge.
-      // On ignore : les brouillons (rien n'est engagé), les régularisations (c'est une vérification,
-      // pas une dépense) et les JAMBES de virement (createTransferLegs émet UN événement pour les deux).
-      const isTransferLeg = !!input.transfer_group_id || !!input.linked_account_id;
-      const amount = Number(input.amount);
-      if (!input.is_draft && !isTransferLeg && amount !== 0 && !isRegul(input)) {
-        emitPulseOp({
-          kind: amount > 0 ? 'income' : 'expense',
-          amount: Math.abs(amount),
-          accountId: input.account_id,
-          isFuture: input.date > localTodayISO(),
-        });
       }
     },
   });
@@ -448,22 +456,19 @@ export async function createTransferLegs(
       linked_account_id: p.fromAccountId,
       ...common,
       recomputeAccounts: [p.fromAccountId, p.toAccountId],
+      // POULS — un virement = UN événement, émis par la 2ᵉ jambe DÈS son insert (= committé),
+      // sans attendre le recalcul groupé des soldes.
+      pulseTransferOp: (p.isDraft ?? false) ? null : {
+        amount: num,
+        fromAccountId: p.fromAccountId,
+        toAccountId: p.toAccountId,
+        isFuture: p.date > localTodayISO(),
+      },
     });
   } catch (legErr) {
     // Rollback : la suppression recalcule elle-même le solde de la source (aucune dérive).
     if (firstLegId) { try { await del.mutateAsync(firstLegId); } catch { /* best-effort */ } }
     throw legErr;
-  }
-
-  // POULS — un virement = UN événement (les 2 jambes ne s'annoncent pas séparément).
-  if (!(p.isDraft ?? false)) {
-    emitPulseOp({
-      kind: 'transfer',
-      amount: num,
-      fromAccountId: p.fromAccountId,
-      toAccountId: p.toAccountId,
-      isFuture: p.date > localTodayISO(),
-    });
   }
 }
 
