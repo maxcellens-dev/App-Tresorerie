@@ -328,8 +328,8 @@ export default function CreditAddScreen() {
   return (
     <View style={styles.root}>
       <ScreenGradient />
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title={editId ? 'Modifier le crédit' : 'Nouveau crédit'} onBack={() => router.back()} />
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {error && <View style={styles.errorBanner}><Ionicons name="alert-circle" size={16} color={COLORS.danger} /><Text style={styles.errorText}>{error}</Text></View>}

@@ -66,13 +66,31 @@ export default function ColorPickerModal({
   }, [visible, value]);
 
   const hex = hsvToHex(h, s, v);
-  // Synchronise le champ hex quand on bouge les curseurs.
-  useEffect(() => { setHexInput(hex); /* eslint-disable-next-line */ }, [h, s, v]);
+  // Saisie RVB (0-255 par canal) — champs synchronisés avec les curseurs, comme le hex.
+  const [rgbInput, setRgbInput] = useState({ r: '255', g: '0', b: '0' });
+  // Synchronise les champs hex + RVB quand on bouge les curseurs.
+  useEffect(() => {
+    setHexInput(hex);
+    const q = hsvToRgb(h, s, v);
+    setRgbInput({ r: String(q.r), g: String(q.g), b: String(q.b) });
+    /* eslint-disable-next-line */
+  }, [h, s, v]);
 
   const onHexChange = (t: string) => {
     const up = t.toUpperCase();
     setHexInput(up);
     if (isValidHex(up)) { const hsv = hexToHsv(up); setH(hsv.h); setS(hsv.s); setV(hsv.v); }
+  };
+
+  const onRgbChange = (ch: 'r' | 'g' | 'b', t: string) => {
+    const digits = t.replace(/[^0-9]/g, '').slice(0, 3);
+    const next = { ...rgbInput, [ch]: digits };
+    setRgbInput(next);
+    if (digits === '') return; // canal en cours d'effacement → on attend une valeur
+    const cur = hsvToRgb(h, s, v);
+    const val = (x: string, fallback: number) => (x === '' ? fallback : clamp(parseInt(x, 10), 0, 255));
+    const hsv = hexToHsv(rgbToHex(val(next.r, cur.r), val(next.g, cur.g), val(next.b, cur.b)));
+    setH(hsv.h); setS(hsv.s); setV(hsv.v);
   };
 
   // Glissement sur le carré saturation/luminosité.
@@ -140,6 +158,25 @@ export default function ColorPickerModal({
             />
           </View>
 
+          {/* Saisie RVB (0-255) — synchronisée avec la palette et le hex */}
+          <View style={styles.rgbRow}>
+            {(['r', 'g', 'b'] as const).map((ch, i) => (
+              <View key={ch} style={styles.rgbField}>
+                <Text style={styles.rgbLabel}>{['R', 'V', 'B'][i]}</Text>
+                <TextInput
+                  style={styles.rgbInput}
+                  value={rgbInput[ch]}
+                  onChangeText={(t) => onRgbChange(ch, t)}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                  placeholder="0"
+                  placeholderTextColor={COLORS.textSecondary}
+                  selectTextOnFocus
+                />
+              </View>
+            ))}
+          </View>
+
           <TouchableOpacity style={styles.confirmBtn} onPress={confirm} activeOpacity={0.85}>
             <Text style={styles.confirmText}>Valider</Text>
           </TouchableOpacity>
@@ -162,6 +199,12 @@ function makeStyles(c: any) {
     hueThumb: { position: 'absolute', left: -2, right: -2, height: 6, borderRadius: 3, borderWidth: 2, borderColor: '#fff', backgroundColor: 'transparent' },
     previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     preview: { width: 46, height: 46, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
+    rgbRow: { flexDirection: 'row', gap: 10 },
+    // Chaque canal = un encadré compact [label | valeur] : le label vit DANS l'encadré (pas de
+    // label flottant qui se fait recouvrir quand la place manque).
+    rgbField: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 10 },
+    rgbLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, marginRight: 6 },
+    rgbInput: { flex: 1, minWidth: 0, paddingVertical: 9, color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'center', ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     hexInput: { flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: c.text, fontSize: 15, fontWeight: '700', letterSpacing: 1, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
     confirmText: { fontSize: 15, fontWeight: '800', color: c.bg },

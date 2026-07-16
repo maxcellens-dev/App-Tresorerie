@@ -84,7 +84,7 @@ export default function CreditDetailScreen() {
 
   if (!credit || !amort) {
     return (
-      <View style={styles.root}><ScreenGradient /><SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader title="Crédit" onBack={() => router.back()} />
         <Text style={styles.empty}>Crédit introuvable.</Text>
       </SafeAreaView></View>
@@ -122,8 +122,8 @@ export default function CreditDetailScreen() {
   return (
     <View style={styles.root}>
       <ScreenGradient />
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader
           title={credit.label}
           onBack={() => router.back()}

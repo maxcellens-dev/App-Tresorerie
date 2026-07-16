@@ -189,7 +189,10 @@ async function fetchPilotageData(profileId: string): Promise<{
   const shared = await fetchSharedContribution(profileId);
   const sharedIdSet = new Set(Object.keys(shared.factorByAccount));
   const persoAccounts = allAccounts.filter((a) => !sharedIdSet.has(a.id) && !(a as any).is_joint);
-  const persoTransactions = (transactionsRes.data ?? []).filter((t: any) => !sharedIdSet.has(t.account_id));
+  // Échéances de crédit MATÉRIALISÉES (credit_kind, migration 143) : exclues du Pilotage — la charge
+  // crédit y est représentée par les récurrentes synthétiques (creditPilotTx) qui couvrent TOUS les
+  // mois (passés + futurs) ; garder les deux compterait chaque mensualité deux fois.
+  const persoTransactions = (transactionsRes.data ?? []).filter((t: any) => !sharedIdSet.has(t.account_id) && !t.credit_kind);
 
   // Crédit (Pilotage) — mensualités en récurrentes synthétiques (remboursement + assurance, catégorisées,
   // pondérées par le % d'impact du compte si partagé). Cohérent avec tréso/projection.
@@ -213,7 +216,8 @@ async function fetchPilotageData(profileId: string): Promise<{
     accounts: [...persoAccounts, ...shared.accounts],
     transactions: [
       ...persoTransactions.map((t: any) => ({ ...t, amount: Number(t.amount), account: t.account, category: t.category })),
-      ...shared.transactions,
+      // Même exclusion côté comptes partagés (les synthétiques crédit sont déjà pondérées par le % d'impact).
+      ...shared.transactions.filter((t: any) => !t.credit_kind),
       ...creditPilotTx,
     ] as TransactionWithCategory[],
     projects: (projectsRes.data ?? []).map((p: any) => ({

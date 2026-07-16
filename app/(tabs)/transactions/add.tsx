@@ -23,6 +23,10 @@ import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 import { notePlaceholder } from '../../../lib/txPlaceholders';
+import { useProjects } from '../../../hooks/useProjects';
+import { usePilotageData } from '../../../hooks/usePilotageData';
+import { useProjectAttach } from '../../../hooks/useProjectAttach';
+import { matchProjectsForTransaction } from '../../../lib/projectMatch';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -85,6 +89,12 @@ export default function AddTransactionScreen() {
   const addTransaction = useAddTransaction(user?.id);
   const { guard } = useUsageGuard(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);
+  // Rattachement à un projet EN COURS quand la saisie correspond à sa configuration (comptes d'un
+  // virement / compte + catégorie d'une dépense) : le projet se tient à jour sans repasser par
+  // l'écran Projets. Avancement dérivé du pilotage (mêmes chiffres que la page Projets).
+  const { data: projects = [] } = useProjects(user?.id);
+  const { data: pilotage } = usePilotageData(user?.id);
+  const attachToProject = useProjectAttach(user?.id);
 
   // Déterminer le type initial depuis les params ou par défaut 'expense'
   const getInitialType = (): TransactionType => {
@@ -115,6 +125,8 @@ export default function AddTransactionScreen() {
   // Saisie en 2 étapes (style banque) : étape 1 = qui/quoi, étape 2 = quand/récurrence.
   const [step, setStep] = useState<1 | 2>(1);
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
+  // Projet sélectionné pour rattacher la saisie (null = pas de rattachement).
+  const [attachProjectId, setAttachProjectId] = useState<string | null>(null);
 
   // Le bouton « + » (ou un lien) peut rouvrir cet écran DÉJÀ monté avec un type différent : expo-router
   // ne réinitialise alors pas le useState → on resynchronise le type sur le param à chaque changement.
@@ -148,11 +160,37 @@ export default function AddTransactionScreen() {
     setShowCalendar(false);
     setFormError(null);
     setErrorFields([]);
+    setAttachProjectId(null);
     setStep(1);
   }, []);
 
   // Changer de type → revenir à l'étape 1.
   const changeType = (t: TransactionType) => { setTransactionType(t); setStep(1); setFormError(null); setErrorFields([]); };
+
+  // ── Projets correspondant à la saisie (rattachement proposé à l'étape 2) ──
+  // Avancement (%) par projet — même source que la page Projets (dérivé des transactions).
+  const progressPctById = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of pilotage?.projects_with_progress ?? []) m[p.id] = p.progress_percentage;
+    return m;
+  }, [pilotage?.projects_with_progress]);
+  // Une récurrente ne se rattache pas (chaque occurrence devrait l'être individuellement) ; un
+  // remboursement non plus (entrée d'argent). Virement → projets « Mettre de côté » aux mêmes
+  // comptes ; dépense → projets « Dépenser petit à petit » au même compte + même catégorie.
+  const matchingProjects = useMemo(() => {
+    if (isRecurring) return [];
+    if (isTransfer && accountId && targetAccountId) {
+      return matchProjectsForTransaction({ kind: 'transfer', accountId, targetAccountId, projects, progressPctById });
+    }
+    if (isExpense && !isRefund && accountId && categoryId) {
+      return matchProjectsForTransaction({ kind: 'expense', accountId, categoryId, projects, progressPctById });
+    }
+    return [];
+  }, [isTransfer, isExpense, isRefund, isRecurring, accountId, targetAccountId, categoryId, projects, progressPctById]);
+  // Sélection nettoyée si elle ne correspond plus (changement de compte/catégorie/type).
+  useEffect(() => {
+    if (attachProjectId && !matchingProjects.some((p) => p.id === attachProjectId)) setAttachProjectId(null);
+  }, [matchingProjects, attachProjectId]);
 
   // Virement cross-devises : devise source ≠ devise destination → 2ᵉ champ « montant reçu ».
   const srcCurrency = accounts.find((a) => a.id === accountId)?.currency || 'EUR';
@@ -333,8 +371,42 @@ export default function AddTransactionScreen() {
     // Limite d'usage (transactions) — comptée sur le mois/l'année de la DATE choisie.
     if (!(await guard('transaction', { date }))) return;
 
+    // ── Rattachement à un projet (sélectionné à l'étape 2). Jamais pour une récurrente, ni pour
+    // un remboursement, ni pour un brouillon de DÉPENSE (une dépense de projet est validée
+    // d'emblée — c'est le modèle du mode « Dépenser petit à petit »).
+    const today = todayISO();
+    const attachedProject = (!isRecurring && attachProjectId
+      && !(isExpense && (isRefund || isDraft)))
+      ? matchingProjects.find((p) => p.id === attachProjectId) ?? null
+      : null;
+    const accumulatedBefore = attachedProject
+      ? ((progressPctById[attachedProject.id] ?? 0) / 100) * Number(attachedProject.target_amount)
+      : 0;
+    const insertedIds: string[] = [];
+    // Un virement futur (ou saisi en brouillon) rattaché devient une ÉCHÉANCE DE PROJET à valider :
+    // une seule jambe en brouillon, la jambe de crédit sera créée à la validation (même modèle que
+    // l'échéancier du projet — useValidateProjectDraft).
+    const asProjectDraft = !!attachedProject && isTransfer && (isDraft || date > today);
+
     try {
-      if (isTransfer) {
+      if (isTransfer && asProjectDraft) {
+        const row = await addTransaction.mutateAsync({
+          account_id: accountId,
+          category_id: null,
+          amount: -Math.abs(num),
+          date,
+          note: note || attachedProject!.name,
+          linked_account_id: targetAccountId,
+          is_draft: true,
+          is_recurring: false,
+          recurrence_rule: null,
+          recurrence_end_date: null,
+          project_id: attachedProject!.id,
+          checkRegulConflict: false,
+          on_behalf_member_id: params.on_behalf || null,
+        });
+        if ((row as any)?.id) insertedIds.push((row as any).id);
+      } else if (isTransfer) {
         // Atomicité (2 jambes + rollback) centralisée — logique unique partagée avec l'écran Virement.
         await createTransferLegs(addTransaction, deleteTransaction, {
           fromAccountId: accountId,
@@ -348,11 +420,13 @@ export default function AddTransactionScreen() {
           isRecurring,
           recurrenceRule,
           recurrenceEndDate: endDateISO,
+          // Projet posé sur les DEUX jambes, comme le fait la validation d'un brouillon de projet.
+          projectId: attachedProject?.id ?? null,
           checkRegulConflict: true,
           onBehalfMemberId: params.on_behalf || null,
         });
       } else {
-        await addTransaction.mutateAsync({
+        const row = await addTransaction.mutateAsync({
           account_id: accountId,
           category_id: categoryId || null,
           amount: finalAmount,
@@ -363,9 +437,31 @@ export default function AddTransactionScreen() {
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,
           recurrence_end_date: endDateISO,
+          project_id: attachedProject?.id ?? null,
           checkRegulConflict: true,
           on_behalf_member_id: params.on_behalf || null,
         });
+        if ((row as any)?.id) insertedIds.push((row as any).id);
+      }
+
+      // Projet : mensualité recalculée (mode « date cible », apport validé) + échéance planifiée du
+      // même mois remplacée (anti double-compte). L'avancement, lui, est dérivé des transactions.
+      if (attachedProject) {
+        // « Validée » = compte déjà dans l'avancement : ni brouillon, ni datée dans le futur.
+        const validated = !isDraft && date <= today;
+        try {
+          await attachToProject({
+            project: attachedProject,
+            amount: num,
+            date,
+            accumulatedBefore,
+            validated,
+            insertedIds,
+          });
+        } catch {
+          // Best-effort : la transaction est enregistrée et rattachée ; l'échéancier se réalignera
+          // à la prochaine modification du projet.
+        }
       }
 
       // Cet écran reste MONTÉ dans la pile (expo-router) → sans remise à zéro, la saisie suivante
@@ -571,6 +667,60 @@ export default function AddTransactionScreen() {
                   </>
                 )}
               </View>
+
+              {/* Rattachement à un projet EN COURS correspondant à la saisie (comptes du virement /
+                  compte + catégorie de la dépense). Pas pour une récurrente. */}
+              {!isRecurring && matchingProjects.length > 0 && (
+                <View style={styles.projectSection}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="flag-outline" size={16} color={COLORS.blue} />
+                    <Text style={[styles.label, { marginBottom: 0 }]}>
+                      {matchingProjects.length > 1 ? 'Projets correspondants' : 'Projet correspondant'}
+                    </Text>
+                  </View>
+                  <Text style={styles.projectHint}>
+                    {isTransfer
+                      ? 'Ce virement correspond à un projet en cours. \nRattache-le pour mettre à jour le projet automatiquement.'
+                      : 'Cette dépense correspond à un projet en cours. \nRattache-la pour mettre à jour le projet automatiquement.'}
+                  </Text>
+                  <View style={styles.chipRow}>
+                    <TouchableOpacity
+                      style={[styles.chip, !attachProjectId && styles.chipActive]}
+                      onPress={() => setAttachProjectId(null)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.chipText, !attachProjectId && styles.chipTextActive]}>Aucun</Text>
+                    </TouchableOpacity>
+                    {matchingProjects.map((p) => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[styles.chip, attachProjectId === p.id && styles.chipActive]}
+                        onPress={() => setAttachProjectId(p.id)}
+                        accessibilityRole="button"
+                      >
+                        <Text style={[styles.chipText, attachProjectId === p.id && styles.chipTextActive]}>
+                          {p.name} · {Math.round(progressPctById[p.id] ?? 0)} %
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {!!attachProjectId && (() => {
+                    const p = matchingProjects.find((x) => x.id === attachProjectId);
+                    if (!p) return null;
+                    const future = date > todayISO();
+                    if (isTransfer && future) {
+                      return <Text style={styles.projectHint}>Datée dans le futur : elle sera créée comme une échéance à valider (brouillon) du projet.</Text>;
+                    }
+                    return (
+                      <Text style={styles.projectHint}>
+                        {(p as any).allocation_type === 'date' && !future
+                          ? 'L’avancement du projet sera mis à jour et sa mensualité recalculée (montant restant ÷ mois restants). L’échéance prévue ce mois-ci est remplacée par cette saisie.'
+                          : 'L’avancement du projet sera mis à jour. L’échéance prévue ce mois-ci est remplacée par cette saisie.'}
+                      </Text>
+                    );
+                  })()}
+                </View>
+              )}
             </>
           )}
 
@@ -717,6 +867,8 @@ function makeStyles(c: any) {
   recurringLabel: { fontSize: 15, color: c.textSecondary },
   recurringLabelActive: { color: c.bg, fontWeight: '600' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  projectSection: { marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '44', backgroundColor: c.blue + '0D', gap: 8 },
+  projectHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },
   submitBtn: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   submitBtnPrimary: { backgroundColor: c.emerald },

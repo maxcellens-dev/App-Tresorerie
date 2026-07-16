@@ -29,7 +29,8 @@ function accountFactor(a: any): number {
 }
 
 /**
- * Transactions virtuelles (sorties mensuelles) des crédits, à partir du mois courant.
+ * Transactions virtuelles (sorties mensuelles) des crédits, FUTURES uniquement (date > aujourd'hui) :
+ * les échéances échues sont matérialisées en vraies transactions (useMaterializeCredits, migration 143).
  * @param scaled  true (défaut) : montants pondérés par le % d'impact du compte → vue AGRÉGATS PERSO
  *                (pilotage/projection/tréso). false : montant RÉEL complet → vue COMPTE / liste des
  *                transactions (le compte représente ce qu'il est, indépendamment de ma part d'impact).
@@ -42,7 +43,9 @@ export function useCreditFlows(profileId: string | undefined, scaled: boolean = 
   return useMemo(() => {
     const acctById: Record<string, any> = {};
     accounts.forEach((a) => { acctById[a.id] = a; });
-    const horizonStart = todayISO().slice(0, 8) + '01'; // passé = vraies transactions (anti double-compte)
+    // Passé (≤ aujourd'hui) = échéances MATÉRIALISÉES en vraies transactions (migration 143,
+    // useMaterializeCredits) → les flux virtuels ne couvrent plus que le FUTUR (anti double-compte).
+    const horizonAfter = todayISO();
     const flows: any[] = [];
     for (const c of credits) {
       if (!c.is_active || !c.account_id) continue;
@@ -59,10 +62,10 @@ export function useCreditFlows(profileId: string | undefined, scaled: boolean = 
       // L'assurance peut être prélevée à une date différente du remboursement → date dédiée.
       const insFirst = c.first_insurance_date || c.first_payment_date || c.start_date;
       for (const r of amort.schedule) {
-        if (r.payment > 0 && r.date >= horizonStart) flows.push(mkFlow(c, r.period, 'pay', -(r.payment * f), r.date, repayCat, cur));
+        if (r.payment > 0 && r.date > horizonAfter) flows.push(mkFlow(c, r.period, 'pay', -(r.payment * f), r.date, repayCat, cur));
         if (r.insurance > 0) {
           const insDate = addMonthsISO(insFirst, r.period - 1);
-          if (insDate >= horizonStart) flows.push(mkFlow(c, r.period, 'ins', -(r.insurance * f), insDate, insCat, cur));
+          if (insDate > horizonAfter) flows.push(mkFlow(c, r.period, 'ins', -(r.insurance * f), insDate, insCat, cur));
         }
       }
     }

@@ -101,6 +101,9 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
   return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// Puces du filtre de comptes : ordre d'affichage par type (Courant → Épargne → Invest → Autre).
+const ACCOUNT_TYPE_ORDER: Record<string, number> = { checking: 0, savings: 1, investment: 2, other: 3 };
+
 // Élément de la liste APLATIE (FlatList) — un type par « brique » visuelle.
 type TxListItem =
   | { t: 'ad'; placement: string; k: string }
@@ -180,6 +183,12 @@ export default function TransactionsListScreen() {
     for (const a of accounts) m[a.id] = a;
     return m;
   }, [accounts]);
+  // Puces triées par type (Courant → Épargne → Invest → Autre) ; ordre d'origine conservé au sein
+  // d'un même type (tri stable).
+  const sortedAccounts = useMemo(
+    () => [...accounts].sort((a: any, b: any) => (ACCOUNT_TYPE_ORDER[a.type] ?? 9) - (ACCOUNT_TYPE_ORDER[b.type] ?? 9)),
+    [accounts]
+  );
   // Transaction détaillée en lecture seule (compte reçu en consultation) → ouvre une feuille du bas.
   const [detailTx, setDetailTx] = useState<any | null>(null);
   const { data: detailParticipants = [] } = useAccountParticipants(detailTx?.account_id);
@@ -830,7 +839,7 @@ export default function TransactionsListScreen() {
             >
               <Text style={[styles.accountFilterChipText, accountFilterIds.length === 0 && styles.accountFilterChipTextActive]}>Tous</Text>
             </TouchableOpacity>
-            {accounts.map((acc) => {
+            {sortedAccounts.map((acc) => {
               const selected = accountFilterIds.includes(acc.id);
               return (
                 <TouchableOpacity

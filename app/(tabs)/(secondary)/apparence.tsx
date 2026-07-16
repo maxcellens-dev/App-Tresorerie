@@ -1,8 +1,8 @@
 /**
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Platform } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import ScreenHeader from '../../../components/ScreenHeader';
@@ -200,16 +200,17 @@ export default function AppearanceScreen() {
                   <Text style={styles.hint}>Choisissez votre propre teinte d'accent.</Text>
 
                   <View style={styles.customRow}>
-                    {Platform.OS === 'web' ? (
-                      // Palette (sélecteur natif) → applique directement la couleur.
-                      React.createElement('input', {
-                        type: 'color',
-                        value: customValid ? customHex : '#000000',
-                        onChange: (e: any) => onHexChange(e.target.value),
-                        style: { width: 44, height: 44, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' },
-                        'aria-label': 'Choisir une couleur',
-                      })
-                    ) : null}
+                    {/* SÉLECTEUR (à gauche) : ouvre la palette HSV/RVB — même modal sur toutes les
+                        plateformes (l'ancien <input type="color"> web faisait doublon). */}
+                    <TouchableOpacity
+                      style={styles.pickerBtn}
+                      onPress={() => setShowColorPicker(true)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Ouvrir la palette de couleurs"
+                    >
+                      <Ionicons name="color-palette-outline" size={20} color={COLORS.text} />
+                    </TouchableOpacity>
                     <TextInput
                       style={[styles.hexInput, !customValid && { borderColor: COLORS.danger }]}
                       value={customHex}
@@ -219,16 +220,13 @@ export default function AppearanceScreen() {
                       autoCapitalize="characters"
                       maxLength={7}
                     />
-                    {/* Aperçu de la couleur — CLIQUABLE : ouvre la palette (choix manuel à la souris/doigt). */}
-                    <TouchableOpacity
+                    {/* CARRÉ DE RENDU (à droite) : aperçu pur de la couleur choisie (coche = appliquée). */}
+                    <View
                       style={[styles.customPreview, { backgroundColor: customValid ? customHex : COLORS.cardBorder }, customActive && { borderColor: COLORS.text, borderWidth: 2 }]}
-                      onPress={() => setShowColorPicker(true)}
-                      activeOpacity={0.8}
-                      accessibilityRole="button"
-                      accessibilityLabel="Ouvrir la palette de couleurs"
+                      accessibilityLabel="Aperçu de la couleur"
                     >
-                      {customActive ? <Ionicons name="checkmark" size={18} color="#ffffff" /> : <Ionicons name="color-palette-outline" size={16} color={customValid ? '#ffffff' : COLORS.textSecondary} />}
-                    </TouchableOpacity>
+                      {customActive && <Ionicons name="checkmark" size={18} color="#ffffff" />}
+                    </View>
                     <TouchableOpacity
                       style={[styles.applyBtn, !customValid && { opacity: 0.5 }]}
                       onPress={applyHex}
@@ -330,6 +328,7 @@ function makeStyles(c: any) {
     hint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginTop: -2 },
     customRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
     customPreview: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder },
+    pickerBtn: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     hexInput: { width: 110, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, color: c.text, backgroundColor: c.bg, fontSize: 14, letterSpacing: 1 },
     applyBtn: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 10, backgroundColor: c.emerald },
     applyBtnText: { fontSize: 14, fontWeight: '700', color: c.bg },

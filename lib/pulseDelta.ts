@@ -118,7 +118,13 @@ function impactedSignalIds(op: PulseOp): PulseSignalId[] {
   if (op.isFuture) return ['end_of_month'];
 
   if (op.kind === 'income') return ['end_of_month', 'spending'];
-  if (op.kind === 'expense') return ['spending', 'end_of_month'];
+  if (op.kind === 'expense') {
+    // Sortie directe sur l'épargne (retrait) → c'est le MATELAS qui bouge, pas l'enveloppe
+    // variable ; sur l'invest (moins-value/retrait) → la carte investissement (total investi).
+    if (op.accountType === 'savings') return ['cushion', 'end_of_month'];
+    if (op.accountType === 'investment') return ['investing', 'end_of_month'];
+    return ['spending', 'end_of_month'];
+  }
 
   // Virement : la carte reflète OÙ va l'argent — épargne → « Épargne du mois », invest →
   // « Investissement du mois ». Courant → courant : rien ne bouge côté épargne/invest, on garde
@@ -127,6 +133,25 @@ function impactedSignalIds(op: PulseOp): PulseSignalId[] {
   if (op.toType === 'investment') return ['investing', 'end_of_month'];
   if (op.fromType === 'savings' || op.fromType === 'investment') return ['cushion', 'end_of_month'];
   return ['end_of_month']; // courant → courant
+}
+
+/**
+ * Signaux dont un CHANGEMENT D'ÉTAT mérite une pastille pour CE geste : uniquement ceux que le
+ * geste affecte par nature. Sans ce filtre, les effets DÉRIVÉS de la capacité théorique remontent —
+ * ex. une dépense réduit le budget libre → la capacité d'investissement baisse → « Investissement
+ * du mois : Bon rythme » s'affiche après une DÉPENSE (dépenser « améliorerait » l'invest, absurde).
+ */
+function relevantFlipIds(op: PulseOp): Set<PulseSignalId> {
+  if (op.kind === 'expense') {
+    return new Set<PulseSignalId>(
+      op.accountType === 'savings' ? ['cushion', 'end_of_month']
+      : op.accountType === 'investment' ? ['investing', 'end_of_month']
+      : ['spending', 'end_of_month', 'no_overdraft'],
+    );
+  }
+  if (op.kind === 'income') return new Set<PulseSignalId>(['end_of_month', 'no_overdraft']);
+  // Virement : épargne/invest/matelas + fin de mois, selon les jambes.
+  return new Set<PulseSignalId>(['saving', 'investing', 'cushion', 'end_of_month']);
 }
 
 const MAX_CHIPS = 3;
@@ -155,11 +180,15 @@ export function computeOpFeedback(
     }
     // Le geste a fait basculer un AUTRE signal (ex. une grosse dépense fait passer la fin de mois
     // dans le rouge) → on le dit aussi, en pastille : c'est exactement l'info qui doit alerter.
+    // Filtré aux signaux que CE geste affecte par nature (relevantFlipIds) : les bascules dérivées
+    // de la capacité théorique (invest/épargne après une dépense…) sont du bruit, pas une info.
     if (before) {
+      const relevant = relevantFlipIds(op);
       const beforeById = new Map(before.signals.map((s) => [s.id, s]));
       for (const s of after.signals) {
         if (chips.length >= MAX_CHIPS) break;
         if (s.id === signal?.id) continue;
+        if (!relevant.has(s.id)) continue;
         const prev = beforeById.get(s.id);
         if (!prev || prev.status === s.status) continue;
         if (s.status === 'estimated' || s.status === 'neutral') continue;

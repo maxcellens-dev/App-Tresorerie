@@ -374,6 +374,8 @@ export default function AccountDetailScreen() {
     if (!id) return [];
     const today = todayISO();
     const allTx = transactions as TransactionWithDetails[];
+    // Les échéances de crédit échues sont de VRAIES lignes (matérialisation, migration 143) → elles
+    // arrivent naturellement ici via useAllTransactions, comme toute transaction du compte.
     return allTx
       .filter((t) => t.account_id === id && !(t as any).is_draft && t.date <= today)
       .sort(compareTransactionsForDisplay);

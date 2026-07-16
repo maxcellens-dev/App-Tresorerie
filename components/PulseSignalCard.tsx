@@ -65,22 +65,30 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
       <Text style={styles.headline}>{signal.headline}</Text>
       {!!signal.detail && <Text style={styles.detail}>{signal.detail}</Text>}
 
-      {signal.progress && (
-        <View style={styles.track}>
-          <Animated.View
-            style={[
-              styles.fill,
-              {
-                backgroundColor: color,
-                width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-              },
-            ]}
-          />
-          {signal.progress.target != null && signal.progress.target < 1 && (
-            <View style={[styles.tick, { left: `${signal.progress.target * 100}%` }]} />
-          )}
-        </View>
-      )}
+      {signal.progress && (() => {
+        // Trait de seuil (ex. « bon rythme » = X % de la capacité) : affiché avec son % en dessous,
+        // pour que le repère soit lisible sans deviner ce qu'il marque.
+        const tickPct = signal.progress.target != null && signal.progress.target < 1 ? signal.progress.target : null;
+        return (
+          <View style={[styles.track, tickPct != null && styles.trackWithTickLabel]}>
+            <Animated.View
+              style={[
+                styles.fill,
+                {
+                  backgroundColor: color,
+                  width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                },
+              ]}
+            />
+            {tickPct != null && (
+              <>
+                <View style={[styles.tick, { left: `${tickPct * 100}%` }]} />
+                <Text style={[styles.tickLabel, { left: `${tickPct * 100}%` }]}>{Math.round(tickPct * 100)} %</Text>
+              </>
+            )}
+          </View>
+        );
+      })()}
 
       {!!signal.amountLine && <Text style={styles.amount}>{signal.amountLine}</Text>}
     </Animated.View>
@@ -109,6 +117,10 @@ function makeStyles(c: AppColors) {
     },
     fill: { height: 6, borderRadius: 999 },
     tick: { position: 'absolute', top: -3, width: 2, height: 12, borderRadius: 2, backgroundColor: c.textSecondary },
+    // Le % du seuil, centré sous son trait. La piste réserve la place en dessous (marge) pour que
+    // le label ne chevauche pas la ligne de total qui suit.
+    trackWithTickLabel: { marginBottom: 16 },
+    tickLabel: { position: 'absolute', top: 11, width: 44, marginLeft: -22, textAlign: 'center', fontSize: 10, fontWeight: '700', color: c.textSecondary },
     amount: { fontSize: 11.5, color: c.textSecondary, marginTop: 10, fontWeight: '600' },
   });
 }

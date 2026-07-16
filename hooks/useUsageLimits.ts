@@ -64,8 +64,10 @@ export function useUsageGuard(userId: string | undefined) {
         const date = (opts?.date ?? todayISO()).slice(0, 10);
         const mb = monthBounds(date);
         const yb = yearBounds(date);
+        // Exclues du comptage comme côté serveur (migration 135/143) : occurrences de récurrentes
+        // matérialisées ET échéances de crédit matérialisées (lignes système, pas des saisies).
         const base = () => supabase!.from('transactions').select('id', { count: 'exact', head: true })
-          .eq('profile_id', userId).is('materialized_from', null);
+          .eq('profile_id', userId).is('materialized_from', null).is('credit_kind', null);
         const [{ count: cm }, { count: cy }] = await Promise.all([
           base().gte('date', mb.start).lte('date', mb.end),
           base().gte('date', yb.start).lte('date', yb.end),

@@ -216,6 +216,10 @@ export interface Transaction {
   recurrence_end_date?: string | null;
   /** Modèle récurrent d'origine si cette ligne est une occurrence matérialisée. */
   materialized_from?: string | null;
+  /** Échéance de crédit matérialisée (migration 143) : crédit d'origine + nature + n° d'échéance. */
+  credit_id?: string | null;
+  credit_kind?: 'pay' | 'ins' | null;
+  credit_period?: number | null;
   /** Portée au solde du compte ? false pour une dépense future non récurrente en attente d'échéance. */
   posted?: boolean;
   /** §P12 — Transaction datée LE JOUR d'une régularisation et déclarée « déjà incluse » dans ce
@@ -293,6 +297,10 @@ export interface Credit {
   deferral_interest_mode?: 'capitalized' | 'deferred' | null;
   is_simulation: boolean;
   is_active: boolean;
+  /** Borne de matérialisation (migration 143) : les échéances ≤ cette date ne sont jamais matérialisées. */
+  materialized_until?: string;
+  /** Empreinte du tableau publié dans credit_schedule (cache serveur) — republication si différente. */
+  schedule_hash?: string | null;
   notes?: string | null;
   /** Rôle de l'utilisateur courant sur ce crédit : 'owner' (le mien) ou 'write'/'read' (crédit partagé reçu). */
   _role?: 'owner' | 'write' | 'read';

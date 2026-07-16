@@ -294,6 +294,21 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
     expect(f.chips.some((c) => c.text.includes('Ton Relyka'))).toBe(true);
   });
 
+  it('une dépense ne fait jamais remonter une bascule « Investissement » (effet dérivé de la capacité)', () => {
+    // La dépense réduit le budget libre → la CAPACITÉ d'investissement baisse → le ratio placé/capacité
+    // passe au vert tout seul. Vrai mécaniquement, absurde à annoncer après une dépense.
+    const b = computePulse(inputs({ investedThisMonth: 100 }), allCfg, 'full'); // sous le seuil → watch
+    const a = computePulse(inputs({ investedThisMonth: 100, investCapacity: 150, spendingSoFar: 500 }), allCfg, 'full'); // capacité réduite → good
+    const f = computeOpFeedback({ kind: 'expense', amount: 220 }, b, a, 400, 180);
+    expect(f.signal?.id).toBe('spending');
+    expect(f.chips.some((c) => plain(c.text).includes('Investissement'))).toBe(false);
+  });
+
+  it('un retrait sur l’épargne montre le MATELAS, pas l’enveloppe variable', () => {
+    const f = computeOpFeedback({ kind: 'expense', amount: 220, accountType: 'savings' }, before, after, 400, 180);
+    expect(f.signal?.id).toBe('cushion');
+  });
+
   it('un virement vers l’épargne montre la carte ÉPARGNE (pas Fin de mois)', () => {
     const f = computeOpFeedback(
       { kind: 'transfer', amount: 200, fromType: 'checking', toType: 'savings' },

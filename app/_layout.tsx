@@ -22,6 +22,7 @@ import PulseDeltaHost from '../components/PulseDeltaHost';
 import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/useConfigSync';
 import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
+import { useMaterializeCredits } from '../hooks/useMaterializeCredits';
 import { supabase } from '../lib/supabase';
 import HeaderWithProfile from '../components/HeaderWithProfile';
 import { LEGAL_DESKTOP_MIN_WIDTH } from '../components/LegalLayout';
@@ -229,6 +230,8 @@ function RecurringMaterializer() {
   // inclut pas, alors que le suivi/les transactions les projettent (incohérence épargne/invest). Les
   // écritures admin sont autorisées (migration 102 : is_app_admin), donc consulter reflète le réel.
   useMaterializeRecurring(user?.id);
+  // Échéances de crédit échues → vraies transactions (migration 143), même logique et mêmes raisons.
+  useMaterializeCredits(user?.id);
   return null;
 }
 

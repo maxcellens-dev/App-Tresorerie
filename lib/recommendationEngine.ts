@@ -222,6 +222,51 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * Allocation (%) par poste — LA source unique des pourcentages de répartition, partagée entre le
+ * moteur de recos et le Pouls (capacité d'investissement) : profil P1-P5 (ou paliers d'épargne +
+ * préférences custom en legacy), puis modificateurs contextuels, normalisation à 100 %.
+ * Sans ça, deux écrans peuvent annoncer des montants « plaçables » différents pour le même mois.
+ */
+export function deriveRecoAllocations(
+  data: PilotageData,
+  opts: { customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>; financialProfileId?: FinancialProfileId } = {},
+): { tier: SavingsTier; alloc: Record<RecoType, number> } {
+  let tier: SavingsTier;
+  let alloc: Record<RecoType, number>;
+
+  if (opts.financialProfileId) {
+    // Nouveau système : profil P1-P5 détermine directement les allocations
+    alloc = { ...PROFILE_ALLOCATIONS[opts.financialProfileId] };
+    const tierMap: Record<FinancialProfileId, SavingsTier> = {
+      P1: 'critical',
+      P2: 'below_optimal',
+      P3: 'healthy',
+      P4: 'p4_dynamic',
+      P5: 'comfortable',
+    };
+    tier = tierMap[opts.financialProfileId];
+  } else {
+    // Ancien système : palier déterminé par le montant d'épargne
+    tier = determineTier(
+      data.current_savings,
+      data.safety_threshold_min,
+      data.safety_threshold_optimal,
+      data.safety_threshold_comfort,
+    );
+    const tierTable = opts.customTierAllocations ?? TIER_ALLOCATIONS;
+    alloc = { ...tierTable[tier] };
+    applyUserAllocationPreferences(alloc, data);
+  }
+
+  // Modificateurs contextuels puis normalisation à 100 %.
+  applyVariableTrendModifier(alloc, data.variable_trend_percentage);
+  applyCheckingHealthModifier(alloc, data);
+  applyInvestmentRatioModifier(alloc, data);
+  normalizeAllocations(alloc);
+  return { tier, alloc };
+}
+
 /* ── Moteur principal ────────────────────────────────────── */
 
 /** Seuils minimums de reste disponible pour afficher chaque type de reco. */
@@ -314,40 +359,7 @@ export function computeRecommendations(
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
 
-  let tier: SavingsTier;
-  let alloc: Record<RecoType, number>;
-
-  if (financialProfileId) {
-    // Nouveau système : profil P1-P5 détermine directement les allocations
-    alloc = { ...PROFILE_ALLOCATIONS[financialProfileId] };
-    const tierMap: Record<FinancialProfileId, SavingsTier> = {
-      P1: 'critical',
-      P2: 'below_optimal',
-      P3: 'healthy',
-      P4: 'p4_dynamic',
-      P5: 'comfortable',
-    };
-    tier = tierMap[financialProfileId];
-  } else {
-    // Ancien système : palier déterminé par le montant d'épargne
-    tier = determineTier(
-      data.current_savings,
-      data.safety_threshold_min,
-      data.safety_threshold_optimal,
-      data.safety_threshold_comfort,
-    );
-    const tierTable = customTierAllocations ?? TIER_ALLOCATIONS;
-    alloc = { ...tierTable[tier] };
-    applyUserAllocationPreferences(alloc, data);
-  }
-
-  // 3. Modificateurs contextuels
-  applyVariableTrendModifier(alloc, data.variable_trend_percentage);
-  applyCheckingHealthModifier(alloc, data);
-  applyInvestmentRatioModifier(alloc, data);
-
-  // 4. Normaliser à 100 %
-  normalizeAllocations(alloc);
+  const { tier, alloc } = deriveRecoAllocations(data, { customTierAllocations, financialProfileId });
 
   // 5. Filtrer les recommandations trop petites (< seuil minimum)
   const types: RecoType[] = ['save', 'invest', 'enjoy', 'keep'];

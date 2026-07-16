@@ -129,8 +129,14 @@ export default function PilotageScreen() {
   const { data: sharedContrib } = useSharedContribution(user?.id);
   // C3/Pilotage — mensualités de crédit en dépense récurrente synthétique (cohérent avec les cursors).
   const creditPilotTx = useCreditPilotTemplates(user?.id);
+  // Échéances de crédit MATÉRIALISÉES (credit_kind, migration 143) exclues : la charge crédit est déjà
+  // représentée par les synthétiques creditPilotTx (tous les mois) — sinon double compte.
   const txForConseils = useMemo(
-    () => [...txPersoForConseils, ...(sharedContrib?.transactions ?? []), ...creditPilotTx],
+    () => [
+      ...txPersoForConseils.filter((t: any) => !t.credit_kind),
+      ...(sharedContrib?.transactions ?? []).filter((t: any) => !t.credit_kind),
+      ...creditPilotTx,
+    ],
     [txPersoForConseils, sharedContrib, creditPilotTx],
   );
   const { data: categoriesList = [] } = useCategories(user?.id);

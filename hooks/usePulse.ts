@@ -20,6 +20,8 @@ import { usePulseSnapshots } from './usePulseState';
 import { computePulse, monthKey, PULSE_SIGNAL_IDS, type PulseInputs, type PulseResult } from '../lib/pulseEngine';
 import { computeInvestmentGains } from '../lib/investment';
 import { computeRelyka } from '../lib/relyka';
+import { deriveRecoAllocations } from '../lib/recommendationEngine';
+import { useRecommendationTiers } from './useRecommendationTiers';
 import type { FinancialProfileId } from '../types/database';
 
 /** Dernier jour du mois « YYYY-MM » au format ISO. */
@@ -103,6 +105,9 @@ export function usePulse(): PulseData | null {
   const { data: config } = usePulseConfig();
   const { data: relCfg } = useReliabilityConfig();
   const { data: snapshots = [] } = usePulseSnapshots(user?.id);
+  // Allocations par poste — MÊME pipeline que le moteur de recos (profil P1-P5 + modificateurs),
+  // sinon le Pouls et la reco « Investir » annoncent deux montants différents pour le même mois.
+  const { data: customTiers } = useRecommendationTiers();
 
   return useMemo<PulseData | null>(() => {
     if (!pilotage || !config?.enabled) return null;
@@ -143,18 +148,47 @@ export function usePulse(): PulseData | null {
     const confidence = relCfg ? deriveRelykaConfidence(pilotage, relyka, relCfg) : null;
     const lowConfidence = confidence?.result.level === 'low';
 
-    // ── Capacité d'investissement du mois : ce qu'il POUVAIT placer (budget libre + déjà placé),
-    // à hauteur de l'allocation de son profil. Sans ça, la capacité tomberait à 0 en fin de mois.
-    const investPct = Number((profile as any)?.allocation_invest_percent ?? 25);
-    const savePct = Number((profile as any)?.allocation_save_percent ?? 25);
+    // ── Capacité d'investissement du mois : ce qu'il POUVAIT placer (déjà placé compris).
+    // %s dérivés par deriveRecoAllocations — la MÊME source que les recos du Pilotage (profil P1-P5
+    // + modificateurs contextuels), et non les colonnes brutes allocation_*_percent du profil
+    // (ignorées par les recos dès qu'un profil financier existe → 430 € ici vs 800 € en reco).
+    const { alloc } = deriveRecoAllocations(pilotage, {
+      customTierAllocations: customTiers,
+      financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
+    });
+    const investPct = alloc.invest;
+    const savePct = alloc.save;
     const investedThisMonth = Math.max(0, pilotage.real_invest ?? 0);
     const savedThisMonth = Math.max(0, pilotage.real_savings_excl_projects ?? 0);
-    const investCapacity = Math.max(0, (relyka + investedThisMonth) * (investPct / 100));
-    // Anneau hebdo : épargné + investi vs la capacité COMBINÉE du mois (parts épargne + invest).
+    // Base = MÊME budget que le moteur de recos (recoBaselineBudget, cf. pilotage.tsx §P7) : budget
+    // BRUT avant répartition volontaire (point bas − enveloppe variable restante − marge),
+    // reconstitué des efforts déjà EXÉCUTÉS ce mois (épargne + invest sortis du solde) et du
+    // dépassement variable. Le Relyka, lui, déduit AUSSI les virements prévus/réservations/cumuls
+    // → il sous-estimait la capacité vs la reco (716 € ici vs 869 € théoriques côté recos).
+    const investExecuted = Math.max(0, (pilotage.month_invest_total ?? 0) - (pilotage.month_invest_future ?? 0));
+    const savingsExecuted = Math.max(0, (pilotage.month_savings_total ?? 0) - (pilotage.month_savings_future ?? 0));
+    const variableOverspend = Math.max(0, (pilotage.variable_envelope_spent ?? 0) - (pilotage.variable_envelope_initial ?? 0));
+    const grossBudget = Math.max(0, relykaInputs.cashflowTrough - relykaInputs.variableEnvelopeRemaining - safetyMargin)
+      + variableOverspend + savingsExecuted + investExecuted;
+    // Garde-fou MARGE × PROJECTION 6 MOIS — même règle que le moteur de recos : « sans te mettre en
+    // difficulté » n'est vrai que si le point bas projeté reste au-dessus de la marge de sécurité.
+    // headroom = ce qui peut ENCORE sortir du compte ; le déjà placé/épargné est déjà dans la
+    // trajectoire → plafond = déjà fait + headroom. null si pas de marge/trajectoire (pas de garde).
+    const guardBalances = pilotage.projection_balances_6m ?? [];
+    const headroom = guardBalances.length > 0 && safetyMargin > 0
+      ? Math.max(0, Math.min(...guardBalances) - safetyMargin)
+      : null;
+    const capWithHeadroom = (cap: number, done: number) =>
+      headroom != null ? Math.min(cap, done + headroom) : cap;
+    const investCapacity = capWithHeadroom(Math.max(0, grossBudget * (investPct / 100)), investedThisMonth);
+    // Anneau hebdo : épargné + investi vs la capacité COMBINÉE du mois (parts épargne + invest),
+    // plafonnée par le même garde-fou (le headroom couvre épargne + invest ensemble, comme les recos).
     const weeklyStats = {
       saved: savedThisMonth,
       invested: investedThisMonth,
-      capacity: Math.max(0, (relyka + savedThisMonth + investedThisMonth) * ((savePct + investPct) / 100)),
+      capacity: capWithHeadroom(
+        Math.max(0, grossBudget * ((savePct + investPct) / 100)),
+        savedThisMonth + investedThisMonth),
     };
 
     // ── Investissement : ce que ça a rapporté (plus/moins-values saisies sur les comptes d'invest).
@@ -242,7 +276,7 @@ export function usePulse(): PulseData | null {
     };
   }, [
     pilotage, profile, transactions, accounts, projects, preSavings, reservations,
-    financialProfile, answers, config, relCfg, snapshots, user?.id,
+    financialProfile, answers, config, relCfg, snapshots, customTiers, user?.id,
   ]);
 }
 

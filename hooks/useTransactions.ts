@@ -356,6 +356,9 @@ export interface CreateTransferLegsInput {
   isRecurring?: boolean;
   recurrenceRule?: RecurrenceRule | null;
   recurrenceEndDate?: string | null;
+  /** Rattachement à un PROJET (mode « Mettre de côté ») : posé sur les DEUX jambes, comme le fait
+   *  la validation d'un brouillon de projet (useValidateProjectDraft). */
+  projectId?: string | null;
   /** Saisie interactive : demander, pour chaque jambe, si l'opération est déjà incluse dans une
    *  régularisation de solde du même jour (cf. addTransaction.checkRegulConflict). */
   checkRegulConflict?: boolean;
@@ -387,6 +390,7 @@ export async function createTransferLegs(
     recurrence_rule: p.isRecurring ? (p.recurrenceRule ?? null) : null,
     recurrence_end_date: p.recurrenceEndDate ?? null,
     transfer_group_id: groupId,
+    project_id: p.projectId ?? null,
     // Chaque jambe vérifie sa propre date vs une éventuelle régul sur SON compte.
     checkRegulConflict: p.checkRegulConflict ?? false,
     on_behalf_member_id: p.onBehalfMemberId ?? null,
