@@ -85,6 +85,13 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
     <Tabs
+      // PERF (natif) : par défaut react-native-screens DÉTACHE les onglets inactifs de la
+      // hiérarchie native et doit RÉ-ATTACHER tout l'arbre de vues au retour (centaines de vues
+      // sur les gros écrans) → délai perceptible à chaque changement d'onglet, même vers une page
+      // déjà montée. Sur web c'est un simple display:none — d'où « web fluide, app lente » sur le
+      // même téléphone. detachInactiveScreens={false} = les 5 onglets restent attachés, le
+      // changement d'onglet redevient un pur toggle de visibilité (coût mémoire accepté).
+      detachInactiveScreens={false}
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: true,

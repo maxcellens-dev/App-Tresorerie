@@ -35,7 +35,14 @@ export default function CustomTabBar({ state, navigation }: any) {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const activeRoute = state?.routes?.[state.index]?.name;
+  const navActiveRoute = state?.routes?.[state.index]?.name;
+  // Surlignage OPTIMISTE : l'onglet tapé s'allume À LA FRAME DU TAP (état local synchrone), sans
+  // attendre que la navigation/le rendu de l'écran aboutisse → la barre répond toujours instantanément.
+  const [pressedTab, setPressedTab] = React.useState<TabName | null>(null);
+  useEffect(() => {
+    if (pressedTab && navActiveRoute === pressedTab) setPressedTab(null);
+  }, [navActiveRoute, pressedTab]);
+  const activeRoute = pressedTab ?? navActiveRoute;
   const { user } = useAuth();
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const rwInviteCount = rwInvitations.length;
@@ -68,6 +75,7 @@ export default function CustomTabBar({ state, navigation }: any) {
             key={it.name}
             style={styles.item}
             onPress={() => {
+              setPressedTab(it.name); // feedback visuel immédiat, avant la navigation
               if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED);
               // `navigation.navigate` DIRECT (pas router.push) : pas de résolution d'URL/linking sur
               // le chemin du tap. `screen: 'index'` → un onglet à pile imbriquée revient à sa racine
