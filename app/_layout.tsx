@@ -19,6 +19,7 @@ import UpdateBanner from '../components/UpdateBanner';
 import AchievementCelebration from '../components/AchievementCelebration';
 import PulseHost from '../components/PulseHost';
 import PulseDeltaHost from '../components/PulseDeltaHost';
+import DataPrefetcher from '../components/DataPrefetcher';
 import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/useConfigSync';
 import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
@@ -397,6 +398,7 @@ export default function RootLayout() {
             <CalculatorProvider>
               <ConfigSync />
               <PilotagePrefetch />
+              <DataPrefetcher />
               <ForegroundRefetch />
               <UsagePremiumSync />
               <FontApplier />

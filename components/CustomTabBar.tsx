@@ -6,7 +6,6 @@ import GuideRing from './GuideRing';
 /** Événement émis quand on tape l'onglet « Comptes » → la page réinitialise son sous-onglet sur « Comptes ». */
 export const COMPTES_TAB_PRESSED = 'comptesTabPressed';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,8 +31,7 @@ const ITEMS: TabItem[] = [
   { name: 'projection', label: 'Projection', icon: 'trending-up' },
 ];
 
-export default function CustomTabBar({ state }: any) {
-  const router = useRouter();
+export default function CustomTabBar({ state, navigation }: any) {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -69,7 +67,15 @@ export default function CustomTabBar({ state }: any) {
           <TouchableOpacity
             key={it.name}
             style={styles.item}
-            onPress={() => { if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED); router.push(`/(tabs)/${it.name}` as any); }}
+            onPress={() => {
+              if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED);
+              // `navigation.navigate` DIRECT (pas router.push) : pas de résolution d'URL/linking sur
+              // le chemin du tap. `screen: 'index'` → un onglet à pile imbriquée revient à sa racine
+              // (même comportement qu'avant : taper l'onglet ramène toujours à la liste).
+              const nested = it.name === 'comptes' || it.name === 'transactions' || it.name === 'projects';
+              if (nested) navigation.navigate(it.name, { screen: 'index' });
+              else navigation.navigate(it.name);
+            }}
             accessibilityRole="button"
           >
             <View>

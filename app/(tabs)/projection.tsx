@@ -10,6 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../components/ScreenGradient';
+import ScreenSkeleton from '../../components/ScreenSkeleton';
+import { useDeferredMount } from '../../hooks/useDeferredMount';
 import CalculatorButton from '../../components/CalculatorButton';
 import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
@@ -138,7 +140,13 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
   );
 }
 
+/** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, le
+ *  contenu (projections + graphes) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function ProjectionScreen() {
+  return useDeferredMount() ? <ProjectionBody /> : <ScreenSkeleton />;
+}
+
+function ProjectionBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Couleurs Investissement / Épargne = couleurs sémantiques du Style Editor

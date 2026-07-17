@@ -1,6 +1,8 @@
 ﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenSkeleton from '../../../components/ScreenSkeleton';
+import { useDeferredMount } from '../../../hooks/useDeferredMount';
 import PageIntroModal from '../../../components/PageIntroModal';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
@@ -112,7 +114,13 @@ type TxListItem =
   | { t: 'row'; item: any; group: 'future' | 'past'; pos: number; groupCount: number; k: string }
   | { t: 'emptyPast'; k: string };
 
+/** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, la liste
+ *  (3 mois projetés + récurrences) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function TransactionsListScreen() {
+  return useDeferredMount() ? <TransactionsListBody /> : <ScreenSkeleton />;
+}
+
+function TransactionsListBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const onbRecurring = useOnbHighlight('recurring_tx');

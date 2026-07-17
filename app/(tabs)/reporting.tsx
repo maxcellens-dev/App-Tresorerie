@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalculatorButton from '../../components/CalculatorButton';
+import ScreenSkeleton from '../../components/ScreenSkeleton';
+import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -436,7 +438,13 @@ function GroupHeader({ icon, title, color }: { icon: string; title: string; colo
 }
 
 /* ═══════════════════  MAIN SCREEN  ═══════════════════ */
+/** Montage différé (écran LOURD) : squelette 1 frame → la page s'ouvre instantanément, le
+ *  contenu (graphes + tableaux) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function ReportingScreen() {
+  return useDeferredMount() ? <ReportingBody /> : <ScreenSkeleton />;
+}
+
+function ReportingBody() {
   const C = useReportingColors();
   const s = makeStyles(C);
   const router = useRouter();

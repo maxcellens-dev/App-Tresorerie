@@ -88,8 +88,13 @@ export default function TabsLayout() {
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: true,
-        // PERF : gèle les onglets inactifs (pas de re-rendu des écrans non visibles au changement d'onglet).
-        freezeOnBlur: true,
+        // PERF : freezeOnBlur DÉSACTIVÉ. Le gel (react-native-screens, natif uniquement — inactif
+        // sur web, d'où le web fluide) obligeait React, au RETOUR sur un onglet, à rattraper d'un
+        // bloc tous les re-rendus accumulés pendant le gel (saisies, refetchs…) : un blocage JS
+        // synchrone SUR LE CHEMIN tap → affichage = le délai perçu à chaque changement d'onglet,
+        // même vers une page déjà ouverte. Sans gel, les écrans cachés se re-rendent au fil de
+        // l'eau (hors interaction) et le changement d'onglet redevient un simple toggle natif.
+        freezeOnBlur: false,
         header: () => <TabsHeader route={route} />,
         headerStyle: { backgroundColor: 'transparent' },
         headerShadowVisible: false,

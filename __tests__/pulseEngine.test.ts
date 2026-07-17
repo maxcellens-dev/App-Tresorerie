@@ -320,7 +320,7 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
     // (= le placé). Dire « tu pourrais placer jusqu'à 25 € » contredirait les recos (Conserver seul).
     const r = computePulse(inputs({ investedThisMonth: 25, investCapacity: 25 }), allCfg, 'full');
     const s = r.signals.find((x) => x.id === 'investing')!;
-    expect(plain(s.detail ?? '')).toContain('utilisé ta capacité');
+    expect(plain(s.detail ?? '')).toContain('pas conseillé d\'investir plus');
     expect(plain(s.detail ?? '')).not.toContain('pourrais placer');
   });
 

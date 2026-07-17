@@ -1,6 +1,8 @@
 ﻿import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl, TextInput } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
+import ScreenSkeleton from '../../components/ScreenSkeleton';
+import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -108,7 +110,13 @@ const getOverrideKey = (transactionId: string, year: number, month: number): str
 };
 
 
+/** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, le
+ *  contenu (calculs 12 mois) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function TreasuryPlanScreen() {
+  return useDeferredMount() ? <TreasuryPlanBody /> : <ScreenSkeleton />;
+}
+
+function TreasuryPlanBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
