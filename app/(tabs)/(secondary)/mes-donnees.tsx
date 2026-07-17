@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Share, ActivityIndicator } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,7 +53,8 @@ function fmtAmount(n: number): string {
   return n.toFixed(2).replace('.', ',');
 }
 
-export default function MesDonneesScreen() {
+export default withDeferredMount(MesDonneesScreen);
+function MesDonneesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();

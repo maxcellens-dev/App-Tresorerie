@@ -22,10 +22,16 @@ function PremiumStar() {
   );
 }
 
-function TabsHeader({ route }: { route: any }) {
+/**
+ * Header GLOBAL des onglets — rendu UNE seule fois au-dessus du navigator (plus un header par
+ * écran monté/démonté à chaque switch : HeaderWithProfile + ses requêtes ne se remontent plus).
+ * Tout est dérivé des segments → aucune prop de route nécessaire.
+ */
+function TabsHeader() {
   const COLORS = useAppColors();
   const segments = useSegments();
   const fullPath = segments.join('/');
+  const routeName = (segments as string[])[1] ?? '';
   const { user } = useAuth();
   const { isPremium } = usePlan(user?.id);
 
@@ -49,9 +55,8 @@ function TabsHeader({ route }: { route: any }) {
   };
 
   const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
-  const routeName = route.name;
   const displayTitle = titleMap[fullPath] || 'Relyka';
-  const isHome = route.name === 'home';
+  const isHome = routeName === 'home';
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
   const isReporting = fullPath === '(tabs)/reporting';
   return (
@@ -93,16 +98,17 @@ export default function TabsLayout() {
       // changement d'onglet redevient un pur toggle de visibilité (coût mémoire accepté).
       detachInactiveScreens={false}
       tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={({ route }) => ({
+      screenOptions={() => ({
+        // PERF — MESURÉ sur device (sonde ⚡ de la CustomTabBar, 2026-07-16) : sans gel, chaque
+        // changement d'onglet re-rend TOUS les écrans montés (les hooks de route — params/pathname —
+        // re-rendent chaque écran à chaque navigation) → le switch EMPIRE à mesure qu'on visite des
+        // onglets (472-936 ms à 2-3 onglets montés, 1015-1900 ms une fois tous montés). Avec le gel,
+        // seul l'écran REVENU au premier plan rattrape son rendu : coût d'UN écran, constant.
+        // Combiné à detachInactiveScreens={false} (l'arbre NATIF reste attaché, pas de re-attach)
+        // et au montage différé (useDeferredMount) pour la 1ʳᵉ ouverture.
+        freezeOnBlur: true,
         headerShown: true,
-        // PERF : freezeOnBlur DÉSACTIVÉ. Le gel (react-native-screens, natif uniquement — inactif
-        // sur web, d'où le web fluide) obligeait React, au RETOUR sur un onglet, à rattraper d'un
-        // bloc tous les re-rendus accumulés pendant le gel (saisies, refetchs…) : un blocage JS
-        // synchrone SUR LE CHEMIN tap → affichage = le délai perçu à chaque changement d'onglet,
-        // même vers une page déjà ouverte. Sans gel, les écrans cachés se re-rendent au fil de
-        // l'eau (hors interaction) et le changement d'onglet redevient un simple toggle natif.
-        freezeOnBlur: false,
-        header: () => <TabsHeader route={route} />,
+        header: () => <TabsHeader />,
         headerStyle: { backgroundColor: 'transparent' },
         headerShadowVisible: false,
         sceneContainerStyle: styles.sceneContainer,

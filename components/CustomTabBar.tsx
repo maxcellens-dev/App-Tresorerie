@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
+import { markNavTap } from '../lib/navPerf';
 import { useRwInvitations } from '../hooks/useRelykaWorld';
 import { useAccountInvitations, useSharedAccountsRealtime } from '../hooks/useSharedAccounts';
 import { useCreditInvitations, useSharedCreditsRealtime } from '../hooks/useSharedCredits';
@@ -35,6 +36,7 @@ export default function CustomTabBar({ state, navigation }: any) {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { user } = useAuth();
   const navActiveRoute = state?.routes?.[state.index]?.name;
   // Surlignage OPTIMISTE : l'onglet tapé s'allume À LA FRAME DU TAP (état local synchrone), sans
   // attendre que la navigation/le rendu de l'écran aboutisse → la barre répond toujours instantanément.
@@ -43,7 +45,6 @@ export default function CustomTabBar({ state, navigation }: any) {
     if (pressedTab && navActiveRoute === pressedTab) setPressedTab(null);
   }, [navActiveRoute, pressedTab]);
   const activeRoute = pressedTab ?? navActiveRoute;
-  const { user } = useAuth();
   const { data: rwInvitations = [] } = useRwInvitations(user?.id);
   const rwInviteCount = rwInvitations.length;
   const { data: acctInvitations = [] } = useAccountInvitations(user?.id);
@@ -75,11 +76,13 @@ export default function CustomTabBar({ state, navigation }: any) {
             key={it.name}
             style={styles.item}
             onPress={() => {
-              setPressedTab(it.name); // feedback visuel immédiat, avant la navigation
+              markNavTap(); // sonde de perf globale (NavPerfProbe)
+              setPressedTab(it.name); // surlignage optimiste (état local, harmless)
               if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED);
-              // `navigation.navigate` DIRECT (pas router.push) : pas de résolution d'URL/linking sur
-              // le chemin du tap. `screen: 'index'` → un onglet à pile imbriquée revient à sa racine
-              // (même comportement qu'avant : taper l'onglet ramène toujours à la liste).
+              // Navigation SYNCHRONE et directe = l'état STABLE mesuré (453/507, aucun pic).
+              // ⚠️ Ni startTransition (déprioritise → pics +1000) ni requestAnimationFrame (retarde
+              // d'une frame) : les deux ont été essayés et RETIRÉS. `navigation.navigate` (pas
+              // router.push = résolution URL) ; `screen: 'index'` → onglet à pile revient à sa racine.
               const nested = it.name === 'comptes' || it.name === 'transactions' || it.name === 'projects';
               if (nested) navigation.navigate(it.name, { screen: 'index' });
               else navigation.navigate(it.name);

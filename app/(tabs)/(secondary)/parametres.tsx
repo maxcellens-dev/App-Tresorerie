@@ -1,4 +1,5 @@
 ﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch, Linking, Alert } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
@@ -50,7 +51,8 @@ function isNewerVersion(a: string, b: string): boolean {
   return false;
 }
 
-export default function SettingsScreen() {
+export default withDeferredMount(SettingsScreen);
+function SettingsScreen() {
   const router = useRouter();
   const goBack = useNavBack();
   const { user, signOut } = useAuth();

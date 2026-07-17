@@ -16,6 +16,7 @@ import { useUserUnreadCount } from '../hooks/useUnreadBadges';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { APP_VERSION } from '../lib/appVersion';
+import { markNavTap } from '../lib/navPerf';
 
 export default function ProfileMenuModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const COLORS = useAppColors();
@@ -36,7 +37,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   // Titres cosmétiques équipés, triés par ordre alphabétique (un seul emplacement pour l'instant).
   const cosmeticTitles = (profileTitle ? [profileTitle] : []).sort((a, b) => a.localeCompare(b, 'fr'));
 
-  const go = (route: string) => { onClose(); router.push(route as any); };
+  const go = (route: string) => { markNavTap(); onClose(); router.push(route as any); };
   // Déconnexion : on va sur l'accueil D'ABORD, on vide la session ENSUITE. Dans l'autre sens, la
   // session tombe alors qu'on est encore sur un écran de l'app → il se re-rend « vide » (chargement)
   // le temps de la redirection : c'est l'écran intermédiaire qu'on voyait passer.

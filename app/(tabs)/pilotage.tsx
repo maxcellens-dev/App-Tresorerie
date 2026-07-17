@@ -359,45 +359,50 @@ export default function PilotageScreen() {
   // Options du moteur construites par lib/recoInputs (budget brut reconstitué, alreadyAllocated,
   // cascade, garde-fou projection, plafond Relyka) — PARTAGÉES avec le Pouls (capacité de la carte
   // « Investissement du mois ») : les deux écrans racontent la même histoire.
-  const recoOptions = pilotageData
-    ? buildRecoOptions(pilotageData, {
-        reservationsTotal,
-        preEpargneTotal,
-        preInvestTotal,
-        prudenceLevel: ((profile as any)?.prudence_level ?? null) as number | null,
-        financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
-        thresholds: recoThresholds,
-        customTierAllocations: customTiers,
-      })
-    : null;
-  // Couleur d'affichage par type de reco — alignée sur les couleurs sémantiques du thème
-  // (clair/sombre) plutôt que sur les teintes fixes de l'engine, qui restaient trop claires
-  // en mode clair (ex. épargne #34d399 au lieu du vert défini #059669).
-  const recoColorByType: Record<string, string> = {
-    save:   COLORS.green,
-    invest: COLORS.violet,
-    enjoy:  COLORS.orange,
-    keep:   COLORS.blue,
-  };
+  // MÉMOÏSÉ (perf) : ces deux blocs faisaient tourner le moteur de recos À CHAQUE re-rendu de
+  // l'écran (le plus lourd de l'app) — y compris au rattrapage post-gel du changement d'onglet.
+  const recoOptions = React.useMemo(() => (
+    pilotageData
+      ? buildRecoOptions(pilotageData, {
+          reservationsTotal,
+          preEpargneTotal,
+          preInvestTotal,
+          prudenceLevel: ((profile as any)?.prudence_level ?? null) as number | null,
+          financialProfileId: financialProfile?.profile_id as FinancialProfileId | undefined,
+          thresholds: recoThresholds,
+          customTierAllocations: customTiers,
+        })
+      : null
+  ), [pilotageData, reservationsTotal, preEpargneTotal, preInvestTotal, profile, financialProfile, recoThresholds, customTiers]);
   // Garde-fou : aucune reco ne peut dépasser le reste réellement disponible (Ton Relyka).
   // Plafond passé AU MOTEUR (maxAmount) et non appliqué après coup : sinon la description et les
   // conseils interpolent le montant d'avant-plafond (ex. « Conserve 600 € » avec un titre à 270 €).
-  const recoList = pilotageData && recoOptions
-    ? computeRecommendations(pilotageData, {
-        ...recoOptions,
-        // Montant « actionnable » (textes + CTA) = borne basse « minimum sûr » quand les montants
-        // sont en fourchette — la MÊME borne basse que le titre de la reco (relConf.proportional).
-        actionAmountFor: (amount) => {
-          const r = relConf?.proportional(amount);
-          return r?.isRange
-            ? { value: Math.max(0, floorToTen(r.low)), isRange: true }
-            : { value: amount, isRange: false };
-        },
-      }).map((r) => ({
-        ...r,
-        color: recoColorByType[r.type] ?? r.color,
-      }))
-    : [];
+  const recoList = React.useMemo(() => {
+    if (!pilotageData || !recoOptions) return [];
+    // Couleur d'affichage par type de reco — alignée sur les couleurs sémantiques du thème
+    // (clair/sombre) plutôt que sur les teintes fixes de l'engine, qui restaient trop claires
+    // en mode clair (ex. épargne #34d399 au lieu du vert défini #059669).
+    const recoColorByType: Record<string, string> = {
+      save:   COLORS.green,
+      invest: COLORS.violet,
+      enjoy:  COLORS.orange,
+      keep:   COLORS.blue,
+    };
+    return computeRecommendations(pilotageData, {
+      ...recoOptions,
+      // Montant « actionnable » (textes + CTA) = borne basse « minimum sûr » quand les montants
+      // sont en fourchette — la MÊME borne basse que le titre de la reco (relConf.proportional).
+      actionAmountFor: (amount) => {
+        const r = relConf?.proportional(amount);
+        return r?.isRange
+          ? { value: Math.max(0, floorToTen(r.low)), isRange: true }
+          : { value: amount, isRange: false };
+      },
+    }).map((r) => ({
+      ...r,
+      color: recoColorByType[r.type] ?? r.color,
+    }));
+  }, [pilotageData, recoOptions, relConf, COLORS]);
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
   const suiviDetail = React.useMemo(() => {

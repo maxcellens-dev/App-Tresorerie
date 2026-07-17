@@ -1,4 +1,5 @@
 ﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator, TextInput,
@@ -100,7 +101,8 @@ function OptionList({
   );
 }
 
-export default function ProfilFinancierScreen() {
+export default withDeferredMount(ProfilFinancierScreen);
+function ProfilFinancierScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();

@@ -20,6 +20,7 @@ import AchievementCelebration from '../components/AchievementCelebration';
 import PulseHost from '../components/PulseHost';
 import PulseDeltaHost from '../components/PulseDeltaHost';
 import DataPrefetcher from '../components/DataPrefetcher';
+import NavPerfProbe from '../components/NavPerfProbe';
 import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/useConfigSync';
 import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
@@ -371,6 +372,8 @@ function AppChrome() {
           l'utilisateur a validé son opération (saisie, virement, saisie rapide…). */}
       {isTabs && user && <PulseHost />}
       {isTabs && user && <PulseDeltaHost />}
+      {/* Sonde de perf navigation (admin) — badge « ⚡ ms · page » sur TOUTES les pages. */}
+      {user && <NavPerfProbe />}
       {/* Cible des portails racine (guide de présentation) — MÊME fenêtre que le contenu, au-dessus
           de la navigation → surlignages alignés au pixel sur les boutons réels. Voir lib/rootPortal. */}
       <RootPortalHost />

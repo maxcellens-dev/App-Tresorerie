@@ -7,6 +7,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalculatorButton from '../../components/CalculatorButton';
+import { withDeferredMount } from '../../hooks/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,7 +30,8 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import AiRichText from '../../components/AiRichText';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
-export default function ConseilsIaScreen() {
+export default withDeferredMount(ConseilsIaScreen);
+function ConseilsIaScreen() {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
   const { user, isImpersonating } = useAuth();

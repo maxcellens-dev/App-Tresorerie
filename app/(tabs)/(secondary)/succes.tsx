@@ -3,6 +3,7 @@
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
 import React, { useMemo, useEffect, useState } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -23,7 +24,8 @@ function nextMonthKey(key: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default function SuccesScreen() {
+export default withDeferredMount(SuccesScreen);
+function SuccesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();

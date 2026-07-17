@@ -2,6 +2,7 @@
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
@@ -22,7 +23,8 @@ import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type Them
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 import ColorPickerModal from '../../../components/ColorPickerModal';
 
-export default function AppearanceScreen() {
+export default withDeferredMount(AppearanceScreen);
+function AppearanceScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();

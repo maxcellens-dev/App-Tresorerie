@@ -10,8 +10,9 @@
  * Usage : `export default function Screen() { return useDeferredMount() ? <Body /> : <ScreenSkeleton /> }`
  * (les hooks/calculs lourds vivent dans Body → RIEN ne tourne pendant la frame de transition).
  */
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { InteractionManager, Platform } from 'react-native';
+import ScreenSkeleton from '../components/ScreenSkeleton';
 
 export function useDeferredMount(): boolean {
   // WEB : pas de différé — runAfterInteractions n'y est pas fiable (callback jamais déclenché →
@@ -28,4 +29,16 @@ export function useDeferredMount(): boolean {
     return () => { task.cancel(); clearTimeout(fallback); };
   }, []);
   return ready;
+}
+
+/**
+ * HOC : enveloppe un écran LOURD → il rend un squelette 1 frame puis son vrai contenu (natif ;
+ * direct sur web). `export default withDeferredMount(Body)`. Le composant `Body` porte TOUS les
+ * hooks/calculs → rien ne tourne pendant la frame de transition (tap d'onglet/lien instantané).
+ */
+export function withDeferredMount<P extends object>(Body: React.ComponentType<P>): React.FC<P> {
+  const Wrapped: React.FC<P> = (props) =>
+    useDeferredMount() ? React.createElement(Body, props) : React.createElement(ScreenSkeleton);
+  Wrapped.displayName = `withDeferredMount(${Body.displayName || Body.name || 'Screen'})`;
+  return Wrapped;
 }

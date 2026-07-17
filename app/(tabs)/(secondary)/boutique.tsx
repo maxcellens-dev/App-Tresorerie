@@ -3,6 +3,7 @@
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -26,7 +27,8 @@ const RELYKA_SERVICES = [
   { icon: 'videocam', title: 'Conseiller en visio (1-on-1)', desc: 'Un échange en direct avec un conseiller pour t’aider sur ta gestion.', soon: true },
 ] as const;
 
-export default function BoutiqueScreen() {
+export default withDeferredMount(BoutiqueScreen);
+function BoutiqueScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
