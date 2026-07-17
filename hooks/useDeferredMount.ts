@@ -11,13 +11,21 @@
  * (les hooks/calculs lourds vivent dans Body → RIEN ne tourne pendant la frame de transition).
  */
 import { useEffect, useState } from 'react';
-import { InteractionManager } from 'react-native';
+import { InteractionManager, Platform } from 'react-native';
 
 export function useDeferredMount(): boolean {
-  const [ready, setReady] = useState(false);
+  // WEB : pas de différé — runAfterInteractions n'y est pas fiable (callback jamais déclenché →
+  // squelette infini), et le moteur JS du navigateur rend le montage direct instantané de toute façon.
+  const [ready, setReady] = useState(Platform.OS === 'web');
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => setReady(true));
-    return () => task.cancel();
+    if (Platform.OS === 'web') return;
+    let done = false;
+    const finish = () => { if (!done) { done = true; setReady(true); } };
+    const task = InteractionManager.runAfterInteractions(finish);
+    // Filet : si les « interactions » ne se terminent jamais (animation en boucle quelque part),
+    // on monte quand même — le différé est une optimisation, jamais un blocage.
+    const fallback = setTimeout(finish, 300);
+    return () => { task.cancel(); clearTimeout(fallback); };
   }, []);
   return ready;
 }
