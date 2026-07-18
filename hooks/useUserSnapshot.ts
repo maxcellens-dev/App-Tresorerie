@@ -28,7 +28,7 @@ import { useSharedContribution } from './useSharedContribution';
 import { computeAmortization, addMonthsISO } from '../lib/amortization';
 import { projectMode } from '../lib/projectTx';
 import { todayISO } from '../lib/dateUtils';
-import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../lib/aiSnapshot';
+import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotRecurringTransfer, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../lib/aiSnapshot';
 import { detectUpcomingChanges, type UpcomingTx } from '../lib/aiUpcoming';
 import { deriveEngaged, computeHealthScore } from '../lib/aiScore';
 import { usePreviousBilanMetrics, type BilanMetricsRow } from './useAi';
@@ -318,7 +318,12 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       const key = `${t.category_id ?? 'x'}|${Math.round(Math.abs(amt) * 100)}|${t.recurrence_rule}`;
       if (seen.has(key)) continue; // transactions triées desc → on garde l'occurrence la plus récente
       seen.add(key);
-      const row = { category: fullCat(t.category_id), amount: Math.abs(amt), rule: String(t.recurrence_rule) };
+      // Nature (fixe / enveloppe variable) lue sur la CATÉGORIE, pas devinée sur son nom.
+      const cat = t.category_id ? catById.get(t.category_id) : null;
+      const row = {
+        category: fullCat(t.category_id), amount: Math.abs(amt), rule: String(t.recurrence_rule),
+        variable: cat ? (cat as any).is_variable ?? null : null,
+      };
       (amt < 0 ? expenses : incomes).push(row);
     }
     expenses.sort((a, b) => b.amount - a.amount);
@@ -429,6 +434,38 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
         mode: (modeByAccount[a.id] ?? null) as string | null,
       }));
   }, [allAccounts, sharedContrib]);
+
+  /**
+   * Virements INTERNES récurrents, NOMMÉS (épargne / investissement / contribution au foyer).
+   * Le snapshot n'en donnait que des agrégats : l'IA ne pouvait donc pas rapprocher un montant
+   * croisé ailleurs d'un virement déjà connu, et pouvait le traiter comme une dépense à optimiser.
+   */
+  const recurringTransfers = useMemo<SnapshotRecurringTransfer[]>(() => {
+    const typeById: Record<string, string> = {};
+    for (const a of allAccounts ?? []) typeById[a.id] = (a as any).type;
+    const out: SnapshotRecurringTransfer[] = [];
+    const seen = new Set<string>();
+    for (const t of transactions ?? []) {
+      if (t.is_draft || t.regul_target != null || !t.linked_account_id) continue;
+      if (!isRecurringTpl(t) || !isLiveSeries(t)) continue;
+      if (Number(t.amount) >= 0) continue;            // on ne garde que la SORTIE
+      if (t.account?.type !== 'checking') continue;   // jambe côté compte courant
+      const amt = Math.abs(effectiveAmount(t));
+      if (Math.round(amt) === 0) continue;
+      const key = `${t.linked_account_id}|${Math.round(amt * 100)}|${t.recurrence_rule}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const dt = typeById[t.linked_account_id];
+      const dest = jointContribAcctIds.has(t.linked_account_id)
+        ? 'le compte JOINT (contribution au foyer)'
+        : dt === 'savings' ? 'l\'ÉPARGNE'
+        : dt === 'investment' ? 'l\'INVESTISSEMENT'
+        : 'un autre compte';
+      out.push({ dest, amount: amt, rule: String(t.recurrence_rule) });
+    }
+    return out.sort((a, b) => b.amount - a.amount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions, allAccounts, jointContribAcctIds, effectiveAmount]);
 
   // Contribution récurrente mensuelle vers les comptes joints « contribution » (équivalent mensuel).
   const jointContributionMonthly = useMemo(() => {
@@ -563,6 +600,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       categoryTrends,
       recurringExpenses: recurrings.expenses,
       recurringIncomes: recurrings.incomes,
+      recurringTransfers,
       topOneOff,
       forecast,
       variableDetail,

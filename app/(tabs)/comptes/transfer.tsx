@@ -117,9 +117,23 @@ export default function TransferScreen() {
     lastSig.current = sig;
     if (params.from !== undefined) setFromAccountId(params.from);
     if (params.to !== undefined) setToAccountId(params.to);
+    else if (params.destType) {
+      // Destination imposée par TYPE (arrivée depuis une reco) sans compte précis : une sélection
+      // précédente d'un autre type resterait active tout en étant ABSENTE de la liste filtrée
+      // → compte sélectionné mais invisible, et validation qui passe sur un choix fantôme.
+      setToAccountId((prev) => {
+        if (!prev || accounts.length === 0) return prev;
+        return accounts.some((a) => a.id === prev && a.type === params.destType) ? prev : '';
+      });
+    }
     if (params.amount !== undefined) setAmount(params.amount);
     if (params.label !== undefined) setNote(params.label);
     if (params.date !== undefined) { setDate(params.date); setDateDisplay(formatDateFrench(params.date)); }
+    // ⚠️ L'écran est RÉUTILISÉ d'une navigation à l'autre : la valeur initiale de `step` ne se
+    // réapplique jamais. Sans cette ligne, un virement laissé à l'étape 2 rouvrait directement à
+    // l'étape 2 la fois suivante — en sautant le choix des comptes. On rejoue donc ici la règle de
+    // l'initialiseur : étape 2 seulement si les DEUX comptes sont fournis.
+    setStep(params.from && params.to ? 2 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.from, params.to, params.amount, params.label, params.date, params.destType, params.recoComplete, params.resetPreSaving]);
 

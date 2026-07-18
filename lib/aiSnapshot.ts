@@ -37,8 +37,11 @@ export interface SnapshotVariableDetail { ym: string; isCurrent: boolean; items:
 /** Compte partagé / joint accessible : type + part d'impact + MODE (« tracked » = quotidien,
  *  « contribution » = hors quotidien). Le traitement des flux qui y transitent en dépend. */
 export interface SnapshotSharedAccount { type: string; joint: boolean; impactPct: number; mode?: string | null }
-/** Charge (ou revenu) récurrente active : sous-catégorie + montant + fréquence. */
-export interface SnapshotRecurring { category: string; amount: number; rule: string }
+/** Charge (ou revenu) récurrente active : sous-catégorie + montant + fréquence.
+ *  `variable` vient du RÉGLAGE de la catégorie dans l'app — pas d'une devinette sur son nom. */
+export interface SnapshotRecurring { category: string; amount: number; rule: string; variable?: boolean | null }
+/** Virement INTERNE récurrent (mise de côté ou contribution au foyer) — jamais une dépense. */
+export interface SnapshotRecurringTransfer { dest: string; amount: number; rule: string }
 /** Dépense ponctuelle notable (non récurrente) : date + grande catégorie + montant. */
 export interface SnapshotOneOff { date: string; category: string; amount: number }
 /** Projection du solde courant en fin de mois (moteur lib/forecast — le même que l'onglet Projection). */
@@ -77,6 +80,8 @@ export interface SnapshotInput {
   recurringExpenses?: SnapshotRecurring[];
   /** Revenus récurrents actifs. */
   recurringIncomes?: SnapshotRecurring[];
+  /** Virements internes récurrents (épargne / investissement / contribution au compte joint). */
+  recurringTransfers?: SnapshotRecurringTransfer[];
   /** Grosses dépenses ponctuelles récentes (~8 max). */
   topOneOff?: SnapshotOneOff[];
   /** Projection du solde courant sur ~6 mois (mois courant inclus). */
@@ -128,7 +133,7 @@ export function buildSnapshot(input: SnapshotInput): string {
   const {
     currencySymbol: s, today, dayOfMonth, daysInMonth, pilotage: p, expensesByCategory,
     credits = [], projects = [], history = [], categoryTrends = [],
-    recurringExpenses = [], recurringIncomes = [], topOneOff = [], forecast = [],
+    recurringExpenses = [], recurringIncomes = [], recurringTransfers = [], topOneOff = [], forecast = [],
     variableDetail = [], sharedAccounts = [], incomeRef, firstMonthPartial = false,
     upcoming, savingsInvestForecast, jointContributionMonthly = 0, investContributed = null,
     incomeByMonth = [], evolution = null,
@@ -397,6 +402,16 @@ export function buildSnapshot(input: SnapshotInput): string {
     }
   }
 
+  // ── PÉRIMÈTRE — placé AVANT les chiffres : la règle de lecture doit être connue avant les
+  // montants. Sans elle, un virement récurrent (contribution au foyer, mise de côté) était pris
+  // pour une dépense « à optimiser » dès qu'une ligne de dépense lui ressemblait par le montant.
+  L.push('\nPÉRIMÈTRE DES DÉPENSES (règle de lecture — applique-la avant d\'interpréter le moindre montant)');
+  L.push('- Les dépenses ci-dessous EXCLUENT tous les virements internes : épargne, investissement, contribution à un compte joint. Un virement ne peut PAS apparaître comme une dépense, dans aucune section, à aucun total.');
+  if (jointContributionMonthly > 0) {
+    L.push(`- La contribution au compte joint (~${m(jointContributionMonthly)}/mois) figure UNIQUEMENT dans ENGAGEMENTS MENSUELS. Ne la cherche pas dans les dépenses, ne l'additionne pas avec elles, et ne propose pas de la « réduire » : c'est un engagement du foyer, pas un poste compressible.`);
+  }
+  L.push('- Corollaire IMPORTANT : si une ligne de dépense ressemble à une mise de côté (montant rond, catégorie générique type « Autres / Divers / Frais variables »), ce n\'en est PAS une. Soit c\'est une vraie dépense, soit l\'utilisateur a saisi un VIREMENT comme une DÉPENSE. Dans ce second cas, dis-le-lui explicitement (« cette ligne semble être un virement saisi en dépense — enregistre-la en virement pour que tes ratios soient justes ») au lieu de conseiller de la réduire.');
+
   L.push('\nDÉPENSES (hors virements internes)');
   if (fixedMonthly > 0) L.push(`- Dépenses FIXES / engagements récurrents : ~${m(fixedMonthly)}/mois (total des charges récurrentes actives listées plus bas) ; encore À VENIR ce mois-ci : ${m(p.remaining_fixed_expenses)}.`);
   {
@@ -442,8 +457,14 @@ export function buildSnapshot(input: SnapshotInput): string {
   }
 
   if (recurringExpenses.length) {
-    L.push(`\nCHARGES RÉCURRENTES ACTIVES (${recurringExpenses.length}) — engagements réguliers. NB : une ligne « Autres / Divers / Frais variables » est une ENVELOPPE de dépenses courantes, pas un abonnement résiliable.`);
-    for (const r of recurringExpenses.slice(0, 20)) L.push(`- ${r.category} : ${m(r.amount)}/${RULE_FR[r.rule] ?? r.rule}`);
+    // La nature vient du RÉGLAGE de la catégorie dans l'app, plus d'une devinette sur son nom :
+    // « Autres frais variables » pouvait désigner une enveloppe de dépenses courantes comme un
+    // engagement bien réel, et l'ancienne note tranchait à tort pour l'un des deux.
+    L.push(`\nCHARGES RÉCURRENTES ACTIVES (${recurringExpenses.length}) — chaque ligne porte sa nature, telle qu'elle est réglée dans l'app : [charge fixe] = engagement contractuel (résiliable ou non, mais subi) · [enveloppe variable] = budget de dépenses courantes, PAS un abonnement à résilier.`);
+    for (const r of recurringExpenses.slice(0, 20)) {
+      const nature = r.variable === false ? ' [charge fixe]' : r.variable === true ? ' [enveloppe variable]' : '';
+      L.push(`- ${r.category} : ${m(r.amount)}/${RULE_FR[r.rule] ?? r.rule}${nature}`);
+    }
   }
   if (recurringIncomes.length) {
     // ⚠ Ces revenus ont souvent des montants surchargés PAR MOIS (indépendant) → un « X/mois » figé
@@ -458,6 +479,14 @@ export function buildSnapshot(input: SnapshotInput): string {
   }
 
   L.push('\nVIREMENTS INTERNES (NE sont PAS des dépenses — ce sont des mises de côté)');
+  if (recurringTransfers.length) {
+    // Listés NOMMÉMENT : sans ça, seuls des agrégats existaient, et l'IA ne pouvait pas rapprocher
+    // un montant vu ailleurs d'un virement déjà connu — d'où des « dépenses » fantômes à optimiser.
+    L.push(`- Virements récurrents en place (${recurringTransfers.length}) — déjà comptés ci-dessous et dans la projection, à NE PAS retrouver dans les dépenses :`);
+    for (const t of recurringTransfers.slice(0, 12)) {
+      L.push(`  • vers ${t.dest} : ${m(t.amount)}/${RULE_FR[t.rule] ?? t.rule}`);
+    }
+  }
   L.push(`- Vers ÉPARGNE : ${m(p.monthly_savings_planned)}/mois prévus (déjà réalisés ce mois ${m(p.real_savings_excl_projects)}, encore à venir ${m(p.monthly_savings_remaining)}).`);
   L.push(`- Vers INVESTISSEMENT : ${m(p.monthly_invest_planned)}/mois prévus (déjà réalisés ce mois ${m(p.real_invest)}, encore à venir ${m(p.monthly_invest_remaining)}).`);
   L.push(`- Recommandation du moteur pour le surplus : ${p.recommendation} (surplus projeté ${m(p.projected_surplus)}).`);
