@@ -656,7 +656,9 @@ export default function AddProjectModal() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* edges={[]} comme TOUTES les pages secondaires : avec ['top'], l'inset du haut était compté
+          DEUX FOIS (le layout l'applique déjà) → vide au-dessus du bouton « Retour ». */}
+      <SafeAreaView style={styles.safe} edges={[]}>
         <ScreenHeader
           title={isEdit ? 'Modifier le projet' : 'Nouveau projet'}
           onBack={handleClose}

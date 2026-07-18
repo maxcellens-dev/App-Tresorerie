@@ -302,7 +302,10 @@ export default function AddTransactionScreen() {
   useEffect(() => {
     if (accountId || !accounts.length) return;
     if (params.account && accounts.some(a => a.id === params.account)) return;
-    // Défaut = 1er compte courant PERSO (propriétaire, non joint) — jamais le compte joint ni un
+    // 1) Le compte COURANT PAR DÉFAUT choisi par l'utilisateur (migration 146) prime sur tout.
+    const preferred = accounts.find((a) => a.is_default);
+    if (preferred) { setAccountId(preferred.id); return; }
+    // 2) Sinon : 1er compte courant PERSO (propriétaire, non joint) — jamais le compte joint ni un
     // compte partagé reçu. Repli : autre compte courant, sinon 1er compte.
     const persoChecking = accounts.filter(a => a.type === 'checking' && a._role === 'owner' && !a.is_joint);
     if (persoChecking.length) { setAccountId(persoChecking[0].id); return; }

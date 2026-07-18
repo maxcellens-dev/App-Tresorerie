@@ -95,6 +95,10 @@ export interface PulseSignal {
   /** Pastille de droite (état lisible sans lire le texte). */
   chip: string;
   progress?: PulseProgress;
+  /** EN ATTENTE : la carte est affichée avec sa structure (libellé, emoji, gabarit) mais ses
+   *  valeurs sont des tirets — les chiffres recalculés ne sont pas encore sûrs. Elle se remplit
+   *  dès qu'ils arrivent, sans que rien ne bouge (cf. PulseDeltaHost / PulseSignalCard). */
+  pending?: boolean;
 }
 
 /* ── Repères par profil (éditables en admin) ─────────────────── */

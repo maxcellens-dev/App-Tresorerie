@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useAllAccounts, useUpdateAccount, useCloseAccount } from '../../../../hooks/useAccounts';
+import { useAllAccounts, useUpdateAccount, useCloseAccount, useSetDefaultAccount } from '../../../../hooks/useAccounts';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
 import AccountShareSection from '../../../../components/AccountShareSection';
@@ -32,6 +32,7 @@ export default function EditAccountScreen() {
   const { data: accounts = [] } = useAllAccounts(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
   const closeAccount = useCloseAccount(user?.id);
+  const setDefaultAccount = useSetDefaultAccount(user?.id);
   const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
 
   const account = accounts.find((a) => a.id === id);
@@ -180,6 +181,31 @@ export default function EditAccountScreen() {
             <Text style={styles.balanceInfoText}>Le solde ne peut être modifié que via des transactions.</Text>
           </View>
 
+          {/* Compte courant PAR DÉFAUT (migration 146) — discret, réservé à un compte courant perso :
+              pré-sélectionné à la saisie d'une transaction et affiché en tête des listes. */}
+          {type === 'checking' && account._role === 'owner' && !account.is_joint && (
+            <TouchableOpacity
+              style={styles.defaultRow}
+              onPress={() => setDefaultAccount.mutate(account.is_default ? null : account.id)}
+              disabled={setDefaultAccount.isPending}
+              activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: !!account.is_default }}
+            >
+              <Ionicons
+                name={account.is_default ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={account.is_default ? COLORS.emerald : COLORS.textSecondary}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.defaultLabel}>Compte principal</Text>
+                <Text style={styles.defaultHint}>
+                  Pré-sélectionné quand tu saisis une transaction, et affiché en premier dans les listes.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Partage / membres (owner uniquement ; gate flag pour les comptes perso) */}
           <AccountShareSection account={account} />
 
@@ -272,5 +298,8 @@ function makeStyles(c: any) {
     marginBottom: 20,
   },
   balanceInfoText: { fontSize: 13, color: c.textSecondary, flex: 1 },
+  defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, marginTop: 4 },
+  defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+  defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
 });
 }

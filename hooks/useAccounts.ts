@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import type { Account } from '../types/database';
 import { todayISO } from '../lib/dateUtils';
 import { effectiveImpactPct } from '../lib/sharedImpact';
+import { sortAccounts } from '../lib/accountOrder';
 
 const KEY = 'accounts';
 
@@ -35,7 +36,9 @@ export function useAccounts(profileId: string | undefined) {
         .eq('is_joint', false)
         .order('name');
       if (error) throw error;
-      return (data ?? []).map((r) => mapAccount(r, profileId, {}));
+      // Ordre UNIQUE de l'app (défaut → type → nom) appliqué À LA SOURCE : toutes les listes
+      // et sélecteurs en héritent, aucune page n'a à re-trier. Cf. lib/accountOrder.
+      return sortAccounts((data ?? []).map((r) => mapAccount(r, profileId, {})));
     },
     enabled: !!profileId,
   });
@@ -93,7 +96,8 @@ export function useAllAccounts(profileId: string | undefined) {
           a._impact_pct = effectiveImpactPct(myExplicit, N);
         }
       }
-      return all;
+      // Ordre UNIQUE de l'app (défaut → type → nom), appliqué À LA SOURCE. Cf. lib/accountOrder.
+      return sortAccounts(all);
     },
   });
 }
@@ -158,7 +162,7 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
 export function useAddAccount(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null; is_joint?: boolean; shared_mode?: string | null }) => {
+    mutationFn: async (input: { name: string; type: string; currency: string; balance: number; fiscal_envelope?: string | null; init_date?: string | null; initial_contributed?: number | null; is_joint?: boolean; shared_mode?: string | null; is_default?: boolean }) => {
       if (!supabase) throw new Error('Backend indisponible');
       // SOURCE DE VÉRITÉ = l'utilisateur réellement authentifié (auth.uid()), pas le profileId du
       // contexte (qui peut être désynchronisé). La RLS exige profile_id = auth.uid() → on garantit
@@ -177,6 +181,14 @@ export function useAddAccount(profileId: string | undefined) {
         (r) => normalizeName((r as { name?: string }).name ?? '') === nameNorm
       );
       if (hasDuplicate) throw new Error('Un compte avec ce nom existe déjà.');
+      // « Compte principal » à la création : réservé à un compte COURANT perso (contrainte serveur,
+      // migration 146). On retire d'abord le défaut existant — l'index unique en base refuserait
+      // deux `is_default` simultanés.
+      const wantsDefault = !!input.is_default && (input.type || 'checking') === 'checking' && !input.is_joint;
+      if (wantsDefault) {
+        await supabase.from('accounts').update({ is_default: false })
+          .eq('profile_id', ownerId).eq('is_default', true);
+      }
       const { data, error } = await supabase
         .from('accounts')
         .insert({
@@ -185,6 +197,7 @@ export function useAddAccount(profileId: string | undefined) {
           type: input.type || 'checking',
           currency: input.currency || 'EUR',
           balance: 0,
+          ...(wantsDefault ? { is_default: true } : {}),
           ...(input.is_joint ? { is_joint: true } : {}),
           ...(input.is_joint && input.shared_mode ? { shared_mode: input.shared_mode } : {}),
           ...(input.type === 'investment' && input.fiscal_envelope ? { fiscal_envelope: input.fiscal_envelope } : {}),
@@ -306,6 +319,36 @@ export function useUpdateAccount(profileId: string | undefined) {
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
+    },
+  });
+}
+
+/**
+ * Définit LE compte courant par défaut (migration 146) : pré-sélectionné à la saisie d'une
+ * transaction et placé en tête de toutes les listes. Un seul par profil → on retire d'abord le
+ * précédent (l'index unique partiel en base refuserait deux `is_default` simultanés).
+ * Passer `null` retire simplement le défaut.
+ */
+export function useSetDefaultAccount(profileId: string | undefined) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string | null) => {
+      if (!supabase || !profileId) throw new Error('Non connecté');
+      // 1. Retirer le défaut actuel (no-op s'il n'y en a pas).
+      const { error: clearErr } = await supabase
+        .from('accounts').update({ is_default: false })
+        .eq('profile_id', profileId).eq('is_default', true);
+      if (clearErr) throw clearErr;
+      // 2. Poser le nouveau (la contrainte serveur vérifie : courant, actif, non joint).
+      if (accountId) {
+        const { error } = await supabase
+          .from('accounts').update({ is_default: true })
+          .eq('id', accountId).eq('profile_id', profileId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: [KEY, profileId] });
     },
   });
 }

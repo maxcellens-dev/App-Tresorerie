@@ -169,6 +169,9 @@ export interface Account {
   current_contributed?: number | null;
   /** Compte joint dédié (partagé entre plusieurs utilisateurs). */
   is_joint?: boolean;
+  /** Compte COURANT par défaut de l'utilisateur (migration 146) : pré-sélectionné à la saisie et
+   *  placé en tête de toutes les listes. Au plus un par profil. */
+  is_default?: boolean;
   /** #5 — % d'impact de l'OWNER sur ce compte dans SON app (0..100). NULL = part égale auto (100/N). */
   owner_impact_pct?: number | null;
   /**

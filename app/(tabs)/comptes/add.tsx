@@ -37,6 +37,7 @@ export default function AddAccountScreen() {
   const { data: profile } = useProfile(user?.id);
   const [name, setName] = useState('');
   const [type, setType] = useState('checking');
+  const [isDefault, setIsDefault] = useState(false);
   // Le type (personnel/joint) est choisi AVANT via le modal → on lit le param, plus de toggle ici.
   const isJoint = params.joint === '1';
   // Devise du compte : par défaut celle de l'utilisateur (devise de référence), modifiable.
@@ -99,6 +100,7 @@ export default function AddAccountScreen() {
         balance: num,
         is_joint: isJoint,
         shared_mode: isJoint ? sharedMode : null,
+        is_default: isDefault,
         fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
         initial_contributed: type === 'investment' && initialContributed.trim() ? parseFloat(initialContributed.replace(',', '.')) : null,
         init_date: initDate,
@@ -211,6 +213,30 @@ export default function AddAccountScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Compte principal (migration 146) — uniquement pour un compte COURANT perso :
+              pré-sélectionné à la saisie d'une transaction et affiché en tête des listes. */}
+          {type === 'checking' && !isJoint && (
+            <TouchableOpacity
+              style={styles.defaultRow}
+              onPress={() => setIsDefault((v) => !v)}
+              activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isDefault }}
+            >
+              <Ionicons
+                name={isDefault ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={isDefault ? COLORS.emerald : COLORS.textSecondary}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.defaultLabel}>En faire mon compte principal</Text>
+                <Text style={styles.defaultHint}>
+                  Pré-sélectionné quand tu saisis une transaction, et affiché en premier dans les listes.
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           <View style={{ marginBottom: 16 }}>
             <CurrencyPicker
@@ -392,6 +418,9 @@ function makeStyles(c: any) {
   chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   chipText: { fontSize: 14, color: c.text },
   chipTextActive: { color: c.bg, fontWeight: '600' },
+  defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, marginBottom: 8 },
+  defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+  defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
   initDateNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',

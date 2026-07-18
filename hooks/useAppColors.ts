@@ -4,7 +4,7 @@
  * - card_alpha, custom_accents, extra_presets : globaux (app_config via useStyleConfig)
  * Fallback : sombre / émeraude.
  */
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { useStyleConfig } from './useStyleConfig';
@@ -13,6 +13,51 @@ import {
   buildColors, DEFAULT_MODE, DEFAULT_PRESET,
   type AppColors, type ThemeMode,
 } from '../theme/palette';
+
+/**
+ * PERF — palette partagée GLOBALEMENT (mémo au niveau module, pas par composant).
+ *
+ * `useAppColors()` est appelé ~142 fois dans l'app : avec un simple useMemo par composant,
+ * `buildColors()` (84 lignes de calcul de couleurs) s'exécutait UNE FOIS PAR INSTANCE de composant
+ * → des dizaines de reconstructions de palette à CHAQUE montage d'écran (coût fixe qui frappait
+ * même les écrans sans graphe ni liste : Apparence/Paramètres aussi lents que Pilotage).
+ *
+ * Ici : les entrées sont GLOBALES (mode, preset, config de style) → une seule palette pour toute
+ * l'app, recalculée uniquement quand ces entrées changent réellement. Bonus : la référence
+ * retournée devient IDENTIQUE partout, donc les `useMemo(() => makeStyles(COLORS), [COLORS])`
+ * des composants ne se recalculent plus non plus.
+ */
+type ColorInputs = {
+  mode: ThemeMode; preset: string;
+  cardAlpha: unknown; bgColor: unknown; headerAlpha: unknown; inkColor: unknown;
+  customAccents: unknown; extraPresets: unknown; semanticColors: unknown; lightSemanticColors: unknown;
+};
+let paletteCache: { inputs: ColorInputs; value: AppColors } | null = null;
+
+function sharedColors(i: ColorInputs): AppColors {
+  const p = paletteCache;
+  if (
+    p && p.inputs.mode === i.mode && p.inputs.preset === i.preset
+    && p.inputs.cardAlpha === i.cardAlpha && p.inputs.bgColor === i.bgColor
+    && p.inputs.headerAlpha === i.headerAlpha && p.inputs.inkColor === i.inkColor
+    // Objets issus de react-query : comparaison par RÉFÉRENCE (stables tant que la config ne change pas).
+    && p.inputs.customAccents === i.customAccents && p.inputs.extraPresets === i.extraPresets
+    && p.inputs.semanticColors === i.semanticColors && p.inputs.lightSemanticColors === i.lightSemanticColors
+  ) return p.value;
+
+  const value = buildColors(i.mode, i.preset, {
+    cardAlpha: i.cardAlpha as any,
+    bgColor: i.bgColor as any,
+    headerAlpha: i.headerAlpha as any,
+    inkColor: i.inkColor as any,
+    customAccents: i.customAccents as any,
+    extraPresets: i.extraPresets as any,
+    semanticColors: i.semanticColors as any,
+    lightSemanticColors: i.lightSemanticColors as any,
+  });
+  paletteCache = { inputs: i, value };
+  return value;
+}
 
 export function useAppColors(): AppColors {
   const { user } = useAuth();
@@ -45,17 +90,13 @@ export function useAppColors(): AppColors {
     ? styleConfig?.light.ink_color
     : styleConfig?.dark.ink_color;
 
-  return useMemo(
-    () => buildColors(mode, preset, {
-      cardAlpha,
-      bgColor,
-      headerAlpha,
-      inkColor,
-      customAccents: styleConfig?.custom_accents,
-      extraPresets: styleConfig?.extra_presets,
-      semanticColors: styleConfig?.semantic_colors,
-      lightSemanticColors: styleConfig?.light_semantic_colors,
-    }),
-    [mode, preset, cardAlpha, bgColor, headerAlpha, inkColor, styleConfig?.custom_accents, styleConfig?.extra_presets, styleConfig?.semantic_colors, styleConfig?.light_semantic_colors]
-  );
+  // Palette PARTAGÉE (cache module) : buildColors ne tourne qu'au vrai changement de thème/config,
+  // et la référence est la même pour les ~142 appelants → styles des composants stables aussi.
+  return sharedColors({
+    mode, preset, cardAlpha, bgColor, headerAlpha, inkColor,
+    customAccents: styleConfig?.custom_accents,
+    extraPresets: styleConfig?.extra_presets,
+    semanticColors: styleConfig?.semantic_colors,
+    lightSemanticColors: styleConfig?.light_semantic_colors,
+  });
 }

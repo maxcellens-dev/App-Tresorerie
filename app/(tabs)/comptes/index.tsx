@@ -118,19 +118,10 @@ export default function AccountsListScreen() {
   const accounts = allAccounts.filter((a) => a._role === 'owner' && !a.is_joint);
   const sharedAccounts = allAccounts.filter((a) => a._role !== 'owner' || a.is_joint);
 
-  const TYPE_ORDER: Record<string, number> = { checking: 0, savings: 1, investment: 2, other: 3 };
-  const sortAccts = (list: typeof allAccounts) =>
-    [...list].sort((a, b) => {
-      const typeA = TYPE_ORDER[a.type] ?? 4;
-      const typeB = TYPE_ORDER[b.type] ?? 4;
-      if (typeA !== typeB) return typeA - typeB;
-      return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
-    });
-  const sharedSorted = useMemo(() => sortAccts(sharedAccounts), [allAccounts]); // eslint-disable-line react-hooks/exhaustive-deps
-  const sortedAccounts = useMemo(() =>
-    sortAccts(accounts),
-    [accounts]
-  );
+  // Le tri (compte principal → type → nom) est appliqué À LA SOURCE par useAllAccounts
+  // (lib/accountOrder) : les deux listes filtrées ci-dessus conservent cet ordre.
+  const sharedSorted = sharedAccounts;
+  const sortedAccounts = accounts;
 
   // Couleur par type de compte, pilotée par les couleurs sémantiques (réactif au Style Editor).
   const accountColor = (type: string) =>
@@ -357,10 +348,12 @@ export default function AccountsListScreen() {
                     <View style={[styles.accountIconCircle, { backgroundColor: color + '1A' }]}>
                       <Ionicons name={iconName as any} size={18} color={color} />
                     </View>
-                    {/* Nom + type */}
+                    {/* Nom + type (· Principal = compte courant par défaut, repère discret) */}
                     <View style={styles.accountInfo}>
                       <Text style={styles.accountName}>{acc.name}</Text>
-                      <Text style={styles.accountType}>{TYPE_LABELS[acc.type] ?? acc.type}</Text>
+                      <Text style={styles.accountType}>
+                        {TYPE_LABELS[acc.type] ?? acc.type}{acc.is_default ? ' · Principal' : ''}
+                      </Text>
                     </View>
                     {/* Solde */}
                     <View style={styles.accountBalanceWrap}>

@@ -103,9 +103,6 @@ function getEffectiveDate(item: { date: string; displayDate?: string }): string 
   return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-// Puces du filtre de comptes : ordre d'affichage par type (Courant → Épargne → Invest → Autre).
-const ACCOUNT_TYPE_ORDER: Record<string, number> = { checking: 0, savings: 1, investment: 2, other: 3 };
-
 // Élément de la liste APLATIE (FlatList) — un type par « brique » visuelle.
 type TxListItem =
   | { t: 'ad'; placement: string; k: string }
@@ -193,10 +190,8 @@ function TransactionsListBody() {
   }, [accounts]);
   // Puces triées par type (Courant → Épargne → Invest → Autre) ; ordre d'origine conservé au sein
   // d'un même type (tri stable).
-  const sortedAccounts = useMemo(
-    () => [...accounts].sort((a: any, b: any) => (ACCOUNT_TYPE_ORDER[a.type] ?? 9) - (ACCOUNT_TYPE_ORDER[b.type] ?? 9)),
-    [accounts]
-  );
+  // Ordre (compte principal → type → nom) appliqué À LA SOURCE par useAllAccounts (lib/accountOrder).
+  const sortedAccounts = accounts;
   // Transaction détaillée en lecture seule (compte reçu en consultation) → ouvre une feuille du bas.
   const [detailTx, setDetailTx] = useState<any | null>(null);
   const { data: detailParticipants = [] } = useAccountParticipants(detailTx?.account_id);

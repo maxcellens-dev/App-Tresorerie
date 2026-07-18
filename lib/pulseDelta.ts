@@ -98,7 +98,9 @@ function directChip(op: PulseOp): PulseDeltaChip {
  * pas le Relyka (elle était déjà budgétée), mais le voir stable est rassurant, pas déroutant.
  */
 function relykaChip(before: number | null, after: number | null): PulseDeltaChip | null {
-  if (after == null) return null;
+  // Chiffres pas encore sûrs → on garde la pastille avec un tiret : la carte a sa forme définitive
+  // dès l'ouverture et se remplit sans rien déplacer.
+  if (after == null) return { key: 'relyka', text: 'Ton Relyka : —', tone: 'neutral' };
   const diff = before != null ? Math.round(after) - Math.round(before) : 0;
   return {
     key: 'relyka',
@@ -157,8 +159,35 @@ function relevantFlipIds(op: PulseOp): Set<PulseSignalId> {
 const MAX_CHIPS = 3;
 
 /**
- * Retour à afficher pour une opération. `before`/`after` = le Pouls avant et après la saisie
- * (null tant que les données ne sont pas revenues → on n'affiche que l'effet direct, toujours vrai).
+ * Carte EN ATTENTE : même signal, même gabarit (libellé, emoji, lignes, barre), mais valeurs en
+ * tirets tant que les chiffres recalculés ne sont pas sûrs. Elle apparaît donc INSTANTANÉMENT avec
+ * la saisie, puis se remplit sur place — jamais de valeur fausse, jamais de saut de mise en page.
+ */
+function pendingSignal(before: PulseResult | null, op: PulseOp): PulseSignal | null {
+  if (!before) return null;
+  for (const id of impactedSignalIds(op)) {
+    const s = before.signals.find((x) => x.id === id);
+    if (!s) continue;
+    return {
+      id: s.id,
+      label: s.label,
+      emoji: s.emoji,
+      status: 'neutral',                       // aucun jugement sur des chiffres non confirmés
+      headline: '—',
+      detail: s.detail ? '—' : undefined,      // on garde les MÊMES lignes que la carte finale
+      amountLine: s.amountLine ? '—' : undefined,
+      chip: '…',
+      progress: s.progress ? { value: 0 } : undefined, // barre vide (aucun remplissage trompeur)
+      pending: true,
+    };
+  }
+  return null;
+}
+
+/**
+ * Retour à afficher pour une opération. `before`/`after` = le Pouls avant et après la saisie.
+ * `after` null = chiffres recalculés pas encore sûrs → la carte s'affiche quand même, dans son
+ * gabarit définitif avec des tirets (cf. pendingSignal), et se remplit dès que `after` arrive.
  */
 export function computeOpFeedback(
   op: PulseOp,
@@ -172,7 +201,7 @@ export function computeOpFeedback(
   const relyka = relykaChip(relykaBefore, relykaAfter);
   if (relyka) chips.push(relyka);
 
-  let signal: PulseSignal | null = null;
+  let signal: PulseSignal | null = pendingSignal(before, op); // gabarit immédiat (tirets)
   if (after) {
     for (const id of impactedSignalIds(op)) {
       const found = after.signals.find((s) => s.id === id);

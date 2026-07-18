@@ -90,13 +90,10 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
     <Tabs
-      // PERF (natif) : par défaut react-native-screens DÉTACHE les onglets inactifs de la
-      // hiérarchie native et doit RÉ-ATTACHER tout l'arbre de vues au retour (centaines de vues
-      // sur les gros écrans) → délai perceptible à chaque changement d'onglet, même vers une page
-      // déjà montée. Sur web c'est un simple display:none — d'où « web fluide, app lente » sur le
-      // même téléphone. detachInactiveScreens={false} = les 5 onglets restent attachés, le
-      // changement d'onglet redevient un pur toggle de visibilité (coût mémoire accepté).
-      detachInactiveScreens={false}
+      // ⚠️ `detachInactiveScreens={false}` a été ESSAYÉ puis RETIRÉ : garder tous les écrans
+      // attachés à la hiérarchie NATIVE fait grossir l'arbre de vues au fil de la session
+      // (mémoire + travail de composition par frame) → dégradation progressive « plus je navigue,
+      // plus c'est lent ». On laisse le défaut (détachement), qui borne la mémoire.
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={() => ({
         // PERF — MESURÉ sur device (sonde ⚡ de la CustomTabBar, 2026-07-16) : sans gel, chaque

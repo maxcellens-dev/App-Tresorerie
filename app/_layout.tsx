@@ -102,12 +102,17 @@ const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      // Données considérées « fraîches » 2 min → moins de refetchs → moins de re-rendus.
-      staleTime: 1000 * 60 * 2,
-      // Plus de refetch automatique au retour en avant-plan / focus (source de churn).
-      // Le refetch au montage reste (respecte staleTime : ne retape pas si données fraîches).
+      // PERF (thread JS) : chaque refetch qui aboutit re-rend TOUS les écrans montés abonnés à la
+      // requête — et ce travail entre en concurrence avec la navigation en cours (d'où « plus je
+      // navigue, plus c'est lent »). On coupe donc le churn automatique à la source :
+      //  • fraîcheur portée à 10 min (au lieu de 2) ;
+      //  • plus de refetch au montage d'écran (`refetchOnMount: false`).
+      // La fraîcheur reste garantie SANS refetch de fond : invalidations explicites après CHAQUE
+      // mutation (transactions/comptes/projets…), realtime Supabase pour les comptes partagés, et
+      // ForegroundRefetch au retour de l'app en avant-plan.
+      staleTime: 1000 * 60 * 10,
       refetchOnWindowFocus: false,
-      refetchOnMount: true,
+      refetchOnMount: false,
     },
   },
 });

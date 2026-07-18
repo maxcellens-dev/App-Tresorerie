@@ -2,17 +2,17 @@
  * POULS — le « live ». Monté UNE fois au niveau racine : la réponse apparaît dès qu'une opération
  * est enregistrée, quel que soit l'écran d'où l'utilisateur a validé.
  *
- * Apparition IMMÉDIATE, enrichissement progressif : la carte se montre à l'instant de la saisie
- * avec l'EFFET DIRECT (toujours exact : « Dépense : −100 € ») — c'est la confirmation visuelle
- * instantanée. Le Relyka et le signal impacté, qui dépendent des données recalculées, s'ajoutent
- * dès que les refetchs aboutissent (jamais de valeur PÉRIMÉE affichée : tant que les données
- * fraîches ne sont pas là, ces éléments sont simplement absents — pas faux).
- * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 1,5 s.
+ * Apparition IMMÉDIATE, remplissage sur place : la carte se montre à l'instant de la saisie avec
+ * l'EFFET DIRECT (toujours exact : « Dépense : −100 € ») ET le gabarit définitif du signal impacté
+ * — libellé, lignes et barre présents, valeurs en TIRETS tant que les chiffres recalculés ne sont
+ * pas sûrs (cf. pendingSignal). Ils se remplissent dès que les refetchs aboutissent : jamais de
+ * valeur PÉRIMÉE affichée, et aucun saut de mise en page.
+ * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 600 ms.
  *
  * Fermeture : au tap (n'importe où) ou en balayant vers le haut. JAMAIS d'auto-disparition.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Pressable, PanResponder, Platform } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Pressable, PanResponder, Platform, LayoutAnimation, type LayoutAnimationConfig } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useIsFetching } from '@tanstack/react-query';
 import { useAppColors } from '../hooks/useAppColors';
@@ -37,6 +37,23 @@ interface Pending {
 
 /** Requêtes dont dépend le Pouls : on attend qu'elles soient revenues avant d'afficher. */
 const WATCHED_QUERIES = new Set(['pilotage_data', 'transactions', 'accounts']);
+
+/** Transition douce quand la carte change de contenu/hauteur (tirets → valeurs). */
+const SEAMLESS_LAYOUT: LayoutAnimationConfig = {
+  duration: 260,
+  create: { type: 'easeInEaseOut', property: 'opacity' },
+  update: { type: 'easeInEaseOut' },
+  delete: { type: 'easeInEaseOut', property: 'opacity' },
+};
+
+/** Empreinte du contenu affiché → évite les re-rendus quand rien n'a réellement changé. */
+function feedbackSignature(f: PulseFeedback): string {
+  const s = f.signal;
+  return [
+    f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|'),
+    s ? `${s.id}:${s.pending ? 1 : 0}:${s.headline}:${s.detail ?? ''}:${s.amountLine ?? ''}:${s.chip}:${s.status}:${s.progress?.value ?? ''}:${s.progress?.planned ?? ''}` : '',
+  ].join('#');
+}
 
 export default function PulseDeltaHost() {
   const COLORS = useAppColors();
@@ -90,15 +107,22 @@ export default function PulseDeltaHost() {
    *  direct — toujours exact — plutôt qu'un Relyka / signal PÉRIMÉS calculés sur l'état d'avant. */
   const renderFor = useCallback((p: Pending) => {
     const fresh = (p.forceFull || p.sawRefetch) && fetchingRef.current === 0 ? pulseRef.current : null;
-    setFeedback(
-      computeOpFeedback(
-        toOp(p.event),
-        p.before?.live ?? null,
-        fresh?.live ?? null,
-        p.before?.relyka ?? null,
-        fresh?.relyka ?? null,
-      ),
+    const next = computeOpFeedback(
+      toOp(p.event),
+      p.before?.live ?? null,
+      fresh?.live ?? null,
+      p.before?.relyka ?? null,
+      fresh?.relyka ?? null,
     );
+    setFeedback((prev) => {
+      // Rien n'a changé (renderFor est appelé à chaque vague de refetch) → on NE re-rend PAS :
+      // c'était une source de clignotement gratuit.
+      if (prev && feedbackSignature(prev) === feedbackSignature(next)) return prev;
+      // Le contenu change (tirets → valeurs, pastille ajoutée…) : la carte grandit. On anime la
+      // transition de mise en page pour que ça GLISSE au lieu d'apparaître d'un bloc.
+      if (prev) LayoutAnimation.configureNext(SEAMLESS_LAYOUT);
+      return next;
+    });
   }, [toOp]);
 
   // Abonnement au bus (monté une fois) : la carte apparaît IMMÉDIATEMENT (effet direct), puis
@@ -113,10 +137,12 @@ export default function PulseDeltaHost() {
       drag.setValue(0);
       anim.setValue(0);
       Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 70, friction: 11 }).start();
-      // Filet : aucun refetch observé (données déjà fraîches, hors ligne…) → compléter avec le cache.
+      // Filet : les refetchs n'ont pas abouti à temps (ou aucun n'a démarré : données déjà fraîches,
+      // hors ligne…) → on compose la carte avec le cache. 600 ms : la carte est TOUJOURS complète
+      // très vite ; si des données plus fraîches arrivent ensuite, l'effet ci-dessous la recalcule.
       fallbackTimer.current = setTimeout(() => {
         if (active.current === p) { p.forceFull = true; renderFor(p); }
-      }, 1500);
+      }, 600);
     });
   }, [liveEnabled, renderFor, anim, drag, clearTimers]);
 

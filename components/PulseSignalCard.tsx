@@ -25,7 +25,10 @@ interface Props {
 export default function PulseSignalCard({ signal, delay = 0 }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const color = pulseColor(COLORS, signal.status);
+  // EN ATTENTE : gabarit définitif, valeurs en tirets, aucune couleur de jugement (les chiffres
+  // recalculés ne sont pas encore confirmés). La carte se remplit sur place à leur arrivée.
+  const pending = !!signal.pending;
+  const color = pending ? COLORS.textSecondary : pulseColor(COLORS, signal.status);
 
   // Entrée : fondu + léger glissement, puis remplissage de la barre (c'est ce mouvement qui donne
   // envie de « tout faire passer au vert »).
@@ -33,15 +36,21 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
   const fill = useRef(new Animated.Value(0)).current;
   const target = Math.max(0, Math.min(1, signal.progress?.value ?? 0));
 
+  // Entrée : UNE SEULE FOIS, au montage. (Avant, cet effet dépendait aussi de `target` : chaque
+  // arrivée de données REJOUAIT l'animation d'entrée → clignotement de la carte.)
   useEffect(() => {
     Animated.sequence([
       Animated.delay(delay),
-      Animated.parallel([
-        Animated.timing(enter, { toValue: 1, duration: 320, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
-        Animated.timing(fill, { toValue: target, duration: 850, delay: 120, useNativeDriver: false, easing: Easing.out(Easing.cubic) }),
-      ]),
+      Animated.timing(enter, { toValue: 1, duration: 320, useNativeDriver: true, easing: Easing.out(Easing.cubic) }),
     ]).start();
-  }, [delay, target, enter, fill]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Remplissage de la barre : glisse vers la nouvelle cible à chaque changement (0 en attente →
+  // valeur réelle), au lieu de sauter d'un coup.
+  useEffect(() => {
+    Animated.timing(fill, { toValue: target, duration: 650, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
+  }, [target, fill]);
 
   return (
     <Animated.View
@@ -62,7 +71,7 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
         </View>
       </View>
 
-      <Text style={styles.headline}>{signal.headline}</Text>
+      <Text style={[styles.headline, pending && styles.pendingValue]}>{signal.headline}</Text>
       {!!signal.detail && <Text style={styles.detail}>{signal.detail}</Text>}
 
       {signal.progress && (() => {
@@ -110,7 +119,7 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
         );
       })()}
 
-      {!!signal.amountLine && <Text style={styles.amount}>{signal.amountLine}</Text>}
+      {!!signal.amountLine && <Text style={[styles.amount, pending && styles.pendingValue]}>{signal.amountLine}</Text>}
     </Animated.View>
   );
 }
@@ -130,6 +139,8 @@ function makeStyles(c: AppColors) {
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, maxWidth: 150 },
     chipText: { fontSize: 10.5, fontWeight: '800' },
     headline: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2, lineHeight: 22 },
+    // Valeur non encore confirmée : même gabarit, teinte discrète (rien de faux, rien qui saute).
+    pendingValue: { color: c.textSecondary, opacity: 0.6 },
     detail: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 6 },
     track: {
       height: 6, borderRadius: 999, backgroundColor: c.cardBorder,

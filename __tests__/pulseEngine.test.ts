@@ -287,7 +287,25 @@ describe('computeOpFeedback — la réponse à une saisie', () => {
   it('une dépense montre son effet direct, tout de suite (même sans données)', () => {
     const f = computeOpFeedback({ kind: 'expense', amount: 45 }, null, null, null, null);
     expect(f.chips[0].text).toBe('Dépense : −45 €');
-    expect(f.signal).toBeNull();
+    expect(f.signal).toBeNull(); // aucun « avant » connu → pas même de gabarit à afficher
+  });
+
+  it('chiffres pas encore sûrs : la carte s’affiche EN ATTENTE (gabarit + tirets), jamais de valeur périmée', () => {
+    // `after` null = le recalcul n'a pas abouti. On veut la carte tout de suite, mais SANS chiffre.
+    const f = computeOpFeedback({ kind: 'expense', amount: 220 }, before, null, 400, null);
+    expect(f.signal).not.toBeNull();
+    expect(f.signal!.pending).toBe(true);
+    expect(f.signal!.id).toBe('spending');           // le bon signal, donc le bon gabarit
+    expect(f.signal!.headline).toBe('—');            // aucune valeur affichée
+    expect(f.signal!.status).toBe('neutral');         // aucun jugement de couleur
+    expect(f.signal!.progress?.value).toBe(0);        // barre vide, pas de remplissage trompeur
+    expect(plain(f.chips.find((c) => c.key === 'relyka')!.text)).toBe('Ton Relyka : —');
+  });
+
+  it('à l’arrivée des chiffres, la carte se remplit (plus aucun état d’attente)', () => {
+    const f = computeOpFeedback({ kind: 'expense', amount: 220 }, before, after, 400, 180);
+    expect(f.signal!.pending).toBeFalsy();
+    expect(f.signal!.headline).not.toBe('—');
   });
 
   it('une dépense fait remonter le signal des DÉPENSES du mois', () => {
