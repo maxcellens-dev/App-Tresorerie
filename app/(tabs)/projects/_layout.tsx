@@ -7,6 +7,8 @@ export default function ProjectsLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
+        // animation 'fade' : aligné sur la pile racine (pas de glissement latéral).
+        animation: 'fade',
         contentStyle: { backgroundColor: COLORS.bg },
       }}
     >

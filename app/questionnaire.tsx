@@ -153,19 +153,22 @@ export default function QuestionnaireScreen() {
   };
   const clearQ9 = () => { setQ9Week(''); setQ9Month(''); handleSelect('q9', ''); };
 
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  // Opacité de la question courante (fondu entre les étapes — plus de glissement latéral).
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(step / (TOTAL_STEPS - 1))).current;
 
-  function animateToStep(next: number, direction: 1 | -1 = 1) {
-    Animated.timing(slideAnim, {
-      toValue: -direction * SCREEN_WIDTH * 0.3,
-      duration: 180,
+  // Transition entre deux questions : FONDU (comme toutes les navigations de l'app). Avant, la page
+  // glissait de 30 % de la largeur d'écran à chaque étape — un « swipe » latéral perturbant. On
+  // `fadeAnim` porte l'opacité (0 → 1) du bloc de question.
+  function animateToStep(next: number, _direction: 1 | -1 = 1) {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 110,
       useNativeDriver: true,
     }).start(() => {
       setStep(next);
-      slideAnim.setValue(direction * SCREEN_WIDTH * 0.3);
-      Animated.spring(slideAnim, {
-        toValue: 0, tension: 80, friction: 12, useNativeDriver: true,
+      Animated.timing(fadeAnim, {
+        toValue: 1, duration: 180, useNativeDriver: true,
       }).start();
     });
     Animated.timing(progressAnim, {
@@ -324,7 +327,7 @@ export default function QuestionnaireScreen() {
 
         {/* Contenu animé */}
         <Animated.View
-          style={[styles.contentWrap, { transform: [{ translateX: slideAnim }] }]}
+          style={[styles.contentWrap, { opacity: fadeAnim }]}
         >
 
           {/* ── Écran 0 : Welcome ────────────────────────── */}

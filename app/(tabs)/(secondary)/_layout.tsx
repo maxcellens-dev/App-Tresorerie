@@ -4,7 +4,10 @@ import { useAppColors } from '../../../hooks/useAppColors';
 export default function SecondaryLayout() {
   const COLORS = useAppColors();
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
+    // `animation: 'fade'` comme la pile RACINE (app/_layout) : sans ça, cette pile utilisait le
+    // glissement latéral par défaut → effet de « swipe » vers la gauche entre deux pages secondaires
+    // (Mon profil ↔ Apparence…), incohérent avec le reste de l'app. Toutes les piles sont alignées.
+    <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: COLORS.bg } }}>
       <Stack.Screen name="profile" />
       <Stack.Screen name="parametres" />
       <Stack.Screen name="apparence" />

@@ -4,7 +4,8 @@ import { useAppColors } from '../../../hooks/useAppColors';
 export default function AccountsLayout() {
   const COLORS = useAppColors();
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: COLORS.bg } }}>
+    // animation 'fade' : aligné sur la pile racine (pas de glissement latéral).
+    <Stack screenOptions={{ headerShown: false, animation: 'fade', contentStyle: { backgroundColor: COLORS.bg } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="[id]" options={{ title: 'Compte' }} />
       <Stack.Screen name="add" options={{ title: 'Nouveau compte' }} />
