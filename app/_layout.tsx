@@ -37,6 +37,7 @@ import FontApplier from '../components/FontApplier';
 import GamificationSync from '../components/GamificationSync';
 import AppDialogHost from '../components/AppDialogHost';
 import SeoHead from '../components/SeoHead';
+import SignOutVeil from '../components/SignOutVeil';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRatesAutoRefresh } from '../hooks/useRatesAutoRefresh';
@@ -275,7 +276,7 @@ function AppChrome() {
   const segments = useSegments();
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
-  const { user, loading, passwordRecovery } = useAuth();
+  const { user, loading, passwordRecovery, signingOut } = useAuth();
   const root = segments[0] ?? 'index';
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register' || root === 'reset-password';
   // Pendant le questionnaire, on masque l'en-tête (profil) : l'utilisateur doit le terminer.
@@ -301,6 +302,10 @@ function AppChrome() {
   useEffect(() => {
     if (loading) return;
     if (passwordRecovery) return; // ne pas court-circuiter la réinitialisation
+    // Déconnexion en cours : la destination est DÉJÀ /welcome, mais `user` reste renseigné tant
+    // que le signOut réseau n'a pas répondu. Sans ce garde, la branche ci-dessous nous renverrait
+    // aussitôt sur '/' → aller-retour visible avant d'atterrir enfin sur l'accueil.
+    if (signingOut) return;
     if (isTabs && !user) {
       router.replace('/welcome');
     } else if (user && (root === 'welcome' || root === 'login' || root === 'register')) {
@@ -308,7 +313,7 @@ function AppChrome() {
       // selon l'avancement de l'onboarding (ne pas court-circuiter le questionnaire).
       router.replace('/');
     }
-  }, [loading, user, isTabs, root]);
+  }, [loading, user, isTabs, root, signingOut]);
 
   // Bouton retour PHYSIQUE Android : retour FIABLE vers la page réellement précédente (via
   // navHistory), au lieu du dépilage par défaut de la pile imbriquée qui atterrit sur une page
@@ -382,6 +387,9 @@ function AppChrome() {
       {/* Cible des portails racine (guide de présentation) — MÊME fenêtre que le contenu, au-dessus
           de la navigation → surlignages alignés au pixel sur les boutons réels. Voir lib/rootPortal. */}
       <RootPortalHost />
+      {/* Voile de déconnexion — TOUT EN HAUT de la pile : rien de ce qui se démonte, se vide ou
+          change de thème pendant la déconnexion ne doit être visible. */}
+      <SignOutVeil />
     </View>
     </TourProvider>
   );

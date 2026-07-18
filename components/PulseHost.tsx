@@ -106,7 +106,9 @@ export default function PulseHost() {
     lastOffset.current = 0;
     contentH.current = 0;
     viewportH.current = 0;
-    atEnd.current = true;
+    scrollableRef.current = false;
+    lockedRef.current = true;
+    setScrollLocked(true);
     drag.setValue(0);
     anim.setValue(0);
     Animated.timing(anim, { toValue: 1, duration: 380, useNativeDriver: true, easing: Easing.out(Easing.cubic) }).start();
@@ -182,39 +184,61 @@ export default function PulseHost() {
   }, [anim, drag, view, consume]);
 
   /**
-   * BALAYAGE VERS LE HAUT POUR FERMER, SANS VOLER LE DÉFILEMENT DE LA LISTE.
+   * BALAYAGE VERS LE HAUT POUR FERMER, EN COHABITATION AVEC LE DÉFILEMENT DE LA LISTE.
    *
-   * Le geste vertical est disputé entre la feuille (fermer) et la liste (défiler). Tant qu'il reste
-   * du contenu à faire défiler, il appartient à la LISTE — sinon, avec beaucoup de cartes, on ne
-   * pouvait plus fermer du tout. Une fois la liste arrivée au bout (ou si elle tient à l'écran),
-   * le balayage suivant appartient à la FEUILLE et la ferme.
+   * Le geste vertical est disputé entre la feuille (fermer) et la liste (défiler). Négocier via le
+   * système de responder ne marche pas : un ScrollView natif qui défile ne rend JAMAIS la main, même
+   * à un ancêtre en phase de capture — d'où l'impression de « ne bouger que la liste », et une
+   * fermeture possible seulement sur les bords hors liste.
+   *
+   * On ne dispute donc plus rien : on VERROUILLE la liste (`scrollEnabled={false}`) dès qu'elle est
+   * arrivée au bout — ou si elle tient entièrement à l'écran. Plus aucun concurrent : le balayage
+   * vers le haut appartient à la feuille et la ferme, où qu'on pose le doigt, cartes comprises.
+   * Au premier geste vers le BAS on redonne la main à la liste, qui reprend son défilement natif
+   * (avec inertie) dès l'événement suivant ; elle se reverrouille en revenant au bout.
    */
-  const atEnd = useRef(true);
+  const [scrollLocked, setScrollLocked] = useState(true);
+  const lockedRef = useRef(true);
+  const scrollableRef = useRef(false);
   const lastOffset = useRef(0);
   const contentH = useRef(0);
   const viewportH = useRef(0);
-  const syncAtEnd = useCallback(() => {
-    // Pas encore mesuré → on considère la liste « au bout » (cas d'une liste courte).
-    const scrollable = viewportH.current > 0 && contentH.current > viewportH.current + 2;
-    atEnd.current = !scrollable || lastOffset.current + viewportH.current >= contentH.current - 12;
+
+  const setLocked = useCallback((next: boolean) => {
+    if (lockedRef.current === next) return;
+    lockedRef.current = next;
+    setScrollLocked(next);
   }, []);
+  const syncLock = useCallback(() => {
+    // Pas encore mesuré → liste considérée courte (cas nominal d'une feuille qui tient à l'écran).
+    const scrollable = viewportH.current > 0 && contentH.current > viewportH.current + 2;
+    scrollableRef.current = scrollable;
+    setLocked(!scrollable || lastOffset.current + viewportH.current >= contentH.current - 12);
+  }, [setLocked]);
+
   /** À brancher sur chaque ScrollView de la feuille. */
   const scrollProbe = useMemo(() => ({
+    scrollEnabled: !scrollLocked,
     scrollEventThrottle: 16,
     onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       lastOffset.current = e.nativeEvent.contentOffset.y;
-      syncAtEnd();
+      syncLock();
     },
-    onContentSizeChange: (_w: number, h: number) => { contentH.current = h; syncAtEnd(); },
-    onLayout: (e: LayoutChangeEvent) => { viewportH.current = e.nativeEvent.layout.height; syncAtEnd(); },
-  }), [syncAtEnd]);
+    onContentSizeChange: (_w: number, h: number) => { contentH.current = h; syncLock(); },
+    onLayout: (e: LayoutChangeEvent) => { viewportH.current = e.nativeEvent.layout.height; syncLock(); },
+  }), [scrollLocked, syncLock]);
 
   const panResponder = useMemo(
     () => PanResponder.create({
-      // Phase de CAPTURE (avant la liste) : on ne lui prend la main que si elle est au bout.
-      onMoveShouldSetPanResponderCapture: (_e, g) =>
-        atEnd.current && g.dy < -8 && Math.abs(g.dy) > Math.abs(g.dx),
-      // Phase de remontée : pour les zones hors liste (poignée, en-tête), toujours actif.
+      onMoveShouldSetPanResponderCapture: (_e, g) => {
+        if (Math.abs(g.dy) <= Math.abs(g.dx)) return false;
+        if (!lockedRef.current) return false; // la liste défile : on ne lui prend rien
+        // Geste vers le bas sur une liste verrouillée = « je veux remonter la liste » → on la
+        // déverrouille et on décline ; elle prend le geste dès l'événement suivant.
+        if (g.dy > 6) { if (scrollableRef.current) setLocked(false); return false; }
+        return g.dy < -6;
+      },
+      // Zones hors liste (poignée, en-tête) : toujours actif, sans condition.
       onMoveShouldSetPanResponder: (_e, g) => g.dy < -8 && Math.abs(g.dy) > Math.abs(g.dx),
       // Une fois le geste de fermeture engagé, la liste ne le récupère pas.
       onPanResponderTerminationRequest: () => false,
@@ -224,7 +248,7 @@ export default function PulseHost() {
         else Animated.spring(drag, { toValue: 0, useNativeDriver: true, tension: 80, friction: 9 }).start();
       },
     }),
-    [drag, close],
+    [drag, close, setLocked],
   );
 
   if (!view || !pulse) return null;

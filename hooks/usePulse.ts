@@ -93,6 +93,61 @@ export interface PulseData {
   hadActivityLastMonth: boolean;
 }
 
+/**
+ * Les 15 entrées du calcul, regroupées : elles servent aussi de clé au cache partagé.
+ * Types DÉRIVÉS des hooks source — le calcul reste typé de bout en bout.
+ */
+type QueryData<T extends (...args: any) => any> = ReturnType<T> extends { data: infer D } ? D : never;
+type PulseDeps = {
+  pilotage: QueryData<typeof usePilotageData>;
+  profile: QueryData<typeof useProfile>;
+  transactions: NonNullable<QueryData<typeof useTransactions>>;
+  accounts: NonNullable<QueryData<typeof useAllAccounts>>;
+  projects: NonNullable<QueryData<typeof useProjects>>;
+  preSavings: QueryData<typeof usePreSavings>;
+  reservations: NonNullable<QueryData<typeof useReservations>>;
+  financialProfile: QueryData<typeof useFinancialProfile>;
+  answers: QueryData<typeof useQuestionnaireAnswers>;
+  config: QueryData<typeof usePulseConfig>;
+  relCfg: QueryData<typeof useReliabilityConfig>;
+  snapshots: NonNullable<QueryData<typeof usePulseSnapshots>>;
+  customTiers: QueryData<typeof useRecommendationTiers>;
+  recoThresholds: QueryData<typeof useRecoThresholds>;
+  userId: string | undefined;
+};
+
+/**
+ * PERF — CACHE PARTAGÉ ENTRE COMPOSANTS.
+ *
+ * `usePulse()` est appelé par DEUX hosts montés à la racine (PulseHost et PulseDeltaHost) : sans
+ * cache, tout le pipeline — 3× computePulse, le moteur de recommandations complet, et un balayage
+ * des transactions sur 12 mois — tournait DEUX FOIS à chaque rendu déclenché par une navigation.
+ * Un `useMemo` ne peut rien y faire : il est local à une instance de composant.
+ *
+ * Même schéma que la palette de couleurs (hooks/useAppColors) : on mémorise le dernier couple
+ * (entrées, résultat) au niveau du MODULE et on le réutilise tant que les entrées sont
+ * identiques — comparaison par référence, les données viennent de react-query qui garantit une
+ * référence stable tant que rien n'a changé.
+ */
+let pulseCache: { deps: PulseDeps; value: PulseData | null } | null = null;
+
+function sameDeps(a: PulseDeps, b: PulseDeps): boolean {
+  return a.pilotage === b.pilotage && a.profile === b.profile && a.transactions === b.transactions
+    && a.accounts === b.accounts && a.projects === b.projects && a.preSavings === b.preSavings
+    && a.reservations === b.reservations && a.financialProfile === b.financialProfile
+    && a.answers === b.answers && a.config === b.config && a.relCfg === b.relCfg
+    && a.snapshots === b.snapshots && a.customTiers === b.customTiers
+    && a.recoThresholds === b.recoThresholds && a.userId === b.userId;
+}
+
+function sharedPulse(deps: PulseDeps): PulseData | null {
+  const cached = pulseCache;
+  if (cached && sameDeps(cached.deps, deps)) return cached.value;
+  const value = buildPulse(deps);
+  pulseCache = { deps, value };
+  return value;
+}
+
 export function usePulse(): PulseData | null {
   const { user } = useAuth();
   const { data: pilotage } = usePilotageData(user?.id);
@@ -112,7 +167,25 @@ export function usePulse(): PulseData | null {
   const { data: customTiers } = useRecommendationTiers();
   const { data: recoThresholds } = useRecoThresholds();
 
-  return useMemo<PulseData | null>(() => {
+  return useMemo<PulseData | null>(
+    () => sharedPulse({
+      pilotage, profile, transactions, accounts, projects, preSavings, reservations,
+      financialProfile, answers, config, relCfg, snapshots, customTiers, recoThresholds,
+      userId: user?.id,
+    }),
+    [
+      pilotage, profile, transactions, accounts, projects, preSavings, reservations,
+      financialProfile, answers, config, relCfg, snapshots, customTiers, recoThresholds, user?.id,
+    ],
+  );
+}
+
+function buildPulse(deps: PulseDeps): PulseData | null {
+  const {
+    pilotage, profile, transactions, accounts, projects, preSavings, reservations,
+    financialProfile, answers, config, relCfg, snapshots, customTiers, recoThresholds, userId,
+  } = deps;
+  {
     if (!pilotage || !config?.enabled) return null;
     const profileId = (financialProfile?.profile_id as FinancialProfileId) ?? 'P3';
     const today = new Date();
@@ -206,11 +279,11 @@ export function usePulse(): PulseData | null {
     const wealth3mAgo = snap3m ? Number(snap3m.wealth) : null;
 
     // ── Projets PERSO (les projets partagés ne sont pas le sujet du Pouls).
-    const progressById = new Map(
-      (pilotage.projects_with_progress ?? []).map((p) => [p.id, p]),
+    const progressById = new Map<string, any>(
+      ((pilotage.projects_with_progress ?? []) as any[]).map((p) => [p.id as string, p]),
     );
     const pulseProjects = (projects as any[])
-      .filter((p) => p.profile_id === user?.id && p.status === 'active')
+      .filter((p) => p.profile_id === userId && p.status === 'active')
       .map((p) => {
         const progress = progressById.get(p.id);
         const target = Number(p.target_amount) || 0;
@@ -279,10 +352,7 @@ export function usePulse(): PulseData | null {
       wealth,
       hadActivityLastMonth,
     };
-  }, [
-    pilotage, profile, transactions, accounts, projects, preSavings, reservations,
-    financialProfile, answers, config, relCfg, snapshots, customTiers, recoThresholds, user?.id,
-  ]);
+  }
 }
 
 /**

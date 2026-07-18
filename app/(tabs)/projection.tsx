@@ -298,7 +298,11 @@ function ProjectionBody() {
 
   // Charger depuis la base + pré-remplir les comptes manquants
   useEffect(() => {
-    if (loaded || investAccounts.length === 0 || fiscalRates.length === 0 || !assumptionsQuery.isFetched) return;
+    // `isSuccess` et non `isFetched` : une lecture EN ÉCHEC compte comme « fetched ». On partait
+    // alors sur les valeurs par défaut, `loaded` passait à true, et la sauvegarde différée écrasait
+    // en base les hypothèses réellement enregistrées. Tant que la lecture n'a pas RÉUSSI, on ne
+    // charge rien et — surtout — on n'écrit rien (la sauvegarde est gardée par `loaded`).
+    if (loaded || investAccounts.length === 0 || fiscalRates.length === 0 || !assumptionsQuery.isSuccess) return;
     const saved = assumptionsQuery.data;
     const initialHypos: Record<string, AccountHypo> = saved?.hypos ?? {};
     for (const acc of investAccounts) {
@@ -335,7 +339,7 @@ function ProjectionBody() {
     // taux fiscaux sont prêts AVANT la requête des hypothèses, l'effet sort tôt (isFetched=false)
     // et ne se relance jamais → les valeurs sauvegardées ne sont pas restaurées et l'UI retombe
     // sur les défauts (« se remet par défaut parfois »).
-  }, [investAccounts, loaded, user?.id, fiscalRates, assumptionsQuery.isFetched, assumptionsQuery.data]);
+  }, [investAccounts, loaded, user?.id, fiscalRates, assumptionsQuery.isSuccess, assumptionsQuery.data]);
 
   // Sauvegarde : voir l'effet plus bas (après la déclaration des états d'épargne « perso »).
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);

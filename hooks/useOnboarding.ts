@@ -82,13 +82,18 @@ export function useUpdateOnboarding(userId: string | undefined) {
       const updates: Record<string, any> = {};
       if (patch.app_tour_done !== undefined) updates.app_tour_done = patch.app_tour_done;
       if (patch.flags) {
-        // Fusionne avec l'état existant.
-        const { data } = await supabase.from('profiles').select('onboarding_state').eq('id', userId).single();
+        // Fusionne avec l'état existant. ⚠️ Lecture-modification-écriture : une lecture EN ÉCHEC
+        // rendue comme « état vide » ferait repartir la fusion de {} et EFFACERAIT tous les
+        // drapeaux déjà acquis. On propage l'erreur → la mutation échoue, l'état reste intact.
+        const { data, error } = await supabase
+          .from('profiles').select('onboarding_state').eq('id', userId).single();
+        if (error) throw error;
         const prev = ((data as any)?.onboarding_state ?? {}) as OnboardingState;
         updates.onboarding_state = { ...prev, ...patch.flags };
       }
       if (Object.keys(updates).length === 0) return;
-      await supabase.from('profiles').update(updates).eq('id', userId);
+      const { error: writeError } = await supabase.from('profiles').update(updates).eq('id', userId);
+      if (writeError) throw writeError;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['profile', userId] }); },
   });

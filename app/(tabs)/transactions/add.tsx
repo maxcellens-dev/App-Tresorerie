@@ -140,9 +140,34 @@ export default function AddTransactionScreen() {
   const isIncome = transactionType === 'income';
   const isTransfer = transactionType === 'transfer';
 
+  /**
+   * Compte à pré-sélectionner, par ordre de priorité :
+   *  1. celui d'où l'on vient (param `account`, saisie ouverte depuis un compte) ;
+   *  2. le compte courant PAR DÉFAUT choisi par l'utilisateur (migration 146) ;
+   *  3. le 1er compte courant PERSO (propriétaire, non joint) — jamais le compte joint ni un
+   *     compte partagé reçu ; repli : autre compte courant, sinon 1er compte.
+   *
+   * Extrait en fonction (au lieu de vivre uniquement dans un effet) parce que la remise à zéro du
+   * formulaire doit pouvoir le RECALCULER : après un enregistrement, l'écran n'est pas remonté et
+   * les effets ne se rejouent pas — leurs dépendances n'ont pas bougé.
+   */
+  const initialAccountId = useCallback((): string => {
+    if (!accounts.length) return '';
+    if (params.account && accounts.some(a => a.id === params.account)) return String(params.account);
+    const preferred = accounts.find((a) => a.is_default);
+    if (preferred) return preferred.id;
+    const persoChecking = accounts.filter(a => a.type === 'checking' && a._role === 'owner' && !a.is_joint);
+    if (persoChecking.length) return persoChecking[0].id;
+    const checkingAccounts = accounts.filter(a => a.type === 'checking');
+    return checkingAccounts.length ? checkingAccounts[0].id : accounts[0].id;
+  }, [accounts, params.account]);
+
   // Remet le formulaire à son état initial (appelé après un enregistrement réussi). On garde le TYPE
   // courant (l'utilisateur enchaîne souvent le même type), mais on repart à l'étape 1, champs vides.
   const resetForm = useCallback(() => {
+    // Le compte REPART sur le défaut : l'écran n'étant pas remonté entre deux saisies, il gardait
+    // sinon le compte de la saisie précédente — surprise garantie à la suivante.
+    setAccountId(initialAccountId());
     setAmount('');
     setAmountTo('');
     amountToTouched.current = false;
@@ -160,7 +185,7 @@ export default function AddTransactionScreen() {
     setErrorFields([]);
     setAttachProjectId(null);
     setStep(1);
-  }, []);
+  }, [initialAccountId]);
 
   // Changer de type → revenir à l'étape 1.
   const changeType = (t: TransactionType) => { setTransactionType(t); setStep(1); setFormError(null); setErrorFields([]); };
@@ -295,23 +320,11 @@ export default function AddTransactionScreen() {
     }
   }, [params.account, accounts]);
 
-  // Sélection automatique du dernier compte courant utilisé.
-  // IMPORTANT : si on est arrivé DEPUIS un compte (param `account` valide), on NE choisit PAS le défaut
-  // — sinon, comme les deux effets tournent dans le même commit avec `accountId` encore vide, l'auto-
-  // sélection écraserait la pré-sélection. On laisse l'effet de pré-sélection ci-dessus décider.
+  // Sélection initiale, à l'arrivée sur l'écran (tant que rien n'est choisi).
   useEffect(() => {
     if (accountId || !accounts.length) return;
-    if (params.account && accounts.some(a => a.id === params.account)) return;
-    // 1) Le compte COURANT PAR DÉFAUT choisi par l'utilisateur (migration 146) prime sur tout.
-    const preferred = accounts.find((a) => a.is_default);
-    if (preferred) { setAccountId(preferred.id); return; }
-    // 2) Sinon : 1er compte courant PERSO (propriétaire, non joint) — jamais le compte joint ni un
-    // compte partagé reçu. Repli : autre compte courant, sinon 1er compte.
-    const persoChecking = accounts.filter(a => a.type === 'checking' && a._role === 'owner' && !a.is_joint);
-    if (persoChecking.length) { setAccountId(persoChecking[0].id); return; }
-    const checkingAccounts = accounts.filter(a => a.type === 'checking');
-    setAccountId(checkingAccounts.length ? checkingAccounts[0].id : accounts[0].id);
-  }, [accounts, params.account]);
+    setAccountId(initialAccountId());
+  }, [accounts, accountId, initialAccountId]);
 
   function showError(msg: string, fields: string[] = []) {
     setFormError(msg);

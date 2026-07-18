@@ -4,6 +4,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { clearCachedUserTheme } from '../lib/themeBoot';
@@ -23,7 +24,15 @@ type ImpersonationApi = {
   stopImpersonating: () => void;
 };
 
-const AuthContext = createContext<AuthState & { signOut: () => Promise<void>; passwordRecovery: boolean; clearPasswordRecovery: () => void } & ImpersonationApi | null>(null);
+type SignOutApi = {
+  signOut: () => Promise<void>;
+  /** Déconnexion en cours : le garde d'auth se tait et un voile opaque masque la transition. */
+  signingOut: boolean;
+  /** Levé par le voile une fois l'accueil atteint. */
+  endSignOut: () => void;
+};
+
+const AuthContext = createContext<AuthState & SignOutApi & { passwordRecovery: boolean; clearPasswordRecovery: () => void } & ImpersonationApi | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -33,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   // true quand l'utilisateur arrive via un lien de réinitialisation de mot de passe.
   const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   // Mode admin « connecté en tant que » : on substitue l'identifiant de données, sans toucher à l'auth réelle.
   const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
   const [impersonatedEmail, setImpersonatedEmail] = useState<string | null>(null);
@@ -77,10 +87,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [updateState]);
 
+  /**
+   * DÉCONNEXION — la navigation fait partie de l'opération, elle n'est plus à la charge des
+   * appelants. Trois d'entre eux l'ordonnaient différemment, dont un à l'envers (session vidée
+   * PUIS navigation → l'écran courant se re-rendait « vide » avant de partir).
+   *
+   * Ordre imposé, dans cet ordre exact :
+   *  1. `signingOut` → voile opaque immédiat + garde d'auth mis en sourdine. Sans ce garde, la
+   *     redirection vers /welcome arrivait alors que `user` était ENCORE renseigné (le signOut
+   *     réseau n'avait pas répondu) → le garde renvoyait aussitôt sur '/' , et l'accueil n'était
+   *     atteint qu'au 2ᵉ rebond : c'est le flash « on reste sur la page puis ça part ».
+   *  2. Navigation, tant que les données sont encore là (rien ne peut se re-rendre à vide).
+   *  3. Session + caches vidés, sous le voile.
+   */
   const signOut = useCallback(async () => {
+    setSigningOut(true);
     explicitSignOut.current = true; // autorise le vidage de session sur le SIGNED_OUT qui suit
     setImpersonatedUserId(null);
     setImpersonatedEmail(null);
+    router.replace('/welcome');
     if (supabase) await supabase.auth.signOut();
     setState({ user: null, session: null, loading: false });
     // Vide le cache des requêtes : évite qu'une donnée périmée d'une session précédente
@@ -89,6 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Oublie le thème utilisateur mémorisé → le prochain rendu (pré-auth) reprend le thème admin.
     clearCachedUserTheme();
   }, [queryClient]);
+
+  const endSignOut = useCallback(() => setSigningOut(false), []);
 
   const clearPasswordRecovery = useCallback(() => setPasswordRecovery(false), []);
 
@@ -121,6 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session: state.session,
       loading: state.loading,
       signOut,
+      signingOut,
+      endSignOut,
       passwordRecovery,
       clearPasswordRecovery,
       realUser,
@@ -129,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       impersonate,
       stopImpersonating,
     }),
-    [effectiveUser, state.session, state.loading, signOut, passwordRecovery, clearPasswordRecovery, realUser, isImpersonating, impersonatedEmail, impersonate, stopImpersonating],
+    [effectiveUser, state.session, state.loading, signOut, signingOut, endSignOut, passwordRecovery, clearPasswordRecovery, realUser, isImpersonating, impersonatedEmail, impersonate, stopImpersonating],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -69,9 +69,10 @@ export default function QuickAddButton() {
     return () => clearTimeout(t);
   }, [pathname, pulse]);
 
-  // État `open` lisible depuis un callback d'animation (qui capture sinon une valeur périmée).
+  // Intention d'ouverture, mise à jour SYNCHRONEMENT (pas au rendu suivant) : elle sert à la fois
+  // aux callbacks d'animation et à l'arbitrage des taps rapprochés, qui ne peuvent pas attendre
+  // le prochain rendu pour savoir dans quel sens basculer.
   const openRef = useRef(false);
-  openRef.current = open;
   const unmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (unmountTimer.current) clearTimeout(unmountTimer.current); }, []);
 
@@ -79,9 +80,11 @@ export default function QuickAddButton() {
     Animated.spring(anim, { toValue: to, useNativeDriver: true, friction: 6, tension: 90 }).start(cb);
   const openMenu = () => {
     if (unmountTimer.current) { clearTimeout(unmountTimer.current); unmountTimer.current = null; }
+    openRef.current = true;
     setMounted(true); setOpen(true); run(1);
   };
   const close = () => {
+    openRef.current = false;
     setOpen(false);
     // Démonter dès que l'animation finit… ET filet de sécurité : si elle est INTERROMPUE, le
     // callback n'arrive jamais → les boutons restaient montés, avec leur ombre native (elevation)
@@ -91,7 +94,9 @@ export default function QuickAddButton() {
     if (unmountTimer.current) clearTimeout(unmountTimer.current);
     unmountTimer.current = setTimeout(unmountIfStillClosed, 400);
   };
-  const toggle = () => { if (open) close(); else openMenu(); };
+  // On lit openRef, pas `open` : deux taps dans la MÊME frame capturent le même `open` périmé et
+  // déclenchent deux fois la même branche → état désynchronisé de l'animation.
+  const toggle = () => { if (openRef.current) close(); else openMenu(); };
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
   const enabled = flags?.quick_add_enabled !== false;      // admin : défaut activé
@@ -131,8 +136,13 @@ export default function QuickAddButton() {
     { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, up: 0, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
   ] as const;
 
-  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] });
-  const backdropOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  // ⚠️ TOUTES les interpolations sont BORNÉES. `anim` est un ressort : il dépasse hors de [0, 1],
+  // et des taps rapprochés lui transmettent la vélocité du ressort précédent — le dépassement
+  // s'amplifie. Non borné, cela donnait une opacité négative (boutons invisibles) alors que
+  // `pointerEvents` restait actif : on ne voyait plus rien mais on cliquait toujours.
+  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'], extrapolate: 'clamp' });
+  const backdropOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  const actionOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
 
   return (
     <>
@@ -150,12 +160,14 @@ export default function QuickAddButton() {
           // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
           const left = FAB_SIZE / 2 + radius * Math.cos(rad) - ACTION_W / 2;
           const top = FAB_SIZE / 2 - radius * Math.sin(rad) - ACTION_SIZE / 2 - (a.up ?? 0);
-          const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
+          const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1], extrapolate: 'clamp' });
           return (
             <Animated.View
               key={a.key}
+              // Cliquable UNIQUEMENT si le menu est ouvert — et, le menu ouvert, l'opacité bornée
+              // converge forcément vers 1 : « invisible mais cliquable » n'est plus atteignable.
               pointerEvents={open ? 'auto' : 'none'}
-              style={[styles.action, { left, top, opacity: anim, transform: [{ scale }] }]}
+              style={[styles.action, { left, top, opacity: actionOpacity, transform: [{ scale }] }]}
             >
               <TouchableOpacity
                 // ⚠️ Android : l'ombre `elevation` est dessinée NATIVEMENT et NE SUIT PAS l'opacité

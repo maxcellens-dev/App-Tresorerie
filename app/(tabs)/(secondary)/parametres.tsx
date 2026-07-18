@@ -186,12 +186,8 @@ function SettingsScreen() {
   const setPreset = (preset: ThemePreset) => updateProfile.mutate({ theme_preset: preset });
 
   // ── Sign out ──
-  // On navigue AVANT de vider la session : sinon l'écran courant se re-rend sans données (état de
-  // chargement) le temps de la redirection → l'utilisateur voit passer un écran intermédiaire.
-  async function handleSignOut() {
-    router.replace('/welcome');
-    await signOut();
-  }
+  // signOut() se charge de tout (voile, navigation, purge) — cf. AuthContext.
+  function handleSignOut() { signOut(); }
 
   if (!user) {
     return (
