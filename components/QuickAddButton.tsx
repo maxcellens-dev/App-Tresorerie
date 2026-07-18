@@ -69,10 +69,28 @@ export default function QuickAddButton() {
     return () => clearTimeout(t);
   }, [pathname, pulse]);
 
+  // État `open` lisible depuis un callback d'animation (qui capture sinon une valeur périmée).
+  const openRef = useRef(false);
+  openRef.current = open;
+  const unmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (unmountTimer.current) clearTimeout(unmountTimer.current); }, []);
+
   const run = (to: number, cb?: (result: { finished: boolean }) => void) =>
     Animated.spring(anim, { toValue: to, useNativeDriver: true, friction: 6, tension: 90 }).start(cb);
-  const openMenu = () => { setMounted(true); setOpen(true); run(1); };
-  const close = () => { setOpen(false); run(0, ({ finished }) => { if (finished) setMounted(false); }); };
+  const openMenu = () => {
+    if (unmountTimer.current) { clearTimeout(unmountTimer.current); unmountTimer.current = null; }
+    setMounted(true); setOpen(true); run(1);
+  };
+  const close = () => {
+    setOpen(false);
+    // Démonter dès que l'animation finit… ET filet de sécurité : si elle est INTERROMPUE, le
+    // callback n'arrive jamais → les boutons restaient montés, avec leur ombre native (elevation)
+    // toujours visible à l'écran. Le timer garantit le démontage dans tous les cas.
+    const unmountIfStillClosed = () => { if (!openRef.current) setMounted(false); };
+    run(0, unmountIfStillClosed);
+    if (unmountTimer.current) clearTimeout(unmountTimer.current);
+    unmountTimer.current = setTimeout(unmountIfStillClosed, 400);
+  };
   const toggle = () => { if (open) close(); else openMenu(); };
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
@@ -140,7 +158,16 @@ export default function QuickAddButton() {
               style={[styles.action, { left, top, opacity: anim, transform: [{ scale }] }]}
             >
               <TouchableOpacity
-                style={[styles.actionBtn, { shadowColor: a.color }]}
+                // ⚠️ Android : l'ombre `elevation` est dessinée NATIVEMENT et NE SUIT PAS l'opacité
+                // animée du parent → pendant la fermeture, le bouton devient transparent mais son
+                // ombre reste (halos qui clignotent puis disparaissent d'un coup). On coupe donc
+                // l'ombre DÈS le début de la fermeture (`open` passe à false immédiatement).
+                style={[
+                  styles.actionBtn,
+                  open
+                    ? { shadowColor: a.color }
+                    : { shadowColor: 'transparent', shadowOpacity: 0, elevation: 0 },
+                ]}
                 onPress={() => go(a.route)}
                 activeOpacity={0.85}
               >

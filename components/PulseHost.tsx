@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, Animated, Easing, Pressable, PanResponder, Platform,
   useWindowDimensions,
+  type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSegments } from 'expo-router';
@@ -100,6 +101,12 @@ export default function PulseHost() {
     if (!view) { animatedFor.current = null; return; }
     if (!pulse || animatedFor.current === view) return;
     animatedFor.current = view;
+    // Nouvelle vue = nouvelle liste : on repart d'une mesure vierge (onLayout / onContentSizeChange
+    // la refont immédiatement au montage, bien avant qu'un geste soit possible).
+    lastOffset.current = 0;
+    contentH.current = 0;
+    viewportH.current = 0;
+    atEnd.current = true;
     drag.setValue(0);
     anim.setValue(0);
     Animated.timing(anim, { toValue: 1, duration: 380, useNativeDriver: true, easing: Easing.out(Easing.cubic) }).start();
@@ -174,9 +181,43 @@ export default function PulseHost() {
       });
   }, [anim, drag, view, consume]);
 
+  /**
+   * BALAYAGE VERS LE HAUT POUR FERMER, SANS VOLER LE DÉFILEMENT DE LA LISTE.
+   *
+   * Le geste vertical est disputé entre la feuille (fermer) et la liste (défiler). Tant qu'il reste
+   * du contenu à faire défiler, il appartient à la LISTE — sinon, avec beaucoup de cartes, on ne
+   * pouvait plus fermer du tout. Une fois la liste arrivée au bout (ou si elle tient à l'écran),
+   * le balayage suivant appartient à la FEUILLE et la ferme.
+   */
+  const atEnd = useRef(true);
+  const lastOffset = useRef(0);
+  const contentH = useRef(0);
+  const viewportH = useRef(0);
+  const syncAtEnd = useCallback(() => {
+    // Pas encore mesuré → on considère la liste « au bout » (cas d'une liste courte).
+    const scrollable = viewportH.current > 0 && contentH.current > viewportH.current + 2;
+    atEnd.current = !scrollable || lastOffset.current + viewportH.current >= contentH.current - 12;
+  }, []);
+  /** À brancher sur chaque ScrollView de la feuille. */
+  const scrollProbe = useMemo(() => ({
+    scrollEventThrottle: 16,
+    onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      lastOffset.current = e.nativeEvent.contentOffset.y;
+      syncAtEnd();
+    },
+    onContentSizeChange: (_w: number, h: number) => { contentH.current = h; syncAtEnd(); },
+    onLayout: (e: LayoutChangeEvent) => { viewportH.current = e.nativeEvent.layout.height; syncAtEnd(); },
+  }), [syncAtEnd]);
+
   const panResponder = useMemo(
     () => PanResponder.create({
+      // Phase de CAPTURE (avant la liste) : on ne lui prend la main que si elle est au bout.
+      onMoveShouldSetPanResponderCapture: (_e, g) =>
+        atEnd.current && g.dy < -8 && Math.abs(g.dy) > Math.abs(g.dx),
+      // Phase de remontée : pour les zones hors liste (poignée, en-tête), toujours actif.
       onMoveShouldSetPanResponder: (_e, g) => g.dy < -8 && Math.abs(g.dy) > Math.abs(g.dx),
+      // Une fois le geste de fermeture engagé, la liste ne le récupère pas.
+      onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_e, g) => { if (g.dy < 0) drag.setValue(g.dy); },
       onPanResponderRelease: (_e, g) => {
         if (g.dy < -50) close();
@@ -235,7 +276,7 @@ export default function PulseHost() {
           /* ── HEBDO : un POINT D'ÉTAPE visuel et compact — anneau épargné+investi, deux lignes,
                 la série. Rien d'autre : pas de synthèse, pas de bouton, pas de note. ── */
           <>
-            <ScrollView showsVerticalScrollIndicator={false} style={[styles.list, { marginTop: 12 }]}>
+            <ScrollView {...scrollProbe} showsVerticalScrollIndicator={false} style={[styles.list, { marginTop: 12 }]}>
               <View style={styles.weekCard}>
                 <View style={styles.weekRow}>
                   {pulse.weeklyStats.capacity >= 20 && (
@@ -292,6 +333,7 @@ export default function PulseHost() {
             </View>
 
             <ScrollView
+              {...scrollProbe}
               style={[styles.list, { marginTop: 12 }]}
               contentContainerStyle={{ paddingBottom: 8 }}
               showsVerticalScrollIndicator={false}
