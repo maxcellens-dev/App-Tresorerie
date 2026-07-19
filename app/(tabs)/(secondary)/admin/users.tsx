@@ -29,7 +29,7 @@ export default function AdminUsers() {
 
   function consult(u: AdminUser) {
     impersonate(u.id, u.email);
-    router.replace('/(tabs)/home');
+    router.replace('/(tabs)/pilotage');
   }
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';

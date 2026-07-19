@@ -13,7 +13,7 @@ export function useScreenGuide(screen: GuideScreen, _userId?: string) {
   const tour = useTour();
   const focused = useIsFocused();
   const [step, setStep] = useState(0);
-  // `focused` évite les doublons quand un même écran est monté 2× (ex. home = pilotage).
+  // `focused` évite les doublons si un même écran venait à être monté 2× (garde-fou).
   const visible = tour.active && tour.currentKey === screen && focused;
 
   // Recommence au début à chaque fois que le tour arrive sur cet écran.

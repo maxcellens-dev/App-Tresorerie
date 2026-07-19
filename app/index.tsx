@@ -77,7 +77,7 @@ export default function Index() {
       // l'accueil (qui gère l'affichage hors-ligne) — JAMAIS le questionnaire (qui renverrait un
       // utilisateur existant vers l'onboarding). Seul un vrai « profil absent » (en ligne, data null,
       // sans erreur) mène au questionnaire.
-      if (noNetwork || profileQuery.isError) return <Redirect href="/(tabs)/home" />;
+      if (noNetwork || profileQuery.isError) return <Redirect href="/(tabs)/pilotage" />;
       return <Redirect href="/setup" />;
     }
     if (!questionnaireDone) {
@@ -86,7 +86,7 @@ export default function Index() {
     if (!onboardingDone) {
       return <Redirect href="/setup" />;
     }
-    return <Redirect href="/(tabs)/home" />;
+    return <Redirect href="/(tabs)/pilotage" />;
   }
 
   return <WelcomeScreen />;

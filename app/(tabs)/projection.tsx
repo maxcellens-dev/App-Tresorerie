@@ -1117,7 +1117,10 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
 }) {
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR');
   const { width: winW } = useWindowDimensions();
-  const chartWidth = Math.max(0, winW - 32 - 24); // padding scroll (16×2) + carte (12×2)
+  // La largeur du graphe se MESURE sur son conteneur : sur le web, l'app vit dans une colonne
+  // centrée (maxWidth 840, cf. app/_layout.tsx), donc partir de la largeur de FENÊTRE faisait
+  // déborder la courbe hors de la carte. La valeur initiale n'est qu'un repli pour la 1ʳᵉ frame.
+  const [chartWidth, setChartWidth] = useState(() => Math.max(0, Math.min(winW, 840) - 32 - 24));
   const variableMonthly = pilotage?.variable_envelope_initial ?? 0;
   const variableRemaining = pilotage?.variable_envelope_remaining ?? variableMonthly;
 
@@ -1158,7 +1161,13 @@ function TresoSimplified({ transactions, accounts, pilotage, overridesMap, COLOR
             })}
           </View>
         </View>
-        <View style={{ alignItems: 'center' }}>
+        <View
+          style={{ alignItems: 'center', overflow: 'hidden' }}
+          onLayout={(e) => {
+            const w = Math.floor(e.nativeEvent.layout.width);
+            if (w > 0 && w !== chartWidth) setChartWidth(w);
+          }}
+        >
           <BalanceCurve
             rows={rows}
             width={chartWidth}

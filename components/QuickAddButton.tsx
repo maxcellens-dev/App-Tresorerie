@@ -56,7 +56,7 @@ export default function QuickAddButton() {
   // Pulse UNE fois par session à l'arrivée sur le Pilotage : attire l'œil sans agacer.
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    if (pulsedThisSession || !/(pilotage|home)/.test(pathname ?? '')) return;
+    if (pulsedThisSession || !/pilotage/.test(pathname ?? '')) return;
     pulsedThisSession = true;
     const t = setTimeout(() => {
       Animated.sequence([
@@ -102,12 +102,12 @@ export default function QuickAddButton() {
   const enabled = flags?.quick_add_enabled !== false;      // admin : défaut activé
   const isBubble = (flags?.quick_add_mode ?? 'tabbar') === 'bubble';
   if (!enabled || position === 'hidden') return null;
-  // Mode bulle : visible sur le Pilotage — y compris l'écran d'accueil « home » (entête « Bonjour … »)
-  // sur lequel on atterrit au démarrage —, sur les écrans « Comptes » (liste + détail d'un compte) et
+  // Mode bulle : visible sur le Pilotage (l'écran d'accueil sur lequel on atterrit au démarrage),
+  // sur les écrans « Comptes » (liste + détail d'un compte) et
   // sur la liste des « Transactions » (où il remplace les 3 boutons du haut). Jamais sur un écran de
   // SAISIE (add / edit) : y proposer une saisie n'aurait aucun sens.
   const path = pathname ?? '';
-  if (isBubble && (!/(pilotage|home|comptes|transactions)/.test(path) || /\/(add|edit)(\/|$)/.test(path))) return null;
+  if (isBubble && (!/(pilotage|comptes|transactions)/.test(path) || /\/(add|edit)(\/|$)/.test(path))) return null;
 
   // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
   const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);

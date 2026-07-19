@@ -56,13 +56,16 @@ function TabsHeader() {
 
   const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
   const displayTitle = titleMap[fullPath] || 'Relyka';
-  const isHome = routeName === 'home';
+  // La route `home` a été supprimée : c'était un alias du même composant que `pilotage` (deux
+  // routes, deux montages, une seule page). Le Pilotage est donc l'écran d'accueil et porte le
+  // titre « Tableau de bord » — plus aucune route n'utilise l'entête « Bonjour, <prénom> », qui
+  // reste le repli de HeaderWithProfile quand aucun titre n'est fourni.
   const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
   const isReporting = fullPath === '(tabs)/reporting';
   return (
     <HeaderWithProfile
       applyTopInset
-      title={isHome || showCustomHeader ? undefined : displayTitle}
+      title={showCustomHeader ? undefined : displayTitle}
       titleBadge={isReporting && isPremium ? <PremiumStar /> : undefined}
       leftContent={
         (showCustomHeader || fullPath.includes('admin')) ? (
