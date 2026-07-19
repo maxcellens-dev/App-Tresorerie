@@ -223,7 +223,7 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'freeze_pack3', type: 'freeze', category: 'series', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
     { key: 'streak_restore', type: 'streak_restore', category: 'series', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
     // ── Apparence ──
-    { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent exclusives pour personnaliser ton espace.', price: 200, icon: 'color-palette' },
+    { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent supplémentaires pour personnaliser ton espace.', price: 200, icon: 'color-palette' },
     // ── Cosmétiques : cadres d'avatar & flammes de série ──
     { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
     { key: 'cosmetic_frame_silver', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre argenté', description: 'Un cadre argenté élégant autour de ton avatar.', price: 70, icon: 'person-circle' },
