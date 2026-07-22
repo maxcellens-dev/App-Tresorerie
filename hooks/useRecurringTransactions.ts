@@ -16,6 +16,7 @@ export interface RecurringItem {
   rule: string;           // daily | weekly | monthly | quarterly | yearly
   nextDate: string;       // prochaine échéance (ancre `date`)
   accountName: string | null;
+  upcoming: boolean;      // prochaine échéance dans le futur (pas encore passée)
 }
 
 const RULE_LABEL: Record<string, string> = { daily: 'Chaque jour', weekly: 'Chaque semaine', monthly: 'Chaque mois', quarterly: 'Chaque trimestre', yearly: 'Chaque année' };
@@ -44,6 +45,9 @@ export function useRecurringTransactions(userId: string | undefined) {
       return (data ?? [])
         // Séries vivantes uniquement (non tronquées / non expirées).
         .filter((r: any) => !r.recurrence_end_date || r.recurrence_end_date >= today)
+        // Un VIREMENT = 2 jambes (débit + crédit, comptes inversés). On ne garde que la jambe
+        // SORTANTE (montant < 0) → une seule ligne, dans le sens « source → destination ».
+        .filter((r: any) => !(r.linked_account_id && Number(r.amount) >= 0))
         .map((r: any): RecurringItem => {
           const amt = Number(r.amount);
           const isTransfer = !!r.linked_account_id;
@@ -53,7 +57,7 @@ export function useRecurringTransactions(userId: string | undefined) {
           const label = isTransfer
             ? `${acc ?? '?'} → ${dest}`
             : (r.category?.name ?? 'Sans catégorie');
-          return { id: r.id, kind, label, amount: Math.abs(amt), rule: r.recurrence_rule, nextDate: r.date, accountName: acc };
+          return { id: r.id, kind, label, amount: Math.abs(amt), rule: r.recurrence_rule, nextDate: r.date, accountName: acc, upcoming: r.date > today };
         });
     },
     staleTime: 30 * 1000,

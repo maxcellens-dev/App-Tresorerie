@@ -71,8 +71,6 @@ export default function UpdateBanner() {
     }).start();
   }, [shouldShow, slide, slideX]);
 
-  if (Platform.OS === 'web' || (!required && !available)) return null;
-
   const openStore = () => {
     const url = Platform.OS === 'ios'
       ? (flags?.update_url_ios || 'https://apps.apple.com/')
@@ -124,6 +122,11 @@ export default function UpdateBanner() {
       },
     }),
   ).current;
+
+  // Rien à afficher (web ou pas de MAJ) — APRÈS tous les hooks : un return conditionnel AVANT un
+  // hook change le nombre de hooks entre deux rendus (masqué → affiché quand une version plus récente
+  // est publiée) → crash « Rendered more hooks than during the previous render ». (Bug corrigé.)
+  if (Platform.OS === 'web' || (!required && !available)) return null;
 
   return (
     <Animated.View

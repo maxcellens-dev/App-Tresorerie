@@ -3,7 +3,7 @@
  * dépenses, recettes). Tap sur une ligne → écran d'édition (qui gère la sémantique de troncature).
  * Ouvert depuis un bouton de la page Transactions et un raccourci du modal « dépenses récurrentes ».
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -22,7 +22,9 @@ export default function RecurringTransactionsModal({ visible, onClose, userId }:
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
-  const { data: items = [], isLoading } = useRecurringTransactions(userId);
+  const { data: items = [], isLoading, refetch } = useRecurringTransactions(userId);
+  // À l'ouverture : on relit → une récurrence créée à l'instant apparaît sans rafraîchir la page.
+  useEffect(() => { if (visible) refetch(); }, [visible, refetch]);
 
   const groups: RecurKind[] = ['transfer', 'expense', 'income'];
   const byKind = (k: RecurKind) => items.filter((i) => i.kind === k);
