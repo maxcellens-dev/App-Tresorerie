@@ -347,14 +347,20 @@ export function useAiTickets() {
 }
 
 export interface AiModelStatus { id: string; ok: boolean; status: number; reason: string }
-/** Teste en direct la disponibilité de chaque modèle configuré (admin). */
+/** Résultat du test : dispo par modèle sur la clé GRATUITE + (si configurée) la clé PAYANTE. */
+export interface AiModelsCheck { results: AiModelStatus[]; paid: AiModelStatus[] | null; paid_configured: boolean }
+/** Teste en direct la disponibilité de chaque modèle configuré (admin) — clés gratuite ET payante. */
 export function useCheckAiModels() {
   return useMutation({
-    mutationFn: async (): Promise<AiModelStatus[]> => {
+    mutationFn: async (): Promise<AiModelsCheck> => {
       if (!supabase) throw new Error('Backend indisponible');
       const { data, error } = await supabase.functions.invoke('ai-advice', { body: { admin_check_models: true } });
       if (error) throw new Error(error.message || 'Échec du test');
-      return (data?.results ?? []) as AiModelStatus[];
+      return {
+        results: (data?.results ?? []) as AiModelStatus[],
+        paid: (data?.paid ?? null) as AiModelStatus[] | null,
+        paid_configured: !!data?.paid_configured,
+      };
     },
   });
 }

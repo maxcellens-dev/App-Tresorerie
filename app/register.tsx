@@ -13,6 +13,8 @@ import { supabase } from '../lib/supabase';
 import { useBrandColors } from '../hooks/useBrandColors';
 import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
+import PasswordStrength from '../components/PasswordStrength';
+import { evaluatePassword } from '../lib/passwordPolicy';
 
 
 export default function RegisterScreen() {
@@ -31,8 +33,9 @@ export default function RegisterScreen() {
       showAlert('Champs requis', 'Renseignez email et mot de passe.');
       return;
     }
-    if (password.length < 6) {
-      showAlert('Mot de passe', 'Au moins 6 caractères.');
+    const pwEval = evaluatePassword(password);
+    if (!pwEval.valid) {
+      showAlert('Mot de passe trop faible', pwEval.firstError ?? 'Choisis un mot de passe plus robuste.');
       return;
     }
     setLoading(true);
@@ -98,19 +101,20 @@ export default function RegisterScreen() {
                   onSubmitEditing={() => passwordRef.current?.focus()}
                   blurOnSubmit={false}
                 />
-                <Text style={styles.label}>Mot de passe (min. 6 caractères)</Text>
+                <Text style={styles.label}>Mot de passe</Text>
                 <TextInput
                   ref={passwordRef}
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
                   onFocus={handleFocus}
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   placeholderTextColor={COLORS.textSecondary}
                   secureTextEntry
                   returnKeyType="go"
                   onSubmitEditing={handleRegister}
                 />
+                <PasswordStrength value={password} colors={COLORS} />
                 <TouchableOpacity
                   style={[styles.btn, loading && styles.btnDisabled]}
                   onPress={handleRegister}

@@ -40,6 +40,16 @@ export interface FeatureFlags {
   quick_add_mode?: 'tabbar' | 'bubble';
   /** Vitesse de défilement du bandeau « Conseils » sur le Pilotage (secondes entre 2 conseils). Défaut 8. */
   conseils_rotation_seconds?: number;
+  /**
+   * COUPURE GLOBALE (kill switch, Centre de sécurité). Quand `true`, l'app est verrouillée pour TOUS
+   * les utilisateurs (sauf admins) : voile plein écran, aucune interaction. À activer en cas
+   * d'attaque/piratage en cours, à désactiver pour rouvrir. Propagé en temps réel (useAppLockdown).
+   */
+  app_lockdown_enabled?: boolean;
+  /** Titre affiché sur le voile de coupure (optionnel). */
+  app_lockdown_title?: string;
+  /** Message affiché sur le voile de coupure (optionnel). */
+  app_lockdown_message?: string;
 }
 
 const KEY = 'feature_flags';

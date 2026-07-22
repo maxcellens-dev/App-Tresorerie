@@ -289,7 +289,9 @@ export default function PulseHost() {
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <Text style={styles.period} numberOfLines={1}>· {period}</Text>
+            {/* Point HEBDO : pas de plage de dates en tête (redondante, alourdit le titre) — on
+                ne montre la date que pour l'État des lieux mensuel / du jour. */}
+            {view !== 'week' && <Text style={styles.period} numberOfLines={1}>· {period}</Text>}
           </View>
           <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
             <Ionicons name="close" size={20} color={COLORS.textSecondary} />

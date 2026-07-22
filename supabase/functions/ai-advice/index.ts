@@ -128,20 +128,27 @@ serve(async (req) => {
     const { data: callerIsAdmin } = await asUser.rpc('is_app_admin');
     if (!callerIsAdmin) return json({ error: 'forbidden' }, 403);
     const { data: acfg } = await admin.from('ai_config').select('models').single();
-    const results: { id: string; ok: boolean; status: number; reason: string }[] = [];
-    for (const m of (acfg!.models as any[])) {
-      let ok = false, status = 0, reason = 'Erreur';
-      for (const key of GEMINI_KEYS) {
-        try { await callGemini(m.id, 'ping', key); ok = true; reason = 'OK'; break; }
-        catch (e) {
-          const code = Number(String(e).match(/HTTP (\d+)/)?.[1] ?? 0);
-          status = code;
-          reason = code === 429 ? 'Quota épuisé' : code === 404 ? 'Modèle introuvable' : code === 503 ? 'Surchargé' : code === 403 ? 'Clé/API refusée' : 'Erreur';
+    // Ping chaque modèle sur un JEU DE CLÉS donné → dispo réelle (OK / 429 / 404 / 403…).
+    const pingAll = async (keys: string[]) => {
+      const out: { id: string; ok: boolean; status: number; reason: string }[] = [];
+      for (const m of (acfg!.models as any[])) {
+        let ok = false, status = 0, reason = 'Erreur';
+        for (const key of keys) {
+          try { await callGemini(m.id, 'ping', key); ok = true; reason = 'OK'; break; }
+          catch (e) {
+            const code = Number(String(e).match(/HTTP (\d+)/)?.[1] ?? 0);
+            status = code;
+            reason = code === 429 ? 'Quota épuisé' : code === 404 ? 'Modèle introuvable' : code === 503 ? 'Surchargé' : code === 403 ? 'Clé/API refusée' : 'Erreur';
+          }
         }
+        out.push({ id: m.id, ok, status: ok ? 200 : status, reason });
       }
-      results.push({ id: m.id, ok, status: ok ? 200 : status, reason });
-    }
-    return json({ ok: true, results });
+      return out;
+    };
+    // Clés GRATUITES + (si configurée) clé PAYANTE, testées séparément.
+    const results = await pingAll(GEMINI_KEYS);
+    const paid = GEMINI_PAID_KEYS.length ? await pingAll(GEMINI_PAID_KEYS) : null;
+    return json({ ok: true, results, paid, paid_configured: GEMINI_PAID_KEYS.length > 0 });
   }
 
   // ── Relance ADMIN : l'admin rejoue une requête échouée pour un user cible, SANS quota ni décompte.
@@ -241,7 +248,13 @@ serve(async (req) => {
   // 6) Appel modèle avec bascule modèles × clés. Requête payée → clé PAYANTE dédiée (pas de cap commun).
   let models = (cfg.models as any[]).filter((m) => m.enabled);
   if (wantedModel) models = [...models.filter((m) => m.id === wantedModel), ...models.filter((m) => m.id !== wantedModel)];
-  const keysToUse = usePaidKey ? GEMINI_PAID_KEYS : GEMINI_KEYS;
+  // Voie payante (premium inclus, crédits achetés/offerts, bascule éditeur) : clé PAYANTE d'abord,
+  // puis REPLI sur les clés gratuites si la payante échoue (facturation lapsée → 403, quota → 429,
+  // modèle non servi → 400). Sans ce repli, une clé payante HS fait échouer une requête que
+  // l'utilisateur a POURTANT payée (ou qu'un admin a offerte pour test) → ticket au lieu de réponse.
+  const keysToUse = usePaidKey
+    ? [...new Set([...GEMINI_PAID_KEYS, ...GEMINI_KEYS])]
+    : GEMINI_KEYS;
   const gen = overGlobal ? { reply: '', model: '', lastErr: 'daily_global_cap' } : await generateWithFallback(models, finalPrompt, keysToUse);
   const reply = gen.reply, modelUsed = gen.model;
 

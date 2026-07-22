@@ -195,12 +195,21 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
 
   const check = useCheckAiModels();
   const [statuses, setStatuses] = useState<Record<string, AiModelStatus>>({});
-  const runCheck = () => check.mutate(undefined, { onSuccess: (res) => setStatuses(Object.fromEntries(res.map((r) => [r.id, r]))) });
-  const badge = (m: AiModel) => {
-    const st = statuses[m.id]; if (!st) return null;
+  const [paidStatuses, setPaidStatuses] = useState<Record<string, AiModelStatus>>({});
+  const [paidConfigured, setPaidConfigured] = useState<boolean | null>(null);
+  const runCheck = () => check.mutate(undefined, { onSuccess: (res) => {
+    setStatuses(Object.fromEntries(res.results.map((r) => [r.id, r])));
+    setPaidStatuses(Object.fromEntries((res.paid ?? []).map((r) => [r.id, r])));
+    setPaidConfigured(res.paid_configured);
+  } });
+  // Pastille d'état pour un jeu de clés donné (gratuit ou payant).
+  const badgeFor = (st: AiModelStatus | undefined, prefix?: string) => {
+    if (!st) return null;
     const col = st.ok ? c.green : (st.status === 429 ? c.amber : c.danger);
-    return <View style={[s.statusBadge, { backgroundColor: col + '22', borderColor: col }]}><Text style={[s.statusTxt, { color: col }]}>{st.ok ? 'OK' : st.reason}</Text></View>;
+    return <View style={[s.statusBadge, { backgroundColor: col + '22', borderColor: col }]}><Text style={[s.statusTxt, { color: col }]}>{prefix ? prefix + ' ' : ''}{st.ok ? 'OK' : st.reason}</Text></View>;
   };
+  const badge = (m: AiModel) => badgeFor(statuses[m.id]);
+  const paidBadge = (m: AiModel) => badgeFor(paidStatuses[m.id], '💳');
 
   const setField = (i: number, k: keyof AiModel, v: any) => setList((l) => l.map((m, j) => j === i ? { ...m, [k]: v } : m));
   const move = (i: number, dir: -1 | 1) => setList((l) => { const j = i + dir; if (j < 0 || j >= l.length) return l; const n = [...l]; [n[i], n[j]] = [n[j], n[i]]; return n; });
@@ -215,7 +224,13 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
         {check.isPending ? <ActivityIndicator size="small" color={c.emerald} /> : <Ionicons name="pulse-outline" size={16} color={c.emerald} />}
         <Text style={s.checkTxt}>{check.isPending ? 'Test en cours…' : 'Tester la disponibilité en direct'}</Text>
       </TouchableOpacity>
-      <Text style={[s.hint, { marginBottom: 10 }]}>Google n'expose pas le quota restant chiffré : ce test ping chaque modèle et renvoie son état réel (OK / épuisé / introuvable). Consomme une mini‑requête par modèle.</Text>
+      <Text style={[s.hint, { marginBottom: paidConfigured === null ? 10 : 6 }]}>Google n'expose pas le quota restant chiffré : ce test ping chaque modèle et renvoie son état réel (OK / épuisé / introuvable). Il teste la clé GRATUITE et, si configurée, la clé PAYANTE (badge 💳). Consomme une mini‑requête par modèle et par clé.</Text>
+      {paidConfigured === false && (
+        <Text style={[s.hint, { marginBottom: 10, color: c.danger }]}>💳 Clé payante NON configurée (secret GEMINI_API_KEY_PAID absent) → les requêtes sur crédits retombent sur les clés gratuites. Ajoute le secret pour un vrai routage payant sans plafond.</Text>
+      )}
+      {paidConfigured === true && (
+        <Text style={[s.hint, { marginBottom: 10, color: c.green }]}>💳 Clé payante configurée. Les badges 💳 ci‑dessous montrent sa disponibilité par modèle (403 = facturation/clé, 429 = quota).</Text>
+      )}
       {list.map((m, i) => (
         <View key={i} style={s.promptCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -226,7 +241,7 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                 <TextInput style={[s.input, { flex: 1, marginBottom: 0 }]} value={m.id} onChangeText={(v) => setField(i, 'id', v)} placeholder="ID (ex. gemini-2.5-flash)" autoCapitalize="none" autoCorrect={false} />
-                {badge(m)}
+                <View style={{ gap: 4, alignItems: 'flex-end' }}>{badge(m)}{paidBadge(m)}</View>
               </View>
               <TextInput style={[s.input, { marginBottom: 0 }]} value={m.label} onChangeText={(v) => setField(i, 'label', v)} placeholder="Nom affiché" />
             </View>

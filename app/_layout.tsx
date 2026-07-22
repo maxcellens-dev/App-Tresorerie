@@ -38,6 +38,9 @@ import GamificationSync from '../components/GamificationSync';
 import AppDialogHost from '../components/AppDialogHost';
 import SeoHead from '../components/SeoHead';
 import SignOutVeil from '../components/SignOutVeil';
+import SecurityGate from '../components/SecurityGate';
+import GlobalErrorBoundary from '../components/GlobalErrorBoundary';
+import { installGlobalErrorReporting } from '../lib/errorReporting';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCurrency } from '../hooks/useCurrency';
 import { useRatesAutoRefresh } from '../hooks/useRatesAutoRefresh';
@@ -64,6 +67,10 @@ if (__DEV__) {
 // Charge AU PLUS TÔT le dernier thème connu (AsyncStorage natif) → l'app s'ouvre dans le thème de
 // l'utilisateur même hors-ligne (le profil ne se chargera pas), au lieu du sombre par défaut.
 hydrateThemeCache();
+
+// Capture globale des exceptions/rejets non gérés → Centre de sécurité (client_errors). Installé au
+// plus tôt pour couvrir même les erreurs de démarrage. Fire-and-forget, jamais bloquant.
+installGlobalErrorReporting();
 
 // Détection RÉSEAU (NetInfo → onlineManager de react-query). Hors-ligne, les requêtes se METTENT EN
 // PAUSE (au lieu d'échouer en boucle et de vider le cache) ; à la RECONNEXION elles reprennent
@@ -387,6 +394,9 @@ function AppChrome() {
       {/* Cible des portails racine (guide de présentation) — MÊME fenêtre que le contenu, au-dessus
           de la navigation → surlignages alignés au pixel sur les boutons réels. Voir lib/rootPortal. */}
       <RootPortalHost />
+      {/* Coupure globale (kill switch) — voile plein écran par-dessus tout quand l'admin verrouille
+          l'app (attaque/piratage). Les admins ne sont pas bloqués (bandeau d'alerte seulement). */}
+      <SecurityGate />
       {/* Voile de déconnexion — TOUT EN HAUT de la pile : rien de ce qui se démonte, se vide ou
           change de thème pendant la déconnexion ne doit être visible. */}
       <SignOutVeil />
@@ -408,6 +418,7 @@ export default function RootLayout() {
     // StatusBar de react-native : monter le <StatusBar> de RN (défaut translucent:false) écrase cette
     // prop → barre blanche en haut. Toujours utiliser expo-status-bar dans les écrans.
     <KeyboardProvider statusBarTranslucent>
+      <GlobalErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
@@ -433,6 +444,7 @@ export default function RootLayout() {
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
+      </GlobalErrorBoundary>
     </KeyboardProvider>
   );
 }

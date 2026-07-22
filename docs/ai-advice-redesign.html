@@ -1,0 +1,342 @@
+<title>Relyka — Conseils IA, refonte visuelle (cible)</title>
+<style>
+  /* ── Token system : clair par défaut, sombre via media query, puis override data-theme ── */
+  :root {
+    --ground: #e9e2d3;
+    --surface: #f6f1e7;
+    --card: #fffdf8;
+    --card-hi: #ffffff;
+    --line: #e0d7c4;
+    --text: #12312c;
+    --body: #33463f;
+    --muted: #61756c;
+    --faint: #8a9a91;
+    --emerald: #12a978;
+    --emerald-deep: #0c8a61;
+    --on-emerald: #ffffff;
+    --good: #12a978;
+    --watch: #c07d16;
+    --over: #d1544f;
+    --violet: #7c5cf0;
+    --hero-glow: #d8ead9;
+    --shadow: rgba(60,50,20,0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #081e1a;
+      --surface: #0d2e2a;
+      --card: #123430;
+      --card-hi: #16403a;
+      --line: #1f4a43;
+      --text: #f3eee3;
+      --body: #d7e2de;
+      --muted: #93a8a1;
+      --faint: #6f8a82;
+      --emerald: #38d39a;
+      --emerald-deep: #1fa97e;
+      --on-emerald: #06231d;
+      --good: #38d39a;
+      --watch: #f2b84b;
+      --over: #f0736e;
+      --violet: #a78bfa;
+      --hero-glow: #0e3a33;
+      --shadow: rgba(0,0,0,0.7);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #e9e2d3; --surface: #f6f1e7; --card: #fffdf8; --card-hi: #ffffff;
+    --line: #e0d7c4; --text: #12312c; --body: #33463f; --muted: #61756c; --faint: #8a9a91;
+    --emerald: #12a978; --emerald-deep: #0c8a61; --on-emerald: #ffffff;
+    --good: #12a978; --watch: #c07d16; --over: #d1544f; --violet: #7c5cf0;
+    --hero-glow: #d8ead9; --shadow: rgba(60,50,20,0.18);
+  }
+  :root[data-theme="dark"] {
+    --ground: #081e1a; --surface: #0d2e2a; --card: #123430; --card-hi: #16403a;
+    --line: #1f4a43; --text: #f3eee3; --body: #d7e2de; --muted: #93a8a1; --faint: #6f8a82;
+    --emerald: #38d39a; --emerald-deep: #1fa97e; --on-emerald: #06231d;
+    --good: #38d39a; --watch: #f2b84b; --over: #f0736e; --violet: #a78bfa;
+    --hero-glow: #0e3a33; --shadow: rgba(0,0,0,0.7);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --radius: 18px;
+    --font: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+  }
+  body {
+    background: radial-gradient(120% 80% at 50% -10%, var(--hero-glow) 0%, var(--ground) 55%) fixed;
+    color: var(--text);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    padding: 44px 20px 80px;
+    transition: background 0.2s, color 0.2s;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+
+  .intro { text-align: center; max-width: 640px; margin: 0 auto 40px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--emerald-deep); font-weight: 700; margin-bottom: 14px; }
+  .intro h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; }
+  .intro p { color: var(--muted); margin-top: 14px; font-size: 15.5px; text-wrap: pretty; }
+
+  .stage { display: grid; grid-template-columns: 380px 1fr; gap: 48px; align-items: start; }
+  @media (max-width: 900px) { .stage { grid-template-columns: 1fr; gap: 40px; } }
+
+  /* ── Phone frame ── */
+  .phone {
+    position: sticky; top: 32px; justify-self: center;
+    width: 380px; max-width: 100%;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 40px; padding: 14px;
+    box-shadow: 0 40px 80px -30px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  @media (max-width: 900px) { .phone { position: static; } }
+  .screen { background: var(--surface); border-radius: 28px; overflow: hidden; max-height: 760px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .screen::-webkit-scrollbar { width: 6px; }
+  .screen::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+  .statusbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px 4px; font-size: 12px; color: var(--faint); }
+  .appbar { display: flex; align-items: center; gap: 10px; padding: 8px 18px 14px; }
+  .appbar .logo { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--emerald), var(--emerald-deep)); display: grid; place-items: center; font-weight: 800; color: var(--on-emerald); font-size: 14px; }
+  .appbar .t { font-weight: 700; font-size: 15px; color: var(--text); }
+  .appbar .t small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .appbar .counter { margin-left: auto; font-size: 12px; color: var(--muted); background: var(--card); border: 1px solid var(--line); padding: 5px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+
+  .feed { padding: 6px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── Verdict hero ── */
+  .verdict { background: linear-gradient(160deg, var(--card-hi), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: flex; gap: 18px; align-items: center; }
+  .ring { --v: 68; position: relative; flex: 0 0 auto; width: 88px; height: 88px; border-radius: 50%;
+    background: conic-gradient(var(--good) calc(var(--v) * 1%), color-mix(in srgb, var(--good) 16%, transparent) 0); display: grid; place-items: center; }
+  .ring::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--card); }
+  .ring b { position: relative; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+  .ring b span { font-size: 11px; color: var(--muted); font-weight: 600; }
+  .verdict .v-body { min-width: 0; }
+  .verdict .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--good); background: color-mix(in srgb, var(--good) 13%, transparent); border: 1px solid color-mix(in srgb, var(--good) 32%, transparent); padding: 3px 9px; border-radius: 999px; }
+  .verdict h2 { margin-top: 10px; font-size: 18px; line-height: 1.3; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; color: var(--text); }
+
+  /* ── Insight cards ── */
+  .insight { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 16px; display: flex; gap: 12px; }
+  .insight .ic { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 15px; font-weight: 800; }
+  .insight.protect .ic { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+  .insight.watch .ic { background: color-mix(in srgb, var(--over) 15%, transparent); color: var(--over); }
+  .insight h3 { font-size: 13.5px; font-weight: 700; }
+  .insight.protect h3 { color: var(--good); }
+  .insight.watch h3 { color: var(--over); }
+  .insight p { font-size: 13.5px; color: var(--body); margin-top: 4px; line-height: 1.5; }
+
+  /* ── Radar ── */
+  .radar { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .radar .rh { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .radar .rh b { font-size: 13.5px; font-weight: 700; color: var(--text); }
+  .radar .rh .n { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); padding: 3px 8px; border-radius: 999px; }
+  .srow { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); }
+  .srow:first-of-type { border-top: 0; }
+  .srow .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .srow .lbl { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .srow .sub { font-size: 11.5px; color: var(--muted); }
+  .srow .pill { margin-left: auto; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .s-good .dot { background: var(--good); } .s-good .pill { color: var(--good); background: color-mix(in srgb, var(--good) 13%, transparent); }
+  .s-watch .dot { background: var(--watch); } .s-watch .pill { color: var(--watch); background: color-mix(in srgb, var(--watch) 15%, transparent); }
+  .s-over .dot { background: var(--over); } .s-over .pill { color: var(--over); background: color-mix(in srgb, var(--over) 14%, transparent); }
+
+  /* ── Actions ── */
+  .actions .ah { display: flex; align-items: center; gap: 8px; margin: 4px 2px 10px; }
+  .actions .ah .kick { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; color: var(--on-emerald); background: var(--violet); padding: 3px 8px; border-radius: 6px; }
+  .actions .ah b { font-size: 13.5px; color: var(--text); }
+  .act { display: flex; align-items: center; gap: 13px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; margin-bottom: 9px; }
+  .act .rank { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text); }
+  .act.p1 .rank { background: var(--emerald); color: var(--on-emerald); border-color: transparent; }
+  .act .txt b { font-size: 13.5px; font-weight: 700; display: block; color: var(--text); }
+  .act .txt small { font-size: 12px; color: var(--muted); }
+  .act .meta { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .act.p1 .meta { color: var(--good); border-color: color-mix(in srgb, var(--good) 32%, transparent); }
+
+  /* ── Sections détaillées (le fond de l'analyse — sous la synthèse) ── */
+  .sectitle { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 6px 2px 2px; }
+  .sectitle::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 16px; }
+  .section h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+  .section p { font-size: 13px; color: var(--body); line-height: 1.55; }
+  .section p + p { margin-top: 7px; }
+  .section .li { display: flex; gap: 7px; font-size: 13px; color: var(--body); line-height: 1.5; margin-top: 6px; }
+  .section .li::before { content: "•"; color: var(--emerald); font-weight: 800; }
+  .section b { color: var(--text); font-weight: 700; }
+  .subscore { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; }
+  .subscore .bar { flex: 1; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 22%, transparent); overflow: hidden; }
+  .subscore .bar i { display: block; height: 100%; border-radius: 3px; }
+  .subscore .val { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; min-width: 46px; text-align: right; }
+
+  .disclaimer { font-size: 11px; color: var(--faint); text-align: center; padding: 6px 20px 0; line-height: 1.5; }
+
+  /* ── Spec column ── */
+  .spec { display: flex; flex-direction: column; gap: 26px; padding-top: 6px; }
+  .spec .block h4 { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--emerald-deep); font-weight: 700; margin-bottom: 12px; }
+  .spec .block > p { color: var(--muted); font-size: 14.5px; margin-bottom: 14px; text-wrap: pretty; }
+  .spec .block > p b { color: var(--text); }
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .ba { grid-template-columns: 1fr; } }
+  .ba .col { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: color-mix(in srgb, var(--card) 60%, transparent); }
+  .ba .col .cap { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; }
+  .ba .before .cap { color: var(--over); } .ba .after .cap { color: var(--good); }
+  .ba .before p { color: var(--faint); font-size: 12.5px; line-height: 1.5; }
+  .ba .after p { color: var(--body); font-size: 12.5px; }
+  .parts { display: flex; flex-direction: column; gap: 2px; }
+  .part { display: grid; grid-template-columns: 155px 1fr; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); align-items: baseline; }
+  .part:first-child { border-top: 0; }
+  .part .k { font-weight: 700; font-size: 13.5px; color: var(--text); }
+  .part .k code { display: block; font-family: var(--mono); font-size: 11px; color: var(--emerald-deep); margin-top: 4px; font-weight: 500; }
+  .part .d { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+  .steps { counter-reset: s; display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step::before { counter-increment: s; content: counter(s); flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px; background: var(--card-hi); border: 1px solid var(--line); display: grid; place-items: center; font-weight: 800; font-size: 12px; color: var(--emerald-deep); }
+  .step p { font-size: 13.5px; color: var(--body); }
+  .step p b { color: var(--text); }
+  .foot { margin-top: 8px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12.5px; }
+  .foot b { color: var(--muted); }
+  code.inl { font-family: var(--mono); font-size: 0.86em; color: var(--emerald-deep); background: color-mix(in srgb, var(--emerald) 10%, transparent); padding: 1px 5px; border-radius: 5px; }
+
+  /* ── Theme toggle ── */
+  .toggle { position: fixed; top: 16px; right: 16px; z-index: 10; display: flex; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px; box-shadow: 0 6px 20px -10px var(--shadow); }
+  .toggle button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+  .toggle button[aria-pressed="true"] { background: var(--emerald); color: var(--on-emerald); }
+  .toggle button:focus-visible { outline: 2px solid var(--emerald-deep); outline-offset: 2px; }
+</style>
+
+<div class="toggle" role="group" aria-label="Thème">
+  <button type="button" data-set="light" aria-pressed="false">Clair</button>
+  <button type="button" data-set="dark" aria-pressed="false">Sombre</button>
+</div>
+
+<div class="wrap">
+  <div class="intro">
+    <div class="eyebrow">Conseils IA · refonte visuelle</div>
+    <h1>Un compte rendu qui se scanne en 3 secondes</h1>
+    <p>Aujourd'hui l'IA renvoie des paragraphes. On garde toute son intelligence — et toute la profondeur de chaque analyse — mais on l'organise : une <b>synthèse scannable</b> en tête (verdict, radar, actions), puis <b>l'analyse détaillée</b> en sections. On ajoute de la hiérarchie, on ne coupe rien. Thème clair et sombre.</p>
+  </div>
+
+  <div class="stage">
+    <!-- ─────────── PHONE MOCKUP ─────────── -->
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>9:41</span><span>Relyka</span></div>
+        <div class="appbar">
+          <div class="logo">R</div>
+          <div class="t">Conseils IA<small>Bilan de juillet 2026</small></div>
+          <div class="counter">14 / 20</div>
+        </div>
+
+        <div class="feed">
+          <div class="verdict">
+            <div class="ring"><b>68<span>/100</span></b></div>
+            <div class="v-body">
+              <span class="tag">● Bonne direction</span>
+              <h2>Tu es financièrement solide, mais ta marge mensuelle devient trop serrée.</h2>
+            </div>
+          </div>
+
+          <div class="insight protect">
+            <div class="ic">✓</div>
+            <div><h3>Ce qui te protège</h3><p>Tu peux traverser plusieurs mois sans revenus sans toucher à tes investissements.</p></div>
+          </div>
+          <div class="insight watch">
+            <div class="ic">!</div>
+            <div><h3>Le vrai point de vigilance</h3><p>Presque tout ton revenu part déjà en charges récurrentes : peu de marge pour un imprévu.</p></div>
+          </div>
+
+          <div class="radar">
+            <div class="rh"><span>🛡️</span><b>Radar du mois</b><span class="n">3 signaux</span></div>
+            <div class="srow s-good"><span class="dot"></span><div><div class="lbl">Sécurité</div><div class="sub">Matelas ≈ 4,2 mois de recettes</div></div><span class="pill">OK</span></div>
+            <div class="srow s-watch"><span class="dot"></span><div><div class="lbl">Trésorerie</div><div class="sub">Fin de mois projetée à +90 €</div></div><span class="pill">À surveiller</span></div>
+            <div class="srow s-over"><span class="dot"></span><div><div class="lbl">Budget variable</div><div class="sub">612 € / 480 € prévus</div></div><span class="pill">Dépassé</span></div>
+          </div>
+
+          <div class="actions">
+            <div class="ah"><span class="kick">TOP 3</span><b>Ce que je ferais à ta place</b></div>
+            <div class="act p1"><div class="rank">1</div><div class="txt"><b>Suspendre les nouveaux versements</b><small>Priorité immédiate</small></div><span class="meta">0 €</span></div>
+            <div class="act"><div class="rank">2</div><div class="txt"><b>Vérifier le dépassement budget</b><small>Courses · restos · shopping</small></div><span class="meta">Cette semaine</span></div>
+            <div class="act"><div class="rank">3</div><div class="txt"><b>Compléter l'historique des revenus</b><small>Pour fiabiliser les analyses</small></div><span class="meta">15 min</span></div>
+          </div>
+
+          <div class="sectitle">L'analyse détaillée</div>
+
+          <div class="section">
+            <h3>🩺 Score : 68/100</h3>
+            <div class="subscore"><span>Sécurité</span><span class="bar"><i style="width:88%;background:var(--good)"></i></span><span class="val">18/20</span></div>
+            <div class="subscore"><span>Trésorerie</span><span class="bar"><i style="width:60%;background:var(--watch)"></i></span><span class="val">12/20</span></div>
+            <div class="subscore"><span>Endettement</span><span class="bar"><i style="width:75%;background:var(--good)"></i></span><span class="val">15/20</span></div>
+            <p style="margin-top:10px">Ce qui tire vers le haut : une <b>réserve de 4,2 mois</b>. Ce qui pèse : <b>92 %</b> de ton revenu déjà engagé en charges fixes.</p>
+          </div>
+
+          <div class="section">
+            <h3>💸 À optimiser</h3>
+            <div class="li"><span><b>Abonnements</b> — 78 €/mois sur 6 lignes, dont 2 doublons (streaming). Cible réaliste : <b>−22 €/mois (264 €/an)</b>.</span></div>
+            <div class="li"><span><b>Livraison repas</b> — 141 € le mois dernier sur 9 commandes. En ramenant à 4 : <b>−60 €/mois</b>.</span></div>
+          </div>
+
+          <div class="section">
+            <h3>📈 Si tu ne changes rien</h3>
+            <p>Ton solde touche un point bas de <b>+310 €</b> en novembre puis remonte : c'est un creux <b>pilotable</b>, pas une alerte. Sur 12 mois, tu transformes ~<b>4 800 €</b> de trésorerie en patrimoine investi.</p>
+          </div>
+
+          <p class="disclaimer">Analyse générée à partir de tes données. À titre informatif — ce n'est pas un conseil financier réglementé.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────── SPEC / PLAN ─────────── -->
+    <div class="spec">
+      <div class="block">
+        <h4>Le principe</h4>
+        <p>Le modèle ne peut pas renvoyer du design — mais il peut renvoyer de la <b>structure</b>. On lui demande un petit format balisé (verdict, protège, vigilance, signaux, actions) ; l'app le lit et le rend en composants. Si le balisage manque (anciens messages), on retombe proprement sur le rendu texte actuel.</p>
+        <div class="ba">
+          <div class="col before"><div class="cap">Avant</div><p>« Dans l'ensemble, tes finances vont dans la bonne direction, notamment grâce à ton épargne et à tes investissements qui… » (120 mots à lire)</p></div>
+          <div class="col after"><div class="cap">Après</div><p>Synthèse (score, radar, actions) <b>+ l'analyse détaillée conservée</b> en sections dessous. Scanné d'abord, approfondi ensuite.</p></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <h4>Le système de composants</h4>
+        <div class="parts">
+          <div class="part"><div class="k">Verdict<code>[verdict]</code></div><div class="d">Anneau de score + tag d'état + une seule phrase. Ce que 90 % des gens retiennent.</div></div>
+          <div class="part"><div class="k">Cartes d'insight<code>[protege] / [vigilance]</code></div><div class="d">Ce qui protège (vert) et le vrai risque (rouge). Deux idées, deux couleurs.</div></div>
+          <div class="part"><div class="k">Radar<code>[signal: statut]</code></div><div class="d">Sécurité · Trésorerie · Budget, chacun avec une pastille OK / À surveiller / Dépassé.</div></div>
+          <div class="part"><div class="k">Actions<code>[action: effort]</code></div><div class="d">To-do classée par priorité, badge d'effort/coût. Actionnable, pas dissertation.</div></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <h4>Plan d'action</h4>
+        <div class="steps">
+          <div class="step"><p><b>Contrat de sortie structuré.</b> Ajouter au prompt (admin, table <code class="inl">ai_prompts</code>) des balises légères — ex. <code class="inl">##VERDICT score=68 tag=…</code>, <code class="inl">##SIGNAL Trésorerie=watch</code>, <code class="inl">##ACTION 1 …</code>. Robuste, tolérant, facile à parser.</p></div>
+          <div class="step"><p><b>Parseur + composants RN.</b> Un <code class="inl">lib/aiReport.ts</code> qui transforme le texte en objet typé, et des composants <code class="inl">VerdictCard</code> / <code class="inl">InsightCard</code> / <code class="inl">SignalRadar</code> / <code class="inl">ActionList</code> câblés sur les tokens de thème (clair + sombre).</p></div>
+          <div class="step"><p><b>Rendu adaptatif.</b> Dans <code class="inl">conseils-ia.tsx</code> : si le message contient le balisage → cartes ; sinon → <code class="inl">AiRichText</code> actuel. Zéro régression sur l'historique.</p></div>
+          <div class="step"><p><b>Score & signaux fiables.</b> Le score et les pastilles viennent du moteur (Pouls / snapshot), pas de l'IA seule — cohérence avec le reste de l'app, l'IA ne fait que commenter.</p></div>
+          <div class="step"><p><b>Progressif & OTA.</b> On livre d'abord Verdict + Actions (impact max), puis Radar et Insights. Chaque étape passe en OTA.</p></div>
+        </div>
+        <p class="foot">Cette page est un <b>visuel cible</b>, pas la version finale : couleurs, arrondis et pastilles reprennent déjà les tokens Relyka (thème clair et sombre) pour que l'écran réel s'en approche au pixel.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btns = document.querySelectorAll('.toggle button');
+    function sync(mode) {
+      btns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.set === mode)); });
+    }
+    // État initial = préférence OS.
+    var initial = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    sync(initial);
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        var mode = b.dataset.set;
+        root.setAttribute('data-theme', mode);
+        sync(mode);
+      });
+    });
+  })();
+</script>

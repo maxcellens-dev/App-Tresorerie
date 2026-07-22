@@ -25,6 +25,11 @@ export function recordRoute(path: string | null | undefined): void {
   if (stack.length > 40) stack.shift();
 }
 
+/** Route courante (sommet de pile) — utile hors React (ex. remontée d'erreur globale). */
+export function getCurrentRoute(): string | null {
+  return stack[stack.length - 1] ?? null;
+}
+
 /** Retire la route courante et renvoie la précédente (ou null s'il n'y en a pas). */
 export function consumePreviousRoute(): string | null {
   if (stack.length < 2) return null;

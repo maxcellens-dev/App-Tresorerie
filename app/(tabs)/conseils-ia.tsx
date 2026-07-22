@@ -28,6 +28,8 @@ import { KeyboardEvents, useKeyboardHandler } from 'react-native-keyboard-contro
 import Reanimated, { useAnimatedStyle, useSharedValue, interpolate } from 'react-native-reanimated';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import AiRichText from '../../components/AiRichText';
+import AiReport from '../../components/AiReport';
+import { parseAiReport } from '../../lib/aiReport';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
 export default withDeferredMount(ConseilsIaScreen);
@@ -570,6 +572,19 @@ function Bubble({ m, s, c }: { m: AiMessage; s: any; c: any }) {
   }
   const isAdminMsg = m.role === 'admin';
   const stamp = formatStamp(m.created_at);
+  // Réponses de l'IA : rendu en CARTES si structuré (synthèse + sections), sinon texte simple.
+  // Les réponses HUMAINES (équipe Relyka) restent en texte brut.
+  const report = useMemo(() => (isAdminMsg ? null : parseAiReport(m.content)), [isAdminMsg, m.content]);
+  const asCards = !!report && (!!report.summary || report.sections.length >= 2);
+
+  if (asCards && report) {
+    return (
+      <View style={s.reportWrap}>
+        {!!stamp && <View style={s.bubbleHeader}><Text style={s.stamp}>{stamp}</Text></View>}
+        <AiReport report={report} c={c} baseTextStyle={s.bubbleAssistantTxt} />
+      </View>
+    );
+  }
   return (
     <View style={s.bubbleAssistant}>
       {!!stamp && (
@@ -657,6 +672,8 @@ function makeStyles(c: any) {
     bubbleUser: { maxWidth: '85%', backgroundColor: c.emerald, borderRadius: 16, borderBottomRightRadius: 4, paddingHorizontal: 14, paddingVertical: 10 },
     bubbleUserTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
     bubbleAssistant: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, borderBottomLeftRadius: 4, padding: 14 },
+    // Rapport en cartes : pas de bulle-conteneur (chaque section EST une carte), juste l'espace.
+    reportWrap: { marginRight: 8 },
     bubbleHeader: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 6 },
     stamp: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600' },
     bubbleAssistantTxt: { color: c.text, fontSize: 14, lineHeight: 21 },

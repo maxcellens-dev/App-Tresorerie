@@ -34,8 +34,9 @@ export default function AdminHub() {
 
   const sections = [
     {
-      category: 'Système',
+      category: 'Système & Sécurité',
       items: [
+        { href: '/(tabs)/(secondary)/admin/security', icon: 'shield-half-outline', title: 'Centre de sécurité', desc: 'Coupure globale · crashs & erreurs · mots de passe', color: '#dc2626' },
         { href: '/(tabs)/(secondary)/admin/features', icon: 'flask-outline', title: 'Fonctionnalités', desc: 'Clôture · Premium · Pubs', color: '#f43f5e' },
         { href: '/(tabs)/(secondary)/admin/ai', icon: 'sparkles-outline', title: 'Conseils IA', desc: 'Modèles · prompts · quotas · tickets', color: '#10b981' },
         { href: '/(tabs)/(secondary)/admin/app-update', icon: 'cloud-download-outline', title: "Mise à jour de l'App", desc: 'Bandeau de mise à jour & versions', color: '#0ea5e9' },

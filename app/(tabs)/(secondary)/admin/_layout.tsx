@@ -26,6 +26,7 @@ export default function AdminLayout() {
       <Stack.Screen name="reliability" options={{ title: 'Fiabilité & confiance' }} />
       <Stack.Screen name="banners-preview" options={{ title: 'Aperçu bandeaux' }} />
       <Stack.Screen name="usage-limits" options={{ title: "Limites d'usage" }} />
+      <Stack.Screen name="security" options={{ title: 'Centre de sécurité' }} />
     </Stack>
   );
 }

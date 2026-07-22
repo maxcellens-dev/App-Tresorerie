@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useBrandColors } from '../hooks/useBrandColors';
 import { useAuth } from '../contexts/AuthContext';
+import PasswordStrength from '../components/PasswordStrength';
+import { evaluatePassword } from '../lib/passwordPolicy';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)
@@ -45,7 +47,8 @@ export default function ResetPasswordScreen() {
   }
 
   async function setNewPassword() {
-    if (password.length < 6) { showAlert('Mot de passe', 'Au moins 6 caractères.'); return; }
+    const pwEval = evaluatePassword(password);
+    if (!pwEval.valid) { showAlert('Mot de passe trop faible', pwEval.firstError ?? 'Choisis un mot de passe plus robuste.'); return; }
     if (password !== confirm) { showAlert('Confirmation', 'Les deux mots de passe ne correspondent pas.'); return; }
     if (!supabase) { showAlert('Indisponible', 'Backend non configuré.'); return; }
     setLoading(true);
@@ -74,8 +77,9 @@ export default function ResetPasswordScreen() {
             <>
               <Text style={styles.title}>Nouveau mot de passe</Text>
               <Text style={styles.subtitle}>Choisis un nouveau mot de passe pour ton compte.</Text>
-              <Text style={styles.label}>Nouveau mot de passe (min. 6 caractères)</Text>
-              <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry />
+              <Text style={styles.label}>Nouveau mot de passe</Text>
+              <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="••••••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry />
+              <PasswordStrength value={password} colors={COLORS} />
               <Text style={styles.label}>Confirmer</Text>
               <TextInput style={styles.input} value={confirm} onChangeText={setConfirm} placeholder="••••••••" placeholderTextColor={COLORS.textSecondary} secureTextEntry onSubmitEditing={setNewPassword} returnKeyType="go" />
               <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={setNewPassword} disabled={loading}>
