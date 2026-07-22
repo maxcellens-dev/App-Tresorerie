@@ -12,7 +12,7 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { supabase } from '../../../../lib/supabase';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../../hooks/useStyleConfig';
-import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG, DEFAULT_INK } from '../../../../theme/palette';
+import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG, DEFAULT_INK, DEFAULT_CARD } from '../../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
 import ColorPickerModal from '../../../../components/ColorPickerModal';
 import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/webFonts';
@@ -102,6 +102,14 @@ function FontSelect({
 function isValidHex(v: string) { return /^#[0-9A-Fa-f]{6}$/.test(v); }
 function clampPct(v: number) { return Math.min(100, Math.max(0, v)); }
 function toHex(a: number) { return Math.round(Math.min(1, Math.max(0, a)) * 255).toString(16).padStart(2, '0').toUpperCase(); }
+/** Mélange opaque base+overlay à alpha (0-1) — même calcul que HeaderWithProfile (aperçu fidèle). */
+function blendHexPreview(base: string, overlay: string, alpha: number): string {
+  const b = /^#[0-9A-Fa-f]{6}$/.test(base) ? base : '#000000';
+  const o = /^#[0-9A-Fa-f]{6}$/.test(overlay) ? overlay : '#000000';
+  const a = Math.min(1, Math.max(0, alpha));
+  const mix = (i: number) => Math.round(parseInt(b.slice(i, i + 2), 16) * (1 - a) + parseInt(o.slice(i, i + 2), 16) * a).toString(16).padStart(2, '0');
+  return `#${mix(1)}${mix(3)}${mix(5)}`;
+}
 
 /**
  * Ouvre le sélecteur de couleur natif du navigateur, positionné près de l'endroit cliqué.
@@ -151,12 +159,14 @@ export default function StyleEditor() {
   const [darkHeaderAlpha,  setDarkHeaderAlpha]  = useState('0');
   const [darkBg,          setDarkBg]            = useState(DEFAULT_BG.dark);
   const [darkInk,         setDarkInk]           = useState(DEFAULT_INK.dark);
+  const [darkCard,        setDarkCard]          = useState(DEFAULT_CARD.dark);
   const [lightGradEnabled, setLightGradEnabled] = useState(true);
   const [lightStops,       setLightStops]       = useState<string[]>(['20', '12', '7', '3']);
   const [lightCardAlpha,   setLightCardAlpha]   = useState('88');
   const [lightHeaderAlpha, setLightHeaderAlpha] = useState('0');
   const [lightBg,          setLightBg]          = useState(DEFAULT_BG.light);
   const [lightInk,         setLightInk]         = useState(DEFAULT_INK.light);
+  const [lightCard,        setLightCard]        = useState(DEFAULT_CARD.light);
 
   const [fontFamily, setFontFamily] = useState('System');
   const [fontImportUrl, setFontImportUrl] = useState('');
@@ -195,12 +205,14 @@ export default function StyleEditor() {
       setDarkHeaderAlpha(String(styleConfig.dark.header_alpha ?? 0));
       setDarkBg(styleConfig.dark.bg_color ?? DEFAULT_BG.dark);
       setDarkInk(styleConfig.dark.ink_color ?? DEFAULT_INK.dark);
+      setDarkCard(styleConfig.dark.card_color ?? DEFAULT_CARD.dark);
       setLightGradEnabled(styleConfig.light.gradient_enabled);
       setLightStops(toStopStrings(styleConfig.light, 20));
       setLightCardAlpha(String(styleConfig.light.card_alpha));
       setLightHeaderAlpha(String(styleConfig.light.header_alpha ?? 0));
       setLightBg(styleConfig.light.bg_color ?? DEFAULT_BG.light);
       setLightInk(styleConfig.light.ink_color ?? DEFAULT_INK.light);
+      setLightCard(styleConfig.light.card_color ?? DEFAULT_CARD.light);
       setFontFamily(styleConfig.font_family ?? 'System');
       setFontImportUrl(styleConfig.font_import_url ?? '');
       setAppNameFont(styleConfig.app_name_font ?? 'Arial Rounded MT Bold');
@@ -280,9 +292,18 @@ export default function StyleEditor() {
   const previewAlpha = previewMode === 'dark' ? Number(darkCardAlpha || 0) : Number(lightCardAlpha || 0);
   const previewBg = previewMode === 'dark' ? darkBg : lightBg;
   const previewInk = previewMode === 'dark' ? darkInk : lightInk;
-  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, lightSemanticColors: liveLightSemantics, bgColor: previewBg, inkColor: previewInk });
+  const previewCard = previewMode === 'dark' ? darkCard : lightCard;
+  const previewColors = buildColors(previewMode, preset, { customAccents: liveAccents, extraPresets, cardAlpha: previewAlpha, semanticColors: liveSemantics, lightSemanticColors: liveLightSemantics, bgColor: previewBg, inkColor: previewInk, cardColor: previewCard });
   const curGradEnabled = previewMode === 'dark' ? darkGradEnabled : lightGradEnabled;
   const curStops = (previewMode === 'dark' ? darkStops : lightStops).map(s => Math.min(100, Math.max(0, Number(s) || 0)) / 100);
+  // Fond de l'ENTÊTE tel qu'il sera rendu par HeaderWithProfile : baseline (haut du dégradé) + surplus
+  // d'accent. On le reproduit ici pour que l'aperçu montre l'effet du réglage en direct (les 2 thèmes).
+  const previewHeaderBg = (() => {
+    const baseline = curGradEnabled ? (curStops[0] ?? 0) : 0;
+    const extra = Math.min(100, Math.max(0, Number(previewMode === 'dark' ? darkHeaderAlpha : lightHeaderAlpha) || 0)) / 100;
+    const a = Math.min(1, baseline + extra * (1 - baseline));
+    return blendHexPreview(previewColors.bg, previewColors.emerald, a);
+  })();
 
   // Getters/setters du mode édité (onglet Fond)
   const aEnabled = activeMode === 'dark' ? darkGradEnabled : lightGradEnabled;
@@ -290,6 +311,7 @@ export default function StyleEditor() {
   const aAlpha       = activeMode === 'dark' ? darkCardAlpha   : lightCardAlpha;
   const aHeaderAlpha = activeMode === 'dark' ? darkHeaderAlpha : lightHeaderAlpha;
   const aBg          = activeMode === 'dark' ? darkBg          : lightBg;
+  const aCard        = activeMode === 'dark' ? darkCard        : lightCard;
   const setEnabled = (v: boolean) => activeMode === 'dark' ? setDarkGradEnabled(v) : setLightGradEnabled(v);
   const setStop    = (i: number, v: string) => {
     const setter = activeMode === 'dark' ? setDarkStops : setLightStops;
@@ -298,6 +320,7 @@ export default function StyleEditor() {
   const setAlpha       = (v: string) => activeMode === 'dark' ? setDarkCardAlpha(v)   : setLightCardAlpha(v);
   const setHeaderAlpha = (v: string) => activeMode === 'dark' ? setDarkHeaderAlpha(v) : setLightHeaderAlpha(v);
   const setBg          = (v: string) => activeMode === 'dark' ? setDarkBg(v)          : setLightBg(v);
+  const setCard        = (v: string) => activeMode === 'dark' ? setDarkCard(v)        : setLightCard(v);
 
   // Téléverse un fichier de police vers Supabase Storage (bucket public « fonts »).
   // Web uniquement (ouverture du sélecteur de fichier natif du navigateur).
@@ -365,8 +388,8 @@ export default function StyleEditor() {
       SEMANTIC_KEYS.forEach(k => { const v = lightSemanticInputs[k] ?? ''; if (isValidHex(v)) validatedLightSemantics[k] = v; });
       const stopsNum = (arr: string[]) => arr.map(s => clampPct(Number(s) || 0));
       const sc: Partial<StyleConfig> = {
-        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg)  ? darkBg.toUpperCase()  : DEFAULT_BG.dark,  ink_color: isValidHex(darkInk)  ? darkInk.toUpperCase()  : DEFAULT_INK.dark,  header_alpha: clampPct(Number(darkHeaderAlpha)  || 0) },
-        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light, ink_color: isValidHex(lightInk) ? lightInk.toUpperCase() : DEFAULT_INK.light, header_alpha: clampPct(Number(lightHeaderAlpha) || 0) },
+        dark:  { gradient_enabled: darkGradEnabled,  gradient_opacity: clampPct(Number(darkStops[0]) || 0),  gradient_stops: stopsNum(darkStops),  card_alpha: clampPct(Number(darkCardAlpha) || 0),  bg_color: isValidHex(darkBg)  ? darkBg.toUpperCase()  : DEFAULT_BG.dark,  ink_color: isValidHex(darkInk)  ? darkInk.toUpperCase()  : DEFAULT_INK.dark,  card_color: isValidHex(darkCard)  ? darkCard.toUpperCase()  : DEFAULT_CARD.dark,  header_alpha: clampPct(Number(darkHeaderAlpha)  || 0) },
+        light: { gradient_enabled: lightGradEnabled, gradient_opacity: clampPct(Number(lightStops[0]) || 0), gradient_stops: stopsNum(lightStops), card_alpha: clampPct(Number(lightCardAlpha) || 0), bg_color: isValidHex(lightBg) ? lightBg.toUpperCase() : DEFAULT_BG.light, ink_color: isValidHex(lightInk) ? lightInk.toUpperCase() : DEFAULT_INK.light, card_color: isValidHex(lightCard) ? lightCard.toUpperCase() : DEFAULT_CARD.light, header_alpha: clampPct(Number(lightHeaderAlpha) || 0) },
         font_family: fontFamily,
         font_import_url: fontImportUrl.trim(),
         app_name_font: appNameFont.trim(),
@@ -433,6 +456,14 @@ export default function StyleEditor() {
               locations={[0, 0.28, 0.58, 1]}
               style={StyleSheet.absoluteFillObject}
             />
+            {/* Barre d'entête simulée — reflète le « surplus d'accent » en direct (comme l'app). */}
+            <View style={[styles.previewHeaderBar, { backgroundColor: previewHeaderBg }]}>
+              <Text style={{ color: previewColors.text, fontWeight: '800', fontSize: 13, fontFamily: fontFamily === 'System' ? undefined : fontFamily }}>Relyka</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: previewMode === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)', fontSize: 10, fontWeight: '600' }}>Entête</Text>
+                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: previewColors.emerald }} />
+              </View>
+            </View>
             <View style={styles.previewHeader}>
               <Text style={[styles.previewLabel, { color: previewMode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }]}>APERÇU</Text>
               <View style={styles.previewModeSwitcher}>
@@ -452,9 +483,7 @@ export default function StyleEditor() {
                 const cols = [previewColors.checking, previewColors.savings, previewColors.investment];
                 const col = cols[i];
                 const amounts = ['6 118', '21 000', '76 687'];
-                const cardBg = previewMode === 'dark'
-                  ? `rgba(255,255,255,${previewAlpha / 100})`
-                  : `rgba(0,0,0,${previewAlpha / 100})`;
+                const cardBg = previewColors.card; // reflète la couleur de carte + l'opacité choisies
                 const txtMuted = previewMode === 'dark' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
                 return (
                   <View key={label} style={[styles.previewCard, { backgroundColor: cardBg, borderColor: col + '40', borderLeftColor: col }]}>
@@ -765,6 +794,38 @@ export default function StyleEditor() {
                 )}
               </Section>
 
+              <Section label="Couleur des cartes" icon="square-outline" COLORS={COLORS}>
+                <Text style={styles.hint}>Couleur de base des cartes (avant transparence). {activeMode === 'dark' ? 'En sombre, mets un gris/noir pour des cartes sombres (pense à monter l’opacité ci-dessous).' : 'En clair, du blanc reste le plus lisible.'}</Text>
+                <View style={styles.accentItem}>
+                  <TouchableOpacity
+                    style={[styles.swatch, { backgroundColor: isValidHex(aCard) ? aCard : DEFAULT_CARD[activeMode], borderWidth: 1, borderColor: COLORS.cardBorder }]}
+                    onPress={() => setColorPicker({ value: isValidHex(aCard) ? aCard : DEFAULT_CARD[activeMode], onPick: setCard })}
+                    activeOpacity={0.8}
+                  />
+                  <Text style={styles.accentLabel}>Carte {activeMode === 'dark' ? 'sombre' : 'claire'}</Text>
+                  <TextInput
+                    style={[styles.hexInput, { width: 96 }, !isValidHex(aCard) && { borderColor: COLORS.danger }]}
+                    value={aCard}
+                    onChangeText={setCard}
+                    placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
+                    maxLength={7} autoCapitalize="characters"
+                  />
+                  <TouchableOpacity onPress={() => setCard(DEFAULT_CARD[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aCard.toUpperCase() === DEFAULT_CARD[activeMode]}>
+                    <Ionicons name="refresh-outline" size={20} color={aCard.toUpperCase() === DEFAULT_CARD[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.alphaRow}>
+                  {(activeMode === 'dark'
+                    ? ['#FFFFFF', '#1C1F24', '#16181C', '#000000']
+                    : ['#FFFFFF', '#FBFAF7', '#F2F3F5', '#EAECEF']
+                  ).map(hex => (
+                    <TouchableOpacity key={hex} style={[styles.alphaSample, { backgroundColor: hex, borderWidth: 1, borderColor: hex === '#FFFFFF' ? COLORS.cardBorder : 'transparent' }, aCard.toUpperCase() === hex.toUpperCase() && { borderColor: COLORS.emerald }]} onPress={() => setCard(hex)}>
+                      <Text style={{ color: hex === '#FFFFFF' || hex === '#FBFAF7' ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '600' }}>{hex === '#FFFFFF' ? 'blanc' : hex.slice(1)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </Section>
+
               <Section label="Transparence des cartes" icon="albums-outline" COLORS={COLORS}>
                 <Text style={styles.hint}>0 % = opaque · plus le % monte, plus le fond transparaît.</Text>
                 <View style={styles.inputRow}>
@@ -954,6 +1015,7 @@ function makeStyles(c: any) {
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
   preview: { borderRadius: 20, overflow: 'hidden', height: 170, padding: 14, marginBottom: 20, justifyContent: 'space-between', borderWidth: 1, borderColor: c.cardBorder },
+  previewHeaderBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: -14, marginTop: -14, paddingHorizontal: 14, paddingVertical: 10 },
   previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   previewLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
   previewModeSwitcher: { flexDirection: 'row', gap: 4 },

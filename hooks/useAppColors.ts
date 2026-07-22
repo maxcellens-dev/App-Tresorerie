@@ -29,7 +29,7 @@ import {
  */
 type ColorInputs = {
   mode: ThemeMode; preset: string;
-  cardAlpha: unknown; bgColor: unknown; headerAlpha: unknown; inkColor: unknown;
+  cardAlpha: unknown; bgColor: unknown; headerAlpha: unknown; inkColor: unknown; cardColor: unknown;
   customAccents: unknown; extraPresets: unknown; semanticColors: unknown; lightSemanticColors: unknown;
 };
 let paletteCache: { inputs: ColorInputs; value: AppColors } | null = null;
@@ -39,7 +39,7 @@ function sharedColors(i: ColorInputs): AppColors {
   if (
     p && p.inputs.mode === i.mode && p.inputs.preset === i.preset
     && p.inputs.cardAlpha === i.cardAlpha && p.inputs.bgColor === i.bgColor
-    && p.inputs.headerAlpha === i.headerAlpha && p.inputs.inkColor === i.inkColor
+    && p.inputs.headerAlpha === i.headerAlpha && p.inputs.inkColor === i.inkColor && p.inputs.cardColor === i.cardColor
     // Objets issus de react-query : comparaison par RÉFÉRENCE (stables tant que la config ne change pas).
     && p.inputs.customAccents === i.customAccents && p.inputs.extraPresets === i.extraPresets
     && p.inputs.semanticColors === i.semanticColors && p.inputs.lightSemanticColors === i.lightSemanticColors
@@ -50,6 +50,7 @@ function sharedColors(i: ColorInputs): AppColors {
     bgColor: i.bgColor as any,
     headerAlpha: i.headerAlpha as any,
     inkColor: i.inkColor as any,
+    cardColor: i.cardColor as any,
     customAccents: i.customAccents as any,
     extraPresets: i.extraPresets as any,
     semanticColors: i.semanticColors as any,
@@ -89,11 +90,14 @@ export function useAppColors(): AppColors {
   const inkColor = mode === 'light'
     ? styleConfig?.light.ink_color
     : styleConfig?.dark.ink_color;
+  const cardColor = mode === 'light'
+    ? styleConfig?.light.card_color
+    : styleConfig?.dark.card_color;
 
   // Palette PARTAGÉE (cache module) : buildColors ne tourne qu'au vrai changement de thème/config,
   // et la référence est la même pour les ~142 appelants → styles des composants stables aussi.
   return sharedColors({
-    mode, preset, cardAlpha, bgColor, headerAlpha, inkColor,
+    mode, preset, cardAlpha, bgColor, headerAlpha, inkColor, cardColor,
     customAccents: styleConfig?.custom_accents,
     extraPresets: styleConfig?.extra_presets,
     semanticColors: styleConfig?.semantic_colors,

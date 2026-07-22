@@ -64,7 +64,7 @@ export type SemanticKey = typeof SEMANTIC_KEYS[number];
 
 /** Valeurs par défaut pour le thème SOMBRE. */
 export const SEMANTIC_DEFAULTS: Record<SemanticKey, string> = {
-  danger: '#f87171', // rouge (dépenses, suppression, erreurs)
+  danger: '#F28B82', // rouge légèrement pastel (moins agressif sur fond sombre) — dépenses/suppression/erreurs
   blue:   '#60a5fa', // compte courant, réservé, virement, solde
   violet: '#a78bfa', // investissement
   green:  '#00B67A', // épargne, recettes, succès
@@ -164,6 +164,9 @@ export interface BuildColorsOptions {
   headerAlpha?: number;
   /** Couleur « encre » de base (texte principal / contraste) pour le mode courant : blanc en sombre, noir en clair. */
   inkColor?: string;
+  /** Couleur de BASE des cartes (avant la transparence) pour le mode courant. Défaut : blanc (aspect
+   *  givré). En sombre, l'admin peut mettre un gris/noir pour des cartes sombres. */
+  cardColor?: string;
 }
 
 /** Couleurs de fond par défaut par mode (modifiables via le Style Editor). */
@@ -171,6 +174,18 @@ export const DEFAULT_BG: Record<ThemeMode, string> = { dark: '#000000', light: '
 
 /** Couleur « encre » par défaut par mode (texte principal / contraste). Modifiable via le Style Editor. */
 export const DEFAULT_INK: Record<ThemeMode, string> = { dark: '#FFFFFF', light: '#191C1F' };
+
+/** Couleur de BASE des cartes par défaut (avant transparence). Blanc = aspect givré actuel (les deux
+ *  modes). L'admin peut choisir un gris/noir en sombre via le Style Editor. */
+export const DEFAULT_CARD: Record<ThemeMode, string> = { dark: '#FFFFFF', light: '#FFFFFF' };
+
+/** #RRGGBB → « r,g,b » (pour rgba). Repli blanc si invalide. */
+function hexToRgbTriplet(hex: string): string {
+  const m = /^#?([0-9A-Fa-f]{6})$/.exec(hex || '');
+  if (!m) return '255,255,255';
+  const n = parseInt(m[1], 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
 
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
 export function resolveAccent(mode: ThemeMode, preset: string, opts?: BuildColorsOptions): string {
@@ -203,8 +218,10 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
 
   // Transparence des cartes configurable. Défaut clair : 88% (cartes blanches bien visibles sur fond coloré).
   const alpha = Math.min(100, Math.max(0, opts?.cardAlpha ?? (isLight ? 88 : 8))) / 100;
-  // Mode clair : cartes BLANCHES (cardWhiteBase = true) — bien visibles sur fond crème/coloré.
-  const cardRGB = base.cardWhiteBase ? '255,255,255' : '0,0,0';
+  // Couleur de base des cartes CONFIGURABLE (Style Editor). Défaut = blanc (aspect givré, les 2 modes).
+  // En sombre, l'admin peut mettre un gris/noir → cartes sombres (avec une opacité plus élevée).
+  const cardHex = (opts?.cardColor && /^#[0-9A-Fa-f]{6}$/.test(opts.cardColor)) ? opts.cardColor : DEFAULT_CARD[mode];
+  const cardRGB = hexToRgbTriplet(cardHex);
   const card = `rgba(${cardRGB},${alpha})`;
   const cardBorder = isLight
     ? `rgba(0,0,0,${Math.min(1, alpha * 0.15 + 0.04).toFixed(2)})`   // bordure subtile sombre sur clair

@@ -22,6 +22,7 @@ export function useBrandColors(): AppColors {
     () => buildColors(mode, 'emerald', {
       cardAlpha: mode === 'light' ? styleConfig?.light.card_alpha : styleConfig?.dark.card_alpha,
       bgColor: mode === 'light' ? styleConfig?.light.bg_color : styleConfig?.dark.bg_color,
+      cardColor: mode === 'light' ? styleConfig?.light.card_color : styleConfig?.dark.card_color,
       headerAlpha: mode === 'light' ? styleConfig?.light.header_alpha : styleConfig?.dark.header_alpha,
       customAccents: styleConfig?.custom_accents,
       extraPresets: styleConfig?.extra_presets,
