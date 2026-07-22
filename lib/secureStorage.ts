@@ -1,42 +1,60 @@
 /**
- * Stockage CHIFFRÉ de la session Supabase sur natif (iOS Keychain / Android Keystore via
- * expo-secure-store), au lieu d'AsyncStorage en clair. Durcissement : sur un appareil rooté /
- * jailbreaké, la session n'est plus lisible en clair.
+ * Stockage de la session Supabase sur natif.
+ *  • Build RÉCENTE (module natif expo-secure-store présent) → session CHIFFRÉE (Keychain/Keystore),
+ *    découpée en morceaux (<2048 o) pour dépasser la limite de taille.
+ *  • Build ANCIENNE reçue par OTA (module natif ABSENT) → REPLI sur AsyncStorage (comme avant),
+ *    pour NE PAS déconnecter l'utilisateur ni crasher l'app.
  *
- * SecureStore limite chaque valeur à ~2048 octets → une session Supabase (access + refresh + user)
- * peut dépasser. On DÉCOUPE donc la valeur en morceaux (`<key>.0`, `<key>.1`, …), avec un index
- * `<key>.__n` = nombre de morceaux. Chaque morceau est chiffré par le Keychain/Keystore.
- *
- * Migration douce : à la première lecture, si rien n'est dans SecureStore mais qu'une session existe
- * dans AsyncStorage (ancien stockage en clair), on la reprend et on l'y efface → AUCUNE déconnexion
- * de masse à la mise à jour.
+ * ⚠️ IMPORTANT (OTA vers d'anciennes builds) : on charge `expo-secure-store` en REQUIRE PARESSEUX
+ * protégé par try/catch. Un import direct en tête de fichier LÈVE « Cannot find native module » sur
+ * une build qui n'a pas le module natif → l'app ne démarrerait pas. Ici, si le module manque, on
+ * bascule silencieusement sur AsyncStorage. Un même bundle JS marche donc sur TOUTES les builds.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+
+// Chargement paresseux + protégé : `null` si le module natif n'est pas dans la build.
+let SecureStore: any = null;
+try { SecureStore = require('expo-secure-store'); } catch { SecureStore = null; }
 
 const CHUNK = 1800; // marge sous la limite ~2048
-// SecureStore n'accepte que [A-Za-z0-9._-] dans les clés → on assainit (les clés Supabase ont des « - », OK).
 const safe = (k: string) => k.replace(/[^A-Za-z0-9._-]/g, '_');
+
+// Disponibilité RÉELLE du module natif, résolue une seule fois.
+let securePromise: Promise<boolean> | null = null;
+function secureAvailable(): Promise<boolean> {
+  if (!securePromise) {
+    securePromise = (async () => {
+      if (!SecureStore || typeof SecureStore.setItemAsync !== 'function') return false;
+      try {
+        if (typeof SecureStore.isAvailableAsync === 'function') return await SecureStore.isAvailableAsync();
+        // Sonde : une écriture/lecture témoin. Si le natif manque, ça lève → indisponible.
+        await SecureStore.setItemAsync('relyka.__probe', '1');
+        await SecureStore.deleteItemAsync('relyka.__probe');
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return securePromise;
+}
 
 async function readChunked(key: string): Promise<string | null> {
   const nRaw = await SecureStore.getItemAsync(`${safe(key)}.__n`);
-  if (nRaw == null) {
-    // Valeur simple (non découpée) éventuelle.
-    return SecureStore.getItemAsync(safe(key));
-  }
+  if (nRaw == null) return SecureStore.getItemAsync(safe(key));
   const n = parseInt(nRaw, 10);
   if (!Number.isFinite(n) || n <= 0) return null;
   let out = '';
   for (let i = 0; i < n; i++) {
     const part = await SecureStore.getItemAsync(`${safe(key)}.${i}`);
-    if (part == null) return null; // morceau manquant → session corrompue, on repart de zéro
+    if (part == null) return null;
     out += part;
   }
   return out;
 }
 
 async function clearChunked(key: string): Promise<void> {
-  const nRaw = await SecureStore.getItemAsync(`${safe(key)}.__n`);
+  const nRaw = await SecureStore.getItemAsync(`${safe(key)}.__n`).catch(() => null);
   await SecureStore.deleteItemAsync(safe(key)).catch(() => {});
   if (nRaw != null) {
     const n = parseInt(nRaw, 10) || 0;
@@ -48,6 +66,7 @@ async function clearChunked(key: string): Promise<void> {
 export const SecureSessionStore = {
   async getItem(key: string): Promise<string | null> {
     try {
+      if (!(await secureAvailable())) return AsyncStorage.getItem(key); // ancienne build → AsyncStorage
       const v = await readChunked(key);
       if (v != null) return v;
       // Migration depuis l'ancien AsyncStorage en clair (une seule fois).
@@ -59,29 +78,25 @@ export const SecureSessionStore = {
       }
       return null;
     } catch {
-      return null;
+      return AsyncStorage.getItem(key).catch(() => null);
     }
   },
 
   async setItem(key: string, value: string): Promise<void> {
     try {
-      await clearChunked(key); // repart propre (évite les morceaux orphelins d'une valeur plus longue)
-      if (value.length <= CHUNK) {
-        await SecureStore.setItemAsync(safe(key), value);
-        return;
-      }
+      if (!(await secureAvailable())) { await AsyncStorage.setItem(key, value); return; }
+      await clearChunked(key);
+      if (value.length <= CHUNK) { await SecureStore.setItemAsync(safe(key), value); return; }
       const n = Math.ceil(value.length / CHUNK);
-      for (let i = 0; i < n; i++) {
-        await SecureStore.setItemAsync(`${safe(key)}.${i}`, value.slice(i * CHUNK, (i + 1) * CHUNK));
-      }
+      for (let i = 0; i < n; i++) await SecureStore.setItemAsync(`${safe(key)}.${i}`, value.slice(i * CHUNK, (i + 1) * CHUNK));
       await SecureStore.setItemAsync(`${safe(key)}.__n`, String(n));
     } catch {
-      /* best-effort : ne jamais faire planter l'auth à cause du stockage */
+      await AsyncStorage.setItem(key, value).catch(() => {});
     }
   },
 
   async removeItem(key: string): Promise<void> {
-    try { await clearChunked(key); } catch { /* noop */ }
-    await AsyncStorage.removeItem(key).catch(() => {}); // au cas où un reliquat legacy traîne
+    try { if (await secureAvailable()) await clearChunked(key); } catch { /* noop */ }
+    await AsyncStorage.removeItem(key).catch(() => {});
   },
 };

@@ -1,19 +1,23 @@
 /**
  * Verrouillage de l'app (biométrie / code de l'appareil) — OPTIONNEL, activé par l'utilisateur.
  *
- * Principe : quand c'est activé ET que l'utilisateur est DÉJÀ connecté, l'app demande à déverrouiller
- * (Face ID / Touch ID / empreinte selon le téléphone, repli sur le code de l'appareil) à l'ouverture
- * et au retour en avant-plan. Aucun mot de passe propre à Relyka : on s'appuie sur la sécurité de l'OS.
+ * Quand c'est activé ET que l'utilisateur est DÉJÀ connecté, l'app demande à déverrouiller (Face ID /
+ * Touch ID / empreinte selon le téléphone, repli sur le code de l'appareil) à l'ouverture et au retour
+ * en avant-plan. Aucun mot de passe propre à Relyka : on s'appuie sur la sécurité de l'OS. Réglage
+ * LOCAL à l'appareil (AsyncStorage).
  *
- * Le réglage est LOCAL à l'appareil (AsyncStorage) : c'est une protection de CE téléphone, pas un
- * paramètre de compte synchronisé.
+ * ⚠️ OTA vers d'anciennes builds : `expo-local-authentication` est chargé en REQUIRE PARESSEUX protégé.
+ * Sur une build sans le module natif, l'import direct crasherait l'app ; ici on retombe simplement sur
+ * « indisponible » (l'option n'apparaît pas / ne s'active pas), sans jamais planter.
  */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as LocalAuthentication from 'expo-local-authentication';
+
+let LocalAuthentication: any = null;
+try { LocalAuthentication = require('expo-local-authentication'); } catch { LocalAuthentication = null; }
 
 const KEY = 'relyka.appLock.enabled';
-export const APP_LOCK_SUPPORTED = Platform.OS === 'ios' || Platform.OS === 'android';
+export const APP_LOCK_SUPPORTED = (Platform.OS === 'ios' || Platform.OS === 'android') && !!LocalAuthentication;
 
 /** L'appareil a-t-il une biométrie OU un code configuré et utilisable ? */
 export async function isDeviceAuthAvailable(): Promise<boolean> {
@@ -34,10 +38,9 @@ export async function runDeviceAuth(reason = 'Déverrouille Relyka'): Promise<bo
     const res = await LocalAuthentication.authenticateAsync({
       promptMessage: reason,
       cancelLabel: 'Annuler',
-      // Repli sur le code de l'appareil si la biométrie échoue/est indisponible.
       disableDeviceFallback: false,
     });
-    return res.success;
+    return !!res?.success;
   } catch {
     return false;
   }

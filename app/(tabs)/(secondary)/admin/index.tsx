@@ -50,8 +50,7 @@ export default function AdminHub() {
         { href: '/(tabs)/(secondary)/admin/suggestions', icon: 'chatbubbles-outline', title: 'Suggestions', desc: 'Idées utilisateurs', color: '#eab308' },
         { href: '/(tabs)/(secondary)/admin/notifications', icon: 'notifications-outline', title: 'Notifications', desc: 'Envoi immédiat ou planifié, par cible', color: '#ef4444' },
         { href: '/(tabs)/(secondary)/admin/stats-hub', icon: 'bar-chart-outline', title: 'Stats Hub', desc: 'Métriques & activité', color: '#f97316' },
-        { href: '/(tabs)/(secondary)/admin/users', icon: 'people-outline', title: 'Utilisateurs', desc: 'Recherche + passage Premium', color: '#22c55e' },
-        { href: '/(tabs)/(secondary)/admin/groups', icon: 'people-circle-outline', title: 'Groupes', desc: 'Groupes custom pour cibler les notifs', color: '#8b5cf6' },
+        { href: '/(tabs)/(secondary)/admin/users', icon: 'people-outline', title: 'Utilisateurs', desc: 'Recherche · Premium · groupes · inactifs', color: '#22c55e' },
       ],
     },
     {
