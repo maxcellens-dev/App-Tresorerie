@@ -191,7 +191,11 @@ serve(async (req) => {
   // Le bouton est toujours visible côté app ; l'ACCÈS réel = Premium OU « Ouvrir à tous ».
   const premiumEnabled = !!features.premium_enabled;
   const isPremium = premiumEnabled && !!profile?.is_premium;
-  if (!cfg.open_to_all && !isPremium) return json({ error: 'premium_required' }, 403);
+  // Crédits payants (achetés OU offerts par un admin) : utilisables MÊME sans Premium — l'utilisateur
+  // les a acquis, il doit pouvoir les dépenser. On lit le solde AVANT le mur Premium.
+  const { data: extraBal0 } = await admin.rpc('ai_extra_credits_balance', { p_user: user.id });
+  const creditBalance = Number(extraBal0 ?? 0);
+  if (!cfg.open_to_all && !isPremium && creditBalance <= 0) return json({ error: 'premium_required' }, 403);
 
   const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1)).toISOString();
   const dayStart = new Date(new Date().setUTCHours(0, 0, 0, 0)).toISOString();
@@ -211,9 +215,7 @@ serve(async (req) => {
   let usePaidCredit = false;   // consomme 1 crédit acheté par l'utilisateur
   let usePaidFallback = false; // clé payante, coût éditeur (phase de lancement)
   if ((used ?? 0) >= limit) {
-    const { data: extraBal } = await admin.rpc('ai_extra_credits_balance', { p_user: user.id });
-    const balance = Number(extraBal ?? 0);
-    if (balance > 0) usePaidCredit = true;
+    if (creditBalance > 0) usePaidCredit = true;      // crédits achetés/offerts (premium ou non)
     else if (cfg.paid_fallback_enabled) usePaidFallback = true;
     else return json({ error: 'quota_exceeded', used, limit, extra_credits: 0 }, 429);
   }

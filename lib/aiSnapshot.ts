@@ -109,6 +109,8 @@ export interface SnapshotInput {
   realMonthlyIncome?: number;
   /** Évolution depuis le DERNIER bilan global (métriques persistées) — répond à « je vais dans le bon sens ? ». */
   evolution?: { previousDate: string; previous: BilanMetrics; current: BilanMetrics } | null;
+  /** Profil financier de l'app (P1 fragile → P5 confortable) : les conseils doivent le RESPECTER. */
+  financialProfile?: { id: string; name: string } | null;
 }
 
 /** Métriques top-line d'un bilan, persistées pour comparer d'un bilan à l'autre (~8 nombres). */
@@ -149,6 +151,15 @@ export function buildSnapshot(input: SnapshotInput): string {
   const monthProgress = Math.round((dayOfMonth / daysInMonth) * 100);
 
   L.push('=== INSTANTANÉ FINANCIER (anonymisé : montants + catégories uniquement) ===');
+
+  // Profil financier de l'app : cadre TOUS les conseils (un P1 fragile ne doit pas se voir
+  // conseiller d'investir ; un P5 n'a pas besoin qu'on lui rappelle de constituer un matelas).
+  if (input.financialProfile) {
+    const fp = input.financialProfile;
+    L.push('\nPROFIL FINANCIER (déterminé par l\'app — RESPECTE-LE dans tes conseils)');
+    L.push(`- Profil : ${fp.id} — ${fp.name} (échelle P1 fragile → P5 confortable).`);
+    L.push('- Adapte tes recommandations à ce profil : P1-P2 → priorité au matelas de sécurité et à la stabilisation, PAS de conseil d\'investissement ; P3 → équilibre épargne/projets, investissement prudent seulement si le matelas est solide ; P4-P5 → optimisation et investissement pertinents.');
+  }
 
   L.push('\nCONTEXTE TEMPOREL (important pour interpréter les chiffres)');
   L.push(`- Date du jour : ${today} — nous sommes le jour ${dayOfMonth}/${daysInMonth} du mois (≈ ${monthProgress}% du mois écoulé).`);

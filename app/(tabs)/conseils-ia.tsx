@@ -119,6 +119,37 @@ function ConseilsIaScreen() {
   const ask = useAskAi(uid);
   const purchase = usePurchaseExtraCredits(uid);
 
+  // ── Défilement : on amène la QUESTION en HAUT de l'écran (on lit la réponse depuis son début),
+  //    au lieu de sauter en bas. Vaut pour l'envoi d'une question ET le clic sur une analyse. ──
+  const questionAnchorRef = useRef<View>(null);
+  const lastUserId = useMemo(() => {
+    const h = history ?? [];
+    for (let i = h.length - 1; i >= 0; i--) if (h[i].role === 'user') return h[i].id;
+    return null;
+  }, [history]);
+  const scrollToQuestion = useCallback(() => {
+    const node = scrollRef.current as any;
+    const anchor = questionAnchorRef.current as any;
+    if (!node || !anchor?.measureLayout) return;
+    const inner = node.getInnerViewNode?.() ?? node;
+    try {
+      anchor.measureLayout(
+        inner,
+        (_x: number, y: number) => node.scrollTo?.({ y: Math.max(0, y - 12), animated: true }),
+        () => {},
+      );
+    } catch { /* noop */ }
+  }, []);
+  const prevLastUserId = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastUserId && lastUserId !== prevLastUserId.current) {
+      prevLastUserId.current = lastUserId;
+      // La question vient d'apparaître (envoi ou analyse) → on la remonte en tête, une fois posée.
+      setTimeout(scrollToQuestion, 120);
+      setTimeout(scrollToQuestion, 480);
+    }
+  }, [lastUserId, scrollToQuestion]);
+
   const allowed = isPremium || isAdmin || !!cfg?.open_to_all;
   const readOnly = isImpersonating || (!isPremium && !isAdmin && !cfg?.open_to_all); // consultation : pas d'envoi
   const remaining = quota?.remaining ?? 0;
@@ -179,7 +210,6 @@ function ConseilsIaScreen() {
     if (!conversationId && !(await usageGuard('ai_conversation'))) return;
     if (payload.kind === 'chat') setInput('');
     setPending(true);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     try {
       // Crée la conversation à la volée si on est sur un fil « neuf » (évite les conversations vides).
       let convId = conversationId ?? null;
@@ -204,7 +234,8 @@ function ConseilsIaScreen() {
       if (!parseUsageLimitError(e)) Alert.alert('Erreur', e?.message ?? 'Échec de la requête.');
     } finally {
       setPending(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+      // La réponse est là → on garde la QUESTION en haut (lecture depuis le début), pas de saut en bas.
+      setTimeout(scrollToQuestion, 200);
     }
   };
 
@@ -390,7 +421,11 @@ function ConseilsIaScreen() {
               <>
                 <Text style={[s.sectionLbl, { marginTop: 18 }]}>Conversation</Text>
                 <View style={{ gap: 10 }}>
-                  {history.map((m) => <Bubble key={m.id} m={m} s={s} c={c} />)}
+                  {history.map((m) => (
+                    <View key={m.id} ref={m.id === lastUserId ? questionAnchorRef : undefined}>
+                      <Bubble m={m} s={s} c={c} />
+                    </View>
+                  ))}
                 </View>
               </>
             )}

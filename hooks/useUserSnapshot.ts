@@ -32,6 +32,9 @@ import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type Sna
 import { detectUpcomingChanges, type UpcomingTx } from '../lib/aiUpcoming';
 import { deriveEngaged, computeHealthScore } from '../lib/aiScore';
 import { usePreviousBilanMetrics, type BilanMetricsRow } from './useAi';
+import { useFinancialProfile } from './useFinancialProfile';
+import { PROFILE_INFO } from '../lib/financialProfileEngine';
+import type { FinancialProfileId } from '../types/database';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const SNAPSHOT_TX_LIMIT = 4000;
@@ -80,6 +83,13 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   const { data: sharedContrib } = useSharedContribution(userId);
   // Dernier bilan global persisté → section ÉVOLUTION (« je vais dans le bon sens ? »).
   const { data: previousBilan } = usePreviousBilanMetrics(userId);
+  // Profil financier P1-P5 : cadre les conseils (pas d'invest à un P1, etc.).
+  const { data: financialProfile } = useFinancialProfile(userId);
+  const snapshotProfile = useMemo(() => {
+    const pid = financialProfile?.profile_id as FinancialProfileId | undefined;
+    if (!pid || !PROFILE_INFO[pid]) return null;
+    return { id: pid, name: PROFILE_INFO[pid].name };
+  }, [financialProfile?.profile_id]);
   // Comptes JOINTS en mode CONTRIBUTION (hors budget quotidien) : les virements récurrents qui y
   // vont sont des ENGAGEMENTS du foyer (couvrent souvent la part de crédits/charges communes).
   const jointContribAcctIds = useMemo(() => {
@@ -615,12 +625,13 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       evolution: previousBilan && currentBilanMetrics
         ? { previousDate: previousBilan.date, previous: previousBilan.metrics, current: currentBilanMetrics }
         : null,
+      financialProfile: snapshotProfile,
     });
   };
 
   const text = useMemo(
     () => (pilotage ? build() : null),
-    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics, realMonthlyIncome],
+    [pilotage, expensesByCategory, creditsSummary, projectsSummary, history, categoryTrends, recurrings, topOneOff, forecast, variableDetail, sharedAccounts, incomeRef, upcoming, savingsInvestForecast, jointContributionMonthly, investContributed, previousBilan, currentBilanMetrics, realMonthlyIncome, snapshotProfile],
   );
   return { text, ready: !!pilotage, build, currentBilanMetrics };
 }
