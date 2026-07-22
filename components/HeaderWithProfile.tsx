@@ -9,6 +9,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useAppColors } from '../hooks/useAppColors';
 import { useStyleConfig, getGradientStops } from '../hooks/useStyleConfig';
 import { useUserUnreadCount, useAdminUnreadCount } from '../hooks/useUnreadBadges';
+import { useClientErrorsRealtime } from '../hooks/useSecurity';
 import { useCosmetics } from '../hooks/useCosmetics';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
@@ -118,6 +119,7 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   // Badges « non lu » : réponses assistance pour l'utilisateur, assistance + idées pour l'admin.
   const userUnread = useUserUnreadCount(user?.id);
   const adminUnread = useAdminUnreadCount(isAdmin, user?.id);
+  useClientErrorsRealtime(isAdmin); // badge crash en temps réel (nouvelle erreur remontée)
   const { avatarFrameColor } = useCosmetics(user?.id);
 
   function openAdmin() {

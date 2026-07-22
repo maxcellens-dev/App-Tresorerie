@@ -6,6 +6,7 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity
 import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalculatorButton from '../../components/CalculatorButton';
+import RecurringTransactionsModal from '../../components/RecurringTransactionsModal';
 import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import MonthlyClosure from '../../components/MonthlyClosure';
@@ -201,6 +202,7 @@ export default function PilotageScreen() {
   const [showTroughInfo, setShowTroughInfo] = useState(false); // popup « point bas de trésorerie » (§N8)
   const [spentFilter, setSpentFilter] = useState<string | null>(null); // filtre sous-catégorie du camembert (§N2)
   const [recurFilter, setRecurFilter] = useState<string | null>(null); // filtre catégorie du camembert des récurrentes
+  const [showRecurringModal, setShowRecurringModal] = useState(false); // modal « Transactions récurrentes » (toutes récurrences)
   const releaseReserved = useReleaseReservedByProject(user?.id);
   const updateOnboarding = useUpdateOnboarding(user?.id);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
@@ -1220,6 +1222,12 @@ export default function PilotageScreen() {
                 <>
                   <View style={styles.detailHeader}>
                     <Text style={styles.detailTitle}>{detailKey === 'planned' ? (plannedTab === 'recurrentes' ? 'Dépenses récurrentes' : 'Dépenses variables prévues restantes') : (detailKey ? titles[detailKey] : '')}</Text>
+                    {/* Raccourci → toutes les transactions récurrentes (dépenses + recettes + virements). */}
+                    {detailKey === 'planned' && plannedTab === 'recurrentes' && (
+                      <TouchableOpacity onPress={() => { setDetailKey(null); setShowRecurringModal(true); }} style={{ padding: 4, marginRight: 2 }} accessibilityLabel="Toutes les transactions récurrentes">
+                        <Ionicons name="repeat" size={20} color={COLORS.emerald} />
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity onPress={() => setDetailKey(null)} style={{ padding: 4 }}>
                       <Ionicons name="close" size={22} color={COLORS.text} />
                     </TouchableOpacity>
@@ -1721,6 +1729,7 @@ export default function PilotageScreen() {
         </Pressable>
       </Modal>
       <CalculatorButton page="pilotage" />
+      <RecurringTransactionsModal visible={showRecurringModal} onClose={() => setShowRecurringModal(false)} userId={user?.id} />
     </View>
   );
 }

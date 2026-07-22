@@ -89,7 +89,7 @@ export default function StatsHub() {
   const [message, setMessage] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [events, setEvents] = useState<RawEvent[]>([]);
-  const [counts, setCounts] = useState<{ users: number; accounts: number; transactions: number; newUsers: number }>({ users: 0, accounts: 0, transactions: 0, newUsers: 0 });
+  const [counts, setCounts] = useState<{ users: number; accounts: number; transactions: number; newUsers: number; premium: number; aiRequests: number; crashes: number }>({ users: 0, accounts: 0, transactions: 0, newUsers: 0, premium: 0, aiRequests: 0, crashes: 0 });
   const [monthly, setMonthly] = useState<MonthAgg[]>([]);
   const [pulse, setPulse] = useState<RawPulse[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string>('');
@@ -101,17 +101,23 @@ export default function StatsHub() {
     setLoading(true); setMessage(null);
     const since = new Date(Date.now() - periodDays * DAY_MS).toISOString();
     try {
-      const [usersRes, accountsRes, txRes, newUsersRes] = await Promise.all([
+      const [usersRes, accountsRes, txRes, newUsersRes, premiumRes, aiRes, crashRes] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('accounts').select('*', { count: 'exact', head: true }),
         supabase.from('transactions').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', since),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_premium', true),
+        supabase.from('ai_usage').select('*', { count: 'exact', head: true }).gte('created_at', since),
+        supabase.from('client_errors').select('*', { count: 'exact', head: true }).eq('resolved', false),
       ]);
       setCounts({
         users: usersRes.count ?? 0,
         accounts: accountsRes.count ?? 0,
         transactions: txRes.count ?? 0,
         newUsers: newUsersRes.count ?? 0,
+        premium: premiumRes.count ?? 0,
+        aiRequests: aiRes.count ?? 0,
+        crashes: crashRes.count ?? 0,
       });
 
       const { data, error } = await supabase
@@ -214,6 +220,16 @@ export default function StatsHub() {
                 <Kpi icon="eye" color="#0ea5a8" value={agg.screenViews} label="Vues de page" styles={styles} />
                 <Kpi icon="repeat" color="#f97316" value={agg.avgSessions} label="Sessions / actif" styles={styles} />
               </View>
+
+              {/* Business / monétisation & santé technique */}
+              <Section title="Business & santé" hint={`Premium global · IA & crashs sur ${days} j`} styles={styles}>
+                <View style={styles.kpiGrid}>
+                  <Kpi icon="star" color="#f59e0b" value={counts.premium} label="Premium" styles={styles} />
+                  <Kpi icon="trending-up" color="#22c55e" value={`${counts.users ? Math.round((counts.premium / counts.users) * 100) : 0}%`} label="Conversion" styles={styles} />
+                  <Kpi icon="sparkles" color="#10b981" value={counts.aiRequests} label="Requêtes IA" styles={styles} />
+                  <Kpi icon="bug" color={counts.crashes > 0 ? COLORS.danger : COLORS.textSecondary} value={counts.crashes} label="Crashs ouverts" styles={styles} />
+                </View>
+              </Section>
 
               {/* Moyennes & engagement */}
               <Section title="Moyennes & engagement" hint={`Sur ${days} jours`} styles={styles}>

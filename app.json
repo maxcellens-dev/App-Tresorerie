@@ -59,6 +59,12 @@
           }
         }
       ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Relyka utilise Face ID pour déverrouiller l'accès à tes données financières."
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {

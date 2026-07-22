@@ -39,6 +39,7 @@ import AppDialogHost from '../components/AppDialogHost';
 import SeoHead from '../components/SeoHead';
 import SignOutVeil from '../components/SignOutVeil';
 import SecurityGate from '../components/SecurityGate';
+import AppLockGate from '../components/AppLockGate';
 import GlobalErrorBoundary from '../components/GlobalErrorBoundary';
 import { installGlobalErrorReporting } from '../lib/errorReporting';
 import { useAppColors } from '../hooks/useAppColors';
@@ -397,6 +398,8 @@ function AppChrome() {
       {/* Coupure globale (kill switch) — voile plein écran par-dessus tout quand l'admin verrouille
           l'app (attaque/piratage). Les admins ne sont pas bloqués (bandeau d'alerte seulement). */}
       <SecurityGate />
+      {/* Verrouillage biométrique optionnel (par appareil) — par-dessus tout quand actif + connecté. */}
+      <AppLockGate />
       {/* Voile de déconnexion — TOUT EN HAUT de la pile : rien de ce qui se démonte, se vide ou
           change de thème pendant la déconnexion ne doit être visible. */}
       <SignOutVeil />

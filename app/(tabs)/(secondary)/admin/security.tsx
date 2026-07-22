@@ -14,7 +14,7 @@ import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
-import { useClientErrors, useResolveClientError, usePurgeClientErrors, useAdminSetPassword, type ClientError } from '../../../../hooks/useSecurity';
+import { useClientErrors, useResolveClientError, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/useSecurity';
 import PasswordStrength from '../../../../components/PasswordStrength';
 import { evaluatePassword } from '../../../../lib/passwordPolicy';
 
@@ -25,6 +25,7 @@ export default function AdminSecurity() {
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
+  useClientErrorsRealtime(isAdmin);
 
   if (!isAdmin) {
     return (

@@ -25,6 +25,7 @@ import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideOverlay from '../../../components/GuideOverlay';
 import CalculatorButton from '../../../components/CalculatorButton';
+import RecurringTransactionsModal from '../../../components/RecurringTransactionsModal';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
@@ -167,6 +168,7 @@ function TransactionsListBody() {
   const [defaultCheckingIds, setDefaultCheckingIds] = useState<string[]>([]);
   const initializedAccountsSig = useRef<string | null>(null);
   const [showAccountFilter, setShowAccountFilter] = useState(false);
+  const [showRecurring, setShowRecurring] = useState(false);
 
   const transactionsQuery = useAllTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
@@ -826,6 +828,15 @@ function TransactionsListBody() {
               <Ionicons name="chevron-forward" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.filterBtn, { backgroundColor: COLORS.orange + '22', borderColor: COLORS.orange }]}
+              onPress={() => setShowRecurring(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Transactions récurrentes"
+            >
+              <Ionicons name="repeat" size={18} color={COLORS.orange} />
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.filterBtn, accountFilterIds.length > 0 && styles.filterBtnActive]}
               onPress={() => setShowAccountFilter(!showAccountFilter)}
               activeOpacity={0.7}
@@ -835,7 +846,7 @@ function TransactionsListBody() {
           </View>
         )}
         {showAccountFilter && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountFilterScroll}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountFilterScroll} contentContainerStyle={styles.accountFilterContent}>
             <TouchableOpacity
               style={[styles.accountFilterChip, accountFilterIds.length === 0 && styles.accountFilterChipActive]}
               onPress={() => setAccountFilterIds([])}
@@ -1060,6 +1071,7 @@ function TransactionsListBody() {
         screenTitle="Transactions"
       />
       <CalculatorButton page="transactions" />
+      <RecurringTransactionsModal visible={showRecurring} onClose={() => setShowRecurring(false)} userId={user?.id} />
     </View>
   );
 }
@@ -1214,16 +1226,22 @@ function makeStyles(c: any) {
   },
   accountFilterScroll: {
     marginBottom: 12,
-    maxHeight: 44,
+    height: 44,
+    flexGrow: 0,
+  },
+  accountFilterContent: {
+    alignItems: 'center',
   },
   accountFilterChip: {
+    height: 36,
     paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: c.cardBorder,
     marginRight: 8,
     backgroundColor: c.card,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   accountFilterChipActive: {
     backgroundColor: c.emerald,
@@ -1233,6 +1251,9 @@ function makeStyles(c: any) {
     fontSize: 13,
     color: c.text,
     fontWeight: '500',
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   accountFilterChipTextActive: {
     color: c.bg,

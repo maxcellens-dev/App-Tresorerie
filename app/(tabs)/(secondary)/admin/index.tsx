@@ -1,5 +1,5 @@
-﻿import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+﻿import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -20,6 +20,7 @@ export default function AdminHub() {
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
   const unread = useAdminUnreadBreakdown(!!isAdmin, user?.id);
+  const [query, setQuery] = useState('');
 
   if (!isAdmin) {
     return (
@@ -79,6 +80,14 @@ export default function AdminHub() {
     },
   ];
 
+  // Recherche : filtre les items par titre/description ; masque les sections vides.
+  const q = query.trim().toLowerCase();
+  const filteredSections = q
+    ? sections
+        .map((sec) => ({ ...sec, items: sec.items.filter((it) => `${it.title} ${it.desc}`.toLowerCase().includes(q)) }))
+        .filter((sec) => sec.items.length > 0)
+    : sections;
+
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
@@ -92,7 +101,29 @@ export default function AdminHub() {
           <Text style={styles.title}>Panneau Admin</Text>
           <Text style={styles.subtitle}>Configuration dynamique et reporting. Les changements sont appliqués au prochain sync.</Text>
 
-          {sections.map((section) => (
+          <View style={styles.searchRow}>
+            <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Rechercher une section…"
+              placeholderTextColor={COLORS.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {filteredSections.length === 0 && (
+            <Text style={styles.noResult}>Aucune section pour « {query} ».</Text>
+          )}
+
+          {filteredSections.map((section) => (
             <View key={section.category} style={{ marginBottom: 12 }}>
               <Text style={styles.categoryTitle}>{section.category}</Text>
               <View style={styles.grid}>
@@ -142,6 +173,9 @@ function makeStyles(c: any) {
   scrollContent: { paddingBottom: 100 },
   title: { fontSize: 21, fontWeight: '700', color: c.text, marginBottom: 4 },
   subtitle: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 10 : 4, marginBottom: 14 },
+  searchInput: { flex: 1, fontSize: 14, color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },
+  noResult: { fontSize: 13, color: c.textSecondary, textAlign: 'center', paddingVertical: 20 },
   categoryTitle: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   itemBtn: {

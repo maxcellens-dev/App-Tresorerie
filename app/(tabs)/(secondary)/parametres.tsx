@@ -29,6 +29,7 @@ import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { APP_VERSION } from '../../../lib/appVersion';
+import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/appLock';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -84,6 +85,24 @@ function SettingsScreen() {
 
   const [marginInput, setMarginInput] = useState(''); // ancien % - conservé pour compatibilité
   const [safetyAmountInput, setSafetyAmountInput] = useState('');
+
+  // Verrouillage de l'app (biométrie / code appareil) — réglage LOCAL à cet appareil.
+  const [appLockOn, setAppLockOn] = useState(false);
+  useEffect(() => { getAppLockEnabled().then(setAppLockOn); }, []);
+  const toggleAppLock = useCallback(async (next: boolean) => {
+    if (next) {
+      if (!(await isDeviceAuthAvailable())) {
+        Alert.alert('Indisponible', 'Configure d\'abord une empreinte, Face ID ou un code de verrouillage dans les réglages de ton téléphone.');
+        return;
+      }
+      // Confirme que l'utilisateur peut bien déverrouiller (évite de s'enfermer dehors).
+      if (!(await runDeviceAuth('Confirme pour activer le verrouillage'))) return;
+      await setAppLockEnabled(true); setAppLockOn(true);
+    } else {
+      if (!(await runDeviceAuth('Confirme pour désactiver le verrouillage'))) return;
+      await setAppLockEnabled(false); setAppLockOn(false);
+    }
+  }, []);
 
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
@@ -472,6 +491,24 @@ function SettingsScreen() {
               Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka).
             </Text>
             <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+            {APP_LOCK_SUPPORTED && (
+              <>
+                <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                  <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} />
+                  <Text style={styles.rowLabel}>Verrouiller l'app</Text>
+                  <Switch
+                    value={appLockOn}
+                    onValueChange={toggleAppLock}
+                    trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+                  Demande Face ID / empreinte (ou le code de ton téléphone) à l'ouverture. Protège tes données sur cet appareil.
+                </Text>
+                <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+              </>
+            )}
             <TouchableOpacity style={[styles.row, { borderBottomWidth: 0 }]} onPress={checkUpdate} activeOpacity={0.7}>
               <Ionicons name={updateAvailable ? 'arrow-up-circle' : 'checkmark-circle-outline'} size={20} color={updateAvailable ? COLORS.emerald : COLORS.textSecondary} />
               <View style={{ flex: 1 }}>

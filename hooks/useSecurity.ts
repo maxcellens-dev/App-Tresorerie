@@ -126,6 +126,23 @@ export function useSaveCrashNotifyConfig() {
   });
 }
 
+/** TEMPS RÉEL sur les crashs : à chaque erreur remontée (INSERT client_errors), on rafraîchit le
+ *  badge admin (bouton Admin + carte Sécurité) et la liste, sans attendre le refetch périodique. */
+export function useClientErrorsRealtime(enabled: boolean) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!supabase || !enabled) return;
+    const channel = supabase
+      .channel(`client_errors_${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_errors' }, () => {
+        qc.invalidateQueries({ queryKey: ['client_errors'] });
+        qc.invalidateQueries({ queryKey: ['unread_badges'] });
+      })
+      .subscribe();
+    return () => { supabase!.removeChannel(channel); };
+  }, [enabled, qc]);
+}
+
 /** Liste des erreurs client (admin). `onlyOpen` : masque les résolues. */
 export function useClientErrors(onlyOpen = true) {
   return useQuery({
