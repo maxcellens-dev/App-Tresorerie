@@ -24,7 +24,7 @@ export default function AdminSecurity() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
 
   if (!isAdmin) {
     return (
@@ -224,9 +224,18 @@ function PasswordResetCard({ c, s }: { c: any; s: any }) {
         et communique-le à l'utilisateur (il pourra le changer ensuite).
       </Text>
       <Text style={s.label}>E-mail du compte</Text>
-      <TextInput style={s.input} value={email} onChangeText={setEmail} placeholder="email@user.com" autoCapitalize="none" keyboardType="email-address" placeholderTextColor={c.textSecondary} />
+      {/* Pas d'auto-remplissage : c'est le compte d'un AUTRE utilisateur, pas celui de l'admin. */}
+      <TextInput
+        style={s.input} value={email} onChangeText={setEmail} placeholder="email@user.com"
+        autoCapitalize="none" keyboardType="email-address" placeholderTextColor={c.textSecondary}
+        autoComplete="off" textContentType="none" importantForAutofill="no" autoCorrect={false}
+      />
       <Text style={s.label}>Nouveau mot de passe</Text>
-      <TextInput style={s.input} value={password} onChangeText={setPassword} placeholder="••••••••••••" secureTextEntry placeholderTextColor={c.textSecondary} />
+      <TextInput
+        style={s.input} value={password} onChangeText={setPassword} placeholder="••••••••••••" secureTextEntry
+        placeholderTextColor={c.textSecondary}
+        autoComplete="off" textContentType="newPassword" importantForAutofill="no" autoCorrect={false}
+      />
       <PasswordStrength value={password} colors={c} />
       <TouchableOpacity style={[s.bigBtn, { backgroundColor: c.emerald }]} onPress={submit} disabled={setPw.isPending}>
         <Text style={s.bigBtnTxt}>{setPw.isPending ? '…' : 'Définir le mot de passe'}</Text>

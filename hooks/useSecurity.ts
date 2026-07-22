@@ -52,6 +52,80 @@ export function useAppLockdown() {
   };
 }
 
+export type AdminNotifTemplateKind = 'support' | 'suggestion' | 'ai_ticket';
+export interface AdminNotifTemplate { title: string; body: string }
+
+/** Titre/message éditables des notifications admin événementielles (support/suggestion/tickets IA). */
+export function useAdminNotifTemplates() {
+  return useQuery({
+    queryKey: ['admin_notif_templates'],
+    queryFn: async (): Promise<Record<AdminNotifTemplateKind, AdminNotifTemplate>> => {
+      const fallback: Record<AdminNotifTemplateKind, AdminNotifTemplate> = {
+        support: { title: "Nouvelle demande d'assistance", body: 'Un utilisateur a envoyé une demande de support.' },
+        suggestion: { title: 'Nouvelle suggestion', body: 'Un utilisateur a proposé une idée.' },
+        ai_ticket: { title: 'Conseil IA en échec', body: 'Une demande de conseil a échoué et attend une relance.' },
+      };
+      if (!supabase) return fallback;
+      const { data } = await supabase.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+      const cfg = ((data as any)?.admin_notif_templates) ?? {};
+      return {
+        support: { ...fallback.support, ...(cfg.support ?? {}) },
+        suggestion: { ...fallback.suggestion, ...(cfg.suggestion ?? {}) },
+        ai_ticket: { ...fallback.ai_ticket, ...(cfg.ai_ticket ?? {}) },
+      };
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSaveAdminNotifTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { kind: AdminNotifTemplateKind; title: string; body: string }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data } = await supabase.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+      const prev = ((data as any)?.admin_notif_templates) ?? {};
+      const merged = { ...prev, [input.kind]: { title: input.title, body: input.body } };
+      const { error } = await supabase.from('app_config').update({ admin_notif_templates: merged, updated_at: new Date().toISOString() }).eq('id', 'default');
+      if (error) throw new Error(error.message);
+      return merged;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin_notif_templates'] }),
+  });
+}
+
+export interface CrashNotifyConfig { enabled: boolean; title: string; body: string; throttle_minutes: number }
+
+/** Config de la notification admin de crash (app_config.crash_notify) — éditable dans admin/notifications. */
+export function useCrashNotifyConfig() {
+  return useQuery({
+    queryKey: ['crash_notify_config'],
+    queryFn: async (): Promise<CrashNotifyConfig> => {
+      const fallback: CrashNotifyConfig = { enabled: true, title: '🚨 Erreur détectée dans l\'app', body: 'Une erreur ({kind}) est remontée depuis {platform} v{version}.', throttle_minutes: 30 };
+      if (!supabase) return fallback;
+      const { data } = await supabase.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      return { ...fallback, ...(((data as any)?.crash_notify) ?? {}) } as CrashNotifyConfig;
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSaveCrashNotifyConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: Partial<CrashNotifyConfig>) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data } = await supabase.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      const prev = (((data as any)?.crash_notify) ?? {}) as CrashNotifyConfig;
+      const merged = { ...prev, ...patch };
+      const { error } = await supabase.from('app_config').update({ crash_notify: merged, updated_at: new Date().toISOString() }).eq('id', 'default');
+      if (error) throw new Error(error.message);
+      return merged;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['crash_notify_config'] }),
+  });
+}
+
 /** Liste des erreurs client (admin). `onlyOpen` : masque les résolues. */
 export function useClientErrors(onlyOpen = true) {
   return useQuery({
@@ -77,7 +151,10 @@ export function useResolveClientError() {
       const { error } = await supabase.from('client_errors').update({ resolved: input.resolved }).eq('id', input.id);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['client_errors'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['client_errors'] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] }); // badge crash (Admin + Centre de sécurité) en LIVE
+    },
   });
 }
 
@@ -121,6 +198,9 @@ export function usePurgeClientErrors() {
       if (error) throw new Error(error.message);
       return Number(data ?? 0);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['client_errors'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['client_errors'] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
+    },
   });
 }

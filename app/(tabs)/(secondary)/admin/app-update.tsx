@@ -18,7 +18,7 @@ export default function AdminAppUpdate() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
   const { data: flags, isLoading } = useFeatureFlags();
   const save = useSaveFeatureFlags();
 

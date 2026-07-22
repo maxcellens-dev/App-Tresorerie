@@ -23,6 +23,7 @@ import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils
 import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
 import { sheetWidth } from '../../../../lib/appLayout';
 import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/useReliability';
+import { useCrashNotifyConfig, useSaveCrashNotifyConfig, useAdminNotifTemplates, useSaveAdminNotifTemplate, type AdminNotifTemplateKind } from '../../../../hooks/useSecurity';
 import { useAdminNotifPrefs, useSaveAdminNotifPref, type AdminNotifKind } from '../../../../hooks/useUnreadBadges';
 
 interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null; target_label: string | null }
@@ -38,7 +39,90 @@ function targetLabelOf(t: NotifTarget, groups: GroupRow[]): string {
 function sourceLabel(source: string | null): string {
   if (source === 'once') return 'Ponctuelle';
   if (source === 'recurring') return 'Périodique';
+  if (source === 'crash') return 'Crash / erreur';
+  if (source === 'ai_ticket') return 'Ticket IA';
   return 'Manuel'; // 'manual' ou null (anciens envois)
+}
+
+/* ── Carte : titre + message d'un type de notification admin événementiel. ── */
+function NotifTemplateCard({ kind, label, icon, COLORS, styles }: { kind: AdminNotifTemplateKind; label: string; icon: string; COLORS: any; styles: any }) {
+  const { data: templates } = useAdminNotifTemplates();
+  const save = useSaveAdminNotifTemplate();
+  const [title, setTitle] = React.useState('');
+  const [body, setBody] = React.useState('');
+  const [saved, setSaved] = React.useState(false);
+  React.useEffect(() => {
+    const t = templates?.[kind];
+    if (t) { setTitle(t.title); setBody(t.body); }
+  }, [templates, kind]);
+  if (!templates) return null;
+  const doSave = () => save.mutate(
+    { kind, title: title.trim(), body: body.trim() },
+    { onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 1500); } },
+  );
+  return (
+    <View style={[styles.crashCard, { borderColor: COLORS.cardBorder }]}>
+      <View style={styles.crashHead}>
+        <Ionicons name={icon as any} size={18} color={COLORS.textSecondary} />
+        <Text style={styles.crashTitle}>{label}</Text>
+      </View>
+      <TextInput style={styles.crashInput} value={title} onChangeText={setTitle} placeholder="Titre" placeholderTextColor={COLORS.textSecondary} maxLength={120} />
+      <TextInput style={[styles.crashInput, { minHeight: 56, textAlignVertical: 'top' }]} value={body} onChangeText={setBody} placeholder="Message" multiline placeholderTextColor={COLORS.textSecondary} maxLength={240} />
+      <TouchableOpacity style={styles.crashSave} onPress={doSave}>
+        <Text style={styles.crashSaveTxt}>{saved ? '✓ Enregistré' : 'Enregistrer'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/* ── Carte : alerte admin en cas de crash/erreur (titre + corps éditables). ── */
+function CrashNotifyCard({ COLORS, styles }: { COLORS: any; styles: any }) {
+  const { data: cfg } = useCrashNotifyConfig();
+  const save = useSaveCrashNotifyConfig();
+  const [title, setTitle] = React.useState('');
+  const [body, setBody] = React.useState('');
+  const [throttle, setThrottle] = React.useState('30');
+  const [saved, setSaved] = React.useState(false);
+  React.useEffect(() => {
+    if (!cfg) return;
+    setTitle(cfg.title); setBody(cfg.body); setThrottle(String(cfg.throttle_minutes));
+  }, [cfg]);
+  if (!cfg) return null;
+  const doSave = () => save.mutate(
+    { title: title.trim(), body: body.trim(), throttle_minutes: Math.max(1, parseInt(throttle, 10) || 30) },
+    { onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 1500); } },
+  );
+  return (
+    <View style={styles.crashCard}>
+      <View style={styles.crashHead}>
+        <Ionicons name="bug-outline" size={18} color={COLORS.danger} />
+        <Text style={styles.crashTitle}>Alerte crash / erreur</Text>
+        <Switch
+          style={{ marginLeft: 'auto' }}
+          value={cfg.enabled}
+          onValueChange={(v) => save.mutate({ enabled: v })}
+          trackColor={{ true: COLORS.emerald, false: COLORS.cardBorder }}
+        />
+      </View>
+      <Text style={styles.crashDesc}>
+        Quand un appareil remonte une erreur (Centre de sécurité), les admins reçoivent une alerte in-app
+        (badge). Anti-flood : une seule alerte par fenêtre. Variables : {'{kind}'} {'{platform}'} {'{version}'}.
+      </Text>
+      {cfg.enabled && (
+        <>
+          <TextInput style={styles.crashInput} value={title} onChangeText={setTitle} placeholder="Titre" placeholderTextColor={COLORS.textSecondary} />
+          <TextInput style={[styles.crashInput, { minHeight: 60, textAlignVertical: 'top' }]} value={body} onChangeText={setBody} placeholder="Message" multiline placeholderTextColor={COLORS.textSecondary} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.crashDesc}>Anti-flood (minutes) :</Text>
+            <TextInput style={[styles.crashInput, { flex: 0, width: 64, marginBottom: 0 }]} value={throttle} onChangeText={setThrottle} keyboardType="number-pad" />
+          </View>
+          <TouchableOpacity style={styles.crashSave} onPress={doSave}>
+            <Text style={styles.crashSaveTxt}>{saved ? '✓ Enregistré' : 'Enregistrer'}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
 }
 
 type Recurrence = 'daily' | 'weekly' | 'monthly';
@@ -110,6 +194,7 @@ export default function AdminNotifications() {
     { kind: 'support', label: 'Assistance', icon: 'headset-outline' },
     { kind: 'suggestion', label: 'Suggestions', icon: 'chatbubbles-outline' },
     { kind: 'ai_ticket', label: 'Tickets IA', icon: 'sparkles-outline' },
+    { kind: 'crash', label: 'Crashs / erreurs', icon: 'bug-outline' },
   ];
 
   const { data: groups = [] } = useQuery({
@@ -377,6 +462,14 @@ export default function AdminNotifications() {
             {(adminPrefs?.admins ?? []).length === 0 && (
               <Text style={styles.empty}>Aucun admin trouvé (ou migration 121 non appliquée).</Text>
             )}
+
+            {/* ── Contenu (titre + message) de chaque notification admin ── */}
+            <Text style={[styles.sectionLabel, { marginTop: 18 }]}>Contenu des notifications admin</Text>
+            <Text style={styles.sysIntro}>Le titre et le message envoyés/affichés pour chaque type d'événement.</Text>
+            <CrashNotifyCard COLORS={COLORS} styles={styles} />
+            <NotifTemplateCard kind="support" label="Assistance" icon="headset-outline" COLORS={COLORS} styles={styles} />
+            <NotifTemplateCard kind="suggestion" label="Suggestions" icon="chatbubbles-outline" COLORS={COLORS} styles={styles} />
+            <NotifTemplateCard kind="ai_ticket" label="Tickets IA" icon="sparkles-outline" COLORS={COLORS} styles={styles} />
           </View>
           ) : tab === 'auto' ? (
           /* ── Notifications AUTOMATIQUES (système) — catalogue documenté, activables une à une ── */
@@ -609,6 +702,13 @@ function makeStyles(c: any) {
     /* Notifications automatiques (système) */
     sysIntro: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
     sysCard: { backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, padding: 12 },
+    crashCard: { backgroundColor: c.bg, borderRadius: 10, borderWidth: 1, borderColor: c.danger, padding: 12, gap: 8, marginBottom: 4 },
+    crashHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    crashTitle: { fontSize: 14, fontWeight: '800', color: c.text },
+    crashDesc: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
+    crashInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: c.text, marginBottom: 6 },
+    crashSave: { backgroundColor: c.emerald, borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 2 },
+    crashSaveTxt: { color: '#fff', fontSize: 13, fontWeight: '700' },
     sysHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     sysTitle: { fontSize: 14, fontWeight: '800', color: c.text, flex: 1, marginRight: 10 },
     sysId: { fontSize: 11, fontFamily: 'monospace', color: c.emerald, marginTop: 2 },

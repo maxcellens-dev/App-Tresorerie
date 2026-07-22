@@ -8,7 +8,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SecureSessionStore } from './secureStorage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -18,8 +18,9 @@ const isWeb = Platform.OS === 'web';
 export const supabase = url && anonKey
   ? createClient(url, anonKey, {
       auth: {
-        // Sur natif : persiste la session via AsyncStorage. Sur web : défaut (localStorage).
-        storage: isWeb ? undefined : (AsyncStorage as any),
+        // Natif : session CHIFFRÉE (Keychain/Keystore via expo-secure-store, cf. secureStorage).
+        // Web : stockage par défaut (localStorage).
+        storage: isWeb ? undefined : (SecureSessionStore as any),
         autoRefreshToken: true,
         persistSession: true,
         // Détection des tokens dans l'URL : uniquement sur web (retour OAuth via redirection page).

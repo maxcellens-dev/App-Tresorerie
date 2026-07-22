@@ -83,7 +83,7 @@ export default function StatsHub() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);

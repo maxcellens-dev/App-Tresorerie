@@ -33,7 +33,7 @@ export default function AdminAssistance() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
 
   const { data: requests = [], isLoading, refetch } = useAllSupportRequests(!!isAdmin);
   const deleteRequest = useDeleteSupportRequest();

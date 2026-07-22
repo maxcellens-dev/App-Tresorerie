@@ -57,7 +57,7 @@ export default function CategoriesScreen() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
   const { data: categories = [], isLoading } = useCategories(user?.id);
   const seedDefaults = useSeedDefaultCategories(user?.id);
   const addCategory = useAddCategory(user?.id);

@@ -32,7 +32,7 @@ export default function AdminUsers() {
     router.replace('/(tabs)/pilotage');
   }
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
 
   const [query, setQuery] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);

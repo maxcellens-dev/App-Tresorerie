@@ -45,7 +45,15 @@ const GEMINI_PAID_KEYS = [Deno.env.get('GEMINI_API_KEY_PAID')].filter(Boolean) a
 // Notifie les ADMINS UNIQUEMENT (push Expo) qu'un conseil IA a échoué, et trace l'alerte dans
 // l'historique admin (admin_notifications) pour qu'elle soit visible/gérable côté admin.
 async function notifyAdmins(admin: any, body: string, pushEnabled: boolean) {
-  const title = 'Conseils IA — ticket';
+  // Titre/message ÉDITABLES par l'admin (app_config.admin_notif_templates.ai_ticket). Repli sur le
+  // défaut + le body passé si non configuré.
+  let title = 'Conseils IA — ticket';
+  try {
+    const { data: acfg } = await admin.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+    const tpl = (acfg?.admin_notif_templates ?? {}).ai_ticket ?? {};
+    if (tpl.title) title = String(tpl.title).slice(0, 120);
+    if (tpl.body) body = String(tpl.body).slice(0, 240);
+  } catch { /* défaut */ }
   try {
     let sent = 0;
     if (pushEnabled) {

@@ -60,6 +60,11 @@ export async function reportError(
       p_runtime_version: RUNTIME_VERSION,
       p_context: context ?? null,
     });
+    // Notifie les admins (push + historique), THROTTLÉ côté serveur. Best-effort : ne bloque jamais.
+    // (Requiert une session : un crash sur l'écran d'auth ne notifie pas, mais reste dans le journal.)
+    supabase.functions
+      .invoke('notify-admins', { body: { kind: 'crash', errKind: kind, platform: Platform.OS, version: APP_VERSION } })
+      .catch(() => {});
   } catch {
     /* ne jamais faire échouer l'app à cause de la remontée d'erreur */
   } finally {

@@ -18,7 +18,7 @@ export default function AdminHub() {
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
-  const isAdmin = profile?.is_admin ?? user?.email === 'maxcellens@gmail.com';
+  const isAdmin = profile?.is_admin === true;
   const unread = useAdminUnreadBreakdown(!!isAdmin, user?.id);
 
   if (!isAdmin) {
@@ -101,6 +101,7 @@ export default function AdminHub() {
                   const badge = item.href.endsWith('/admin/ai') ? unread.ai_ticket
                     : item.href.endsWith('/admin/assistance') ? unread.support
                     : item.href.endsWith('/admin/suggestions') ? unread.suggestion
+                    : item.href.endsWith('/admin/security') ? unread.crash
                     : 0;
                   return (
                   <TouchableOpacity

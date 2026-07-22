@@ -26,7 +26,7 @@ export default function EditableLegalContent({ which, seedText, children }: Prop
   const COLORS = usePublicColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
-  const isAdmin = (useProfile(user?.id).data?.is_admin ?? (user?.email === 'maxcellens@gmail.com'));
+  const isAdmin = useProfile(user?.id).data?.is_admin === true;
   const { data: content } = useLegalContent();
   const save = useSaveLegalContent();
   const override = content?.[which];

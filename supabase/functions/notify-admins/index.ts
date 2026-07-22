@@ -27,8 +27,8 @@ const URL = Deno.env.get('SUPABASE_URL')!;
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-type Kind = 'support' | 'suggestion' | 'ai_ticket';
-const VALID_KINDS: Kind[] = ['support', 'suggestion', 'ai_ticket'];
+type Kind = 'support' | 'suggestion' | 'ai_ticket' | 'crash';
+const VALID_KINDS: Kind[] = ['support', 'suggestion', 'ai_ticket', 'crash'];
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -39,12 +39,42 @@ serve(async (req) => {
     const { data: { user } } = await asUser.auth.getUser();
     if (!user) return json({ error: 'unauthorized' }, 401);
 
-    const { kind, title, body } = await req.json().catch(() => ({}));
+    const reqBody = await req.json().catch(() => ({}));
+    const { kind, title, body } = reqBody;
     if (!VALID_KINDS.includes(kind)) return json({ error: 'invalid kind' }, 400);
-    const safeTitle = String(title ?? '').slice(0, 120) || 'Relyka — notification';
-    const safeBody = String(body ?? '').slice(0, 240);
 
     const admin = createClient(URL, SERVICE);
+
+    let safeTitle: string, safeBody: string;
+    if (kind === 'crash') {
+      // Crash : config dédiée (app_config.crash_notify), THROTTLÉE (anti-boucle-de-crash multi-users).
+      const { data: acfg } = await admin.from('app_config').select('crash_notify').eq('id', 'default').maybeSingle();
+      const cfg = acfg?.crash_notify ?? {};
+      if (cfg.enabled === false) return json({ ok: true, skipped: 'disabled' });
+      const throttleMin = Math.max(1, Number(cfg.throttle_minutes ?? 30));
+      const since = new Date(Date.now() - throttleMin * 60_000).toISOString();
+      const { count: recent } = await admin.from('admin_notifications')
+        .select('id', { count: 'exact', head: true }).eq('source', 'crash').gte('created_at', since);
+      if ((recent ?? 0) > 0) return json({ ok: true, skipped: 'throttled' });
+      const sub = (s: string) => String(s ?? '')
+        .replaceAll('{kind}', String(reqBody.errKind ?? 'error'))
+        .replaceAll('{platform}', String(reqBody.platform ?? '?'))
+        .replaceAll('{version}', String(reqBody.version ?? '?'));
+      safeTitle = (sub(cfg.title) || '🚨 Erreur détectée dans l\'app').slice(0, 120);
+      safeBody = (sub(cfg.body) || 'Une erreur est remontée depuis l\'app.').slice(0, 240);
+    } else {
+      // Titre/message ÉDITABLES par l'admin (app_config.admin_notif_templates) — prioritaires sur ce que
+      // le client envoie (le client ne fait que déclencher). Repli sur les valeurs reçues puis défaut.
+      let tplTitle = '', tplBody = '';
+      try {
+        const { data: acfg } = await admin.from('app_config').select('admin_notif_templates').eq('id', 'default').maybeSingle();
+        const tpl = (acfg?.admin_notif_templates ?? {})[kind] ?? {};
+        tplTitle = String(tpl.title ?? '');
+        tplBody = String(tpl.body ?? '');
+      } catch { /* défaut ci-dessous */ }
+      safeTitle = (tplTitle || String(title ?? '')).slice(0, 120) || 'Relyka — notification';
+      safeBody = (tplBody || String(body ?? '')).slice(0, 240);
+    }
 
     // 2) Liste des admins.
     const { data: admins } = await admin.from('profiles').select('id').eq('is_admin', true);
