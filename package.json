@@ -51,7 +51,6 @@
     "react-native-calendars": "^1.1314.0",
     "react-native-edge-to-edge": "1.6.2",
     "react-native-keyboard-controller": "1.18.5",
-    "react-native-mmkv": "^2.12.2",
     "react-native-purchases": "^10.4.0",
     "react-native-purchases-ui": "^10.4.0",
     "react-native-reanimated": "~3.19.0",
@@ -74,7 +73,9 @@
   "expo": {
     "install": {
       "//": "Reanimated v4 EXIGE la New Architecture. On reste en Legacy Arch (app.json newArchEnabled:false), donc on garde volontairement la v3. Ne pas laisser `expo install --fix` le remonter en v4.",
-      "exclude": ["react-native-reanimated"]
+      "exclude": [
+        "react-native-reanimated"
+      ]
     }
   }
 }

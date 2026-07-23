@@ -32,6 +32,18 @@
 > `expo-doctor` 17/18 (seul écart = le pin Reanimated v3, volontaire) · `expo prebuild` génère un projet
 > Android cohérent (Legacy Arch conservée, thème `Theme.EdgeToEdge`, splash et JitPack préservés).
 >
+> **⚠️ Le SDK 54 seul NE SUFFIT PAS pour le 16 Ko — `react-native-mmkv` a dû être RETIRÉ.**
+> L'AAB versionCode 39 (SDK 54) a encore été refusé par Play. L'analyse de l'AAB avec
+> `scripts/check-16kb.js` a désigné **une seule** bibliothèque fautive :
+> `libreactnativemmkv.so` alignée sur `2**12` (4 Ko), alors que TOUT le reste (`libreactnative`,
+> `libhermes`, `libreanimated`, `librnscreens`, `libexpo-modules-core`…) était bien en `2**14`.
+> Être « compilé depuis les sources » ne suffit pas : le `CMakeLists.txt` de mmkv v2 ne pose aucun
+> flag 16 Ko et le NDK 27 ne le fait pas par défaut. 2.12.2 est la dernière v2 (pas de correctif),
+> et la v3+ impose la New Architecture.
+> → **MMKV remplacé par AsyncStorage** (Java pur, aucune bibliothèque native) dans
+> `services/config/configStorage.ts`, avec un cache mémoire lu de façon synchrone (motif de
+> `lib/themeBoot`) car `ConfigService.hydrate()` est appelé pendant le rendu.
+>
 > **Reste à faire :** build EAS, puis **vérifier l'AAB avec `node scripts/check-16kb.js <fichier.aab>`
 > AVANT de l'uploader** sur Play.
 

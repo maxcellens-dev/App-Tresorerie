@@ -1,11 +1,11 @@
 /**
  * ConfigService - Offline-First config loader
- * Flow: Memory -> MMKV (Local) -> API (Background) -> Merge
+ * Flow: Memory -> cache local (AsyncStorage natif / localStorage web) -> API (Background) -> Merge
  * Guarantees a valid config is always available (fallback to defaultTheme).
  */
 
 import { defaultAppConfig, type AppConfigPayload } from '../../theme/defaultTheme';
-import { getStoredConfig, setStoredConfig } from './configStorage';
+import { getStoredConfig, setStoredConfig, hydrateConfigCache } from './configStorage';
 
 export type ConfigSource = 'memory' | 'storage' | 'api';
 
@@ -34,7 +34,10 @@ class ConfigServiceClass {
     this.supabaseClient = client;
   }
 
-  /** Hydration: load from MMKV on app launch. If empty -> use defaultTheme. */
+  /**
+   * Hydratation SYNCHRONE au lancement (cache mémoire). Si vide -> defaultTheme.
+   * Sur natif le cache disque arrive après, via hydrateFromStorage().
+   */
   hydrate(): AppConfigPayload {
     const stored = getStoredConfig();
     if (stored) {
@@ -57,6 +60,31 @@ class ConfigServiceClass {
     return this.state.config;
   }
 
+  /**
+   * Hydratation ASYNCHRONE du cache disque, puis ré-application. À appeler une fois au démarrage.
+   *
+   * Sur natif, le cache repose sur AsyncStorage : il n'est pas encore chargé quand `hydrate()`
+   * s'exécute pendant le premier rendu. On complète donc ici, et on notifie les abonnés
+   * (ThemeContext y est déjà abonné → re-render immédiat, pas de flash).
+   *
+   * ⚠️ Garde-fou : si une config plus FRAÎCHE est déjà arrivée de l'API entre-temps, on ne la
+   * remplace surtout pas par la version disque (périmée). On n'écrase donc que l'état initial
+   * « valeurs par défaut ».
+   */
+  async hydrateFromStorage(): Promise<void> {
+    await hydrateConfigCache();
+    if (this.state.source !== 'memory') return; // l'API a déjà répondu → sa version prime
+    const stored = getStoredConfig();
+    if (!stored) return;                        // rien en cache → on garde les défauts
+    this.state = {
+      config: this.mergeWithDefaults(stored),
+      source: 'storage',
+      isHydrated: true,
+      lastFetchedAt: this.state.lastFetchedAt,
+    };
+    this.notify();
+  }
+
   /** Get current config (always defined). */
   getConfig(): AppConfigPayload {
     return this.state.config;
@@ -67,7 +95,7 @@ class ConfigServiceClass {
     return { ...this.state };
   }
 
-  /** Apply config from API and persist to MMKV. */
+  /** Apply config from API and persist to the local cache. */
   applyRemoteConfig(payload: Partial<AppConfigPayload>): AppConfigPayload {
     const merged = this.mergeWithDefaults({ ...this.state.config, ...payload });
     this.state = {

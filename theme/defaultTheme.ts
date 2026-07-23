@@ -1,6 +1,6 @@
 /**
  * Relyka - Default Theme (Fallback when offline or no config)
- * Used when MMKV is empty and before any remote config is loaded.
+ * Used when the local cache is empty and before any remote config is loaded.
  */
 
 export interface ThemeColors {

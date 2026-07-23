@@ -79,18 +79,34 @@ function minLoadAlign(so) {
   return min;
 }
 
-function main() {
+async function main() {
   const file = process.argv[2];
   if (!file) {
-    console.error('Usage : node scripts/check-16kb.js <fichier.aab|fichier.apk>');
-    process.exit(2);
-  }
-  if (!fs.existsSync(file)) {
-    console.error(`Fichier introuvable : ${file}`);
+    console.error('Usage : node scripts/check-16kb.js <fichier.aab|fichier.apk|URL EAS>');
+    console.error("  L'URL est celle affichée par `eas build:list` (champ « Application Archive URL »).");
     process.exit(2);
   }
 
-  const buf = fs.readFileSync(file);
+  // Accepte directement l'URL de l'artefact EAS : évite le téléchargement manuel avant vérification.
+  let buf;
+  if (/^https?:\/\//i.test(file)) {
+    console.log(`Téléchargement de l'artefact…\n  ${file}`);
+    const res = await fetch(file);
+    if (!res.ok) {
+      console.error(`Téléchargement impossible (HTTP ${res.status}).`);
+      process.exit(2);
+    }
+    buf = Buffer.from(await res.arrayBuffer());
+    console.log(`  ${(buf.length / 1024 / 1024).toFixed(1)} Mo reçus`);
+  } else {
+    if (!fs.existsSync(file)) {
+      console.error(`Fichier introuvable : ${file}`);
+      console.error("  Donne le chemin RÉEL du .aab, ou colle l'URL de l'artefact EAS.");
+      process.exit(2);
+    }
+    buf = fs.readFileSync(file);
+  }
+
   const libs = listNativeLibs(buf);
 
   if (libs.length === 0) {
@@ -155,4 +171,7 @@ function main() {
   process.exit(1);
 }
 
-main();
+main().catch((err) => {
+  console.error(`Erreur : ${err.message}`);
+  process.exit(2);
+});

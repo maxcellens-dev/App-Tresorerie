@@ -1,6 +1,6 @@
 /**
  * Background sync: fetch app_config from Supabase when online.
- * Updates MMKV and notifies ThemeContext. Non-blocking.
+ * Met à jour le cache local et notifie ThemeContext. Non bloquant.
  */
 
 import { useEffect, useRef } from 'react';

@@ -1,8 +1,17 @@
 /**
- * Web fallback: localStorage for app_config (no MMKV on web).
+ * Variante WEB : localStorage pour app_config.
+ * localStorage est déjà synchrone → pas de cache mémoire à hydrater, contrairement au natif.
  */
 
 import type { AppConfigPayload } from '../../theme/defaultTheme';
+
+/**
+ * Présent pour respecter le contrat commun avec la variante native (qui, elle, doit charger
+ * AsyncStorage en mémoire). Sans objet sur le web : les lectures sont déjà synchrones.
+ */
+export async function hydrateConfigCache(): Promise<void> {
+  // no-op
+}
 
 const CONFIG_KEY = 'app_config';
 const CONFIG_UPDATED_AT_KEY = 'app_config_updated_at';

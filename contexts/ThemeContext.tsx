@@ -36,6 +36,13 @@ export function ThemeProvider({
     return unsubscribe;
   }, []);
 
+  // Le cache disque est asynchrone sur natif (AsyncStorage) : hydrate() ci-dessus n'a donc pu lire
+  // que le cache mémoire, vide au tout premier rendu. On le complète ici — l'abonnement ci-dessus
+  // récupère le résultat, d'où aucun flash de thème.
+  useEffect(() => {
+    ConfigService.hydrateFromStorage();
+  }, []);
+
   useEffect(() => {
     if (state.isHydrated && onHydrated) onHydrated();
   }, [state.isHydrated, onHydrated]);
