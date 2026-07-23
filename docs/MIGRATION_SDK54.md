@@ -1,5 +1,40 @@
 # Migration Expo SDK 52 → 54 (Play Console : API 36 · edge-to-edge · 16 Ko · APIs dépréciées)
 
+> ## ✅ EXÉCUTÉE le 23/07/2026 — ce document est désormais l'historique de ce qui a été fait
+>
+> Déclencheur : Google Play a **refusé** l'App Bundle (versionCode 38) avec l'erreur bloquante
+> « Votre appli ne prend pas en charge les tailles de page de mémoire de 16 ko ».
+> Confirmé côté Expo : **le support 16 Ko exige React Native ≥ 0.77, donc SDK ≥ 53. Aucun
+> contournement par configuration n'existe en SDK 52** (les `.so` précompilés de RN — `libreactnative.so`,
+> `libhermes.so` — y sont alignés sur 4 Ko).
+>
+> **État réel après exécution :**
+> - `expo` 52 → **54.0.36** · `react-native` 0.76.9 → **0.81.5** · `react` 18.3.1 → **19.1.0**
+> - `expo-router` 4 → **6.0.24** · `react-native-screens` → 4.16 · `safe-area-context` → 5.6.2
+> - `react-native-edge-to-edge` 1.4.3 → **1.6.2 — NE PAS DÉPASSER**. Cette lib n'est PAS gérée par le
+>   SDK 54 (absente de `bundledNativeModules.json`), donc `expo install --fix` ne la corrige pas. À partir
+>   de la **1.7.0**, ses thèmes héritent de `Theme.Material3Expressive.*`, fournis uniquement par
+>   Material Components **1.13+** — que la lib ne déclare pas en dépendance. Résultat avec RN 0.81 :
+>   le build échoue à `:app:processReleaseResources` sur « resource style/Theme.Material3Expressive…
+>   not found ». La 1.6.2 hérite de `Theme.AppCompat.*`, toujours disponible. · `@expo/vector-icons` **installé explicitement**
+>   (il n'est plus fourni par le paquet `expo` en SDK 54)
+> - `react-native-reanimated` **volontairement gardé en v3.19.5** (la v4 est New-Arch only) et verrouillé
+>   via `expo.install.exclude` dans `package.json`
+> - `compileSdkVersion` / `targetSdkVersion` **35 → 36** (lève aussi l'avertissement API 36)
+> - `runtimeVersion` **1.0.3 → 1.0.4** — OBLIGATOIRE : le natif change entièrement, garder 1.0.3
+>   enverrait ce JS SDK 54 aux builds SDK 52 existants = crash immédiat pour tout le monde
+>
+> **Corrections de code rendues nécessaires :**
+> - `components/Carousel.tsx` : `useRef()` sans argument (interdit en React 19) + typage du timer
+> - `lib/pushNotifications.native.ts` : `shouldShowAlert` (déprécié) scindé en `shouldShowBanner` + `shouldShowList`
+>
+> **Vérifications passées :** `tsc --noEmit` 0 erreur · 180/180 tests · bundle Android **et** web exportés ·
+> `expo-doctor` 17/18 (seul écart = le pin Reanimated v3, volontaire) · `expo prebuild` génère un projet
+> Android cohérent (Legacy Arch conservée, thème `Theme.EdgeToEdge`, splash et JitPack préservés).
+>
+> **Reste à faire :** build EAS, puis **vérifier l'AAB avec `node scripts/check-16kb.js <fichier.aab>`
+> AVANT de l'uploader** sur Play.
+
 But : lever les **4 avertissements Google Play** d'un coup. Tous découlent de la version RN/Expo :
 RN 0.81 (SDK 54) cible **Android 16 / API 36**, active l'**edge-to-edge** nativement, est **compatible 16 Ko**,
 et embarque les versions de `react-native-screens` / `react-native-edge-to-edge` / `react-native-keyboard-controller`

@@ -45,8 +45,8 @@
         {
           "android": {
             "minSdkVersion": 24,
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ],
@@ -86,7 +86,7 @@
         "projectId": "fc209ff9-5d8b-4c7e-a83e-a3036f45930a"
       }
     },
-    "runtimeVersion": "1.0.3",
+    "runtimeVersion": "1.0.4",
     "updates": {
       "url": "https://u.expo.dev/fc209ff9-5d8b-4c7e-a83e-a3036f45930a",
       "checkAutomatically": "ON_LOAD",

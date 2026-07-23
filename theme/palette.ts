@@ -16,6 +16,13 @@ export interface AppColors {
   card: string;
   /** Surface opaque (jamais transparente) — pour les modales et containers qui doivent cacher le fond. */
   cardSolid: string;
+  /**
+   * Rendu EXACT de `card` (translucide) composé sur `bg`, mais en couleur OPAQUE.
+   * À utiliser pour toute carte posée directement sur le fond ET portant une ombre `elevation` :
+   * sur Android, l'ombre d'elevation transparaît à travers un fond non opaque et produit un voile
+   * gris + un halo sur les bords (très visible en thème clair). Aspect identique à `card`, sans l'artefact.
+   */
+  cardOpaque: string;
   cardBorder: string;
   text: string;
   textSecondary: string;
@@ -187,6 +194,25 @@ function hexToRgbTriplet(hex: string): string {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
+/**
+ * Aplatit « fgHex à l'opacité `alpha` posé sur bgHex » en une couleur OPAQUE #RRGGBB.
+ * Sert à obtenir l'aspect d'une carte translucide sans transparence réelle (cf. `cardOpaque`).
+ */
+function blendOverHex(fgHex: string, bgHex: string, alpha: number): string {
+  const parse = (h: string): [number, number, number] => {
+    const m = /^#?([0-9A-Fa-f]{6})$/.exec(h || '');
+    if (!m) return [255, 255, 255];
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const [fr, fg, fb] = parse(fgHex);
+  const [br, bgc, bb] = parse(bgHex);
+  const a = Math.min(1, Math.max(0, alpha));
+  const mix = (f: number, b: number) => Math.round(f * a + b * (1 - a));
+  const hex2 = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${hex2(mix(fr, br))}${hex2(mix(fg, bgc))}${hex2(mix(fb, bb))}`;
+}
+
 /** Résout la couleur d'accent pour un preset donné (natif, custom hex ou preset perso). */
 export function resolveAccent(mode: ThemeMode, preset: string, opts?: BuildColorsOptions): string {
   // 0. Couleur personnalisée saisie par l'utilisateur (theme_preset = hex direct)
@@ -223,6 +249,9 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
   const cardHex = (opts?.cardColor && /^#[0-9A-Fa-f]{6}$/.test(opts.cardColor)) ? opts.cardColor : DEFAULT_CARD[mode];
   const cardRGB = hexToRgbTriplet(cardHex);
   const card = `rgba(${cardRGB},${alpha})`;
+  // Équivalent opaque de `card` posé sur `bg` (voir AppColors.cardOpaque) — évite le voile gris
+  // de l'ombre Android sur les cartes translucides.
+  const cardOpaque = blendOverHex(cardHex, bg, alpha);
   const cardBorder = isLight
     ? `rgba(0,0,0,${Math.min(1, alpha * 0.15 + 0.04).toFixed(2)})`   // bordure subtile sombre sur clair
     : `rgba(${cardRGB},${Math.min(1, alpha + 0.04)})`;
@@ -259,6 +288,7 @@ export function buildColors(mode: ThemeMode, preset: string, opts?: BuildColorsO
     bg,
     card,
     cardSolid: base.cardSolid,
+    cardOpaque,
     cardBorder,
     text: ink,
     textSecondary,

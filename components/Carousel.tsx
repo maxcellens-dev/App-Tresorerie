@@ -42,7 +42,9 @@ export default function Carousel<T extends CarouselItem = CarouselItem>({
   fillParent = false,
 }: CarouselProps<T>) {
   const scrollViewRef = useRef<ScrollView>(null);
-  const autoScrollTimer = useRef<NodeJS.Timeout>();
+  // React 19 : useRef exige un argument explicite. `ReturnType<typeof setInterval>` évite
+  // le désaccord de types entre le setInterval de Node (Timeout) et celui de RN (number).
+  const autoScrollTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const currentIndexRef = useRef(0);
 
   useEffect(() => {

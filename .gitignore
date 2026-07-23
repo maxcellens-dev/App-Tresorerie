@@ -18,6 +18,12 @@ yarn-error.log*
 # ----- Expo -----
 .expo/
 dist/
+dist-*/
+
+# Dossiers natifs générés par `expo prebuild` (managed workflow : ils ne doivent PAS être commités,
+# sinon ils figent la config et écrasent celle d'app.json au build).
+/android/
+/ios/
 web-build/
 *.jks
 *.p8

@@ -161,17 +161,20 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     stack: { gap: 10 },
 
-    verdict: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 15, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+    // `cardOpaque` et non `card` : ces cartes portent une ombre `elevation`, qui sur Android
+    // transparaît à travers un fond translucide (voile gris + halo, très visible en thème clair).
+    // Elles sont posées directement sur `bg`, donc l'aplat opaque rend exactement pareil.
+    verdict: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: c.cardOpaque, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 15, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
     tagPill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2, marginBottom: 7 },
     tagTxt: { fontSize: 11, fontWeight: '800' },
     verdictTxt: { fontSize: 15.5, fontWeight: '800', color: c.text, lineHeight: 21 },
 
-    insight: { flexDirection: 'row', gap: 11, backgroundColor: c.card, borderWidth: 1, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+    insight: { flexDirection: 'row', gap: 11, backgroundColor: c.cardOpaque, borderWidth: 1, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
     insightIc: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flex: 0 },
     insightTitle: { fontSize: 13.5, fontWeight: '800', marginBottom: 3 },
     insightBody: { fontSize: 13.5, color: c.text, lineHeight: 19 },
 
-    card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+    card: { backgroundColor: c.cardOpaque, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     cardHeadTxt: { fontSize: 13.5, fontWeight: '800', color: c.text },
     kicker: { backgroundColor: c.violet, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
@@ -194,7 +197,7 @@ function makeStyles(c: any) {
     metaTxt: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
 
     detailLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', color: c.textSecondary, marginTop: 6, marginBottom: 0, marginLeft: 2 },
-    section: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+    section: { backgroundColor: c.cardOpaque, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
     secHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
     secEmoji: { fontSize: 15 },
     secTitle: { flex: 1, fontSize: 13, fontWeight: '800', letterSpacing: 0.3, color: c.text, textTransform: 'uppercase' },

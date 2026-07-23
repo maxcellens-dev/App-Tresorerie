@@ -16,7 +16,7 @@ import { useUserUnreadCount } from '../hooks/useUnreadBadges';
 import { useCosmetics } from '../hooks/useCosmetics';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { APP_VERSION } from '../lib/appVersion';
-import { markNavTap } from '../lib/navPerf';
+import { markNavTap, markNavDispatched } from '../lib/navPerf';
 
 export default function ProfileMenuModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const COLORS = useAppColors();
@@ -37,7 +37,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   // Titres cosmétiques équipés, triés par ordre alphabétique (un seul emplacement pour l'instant).
   const cosmeticTitles = (profileTitle ? [profileTitle] : []).sort((a, b) => a.localeCompare(b, 'fr'));
 
-  const go = (route: string) => { markNavTap(); onClose(); router.push(route as any); };
+  const go = (route: string) => { markNavTap(); onClose(); router.push(route as any); markNavDispatched(); };
   // signOut() se charge de tout (voile, navigation, purge) — cf. AuthContext.
   const logout = () => { onClose(); signOut(); };
 

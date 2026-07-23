@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
-import { markNavTap } from '../lib/navPerf';
+import { markNavTap, markNavDispatched } from '../lib/navPerf';
 import { useRwInvitations } from '../hooks/useRelykaWorld';
 import { useAccountInvitations, useSharedAccountsRealtime } from '../hooks/useSharedAccounts';
 import { useCreditInvitations, useSharedCreditsRealtime } from '../hooks/useSharedCredits';
@@ -86,6 +86,7 @@ export default function CustomTabBar({ state, navigation }: any) {
               const nested = it.name === 'comptes' || it.name === 'transactions' || it.name === 'projects';
               if (nested) navigation.navigate(it.name, { screen: 'index' });
               else navigation.navigate(it.name);
+              markNavDispatched(); // fin du dispatch synchrone (sonde : sépare calcul / attente)
             }}
             accessibilityRole="button"
           >

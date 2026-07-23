@@ -16,9 +16,12 @@ export interface DevicePushToken {
 }
 
 // Afficher la notification même si l'app est ouverte (bannière + son).
+// expo-notifications 0.32 (SDK 54) a scindé `shouldShowAlert` (déprécié) en
+// `shouldShowBanner` (bandeau à l'écran) + `shouldShowList` (centre de notifications).
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
