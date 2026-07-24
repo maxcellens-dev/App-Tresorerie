@@ -7,7 +7,7 @@
  * et Transactions) ou 'hidden'. Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre.
  */
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable, useWindowDimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuickAddPref } from '../hooks/useUiPrefs';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
+import { APP_MAX_WIDTH } from '../lib/appLayout';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
 const ACTION_SIZE = 54;       // actions plus grosses et lisibles
@@ -40,7 +41,11 @@ export default function QuickAddButton() {
   const COLORS = useAppColors();
   const styles = makeStyles(COLORS);
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width: winWidth } = useWindowDimensions();
+  // Sur web bureau, l'app est confinée dans une colonne centrée de APP_MAX_WIDTH (cf. webColumn dans
+  // app/_layout). Le FAB est ancré DANS cette colonne : sa position horizontale doit se calculer sur
+  // la largeur de la colonne, pas sur celle du navigateur — sinon il est projeté hors champ à droite.
+  const width = Platform.OS === 'web' ? Math.min(winWidth, APP_MAX_WIDTH) : winWidth;
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();

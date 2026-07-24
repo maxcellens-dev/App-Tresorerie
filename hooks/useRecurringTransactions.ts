@@ -11,7 +11,7 @@ export type RecurKind = 'expense' | 'income' | 'transfer';
 export interface RecurringItem {
   id: string;
   kind: RecurKind;
-  label: string;          // catégorie (dépense/recette) ou « Compte A → Compte B » (virement)
+  label: string;          // libellé de la transaction (repli catégorie) ou « Compte A → Compte B » (virement)
   amount: number;         // valeur absolue
   rule: string;           // daily | weekly | monthly | quarterly | yearly
   nextDate: string;       // prochaine échéance (ancre `date`)
@@ -22,6 +22,10 @@ export interface RecurringItem {
 const RULE_LABEL: Record<string, string> = { daily: 'Chaque jour', weekly: 'Chaque semaine', monthly: 'Chaque mois', quarterly: 'Chaque trimestre', yearly: 'Chaque année' };
 export const ruleLabel = (r: string) => RULE_LABEL[r] ?? r;
 
+// Code compact encadré de la mensualité (gagne de la place dans le modal récurrentes).
+const RULE_BADGE: Record<string, string> = { daily: 'J', weekly: 'S', monthly: 'M', quarterly: 'T', yearly: 'A' };
+export const ruleBadge = (r: string) => RULE_BADGE[r] ?? (r?.[0]?.toUpperCase() ?? '?');
+
 export function useRecurringTransactions(userId: string | undefined) {
   return useQuery({
     queryKey: ['recurring_transactions', userId],
@@ -31,7 +35,7 @@ export function useRecurringTransactions(userId: string | undefined) {
       const { data, error } = await supabase!
         .from('transactions')
         .select(`
-          id, amount, date, recurrence_rule, recurrence_end_date, linked_account_id, category_id,
+          id, amount, date, note, recurrence_rule, recurrence_end_date, linked_account_id, category_id,
           account:accounts!account_id(name),
           category:categories!category_id(name),
           linked_account:accounts!linked_account_id(name)
@@ -54,9 +58,11 @@ export function useRecurringTransactions(userId: string | undefined) {
           const kind: RecurKind = isTransfer ? 'transfer' : amt >= 0 ? 'income' : 'expense';
           const acc = r.account?.name ?? null;
           const dest = r.linked_account?.name ?? '?';
+          // Non-virement : on affiche le LIBELLÉ de la transaction (repli catégorie si vide).
+          const note = typeof r.note === 'string' ? r.note.trim() : '';
           const label = isTransfer
             ? `${acc ?? '?'} → ${dest}`
-            : (r.category?.name ?? 'Sans catégorie');
+            : (note || r.category?.name || 'Sans catégorie');
           return { id: r.id, kind, label, amount: Math.abs(amt), rule: r.recurrence_rule, nextDate: r.date, accountName: acc, upcoming: r.date > today };
         });
     },

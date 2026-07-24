@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { sheetWidth } from '../lib/appLayout';
-import { useRecurringTransactions, ruleLabel, type RecurringItem, type RecurKind } from '../hooks/useRecurringTransactions';
+import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../hooks/useRecurringTransactions';
 
 const KIND_META: Record<RecurKind, { title: string; icon: string; colorKey: 'blue' | 'danger' | 'green' }> = {
   transfer: { title: 'Virements récurrents', icon: 'swap-horizontal', colorKey: 'blue' },
@@ -67,7 +67,10 @@ export default function RecurringTransactionsModal({ visible, onClose, userId }:
                       <TouchableOpacity key={it.id} style={s.row} activeOpacity={0.7} onPress={() => openEdit(it.id)}>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={s.rowLabel} numberOfLines={1}>{it.label}</Text>
-                          <Text style={s.rowSub} numberOfLines={1}>{ruleLabel(it.rule)}{it.accountName && it.kind !== 'transfer' ? ` · ${it.accountName}` : ''} · prochaine {it.nextDate.slice(8, 10)}/{it.nextDate.slice(5, 7)}</Text>
+                          <View style={s.rowSubLine}>
+                            <View style={s.freqBadge}><Text style={s.freqBadgeText}>{ruleBadge(it.rule)}</Text></View>
+                            <Text style={s.rowSub} numberOfLines={1}>{it.accountName && it.kind !== 'transfer' ? `${it.accountName} · ` : ''}prochaine {it.nextDate.slice(8, 10)}/{it.nextDate.slice(5, 7)}</Text>
+                          </View>
                         </View>
                         <Text style={[s.rowAmount, { color }]}>{eur(it.amount)}</Text>
                         <Ionicons name="chevron-forward" size={16} color={c.textSecondary} />
@@ -99,7 +102,10 @@ function makeStyles(c: any) {
     groupCount: { marginLeft: 'auto', fontSize: 11, color: c.textSecondary, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11, marginBottom: 7 },
     rowLabel: { fontSize: 14, fontWeight: '700', color: c.text },
-    rowSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
+    rowSubLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3, minWidth: 0 },
+    freqBadge: { minWidth: 16, height: 16, borderRadius: 5, paddingHorizontal: 4, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
+    freqBadgeText: { fontSize: 9.5, fontWeight: '800', color: c.textSecondary },
+    rowSub: { flex: 1, fontSize: 11.5, color: c.textSecondary },
     rowAmount: { fontSize: 14, fontWeight: '800' },
     hint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 4 },
   });
