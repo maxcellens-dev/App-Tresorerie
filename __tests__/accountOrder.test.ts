@@ -24,6 +24,17 @@ describe('accountOrder — ordre unique des comptes dans toute l’app', () => {
     expect(sortAccounts(list).map((a) => a.name)).toEqual(['CCP', 'Mystère']);
   });
 
+  it('à type égal, les comptes JOINTS passent après les persos', () => {
+    const joint = (name: string, type: string) => ({ name, type, is_default: false, is_joint: true });
+    const list = [joint('Compte commun', 'checking'), acc('Zébu', 'checking'), acc('Auto', 'checking')];
+    expect(sortAccounts(list).map((a) => a.name)).toEqual(['Auto', 'Zébu', 'Compte commun']);
+  });
+
+  it('le type prime sur le caractère joint (un courant joint reste avant une épargne perso)', () => {
+    const list = [acc('Livret A', 'savings'), { name: 'Commun', type: 'checking', is_default: false, is_joint: true }];
+    expect(sortAccounts(list).map((a) => a.name)).toEqual(['Commun', 'Livret A']);
+  });
+
   it('ne modifie pas le tableau d’origine', () => {
     const list = [acc('Livret A', 'savings'), acc('CCP', 'checking')];
     const before = list.map((a) => a.name);

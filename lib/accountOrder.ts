@@ -4,7 +4,8 @@
  * Règles, dans cet ordre :
  *   1. le COMPTE COURANT PAR DÉFAUT de l'utilisateur (is_default) passe toujours en tête ;
  *   2. puis par TYPE : Courant → Épargne → Investissement → Autre ;
- *   3. puis par nom (alphabétique) — stable et prévisible.
+ *   3. puis PERSO avant JOINT (à type égal : les comptes courants joints viennent après les persos) ;
+ *   4. puis par nom (alphabétique) — stable et prévisible.
  *
  * Le tri est appliqué À LA SOURCE (hooks/useAccounts) : toutes les listes en héritent, aucune page
  * n'a à re-trier. Module PUR → testé dans __tests__/accountOrder.test.ts.
@@ -26,9 +27,10 @@ interface SortableAccount {
   name?: string | null;
   type?: string | null;
   is_default?: boolean | null;
+  is_joint?: boolean | null;
 }
 
-/** Comparateur : défaut d'abord, puis type, puis nom. */
+/** Comparateur : défaut d'abord, puis type, puis perso avant joint, puis nom. */
 export function compareAccounts(a: SortableAccount, b: SortableAccount): number {
   const da = a.is_default ? 0 : 1;
   const db = b.is_default ? 0 : 1;
@@ -36,6 +38,10 @@ export function compareAccounts(a: SortableAccount, b: SortableAccount): number 
   const ta = accountTypeRank(a.type);
   const tb = accountTypeRank(b.type);
   if (ta !== tb) return ta - tb;
+  // À type égal, les comptes JOINTS passent après les persos (un courant joint suit les courants persos).
+  const ja = a.is_joint ? 1 : 0;
+  const jb = b.is_joint ? 1 : 0;
+  if (ja !== jb) return ja - jb;
   return (a.name ?? '').localeCompare(b.name ?? '', 'fr');
 }
 

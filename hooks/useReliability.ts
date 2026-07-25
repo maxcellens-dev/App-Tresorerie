@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import {
-  resolveReliabilityConfig, computeConfidence, toRange,
+  resolveReliabilityConfig, computeConfidence, toRange, RELIABILITY_DEFAULTS,
   type ReliabilityConfig, type ConfidenceResult, type Range,
 } from '../lib/confidenceEngine';
 import { recomputeReliabilityCalibration } from '../lib/reliabilityCalib';
@@ -20,6 +20,14 @@ export function useReliabilityConfig() {
     },
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
+    // ANTI-CONTRADICTION AU DÉMARRAGE : sans config, tous les consommateurs (carte Relyka, bandeau,
+    // Pouls) retombaient sur « aucun doute » → montant sec affiché, puis fourchette une fois la config
+    // arrivée du réseau. On part donc TOUJOURS d'une config valable (défauts, puis cache persisté au
+    // 2ᵉ lancement) : le doute est calculé dès la 1ʳᵉ frame, sans attendre le réseau.
+    // `initialDataUpdatedAt: 0` → la donnée est considérée périmée d'emblée : le fetch réel part quand
+    // même immédiatement (aucun délai ajouté, aucune config admin ignorée).
+    initialData: RELIABILITY_DEFAULTS,
+    initialDataUpdatedAt: 0,
   });
 }
 

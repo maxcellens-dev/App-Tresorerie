@@ -6,6 +6,7 @@ import { unverifiedSincePhrase } from './confidenceEngine';
 export type AppActionType =
   | 'setup'          // un réglage de base manque (solde / revenu / charges fixes)
   | 'shared_mode'    // un compte partagé sans mode (question à poser une fois)
+  | 'app_lock'       // proposition unique d'activer le verrouillage biométrique
   | 'soft_close'     // un mois précédent en attente de clôture
   | 'check_balance'  // confiance basse → inviter à vérifier le solde
   | 'joint_low'      // mode Contribution : compte commun bientôt à découvert
@@ -22,6 +23,8 @@ export interface AppAction {
   dismissKey: string;
   /** true pour l'état positif (affichage réduit/discret). */
   positive?: boolean;
+  /** Le tap déclenche une action DANS l'app (pas une navigation) → chevron affiché quand même. */
+  interactive?: boolean;
 }
 
 export interface AppStateInputs {
@@ -32,6 +35,8 @@ export interface AppStateInputs {
   pendingClosureMonth: string | null;
   /** Un compte partagé sans mode défini (à qualifier une fois), ou null. */
   sharedModePrompt: { accountId: string; name: string } | null;
+  /** Proposer le verrouillage biométrique (une seule fois, cf. useAppLockPrompt). */
+  offerAppLock?: boolean;
   confidenceLow: boolean;
   daysSinceVerification: number;
   /** Compte commun (Contribution) bientôt à découvert, ou null. */
@@ -53,6 +58,20 @@ function monthLabel(key: string): string {
 export function getCurrentAction(i: AppStateInputs): AppAction {
   // Deeplink solde : directement le modal « Nouveau Solde » du compte principal si connu.
   const balanceLink = i.mainCheckingId ? `/(tabs)/comptes/${i.mainCheckingId}?verify=1` : '/(tabs)/comptes';
+
+  // 0) Proposition UNIQUE du verrouillage biométrique, dès que la présentation du Pilotage est lue.
+  //    EN TÊTE volontairement : elle n'est proposée QU'UNE FOIS et ne revient jamais (drapeau local à
+  //    l'appareil) — placée plus bas, un utilisateur ayant en permanence un autre signal (réglage
+  //    manquant, confiance basse, clôture en attente) ne la verrait tout simplement jamais. Elle
+  //    disparaît dès qu'elle est acceptée ou fermée, donc elle ne retarde les autres que d'une fois.
+  if (i.offerAppLock) {
+    return {
+      type: 'app_lock', title: "Verrouille l'accès à Relyka",
+      reason: 'Face ID / empreinte au lancement — appuie pour activer,\nou retrouve-le plus tard dans Paramètres',
+      eta: '(~10 s)', dismissKey: 'app_lock', interactive: true,
+    };
+  }
+
   // 1) Réglages de base manquants (le plus structurant).
   if (!i.hasBalance) {
     return {

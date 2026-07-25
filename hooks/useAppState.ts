@@ -9,25 +9,37 @@ import { useSharedContribution } from './useSharedContribution';
 import { usePreSavings } from './usePreSavings';
 import { useReservations } from './useReservations';
 import { useOnboarding } from './useOnboarding';
+import { usePageIntro } from './usePageIntro';
+import { useAppLockPrompt } from './useAppLockPrompt';
 import { useReliabilityConfig, deriveRelykaConfidence } from './useReliability';
 import { isRegul } from '../lib/regul';
 import { getCurrentAction, type AppAction } from '../lib/appStateEngine';
 import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
 
 export function useAppState(): AppAction | null {
-  const { user } = useAuth();
+  const { user, isImpersonating } = useAuth();
   const { data: pilotage } = usePilotageData(user?.id);
-  const { data: accounts = [] } = useAllAccounts(user?.id);
-  const { data: transactions = [] } = useTransactions(user?.id);
+  const { data: accounts = [], isSuccess: accountsReady } = useAllAccounts(user?.id);
+  const { data: transactions = [], isSuccess: txReady } = useTransactions(user?.id);
   const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
   const { data: sharedContrib } = useSharedContribution(user?.id);
   const { data: preSavings } = usePreSavings(user?.id);
   const { data: reservations = [] } = useReservations(user?.id);
   const { data: relCfg } = useReliabilityConfig();
   const { allDone: onboardingDone } = useOnboarding(user?.id);
+  // Proposition du verrouillage biométrique : seulement APRÈS la présentation du Pilotage (le modal
+  // d'intro a été lu et fermé), et jamais en consultation admin (le verrou est local à l'appareil).
+  const { seen: pilotageIntroSeen } = usePageIntro('pilotage');
+  const { offer: appLockOffer } = useAppLockPrompt();
+  const offerAppLock = appLockOffer && pilotageIntroSeen && !isImpersonating;
 
   return useMemo(() => {
     if (!pilotage) return null;
+    // Tant que comptes ET transactions ne sont pas RÉELLEMENT chargés, les signaux de setup
+    // (« Renseigne ton solde », « Ajoute tes charges fixes »…) seraient calculés sur des listes vides
+    // → bandeau faux qui disparaît une seconde plus tard. On attend le succès des deux requêtes
+    // (isSuccess, jamais isFetched : une erreur ne doit pas passer pour « aucune donnée »).
+    if (!accountsReady || !txReady) return null;
     // Relyka AFFICHÉ = même formule que le Pilotage (« Ton Relyka » / budget libre) — pas safe_to_spend,
     // qui est un agrégat différent : le bandeau doit annoncer le MÊME montant que la carte.
     const monthKey = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; })();
@@ -93,6 +105,7 @@ export function useAppState(): AppAction | null {
       hasFixed,
       pendingClosureMonth: pendingMonths[0] ?? null,
       sharedModePrompt,
+      offerAppLock,
       // Overlay « Vérifie ton solde » : confiance BASSE uniquement (en moyenne, le bandeau ambre de
       // la carte Relyka suffit — pas de doublon de messages).
       confidenceLow: conf?.result.level === 'low',
@@ -103,11 +116,13 @@ export function useAppState(): AppAction | null {
       closureEnabled,
       mainCheckingId,
     });
-    // Jamais « tout est à jour » quand les chiffres sont en fourchette (confiance non haute).
-    if (action.type === 'ok' && conf && conf.result.level !== 'high') return null;
+    // Jamais « tout est à jour » quand les chiffres sont en fourchette (confiance non haute) — ni
+    // quand la confiance n'est pas encore CALCULABLE : dans le doute on se tait, plutôt que d'annoncer
+    // « tout est à jour » puis de le contredire une seconde plus tard par une fourchette.
+    if (action.type === 'ok' && conf?.result.level !== 'high') return null;
     // Pendant le guide « Pour bien démarrer », les étapes de setup sont déjà raillées par le guide
     // → pas de double sollicitation (le bandeau reprendra pour le quotidien une fois le guide fini).
     if (action.type === 'setup' && !onboardingDone) return null;
     return action;
-  }, [pilotage, accounts, transactions, pendingMonths, relCfg, closureEnabled, sharedContrib, preSavings, reservations, onboardingDone, user?.id]);
+  }, [pilotage, accounts, transactions, accountsReady, txReady, pendingMonths, relCfg, closureEnabled, sharedContrib, preSavings, reservations, onboardingDone, offerAppLock, user?.id]);
 }

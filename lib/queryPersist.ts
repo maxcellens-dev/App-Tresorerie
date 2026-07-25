@@ -17,6 +17,9 @@ const STORE_KEY = 'relyka.rq.cache.v1';
 // Ce qui vaut la peine d'être revu hors-ligne : tableau de bord + identité + thème/style.
 const WHITELIST = new Set([
   'pilotage_data', 'profile', 'style_config', 'landing_config', 'accounts', 'transactions',
+  // Réglages de fiabilité (minuscules) : indispensables dès la 1ʳᵉ frame, sinon la carte Relyka
+  // affiche un montant sec puis bascule en fourchette quand la config arrive du réseau.
+  'reliability_config',
 ]);
 // Au-delà, on ne persiste pas (évite les erreurs de taille d'AsyncStorage sur gros historiques).
 const MAX_BYTES = 1_500_000;

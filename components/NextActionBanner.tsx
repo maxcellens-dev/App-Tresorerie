@@ -3,12 +3,13 @@
 // ouverture de l'app tant que l'action reste pertinente (dismiss = mémoire de SESSION uniquement).
 // Visible UNIQUEMENT sur le Pilotage (jamais par-dessus un écran de saisie).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useSegments } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAppState } from '../hooks/useAppState';
+import { useAppLockPrompt } from '../hooks/useAppLockPrompt';
 import type { AppAction, AppActionType } from '../lib/appStateEngine';
 
 // Dismiss de SESSION : réinitialisé au prochain lancement de l'app (module rechargé) → l'action
@@ -47,6 +48,7 @@ function weekKey(): string {
 const ICONS: Record<AppActionType, string> = {
   setup: 'construct-outline',
   shared_mode: 'people-outline',
+  app_lock: 'finger-print',
   soft_close: 'lock-closed-outline',
   check_balance: 'wallet-outline',
   joint_low: 'warning-outline',
@@ -69,7 +71,7 @@ export function ActionBannerCard({ action, onPress, onDismiss }: {
   return (
     <TouchableOpacity
       style={[styles.banner, action.positive && styles.bannerPositive, { borderColor: accent + '55' }]}
-      activeOpacity={action.deeplink && onPress ? 0.85 : 1}
+      activeOpacity={(action.deeplink || action.interactive) && onPress ? 0.85 : 1}
       onPress={onPress}
       accessibilityRole="button"
     >
@@ -83,7 +85,7 @@ export function ActionBannerCard({ action, onPress, onDismiss }: {
           {action.reason}{action.eta ? ` · ${action.eta}` : ''}
         </Text>
       </View>
-      {action.deeplink && !action.positive && (
+      {(action.deeplink || action.interactive) && !action.positive && (
         <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
       )}
       {onDismiss && (
@@ -101,6 +103,7 @@ export default function NextActionBanner() {
   const router = useRouter();
   const segments = useSegments();
   const action = useAppState();
+  const appLock = useAppLockPrompt();
   const [, force] = useState(0);
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
 
@@ -153,9 +156,27 @@ export default function NextActionBanner() {
   if (action.type === 'joint_low') memoryFlags.add(`shown_jl_${action.dismissKey}_${weekKey()}`);
 
   const onPress = () => {
+    // Proposition du verrouillage : le tap DÉCLENCHE l'activation (invite OS) au lieu de naviguer.
+    // Invite annulée → on ne marque rien, le bandeau reste (l'utilisateur pourra le fermer).
+    if (action.type === 'app_lock') {
+      appLock.activate().then((ok) => {
+        if (ok) {
+          Alert.alert(
+            'Verrouillage activé',
+            "Relyka te demandera ton empreinte / Face ID (ou le code de ton téléphone) au prochain lancement. Tu peux le désactiver à tout moment dans Paramètres.",
+          );
+        }
+      }).catch(() => {});
+      return;
+    }
     if (action.deeplink) router.push(action.deeplink as any);
   };
-  const onDismiss = () => { dismissedThisSession.add(action.dismissKey); force((n) => n + 1); };
+  const onDismiss = () => {
+    // Fermeture manuelle de la proposition de verrouillage → définitive (drapeau local à l'appareil).
+    if (action.type === 'app_lock') appLock.dismiss().catch(() => {});
+    dismissedThisSession.add(action.dismissKey);
+    force((n) => n + 1);
+  };
 
   return (
     <Animated.View

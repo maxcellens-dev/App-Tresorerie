@@ -75,6 +75,7 @@ export default function AdminBannersPreview() {
     { label: 'Réglage manquant — revenu', inputs: { ...base, hasIncome: false } },
     { label: 'Réglage manquant — charges fixes', inputs: { ...base, hasFixed: false } },
     { label: 'Compte partagé à qualifier', inputs: { ...base, sharedModePrompt: { accountId: 'demo', name: 'Compte commun' } } },
+    { label: 'Proposition verrouillage (une seule fois)', inputs: { ...base, offerAppLock: true } },
     { label: 'Clôture en attente', inputs: { ...base, pendingClosureMonth: ymAdd(-1) } },
     { label: 'Confiance basse (16 j sans vérif)', inputs: { ...base, confidenceLow: true, daysSinceVerification: 16 } },
     { label: 'Compte commun bientôt à découvert', inputs: { ...base, jointLow: { accountId: 'demo', name: 'Compte commun' } } },

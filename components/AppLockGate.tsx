@@ -1,10 +1,14 @@
 /**
  * Voile de VERROUILLAGE de l'app (biométrie / code appareil). Monté au niveau racine, au-dessus de
- * tout. Actif seulement si l'utilisateur a activé l'option ET est connecté. Verrouille au démarrage
- * à froid et à chaque retour en avant-plan ; se déverrouille via l'invite OS (auto au montage).
+ * tout. Actif seulement si l'utilisateur a activé l'option ET est connecté.
+ *
+ * DÉCLENCHEMENT : au DÉMARRAGE À FROID uniquement (app fermée puis rouverte → ce composant est
+ * monté à neuf). Un simple passage sur une autre app / un retour en avant-plan ne redemande RIEN :
+ * tant que Relyka reste vivante en arrière-plan, la session reste déverrouillée. Si l'OS tue le
+ * processus en arrière-plan, la réouverture est un démarrage à froid → l'invite revient.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, AppState, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +22,9 @@ export default function AppLockGate() {
   const [locked, setLocked] = useState(false);
   const authing = useRef(false);
 
-  // Lit le réglage local + verrouille d'emblée si actif (démarrage à froid).
+  // Lit le réglage local + verrouille d'emblée si actif. UNIQUE point de verrouillage : ce montage
+  // n'a lieu qu'au lancement de l'app (démarrage à froid). Aucun re-verrouillage sur AppState :
+  // basculer vers une autre app puis revenir ne doit PAS redemander l'empreinte.
   useEffect(() => {
     if (!APP_LOCK_SUPPORTED) return;
     let cancelled = false;
@@ -29,15 +35,6 @@ export default function AppLockGate() {
     });
     return () => { cancelled = true; };
   }, []);
-
-  // Re-verrouille à chaque retour en avant-plan (si l'option est active).
-  useEffect(() => {
-    if (!APP_LOCK_SUPPORTED) return;
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active' && enabled) setLocked(true);
-    });
-    return () => sub.remove();
-  }, [enabled]);
 
   const unlock = useCallback(async () => {
     if (authing.current) return;
