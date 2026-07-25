@@ -8,7 +8,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
-import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
+import { CURRENCY_SYMBOL, formatRangeLabel } from '../lib/currency';
 
 export interface RelykaColumn {
   key: string;
@@ -40,7 +40,6 @@ function darken(hex: string, f: number): string {
   return `#${g(1)}${g(3)}${g(5)}`;
 }
 
-const fl = (n: number) => Math.max(0, floorToTen(n));
 const fmtInt = (n: number) => Math.round(n).toLocaleString('fr-FR');
 
 // Animation jouée une seule fois par SESSION d'app (réinitialisé au relancement de l'app).
@@ -69,8 +68,9 @@ export default function RelykaColumns({
   const anyDone = columns.some((col) => (col.done ?? 0) > 0);
   const anyRange = !!relykaRange?.isRange || columns.some((col) => col.range?.isRange);
 
+  // Borne basse à 0 → « jusqu'à X € » plutôt que « 0–X € » (voir lib/currency.formatRangeLabel).
   const bigLabel = relykaRange?.isRange
-    ? `${fmtInt(fl(relykaRange.low))}–${fmtInt(fl(relykaRange.high))} ${CURRENCY_SYMBOL}`
+    ? formatRangeLabel(relykaRange.low, relykaRange.high)
     : `${fmtInt(relykaAmount)} ${CURRENCY_SYMBOL}`;
 
   return (
@@ -108,8 +108,9 @@ export default function RelykaColumns({
 
       <View style={styles.labelsRow}>
         {columns.map((col, i) => {
+          // Étiquette de colonne : étroite → forme compacte (« ≤ 260 ») quand la borne basse est nulle.
           const label = col.range?.isRange
-            ? `${fmtInt(fl(col.range.low))}–${fmtInt(fl(col.range.high))}`
+            ? formatRangeLabel(col.range.low, col.range.high, { symbol: false, compact: true })
             : fmtInt(col.amount);
           return (
             <TouchableOpacity key={col.key} style={styles.labelCol} activeOpacity={0.7} onPress={() => onColumnPress?.(i)}>

@@ -5,7 +5,7 @@ import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine'
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useRecoDismissals } from '../hooks/useUiPrefs';
-import { CURRENCY_SYMBOL, floorToTen } from '../lib/currency';
+import { CURRENCY_SYMBOL, formatRangeLabel } from '../lib/currency';
 import { unverifiedSincePhrase, verifiedAgoPhrase } from '../lib/confidenceEngine';
 import { isHidden } from '../lib/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
@@ -147,11 +147,21 @@ export default function RecommendationCard({
     if (safeIndex >= count - 1) setCurrentIndex(Math.max(0, safeIndex - 1));
   };
 
-  const handleConfirmReserve = (reco: SmartRecommendation) => {
+  /**
+   * Montant COMPLÉMENTAIRE à conserver (à ajouter au déjà-conservé), pas le total.
+   * Champ vide → montant actionnable proposé. Champ à « 0 » → 0 : on ne substitue rien (l'ancien
+   * repli transformait un « 0 » saisi en montant proposé, et un montant actionnable nul en action
+   * fantôme — on réécrivait la même réservation et il ne se passait visiblement rien).
+   */
+  const reserveAddition = (reco: SmartRecommendation): number => {
     const parsed = parseFloat(reserveAmount.replace(',', '.'));
-    // La saisie = montant COMPLÉMENTAIRE à conserver (à ajouter au déjà-conservé), pas le total.
-    // Repli = montant actionnable (borne basse « minimum sûr » quand on est en fourchette).
-    const addition = !Number.isNaN(parsed) && parsed > 0 ? Math.round(parsed) : (reco.actionAmount ?? reco.amount);
+    if (!Number.isNaN(parsed)) return Math.max(0, Math.round(parsed));
+    return Math.max(0, Math.round(reco.actionAmount ?? reco.amount));
+  };
+
+  const handleConfirmReserve = (reco: SmartRecommendation) => {
+    const addition = reserveAddition(reco);
+    if (addition <= 0) return; // rien à conserver → on ne réécrit pas la réservation à l'identique
     onReserver?.(reco, Math.round(reservedThisMonth + addition));
     // On ne marque PAS « keep » comme traitée : la réservation est déjà comptée dans le suivi du
     // mois (alreadyAllocated.keep) → la reco « Conserver » se réduit du montant réservé et
@@ -371,10 +381,15 @@ export default function RecommendationCard({
             <Text style={styles.recoTitle}>{currentReco.title}</Text>
             <Text style={[styles.recoAmount, { color: currentReco.color }]}>
               {(() => {
-                const r = recoRange?.(currentReco.amount);
-                const flr = (n: number) => Math.max(0, floorToTen(n));
+                // « Conserver » : montant PLEIN, jamais en fourchette. La carte porte une DÉCISION
+                // (combien je garde), et on garde d'autant plus qu'on est incertain — afficher
+                // « jusqu'à 200 € » au-dessus d'un bouton qui propose 150 € n'aurait aucun sens.
+                // La fourchette reste sur le graphe en colonnes, qui parle de l'argent disponible.
+                const r = currentReco.type === 'keep' ? undefined : recoRange?.(currentReco.amount);
+                // Fourchette dont la borne basse tombe à 0 → « jusqu'à X € » (un « 0–X € » laissait
+                // croire qu'il ne restait peut-être rien, juste au-dessus d'un CTA qui propose X).
                 return r?.isRange
-                  ? `${flr(r.low).toLocaleString('fr-FR')}–${flr(r.high).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`
+                  ? formatRangeLabel(r.low, r.high)
                   : `${currentReco.amount.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
               })()}
             </Text>
@@ -428,9 +443,15 @@ export default function RecommendationCard({
             <TouchableOpacity style={styles.dismissBtn} onPress={() => setConfirmReserve(false)} activeOpacity={0.7}>
               <Text style={styles.dismissText}>Annuler</Text>
             </TouchableOpacity>
+            {/* Désactivé à 0 € : confirmer réécrivait la même réservation → aucun effet visible. */}
             <TouchableOpacity
-              style={[styles.actionBtn, { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' }]}
+              style={[
+                styles.actionBtn,
+                { borderColor: currentReco.color + '60', backgroundColor: currentReco.color + '12' },
+                reserveAddition(currentReco) <= 0 && styles.actionBtnMuted,
+              ]}
               onPress={() => handleConfirmReserve(currentReco)}
+              disabled={reserveAddition(currentReco) <= 0}
               activeOpacity={0.7}
             >
               <Ionicons name="checkmark" size={16} color={currentReco.color} />
@@ -488,7 +509,10 @@ export default function RecommendationCard({
                 activeOpacity={0.7}
               >
                 <Ionicons name="bookmark-outline" size={16} color={currentReco.color} />
-                <Text style={[styles.actionText, { color: currentReco.color }]}>Réserver</Text>
+                {/* Fin de mois : la reco devient « Reporter sur le mois prochain » (shortTitle). */}
+                <Text style={[styles.actionText, { color: currentReco.color }]}>
+                  {currentReco.shortTitle === 'Reporter' ? 'Reporter' : 'Réserver'}
+                </Text>
               </TouchableOpacity>
             )}
           </View>

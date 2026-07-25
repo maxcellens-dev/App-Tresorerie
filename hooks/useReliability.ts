@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import {
-  resolveReliabilityConfig, computeConfidence, toRange, RELIABILITY_DEFAULTS,
+  resolveReliabilityConfig, computeConfidence, toRange, makeSubRanges, RELIABILITY_DEFAULTS,
   type ReliabilityConfig, type ConfidenceResult, type Range,
 } from '../lib/confidenceEngine';
 import { recomputeReliabilityCalibration } from '../lib/reliabilityCalib';
@@ -114,6 +114,13 @@ export interface RelykaConfidence {
   config: ReliabilityConfig;
   /** Fourchette d'un sous-montant proportionnelle à celle du Relyka. */
   proportional: (amount: number) => Range;
+  /**
+   * Même fourchette, mais destinée aux ACTIONS (montant pré-rempli d'un virement, d'un cumul,
+   * d'une réservation) : la borne basse ne descend jamais sous `minActionRatio × montant`.
+   * Le doute est calculé sur la base (revenu/enveloppe) et non sur le Relyka : dès qu'il y a
+   * fourchette, il dépasse un petit Relyka et la borne basse tombait à 0 → on proposait 0 €.
+   */
+  actionable: (amount: number) => Range;
 }
 
 export function deriveRelykaConfidence(
@@ -129,20 +136,12 @@ export function deriveRelykaConfidence(
     calibration: inputs?.calibration ?? null,
     relyka,
     floorBase: inputs?.floorBase ?? 0,
+    variableBase: inputs?.variableBase ?? 0,
     config,
   });
   const relykaRange = toRange(relyka, result, config);
-  // Ratios de fourchette réappliqués proportionnellement à chaque sous-montant. Calculés sur les
-  // bornes BRUTES (doute non arrondi) — pas sur relykaRange, arrondi au roundStep (centaine) : sinon
-  // l'erreur d'arrondi du Relyka se propage ×ratio à toutes les sous-fourchettes. L'arrondi des
-  // sous-montants n'intervient qu'à l'affichage (dizaine inférieure).
-  const lowRatio = relyka > 0 ? Math.max(0, relyka - result.uncertaintyEur) / relyka : 1;
-  const highRatio = relyka > 0 ? (relyka + result.uncertaintyEur * config.upBias) / relyka : 1;
-  const proportional = (amount: number): Range => {
-    if (!relykaRange.isRange) return { low: amount, high: amount, isRange: false };
-    const low = Math.round(amount * lowRatio);
-    const high = Math.round(amount * highRatio);
-    return { low: Math.min(low, high), high: Math.max(low, high), isRange: true };
-  };
-  return { result, relyka, relykaRange, config, proportional };
+  // Sous-fourchettes (recos) : logique PURE et testée dans lib/confidenceEngine (makeSubRanges).
+  // L'arrondi des sous-montants n'intervient qu'à l'affichage (dizaine inférieure).
+  const { proportional, actionable } = makeSubRanges(relyka, relykaRange, result, config);
+  return { result, relyka, relykaRange, config, proportional, actionable };
 }

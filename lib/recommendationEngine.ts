@@ -191,6 +191,21 @@ const TIER_ALLOCATIONS: Record<SavingsTier, Record<RecoType, number>> = {
 /* ── Seuil minimum pour afficher une recommandation ──────── */
 const MIN_PERCENT_THRESHOLD = 5;
 
+/**
+ * Montant minimal d'une reco de REPLI (quand aucun poste n'atteint son seuil d'affichage).
+ * En dessous, il n'y a vraiment plus rien à proposer et on n'affiche aucune reco.
+ */
+const MIN_FALLBACK_AMOUNT = 10;
+
+/**
+ * FIN DE MOIS — fenêtre (jours restants) sur laquelle la part « Confort » bascule progressivement
+ * vers « Conserver » : à quelques jours de la fin, proposer de la marge de plaisir n'a plus de sens
+ * (pas le temps d'en profiter) ; ce qui reste se reporte naturellement sur le mois suivant.
+ */
+const MONTH_END_WINDOW_DAYS = 7;
+/** En deçà de ce nombre de jours restants, « Conserver » devient « Reporter sur le mois prochain ». */
+const MONTH_END_LABEL_DAYS = 5;
+
 /* ── Helpers ─────────────────────────────────────────────── */
 
 function determineTier(
@@ -230,7 +245,12 @@ function clamp(value: number, min: number, max: number): number {
  */
 export function deriveRecoAllocations(
   data: PilotageData,
-  opts: { customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>; financialProfileId?: FinancialProfileId } = {},
+  opts: {
+    customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>;
+    financialProfileId?: FinancialProfileId;
+    /** Jours restants dans le mois (fin de mois : « Confort » → « Conserver »). */
+    daysLeftInMonth?: number;
+  } = {},
 ): { tier: SavingsTier; alloc: Record<RecoType, number> } {
   let tier: SavingsTier;
   let alloc: Record<RecoType, number>;
@@ -263,6 +283,9 @@ export function deriveRecoAllocations(
   applyVariableTrendModifier(alloc, data.variable_trend_percentage);
   applyCheckingHealthModifier(alloc, data);
   applyInvestmentRatioModifier(alloc, data);
+  // Fin de mois EN DERNIER : ne touche que « Confort » → « Conserver » (épargne/invest inchangés,
+  // pour que la capacité d'investissement annoncée par le Pouls reste la même).
+  applyMonthEndModifier(alloc, opts.daysLeftInMonth);
   normalizeAllocations(alloc);
   return { tier, alloc };
 }
@@ -311,9 +334,17 @@ export interface ComputeRecoOptions {
   /**
    * Montant « actionnable » pour les textes et CTA : borne basse « minimum sûr » quand les montants
    * sont affichés en fourchette (confiance moyenne/basse), sinon identité. Fourni par l'écran
-   * (useReliability.proportional) pour rester alignée sur la fourchette du titre de la reco.
+   * (useReliability.actionable) pour rester alignée sur la fourchette du titre de la reco.
+   * Le `type` est passé car le DOUTE EST DIRECTIONNEL : la borne basse protège les gestes qui
+   * SORTENT l'argent du compte (épargner / investir, irréversibles) ; « Conserver » ne sort rien du
+   * compte, donc en cas de doute il faut en garder PLUS, pas moins → montant plein.
    */
-  actionAmountFor?: (amount: number) => { value: number; isRange: boolean };
+  actionAmountFor?: (amount: number, type: RecoType) => { value: number; isRange: boolean };
+  /**
+   * Jours restants dans le mois : bascule progressive « Confort » → « Conserver » en fin de mois,
+   * et « Conserver » devient « Reporter sur le mois prochain ». Absent = pas de modificateur.
+   */
+  daysLeftInMonth?: number;
 }
 
 export function computeRecommendations(
@@ -322,6 +353,23 @@ export function computeRecommendations(
 ): SmartRecommendation[] {
   const { customTierAllocations, financialProfileId, thresholds } = opts;
   const budget = opts.budget ?? data.safe_to_spend;
+  const types: RecoType[] = ['save', 'invest', 'enjoy', 'keep'];
+
+  /**
+   * FREINS DE SÉCURITÉ : tout le reste en « Conserver ».
+   * Deux garde-fous par rapport à l'ancienne version, qui proposait 100 % du budget BRUT :
+   *  • on déduit ce qui est DÉJÀ alloué (virements exécutés/prévus, cumuls, réservations) — comme
+   *    le fait le chemin normal — sinon on repropose de conserver de l'argent déjà engagé ;
+   *  • on n'émet RIEN si le montant retombe à 0 une fois plafonné au Relyka (plus de carte « 0 € »).
+   */
+  const keepEverything = (guardNote?: string): SmartRecommendation[] => {
+    const allocated = types.reduce((s, t) => s + Math.max(0, opts.alreadyAllocated?.[t] ?? 0), 0);
+    const net = Math.round(Math.max(0, budget - allocated));
+    if (net <= 0) return [];
+    const reco = buildRecommendation('keep', 100, net, 'critical', data, opts);
+    if (reco.amount <= 0) return [];
+    return [guardNote ? { ...reco, guardNote } : reco];
+  };
 
   // Garde-fou marge de sécurité : si le solde courant est sous la marge, on ne
   // recommande que "Conserver" (tout le budget disponible, s'il en reste).
@@ -329,8 +377,7 @@ export function computeRecommendations(
     (data.safety_margin_amount ?? 0) > 0 &&
     data.total_checking < (data.safety_margin_amount ?? 0)
   ) {
-    if (budget <= 0) return [];
-    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts)];
+    return keepEverything();
   }
 
   // Garde-fou PROJECTION (moyen terme) : si la trajectoire de trésorerie plonge sous le coussin
@@ -338,8 +385,7 @@ export function computeRecommendations(
   // quel que soit le profil. La répartition du profil n'est PAS modifiée : c'est un frein de sécurité,
   // comme le garde-fou marge ci-dessus (n'agit qu'en situation de danger projeté).
   if (data.projection_in_danger) {
-    if (budget <= 0) return [];
-    return [buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts)];
+    return keepEverything();
   }
 
   // Garde-fou MARGE × PROJECTION 6 MOIS : point bas de la trajectoire (écran Projection). S'il est
@@ -349,20 +395,19 @@ export function computeRecommendations(
     ? Math.min(...guard.balances)
     : null;
   if (guardTrough != null && guardTrough <= guard!.margin) {
-    if (budget <= 0) return [];
-    return [{
-      ...buildRecommendation('keep', 100, Math.round(budget), 'critical', data, opts),
-      guardNote: `ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : il vaut mieux conserver ton Relyka ce mois-ci.`,
-    }];
+    return keepEverything(
+      `ton solde projeté passe sous ta marge de sécurité (${Math.round(guard!.margin).toLocaleString('fr-FR')} €) dans les 6 prochains mois : il vaut mieux conserver ton Relyka ce mois-ci.`,
+    );
   }
 
   // Pas de budget → pas de recommandation
   if (budget <= 0) return [];
 
-  const { tier, alloc } = deriveRecoAllocations(data, { customTierAllocations, financialProfileId });
+  const { tier, alloc } = deriveRecoAllocations(data, {
+    customTierAllocations, financialProfileId, daysLeftInMonth: opts.daysLeftInMonth,
+  });
 
   // 5. Filtrer les recommandations trop petites (< seuil minimum)
-  const types: RecoType[] = ['save', 'invest', 'enjoy', 'keep'];
   const filtered = types.filter(t => alloc[t] >= MIN_PERCENT_THRESHOLD);
 
   // Redistribuer les miettes
@@ -455,17 +500,65 @@ export function computeRecommendations(
     }
   }
 
-  // 9. Construire les recommandations (montant net ≥ seuil d'affichage)
-  const result: SmartRecommendation[] = [];
-  for (const type of filtered) {
-    const net = nets[type] ?? 0;
-    if (net <= 0) continue;
-    const min = thresholdByType[type] ?? 0;
-    if (net < min) continue;
-    result.push(buildRecommendation(type, alloc[type], net, tier, data, opts));
+  // 9. MIETTES : un poste sous son seuil d'affichage ne disparaît plus AVEC son montant — celui-ci
+  // rejoint le poste le MIEUX PROTÉGÉ (dernier de la cascade, celui qu'on grignote en dernier).
+  // Avant, chaque poste sous son seuil était simplement jeté : un petit Relyka voyait ses 4 postes
+  // filtrés un à un et l'écran annonçait « tout est traité ✨ » alors qu'il restait de l'argent.
+  const consumption = opts.consumptionOrder ?? DEFAULT_CONSUMPTION_ORDERS.equilibre;
+  const protection = (t: RecoType) => consumption.indexOf(t); // plus grand = mieux protégé
+  const mostProtected = (list: RecoType[]) => list.reduce((a, b) => (protection(a) >= protection(b) ? a : b));
+  const shown = filtered.filter((t) => (nets[t] ?? 0) > 0 && (nets[t] ?? 0) >= (thresholdByType[t] ?? 0));
+  if (shown.length > 0) {
+    let crumbs = 0;
+    for (const type of filtered) {
+      if (shown.includes(type)) continue;
+      crumbs += Math.max(0, nets[type] ?? 0);
+      nets[type] = 0;
+    }
+    if (crumbs > 0) {
+      const host = mostProtected(shown);
+      nets[host] = (nets[host] ?? 0) + crumbs;
+    }
   }
 
-  // 10. Notes du garde-fou + conseil « virement récurrent » (tenable ou non en répétant le montant
+  // 9bis. REPLI « une seule reco » : aucun poste n'atteint son seuil (Relyka trop petit pour être
+  // découpé en 4). On ne prétend pas que tout est traité : on propose de TOUT conserver — le seul
+  // geste qui ait du sens en dessous des seuils d'action, et celui que l'utilisateur attend.
+  if (shown.length === 0) {
+    const rest = types.reduce((s, t) => s + Math.max(0, nets[t] ?? 0), 0);
+    const reco = buildRecommendation('keep', 100, Math.round(rest), tier, data, opts);
+    return reco.amount >= MIN_FALLBACK_AMOUNT ? [reco] : [];
+  }
+
+  // 10. RÉCONCILIATION avec le Relyka AFFICHÉ. Deux dérives à corriger, dans les deux sens :
+  //  • chaque montant est arrondi à la dizaine inférieure (jusqu'à 9 € perdus par poste) → Σ(recos)
+  //    passait sous le Relyka ; le reliquat va au poste le MIEUX protégé ;
+  //  • le plafond `maxAmount` (= Relyka arrondi) s'applique poste par poste, jamais à la somme →
+  //    Σ(recos) pouvait le DÉPASSER (jauge annonçant plus que le Relyka) ; l'excédent est repris
+  //    sur le poste le MOINS protégé, comme la cascade de dépassement.
+  const capAmount = (v: number) => Math.max(0, floorToTen(opts.maxAmount != null ? Math.min(v, opts.maxAmount) : v));
+  const target = capAmount(shown.reduce((s, t) => s + (nets[t] ?? 0), 0));
+  const rounded = shown.reduce((s, t) => s + capAmount(nets[t] ?? 0), 0);
+  const delta = target - rounded;
+  if (delta >= 10) {
+    const host = mostProtected(shown);
+    nets[host] = (nets[host] ?? 0) + floorToTen(delta);
+  } else if (delta <= -10) {
+    let excess = floorToTen(-delta);
+    for (const type of consumption) {
+      if (excess <= 0) break;
+      if (!shown.includes(type)) continue;
+      const take = Math.min(nets[type] ?? 0, excess);
+      nets[type] = (nets[type] ?? 0) - take;
+      excess -= take;
+    }
+  }
+
+  // 11. Construire les recommandations retenues.
+  const result: SmartRecommendation[] = shown.map((type) =>
+    buildRecommendation(type, alloc[type], Math.round(nets[type] ?? 0), tier, data, opts));
+
+  // 12. Notes du garde-fou + conseil « virement récurrent » (tenable ou non en répétant le montant
   // chaque mois : au mois k, le solde projeté porte k+1 exécutions). Le conseil n'est affiché que si
   // la reco n'a PAS été réduite (sinon le message de réduction suffit). Basé sur le montant
   // ACTIONNABLE (borne basse en fourchette) : c'est lui qu'on propose en virement.
@@ -564,6 +657,19 @@ function applyCheckingHealthModifier(alloc: Record<RecoType, number>, data: Pilo
   }
 }
 
+/**
+ * FIN DE MOIS : la part « Confort » se déverse progressivement dans « Conserver » sur les derniers
+ * jours (100 % le dernier jour). À J-2, proposer « fais-toi plaisir avec 30 € » n'a plus de sens :
+ * ce qui reste se reporte sur le mois suivant. Épargner / Investir ne bougent pas.
+ */
+function applyMonthEndModifier(alloc: Record<RecoType, number>, daysLeft?: number) {
+  if (daysLeft == null || !Number.isFinite(daysLeft) || daysLeft >= MONTH_END_WINDOW_DAYS) return;
+  const t = clamp((MONTH_END_WINDOW_DAYS - Math.max(0, daysLeft)) / MONTH_END_WINDOW_DAYS, 0, 1);
+  const shift = alloc.enjoy * t;
+  alloc.enjoy = Math.max(0, alloc.enjoy - shift);
+  alloc.keep += shift;
+}
+
 function applyInvestmentRatioModifier(alloc: Record<RecoType, number>, data: PilotageData) {
   // Si très peu d'investissements par rapport à l'épargne → boost "investir"
   if (data.total_savings > 0 && data.total_invested < data.total_savings * 0.15) {
@@ -616,7 +722,7 @@ function buildRecommendation(
   rawAmount: number,
   tier: SavingsTier,
   data: PilotageData,
-  opts?: Pick<ComputeRecoOptions, 'maxAmount' | 'actionAmountFor'>,
+  opts?: Pick<ComputeRecoOptions, 'maxAmount' | 'actionAmountFor' | 'daysLeftInMonth'>,
 ): SmartRecommendation {
   // Montant « proposition » : plafonné au reste réellement disponible (maxAmount) PUIS arrondi à la
   // dizaine inférieure → le montant affiché, les sous-textes/conseils et l'action validée
@@ -624,7 +730,13 @@ function buildRecommendation(
   const capped = opts?.maxAmount != null ? Math.min(rawAmount, opts.maxAmount) : rawAmount;
   const amount = Math.max(0, floorToTen(capped));
   // Montant actionnable : borne basse « minimum sûr » si les montants sont en fourchette.
-  const action: ActionAmount = opts?.actionAmountFor?.(amount) ?? { value: amount, isRange: false };
+  // FILET : une borne basse nulle (doute plus large que le Relyka) produisait des cartes absurdes —
+  // « Conserve au moins 0 € », CTA et virements pré-remplis à 0 € — pour un montant affiché non nul.
+  // On retombe alors sur le montant proposé lui-même.
+  const proposed = opts?.actionAmountFor?.(amount, type);
+  const action: ActionAmount = proposed && proposed.value > 0 ? proposed : { value: amount, isRange: false };
+  // Fin de mois : « Conserver » devient explicitement un report sur le mois suivant.
+  const monthEnd = opts?.daysLeftInMonth != null && opts.daysLeftInMonth <= MONTH_END_LABEL_DAYS;
   switch (type) {
     case 'save':
       return {
@@ -671,9 +783,9 @@ function buildRecommendation(
     case 'keep':
       return {
         type,
-        title: 'Conserver pour plus tard',
-        shortTitle: 'Conserver',
-        description: getKeepDescription(action, data),
+        title: monthEnd ? 'Reporter sur le mois prochain' : 'Conserver pour plus tard',
+        shortTitle: monthEnd ? 'Reporter' : 'Conserver',
+        description: getKeepDescription(action, data, monthEnd),
         amount,
         actionAmount: action.value,
         percentage,
@@ -726,7 +838,12 @@ function getEnjoyDescription(action: ActionAmount, _data: PilotageData): string 
   return `Il te reste ${amountPhrase(action)} totalement disponibles ce mois-ci. \nFais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
-function getKeepDescription(action: ActionAmount, data: PilotageData): string {
+function getKeepDescription(action: ActionAmount, data: PilotageData, monthEnd = false): string {
+  if (monthEnd) {
+    // Fin de mois : le geste attendu n'est plus « mettre de côté au cas où » mais « ne pas cramer
+    // le reste sur les derniers jours ». On dit clairement où va l'argent : dans le mois suivant.
+    return `Le mois se termine. Garde ${amountPhrase(action)} sur ton compte plutôt que de les dépenser d'ici la fin du mois : tu les retrouveras dans ton budget du mois prochain.`;
+  }
   if (data.current_checking_balance < data.committed_allocations * 2) {
     return `Ton solde courant est un peu juste. Garde ${amountPhrase(action)} en réserve pour couvrir les imprévus.`;
   }

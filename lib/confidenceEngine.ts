@@ -31,6 +31,15 @@ export interface ReliabilityConfig {
   absoluteFloor: number;
   /** Pondération de la borne HAUTE d'une fourchette (le non-saisi tire surtout vers le bas). */
   upBias: number;
+  /**
+   * PLANCHER de la borne basse quand elle sert de montant ACTIONNABLE (part du montant proposé).
+   * Le doute est calculé sur la BASE (revenu / enveloppe), pas sur le Relyka : dès qu'une fourchette
+   * apparaît, il vaut au moins highMax × base — donc il écrase entièrement un petit Relyka et la
+   * borne basse tombe à 0. Sans ce plancher, toutes les actions étaient pré-remplies à 0 €
+   * (« Réserver 0 € », virement d'épargne à 0 €) alors qu'un montant était affiché.
+   * 1 = plancher désactivé (le montant actionnable est toujours le montant plein).
+   */
+  minActionRatio: number;
   /** Pas d'arrondi des fourchettes (centaine par défaut). */
   roundStep: number;
   /**
@@ -52,6 +61,7 @@ export const RELIABILITY_DEFAULTS: ReliabilityConfig = {
   coldStartDays: 21,
   absoluteFloor: 100,
   upBias: 0.3,
+  minActionRatio: 0.4,
   roundStep: 100,
   activityDampening: 0.5,
   activityWindowDays: 7,
@@ -86,6 +96,13 @@ export interface ConfidenceInput {
   relyka: number;
   /** Base plancher stable (ex. max(revenu mensuel moyen, enveloppe variable)). */
   floorBase: number;
+  /**
+   * Enveloppe de dépenses VARIABLES du mois (référence unifiée). Sert de base au COLD START : ce
+   * qu'on « perd de vue » faute de saisie, ce sont les dépenses variables — pas le loyer prélevé ni
+   * le salaire. Adosser la méfiance de départ au revenu entier surestimait le doute (jusqu'à 30 %
+   * du revenu), au point d'écraser tout petit Relyka. 0/absent → repli sur la base globale.
+   */
+  variableBase?: number;
   config: ReliabilityConfig;
 }
 
@@ -121,7 +138,7 @@ function roundTo(v: number, step: number): number {
 
 /** Calcule le niveau de confiance et le doute du jour. */
 export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
-  const { today, lastVerifiedAt, lastActivityAt, calibration, relyka, floorBase, config } = input;
+  const { today, lastVerifiedAt, lastActivityAt, calibration, relyka, floorBase, variableBase, config } = input;
 
   const base = Math.max(Math.abs(relyka), Math.abs(floorBase), config.absoluteFloor);
 
@@ -142,8 +159,13 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
   if (calibration && calibration.sampleCount > 0 && calibration.medianDaysBetween > 0) {
     dailyDrift = calibration.medianAbsGap / calibration.medianDaysBetween;
   } else {
-    // Cold start : dérive prudente proportionnelle à la base.
-    dailyDrift = (base * config.coldStartWeeklyFraction) / 7;
+    // Cold start : dérive prudente proportionnelle à ce qui peut RÉELLEMENT être perdu de vue —
+    // les dépenses variables du mois quand on les connaît, sinon la base globale (repli).
+    const driftBase = Math.max(
+      variableBase && variableBase > 0 ? Math.min(variableBase, base) : base,
+      config.absoluteFloor,
+    );
+    dailyDrift = (driftBase * config.coldStartWeeklyFraction) / 7;
     coldStart = true;
   }
 
@@ -217,12 +239,52 @@ export function toRange(net: number, conf: ConfidenceResult, config: Reliability
   if (conf.doubtRatio < config.highMax || conf.uncertaintyEur <= 0) {
     return { low: net, high: net, isRange: false };
   }
-  const low = roundTo(net - conf.uncertaintyEur, config.roundStep);
+  // Borne basse jamais négative : le Relyka est déjà planché à 0 (on ne « doit » rien à personne),
+  // et une borne basse négative n'était de toute façon clampée qu'à l'affichage.
+  const low = Math.max(0, roundTo(net - conf.uncertaintyEur, config.roundStep));
   const high = roundTo(net + conf.uncertaintyEur * config.upBias, config.roundStep);
   if (low >= high) {
     return { low: net, high: net, isRange: false };
   }
   return { low, high, isRange: true };
+}
+
+/**
+ * Fourchettes des SOUS-MONTANTS (recommandations), dérivées de celle du Relyka.
+ *  • `proportional` — pour l'AFFICHAGE : même proportion de doute que le Relyka
+ *    (invariant : Σ des bornes basses des recos = borne basse du Relyka) ;
+ *  • `actionable`   — pour les ACTIONS (virement, cumul, réservation pré-remplis) : identique, mais
+ *    la borne basse ne descend jamais sous `minActionRatio × montant`. Le doute est mesuré sur la
+ *    BASE (revenu / enveloppe) et non sur le Relyka : dès qu'une fourchette apparaît il vaut au
+ *    moins `highMax × base`, donc il écrase entièrement un petit Relyka et la borne basse tombait à
+ *    0 → toutes les actions étaient pré-remplies à 0 € sous un montant affiché non nul.
+ */
+export function makeSubRanges(
+  relyka: number,
+  relykaRange: Range,
+  conf: ConfidenceResult,
+  config: ReliabilityConfig,
+): { proportional: (amount: number) => Range; actionable: (amount: number) => Range } {
+  // Ratios calculés sur les bornes BRUTES (doute non arrondi) — pas sur relykaRange, arrondi au
+  // roundStep : sinon l'erreur d'arrondi du Relyka se propage ×ratio à toutes les sous-fourchettes.
+  const lowRatio = relyka > 0 ? Math.max(0, relyka - conf.uncertaintyEur) / relyka : 1;
+  const highRatio = relyka > 0 ? (relyka + conf.uncertaintyEur * config.upBias) / relyka : 1;
+
+  const proportional = (amount: number): Range => {
+    if (!relykaRange.isRange) return { low: amount, high: amount, isRange: false };
+    const low = Math.round(amount * lowRatio);
+    const high = Math.round(amount * highRatio);
+    return { low: Math.min(low, high), high: Math.max(low, high), isRange: true };
+  };
+
+  const actionable = (amount: number): Range => {
+    const r = proportional(amount);
+    if (!r.isRange || amount <= 0) return r;
+    const floor = Math.round(amount * config.minActionRatio);
+    return { ...r, low: Math.min(Math.max(r.low, floor), r.high) };
+  };
+
+  return { proportional, actionable };
 }
 
 /** Médiane d'une liste de nombres (0 si vide). */

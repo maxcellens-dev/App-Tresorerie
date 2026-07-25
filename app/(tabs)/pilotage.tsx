@@ -338,7 +338,9 @@ export default function PilotageScreen() {
   // en attente de virement → on les retire aussi du budget libre (Relyka) tant qu'ils ne sont
   // pas libérés ou transformés en virement (auquel cas ils sont remis à 0 et déduits via les
   // virements). Ils apparaissent également dans la ligne « Réservé » du Suivi du mois.
-  const resteDisponible = Math.max(0,
+  // Valeur BRUTE (peut être négative) : sert à savoir si le Relyka est à 0 par CHOIX (mises de côté)
+  // ou par manque d'argent — les deux méritent des messages opposés.
+  const resteDisponibleBrut =
     cashflowTrough
     - savingsRemaining
     - investRemaining
@@ -346,8 +348,26 @@ export default function PilotageScreen() {
     - reservationsTotal
     - cumulsTotal
     - variableEnvelopeRemaining
-    - safetyMarginDisplay
-  );
+    - safetyMarginDisplay;
+  const resteDisponible = Math.max(0, resteDisponibleBrut);
+  // Montant Relyka tel qu'AFFICHÉ (dizaine inférieure). C'est LUI qui décide de la couleur et du
+  // message, jamais le montant brut : entre 1 € et 9 €, la carte affichait « 0 € » tout en servant
+  // le message « utilise ton Relyka librement » en vert (ex. 154 € − 150 € réservés = 4 €).
+  const relykaAffiche = floorToTen(resteDisponible);
+  // Tout ce que l'utilisateur a MIS DE CÔTÉ ce mois-ci et qu'il POSSÈDE ENCORE : épargne et
+  // investissement (déjà virés — donc déjà dans le point bas — ou seulement prévus), réservé de
+  // projet, réservations et cumuls. À distinguer de l'argent DÉPENSÉ, lui vraiment parti.
+  const misDeCoteTotal =
+    (pilotageData?.month_savings_total ?? 0)
+    + (pilotageData?.month_invest_total ?? 0)
+    + (pilotageData?.monthly_reserve_planned ?? 0)
+    + reservationsTotal
+    + cumulsTotal;
+  // Le Relyka est à 0 parce que cet argent est RANGÉ AILLEURS, et non parce que l'utilisateur est à
+  // sec : on remet tout ce qu'il a mis de côté et on regarde s'il lui resterait quelque chose.
+  // Sans ce test, quelqu'un à −1 000 € qui a 100 € réservés lirait « rien d'inquiétant ».
+  const relykaAlloueVolontairement =
+    misDeCoteTotal > 0 && resteDisponibleBrut + misDeCoteTotal > 0;
   const baseADepenser = pilotageData?.safe_to_spend ?? 0;
   const enDepassement = cumulsTotal > baseADepenser && baseADepenser > 0;
 
@@ -392,10 +412,15 @@ export default function PilotageScreen() {
     };
     return computeRecommendations(pilotageData, {
       ...recoOptions,
-      // Montant « actionnable » (textes + CTA) = borne basse « minimum sûr » quand les montants
-      // sont en fourchette — la MÊME borne basse que le titre de la reco (relConf.proportional).
-      actionAmountFor: (amount) => {
-        const r = relConf?.proportional(amount);
+      // Montant « actionnable » (textes + CTA). Le doute est DIRECTIONNEL :
+      //  • épargner / investir SORTENT l'argent du compte (irréversible) → borne basse « minimum
+      //    sûr », mais planchée (relConf.actionable) pour ne jamais proposer 0 € ;
+      //  • « Conserver » ne sort rien du compte : en cas de doute il faut en garder PLUS, pas moins
+      //    → montant plein. Proposer la borne basse revenait à conseiller de mettre moins de côté
+      //    justement parce qu'on est moins sûr de soi.
+      actionAmountFor: (amount, type) => {
+        if (type === 'keep') return { value: amount, isRange: false };
+        const r = relConf?.actionable(amount);
         return r?.isRange
           ? { value: Math.max(0, floorToTen(r.low)), isRange: true }
           : { value: amount, isRange: false };
@@ -713,15 +738,28 @@ export default function PilotageScreen() {
               showRelykaSlide
               onOpenRelyka={() => setDetailKey('relyka')}
               // Montant affiché arrondi à la dizaine inférieure ; le détail « Ton Relyka » (au clic) garde le vrai calcul.
-              relykaAmount={floorToTen(resteDisponible)}
-              relykaColor={resteDisponible < 0 ? COLORS.danger : Math.round(resteDisponible) <= 0 ? COLORS.orange : COLORS.emerald}
+              // Couleur ET message suivent CE montant (relykaAffiche) → jamais « 0 € » avec un
+              // message vert « utilise-le librement ».
+              relykaAmount={relykaAffiche}
+              // 0 € par choix (tout mis de côté) → bleu « Conserver », pas l'orange d'alerte : la
+              // couleur doit dire la même chose que le message juste en dessous.
+              relykaColor={
+                relykaAffiche > 0 ? COLORS.emerald
+                : relykaAlloueVolontairement ? COLORS.blue
+                : relykaAffiche < 0 ? COLORS.danger
+                : COLORS.orange
+              }
               // Message PÉDAGOGIQUE : imprimer ce qu'EST le Relyka (le reste estimé à la fin du
               // mois, une fois les dépenses habituelles couvertes → utilisable via les recos).
               relykaMessage={
-                resteDisponible < 0
+                relykaAffiche < 0
                   ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
-                  : Math.round(resteDisponible) <= 0
-                  ? (Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
+                  : relykaAffiche <= 0
+                  // Relyka à 0 par CHOIX (réservations / cumuls) : c'est le geste qu'on a
+                  // recommandé — on le salue au lieu d'alerter. Sinon seulement, on met en garde.
+                  ? (relykaAlloueVolontairement
+                      ? `Rien d'inquiétant : tu as mis ${Math.round(misDeCoteTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} de côté ce mois-ci (épargne, investissement, réservé). Ton Relyka est à 0 parce que cet argent est rangé ailleurs, pas parce qu'il te manque de l'argent.`
+                      : Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
                       ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
                       : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.')
                   : relConf?.relykaRange.isRange

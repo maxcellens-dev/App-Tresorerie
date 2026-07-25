@@ -151,6 +151,25 @@ export function floorToTen(n: number): number {
   return Math.floor((n + 0.1) / 10) * 10;
 }
 
+/**
+ * Libellé d'une fourchette de montants (bornes arrondies à la dizaine inférieure).
+ * Borne basse nulle → « jusqu'à X » (ou « ≤ X » en compact) : un intervalle qui démarre à 0
+ * n'apprend rien et laisse croire qu'il ne reste peut-être rien, alors qu'un montant est proposé.
+ * Bornes confondues après arrondi → un seul chiffre.
+ */
+export function formatRangeLabel(
+  low: number,
+  high: number,
+  opts: { symbol?: boolean; compact?: boolean } = {},
+): string {
+  const l = Math.max(0, floorToTen(low));
+  const h = Math.max(l, floorToTen(high));
+  const suffix = opts.symbol === false ? '' : ` ${CURRENCY_SYMBOL}`;
+  if (l === h) return `${h.toLocaleString('fr-FR')}${suffix}`;
+  if (l <= 0) return `${opts.compact ? '≤' : 'jusqu\'à'} ${h.toLocaleString('fr-FR')}${suffix}`;
+  return `${l.toLocaleString('fr-FR')}–${h.toLocaleString('fr-FR')}${suffix}`;
+}
+
 // ── Conversion multi-devises ──────────────────────────────────
 /** Table des taux : code → unités de la devise pour 1 EUR (base EUR, rate(EUR)=1). */
 export type RatesMap = Record<string, number>;

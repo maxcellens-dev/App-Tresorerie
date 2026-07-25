@@ -1,5 +1,5 @@
 import {
-  computeConfidence, toRange, computeCalibration, median,
+  computeConfidence, toRange, computeCalibration, median, makeSubRanges,
   resolveReliabilityConfig, RELIABILITY_DEFAULTS, type DriftCalibration,
 } from '../lib/confidenceEngine';
 
@@ -79,6 +79,23 @@ describe('computeConfidence — niveaux', () => {
     expect(r.daysSinceVerification).toBe(cfg.coldStartDays);
     expect(r.uncertaintyEur).toBeGreaterThan(0);
   });
+
+  it('cold start : la méfiance porte sur l’enveloppe VARIABLE, pas sur le revenu entier', () => {
+    const args = { today: TODAY, lastVerifiedAt: null, calibration: null, relyka: 500, floorBase: 3000, config: cfg };
+    const sansEnveloppe = computeConfidence(args);
+    const avecEnveloppe = computeConfidence({ ...args, variableBase: 1200 });
+    // 1 200 × 0,10 ÷ 7 × 21 = 360 € au lieu de 3 000 × 0,10 ÷ 7 × 21 = 900 €.
+    expect(sansEnveloppe.uncertaintyEur).toBeCloseTo(900, 0);
+    expect(avecEnveloppe.uncertaintyEur).toBeCloseTo(360, 0);
+    // Le RATIO reste jugé sur la base globale (stabilité des seuils).
+    expect(avecEnveloppe.doubtRatio).toBeCloseTo(360 / 3000, 3);
+  });
+
+  it('cold start : enveloppe absurde (> base) ou nulle → repli sur la base', () => {
+    const args = { today: TODAY, lastVerifiedAt: null, calibration: null, relyka: 500, floorBase: 3000, config: cfg };
+    expect(computeConfidence({ ...args, variableBase: 0 }).uncertaintyEur).toBeCloseTo(900, 0);
+    expect(computeConfidence({ ...args, variableBase: 99999 }).uncertaintyEur).toBeCloseTo(900, 0);
+  });
 });
 
 describe('computeConfidence — amortisseur d’activité (saisies du mois courant)', () => {
@@ -151,12 +168,66 @@ describe('toRange', () => {
     expect(toRange(750, damped, cfg)).toEqual({ low: 750, high: 750, isRange: false });
   });
 
+  it('borne basse jamais négative (doute plus large que le montant)', () => {
+    const huge = { level: 'low' as const, doubtRatio: 0.9, uncertaintyEur: 1200, daysSinceVerification: 21, dailyDrift: 57, coldStart: true, activityDamped: false };
+    const r = toRange(154, huge, cfg);
+    expect(r.isRange).toBe(true);
+    expect(r.low).toBe(0);
+    expect(r.high).toBeGreaterThan(0);
+  });
+
   it('garde-fou d’arrondi : bornes égales après arrondi → un seul chiffre (quel que soit le pas)', () => {
     // Doute au-dessus de highMax mais faible en €, gros pas d'arrondi → les bornes se rejoignent.
     const smallEur = { level: 'medium' as const, doubtRatio: 0.06, uncertaintyEur: 10, daysSinceVerification: 6, dailyDrift: 1.7, coldStart: false, activityDamped: false };
     const r = toRange(720, smallEur, cfg); // roundStep 100 : 710→700 et 723→700
     expect(r.isRange).toBe(false);
     expect(r.low).toBe(720);
+  });
+});
+
+describe('makeSubRanges — fourchettes des recos & montants proposés', () => {
+  const conf = (uncertaintyEur: number) => ({
+    level: 'medium' as const, doubtRatio: 0.2, uncertaintyEur,
+    daysSinceVerification: 10, dailyDrift: 1, coldStart: false, activityDamped: false,
+  });
+
+  it('confiance haute (pas de fourchette du Relyka) → sous-montants nets', () => {
+    const { proportional, actionable } = makeSubRanges(
+      1000, { low: 1000, high: 1000, isRange: false }, conf(0), cfg,
+    );
+    expect(proportional(400)).toEqual({ low: 400, high: 400, isRange: false });
+    expect(actionable(400)).toEqual({ low: 400, high: 400, isRange: false });
+  });
+
+  it('fourchette : bornes proportionnelles à celle du Relyka', () => {
+    // Doute 200 sur un Relyka de 1 000 → borne basse à 80 %, haute à +6 % (upBias 0,3).
+    const { proportional } = makeSubRanges(1000, { low: 800, high: 1100, isRange: true }, conf(200), cfg);
+    expect(proportional(400)).toEqual({ low: 320, high: 424, isRange: true });
+  });
+
+  it('LE CAS DU BUG : doute plus large que le Relyka → borne basse à 0 en affichage…', () => {
+    // Relyka 154 €, doute 400 € (mesuré sur le revenu) : la borne basse proportionnelle vaut 0.
+    const { proportional } = makeSubRanges(154, { low: 0, high: 300, isRange: true }, conf(400), cfg);
+    expect(proportional(150).low).toBe(0);
+  });
+
+  it('… mais le montant PROPOSÉ ne descend jamais sous le plancher (plus de « Réserver 0 € »)', () => {
+    const { actionable } = makeSubRanges(154, { low: 0, high: 300, isRange: true }, conf(400), cfg);
+    const a = actionable(150);
+    expect(a.low).toBe(Math.round(150 * cfg.minActionRatio)); // 60 €
+    expect(a.isRange).toBe(true);
+  });
+
+  it('le plancher ne REMONTE jamais une borne basse déjà correcte', () => {
+    const { actionable } = makeSubRanges(1000, { low: 800, high: 1100, isRange: true }, conf(200), cfg);
+    expect(actionable(400).low).toBe(320); // 320 > 40 % × 400
+  });
+
+  it('plancher désactivé (1) → borne basse brute', () => {
+    const { actionable } = makeSubRanges(
+      154, { low: 0, high: 300, isRange: true }, conf(400), { ...cfg, minActionRatio: 1 },
+    );
+    expect(actionable(150).low).toBe(150);
   });
 });
 

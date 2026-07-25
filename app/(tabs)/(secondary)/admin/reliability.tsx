@@ -18,10 +18,11 @@ import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/co
 const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; pct?: boolean }[] = [
   { key: 'absoluteFloor', label: 'Base minimale (€)', help: '① le doute est toujours comparé à au moins ce montant (évite les % absurdes quand le Relyka est proche de 0)' },
   { key: 'coldStartDays', label: 'Plafond d’ancienneté (jours)', help: '② on ne compte jamais plus de X jours depuis la dernière vérif (le doute sature au lieu d’exploser) · la création du compte = vérif n° 0 · plafonne aussi l’amorçage à la 1ʳᵉ régul' },
-  { key: 'coldStartWeeklyFraction', label: 'Méfiance de départ / semaine', help: '③ avant la 1ʳᵉ régularisation : part de la base supposée « perdue de vue » chaque semaine', pct: true },
+  { key: 'coldStartWeeklyFraction', label: 'Méfiance de départ / semaine', help: '③ avant la 1ʳᵉ régularisation : part supposée « perdue de vue » chaque semaine — appliquée à l’enveloppe de dépenses VARIABLES du mois (ce qui peut réellement échapper à la saisie), ou à la base globale si l’enveloppe est inconnue', pct: true },
   { key: 'highMax', label: 'Chiffres nets si doute sous…', help: '④ doute inférieur à cette part de la base → montants précis, sans fourchette', pct: true },
   { key: 'lowMin', label: 'Alerte si doute au-delà de…', help: '⑤ doute au-delà de cette part → fourchette large + invitation à vérifier son solde', pct: true },
   { key: 'upBias', label: 'Ouverture vers le haut', help: '⑥ une dépense oubliée fait plutôt baisser le solde : la fourchette descend à fond, mais ne monte que de X × le doute' },
+  { key: 'minActionRatio', label: 'Plancher des montants proposés', help: '⑥ bis · un virement/une réservation pré-remplis ne descendent jamais sous cette part du montant recommandé, même si la fourchette descend à 0 (le doute se mesure sur la base, pas sur le Relyka : sans plancher, un petit Relyka faisait proposer 0 €) · 1 = plancher désactivé (montant plein)', pct: true },
   { key: 'roundStep', label: 'Arrondi des fourchettes (€)', help: '⑦ bornes arrondies à ce pas (100 = à la centaine)' },
   { key: 'activityDampening', label: 'Amortisseur d’activité', help: '⑧ saisie manuelle du jour (mois courant) → le doute est multiplié par ce facteur (0,5 = moitié), puis revient à 1 sur la fenêtre · resserre la fourchette, peut remonter bas → moyen, jamais → haut (« À jour » = vraie vérif) · 1 = désactivé' },
   { key: 'activityWindowDays', label: 'Fenêtre d’activité (jours)', help: '⑨ au-delà de X jours sans saisie manuelle, l’amortisseur ne s’applique plus' },
@@ -92,20 +93,22 @@ export default function AdminReliability() {
               <View style={styles.calcCard}>
                 <Text style={styles.calcTitle}>Le calcul, pas à pas</Text>
                 <Text style={styles.calcLine}>1 · dérive/jour = médiane des |écarts trouvés| ÷ médiane des jours entre vérifs</Text>
-                <Text style={styles.calcSub}>(avant la 1ʳᵉ régul : base × méfiance de départ ÷ 7)</Text>
+                <Text style={styles.calcSub}>(avant la 1ʳᵉ régul : enveloppe variable du mois × méfiance de départ ÷ 7 — à défaut, la base)</Text>
                 <Text style={styles.calcLine}>2 · doute (€) = dérive/jour × jours depuis la dernière vérif (plafonnés au « Plafond d’ancienneté » ; la création du compte compte comme vérif n° 0)</Text>
                 <Text style={styles.calcLine}>3 · ratio = doute ÷ base → sous le 1ᵉʳ seuil : chiffres nets · entre les deux : fourchette · au-delà du 2ᵉ : fourchette large + alerte</Text>
-                <Text style={styles.calcLine}>4 · fourchette = [montant − doute ; montant + doute × ouverture vers le haut], arrondie au pas choisi</Text>
+                <Text style={styles.calcLine}>4 · fourchette = [montant − doute ; montant + doute × ouverture vers le haut], arrondie au pas choisi (borne basse jamais négative ; à 0 elle s’affiche « jusqu’à … »)</Text>
+                <Text style={styles.calcLine}>5 · montants PROPOSÉS aux actions (virement, réservation) = borne basse, mais jamais sous le « plancher des montants proposés ». « Conserver » fait exception : garder de l’argent ne le sort pas du compte, donc le doute ne doit pas faire conserver MOINS → montant plein.</Text>
 
                 <Text style={[styles.calcTitle, { marginTop: 12 }]}>Exemple : Léa, 2 500 € de revenu/mois (= sa base)</Text>
 
                 <Text style={styles.calcCase}>Avant sa 1ʳᵉ régul</Text>
                 <Text style={styles.calcLine}>
                   À la création de son compte, Léa recopie son solde depuis sa banque : c’est la vérif n° 0,
-                  le doute part de zéro. Ensuite l’app suppose qu’elle « perd de vue » 5 % de sa base par
-                  semaine, soit 2 500 × 0,05 ÷ 7 ≈ 18 € par jour.
+                  le doute part de zéro. Ensuite l’app suppose qu’elle « perd de vue » 5 % par semaine de son
+                  enveloppe de dépenses variables (2 500 € de revenu, mais 1 200 € de variables : c’est là que
+                  se cachent les oublis, pas dans le loyer prélevé), soit 1 200 × 0,05 ÷ 7 ≈ 9 € par jour.
                 </Text>
-                <Text style={styles.calcSub}>3 jours après la création : doute = 18 × 3 ≈ 54 € · ratio 0,02 → chiffres nets. Sans jamais vérifier, le doute grimpe puis sature au plafond de 31 j : 18 × 31 ≈ 554 € · ratio 0,22 → fourchette large + alerte.</Text>
+                <Text style={styles.calcSub}>3 jours après la création : doute = 9 × 3 ≈ 27 € · ratio 0,01 → chiffres nets. Sans jamais vérifier, le doute grimpe puis sature au plafond d’ancienneté : 9 × 31 ≈ 266 € · ratio 0,11 → fourchette + invitation à vérifier. Le ratio se juge toujours sur la BASE (2 500 €), c’est seulement la vitesse d’accumulation qui suit les variables.</Text>
 
                 <Text style={styles.calcCase}>Après sa 1ʳᵉ régul</Text>
                 <Text style={styles.calcLine}>

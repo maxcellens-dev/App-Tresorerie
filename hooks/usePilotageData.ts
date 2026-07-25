@@ -132,7 +132,7 @@ export interface PilotageData {
   /** Écart-type mensuel des dépenses variables (mois fiables). 0 si historique insuffisant. */
   variable_sigma: number;
   /** Signaux bruts de confiance (le niveau/fourchette sont calculés côté écrans via confidenceEngine). */
-  confidence_inputs: { lastVerifiedAt: string | null; lastActivityAt: string | null; calibration: DriftCalibration | null; floorBase: number };
+  confidence_inputs: { lastVerifiedAt: string | null; lastActivityAt: string | null; calibration: DriftCalibration | null; floorBase: number; variableBase: number };
   /** Soldes courants projetés en fin de mois sur 6 mois (index 0 = mois courant) — même trajectoire
    *  que l'écran Projection (lib/tresoProjection). Alimente le garde-fou marge des recommandations. */
   projection_balances_6m: number[];
@@ -1294,7 +1294,12 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     joint_share_outside_perimeter,
     joint_share_in_checking,
     variable_sigma,
-    confidence_inputs: { lastVerifiedAt, lastActivityAt, calibration: reliability_calib, floorBase: confidence_floor_base },
+    confidence_inputs: {
+      lastVerifiedAt, lastActivityAt, calibration: reliability_calib,
+      floorBase: confidence_floor_base,
+      // Base du COLD START : seules les dépenses variables peuvent vraiment être « perdues de vue ».
+      variableBase: variable_envelope_initial,
+    },
     projection_balances_6m,
     projection_balances_12m,
     projection_income_12m,

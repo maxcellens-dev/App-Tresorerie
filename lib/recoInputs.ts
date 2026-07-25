@@ -26,6 +26,8 @@ export interface RecoBuildExtras {
   financialProfileId?: FinancialProfileId;
   thresholds?: RecommendationSettings | null;
   customTierAllocations?: ComputeRecoOptions['customTierAllocations'];
+  /** Date de référence (tests). Défaut : aujourd'hui. */
+  today?: Date;
 }
 
 /**
@@ -38,6 +40,10 @@ export interface RecoBuildExtras {
  */
 export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): ComputeRecoOptions {
   const cumulsTotal = x.preEpargneTotal + x.preInvestTotal;
+  // Avancement du mois : en fin de mois la part « Confort » bascule vers « Conserver » (reporter sur
+  // le mois prochain). Calculé ICI → le Pilotage et le Pouls raisonnent sur la même date.
+  const now = x.today ?? new Date();
+  const daysLeftInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
   const margin = data.safety_margin_amount ?? 0;
   const varRemaining = data.variable_envelope_remaining ?? 0;
   const trough = data.cashflow_trough ?? (data.current_checking_balance ?? 0);
@@ -74,5 +80,6 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
     // Garde-fou marge × projection 6 mois : point bas de la trajectoire (écran Projection).
     projectionGuard: { balances: data.projection_balances_6m ?? [], margin },
     maxAmount: Math.max(0, floorToTen(resteDisponible)),
+    daysLeftInMonth,
   };
 }

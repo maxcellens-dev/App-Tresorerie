@@ -93,15 +93,15 @@ export default function AdminBannersPreview() {
   const confStates: { key: string; label: string; desc: string; inputs: any }[] = [
     {
       key: 'high', label: 'Confiance HAUTE', desc: 'Vérif récente, dérive faible → chiffres nets, badge « À jour ».',
-      inputs: { lastVerifiedAt: todayIso, lastActivityAt: null, calibration: calibCalm, floorBase: 2500 },
+      inputs: { lastVerifiedAt: todayIso, lastActivityAt: null, calibration: calibCalm, floorBase: 2500, variableBase: 1200 },
     },
     {
       key: 'medium', label: 'Confiance MOYENNE', desc: 'Vérif il y a ~10 j, dérive 15 €/j → fourchettes, badge « Vérifié il y a… », textes « au moins » (minimum sûr).',
-      inputs: { lastVerifiedAt: daysAgo(10), lastActivityAt: null, calibration: calibDrifty, floorBase: 2500 },
+      inputs: { lastVerifiedAt: daysAgo(10), lastActivityAt: null, calibration: calibDrifty, floorBase: 2500, variableBase: 1200 },
     },
     {
       key: 'low', label: 'Confiance BASSE', desc: 'Jamais vérifié (cold start) → bandeau ambre + « Vérifier mon solde d\'abord », actions dégrisées.',
-      inputs: { lastVerifiedAt: null, lastActivityAt: null, calibration: null, floorBase: 2500 },
+      inputs: { lastVerifiedAt: null, lastActivityAt: null, calibration: null, floorBase: 2500, variableBase: 1200 },
     },
   ];
 
@@ -110,8 +110,11 @@ export default function AdminBannersPreview() {
       budget: SAMPLE_RELYKA,
       projectionGuard: projectionGuard ?? { balances: [3800, 3400, 3100, 2900, 2700, 2600], margin: 1000 },
       maxAmount: Math.max(0, floorToTen(SAMPLE_RELYKA)),
-      actionAmountFor: (amount) => {
-        const r = conf.proportional(amount);
+      // Même règle que le Pilotage : « Conserver » au montant plein (le doute ne doit pas faire
+      // conserver MOINS), épargner/investir à la borne basse planchée.
+      actionAmountFor: (amount, type) => {
+        if (type === 'keep') return { value: amount, isRange: false };
+        const r = conf.actionable(amount);
         return r.isRange ? { value: Math.max(0, floorToTen(r.low)), isRange: true } : { value: amount, isRange: false };
       },
     });
@@ -190,7 +193,7 @@ export default function AdminBannersPreview() {
           {/* Garde-fou projection : trajectoire sous la marge → tout « Conserver » + note orange. */}
           {(() => {
             const conf = deriveRelykaConfidence(
-              { confidence_inputs: { lastVerifiedAt: todayIso, lastActivityAt: null, calibration: calibCalm, floorBase: 2500 } },
+              { confidence_inputs: { lastVerifiedAt: todayIso, lastActivityAt: null, calibration: calibCalm, floorBase: 2500, variableBase: 1200 } },
               SAMPLE_RELYKA, cfg,
             );
             const recos = buildRecoProps(conf, { balances: [1500, 1300, 1100, 950, 900, 850], margin: 1200 });
