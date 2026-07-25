@@ -504,7 +504,7 @@ function SettingsScreen() {
                   />
                 </View>
                 <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-                  Demande Face ID / empreinte (ou le code de ton téléphone) au lancement de l'app — pas si tu reviens d'une autre app. Protège tes données sur cet appareil.
+                  Demande Face ID / empreinte (ou le code de ton téléphone) au lancement de l'app. Protège tes données sur cet appareil.
                 </Text>
                 <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
               </>
