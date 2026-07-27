@@ -16,12 +16,13 @@ import { useNavBack } from '../../../hooks/useNavBack';
 import { useGamificationConfig } from '../../../hooks/useGamificationConfig';
 import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/purchases';
 
-const BENEFITS = [
+/** Avantages Premium. `route` = page concernée : la ligne devient cliquable et y renvoie. */
+const BENEFITS: { icon: string; title: string; desc: string; route?: string }[] = [
   { icon: 'eye-off', title: 'Zéro publicité', desc: 'Une expérience 100% épurée, sans bannières.' },
-  { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.' },
-  { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.' },
-  { icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.' },
-  { icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.' },
+  { icon: 'pricetags', title: 'Remise boutique', desc: 'Une réduction sur tous les achats en relyks.', route: '/(tabs)/(secondary)/boutique' },
+  { icon: 'color-palette', title: 'Couleur personnalisée', desc: 'Choisis la couleur d\'accent que tu veux.', route: '/(tabs)/(secondary)/apparence' },
+  { icon: 'bar-chart', title: 'Reporting', desc: 'Tableaux et graphiques détaillés de tes finances dans le temps.', route: '/(tabs)/reporting' },
+  { icon: 'sparkles', title: 'Conseils Intelligents personnalisés', desc: 'Des analyses sur-mesure selon ton profil.', route: '/(tabs)/conseils-ia' },
 ];
 
 // Prix affichés (alignés sur ceux du store Google Play).
@@ -116,17 +117,33 @@ export default function PremiumScreen() {
             <View style={[styles.note, { borderColor: COLORS.emerald + '66' }]}><Text style={[styles.noteText, { color: COLORS.emerald }]}>Tu es Premium. Merci ! 💚</Text></View>
           )}
 
-          {BENEFITS.map((b) => (
-            <View key={b.title} style={styles.benefit}>
-              <View style={[styles.benefitIcon, { backgroundColor: COLORS.emerald + '22' }]}>
-                <Ionicons name={b.icon as any} size={17} color={COLORS.emerald} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.benefitTitle}>{b.title === 'Remise boutique' ? `Remise boutique −${discount}%` : b.title}</Text>
-                <Text style={styles.benefitDesc}>{b.desc}</Text>
-              </View>
-            </View>
-          ))}
+          {BENEFITS.map((b) => {
+            const inner = (
+              <>
+                <View style={[styles.benefitIcon, { backgroundColor: COLORS.emerald + '22' }]}>
+                  <Ionicons name={b.icon as any} size={17} color={COLORS.emerald} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.benefitTitle}>{b.title === 'Remise boutique' ? `Remise boutique −${discount}%` : b.title}</Text>
+                  <Text style={styles.benefitDesc}>{b.desc}</Text>
+                </View>
+                {!!b.route && <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />}
+              </>
+            );
+            if (!b.route) return <View key={b.title} style={styles.benefit}>{inner}</View>;
+            return (
+              <TouchableOpacity
+                key={b.title}
+                style={[styles.benefit, styles.benefitLink]}
+                activeOpacity={0.7}
+                onPress={() => router.push(b.route as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`${b.title} — ouvrir la page`}
+              >
+                {inner}
+              </TouchableOpacity>
+            );
+          })}
 
           {/* Offres */}
           {premiumEnabled && !isPremium && (
@@ -231,6 +248,7 @@ function makeStyles(c: any) {
     note: { borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 12, marginBottom: 12, backgroundColor: c.card },
     noteText: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
     benefit: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 12, marginBottom: 7 },
+    benefitLink: { ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     benefitIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     benefitTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
     benefitDesc: { fontSize: 11, color: c.textSecondary, marginTop: 1, lineHeight: 14 },

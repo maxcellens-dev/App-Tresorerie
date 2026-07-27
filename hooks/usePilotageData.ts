@@ -8,6 +8,7 @@ import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } 
 import { isRegul } from '../lib/regul';
 import { isProjectSpendTx, projectMode } from '../lib/projectTx';
 import { computeTresoRows } from '../lib/tresoProjection';
+import { computeCashflowTrough } from '../lib/relyka';
 import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
@@ -16,7 +17,11 @@ export interface TransactionWithCategory extends TransactionWithDetails {
 }
 
 export interface PilotageData {
-  // Step 1: Safe to Spend
+  // Step 1 — LEGACY. `safe_to_spend` / `projected_surplus` sont l'ANCIEN modèle de budget, antérieur
+  // au Relyka. Le budget libre réellement affiché (« Ton Relyka ») est calculé par lib/relyka à
+  // partir de `cashflow_trough` — voir lib/recoInputs. Ces deux champs ne servent plus qu'à des
+  // consommateurs secondaires (snapshot Conseils IA, hooks/useConseils, défaut du moteur de recos).
+  // Ne PAS les utiliser pour un nouveau calcul : ils ne racontent pas la même histoire que le Relyka.
   safe_to_spend: number;
   current_checking_balance: number;
   remaining_fixed_expenses: number;
@@ -25,8 +30,17 @@ export interface PilotageData {
   monthly_commitments: number;
 
   // Revenu attendu + creux + garde-fou projection (modèle « trésorerie adaptative »)
-  month_income_remaining: number;        // recettes à venir d'ici la prochaine rentrée (affichage)
+  month_income_remaining: number;        // TOTAL des recettes restantes du mois en cours (affichage)
   cashflow_trough: number;               // point bas du solde courant simulé (revenus + dépenses réelles)
+  /** DATE (ISO) à laquelle le point bas est atteint. Le Relyka qui en découle ne vaut que JUSQU'À
+   *  cette date : après la prochaine rentrée d'argent, il remonte. Indispensable à l'écran pour
+   *  expliquer un Relyka faible (« il te reste X € jusqu'au 24 au soir, ta paie du 25 le remontera »). */
+  cashflow_trough_date: string;
+  /** Fin de l'horizon simulé (ISO) — le point bas n'a de sens que sur [aujourd'hui → cette date]. */
+  cashflow_horizon_end: string;
+  /** Prochaine rentrée d'argent prise en compte dans la simulation (ISO) + son montant. */
+  next_income_date: string | null;
+  next_income_amount: number;
   expected_monthly_income: number;       // revenu mensuel détecté (explicite ou inféré) — projection
   avg_monthly_income: number;            // revenu mensuel moyen (6 mois, hors 1er mois incomplet) — mois de sécurité
   expected_income_source: 'explicit' | 'inferred' | 'none';
@@ -573,6 +587,64 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const checkingIds = new Set(accounts.filter(a => a.type === 'checking').map(a => a.id));
   const prudence = profilePrudence(profile);
 
+  const accountTypeById: Record<string, string> = {};
+  accounts.forEach(a => { accountTypeById[a.id] = a.type; });
+
+  // =====================================================================
+  // DÉFINITION UNIQUE de « dépense du budget quotidien » et de « variable »
+  // ─────────────────────────────────────────────────────────────────────
+  // Avant, trois définitions coexistaient dans ce fichier : le DÉPENSÉ du mois comptait toute
+  // dépense non récurrente, l'HISTORIQUE qui calibre l'enveloppe ne comptait que les catégories
+  // `is_variable`, et la TENDANCE en utilisait encore une autre. Le dépensé était donc
+  // structurellement plus large que sa propre référence → « 1 890 € dépensés / 303 € estimés »,
+  // « 133 % des dépenses prévues », et une enveloppe restante tombée à 0 dès le début du mois.
+  // Une seule règle, appliquée des DEUX côtés (mois courant et mois d'historique).
+  // =====================================================================
+
+  /** Sortie qui pèse sur le budget : depuis un compte courant, hors virement, hors projet (sauf
+   *  « dépenser petit à petit » qui sort vraiment), catégorie de dépense (ou sans catégorie),
+   *  hors régularisation de solde. */
+  const isBudgetExpense = (t: any): boolean => {
+    if (accountTypeById[t.account_id] !== 'checking') return false;
+    if (t.linked_account_id) return false;
+    if (t.project_id && !isProjectSpendTx(t)) return false;
+    const cat = t.category;
+    if (cat && cat.type !== 'expense') return false;
+    if (cat?.name && /r[ée]gularisation/i.test(cat.name)) return false;
+    return true;
+  };
+
+  /** « Variable » = tout ce qui n'est PAS récurrent.
+   *  ⚠ Une occurrence MATÉRIALISÉE d'une récurrente est une vraie ligne avec `is_recurring = false`
+   *  et `materialized_from` renseigné : sans ce second test, chaque loyer déjà matérialisé
+   *  basculerait en « variable » et gonflerait à la fois l'historique et le dépensé du mois. */
+  const isRecurringTx = (t: any): boolean =>
+    (Boolean(t.is_recurring) && Boolean(t.recurrence_rule)) || Boolean(t.materialized_from);
+
+  /**
+   * Dépenses VARIABLES réellement passées sur un mois donné, en NET (un remboursement sur une
+   * catégorie de dépense vient en déduction). `upTo` borne au jour près (mois courant).
+   * MÊME fonction pour le dépensé du mois et pour les mois d'historique qui calibrent l'enveloppe.
+   */
+  const monthVariableSpent = (year: number, month: number, upTo?: string): number => {
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    let sum = 0;
+    for (const t of transactions as any[]) {
+      if (t.is_draft || t.is_reserved) continue;
+      if (isRecurringTx(t)) continue;
+      const d = String(t.date ?? '');
+      if (!d.startsWith(prefix)) continue;
+      if (upTo && d > upTo) continue;
+      if (!isBudgetExpense(t)) continue;
+      const amt = Number(t.amount);
+      // Montant positif : ce n'est un remboursement (à déduire) que sur une VRAIE catégorie de
+      // dépense. Sinon c'est une recette / un apport / une régul → hors dépenses variables.
+      if (amt >= 0 && !(t.category && t.category.type === 'expense')) continue;
+      sum += -amt; // dépense (−) → +, remboursement (+) → −
+    }
+    return Math.max(0, sum);
+  };
+
   // Engagements (projets actifs) + objectifs (info, non déduits du budget)
   const committed_project_allocations = projects
     .filter(p => p.status === 'active')
@@ -589,16 +661,29 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     .reduce((sum, p) => {
       const monthlyAlloc = Number(p.monthly_allocation) || 0;
       const pastTxns = transactions.filter(t => t.project_id === p.id && t.date <= todayStr && !(t as any).is_draft);
-      return sum + pastTxns.length * monthlyAlloc;
+      // Montant RÉEL de chaque réservation quand il est connu ; repli sur l'allocation courante pour
+      // les réservations « même compte » enregistrées à 0 € (l'argent ne bouge pas du compte).
+      // `nombre × allocation ACTUELLE` refaisait l'historique à l'envers dès que l'allocation
+      // mensuelle du projet avait été modifiée en cours de route.
+      return sum + pastTxns.reduce((s, t) => s + (Math.abs(Number(t.amount)) || monthlyAlloc), 0);
     }, 0);
 
-  // ── Revenu attendu + CREUX de trésorerie (horizon glissant jusqu'à la prochaine rentrée) ──
-  // Le budget libre = point le plus bas du solde courant simulé d'ici la prochaine rentrée d'argent
-  // (revenus ET dépenses comptés dans l'ordre). On ne libère jamais plus que ce creux → robuste
-  // au décalage de date de paie (le montant du creux ne bouge presque pas). Le revenu non saisi
-  // est INFÉRÉ de l'historique et pondéré par la prudence (profil).
+  // ── Revenu attendu + POINT BAS de trésorerie ──────────────────────────────────────────────
+  // Le budget libre part du plus bas SOLDE DE FIN DE JOURNÉE d'ici la prochaine rentrée d'argent
+  // (revenus ET dépenses simulés jour après jour — voir lib/relyka.computeCashflowTrough). On ne
+  // libère jamais plus que ce point bas → on ne laisse pas dépenser un revenu pas encore reçu.
+  // C'est une info datée : `cashflow_trough_date` dit JUSQU'À QUAND le Relyka est contraint, et
+  // `next_income_date` ce qui le fera remonter. Le revenu non saisi est INFÉRÉ de l'historique et
+  // pondéré par la prudence (profil).
   const expectedIncome = detectExpectedIncome(transactions, checkingIds, todayStr);
   const avgMonthlyIncome = computeAvgMonthlyIncome(transactions, checkingIds, todayStr, (data.profile as any)?.created_at ?? null);
+
+  // Confiance accordée à un revenu INFÉRÉ (non saisi comme récurrent) : pondérée par la prudence.
+  const inferredTrust = clamp01(1 - prudence) * expectedIncome.confidence;
+  // ⚠ Un revenu inféré NON COMPTÉ (prudence maximale ou confiance nulle → inferredTrust = 0) ne doit
+  // pas non plus ALLONGER l'horizon : sinon on simulait toutes les dépenses d'ici la paie SANS
+  // jamais ajouter la paie, et le point bas s'effondrait sans rien pour l'expliquer à l'écran.
+  const useInferredIncome = expectedIncome.source === 'inferred' && !!expectedIncome.nextDate && inferredTrust > 0;
 
   let nextIncomeDate: string | null = null;
   for (const t of transactions) {
@@ -611,12 +696,18 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       nextIncomeDate = t.date;
     }
   }
-  if (expectedIncome.source === 'inferred' && expectedIncome.nextDate && (!nextIncomeDate || expectedIncome.nextDate < nextIncomeDate)) {
-    nextIncomeDate = expectedIncome.nextDate;
+  if (useInferredIncome && (!nextIncomeDate || expectedIncome.nextDate! < nextIncomeDate)) {
+    nextIncomeDate = expectedIncome.nextDate!;
   }
 
-  // Horizon : jusqu'à la prochaine rentrée (+2 j), borné à [7 j, 45 j] ; 30 j si aucune rentrée.
-  let horizonEnd = nextIncomeDate ? addDaysIso(nextIncomeDate, 2) : addDaysIso(todayStr, 30);
+  const curMonthEnd = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(new Date(currentYear, currentMonth, 0).getDate()).padStart(2, '0')}`;
+  // Horizon simulé : jusqu'à la prochaine rentrée d'argent, et AU MINIMUM jusqu'à la fin du mois en
+  // cours. Sans ce plancher, la veille de la paie l'horizon ne couvrait que 2-3 jours alors que le
+  // lendemain il couvrait un mois entier : le point bas changeait de SENS d'un jour à l'autre, et le
+  // Relyka avec lui. L'ancien « + 2 jours » après la paie était en plus arbitraire (une charge à J+2
+  // comptait, la même à J+3 disparaissait) → supprimé. Bornes de sécurité : [7 j, 45 j].
+  let horizonEnd = nextIncomeDate ?? addDaysIso(todayStr, 30);
+  if (horizonEnd < curMonthEnd) horizonEnd = curMonthEnd;
   if (horizonEnd < addDaysIso(todayStr, 7)) horizonEnd = addDaysIso(todayStr, 7);
   if (horizonEnd > addDaysIso(todayStr, 45)) horizonEnd = addDaysIso(todayStr, 45);
 
@@ -640,24 +731,21 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     }
   }
   // Revenu INFÉRÉ (non saisi) : ajouté à sa date, pondéré par confiance × (1 − prudence).
-  const inferredTrust = clamp01(1 - prudence) * expectedIncome.confidence;
-  if (expectedIncome.source === 'inferred' && expectedIncome.nextDate && expectedIncome.nextDate <= horizonEnd && inferredTrust > 0) {
-    events.push({ date: expectedIncome.nextDate, amount: expectedIncome.monthlyAmount * inferredTrust });
+  if (useInferredIncome && expectedIncome.nextDate! <= horizonEnd) {
+    events.push({ date: expectedIncome.nextDate!, amount: expectedIncome.monthlyAmount * inferredTrust });
   }
 
-  events.sort((a, b) => a.date.localeCompare(b.date));
-  let running = current_checking_balance;
-  let trough = current_checking_balance;
-  let outflow_remaining = 0;
-  for (const e of events) {
-    running += e.amount;
-    if (e.amount < 0) outflow_remaining += -e.amount;
-    if (running < trough) trough = running;
-  }
+  // ── POINT BAS = plus bas SOLDE DE FIN DE JOURNÉE d'ici l'horizon (lib/relyka, testé) ──────
+  const { trough, troughDate, outflowTotal: outflow_remaining } =
+    computeCashflowTrough(current_checking_balance, events, todayStr);
+  // Montant de la prochaine rentrée retenue (celle qui fera remonter le point bas) — sert à
+  // l'expliquer à l'écran : « il te reste X € jusqu'au 24 ; ta paie du 25 (+Y €) le remontera ».
+  const next_income_amount = nextIncomeDate
+    ? events.filter((e) => e.date === nextIncomeDate && e.amount > 0).reduce((s, e) => s + e.amount, 0)
+    : 0;
 
-  // « Prochaine recette » = total des RECETTES réelles restantes du MOIS EN COURS (hors virements
-  // rentrants). Simple indicateur, basé sur le réel (occurrences + overrides), pas sur un montant figé.
-  const curMonthEnd = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(new Date(currentYear, currentMonth, 0).getDate()).padStart(2, '0')}`;
+  // Total des RECETTES réelles restantes du MOIS EN COURS (hors virements rentrants). Simple
+  // indicateur, basé sur le réel (occurrences + overrides), pas sur un montant figé.
   let month_income_remaining = 0;
   for (const t of transactions) {
     if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved || (t as any).project_id || t.linked_account_id) continue;
@@ -693,37 +781,22 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const projection_in_danger = projection_min_buffer < Math.max(0, safety_margin_amount);
 
   // =====================================================================
-  // STEP 2: Variable Expense Trend (using is_variable flag)
+  // STEP 2: Variable Expense Trend
   // =====================================================================
   // Référence = les 3 mois PRÉCÉDENTS (le mois courant est comparé à eux). On l'EXCLUT de sa propre
   // moyenne : sinon un gros mois gonfle sa référence et la tendance est sous-estimée (ex. +13 % affiché
   // au lieu de +30 % réel). « moyenne des 3 derniers mois » = les 3 mois d'avant, pas celui en cours.
+  // Même définition de « variable » (= non récurrent) des deux côtés : voir `monthVariableSpent`.
+  const current_month_variable = monthVariableSpent(currentYear, currentMonth, todayStr);
+
   const priorThreeMonths: Array<{ year: number; month: number }> = [];
   for (let i = 3; i >= 1; i--) {
     const d = new Date(currentYear, currentMonth - 1 - i, 1);
     priorThreeMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
   }
-
-  // Variable expenses per month for the 3 PRIOR months (using is_variable category flag).
-  const variableByMonth: Record<string, number> = {};
-  for (const m of priorThreeMonths) {
-    variableByMonth[`${m.year}-${m.month}`] = 0;
-  }
-  const currentMonthKey = `${currentYear}-${currentMonth}`;
-  let current_month_variable = 0;
-
-  for (const t of transactions) {
-    if (t.amount >= 0) continue;
-    const cat = (t as TransactionWithCategory).category;
-    if (!cat?.is_variable) continue;
-    const [tYear, tMonth] = t.date.split('-').map(Number);
-    const key = `${tYear}-${tMonth}`;
-    if (key === currentMonthKey) current_month_variable += Math.abs(Number(t.amount));
-    else if (key in variableByMonth) variableByMonth[key] += Math.abs(Number(t.amount));
-  }
-
-  const monthlyTotals = Object.values(variableByMonth);
-  const nonZeroMonths = monthlyTotals.filter(v => v > 0);
+  const nonZeroMonths = priorThreeMonths
+    .map((m) => monthVariableSpent(m.year, m.month))
+    .filter((v) => v > 0);
   // Moyenne brute des 3 mois précédents — usage INTERNE (projected_surplus). La référence de variable
   // EXPOSÉE (avg_variable_expenses_3m) est unifiée plus bas sur l'enveloppe (questionnaire < 2 mois,
   // sinon historique jusqu'à 6 mois) pour être cohérente entre Pilotage et Reporting.
@@ -757,8 +830,9 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
       let projectTransactionsTotal: number;
       if (sameAccount) {
-        // Même compte → réservations (amount=0), on compte occurrences passées × allocation
-        projectTransactionsTotal = projectTxns.length * monthlyAlloc;
+        // Même compte → réservations souvent enregistrées à 0 € (l'argent ne bouge pas) : on prend
+        // le montant réel quand il existe, sinon l'allocation courante. Voir `same_account_reserved`.
+        projectTransactionsTotal = projectTxns.reduce((s, t) => s + (Math.abs(Number(t.amount)) || monthlyAlloc), 0);
       } else {
         // Comptes différents → on somme les montants absolus des débits passés
         const debits = projectTxns.filter(t => Number(t.amount) < 0);
@@ -817,9 +891,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // =====================================================================
   // SUIVI : engagements du mois en cours (épargne / invest / dépenses)
   // =====================================================================
-  const accountTypeById: Record<string, string> = {};
-  accounts.forEach(a => { accountTypeById[a.id] = a.type; });
-
   // Projets : distinguer ceux qui transfèrent vers un autre compte (épargne), ceux qui réservent sur
   // le même compte courant (tagué « Réservé ») et ceux qui DÉPENSENT (comptés dans les dépenses).
   const activeProjects = projects.filter(p => p.status === 'active');
@@ -891,20 +962,16 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
       // Virement réel vers un compte d'épargne
       transfer_savings += monthlyAmt;
       transfer_savings_past += pastAmt;
-    } else if (!t.linked_account_id && srcType === 'checking' && (!hasProject || isProjectSpendTx(t))) {
-      // Vraie dépense : depuis un compte courant, catégorie dépense, hors régularisation.
-      // Les dépenses d'un projet « Dépenser petit à petit » en font partie (elles sortent vraiment).
-      const cat = (t as TransactionWithCategory).category;
-      const isExpenseCat = !cat || cat.type === 'expense';
-      const isRegul = !!(cat?.name && /r[ée]gularisation/i.test(cat.name));
-      if (isExpenseCat && !isRegul) {
-        month_expenses_total += monthlyAmt;
-        // Le passé est déjà reflété dans le solde courant → ne pas le redéduire du budget.
-        // Seules les dépenses à venir (non-brouillon) sont déduites du budget libre.
-        if (!isDraft) {
-          month_expenses_past += pastAmt;
-          month_expenses_remaining += Math.max(0, monthlyAmt - pastAmt);
-        }
+    } else if (isBudgetExpense(t)) {
+      // Vraie dépense du budget quotidien — MÊME règle que l'historique qui calibre l'enveloppe
+      // variable (voir `isBudgetExpense`). Les dépenses d'un projet « Dépenser petit à petit » en
+      // font partie (elles sortent vraiment du compte).
+      month_expenses_total += monthlyAmt;
+      // Le passé est déjà reflété dans le solde courant → ne pas le redéduire du budget.
+      // Seules les dépenses à venir (non-brouillon) sont déduites du budget libre.
+      if (!isDraft) {
+        month_expenses_past += pastAmt;
+        month_expenses_remaining += Math.max(0, monthlyAmt - pastAmt);
       }
     }
   }
@@ -1016,106 +1083,34 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
 
   // =====================================================================
   // ENVELOPPE DES DÉPENSES VARIABLES (estimation dynamique)
-  //  Définition : dépenses variables NON récurrentes (catégorie is_variable)
-  //  depuis comptes courants, hors virements/projets + régularisations (net signé).
+  //  Définition (UNIQUE, cf. `monthVariableSpent`) : dépenses NON RÉCURRENTES du budget quotidien.
   //  Initiale :
   //    - ≥ 2 mois passés avec dépenses variables (M-1..M-6) → moyenne
   //    - sinon → question 4 du questionnaire (champ q9, hebdo × 4,33 → mensuel)
   //  Restant = max(0, initiale − déjà dépensé ce mois) → déduit du Reste.
+  //
+  //  ⚠ L'enveloppe restante n'est VOLONTAIREMENT pas proratisée sur les jours écoulés : un
+  //  utilisateur peut ne saisir ses dépenses qu'en milieu ou en fin de mois, auquel cas réduire
+  //  l'estimation avec le calendrier lui promettrait un argent qu'il a déjà dépensé sans l'avoir
+  //  encore noté. L'enveloppe se recalibre par l'HISTORIQUE, pas par l'horloge.
   // =====================================================================
 
-  const isNonRecurringTx = (t: TransactionWithCategory) =>
-    !(Boolean((t as any).is_recurring) && Boolean((t as any).recurrence_rule));
-  const isRegulTx = (t: TransactionWithCategory) => {
-    const cat = t.category;
-    if (cat?.name && /r[ée]gularisation/i.test(cat.name)) return true;
-    const note = (t as any).note as string | null;
-    return !!(note && (/r[ée]gularisation/i.test(note) || note === 'Ajustement de solde'));
-  };
-  // Contribution d'une transaction aux dépenses variables (€), net signé.
-  const variableContribution = (t: TransactionWithCategory): number => {
-    if (!isNonRecurringTx(t)) return 0;
-    if (accountTypeById[t.account_id] !== 'checking') return 0;
-    if ((t as any).linked_account_id || (t as any).project_id) return 0; // pas un virement / projet
-    const amt = Number(t.amount);
-    if (isRegulTx(t)) return -amt; // régul : dépense (−) → +, recette (+) → −
-    if (t.category?.is_variable === true) {
-      // Catégorie variable : dépense (−) → + de dépensé ; remboursement (+) → − (net).
-      return -amt;
-    }
-    return 0;
-  };
-
-  // Historique des 6 mois précédents
+  // Historique des 6 mois précédents — MÊME fonction que le mois courant (plus d'asymétrie entre
+  // ce qu'on compte comme dépensé et ce à quoi on le compare).
   const pastMonths: Array<{ year: number; month: number; key: string }> = [];
   for (let i = 1; i <= 6; i++) {
     const d = new Date(currentYear, currentMonth - 1 - i, 1);
     pastMonths.push({ year: d.getFullYear(), month: d.getMonth() + 1, key: `${d.getFullYear()}-${d.getMonth() + 1}` });
   }
   const variableByPastMonth: Record<string, number> = {};
-  pastMonths.forEach(m => { variableByPastMonth[m.key] = 0; });
+  pastMonths.forEach(m => { variableByPastMonth[m.key] = monthVariableSpent(m.year, m.month); });
 
-  // Historique (estimation) : mois passés seulement (base catégorie « Frais variables »).
-  for (const t of transactions) {
-    if (!isNonRecurringTx(t)) continue;
-    const [ty, tm] = t.date.split('-').map(Number);
-    const key = `${ty}-${tm}`;
-    if (key in variableByPastMonth) variableByPastMonth[key] += variableContribution(t);
-  }
-
-  // « Dépensé variable » DU MOIS = total dépensé passé − récurrentes passées (= toutes les dépenses
-  // NON récurrentes), cohérent avec le curseur « dont variables ». IMPORTANT : on compte les
-  // récurrentes passées via PROJECTION des templates (en incluant ceux « avancés » au mois suivant,
-  // dont l'occurrence de ce mois est déjà matérialisée). `recurrencePastInMonth` retourne 0 pour ces
-  // templates avancés → l'utiliser ici comptait à tort les récurrentes comme des variables.
-  const _mStart = new Date(currentYear, currentMonth - 1, 1);
-  const _mEnd = new Date(currentYear, currentMonth, 0);
-  const _daysInMo = _mEnd.getDate();
-  const _thisIdx = currentYear * 12 + (currentMonth - 1);
-  const _dToday = now.getDate();
-  const recurExpensePassed = (t: any): number => {
-    const amt = Math.abs(Number(t.amount));
-    const start = new Date((t.date ?? '').slice(0, 10) + 'T00:00:00');
-    const end = t.recurrence_end_date ? new Date(String(t.recurrence_end_date).slice(0, 10) + 'T00:00:00') : null;
-    if (end && end < _mStart) return 0;
-    const startIdx = start.getFullYear() * 12 + start.getMonth();
-    const day = Math.min(start.getDate(), _daysInMo);
-    const single = (periodMonths: number) => {
-      if (startIdx > _thisIdx + periodMonths) return 0;
-      const advanced = startIdx > _thisIdx;
-      // Template au mois suivant + jour non encore échu → récurrente qui démarre plus tard : pas passée ce mois.
-      if (advanced && day > _dToday) return 0;
-      return (advanced || day <= _dToday) ? amt : 0;
-    };
-    switch (t.recurrence_rule) {
-      case 'monthly': return single(1);
-      case 'yearly': return start.getMonth() === currentMonth - 1 ? single(12) : 0;
-      case 'quarterly': return ((((_thisIdx - startIdx) % 3) + 3) % 3 === 0) ? single(3) : 0;
-      case 'weekly': {
-        let p = 0; const d = new Date(start);
-        while (d < _mStart) d.setDate(d.getDate() + 7);
-        while (d <= _mEnd && (!end || d <= end)) { if (d.getDate() <= _dToday) p += amt; d.setDate(d.getDate() + 7); }
-        // Avancé au mois suivant → ~4 passées, mais seulement si le jour de départ est déjà échu ce mois
-        // (sinon récurrente qui démarre plus tard, pas passée ce mois).
-        if (p === 0 && startIdx > _thisIdx && day <= _dToday) p = amt * 4;
-        return p;
-      }
-      default: return 0;
-    }
-  };
-  let recurring_passed_current = 0;
-  for (const t of transactions as any[]) {
-    if (!(t.is_recurring && t.recurrence_rule)) continue;
-    if (Number(t.amount) >= 0) continue;                     // dépense (sortie)
-    if (t.linked_account_id || t.project_id) continue;        // pas un virement / projet
-    if (accountTypeById[t.account_id] !== 'checking') continue;
-    const cat = t.category;
-    const isExpenseCat = !cat || cat.type === 'expense';
-    const isRegul = !!(cat?.name && /r[ée]gularisation/i.test(cat.name));
-    if (!isExpenseCat || isRegul) continue;
-    recurring_passed_current += recurExpensePassed(t);
-  }
-  const variable_envelope_spent = Math.max(0, month_expenses_past - recurring_passed_current);
+  // « Dépensé variable » DU MOIS : calculé DIRECTEMENT sur les vraies lignes non récurrentes déjà
+  // échues, au lieu de l'ancien « total dépensé − récurrentes reprojetées ». La soustraction
+  // reposait sur une reprojection des templates récurrents (avec un cas spécial pour ceux
+  // « avancés » par la matérialisation) et ignorait les échéances modifiées : le résultat pouvait
+  // dériver de plusieurs dizaines d'euros. Ici il n'y a plus rien à reconstituer.
+  const variable_envelope_spent = current_month_variable;
 
   // Historique = mois passés avec de vraies dépenses variables (> 0), pas toute transaction.
   // Les mois `estimated` (non confirmés) sont EXCLUS : leurs chiffres ne sont pas fiables et
@@ -1234,6 +1229,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     same_account_reserved,
     month_income_remaining,
     cashflow_trough: trough,
+    cashflow_trough_date: troughDate,
+    cashflow_horizon_end: horizonEnd,
+    next_income_date: nextIncomeDate,
+    next_income_amount,
     expected_monthly_income: expectedIncome.monthlyAmount,
     avg_monthly_income: avgMonthlyIncome,
     expected_income_source: expectedIncome.source,

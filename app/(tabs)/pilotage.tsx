@@ -64,6 +64,7 @@ import { sheetWidth } from '../../lib/appLayout';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { useReliabilityConfig, deriveRelykaConfidence } from '../../hooks/useReliability';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
+import { buildMaterializedIndex, recurrenceForMonth } from '../../lib/recurrenceMonth';
 
 /** Divise par 2 l'alpha d'une couleur rgb(a)/hex (#RRGGBBAA) — pour atténuer un fond translucide. */
 function halfAlpha(color: string): string {
@@ -78,6 +79,14 @@ function halfAlpha(color: string): string {
   if (hex6) return color + '80'; // opaque → 50 %
   return color;
 }
+
+/** « 24 juillet » — date lisible, pour situer le point bas de trésorerie dans le temps. */
+function shortDay(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return new Date(String(iso).slice(0, 10) + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+}
+/** Montant arrondi en devise — usage hors des blocs de rendu qui définissent leur propre `fmt`. */
+function eur(n: number): string { return Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL; }
 
 /** Remplissage des curseurs « Dépenses » à opacité RÉDUITE de moitié (pastelFill ≈ 60 % → ~30 %). */
 function halfFill(hex: string): string {
@@ -354,6 +363,29 @@ export default function PilotageScreen() {
   // message, jamais le montant brut : entre 1 € et 9 €, la carte affichait « 0 € » tout en servant
   // le message « utilise ton Relyka librement » en vert (ex. 154 € − 150 € réservés = 4 €).
   const relykaAffiche = floorToTen(resteDisponible);
+  // ── Le point bas est une info À UNE DATE, pas un état permanent ──────────────────────────────
+  // Un salarié payé le 25 a mécaniquement un point bas faible le 24 : c'est normal, mais son Relyka
+  // ne concerne alors QUE la période d'ici là. Sans le dire, le chiffre paraît faux — et il remonte
+  // « tout seul » le lendemain de la paie, ce qui achève de casser la confiance. On expose donc la
+  // date du point bas et la rentrée qui le suit, dès que le point bas est réellement CONTRAIGNANT
+  // (c.-à-d. plus bas que le solde d'aujourd'hui : une dépense creuse le compte avant la rentrée).
+  const troughDate = pilotageData?.cashflow_trough_date ?? null;
+  const nextIncomeDate = pilotageData?.next_income_date ?? null;
+  const nextIncomeAmount = pilotageData?.next_income_amount ?? 0;
+  const troughLimits =
+    !!pilotageData && !!troughDate
+    && cashflowTrough < (pilotageData.current_checking_balance ?? 0) - 1
+    && (!nextIncomeDate || troughDate <= nextIncomeDate);
+  /** Phrase d'explication du point bas, ajoutée au message de la carte et affichée dans le détail. */
+  const troughExplain = troughLimits
+    ? `Le ${shortDay(troughDate)} : c'est le jour où ton solde sera au plus bas (${eur(cashflowTrough)}).`
+      + (nextIncomeDate && nextIncomeAmount > 0
+        ? ` Ta rentrée d'argent du ${shortDay(nextIncomeDate)} (+${eur(nextIncomeAmount)}) le fera remonter.`
+        : '')
+    : '';
+  // Revenu non déclaré en récurrent → le moteur l'INFÈRE et ne le compte que partiellement (pondéré
+  // par la prudence) : le Relyka est durablement sous-évalué. On le dit, avec l'action qui corrige.
+  const incomeIsGuessed = !!pilotageData && pilotageData.expected_income_source !== 'explicit';
   // Tout ce que l'utilisateur a MIS DE CÔTÉ ce mois-ci et qu'il POSSÈDE ENCORE : épargne et
   // investissement (déjà virés — donc déjà dans le point bas — ou seulement prévus), réservé de
   // projet, réservations et cumuls. À distinguer de l'argent DÉPENSÉ, lui vraiment parti.
@@ -483,50 +515,12 @@ export default function PilotageScreen() {
     const byDateDesc = (a: any, b: any) => (b.date ?? '').localeCompare(a.date ?? '');
 
     // Récurrentes du mois : total projeté + part déjà passée (pour le curseur passé/total, §N5).
-    const y = now.getFullYear(), mo = now.getMonth() + 1, dToday = now.getDate();
+    // Le PASSÉ se lit sur les VRAIES lignes matérialisées, jamais déduit de l'ancre du modèle —
+    // voir lib/recurrenceMonth (testé) pour le pourquoi et les cas limites.
+    const y = now.getFullYear(), mo = now.getMonth() + 1;
     const daysInMonth = new Date(y, mo, 0).getDate();
-    const monthStart = new Date(y, mo - 1, 1), monthEnd = new Date(y, mo, 0);
-    // NB : la matérialisation (migration 030) avance la date du template après chaque occurrence
-    // passée. On compte donc aussi le total quand le template a été avancé d'une période (= déjà
-    // passé ce mois), pour que « total » = passées + futures.
-    const thisIdx = y * 12 + (mo - 1);
-    const recurForMonth = (t: any): { total: number; passed: number } => {
-      const amt = Math.abs(Number(t.amount));
-      const start = new Date((t.date ?? '').slice(0, 10) + 'T00:00:00');
-      const end = t.recurrence_end_date ? new Date(String(t.recurrence_end_date).slice(0, 10) + 'T00:00:00') : null;
-      if (end && end < monthStart) return { total: 0, passed: 0 };
-      const rule = t.recurrence_rule;
-      const startIdx = start.getFullYear() * 12 + start.getMonth();
-      const day = Math.min(start.getDate(), daysInMonth);
-      const single = (periodMonths: number) => {
-        // Démarre trop loin dans le futur (au-delà d'une période = pas une avance de matérialisation).
-        if (startIdx > thisIdx + periodMonths) return { total: 0, passed: 0 };
-        const advanced = startIdx > thisIdx; // template au mois suivant : soit avancé (occurrence de ce
-        // mois déjà passée/matérialisée), soit récurrente qui DÉMARRE plus tard. On ne distingue que par
-        // le jour : jour non encore échu ce mois → la récurrente n'a pas commencé → on l'ignore ce mois.
-        if (advanced && day > dToday) return { total: 0, passed: 0 };
-        return { total: amt, passed: advanced || day <= dToday ? amt : 0 };
-      };
-      if (rule === 'monthly') return single(1);
-      if (rule === 'yearly') {
-        if (start.getMonth() !== mo - 1) return { total: 0, passed: 0 };
-        return single(12);
-      }
-      if (rule === 'quarterly') {
-        if ((((thisIdx - startIdx) % 3) + 3) % 3 !== 0) return { total: 0, passed: 0 };
-        return single(3);
-      }
-      if (rule === 'weekly') {
-        let total = 0, passed = 0; const d = new Date(start);
-        while (d < monthStart) d.setDate(d.getDate() + 7);
-        while (d <= monthEnd && (!end || d <= end)) { total += amt; if (d.getDate() <= dToday) passed += amt; d.setDate(d.getDate() + 7); }
-        // Template avancé au mois suivant (≈4 occurrences déjà passées ce mois) → uniquement si le jour de
-        // départ est déjà échu ce mois ; sinon la récurrente DÉMARRE plus tard (pas ce mois).
-        if (total === 0 && startIdx > thisIdx && day <= dToday) { total = amt * 4; passed = amt * 4; }
-        return { total, passed };
-      }
-      return { total: 0, passed: 0 };
-    };
+    const materializedThisMonth = buildMaterializedIndex(txForConseils as any[], monthPrefix);
+    const recurForMonth = (t: any) => recurrenceForMonth(t, materializedThisMonth, now);
     // On ne garde que les récurrences réellement actives CE mois (ex. une annuelle datée en juillet
     // ne compte pas en juin) → le modal et le curseur « dont récurrentes » affichent le même total.
     // `_monthTotal` / `_monthPassed` : montant projeté du mois et part déjà échue (pour griser les
@@ -540,8 +534,10 @@ export default function PilotageScreen() {
       recurringPassed += r.passed;
       // Date d'occurrence DANS le mois courant (le template d'une récurrente échue est avancé au mois
       // suivant → sans ça le tri par date la renverrait tout en bas). Sert au tri ET à l'affichage.
+      // Quand l'occurrence est matérialisée, on prend SA date réelle plutôt que le jour du modèle.
       const startDay = new Date((t.date ?? '').slice(0, 10) + 'T00:00:00').getDate() || 1;
-      const monthDate = `${y}-${String(mo).padStart(2, '0')}-${String(Math.min(startDay, daysInMonth)).padStart(2, '0')}`;
+      const monthDate = materializedThisMonth.get(t.id)?.lastDate
+        ?? `${y}-${String(mo).padStart(2, '0')}-${String(Math.min(startDay, daysInMonth)).padStart(2, '0')}`;
       recurrentesApplicable.push({ ...t, _monthTotal: r.total, _monthPassed: r.passed, _monthDate: monthDate });
     }
 
@@ -751,7 +747,10 @@ export default function PilotageScreen() {
               }
               // Message PÉDAGOGIQUE : imprimer ce qu'EST le Relyka (le reste estimé à la fin du
               // mois, une fois les dépenses habituelles couvertes → utilisable via les recos).
-              relykaMessage={
+              // Le point bas (et le fait qu'un revenu soit deviné) est AJOUTÉ au message : c'est ce
+              // qui explique un Relyka bas alors que « tout va bien », et sa remontée le lendemain
+              // de la paie. Sans cette phrase, le chiffre paraît arbitraire.
+              relykaMessage={[
                 relykaAffiche < 0
                   ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
                   : relykaAffiche <= 0
@@ -764,8 +763,12 @@ export default function PilotageScreen() {
                       : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.')
                   : relConf?.relykaRange.isRange
                   ? 'Voici ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
-                  : 'Voici ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.'
-              }
+                  : 'Voici ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.',
+                troughExplain,
+                incomeIsGuessed
+                  ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
+                  : '',
+              ].filter(Boolean).join(' ')}
               recommendations={recoList}
               doneByType={{
                 save: Math.round(pilotageData?.month_savings_total ?? 0),
@@ -857,9 +860,11 @@ export default function PilotageScreen() {
               // fil du mois ; le dépensé ne peut pas dépasser le total attendu).
               const recurTotal = suiviDetail.recurringTotal ?? 0;
               const recurSpent = Math.min(recurTotal, suiviDetail.recurringPassed ?? 0);
-              // Variables : tout le dépensé NON récurrent (= total dépensé − récurrentes passées). Monte de 0
-              // jusqu'à l'estimé et peut le DÉPASSER (curseur plafonné à 100 %). Invariant : récur. + var. = total.
-              const varSpent = Math.max(0, depPast - recurSpent);
+              // Variables = tout le dépensé NON récurrent, calculé PAR LE MOTEUR (source unique :
+              // `variable_envelope_spent`, la même valeur qui sert à estimer l'enveloppe et à
+              // calculer le Relyka). Le recalculer ici par soustraction donnait un 3ᵉ chiffre.
+              // Monte de 0 jusqu'à l'estimé et peut le DÉPASSER (curseur plafonné à 100 %).
+              const varSpent = pilotageData.variable_envelope_spent ?? Math.max(0, depPast - recurSpent);
 
               const rest = resteDisponible;
 
@@ -903,7 +908,10 @@ export default function PilotageScreen() {
                           <View style={styles.incomeInline}>
                             <Ionicons name="time" size={13} color={COLORS.text} />
                             <Text style={{ color: COLORS.text, flexShrink: 1 }} numberOfLines={2}>
-                              <Text style={styles.accentPillText}>Prochaine recette </Text>
+                              {/* C'est le TOTAL des recettes restantes du mois, pas seulement la
+                                  prochaine : le libellé au singulier était faux dès qu'un
+                                  utilisateur avait deux sources de revenus. */}
+                              <Text style={styles.accentPillText}>Recettes à venir </Text>
                               <Text style={styles.accentPillStrong}>+{fmt(pilotageData.month_income_remaining)}</Text>
                             </Text>
                           </View>
@@ -1209,7 +1217,9 @@ export default function PilotageScreen() {
               const toRef = (t: any) => toRefAmt(ovrMap[t.id] != null ? ovrMap[t.id] : Math.abs(Number(t.amount)), t.account_id);
               // Dépensé récurrent / variable du mois (mêmes valeurs que les curseurs « dont … »).
               const recurSpentMonth = Math.min(suiviDetail.recurringTotal ?? 0, suiviDetail.recurringPassed ?? 0);
-              const varSpentMonth = Math.max(0, (pilotageData.month_expenses_past ?? 0) - recurSpentMonth);
+              // Même source unique que le curseur « dont variables » (cf. `varSpent`).
+              const varSpentMonth = pilotageData.variable_envelope_spent
+                ?? Math.max(0, (pilotageData.month_expenses_past ?? 0) - recurSpentMonth);
               const dts = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
               const lbl = (t: any) => t.note || t.category?.name || 'Opération';
               const titles: Record<string, string> = {
@@ -1505,16 +1515,24 @@ export default function PilotageScreen() {
                       const pointBas = pilotageData.cashflow_trough ?? pilotageData.current_checking_balance ?? 0;
                       return (
                         <View>
-                          {/* Point bas (trajectoire) + note */}
+                          {/* Point bas (trajectoire) + DATE + note */}
                           <View style={styles.detailRow}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
-                              <Text style={styles.detailRowLabel}>Point bas de trésorerie</Text>
+                              <Text style={styles.detailRowLabel}>
+                                Point bas de trésorerie
+                                {troughDate ? <Text style={styles.detailRowSub}>{`  · ${shortDay(troughDate)}`}</Text> : null}
+                              </Text>
                               <TouchableOpacity onPress={() => setShowTroughInfo(true)} hitSlop={8}>
                                 <Ionicons name="information-circle-outline" size={16} color={COLORS.emerald} />
                               </TouchableOpacity>
                             </View>
                             <Text style={[styles.detailRowValue, { color: COLORS.text }]}>{fmt(pointBas)}</Text>
                           </View>
+                          {/* Ce que ce point bas VEUT DIRE : jusqu'à quand le Relyka est contraint,
+                              et ce qui le fera remonter. C'est la phrase qui évite le « c'est faux ». */}
+                          {!!troughExplain && (
+                            <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 2, lineHeight: 17 }]}>{troughExplain}</Text>
+                          )}
                           {/* Déjà compris dans le point bas (info, non redéduit) */}
                           <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 2, marginBottom: 2 }]}>Déjà compris dans le point bas :</Text>
                           {infos.map((r) => (
@@ -1535,6 +1553,13 @@ export default function PilotageScreen() {
                             <Text style={[styles.detailRowLabel, { flex: 1, fontWeight: '800' }]}>Ton Relyka</Text>
                             <Text style={[styles.detailRowValue, { color: semanticText(COLORS.emerald, COLORS), fontWeight: '800' }]}>{fmt(resteDisponible)}</Text>
                           </View>
+                          {/* La carte affiche la dizaine INFÉRIEURE : sans cette ligne, le détail
+                              (19 €) semblait contredire le chiffre mis en avant (10 €). */}
+                          {relykaAffiche !== Math.round(resteDisponible) && (
+                            <Text style={[styles.detailRowSub, { paddingLeft: 4, marginTop: 4 }]}>
+                              {`Arrondi à ${fmt(relykaAffiche)} sur le tableau de bord (dizaine inférieure).`}
+                            </Text>
+                          )}
                         </View>
                       );
                     })()}
@@ -1627,8 +1652,11 @@ export default function PilotageScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.troughInfoText}>
-              C'est le solde le plus bas qu'atteindront tes comptes courants d'ici ta prochaine rentrée d'argent, en simulant tes revenus et dépenses à venir dans l'ordre des dates.{'\n\n'}
-              On se base dessus plutôt que sur ton solde actuel pour ne jamais te laisser dépenser de l'argent que tu n'as pas encore reçu : ton budget libre reste fiable même si une grosse dépense tombe avant ta prochaine paie.
+              C'est le solde le plus bas qu'atteindront tes comptes courants d'ici ta prochaine rentrée d'argent, en simulant tes revenus et tes dépenses à venir jour après jour.
+              {troughDate ? ` D'après tes opérations, ce sera le ${shortDay(troughDate)}.` : ''}{'\n\n'}
+              C'est une info à une DATE, pas un jugement sur ton mois : si tu es payé le 25, ton point bas du 24 est normalement bas — et ton Relyka avec lui. Il ne dit qu'une chose : voilà ce que tu peux dépenser d'ici là.
+              {nextIncomeDate && nextIncomeAmount > 0 ? ` Ta rentrée d'argent du ${shortDay(nextIncomeDate)} (+${eur(nextIncomeAmount)}) le fera remonter.` : ''}{'\n\n'}
+              On se base dessus plutôt que sur ton solde actuel pour ne jamais te laisser dépenser de l'argent que tu n'as pas encore reçu.
             </Text>
           </Pressable>
         </Pressable>

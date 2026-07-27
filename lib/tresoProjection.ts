@@ -48,6 +48,20 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
   const currentMonth = now.getMonth() + 1;
   const todayStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
+  // Jour d'occurrence d'une récurrente DANS un mois donné, borné à la longueur du mois (une
+  // récurrente du 31 tombe le 28/29 en février) — l'ancien `new Date(t.date).getDate()` brut
+  // renvoyait 31 et faisait passer l'échéance pour « à venir » tout le mois.
+  const occDayInMonth = (t: any, year: number, month: number): number => {
+    const start = new Date(String(t.date ?? '').slice(0, 10) + 'T00:00:00');
+    const dim = new Date(year, month, 0).getDate();
+    return Math.min(start.getDate() || 1, dim);
+  };
+  // Une occurrence datée AUJOURD'HUI est PASSÉE (le solde du compte l'inclut déjà : le recalcul
+  // serveur somme les transactions de date ≤ aujourd'hui). Le Pilotage applique la même règle
+  // (`recurrencePastInMonth` : `occ <= todayStr`) — sans ça, les deux écrans divergeaient du
+  // montant de l'échéance pendant toute la journée du prélèvement.
+  const isOccPast = (t: any, year: number, month: number) => occDayInMonth(t, year, month) <= now.getDate();
+
   const checkingIds = new Set(accounts.filter((a: any) => a.type === 'checking').map((a: any) => a.id));
   const accountTypeById: Record<string, string> = {};
   accounts.forEach((a: any) => { accountTypeById[a.id] = a.type; });
@@ -91,10 +105,7 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
       if (t.is_recurring && t.recurrence_rule) {
         const occ = recurrenceAmount(t, year, month);
         if (!occ) continue;
-        if (onlyRemaining) {
-          const recDay = new Date(t.date).getDate();
-          if (!t.is_draft && recDay < now.getDate()) continue;
-        }
+        if (onlyRemaining && !t.is_draft && isOccPast(t, year, month)) continue;
         total += occ; // signé
       } else if (t.date.startsWith(prefix)) {
         if (onlyRemaining) {
@@ -171,10 +182,10 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
         if (!usable(t)) continue;
         const amt = Number(t.amount);
         if (t.is_recurring && t.recurrence_rule) {
+          // Récurrence encore à venir = son jour d'occurrence n'est pas encore échu (aujourd'hui
+          // compte comme PASSÉ, cf. `isOccPast` — même règle que le Pilotage et que le solde serveur).
           const occ = recurrenceAmount(t, year, month);
-          // approximation : récurrence comptée si son jour n'est pas encore passé
-          const recDay = new Date(t.date).getDate();
-          if (occ !== 0 && recDay >= now.getDate()) upcoming += occ;
+          if (occ !== 0 && !isOccPast(t, year, month)) upcoming += occ;
         } else if (t.date.startsWith(prefix) && t.date > todayStr) {
           if (!(amt > 0 && isRegul(t))) upcoming += amt;
         }
