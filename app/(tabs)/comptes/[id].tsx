@@ -125,6 +125,14 @@ export default function AccountDetailScreen() {
 
   const [selectedTx, setSelectedTx] = useState<TransactionWithDetails | null>(null);
 
+  // Historique paginé : on n'affiche que les N derniers mois, « Charger plus » en ajoute 3.
+  // La liste n'est pas virtualisée et chaque ligne cherche sa jambe symétrique de virement dans
+  // TOUTES les transactions (O(n²)) : sur un compte ancien, tout afficher d'un coup faisait ramer
+  // l'écran à l'ouverture. Remis à 3 dès qu'on change de compte.
+  const MONTHS_STEP = 3;
+  const [monthsShown, setMonthsShown] = useState(MONTHS_STEP);
+  useEffect(() => { setMonthsShown(MONTHS_STEP); }, [id]);
+
   // Deeplink « Vérifie ton solde » (bandeau prochain geste) : ?verify=1 ouvre directement le modal
   // Nouveau Solde — le user n'a plus qu'à saisir le montant (~10 s réels).
   useEffect(() => {
@@ -381,6 +389,21 @@ export default function AccountDetailScreen() {
       .sort(compareTransactionsForDisplay);
   }, [id, transactions]);
 
+  // Fenêtre affichée : les `monthsShown` derniers MOIS CALENDAIRES (mois courant inclus).
+  // On borne par mois plutôt que par nombre de lignes pour que « charger plus » ait un sens lisible
+  // (« depuis avril 2026 ») quel que soit le rythme de saisie de l'utilisateur.
+  const { visibleTransactions, hasMoreHistory, historySince } = useMemo(() => {
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth() - (monthsShown - 1), 1);
+    const cutoff = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-01`;
+    const visible = accountTransactions.filter((t) => (t.date ?? '') >= cutoff);
+    return {
+      visibleTransactions: visible,
+      hasMoreHistory: visible.length < accountTransactions.length,
+      historySince: from.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+    };
+  }, [accountTransactions, monthsShown]);
+
   if (!user || !account) {
     return (
       <View style={styles.root}>
@@ -563,7 +586,7 @@ export default function AccountDetailScreen() {
           </View>
         ) : (
           <View style={styles.listCard}>
-            {accountTransactions.map((t, idx) => {
+            {visibleTransactions.map((t, idx) => {
               const amount = Number(t.amount);
               const isTransfer = t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transactions as TransactionWithDetails[], id));
               const pair = isTransfer
@@ -588,7 +611,7 @@ export default function AccountDetailScreen() {
               return (
                 <TouchableOpacity
                   key={`${t.id}-${idx}`}
-                  style={[styles.transferRow, idx === accountTransactions.length - 1 && styles.transferRowLast]}
+                  style={[styles.transferRow, idx === visibleTransactions.length - 1 && styles.transferRowLast]}
                   onPress={() => setSelectedTx(t)}
                   activeOpacity={0.7}
                 >
@@ -616,6 +639,27 @@ export default function AccountDetailScreen() {
                 </TouchableOpacity>
               );
             })}
+          </View>
+        )}
+
+        {/* Pagination de l'historique — la période affichée est nommée, pour que l'utilisateur
+            sache qu'il ne manque rien : c'est masqué, pas absent. */}
+        {!txLoading && accountTransactions.length > 0 && (
+          <View style={styles.historyFooter}>
+            <Text style={styles.historyRange}>
+              {`${visibleTransactions.length} opération${visibleTransactions.length > 1 ? 's' : ''} depuis ${historySince}`}
+            </Text>
+            {hasMoreHistory && (
+              <TouchableOpacity
+                style={styles.loadMoreBtn}
+                onPress={() => setMonthsShown((m) => m + MONTHS_STEP)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
+                <Ionicons name="chevron-down" size={16} color={COLORS.emerald} />
+                <Text style={styles.loadMoreText}>Charger 3 mois de plus</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -1329,6 +1373,16 @@ function makeStyles(c: any) {
   transferAmountIn: { color: c.green },
   transferAmountOut: { color: c.text },
   hint: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
+  // Pied de l'historique : période affichée + « Charger 3 mois de plus ».
+  historyFooter: { alignItems: 'center', gap: 10, marginTop: -4, marginBottom: 16 },
+  historyRange: { fontSize: 12, color: c.textSecondary, textAlign: 'center' },
+  loadMoreBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 10, paddingHorizontal: 18,
+    borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+  },
+  loadMoreText: { fontSize: 14, fontWeight: '600', color: c.emerald },
   text: { color: c.text },
 });
 }
