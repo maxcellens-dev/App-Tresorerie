@@ -12,6 +12,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { currencySymbolFor } from '../../../lib/currency';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 import { headerProfileRect } from '../../../lib/tourTargets';
@@ -63,6 +65,7 @@ function SettingsScreen() {
 
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne de réglages centrée
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled, pages: calculatorPages, setPages: setCalculatorPages } = useCalculator();
   const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
   const { position: quickAddPos, setPosition: setQuickAddPos } = useQuickAddPref(user?.id);
@@ -227,7 +230,7 @@ function SettingsScreen() {
     <View style={styles.root}>
       <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
 
         <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -435,22 +438,25 @@ function SettingsScreen() {
             )}
             {SHOW_QUICK_ADD_SETTING && featureFlags?.quick_add_enabled !== false && (() => {
               const bubbleMode = (featureFlags?.quick_add_mode ?? 'tabbar') === 'bubble';
+              // Plus d'option « Masquer » : le bouton + porte désormais la mise à jour du solde,
+              // le seul geste qui VÉRIFIE les données. Le masquer privait l'utilisateur de
+              // l'action la plus utile de l'app, sans autre chemin mis en avant. Seule la
+              // POSITION reste réglable (et rien en mode bulle, où elle est imposée).
               const opts = bubbleMode
-                ? ([['right', 'Afficher'], ['hidden', 'Masquer']] as const)
-                : ([['right', 'Droite'], ['left', 'Gauche'], ['hidden', 'Masqué']] as const);
+                ? ([] as const)
+                : ([['right', 'Droite'], ['left', 'Gauche']] as const);
+              if (opts.length === 0) return null;
               return (
                 <>
                   <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
                   <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 8, borderBottomWidth: 0 }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                       <Ionicons name="add-circle-outline" size={20} color={COLORS.textSecondary} />
-                      <Text style={styles.rowLabel}>Bouton de saisie rapide</Text>
+                      <Text style={styles.rowLabel}>Position du bouton de saisie rapide</Text>
                     </View>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       {opts.map(([val, lbl]) => {
-                        const active = bubbleMode
-                          ? (val === 'hidden' ? quickAddPos === 'hidden' : quickAddPos !== 'hidden')
-                          : quickAddPos === val;
+                        const active = quickAddPos === val;
                         return (
                           <TouchableOpacity
                             key={val}

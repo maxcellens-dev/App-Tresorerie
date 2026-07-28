@@ -11,6 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { usePlan, useSetPremium } from '../../../hooks/usePlan';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useGamificationConfig } from '../../../hooks/useGamificationConfig';
@@ -31,6 +33,7 @@ const PLAN_PRICES = { monthly: '1,99 €', annual: '19,99 €' } as const;
 export default function PremiumScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -98,7 +101,7 @@ export default function PremiumScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>

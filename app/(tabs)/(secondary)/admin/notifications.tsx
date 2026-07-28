@@ -17,6 +17,8 @@ import { supabase } from '../../../../lib/supabase';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { sendPushToTarget, type NotifTarget } from '../../../../lib/pushSend';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
@@ -166,6 +168,7 @@ const EMPTY_FORM = {
 export default function AdminNotifications() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -390,7 +393,7 @@ export default function AdminNotifications() {
     return (
       <View style={styles.root}>
         <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
           <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
         </SafeAreaView>
       </View>
@@ -402,7 +405,7 @@ export default function AdminNotifications() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>

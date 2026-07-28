@@ -204,7 +204,7 @@ function mapPwError(code?: string): string {
   }
 }
 
-/** Purge les erreurs antérieures à N jours (défaut 30) — RPC admin. */
+/** Purge les erreurs antérieures à N jours — RPC admin. `0` = TOUT (borne = maintenant). */
 export function usePurgeClientErrors() {
   const qc = useQueryClient();
   return useMutation<number, Error, number>({
@@ -214,6 +214,27 @@ export function usePurgeClientErrors() {
       const { data, error } = await supabase.rpc('client_errors_purge', { p_before: before });
       if (error) throw new Error(error.message);
       return Number(data ?? 0);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['client_errors'] });
+      qc.invalidateQueries({ queryKey: ['unread_badges'] });
+    },
+  });
+}
+
+/** Marque TOUTES les erreurs ouvertes comme résolues (vide la pastille d'un coup).
+ *  Les résoudre une par une était le seul moyen après une vague de crashs déjà corrigés. */
+export function useResolveAllClientErrors() {
+  const qc = useQueryClient();
+  return useMutation<number, Error, void>({
+    mutationFn: async (): Promise<number> => {
+      if (!supabase) throw new Error('Backend indisponible');
+      // `select('id')` : on renvoie le nombre réellement basculé, pas une estimation d'après la
+      // liste affichée (elle est plafonnée à 200 lignes).
+      const { data, error } = await supabase
+        .from('client_errors').update({ resolved: true }).eq('resolved', false).select('id');
+      if (error) throw new Error(error.message);
+      return (data ?? []).length;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['client_errors'] });

@@ -194,7 +194,14 @@ export default function NextActionBanner() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    wrap: { position: 'absolute', left: 12, right: 12, zIndex: 50, elevation: 50 },
+    // WEB : le bandeau est monté à la RACINE, donc hors de toute colonne d'app. Sur un écran
+    // d'ordinateur, `left/right: 12` l'étirait sur toute la fenêtre (un bandeau de 1900 px de large
+    // avec 40 caractères dedans). On le plafonne et on le recentre — sur mobile, l'écran est plus
+    // étroit que 620 px, donc le rendu est strictement identique.
+    wrap: {
+      position: 'absolute', left: 12, right: 12, zIndex: 50, elevation: 50,
+      ...(Platform.OS === 'web' ? { maxWidth: 620, alignSelf: 'center', marginHorizontal: 'auto' as any } : {}),
+    },
     banner: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       backgroundColor: c.cardSolid ?? c.card, borderWidth: 1.5, borderRadius: 18,

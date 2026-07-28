@@ -4,7 +4,6 @@
 
 export type AccountType = 'checking' | 'savings' | 'investment' | 'other';
 export type ProjectStatus = 'active' | 'completed' | 'on_hold' | 'archived';
-export type ObjectiveStatus = 'active' | 'completed' | 'paused';
 
 export type FinancialProfile = 'economiser' | 'suivi' | 'optimiser' | 'investir';
 
@@ -394,20 +393,3 @@ export interface Project {
   updated_at: string;
 }
 
-export interface Objective {
-  id: string;
-  profile_id: string;
-  name: string;
-  description?: string | null;
-  target_yearly_amount: number;
-  category?: 'Objectif annuel' | 'Investissement' | 'Autre' | null;
-  current_year_invested?: number | null;
-  linked_account_id?: string | null;
-  status: ObjectiveStatus;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ObjectiveWithAccount extends Objective {
-  linked_account?: { name: string; type: string };
-}

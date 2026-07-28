@@ -21,6 +21,8 @@ import type { TierAllocations } from '../../../hooks/useRecommendationTiers';
 import { useRecoThresholds, useUpdateRecoThresholds, useUpdateRecoConsumption } from '../../../hooks/useRecoThresholds';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 
 
@@ -33,7 +35,7 @@ const RECO_ICONS: Record<RecoType, string> = {
 
 const RECO_DESC: Record<RecoType, string> = {
   save: 'Transférer vers l\'épargne de sécurité.',
-  invest: 'Alimenter un objectif d\'investissement.',
+  invest: 'Alimenter un compte d\'investissement.',
   enjoy: 'Marge de confort : ce qu\'il reste en plus une fois les dépenses variables habituelles couvertes. Grignotée en premier en cas de dépassement.',
   keep: 'Conserver sur le compte courant.',
 };
@@ -76,6 +78,7 @@ const MODIFIERS = [
 export default function RecommendationsAdmin() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { data: dbTiers, isLoading } = useRecommendationTiers();
@@ -214,7 +217,7 @@ export default function RecommendationsAdmin() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={goBack}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />

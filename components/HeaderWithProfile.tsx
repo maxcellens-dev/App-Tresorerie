@@ -72,6 +72,9 @@ interface HeaderWithProfileProps {
   /** Ajoute l'inset système du haut (barre de statut) — pour l'en-tête de navigation
    *  qui n'est PAS déjà enveloppé dans un SafeAreaView. */
   applyTopInset?: boolean;
+  /** Web bureau : barre supérieure de site (plus haute, gouttières larges, titre affirmé,
+   *  filet de séparation). Sans effet sur mobile/tablette. */
+  desktop?: boolean;
 }
 
 /** Blende une couleur d'accent (#RRGGBB) à 30 % sur le fond — couleur opaque, aucun problème d'alpha sur web. */
@@ -87,7 +90,7 @@ function blendAccent(bg: string, accent: string, opacity = 0.30): string {
   } catch { return bg; }
 }
 
-export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge, applyTopInset = false }: HeaderWithProfileProps) {
+export default function HeaderWithProfile({ title, leftContent, height = 56, showBack = false, onBack, hideProfile = false, titleBadge, applyTopInset = false, desktop = false }: HeaderWithProfileProps) {
   const COLORS = useAppColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -128,14 +131,15 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
 
   // Déterminer le contenu à afficher à gauche
   const shouldShowTitle = title && title.trim() !== '';
+  const titleStyle = desktop ? [styles.title, styles.titleDesktop] : styles.title;
   const leftContentToRender = leftContent || (shouldShowTitle ? (
     titleBadge ? (
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        <Text style={titleStyle} numberOfLines={1}>{title}</Text>
         {titleBadge}
       </View>
     ) : (
-      <Text style={styles.title} numberOfLines={1}>{title}</Text>
+      <Text style={titleStyle} numberOfLines={1}>{title}</Text>
     )
   ) : (
     <View style={styles.greetingWrap}>
@@ -158,7 +162,12 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   })();
 
   return (
-    <View style={[styles.bar, { height: applyTopInset ? height + insets.top : height, backgroundColor: headerBg }, applyTopInset && { paddingTop: insets.top + 10 }]}>
+    <View style={[
+      styles.bar,
+      { height: applyTopInset ? height + insets.top : height, backgroundColor: headerBg },
+      applyTopInset && { paddingTop: insets.top + 10 },
+      desktop && styles.barDesktop,
+    ]}>
       <View style={styles.left}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} onPress={() => (onBack ? onBack() : router.back())} accessibilityRole="button">
@@ -223,10 +232,18 @@ function makeStyles(c: any) {
     // Entête transparente : le fond global (ScreenGradient au niveau racine) passe derrière.
     backgroundColor: 'transparent',
   },
+  // Web bureau : barre supérieure de site — gouttières larges, filet de séparation net.
+  barDesktop: {
+    paddingHorizontal: 32,
+    paddingTop: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: c.cardBorder,
+  },
   left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { flexDirection: 'row', alignItems: 'center', padding: 6, marginRight: 6 },
   backText: { color: c.text, marginLeft: 4, fontSize: 14, fontWeight: '600' },
   title: { fontSize: 18, fontWeight: '700', color: c.text, letterSpacing: -0.3 },
+  titleDesktop: { fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
   greetingWrap: { justifyContent: 'center' },
   greeting: { fontSize: 14, color: c.textSecondary, fontWeight: '400' },
   greetingName: { fontSize: 20, color: c.text, fontWeight: '700', marginTop: 1, letterSpacing: -0.4 },

@@ -1,197 +1,124 @@
-﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
+/**
+ * PROFIL FINANCIER — ce qui décide de la RÉPARTITION de ton Relyka (jamais des montants).
+ *
+ * L'écran ne présente plus un questionnaire de neuf questions : la plupart des réponses sont
+ * désormais MESURÉES sur les données réelles (matelas de sécurité = épargne ÷ revenu, revenu de
+ * référence = recettes constatées). Seules restent modifiables les rares choses que l'app ne peut
+ * pas deviner : ton comportement de fin de mois, ta capacité d'épargne, ta marge de sécurité et
+ * ton enveloppe de dépenses variables.
+ *
+ * Le profil n'est plus figé : il se recalcule dès que les données bougent (useLiveProfileSync),
+ * puis le bilan mensuel prend le relais.
+ */
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, TextInput,
+  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import ScreenHeader from '../../../components/ScreenHeader';
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import { LinearGradient } from 'expo-linear-gradient';
+import InfoDot from '../../../components/InfoDot';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   useFinancialProfile,
   useQuestionnaireAnswers,
   useSaveQuestionnaire,
 } from '../../../hooks/useFinancialProfile';
+import { usePilotageData } from '../../../hooks/usePilotageData';
+import { useProgressiveProfile } from '../../../hooks/useProgressiveProfile';
 import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
-  Q1_OPTIONS, Q2_OPTIONS, Q3_OPTIONS, Q4_OPTIONS,
-  Q5_OPTIONS, Q6_OPTIONS, Q7_OPTIONS,
-  computeInitialProfile, detectIrregularIncome, safetyMarginFromQ8,
+  Q1_OPTIONS, Q2_OPTIONS, Q4_OPTIONS, Q6_OPTIONS,
+  weeklyVariableFromQ9, safetyMarginFromQ8, WEEKS_PER_MONTH,
 } from '../../../lib/financialProfileEngine';
+import { computeSecurityCushion, securityMonthsLabel } from '../../../lib/securityCushion';
 import type { QuestionnaireAnswers } from '../../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCurrencySymbol } from '../../../hooks/useCurrency';
 
+/* ── Rythme de revenus : une question à 3 choix qui porte q1 + q2 ─────────────── */
 
-const QUESTIONS = [
-  { key: 'q1' as const, label: 'Quel type de revenu possèdes-tu ?', options: Q1_OPTIONS },
-  { key: 'q2' as const, label: 'À quelle fréquence tes revenus principaux sont-ils versés ?', options: Q2_OPTIONS },
-  { key: 'q3' as const, label: 'Quel est le montant moyen de tes revenus nets par mois ?', options: Q3_OPTIONS },
-  { key: 'q9' as const, label: 'Dépenses variables hebdomadaires (courses, loisirs, imprévus)', options: [] as readonly string[] },
-  { key: 'q4' as const, label: 'Une fois toutes tes dépenses (fixes et variables) passées, que reste-t-il ?', options: Q4_OPTIONS },
-  { key: 'q5' as const, label: 'Si tes revenus s\'arrêtaient demain, combien de temps pourrais-tu maintenir ton niveau de vie grâce à ton épargne disponible ?', options: Q5_OPTIONS },
-  { key: 'q6' as const, label: 'Quel pourcentage approximatif de tes revenus mets-tu de côté chaque mois ?', options: Q6_OPTIONS },
-  { key: 'q7' as const, label: 'Quel est ton objectif prioritaire avec cette application ?', options: Q7_OPTIONS },
-  { key: 'q8' as const, label: 'Montant minimum conservé sur tes comptes courants (€)', options: [] as readonly string[] },
-];
+type Rhythm = 'fixe' | 'variable' | 'mixte';
 
-function OptionList({
-  options,
-  selected,
-  onSelect,
-  multiSelect = false,
-}: {
-  options: readonly string[];
-  selected: string;
-  onSelect: (v: string) => void;
-  multiSelect?: boolean;
-}) {
-  const COLORS = useAppColors();
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const selectedValues = multiSelect ? selected.split('|').filter(Boolean) : [];
-  return (
-    <View style={styles.optionList}>
-      {multiSelect && (
-        <View style={styles.multiHint}>
-          <Ionicons name="checkbox-outline" size={13} color="#60a5fa" />
-          <Text style={styles.multiHintText}>Plusieurs choix possibles</Text>
-        </View>
-      )}
-      {options.map((opt) => {
-        const active = multiSelect ? selectedValues.includes(opt) : selected === opt;
-        return (
-          <TouchableOpacity
-            key={opt}
-            style={[styles.optionBtn, active && styles.optionBtnActive]}
-            onPress={() => {
-              if (multiSelect) {
-                const next = selectedValues.includes(opt)
-                  ? selectedValues.filter((v) => v !== opt)
-                  : [...selectedValues, opt];
-                onSelect(next.join('|'));
-              } else {
-                onSelect(opt);
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            {multiSelect ? (
-              <View style={[styles.checkbox, active && styles.checkboxActive]}>
-                {active && <Ionicons name="checkmark" size={11} color="#000" />}
-              </View>
-            ) : (
-              <View style={[styles.radio, active && styles.radioActive]}>
-                {active && <View style={styles.radioDot} />}
-              </View>
-            )}
-            <Text style={[styles.optionText, active && styles.optionTextActive]}>{opt}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
+const RHYTHM_TO_ANSWERS: Record<Rhythm, { q1: string; q2: string }> = {
+  fixe:     { q1: Q1_OPTIONS[0], q2: Q2_OPTIONS[0] },
+  variable: { q1: Q1_OPTIONS[1], q2: Q2_OPTIONS[3] },
+  mixte:    { q1: `${Q1_OPTIONS[0]}|${Q1_OPTIONS[1]}`, q2: Q2_OPTIONS[1] },
+};
+
+const RHYTHM_LABEL: Record<Rhythm, string> = {
+  fixe: 'Le même montant chaque mois',
+  variable: 'Ça change d’un mois à l’autre',
+  mixte: 'Un fixe + des compléments',
+};
+
+/** Déduit le rythme depuis les réponses stockées (les comptes existants ont les 6 valeurs de q1). */
+function rhythmFromAnswers(q1?: string | null, q2?: string | null): Rhythm {
+  const parts = (q1 ?? '').split('|').filter(Boolean);
+  if (parts.length > 1) return 'mixte';
+  if (q2 === Q2_OPTIONS[3] || q2 === Q2_OPTIONS[2] || parts[0] === Q1_OPTIONS[1]) return 'variable';
+  return 'fixe';
 }
 
+/** Libellés courts des réponses de comportement (les valeurs stockées sont trop longues à lire). */
+const Q4_SHORT: Record<string, string> = {
+  [Q4_OPTIONS[0]]: 'Le plus souvent rien',
+  [Q4_OPTIONS[1]]: 'De quoi vivre, sans épargner',
+  [Q4_OPTIONS[2]]: 'Une somme mise de côté',
+  [Q4_OPTIONS[3]]: 'J’épargne et j’investis',
+  [Q4_OPTIONS[4]]: 'J’investis en priorité',
+};
+
+const Q6_SHORT: Record<string, string> = {
+  [Q6_OPTIONS[0]]: 'Rien pour l’instant',
+  [Q6_OPTIONS[1]]: 'Moins de 10 %',
+  [Q6_OPTIONS[2]]: 'Entre 10 et 20 %',
+  [Q6_OPTIONS[3]]: 'Entre 20 et 30 %',
+  [Q6_OPTIONS[4]]: 'Plus de 30 %',
+  [Q6_OPTIONS[5]]: 'Plus besoin d’augmenter',
+  [Q6_OPTIONS[6]]: 'Je ne sais pas',
+};
+
 export default withDeferredMount(ProfilFinancierScreen);
+
 function ProfilFinancierScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
-  const currencySymbol = useCurrencySymbol();
+  const symbol = useCurrencySymbol();
   const goBack = useNavBack();
   const { user } = useAuth();
+
   const { data: fp, isLoading: fpLoading } = useFinancialProfile(user?.id);
-  const { data: savedAnswers, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
+  const { data: saved, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
+  const { data: pilotage } = usePilotageData(user?.id);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
+  const progressive = useProgressiveProfile();
 
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [answers, setAnswers] = useState<QuestionnaireAnswers>({
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '',
-  });
+  /** Panneau d'édition ouvert (une seule ligne à la fois). */
+  const [editing, setEditing] = useState<null | 'rhythm' | 'q4' | 'q6' | 'q8' | 'q9'>(null);
+  const [amountDraft, setAmountDraft] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  function startEditing() {
-    if (savedAnswers) {
-      setAnswers({
-        q1: savedAnswers.q1 ?? '',
-        // q8/q9 may not exist yet in older records
-        q8: (savedAnswers as any).q8 ?? '',
-        q9: (savedAnswers as any).q9 ?? '',
-        q2: savedAnswers.q2 ?? '',
-        q3: savedAnswers.q3 ?? '',
-        q4: savedAnswers.q4 ?? '',
-        q5: savedAnswers.q5 ?? '',
-        q6: savedAnswers.q6 ?? '',
-        q7: savedAnswers.q7 ?? '',
-      });
-    }
-    setEditing(true);
-  }
-
-  // Arrivée depuis un renvoi « complète ton profil » (ex. dépenses variables non renseignées dans
-  // Pilotage) : on ouvre directement le mode édition pour que l'utilisateur mette à jour ses réponses.
+  // Renvoi « complète ton profil » (ex. enveloppe variable manquante depuis le Pilotage).
   const params = useLocalSearchParams<{ edit?: string }>();
-  const autoEditDone = useRef(false);
+  const autoOpened = useRef(false);
   useEffect(() => {
-    if (params.edit && savedAnswers && !editing && !autoEditDone.current) {
-      autoEditDone.current = true;
-      startEditing();
+    if (params.edit && saved && !autoOpened.current) {
+      autoOpened.current = true;
+      setEditing(params.edit === 'q9' ? 'q9' : 'q4');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.edit, savedAnswers]);
-
-  async function handleSave() {
-    const qLabels: Record<keyof QuestionnaireAnswers, string> = {
-      q1: 'Q1 — Type de revenu',
-      q2: 'Q2 — Fréquence de versement',
-      q3: 'Q3 — Revenus nets',
-      q4: 'Q4 — Reste à vivre',
-      q5: 'Q5 — Réserve de sécurité',
-      q6: 'Q6 — Taux d\'épargne',
-      q7: 'Q7 — Objectif prioritaire',
-      q8: 'Q8 — Marge de sécurité',
-      q9: 'Q9 — Dépenses variables hebdo',
-    };
-    // Q8 et Q9 sont optionnels (vide = 0), on les exclut de la vérification
-    const missing = (Object.keys(qLabels) as (keyof QuestionnaireAnswers)[])
-      .filter(k => k !== 'q8' && k !== 'q9' && !answers[k])
-      .map(k => qLabels[k]);
-
-    if (missing.length > 0) {
-      Alert.alert(
-        'Réponses manquantes',
-        `Réponds à :\n• ${missing.join('\n• ')}`,
-      );
-      return;
-    }
-
-    try {
-      await saveQuestionnaire.mutateAsync({ answers, isUpdate: true });
-    } catch (e: unknown) {
-      const msg =
-        (e as any)?.message ??
-        (e as any)?.details ??
-        (e as any)?.hint ??
-        'Erreur inconnue. Vérifie ta connexion.';
-      Alert.alert('Erreur lors de l\'enregistrement', String(msg));
-      return;
-    }
-
-    // Forcer le rafraîchissement du cache puis quitter le mode édition
-    await queryClient.invalidateQueries({ queryKey: ['financial_profile', user?.id] });
-    await queryClient.invalidateQueries({ queryKey: ['questionnaire_answers', user?.id] });
-    await queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
-    setEditing(false);
-  }
+  }, [params.edit, saved]);
 
   if (fpLoading || answersLoading) {
     return (
@@ -202,242 +129,303 @@ function ProfilFinancierScreen() {
   }
 
   const profileId = fp?.profile_id as FinancialProfileId | undefined;
-  const profile = profileId ? PROFILE_INFO[profileId] : null;
+  const info = profileId ? PROFILE_INFO[profileId] : null;
   const alloc = profileId ? PROFILE_ALLOCATIONS[profileId] : null;
+  const a = (saved ?? {}) as Partial<QuestionnaireAnswers>;
 
-  // Calcul de la date de déblocage auto
-  const autoUnlockDate = fp?.auto_unlock_at ? new Date(fp.auto_unlock_at) : null;
-  const isLocked = autoUnlockDate ? new Date() < autoUnlockDate : false;
-  const monthsUntilAuto = autoUnlockDate
-    ? Math.max(0, Math.ceil((autoUnlockDate.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)))
-    : 0;
+  /** Matelas MESURÉ sur les données réelles — c'est lui qui remplace l'ancienne question q5. */
+  const cushion = computeSecurityCushion({
+    availableSavings: pilotage?.current_savings ?? 0,
+    avgMonthlyIncome: pilotage?.avg_monthly_income ?? 0,
+    questionnaireQ3: a.q3 ?? null,
+  });
 
-  const isIrregular = fp?.is_irregular_income ?? false;
-  const assignedAt = fp?.assigned_at ? new Date(fp.assigned_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
-  const previewProfile = editing && answers.q5 && answers.q4 && answers.q6
-    ? computeInitialProfile(answers)
-    : null;
+  const margin = safetyMarginFromQ8(a.q8 ?? '');
+  const weekly = weeklyVariableFromQ9(a.q9 ?? '');
+  const rhythm = rhythmFromAnswers(a.q1, a.q2);
+
+  /** Enregistre une réponse et laisse le moteur recalculer le profil. */
+  async function persist(patch: Partial<QuestionnaireAnswers>, doneKeys: string[] = []) {
+    setSaving(true);
+    try {
+      const next: QuestionnaireAnswers = {
+        q1: a.q1 ?? '', q2: a.q2 ?? '', q3: a.q3 ?? '', q4: a.q4 ?? '',
+        q5: a.q5 ?? '', q6: a.q6 ?? '', q7: a.q7 ?? '', q8: a.q8 ?? '', q9: a.q9 ?? '',
+        ...patch,
+      };
+      await saveQuestionnaire.mutateAsync({ answers: next, isUpdate: true });
+      // Répondre ICI vaut réponse : la question ne sera plus posée dans le fil de l'app.
+      doneKeys.forEach((k) => progressive.answer(k as any, (next as any)[k]));
+      setEditing(null);
+    } catch (e: unknown) {
+      Alert.alert('Un souci', (e as any)?.message ?? 'Impossible d’enregistrer.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* ── Profil absent (cas résiduel : compte créé avant le socle) ── */
+  if (!profileId || !info || !alloc) {
+    return (
+      <View style={styles.root}>
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+        <ScreenGradient />
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Profil financier" onBack={goBack} />
+          <View style={styles.card}>
+            <Text style={styles.emptyTitle}>Ton profil n’est pas encore calculé</Text>
+            <Text style={styles.emptyText}>
+              C’est lui qui décide de la répartition entre Épargner, Investir, Confort et Conserver.
+              Sans lui, l’app ne peut pas te proposer de recommandations.
+            </Text>
+            <TouchableOpacity style={styles.cta} onPress={() => router.push('/onboarding' as any)} activeOpacity={0.85}>
+              <Text style={styles.ctaText}>Le calculer en 2 minutes</Text>
+              <Ionicons name="arrow-forward" size={17} color={COLORS.bg} />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  const ALLOC_ROWS = [
+    { label: 'Épargner', key: 'save' as const, color: COLORS.green ?? COLORS.emerald },
+    { label: 'Investir', key: 'invest' as const, color: COLORS.violet },
+    { label: 'Confort', key: 'enjoy' as const, color: COLORS.orange },
+    { label: 'Conserver', key: 'keep' as const, color: COLORS.blue },
+  ];
+
+  /** Ligne « fait » : une donnée mesurée, non modifiable, avec sa provenance. */
+  const measuredRow = (label: string, value: string, source: string, term?: any) => (
+    <View style={styles.row} key={label}>
+      <View style={{ flex: 1 }}>
+        <View style={styles.rowLabelLine}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          {!!term && <InfoDot term={term} size={13} />}
+        </View>
+        <Text style={styles.rowSource}>{source}</Text>
+      </View>
+      <Text style={styles.rowValue}>{value}</Text>
+    </View>
+  );
+
+  /** Ligne modifiable : ouvre son panneau de choix / de saisie. */
+  const editableRow = (
+    key: 'rhythm' | 'q4' | 'q6' | 'q8' | 'q9',
+    label: string,
+    value: string,
+    term?: any,
+  ) => (
+    <TouchableOpacity
+      key={key}
+      style={styles.row}
+      activeOpacity={0.7}
+      onPress={() => {
+        setAmountDraft(key === 'q8' ? (margin > 0 ? String(margin) : '') : key === 'q9' ? (weekly > 0 ? String(weekly) : '') : '');
+        setEditing(editing === key ? null : key);
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <View style={styles.rowLabelLine}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          {!!term && <InfoDot term={term} size={13} />}
+        </View>
+      </View>
+      <Text style={[styles.rowValue, { color: COLORS.emerald }]}>{value}</Text>
+      <Ionicons name={editing === key ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
+    </TouchableOpacity>
+  );
+
+  const choicePanel = (options: readonly string[], shortLabels: Record<string, string>, current: string | undefined, onPick: (v: string) => void) => (
+    <View style={styles.panel}>
+      {options.map((opt) => (
+        <TouchableOpacity
+          key={opt}
+          style={[styles.choice, current === opt && styles.choiceActive]}
+          onPress={() => onPick(opt)}
+          disabled={saving}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.choiceText, current === opt && { color: COLORS.text, fontWeight: '700' }]}>
+            {shortLabels[opt] ?? opt}
+          </Text>
+          {current === opt && <Ionicons name="checkmark-circle" size={17} color={COLORS.emerald} />}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const amountPanel = (unit: string, hint: string, onSave: (v: string) => void) => (
+    <View style={styles.panel}>
+      <View style={styles.amountRow}>
+        <TextInput
+          style={styles.amountInput}
+          value={amountDraft}
+          onChangeText={(v) => setAmountDraft(v.replace(/[^0-9.,]/g, ''))}
+          keyboardType="decimal-pad"
+          placeholder="0"
+          placeholderTextColor={COLORS.textSecondary}
+          autoFocus
+        />
+        <Text style={styles.amountUnit}>{unit}</Text>
+      </View>
+      <Text style={styles.panelHint}>{hint}</Text>
+      <TouchableOpacity style={styles.saveBtn} onPress={() => onSave(amountDraft)} disabled={saving} activeOpacity={0.85}>
+        <Text style={styles.saveBtnText}>{saving ? 'Un instant…' : 'Enregistrer'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
-
+      <ScreenGradient />
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Profil financier" onBack={goBack} />
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-          {/* ── Profil actuel ─────────────────────────────── */}
-          {profile && profileId && alloc && !editing && (
-            <>
-              <View style={[styles.profileHeader, { borderColor: profile.color }]}>
-                <Text style={styles.profileEmoji}>{profile.emoji}</Text>
-                <View style={styles.profileHeaderInfo}>
-                  <Text style={[styles.profileName, { color: profile.color }]}>{profile.name}</Text>
-                  <Text style={styles.profileTier}>{profile.tier}</Text>
-                  <Text style={styles.profileDesc}>{profile.description}</Text>
-                </View>
+          {/* ── Le profil ── */}
+          <View style={[styles.hero, { borderColor: info.color + '55' }]}>
+            <Text style={styles.heroEmoji}>{info.emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <View style={styles.rowLabelLine}>
+                <Text style={[styles.heroName, { color: info.color }]}>{info.name}</Text>
+                <InfoDot term="profil_financier" size={14} color={info.color} />
               </View>
-
-              <View style={styles.card}>
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaLabel}>Source</Text>
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {fp?.profile_source === 'automatic' ? '⚡ Calcul automatique' : '📝 Questionnaire'}
-                    </Text>
-                  </View>
-                </View>
-                {assignedAt && (
-                  <View style={styles.metaRow}>
-                    <Text style={styles.metaLabel}>Attribué le</Text>
-                    <Text style={styles.metaValue}>{assignedAt}</Text>
-                  </View>
-                )}
-                {isLocked && (
-                  <View style={styles.metaRow}>
-                    <Text style={styles.metaLabel}>Évolution auto</Text>
-                    <View style={[styles.badge, { backgroundColor: COLORS.cardBorder }]}>
-                      <Text style={styles.badgeText}>Dans {monthsUntilAuto} mois</Text>
-                    </View>
-                  </View>
-                )}
-                {isIrregular && (
-                  <View style={styles.infoBox}>
-                    <Ionicons name="information-circle-outline" size={14} color={COLORS.teal} />
-                    <Text style={styles.infoText}>
-                      Revenus irréguliers détectés — calculs sur moyenne glissante.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.card}>
-                <Text style={styles.sectionLabel}>Allocation recommandée</Text>
-                {([
-                  { label: 'Épargner',        key: 'save'   as const, color: COLORS.savings },
-                  { label: 'Investir',         key: 'invest' as const, color: COLORS.investment },
-                  { label: 'Se faire plaisir', key: 'enjoy'  as const, color: COLORS.warning },
-                  { label: 'Conserver',        key: 'keep'   as const, color: COLORS.checking },
-                ]).map(({ label, key, color }) => {
-                  const pct = alloc[key];
-                  return (
-                    <View key={key} style={styles.allocRow}>
-                      <Text style={styles.allocLabel}>{label}</Text>
-                      <View style={styles.allocBarContainer}>
-                        <View style={[styles.allocBar, { width: `${pct}%`, backgroundColor: color }]} />
-                      </View>
-                      <Text style={[styles.allocPct, { color }]}>{pct} %</Text>
-                    </View>
-                  );
-                })}
-                <Text style={styles.principleNote}>
-                  Après la période de démarrage, ton profil est réévalué chaque mois selon ton comportement (épargne, dépenses, revenus). Il peut monter, descendre ou rester le même — tu es informé à chaque bilan.
-                </Text>
-              </View>
-
-              <TouchableOpacity style={styles.editBtn} onPress={startEditing}>
-                <Ionicons name="create-outline" size={18} color={COLORS.bg} />
-                <Text style={styles.editBtnText}>Mettre à jour mes réponses</Text>
-              </TouchableOpacity>
-
-              {/* Récapitulatif des réponses au questionnaire */}
-              {savedAnswers && (
-                <View style={styles.card}>
-                  <Text style={styles.sectionLabel}>Tes réponses</Text>
-                  {QUESTIONS.map((q, i) => {
-                    const answer = (savedAnswers as any)[q.key] as string | undefined;
-                    const displayAnswer = q.key === 'q8' && answer
-                      ? (safetyMarginFromQ8(answer) > 0 ? safetyMarginFromQ8(answer).toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' ' + currencySymbol : `Non défini (0 ${currencySymbol})`)
-                      : q.key === 'q9'
-                      ? (answer && parseFloat(answer.replace(',', '.')) > 0 ? parseFloat(answer.replace(',', '.')).toLocaleString('fr-FR') + ' ' + currencySymbol + ' / sem.' : 'Estimation auto')
-                      : q.key === 'q1' && answer && answer.includes('|')
-                      ? answer.split('|').filter(Boolean).join(', ')
-                      : (answer || '—');
-                    return (
-                      <View key={q.key} style={styles.answerRow}>
-                        <Text style={styles.answerQuestion}>{i + 1}. {q.label}</Text>
-                        <Text style={styles.answerValue}>{displayAnswer}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </>
-          )}
-
-          {/* ── Mode édition — questionnaire ──────────────── */}
-          {editing && (
-            <>
-              <View style={styles.editHeader}>
-                <Text style={styles.editTitle}>Modifier mes réponses</Text>
-                <Text style={styles.editSub}>
-                  Recalcule ton profil initial. Aucune notification ne sera envoyée.
-                </Text>
-              </View>
-
-              {previewProfile && (
-                <View style={[styles.previewCard, { borderColor: PROFILE_INFO[previewProfile].color }]}>
-                  <Text style={styles.previewLabel}>Profil prévu</Text>
-                  <Text style={styles.previewProfile}>
-                    {PROFILE_INFO[previewProfile].emoji} {PROFILE_INFO[previewProfile].name}
-                  </Text>
-                </View>
-              )}
-
-              {QUESTIONS.map((q, i) => (
-                <View key={q.key} style={styles.card}>
-                  <Text style={styles.questionNum}>Question {i + 1}</Text>
-                  <Text style={styles.questionLabel}>{q.label}</Text>
-                  {q.key === 'q8' ? (
-                    <View style={styles.q8Block}>
-                      <View style={styles.q8Row}>
-                        <TextInput
-                          style={styles.q8Input}
-                          value={answers.q8}
-                          onChangeText={v => { const clean = v.replace(/[^0-9.,]/g, ''); setAnswers(prev => ({ ...prev, q8: clean ? String(parseFloat(clean.replace(',', '.')) || '') : '' })); }}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor={COLORS.textSecondary}
-                        />
-                        <Text style={styles.q8CurrencyLabel}>{currencySymbol}</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.q8DontKnow}
-                        onPress={() => setAnswers(prev => ({ ...prev, q8: '' }))}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.q8DontKnowText}>{`Effacer / Je ne sais pas → 0 ${currencySymbol}`}</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.q8Hint}>
-                        Valeur actuelle : {safetyMarginFromQ8(answers.q8).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {currencySymbol} — déduit du "Budget libre à allouer" dans le Pilotage.
-                      </Text>
-                    </View>
-                  ) : q.key === 'q9' ? (
-                    <View style={styles.q8Block}>
-                      <View style={styles.q8Row}>
-                        <TextInput
-                          style={styles.q8Input}
-                          value={answers.q9}
-                          onChangeText={v => { const clean = v.replace(/[^0-9.,]/g, ''); setAnswers(prev => ({ ...prev, q9: clean ? String(parseFloat(clean.replace(',', '.')) || '') : '' })); }}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor={COLORS.textSecondary}
-                        />
-                        <Text style={styles.q8CurrencyLabel}>{currencySymbol} / sem.</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.q8DontKnow}
-                        onPress={() => setAnswers(prev => ({ ...prev, q9: '' }))}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.q8DontKnowText}>Effacer / Je ne sais pas → estimation auto</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.q8Hint}>
-                        Sert de repli pour l'« Enveloppe variables » du Pilotage tant que l'historique est insuffisant. ≈ {Math.round((parseFloat((answers.q9 || '0').replace(',', '.')) || 0) * 4.33).toLocaleString('fr-FR')} {currencySymbol} / mois.
-                      </Text>
-                    </View>
-                  ) : (
-                    <OptionList
-                      options={q.options}
-                      selected={answers[q.key]}
-                      onSelect={v => setAnswers(prev => ({ ...prev, [q.key]: v }))}
-                      multiSelect={q.key === 'q1'}
-                    />
-                  )}
-                </View>
-              ))}
-
-              <View style={styles.editFooter}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setEditing(false)}
-                >
-                  <Text style={styles.cancelBtnText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.saveBtn, saveQuestionnaire.isPending && styles.saveBtnDisabled]}
-                  onPress={handleSave}
-                  disabled={saveQuestionnaire.isPending}
-                >
-                  {saveQuestionnaire.isPending
-                    ? <ActivityIndicator color={COLORS.bg} />
-                    : <Text style={styles.saveBtnText}>Enregistrer</Text>}
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          {/* ── Aucun profil ──────────────────────────────── */}
-          {!profile && !editing && (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>Aucun profil financier attribué.</Text>
-              <TouchableOpacity style={styles.editBtn} onPress={startEditing}>
-                <Text style={styles.editBtnText}>Répondre au questionnaire</Text>
-              </TouchableOpacity>
+              <Text style={styles.heroDesc}>{info.description}</Text>
             </View>
-          )}
+          </View>
 
+          {/* ── Ce qu'il change concrètement ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Ce qu’il change</Text>
+            <Text style={styles.cardLead}>
+              Il fixe la <Text style={styles.b}>répartition</Text> de ton Relyka entre les quatre
+              décisions — jamais les montants, qui viennent de ta trésorerie réelle.
+            </Text>
+            {ALLOC_ROWS.map(({ label, key, color }) => (
+              <View key={key} style={styles.allocRow}>
+                <Text style={styles.allocLabel}>{label}</Text>
+                <View style={styles.allocTrack}>
+                  <View style={[styles.allocFill, { width: `${alloc[key]}%`, backgroundColor: color }]} />
+                </View>
+                <Text style={[styles.allocPct, { color }]}>{alloc[key]} %</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* ── Ce que l'app MESURE (non modifiable) ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Ce que l’app mesure</Text>
+            <Text style={styles.cardLead}>
+              Ces éléments sont lus dans tes comptes : ils se mettent à jour tout seuls, et ton
+              profil suit.
+            </Text>
+            {measuredRow(
+              'Ton matelas de sécurité',
+              cushion.months != null ? securityMonthsLabel(cushion.months) : '—',
+              cushion.months != null
+                ? `épargne ÷ revenu mensuel${cushion.base === 'questionnaire' ? ' (revenu encore estimé)' : ''}`
+                : 'ajoute un compte d’épargne pour le calculer',
+              'matelas',
+            )}
+            {measuredRow(
+              'Ton revenu de référence',
+              (pilotage?.avg_monthly_income ?? 0) > 0
+                ? `${Math.round(pilotage!.avg_monthly_income).toLocaleString('fr-FR')} ${symbol}`
+                : '—',
+              (pilotage?.avg_monthly_income ?? 0) > 0
+                ? 'moyenne de tes recettes sur 6 mois'
+                : 'saisis tes rentrées d’argent pour l’affiner',
+            )}
+            {measuredRow(
+              'Tes dépenses variables',
+              (pilotage?.variable_envelope_initial ?? 0) > 0
+                ? `${Math.round(pilotage!.variable_envelope_initial).toLocaleString('fr-FR')} ${symbol} / mois`
+                : '—',
+              pilotage?.variable_envelope_source === 'history'
+                ? `moyenne réelle sur ${pilotage.variable_envelope_months_used} mois`
+                : 'ton estimation, en attendant 2 mois d’historique',
+              'enveloppe_variable',
+            )}
+          </View>
+
+          {/* ── Ce que TU renseignes ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Ce que tu nous dis</Text>
+            <Text style={styles.cardLead}>
+              Les seules choses que l’app ne peut pas deviner. Appuie pour les modifier.
+            </Text>
+
+            {editableRow('rhythm', 'Tes revenus', RHYTHM_LABEL[rhythm])}
+            {editing === 'rhythm' && (
+              <View style={styles.panel}>
+                {(['fixe', 'variable', 'mixte'] as Rhythm[]).map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.choice, rhythm === r && styles.choiceActive]}
+                    onPress={() => persist(RHYTHM_TO_ANSWERS[r])}
+                    disabled={saving}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.choiceText, rhythm === r && { color: COLORS.text, fontWeight: '700' }]}>
+                      {RHYTHM_LABEL[r]}
+                    </Text>
+                    {rhythm === r && <Ionicons name="checkmark-circle" size={17} color={COLORS.emerald} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {editableRow('q4', 'En fin de mois, il te reste', Q4_SHORT[a.q4 ?? ''] ?? 'à préciser')}
+            {editing === 'q4' && choicePanel(Q4_OPTIONS, Q4_SHORT, a.q4, (v) => persist({ q4: v }, ['q4']))}
+
+            {editableRow('q6', 'Ce que tu mets de côté', Q6_SHORT[a.q6 ?? ''] ?? 'à préciser')}
+            {editing === 'q6' && choicePanel(Q6_OPTIONS, Q6_SHORT, a.q6, (v) => persist({ q6: v }, ['q6']))}
+
+            {editableRow(
+              'q8', 'Ta marge de sécurité',
+              margin > 0 ? `${margin.toLocaleString('fr-FR')} ${symbol}` : 'aucune',
+              'marge_securite',
+            )}
+            {editing === 'q8' && amountPanel(
+              symbol,
+              'Le montant que tu veux avoir au minimum sur tes comptes courants en fin de mois. Il reste sur ton compte : on te dit juste ce que tu peux utiliser avant d’y toucher.',
+              (v) => persist({ q8: v }, ['q8']),
+            )}
+
+            {editableRow(
+              'q9', 'Ton estimation de dépenses variables',
+              weekly > 0 ? `${weekly.toLocaleString('fr-FR')} ${symbol} / sem.` : 'estimée pour toi',
+              'enveloppe_variable',
+            )}
+            {editing === 'q9' && amountPanel(
+              `${symbol} / semaine`,
+              `Courses, sorties, imprévus. ${amountDraft ? `Soit environ ${Math.round((parseFloat(amountDraft.replace(',', '.')) || 0) * WEEKS_PER_MONTH).toLocaleString('fr-FR')} ${symbol} par mois. ` : ''}Sert tant que tu n’as pas 2 mois d’historique réel.`,
+              (v) => persist({ q9: v }, ['q9']),
+            )}
+          </View>
+
+          {/* ── Comment il évolue ── */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Comment il évolue</Text>
+            <Text style={styles.cardLead}>
+              Il n’est pas figé. Dès qu’une donnée réelle change — un virement d’épargne, une mise à
+              jour de solde — il se recalcule, et tu es prévenu s’il bouge. Le bilan mensuel prend
+              ensuite le relais avec ton comportement observé.
+            </Text>
+            {(fp?.is_irregular_income ?? false) && (
+              <View style={styles.note}>
+                <Ionicons name="pulse-outline" size={14} color={COLORS.teal} />
+                <Text style={styles.noteText}>
+                  Revenus irréguliers : les baisses de revenus seront repérées plus tôt.
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={{ height: 40 }} />
         </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
@@ -446,135 +434,76 @@ function ProfilFinancierScreen() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-  root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
-  backLabel: { fontSize: 15, color: c.text, fontWeight: '500' },
-  scroll: { flex: 1 },
-  content: { paddingBottom: 100, gap: 16 },
+    root: { flex: 1, backgroundColor: c.bg },
+    safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+    scroll: { flex: 1 },
+    content: { gap: 14, paddingBottom: 20 },
 
-  // Profil header
-  profileHeader: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 16,
-    borderWidth: 2, borderRadius: 20, padding: 20, backgroundColor: c.card,
-  },
-  profileEmoji: { fontSize: 40 },
-  profileHeaderInfo: { flex: 1, gap: 4 },
-  profileName: { fontSize: 18, fontWeight: '800' },
-  profileTier: { fontSize: 12, color: c.textSecondary, fontWeight: '500' },
-  profileDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginTop: 4 },
+    hero: {
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      backgroundColor: c.card, borderWidth: 1, borderRadius: 20, padding: 16,
+    },
+    heroEmoji: { fontSize: 34 },
+    heroName: { fontSize: 18, fontWeight: '800' },
+    heroDesc: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginTop: 3 },
 
-  // Meta card
-  card: {
-    backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
-    borderRadius: 16, padding: 16, gap: 12,
-  },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  metaLabel: { fontSize: 13, color: c.textSecondary },
-  metaValue: { fontSize: 13, color: c.text, fontWeight: '500' },
-  badge: { backgroundColor: c.emerald + "22", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 12, color: c.emerald, fontWeight: '600' },
-  infoBox: {
-    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
-    backgroundColor: c.cardBorder, borderRadius: 10, padding: 10,
-  },
-  infoText: { flex: 1, color: c.teal, fontSize: 12, lineHeight: 16 },
+    card: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+      borderRadius: 20, padding: 16, gap: 9,
+    },
+    cardTitle: { fontSize: 15.5, fontWeight: '800', color: c.text },
+    cardLead: { fontSize: 13, color: c.textSecondary, lineHeight: 19 },
+    b: { fontWeight: '800', color: c.text },
 
-  // Récapitulatif des réponses
-  answerRow: {
-    gap: 3, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: c.cardBorder,
-  },
-  answerQuestion: { fontSize: 12, color: c.textSecondary, lineHeight: 16 },
-  answerValue: { fontSize: 14, color: c.text, fontWeight: '600', lineHeight: 19 },
+    allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    allocLabel: { width: 78, fontSize: 13, color: c.text },
+    allocTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: c.cardBorder, overflow: 'hidden' },
+    allocFill: { height: 6, borderRadius: 3 },
+    allocPct: { width: 42, fontSize: 13, fontWeight: '800', textAlign: 'right' },
 
-  // Allocation
-  sectionLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-  principleNote: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginTop: 4, fontStyle: 'italic' },
-  allocRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  allocLabel: { width: 110, fontSize: 13, color: c.text },
-  allocBarContainer: { flex: 1, height: 6, backgroundColor: c.cardBorder, borderRadius: 3 },
-  allocBar: { height: 6, borderRadius: 3 },
-  allocPct: { width: 40, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+    row: {
+      flexDirection: 'row', alignItems: 'center', gap: 9,
+      paddingVertical: 11, borderTopWidth: 1, borderTopColor: c.cardBorder,
+    },
+    rowLabelLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    rowLabel: { fontSize: 13.5, fontWeight: '600', color: c.text },
+    rowSource: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    rowValue: { fontSize: 13.5, fontWeight: '800', color: c.text },
 
-  // Bouton edit
-  editBtn: {
-    backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 14,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
-  },
-  editBtnText: { color: c.bg, fontWeight: '700', fontSize: 15 },
+    panel: {
+      gap: 7, paddingTop: 4, paddingBottom: 10,
+      borderTopWidth: 1, borderTopColor: c.cardBorder,
+    },
+    choice: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
+      borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+    },
+    choiceActive: { borderColor: c.emerald, backgroundColor: c.selected },
+    choiceText: { flex: 1, fontSize: 13.5, color: c.textSecondary },
+    panelHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    amountRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.bg, borderWidth: 1.5, borderColor: c.emerald,
+      borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11,
+    },
+    amountInput: { flex: 1, fontSize: 24, fontWeight: '800', color: c.text, padding: 0 },
+    amountUnit: { fontSize: 14, fontWeight: '700', color: c.textSecondary },
+    saveBtn: { backgroundColor: c.emerald, borderRadius: 13, paddingVertical: 12, alignItems: 'center' },
+    saveBtnText: { fontSize: 14.5, fontWeight: '800', color: c.bg },
 
-  // Mode édition
-  editHeader: { gap: 6 },
-  editTitle: { fontSize: 20, fontWeight: '700', color: c.text },
-  editSub: { fontSize: 13, color: c.textSecondary },
-  previewCard: {
-    borderWidth: 2, borderRadius: 14, padding: 14,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: c.card,
-  },
-  previewLabel: { fontSize: 12, color: c.textSecondary },
-  previewProfile: { fontSize: 15, fontWeight: '700', color: c.text },
+    note: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+      backgroundColor: c.teal + '12', borderRadius: 12, padding: 11,
+    },
+    noteText: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
 
-  questionNum: { fontSize: 11, color: c.textSecondary, fontWeight: '600', textTransform: 'uppercase' },
-  questionLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-
-  optionList: { gap: 8 },
-  optionBtn: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder,
-    borderRadius: 12, padding: 12,
-  },
-  optionBtnActive: { borderColor: c.emerald, backgroundColor: c.selected },
-  radio: {
-    width: 16, height: 16, borderRadius: 8, borderWidth: 2,
-    borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
-    marginTop: 1, flexShrink: 0,
-  },
-  radioActive: { borderColor: c.emerald },
-  radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.emerald },
-  checkbox: {
-    width: 18, height: 18, borderRadius: 4,
-    borderWidth: 2, borderColor: '#475569',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  checkboxActive: { borderColor: c.emerald, backgroundColor: c.emerald },
-  q8Block: { gap: 8 },
-  q8Row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  q8Input: {
-    flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.emerald,
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 20, fontWeight: '700', color: c.text, textAlign: 'right',
-  },
-  q8CurrencyLabel: { fontSize: 18, fontWeight: '700', color: c.textSecondary },
-  q8DontKnow: {
-    paddingVertical: 10, borderRadius: 10, borderWidth: 1,
-    borderColor: c.cardBorder, alignItems: 'center',
-  },
-  q8DontKnowText: { fontSize: 13, color: c.textSecondary },
-  q8Hint: { fontSize: 11, color: c.emerald, lineHeight: 16 },
-  multiHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  multiHintText: { fontSize: 11, color: '#60a5fa', fontWeight: '600' },
-  optionText: { flex: 1, color: c.textSecondary, fontSize: 13, lineHeight: 18 },
-  optionTextActive: { color: c.text },
-
-  editFooter: { flexDirection: 'row', gap: 10 },
-  cancelBtn: {
-    flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
-    borderRadius: 14, paddingVertical: 14, alignItems: 'center',
-  },
-  cancelBtnText: { color: c.text, fontWeight: '600' },
-  saveBtn: {
-    flex: 2, backgroundColor: c.emerald,
-    borderRadius: 14, paddingVertical: 14, alignItems: 'center',
-  },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: c.bg, fontWeight: '700', fontSize: 15 },
-
-  emptyCard: {
-    backgroundColor: c.card, borderRadius: 16, padding: 24,
-    alignItems: 'center', gap: 16,
-  },
-  emptyText: { color: c.textSecondary, fontSize: 14 },
-});
+    emptyTitle: { fontSize: 17, fontWeight: '800', color: c.text },
+    emptyText: { fontSize: 13.5, color: c.textSecondary, lineHeight: 20 },
+    cta: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: c.emerald, borderRadius: 15, paddingVertical: 14, marginTop: 4,
+    },
+    ctaText: { fontSize: 15, fontWeight: '800', color: c.bg },
+  });
 }

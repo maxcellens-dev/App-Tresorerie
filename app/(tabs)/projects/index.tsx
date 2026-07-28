@@ -35,6 +35,8 @@ import {
 } from '../../../hooks/useProjects';
 import { usePilotageData } from '../../../hooks/usePilotageData';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { CURRENCY_SYMBOL } from '../../../lib/currency';
 import { useCredits } from '../../../hooks/useCredits';
 import { computeAmortization } from '../../../lib/amortization';
@@ -58,6 +60,7 @@ export default function ProjectsScreen() {
   const COLORS = useAppColors();
   const onbProject = useOnbHighlight('project');
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -462,7 +465,7 @@ export default function ProjectsScreen() {
       <ScreenGradient />
       <PageIntroModal pageKey="projets" />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={['left', 'right']}>
         <View style={styles.header}>
           <TouchableOpacity
             ref={addBtnRef}

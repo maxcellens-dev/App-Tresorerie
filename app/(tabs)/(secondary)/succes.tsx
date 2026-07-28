@@ -12,6 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useGamification } from '../../../hooks/useGamification';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
 import { useNavBack } from '../../../hooks/useNavBack';
@@ -28,6 +30,7 @@ export default withDeferredMount(SuccesScreen);
 function SuccesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user, isImpersonating } = useAuth();
@@ -134,7 +137,7 @@ function SuccesScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>

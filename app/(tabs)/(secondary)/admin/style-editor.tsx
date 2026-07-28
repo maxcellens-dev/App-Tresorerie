@@ -9,6 +9,8 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { supabase } from '../../../../lib/supabase';
 import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../../hooks/useStyleConfig';
@@ -138,6 +140,7 @@ export default function StyleEditor() {
   const goBack = useNavBack();
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   // Sélecteur de couleur centré (natif + web) ouvert au clic sur une pastille.
   const [colorPicker, setColorPicker] = useState<{ value: string; onPick: (hex: string) => void } | null>(null);
   const { user } = useAuth();
@@ -412,7 +415,7 @@ export default function StyleEditor() {
     return (
       <View style={styles.root}>
         <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={styles.safe}><Text style={styles.body}>Accès réservé aux administrateurs.</Text></SafeAreaView>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]}><Text style={styles.body}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
   }
@@ -432,7 +435,7 @@ export default function StyleEditor() {
         style={StyleSheet.absoluteFillObject}
         pointerEvents="none"
       />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={goBack}>

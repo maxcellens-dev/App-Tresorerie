@@ -1,7 +1,8 @@
 import { Redirect } from 'expo-router';
 
-// Le setup redirige directement vers le questionnaire d'onboarding.
-// Le questionnaire gère à la fois les nouveaux utilisateurs et les existants sans profil.
+// Ancienne étape « setup » : elle renvoyait vers le questionnaire de démarrage. Le parcours d'accueil
+// se fait désormais DANS l'app (Pilotage → guide utilisateur, cf. contexts/GuideContext), donc cette
+// route ne fait plus qu'ouvrir l'app. Conservée : d'anciens liens et redirections pointent dessus.
 export default function SetupScreen() {
-  return <Redirect href="/questionnaire" />;
+  return <Redirect href="/(tabs)/pilotage" />;
 }

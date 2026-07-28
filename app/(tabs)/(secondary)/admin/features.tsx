@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
 import { useSetPremium } from '../../../../hooks/usePlan';
@@ -15,6 +17,7 @@ import { useSetPremium } from '../../../../hooks/usePlan';
 export default function AdminFeatures() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -28,7 +31,7 @@ export default function AdminFeatures() {
   if (!isAdmin) {
     return (
       <View style={styles.root}><StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}><Text style={styles.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><Text style={styles.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
   }
@@ -60,7 +63,7 @@ export default function AdminFeatures() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>

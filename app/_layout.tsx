@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { TourProvider } from '../contexts/TourContext';
+import { GuideProvider } from '../contexts/GuideContext';
+import { AppIntroGate } from '../components/guide/AppIntroCarousel';
 import { CalculatorProvider } from '../contexts/CalculatorContext';
 import Calculator from '../components/Calculator';
 import UpdateBanner from '../components/UpdateBanner';
@@ -27,7 +29,8 @@ import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
 import { useMaterializeCredits } from '../hooks/useMaterializeCredits';
 import { supabase } from '../lib/supabase';
 import HeaderWithProfile from '../components/HeaderWithProfile';
-import { LEGAL_DESKTOP_MIN_WIDTH } from '../components/LegalLayout';
+import { legalPresentation } from '../components/LegalLayout';
+import { DESKTOP_MIN_WIDTH } from '../hooks/useResponsive';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from '../lib/analytics';
 import { recordRoute, consumePreviousRoute } from '../lib/navHistory';
@@ -289,17 +292,39 @@ function AppChrome() {
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register' || root === 'reset-password';
   // Pendant le questionnaire, on masque l'en-tête (profil) : l'utilisateur doit le terminer.
   // Les pages légales gardent l'en-tête de l'app quand l'utilisateur est connecté (sinon : en-tête « site »).
-  const hideChrome = isAuthPage || root === 'questionnaire';
+  // Le socle de démarrage porte sa propre progression et n'a rien à faire d'un en-tête « Bonjour X »
+  // avec la série et le compteur de guide : l'utilisateur n'est pas encore *dans* l'app.
+  const hideChrome = isAuthPage || root === 'questionnaire' || root === 'onboarding';
   const isTabs = root === '(tabs)';
   // Sur web bureau : on limite la largeur de l'app (colonne centrée ~840 px), comme une app mobile.
   // Exceptions pleine largeur : page d'accueil marketing (welcome/index).
   // Pages légales : pleine largeur (habillage « site web ») UNIQUEMENT en bureau (web large).
   // En mobile/app (largeur < 900 px), elles s'affichent dans la colonne d'app comme les autres pages.
   const isLegalRoot = root === 'confidentialite' || root === 'legal';
-  const isDesktopLegal = Platform.OS === 'web' && isLegalRoot && windowWidth >= LEGAL_DESKTOP_MIN_WIDTH;
+  // Les pages légales portent elles-mêmes leur habillage large — soit le « site » (visiteur public),
+  // soit la coquille d'app avec barre latérale (utilisateur connecté en bureau). Dans les deux cas
+  // elles doivent recevoir TOUTE la largeur ; c'est `legalPresentation` (composants/LegalLayout) qui
+  // tranche, pour que les deux fichiers ne puissent pas se contredire.
+  const isDesktopLegal = isLegalRoot && legalPresentation(windowWidth, !!user) !== 'app';
   const limitWidth = Platform.OS === 'web'
     && root !== 'welcome' && root !== 'index'
     && !isDesktopLegal;
+
+  // ── WEB BUREAU (>= 1024 px) ────────────────────────────────────────────────────────────────
+  // La colonne « téléphone » de 840 px bordée à gauche et à droite est ce qui donnait à Relyka son
+  // air d'app mobile posée au milieu d'un écran vide. En bureau on la supprime :
+  //  • (tabs) → pleine largeur : le gabarit de site (barre latérale + contenu) est monté par
+  //    app/(tabs)/_layout, qui centre lui-même son contenu.
+  //  • authentification → carte étroite centrée (un formulaire de 1400 px n'existe pas).
+  //  • parcours (démarrage, questionnaire, notifications…) → colonne de lecture confortable.
+  // En dessous de 1024 px, RIEN ne change : on garde la colonne d'app historique.
+  const isDesktopWeb = Platform.OS === 'web' && windowWidth >= DESKTOP_MIN_WIDTH;
+  const isAuthForm = root === 'login' || root === 'register' || root === 'reset-password';
+  const desktopColumnStyle = !isDesktopWeb || !limitWidth
+    ? null
+    : isTabs ? styles.fullColumn
+    : isAuthForm ? styles.authColumn
+    : styles.readingColumn;
 
   // Lien de réinitialisation de mot de passe → écran dédié (prioritaire sur le reste).
   useEffect(() => {
@@ -346,8 +371,9 @@ function AppChrome() {
 
   return (
     <TourProvider>
+    <GuideProvider>
     <View style={styles.root}>
-      <View style={limitWidth ? styles.webColumn : styles.fullColumn}>
+      <View style={desktopColumnStyle ?? (limitWidth ? styles.webColumn : styles.fullColumn)}>
       <AppDialogHost />
       <SeoHead />
       <ImpersonationBanner />
@@ -365,6 +391,7 @@ function AppChrome() {
           <Stack.Screen name="welcome" options={{ title: 'Relyka' }} />
           <Stack.Screen name="login" options={{ title: 'Connexion' }} />
           <Stack.Screen name="register" options={{ title: 'Inscription' }} />
+          <Stack.Screen name="onboarding" options={{ title: 'Démarrage' }} />
           <Stack.Screen name="questionnaire" options={{ title: 'Profil financier' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
           <Stack.Screen name="confidentialite" options={{ title: 'Confidentialité' }} />
@@ -373,6 +400,9 @@ function AppChrome() {
         </Stack>
       </View>
       </View>
+      {/* Écrans de présentation de l'app (toute première ouverture) — montés À LA RACINE pour ne
+          pas dépendre du chargement de l'écran d'arrivée. Voir contexts/GuideContext. */}
+      {user && <AppIntroGate />}
       {/* Modale de changement de profil — affichée au-dessus de tout */}
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
       {/* Récupération de série perdue — proposée à l'arrivée sur l'app */}
@@ -404,6 +434,7 @@ function AppChrome() {
           change de thème pendant la déconnexion ne doit être visible. */}
       <SignOutVeil />
     </View>
+    </GuideProvider>
     </TourProvider>
   );
 }
@@ -456,8 +487,11 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     fullColumn: { flex: 1, width: '100%' },
-    // Colonne centrée pour le web bureau (largeur d'app « mobile » classique).
+    // Colonne centrée pour le web ÉTROIT (tablette / petite fenêtre) : largeur d'app « mobile ».
     webColumn: { flex: 1, width: '100%', maxWidth: 840, alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: c.cardBorder },
+    // Web BUREAU : colonnes sans bordures — l'app n'est plus « une app dans un cadre », c'est la page.
+    authColumn: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
+    readingColumn: { flex: 1, width: '100%', maxWidth: 880, alignSelf: 'center' },
     headerSafe: {
       paddingHorizontal: 24,
       paddingTop: 6,

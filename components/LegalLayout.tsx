@@ -1,11 +1,15 @@
 /**
  * LegalLayout — habillage commun des pages publiques (Confidentialité, Mentions légales).
  *
- * Deux présentations, selon la LARGEUR (bureau vs mobile), pas la plateforme :
- *  • Bureau (web large ≥ 900 px) → en-tête + pied de page « site web » (logo, Connexion/
- *    Inscription) : ces pages sont aussi accessibles publiquement depuis la page d'accueil.
- *  • Mobile / app (largeur < 900 px ou natif) → en-tête D'APP identique aux autres pages
- *    (barre « Relyka » + série/gemmes/avatar, puis flèche « Retour » + titre).
+ * TROIS présentations, choisies par `legalPresentation()` — selon la largeur ET la connexion :
+ *  • `site` — visiteur PUBLIC sur écran large (≥ 900 px) → en-tête + pied de page « site web »
+ *    (logo, Connexion/Inscription) : ces pages sont référencées et atteignables depuis l'accueil.
+ *  • `appDesktop` — utilisateur CONNECTÉ sur écran bureau (≥ 1024 px) → la page est INTÉGRÉE à
+ *    l'app : barre latérale de navigation à gauche, barre supérieure avec le profil, contenu dans
+ *    une colonne de lecture. Une fois connecté, on ne ressort plus « sur le site » pour lire les
+ *    mentions légales : on reste dans son espace, avec toute la navigation sous la main.
+ *  • `app` — mobile, tablette et natif → en-tête D'APP identique aux autres pages (barre « Relyka »
+ *    + série/gemmes/avatar, puis flèche « Retour » + titre).
  */
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, useWindowDimensions } from 'react-native';
@@ -19,10 +23,28 @@ import { usePublicColors } from '../hooks/usePublicColors';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { useNavBack } from '../hooks/useNavBack';
+import { DESKTOP_MIN_WIDTH } from '../hooks/useResponsive';
+import { MAX_W } from '../lib/webLayout';
 import HeaderWithProfile from './HeaderWithProfile';
+import WebSideNav from './web/WebSideNav';
 
-/** Seuil « bureau » : au-delà, on affiche l'habillage site web ; en-dessous, l'app. */
+/** Seuil « bureau » : au-delà, un visiteur PUBLIC voit l'habillage site web. */
 export const LEGAL_DESKTOP_MIN_WIDTH = 900;
+
+export type LegalPresentation = 'site' | 'appDesktop' | 'app';
+
+/**
+ * Présentation à retenir pour une page légale. Exporté parce que `app/_layout` doit prendre la
+ * MÊME décision que ce composant : c'est lui qui choisit d'enfermer la page dans la colonne d'app
+ * ou de la laisser pleine largeur. Deux règles séparées finiraient forcément par diverger.
+ */
+export function legalPresentation(width: number, isLoggedIn: boolean): LegalPresentation {
+  if (Platform.OS !== 'web') return 'app';
+  // Connecté : on n'intègre à la coquille bureau qu'à partir du seuil où elle existe (1024).
+  // Entre 900 et 1024, l'app tient dans sa colonne centrée → la page légale fait pareil.
+  if (isLoggedIn) return width >= DESKTOP_MIN_WIDTH ? 'appDesktop' : 'app';
+  return width >= LEGAL_DESKTOP_MIN_WIDTH ? 'site' : 'app';
+}
 
 export default function LegalLayout({ title, children }: { title: string; children: React.ReactNode }) {
   const { user } = useAuth();
@@ -34,7 +56,8 @@ export default function LegalLayout({ title, children }: { title: string; childr
   const { data: landing } = useLandingConfig();
   const L = landing ?? DEFAULT_LANDING; // même config que la page d'accueil (rien en dur)
   const { width } = useWindowDimensions();
-  const isDesktopWeb = Platform.OS === 'web' && width >= LEGAL_DESKTOP_MIN_WIDTH;
+  const presentation = legalPresentation(width, !!user);
+  const isDesktopWeb = presentation === 'site';
   const goBack = useNavBack();
   // Même résolveur de liens que la page d'accueil (ancre → route, URL → nouvel onglet).
   const goAnchor = (link: { anchor?: string; url?: string }) => {
@@ -48,7 +71,34 @@ export default function LegalLayout({ title, children }: { title: string; childr
     }
   };
 
-  // ───────── Mode « site web » (bureau) ─────────
+  // ───────── Mode « intégré à l'app » (bureau, connecté) ─────────
+  // Même coquille que le reste de l'app : barre latérale + barre supérieure. La page n'est plus une
+  // sortie hors de l'espace personnel, c'est une page de plus dans l'espace personnel.
+  if (presentation === 'appDesktop') {
+    return (
+      <View style={styles.appDesktopShell}>
+        <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+        <WebSideNav />
+        <View style={styles.appDesktopMain}>
+          {/* En PREMIER : le dégradé est en absoluteFill, il doit passer DERRIÈRE l'en-tête. */}
+          <ScreenGradient />
+          <HeaderWithProfile title={title} desktop height={68} />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.appDesktopScroll}>
+            <View style={styles.appDesktopColumn}>
+              <TouchableOpacity style={styles.backRow} onPress={goBack} activeOpacity={0.7} accessibilityRole="button">
+                <Ionicons name="arrow-back" size={20} color={COLORS.textSecondary} />
+                <Text style={styles.backText}>Retour</Text>
+              </TouchableOpacity>
+              {children}
+              <View style={{ height: 48 }} />
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
+
+  // ───────── Mode « site web » (bureau, visiteur public) ─────────
   if (isDesktopWeb) {
     return (
       <View style={styles.root}>
@@ -135,6 +185,13 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     contentWrap: { width: '100%', maxWidth: 860, alignSelf: 'center' },
+
+    // Mode « intégré à l'app » (bureau, connecté) — calqué sur app/(tabs)/_layout.
+    appDesktopShell: { flex: 1, flexDirection: 'row', backgroundColor: c.bg },
+    appDesktopMain: { flex: 1, minWidth: 0, height: '100%' },
+    appDesktopScroll: { flexGrow: 1, paddingHorizontal: 32, paddingTop: 16, paddingBottom: 24 },
+    appDesktopColumn: { width: '100%', maxWidth: MAX_W.settings, alignSelf: 'center' },
+
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12 },
     backText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
     pageTitle: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 6 },

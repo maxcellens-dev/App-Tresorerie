@@ -7,6 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
@@ -57,6 +59,7 @@ export default withDeferredMount(MesDonneesScreen);
 function MesDonneesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -80,6 +83,8 @@ function MesDonneesScreen() {
       supabase.from('credits').select('*').eq('profile_id', uid),
       supabase.from('credit_events').select('*').eq('profile_id', uid),
       supabase.from('projects').select('name, target_amount, monthly_allocation, allocation_type, target_date, status').eq('profile_id', uid),
+      // La page « Objectifs » a été retirée de l'app, mais la table garde les lignes des comptes qui
+      // en avaient créé : un export RGPD se doit de les restituer tant qu'elles existent.
       supabase.from('objectives').select('name, target_yearly_amount, status').eq('profile_id', uid),
       supabase.from('month_closures').select('month_key, status, surplus, closed_at').eq('profile_id', uid).order('month_key'),
       supabase.from('reservations').select('*').eq('profile_id', uid),
@@ -304,7 +309,7 @@ function MesDonneesScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />

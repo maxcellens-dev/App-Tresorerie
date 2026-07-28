@@ -184,7 +184,12 @@ export function computeConfidence(input: ConfidenceInput): ConfidenceResult {
     }
   }
 
-  const rawUncertainty = dailyDrift * daysSinceVerification;
+  // PLAFOND ABSOLU : le doute ne peut pas dépasser la base de référence (revenu / enveloppe /
+  // Relyka). Au-delà, il ne mesure plus une incertitude mais une anomalie de calibration — et il
+  // produisait des affichages intenables : un Relyka de 1 266 € annoncé « jusqu'à 10 300 € ».
+  // Le plafond ne corrige pas la cause (cf. lib/reliabilityCalib) ; il garantit qu'aucune donnée
+  // aberrante ne puisse à nouveau rendre le chiffre principal incohérent avec son propre détail.
+  const rawUncertainty = Math.min(dailyDrift * daysSinceVerification, base);
   const uncertaintyEur = rawUncertainty * activityDamp;
   const doubtRatio = base > 0 ? uncertaintyEur / base : 0;
   const rawRatio = base > 0 ? rawUncertainty / base : 0;

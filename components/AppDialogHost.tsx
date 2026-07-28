@@ -5,6 +5,7 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton } from '../lib/appDialog';
 
@@ -61,17 +62,50 @@ export default function AppDialogHost() {
               {!!req.input.suffix && <Text style={styles.inputSuffix}>{req.input.suffix}</Text>}
             </View>
           )}
-          <View style={styles.actions}>
-            {req.buttons.map((b, i) => (
-              <Pressable
-                key={i}
-                style={[styles.btn, { borderColor: btnColor(b) + '55', backgroundColor: btnColor(b) + '12' }]}
-                onPress={() => onPress(b)}
-              >
-                <Text style={[styles.btnText, { color: btnColor(b) }]}>{b.text}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {/* Choix ILLUSTRÉS : chaque carte montre le résultat de l'option et se valide d'un tap. */}
+          {req.options?.length ? (
+            <View style={styles.options}>
+              {req.options.map((o, i) => {
+                const col = o.tone === 'danger' ? COLORS.danger : o.tone === 'neutral' ? COLORS.blue : COLORS.emerald;
+                return (
+                  <Pressable
+                    key={i}
+                    style={[styles.option, { borderColor: col + '66', backgroundColor: col + '12' }]}
+                    onPress={() => { close(); o.onPress(); }}
+                  >
+                    <View style={styles.optionHead}>
+                      {!!o.icon && (
+                        <View style={[styles.optionIcon, { backgroundColor: col + '22' }]}>
+                          <Ionicons name={o.icon as any} size={16} color={col} />
+                        </View>
+                      )}
+                      <Text style={styles.optionLabel}>{o.label}</Text>
+                      <Ionicons name="chevron-forward" size={16} color={col} />
+                    </View>
+                    {!!o.hint && <Text style={styles.optionHint}>{o.hint}</Text>}
+                    {!!o.result && (
+                      <View style={styles.optionResult}>
+                        <Text style={[styles.optionResultValue, { color: col }]}>{o.result}</Text>
+                        {!!o.resultHint && <Text style={styles.optionResultHint}>{o.resultHint}</Text>}
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.actions}>
+              {req.buttons.map((b, i) => (
+                <Pressable
+                  key={i}
+                  style={[styles.btn, { borderColor: btnColor(b) + '55', backgroundColor: btnColor(b) + '12' }]}
+                  onPress={() => onPress(b)}
+                >
+                  <Text style={[styles.btnText, { color: btnColor(b) }]}>{b.text}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </Pressable>
       </Pressable>
       </KeyboardAvoidingView>
@@ -88,6 +122,15 @@ function makeStyles(c: any) {
     inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14 },
     input: { flex: 1, fontSize: 16, color: c.text, paddingVertical: 12 },
     inputSuffix: { fontSize: 15, fontWeight: '700', color: c.textSecondary },
+    options: { gap: 10, marginTop: 14 },
+    option: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 12, gap: 6 },
+    optionHead: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    optionIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    optionLabel: { flex: 1, fontSize: 14.5, fontWeight: '800', color: c.text },
+    optionHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    optionResult: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 2 },
+    optionResultValue: { fontSize: 17, fontWeight: '800' },
+    optionResultHint: { fontSize: 11.5, color: c.textSecondary },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 16 },
     btn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1 },
     btnText: { fontSize: 14, fontWeight: '700' },

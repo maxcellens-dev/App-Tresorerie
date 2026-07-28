@@ -12,6 +12,7 @@
  */
 import { supabase } from './supabase';
 import { resolveReliabilityConfig, computeCalibration } from './confidenceEngine';
+import { isInitialBalanceAnchor } from './regul';
 import { todayISO } from './dateUtils';
 
 /** Recalcule et PERSISTE profiles.reliability_calib depuis les régularisations restantes. */
@@ -19,7 +20,7 @@ export async function recomputeReliabilityCalibration(profileId: string): Promis
   if (!supabase || !profileId) return;
   const [txRes, clRes, cfgRes, profRes] = await Promise.all([
     supabase.from('transactions')
-      .select('date, amount, regul_target')
+      .select('date, amount, regul_target, note')
       .eq('profile_id', profileId)
       .not('regul_target', 'is', null)
       .lte('date', todayISO())
@@ -33,8 +34,14 @@ export async function recomputeReliabilityCalibration(profileId: string): Promis
     ((clRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key),
   );
   // Une « vérification » = un JOUR de régul (multi-comptes le même jour → écarts sommés).
+  //
+  // ⚠️ Les ANCRES DE SOLDE INITIAL sont exclues : ce ne sont pas des écarts constatés mais le point
+  // de départ d'un compte. Les compter revenait à dire « on a perdu de vue 50 000 € », d'où une
+  // dérive journalière absurde et un Relyka affiché en fourchette gigantesque. Le problème est
+  // devenu systématique depuis que le démarrage crée plusieurs comptes soldés d'un coup.
   const byDay = new Map<string, number>();
   for (const t of (txRes.data ?? []) as any[]) {
+    if (isInitialBalanceAnchor(t)) continue;
     const d = String(t.date).slice(0, 10);
     if (estimated.has(d.slice(0, 7))) continue;
     byDay.set(d, (byDay.get(d) ?? 0) + Math.abs(Number(t.amount)));

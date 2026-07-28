@@ -24,7 +24,8 @@ import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { computeContributed } from '../../lib/contributed';
 import { computeTresoRows } from '../../lib/tresoProjection';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import Svg, { Path, Line, Circle, Rect, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Line, Circle, Rect, Text as SvgText } from 'react-native-svg';
+import GrowthChart, { fmtK } from '../../components/GrowthChart';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { useTransactions } from '../../hooks/useTransactions';
@@ -34,6 +35,8 @@ import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOve
 import { useAccounts } from '../../hooks/useAccounts';
 import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useResponsive } from '../../hooks/useResponsive';
+import { pageColumn } from '../../lib/webLayout';
 import { useProjectionHorizon } from '../../hooks/useUiPrefs';
 import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../../hooks/useFiscalEnvelopes';
 import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/useProjectionAssumptions';
@@ -51,72 +54,8 @@ const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
-const fmtK = (n: number) => {
-  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(n >= 100000 ? 0 : 1).replace('.0', '')}k`;
-  return Math.round(n).toString();
-};
 
 interface AccountHypo { contributed: string; annual: string; rate: string; tax: string; contributedBase?: number }
-
-/* ── Graphique aire (valeur) + ligne (capital), 3 valeurs affichées ── */
-function GrowthChart({ points, width, color }: {
-  points: { label: string; value: number; contributed: number }[];
-  width: number;
-  color: string;
-}) {
-  const c = useAppColors();
-  const h = 200;
-  const padL = 44, padR = 16, padT = 26, padB = 24;
-  const usableW = width - padL - padR;
-  const usableH = h - padT - padB;
-  if (points.length < 2) return null;
-
-  const maxVal = Math.max(...points.map(p => p.value), 1);
-  const x = (i: number) => padL + (i / (points.length - 1)) * usableW;
-  const y = (v: number) => padT + (1 - v / maxVal) * usableH;
-
-  const valLine = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.value)}`).join(' ');
-  const area = `${valLine} L ${x(points.length - 1)} ${padT + usableH} L ${x(0)} ${padT + usableH} Z`;
-  const contribLine = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.contributed)}`).join(' ');
-
-  const ticks = [0, Math.floor((points.length - 1) / 2), points.length - 1];
-
-  return (
-    <Svg width={width} height={h}>
-      <Defs>
-        <LinearGradient id="growthGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity="0.35" />
-          <Stop offset="1" stopColor={color} stopOpacity="0.02" />
-        </LinearGradient>
-      </Defs>
-      {[0, 0.5, 1].map((p, i) => {
-        const yy = padT + (1 - p) * usableH;
-        return (
-          <React.Fragment key={i}>
-            <Line x1={padL} y1={yy} x2={width - padR} y2={yy} stroke={c.cardBorder} strokeWidth={1} strokeDasharray="4,4" />
-            <SvgText x={padL - 6} y={yy + 4} fill={c.textSecondary} fontSize={9} textAnchor="end">{fmtK(maxVal * p)}</SvgText>
-          </React.Fragment>
-        );
-      })}
-      <Path d={area} fill="url(#growthGrad)" />
-      <Path d={contribLine} stroke={c.textSecondary} strokeWidth={1.5} strokeDasharray="5,4" fill="none" />
-      <Path d={valLine} stroke={color} strokeWidth={2.5} fill="none" />
-      {/* Points + valeurs sur 3 années (début, milieu, fin) */}
-      {ticks.map((t, idx) => {
-        const px = x(t), py = y(points[t].value);
-        const anchor = idx === 0 ? 'start' : idx === ticks.length - 1 ? 'end' : 'middle';
-        const tx = idx === 0 ? px - 2 : idx === ticks.length - 1 ? px + 2 : px;
-        return (
-          <React.Fragment key={`pt-${t}`}>
-            <Circle cx={px} cy={py} r={3.5} fill={color} />
-            <SvgText x={tx} y={py - 8} fill={color} fontSize={10} fontWeight="700" textAnchor={anchor as any}>{fmtK(points[t].value)}</SvgText>
-            <SvgText x={px} y={h - 6} fill={c.textSecondary} fontSize={9} textAnchor="middle">{points[t].label}</SvgText>
-          </React.Fragment>
-        );
-      })}
-    </Svg>
-  );
-}
 
 /* ── Champ numérique compact ── */
 function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
@@ -155,6 +94,7 @@ function ProjectionBody() {
   const SAVINGS_COLOR = COLORS.savings;
   const onbHypo = useOnbHighlight('projection_edited');
   const { width } = useWindowDimensions();
+  const { isDesktop } = useResponsive(); // web bureau : colonne de tableau de bord centrée
   const { user } = useAuth();
   const router = useRouter();
   const { horizon: tresoHorizon, setHorizon: setTresoHorizon } = useProjectionHorizon(user?.id);
@@ -234,6 +174,18 @@ function ProjectionBody() {
   React.useEffect(() => {
     if (!onbHypo) return;
     const t = setTimeout(() => {
+      // WEB : `findNodeHandle` LÈVE une exception sur react-native-web. On y passe par le DOM
+      // (défilement courant + position mesurée dans la fenêtre) — même résultat, sans crash.
+      if (Platform.OS === 'web') {
+        const el: any = (scrollRef.current as any)?.getScrollableNode?.();
+        if (el && hypoRef.current?.measureInWindow) {
+          const currentY = Number(el.scrollTop) || 0;
+          hypoRef.current.measureInWindow((_x: number, y: number) => {
+            scrollRef.current?.scrollTo({ y: Math.max(0, currentY + y - 90), animated: true });
+          });
+        }
+        return;
+      }
       const node = scrollRef.current ? findNodeHandle(scrollRef.current) : null;
       if (node && hypoRef.current?.measureLayout) {
         hypoRef.current.measureLayout(node, (_x: number, y: number) => {
@@ -584,7 +536,7 @@ function ProjectionBody() {
       <ScreenGradient />
       <PageIntroModal pageKey="projection" />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Onglets */}

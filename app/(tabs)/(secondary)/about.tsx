@@ -6,6 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../../hooks/useBrandFont';
 import { APP_VERSION } from '../../../lib/appVersion';
 
@@ -13,13 +15,14 @@ export default function AboutScreen() {
   const COLORS = useAppColors();
   const appNameFontStyle = useAppNameFontStyle();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
 
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Version */}
           <View style={styles.versionCard}>

@@ -141,6 +141,7 @@ export interface QuestionnaireAnswers {
   q4: string;
   q5: string;
   q6: string;
+  /** @deprecated Aucun calcul ne lit cette réponse — conservée pour les comptes existants. */
   q7: string;
   /** Montant minimum conservé sur les comptes courants. Chaîne numérique ou '' pour "je ne sais pas" (→ 0). */
   q8: string;
@@ -187,6 +188,55 @@ export function estimateWeeklyVariable(q3: string): number {
 export function monthlyVariableFromQ9(q9: string): number {
   return weeklyVariableFromQ9(q9) * WEEKS_PER_MONTH;
 }
+
+// ── q5 DÉRIVÉE DES DONNÉES RÉELLES ────────────────────────────
+//
+// q5 (« si tes revenus s'arrêtaient demain, combien de temps tiendrais-tu ? ») est EXACTEMENT la
+// définition du matelas de sécurité : épargne disponible ÷ revenu mensuel (lib/securityCushion).
+// Dès que l'utilisateur a saisi ses comptes, l'app le SAIT — plus fiable qu'une auto-évaluation.
+// On ne modifie pas le moteur de profils : on lui fournit la même réponse, mesurée au lieu d'être
+// déclarée, et on la recalcule à chaque fois que les données bougent (cf. useLiveProfileSync).
+
+/** Tranche Q5 correspondant à un nombre de mois de sécurité. `null` → tranche la plus basse. */
+export function q5FromSecurityMonths(months: number | null | undefined): string {
+  if (months == null || !Number.isFinite(months)) return Q5_OPTIONS[0];
+  if (months < 1) return Q5_OPTIONS[0];
+  if (months < 3) return Q5_OPTIONS[1];
+  if (months < 6) return Q5_OPTIONS[2];
+  return Q5_OPTIONS[3];
+}
+
+/** Tranche Q5 déduite de l'épargne disponible et du revenu mensuel de référence. */
+export function deriveQ5(availableSavings: number, monthlyIncome: number): string {
+  const cushion = computeSecurityCushion({
+    availableSavings,
+    avgMonthlyIncome: monthlyIncome > 0 ? monthlyIncome : 0,
+  });
+  return q5FromSecurityMonths(cushion.months);
+}
+
+/** Tranche Q3 (revenu) correspondant à un montant mensuel net saisi. */
+export function q3FromMonthlyIncome(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return Q3_OPTIONS[0];
+  if (amount < 1500) return Q3_OPTIONS[0];
+  if (amount < 2500) return Q3_OPTIONS[1];
+  if (amount < 4000) return Q3_OPTIONS[2];
+  return Q3_OPTIONS[3];
+}
+
+/**
+ * RÉPONSES NEUTRES pour les questions pas encore posées (profil provisoire).
+ *
+ * ⚠️ Surtout PAS « la première option de chaque question », qui était l'ancien repli du bouton
+ * « Passer le questionnaire » : la 1ʳᵉ option de q4 est « je finis souvent à découvert », qui
+ * déclenche un `return 'P1'` immédiat. Tout utilisateur ayant sauté le questionnaire se retrouvait
+ * donc classé « Épargne critique », investissement à 0 %, quelles que soient ses autres réponses.
+ * Neutre = le cas médian, qui laisse q5 (mesurée) décider du niveau.
+ */
+export const NEUTRAL_ANSWERS: Readonly<Pick<QuestionnaireAnswers, 'q4' | 'q6'>> = {
+  q4: Q4_OPTIONS[1],   // « J'ai de quoi vivre sans trop me priver, mais je n'épargne pas »
+  q6: Q6_OPTIONS[6],   // « Je ne sais pas »
+};
 
 // ── Détection revenu irrégulier ───────────────────────────────
 

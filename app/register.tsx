@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { useBrandColors } from '../hooks/useBrandColors';
 import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
+import { useResponsive } from '../hooks/useResponsive';
 import PasswordStrength from '../components/PasswordStrength';
 import { evaluatePassword } from '../lib/passwordPolicy';
 
@@ -20,6 +21,8 @@ import { evaluatePassword } from '../lib/passwordPolicy';
 export default function RegisterScreen() {
   const COLORS = useBrandColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Bureau : formulaire centré verticalement (cf. app/login).
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
   const passwordRef = useRef<TextInput>(null);
@@ -68,7 +71,7 @@ export default function RegisterScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
+          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, isDesktop && { flexGrow: 1, justifyContent: 'center' as const }]}>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Tes données seront synchronisées et sauvegardées.</Text>
 

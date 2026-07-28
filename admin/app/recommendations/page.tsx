@@ -71,7 +71,7 @@ const MODIFIERS = [
   },
   {
     name: 'Santé du compte courant',
-    desc: 'Si le solde courant est < 2× les engagements mensuels (projets + objectifs + charges fixes), on augmente « Conserver » de 10 pp.',
+    desc: 'Si le solde courant est < 2× les engagements mensuels (projets + charges fixes), on augmente « Conserver » de 10 pp.',
     icon: '🏦',
   },
   {
@@ -117,7 +117,7 @@ export default function RecommendationsAdmin() {
             </div>
             <div style={{ fontSize: 13, color: COLORS.textSecondary, lineHeight: 1.5 }}>
               {type === 'save' && 'Transférer vers l\'épargne de sécurité. Prioritaire quand les réserves sont basses.'}
-              {type === 'invest' && 'Alimenter un objectif d\'investissement. Prioritaire quand l\'épargne est confortable.'}
+              {type === 'invest' && 'Alimenter un compte d\'investissement. Prioritaire quand l\'épargne est confortable.'}
               {type === 'enjoy' && 'Marge de confort dispo une fois les dépenses variables couvertes. Grignotée en premier en cas de dépassement.'}
               {type === 'keep' && 'Conserver sur le compte courant comme réserve. Augmente si le solde est tendu.'}
             </div>
@@ -134,7 +134,7 @@ export default function RecommendationsAdmin() {
               }}
             >
               {type === 'save' && 'Action → Comptes (transfert)'}
-              {type === 'invest' && 'Action → Objectifs'}
+              {type === 'invest' && 'Action → Comptes (transfert)'}
               {type === 'enjoy' && 'Action → Informatif'}
               {type === 'keep' && 'Action → Informatif'}
             </div>

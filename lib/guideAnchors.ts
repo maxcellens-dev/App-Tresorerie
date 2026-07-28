@@ -8,7 +8,10 @@
  */
 import React from 'react';
 
-export type GuideAnchorName = 'headerProfile' | 'tabbar';
+/** `quickAdd` : le bouton de saisie. Sur ordinateur ce n'est PAS le « + » rond (absent) mais
+    « Nouvelle opération » dans la barre latérale — d'où l'ancre enregistrée par le composant qui
+    l'affiche réellement, plutôt qu'une position devinée par l'écran qui lance le guide. */
+export type GuideAnchorName = 'headerProfile' | 'tabbar' | 'quickAdd';
 
 const anchors: Partial<Record<GuideAnchorName, React.RefObject<any>>> = {};
 

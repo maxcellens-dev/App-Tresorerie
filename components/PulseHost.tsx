@@ -24,6 +24,7 @@ import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
+import { useProfile } from '../hooks/useProfile';
 import { useTour } from '../contexts/TourContext';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
@@ -57,6 +58,7 @@ export default function PulseHost() {
   const { user, isImpersonating } = useAuth();
 
   const { data: config } = usePulseConfig();
+  const { data: profile } = useProfile(user?.id);
   const pulse = usePulse();
   const { seen, isLoading: seenLoading, markSeen } = usePulseSeen(user?.id);
   const saveSnapshot = useSavePulseSnapshot();
@@ -89,7 +91,20 @@ export default function PulseHost() {
   const currentWeek = weekKey(today);
   const lastMonth = monthKey(new Date(today.getFullYear(), today.getMonth() - 1, 1));
   const inTabs = segments[0] === '(tabs)';
-  const canShow = appReady && inTabs && !tour.active && !isImpersonating && !seenLoading && !!config?.enabled && !!pulse;
+
+  // COMPTE TOUT NEUF : pas de « Point de la semaine » avant 7 jours d'ancienneté. Il tombait
+  // à la seconde même de la création, par-dessus la découverte, pour ne dire à peu près rien
+  // (« 0 € dépensés ce mois-ci ») : un bilan n'a de sens qu'une fois une période vécue.
+  const accountAgeDays = (() => {
+    const created = (profile as any)?.created_at;
+    if (!created) return Infinity;                 // âge inconnu → on ne bloque pas
+    const ms = Date.now() - new Date(created).getTime();
+    return Number.isFinite(ms) ? ms / 86_400_000 : Infinity;
+  })();
+  const oldEnough = accountAgeDays >= 7;
+
+  const canShow = appReady && inTabs && !tour.active && !isImpersonating && !seenLoading
+    && !!config?.enabled && !!pulse && oldEnough;
 
   // `open` pose seulement la vue : l'animation d'entrée est pilotée par l'effet ci-dessous, qui
   // attend que les DONNÉES soient là (un tap sur la pastille pendant le chargement ne doit pas

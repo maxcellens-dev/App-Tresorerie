@@ -31,6 +31,8 @@ import type { RecurrenceRule, PreSavingType } from '../../../types/database';
 import type { RecoType } from '../../../lib/recommendationEngine';
 import { useRecoDismissals } from '../../../hooks/useUiPrefs';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
@@ -39,6 +41,7 @@ import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 export default function TransferScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -222,7 +225,7 @@ export default function TransferScreen() {
   if (!user) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={[]}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
           <TouchableOpacity style={styles.back} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
@@ -271,7 +274,7 @@ export default function TransferScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title="Virement entre comptes" onBack={goBack} />
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
@@ -438,14 +441,14 @@ export default function TransferScreen() {
             {isRecurring && (
               <>
                 <Text style={styles.label}>Période</Text>
-                <View style={styles.chipRow}>
+                <View style={styles.periodRow}>
                   {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
                     <TouchableOpacity
                       key={rule}
-                      style={[styles.chip, recurrenceRule === rule && styles.chipActive]}
+                      style={[styles.periodChip, recurrenceRule === rule && styles.chipActive]}
                       onPress={() => setRecurrenceRule(rule)}
                     >
-                      <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>
+                      <Text style={[styles.periodChipText, recurrenceRule === rule && styles.chipTextActive]} numberOfLines={1}>
                         {rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}
                       </Text>
                     </TouchableOpacity>
@@ -586,6 +589,13 @@ function makeStyles(c: any) {
   chipSubtext: { fontSize: 11, color: c.textSecondary, marginTop: 2 },
   chipSubtextActive: { color: c.bg },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  /* Périodicité : les quatre choix tiennent sur UNE ligne quel que soit l'écran. */
+  periodRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  periodChip: {
+    flex: 1, paddingHorizontal: 4, paddingVertical: 9, borderRadius: 14,
+    borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
+  },
+  periodChipText: { fontSize: 12.5, fontWeight: '600', color: c.text },
   recurringSection: { marginTop: 4, marginBottom: 8 },
   recurringToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 10,

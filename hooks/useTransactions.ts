@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import type { Transaction, TransactionWithDetails, RecurrenceRule } from '../types/database';
-import { appConfirm, appPrompt } from '../lib/appDialog';
+import { appChoice, appPrompt } from '../lib/appDialog';
 import { convertAmount } from '../lib/currency';
 import { formatDateFrench } from '../lib/dateUtils';
 import { buildProjectTransactions, projectMode } from '../lib/projectTx';
@@ -60,25 +60,35 @@ async function regulOnSameDay(
   accountId: string,
   date: string,
   cachedTxs?: Array<{ account_id: string; date: string; category_id?: string | null; note?: string | null; account?: { name?: string } | null }> | null,
-): Promise<{ accountName: string } | null> {
+): Promise<{ accountName: string; balance: number | null } | null> {
   if (!supabase) return null;
   // CACHE-FIRST : si la liste des transactions est déjà en cache (cas normal — l'écran de saisie
   // la charge), on décide localement, sans aller-retour réseau. Une régul créée à l'instant sur un
   // AUTRE appareil pourrait manquer au cache : cas limite accepté (le prompt n'est qu'une aide de
   // réconciliation, le recalcul du solde reste déterministe).
+  // Le solde ACTUEL est nécessaire pour montrer les deux résultats possibles dans le dialogue :
+  // c'est cette comparaison qui permet de trancher sans refaire le calcul de tête.
+  const balanceOf = async (): Promise<number | null> => {
+    const { data: acc } = await supabase!.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+    return acc ? { name: (acc as any).name, balance: Number((acc as any).balance) }.balance : null;
+  };
   if (Array.isArray(cachedTxs)) {
     const hit = cachedTxs.find((t) =>
       t.account_id === accountId && t.date === date && t.category_id == null &&
       (/gul/i.test(t.note ?? '') || t.note === 'Ajustement de solde'));
-    return hit ? { accountName: hit.account?.name ?? 'ce compte' } : null;
+    if (!hit) return null;
+    return { accountName: hit.account?.name ?? 'ce compte', balance: await balanceOf() };
   }
   const { data } = await supabase.from('transactions').select('id')
     .eq('account_id', accountId).eq('date', date).is('category_id', null)
     .or('note.ilike.%gul%,note.eq.Ajustement de solde')
     .limit(1).maybeSingle();
   if (!data) return null;
-  const { data: acc } = await supabase.from('accounts').select('name').eq('id', accountId).maybeSingle();
-  return { accountName: (acc as any)?.name ?? 'ce compte' };
+  const { data: acc } = await supabase.from('accounts').select('name, balance').eq('id', accountId).maybeSingle();
+  return {
+    accountName: (acc as any)?.name ?? 'ce compte',
+    balance: acc ? Number((acc as any).balance) : null,
+  };
 }
 
 /**
@@ -298,13 +308,37 @@ export function useAddTransaction(profileId: string | undefined) {
           const cachedAll = client.getQueryData<TransactionWithDetails[]>([KEY, profileId, 'all']);
           const conflict = await regulOnSameDay(input.account_id, input.date, cachedAll ?? null);
           if (conflict) {
-            const alreadyCounted = await appConfirm({
+            /* Décision difficile à prendre dans l'abstrait : on montre donc les DEUX SOLDES qui en
+               résultent, avec la date. « Déjà incluse » laisse le solde tel quel (l'opération est
+               déjà dedans) ; « Nouvelle opération » l'applique. Une carte par option, validée d'un
+               seul tap — au lieu de deux boutons qui obligent à refaire le calcul de tête. */
+            const bal = conflict.balance;
+            const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' €';
+            const dateLbl = formatDateFrench(input.date);
+            const choice = await appChoice({
               title: 'Déjà comptée dans ce solde ?',
-              message: `Une régularisation de solde a été faite le ${formatDateFrench(input.date)} sur « ${conflict.accountName} ». Cette opération y est-elle déjà incluse, ou s'agit-il d'une nouvelle opération qui doit modifier le solde ?`,
-              confirmText: 'Déjà incluse',
-              cancelText: 'Nouvelle opération',
+              message: `Tu as fait une régularisation le ${dateLbl} sur « ${conflict.accountName} ». Cette opération y était-elle déjà comprise ?`,
+              options: [
+                {
+                  icon: 'checkmark-done',
+                  label: 'Oui, déjà incluse',
+                  hint: 'Elle apparaît pour l’historique, mais ne rebouge pas le solde.',
+                  tone: 'neutral',
+                  result: bal != null ? fmt(bal) : undefined,
+                  resultHint: `solde inchangé au ${dateLbl}`,
+                },
+                {
+                  icon: 'add-circle',
+                  label: 'Non, c’est une nouvelle opération',
+                  hint: 'Elle s’ajoute au solde régularisé.',
+                  tone: contribution < 0 ? 'danger' : 'accent',
+                  result: bal != null ? fmt(bal + contribution) : undefined,
+                  resultHint: `nouveau solde au ${dateLbl}`,
+                },
+              ],
             });
-            regulCovered = alreadyCounted; // « Déjà incluse » → couverte ; « Nouvelle »/fermeture → compte.
+            // Fermeture sans choisir → on ne couvre pas : l'opération compte (comportement d'avant).
+            regulCovered = choice === 0;
           }
         }
       }

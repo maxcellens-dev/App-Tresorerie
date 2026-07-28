@@ -9,7 +9,9 @@
  * valeur PÉRIMÉE affichée, et aucun saut de mise en page.
  * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 600 ms.
  *
- * Fermeture : au tap (n'importe où) ou en balayant vers le haut. JAMAIS d'auto-disparition.
+ * Fermeture : au tap (n'importe où), en balayant vers le haut, ou TOUTE SEULE au bout de 5 s —
+ * la carte confirme une saisie, elle n'a rien à faire attendre : la laisser en place obligeait à
+ * un geste supplémentaire après chaque opération.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Pressable, PanResponder, Platform, LayoutAnimation, type LayoutAnimationConfig } from 'react-native';
@@ -23,7 +25,7 @@ import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../lib/pulseBus';
 import { computeOpFeedback, type PulseFeedback, type PulseOp } from '../lib/pulseDelta';
-import PulseSignalCard, { pulseColor } from './PulseSignalCard';
+import { pulseColor } from './PulseSignalCard';
 
 /** Instantané du Pouls juste avant la saisie (pour mesurer ce qui a bougé). */
 interface Pending {
@@ -38,6 +40,15 @@ interface Pending {
 /** Requêtes dont dépend le Pouls : on attend qu'elles soient revenues avant d'afficher. */
 const WATCHED_QUERIES = new Set(['pilotage_data', 'transactions', 'accounts']);
 
+/**
+ * Délai maximal avant de remplir la carte avec le CACHE, quand les refetchs n'ont pas encore
+ * abouti. Doit rester sous le seuil de perception (~200 ms) : au-delà, la carte paraît vide.
+ */
+const FILL_FALLBACK_MS = 180;
+
+/** Durée d'affichage avant disparition automatique. Assez pour lire les deux pastilles, pas plus. */
+const AUTO_DISMISS_MS = 5000;
+
 /** Transition douce quand la carte change de contenu/hauteur (tirets → valeurs). */
 const SEAMLESS_LAYOUT: LayoutAnimationConfig = {
   duration: 260,
@@ -46,13 +57,11 @@ const SEAMLESS_LAYOUT: LayoutAnimationConfig = {
   delete: { type: 'easeInEaseOut', property: 'opacity' },
 };
 
-/** Empreinte du contenu affiché → évite les re-rendus quand rien n'a réellement changé. */
+/** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé.
+ *  Le signal n'y figure pas : il n'est plus rendu ici (voir le commentaire dans le JSX), donc ses
+ *  variations ne doivent déclencher ni re-rendu ni animation de mise en page. */
 function feedbackSignature(f: PulseFeedback): string {
-  const s = f.signal;
-  return [
-    f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|'),
-    s ? `${s.id}:${s.pending ? 1 : 0}:${s.headline}:${s.detail ?? ''}:${s.amountLine ?? ''}:${s.chip}:${s.status}:${s.progress?.value ?? ''}:${s.progress?.planned ?? ''}` : '',
-  ].join('#');
+  return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|');
 }
 
 export default function PulseDeltaHost() {
@@ -70,6 +79,7 @@ export default function PulseDeltaHost() {
   // à chaque arrivée de données fraîches (le refetch peut aboutir juste après le 1er affichage).
   const active = useRef<Pending | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Valeurs vivantes, lues sans re-souscrire (l'abonnement au bus reste monté une fois).
   const pulseRef = useRef<PulseData | null>(null);
@@ -86,6 +96,7 @@ export default function PulseDeltaHost() {
 
   const clearTimers = useCallback(() => {
     if (fallbackTimer.current) { clearTimeout(fallbackTimer.current); fallbackTimer.current = null; }
+    if (autoDismissTimer.current) { clearTimeout(autoDismissTimer.current); autoDismissTimer.current = null; }
   }, []);
 
   /** Événement → opération jugeable : c'est ici qu'on résout les TYPES de comptes. */
@@ -138,11 +149,16 @@ export default function PulseDeltaHost() {
       anim.setValue(0);
       Animated.spring(anim, { toValue: 1, useNativeDriver: true, tension: 70, friction: 11 }).start();
       // Filet : les refetchs n'ont pas abouti à temps (ou aucun n'a démarré : données déjà fraîches,
-      // hors ligne…) → on compose la carte avec le cache. 600 ms : la carte est TOUJOURS complète
-      // très vite ; si des données plus fraîches arrivent ensuite, l'effet ci-dessous la recalcule.
+      // hors ligne…) → on compose la carte avec le cache. Si des données plus fraîches arrivent
+      // ensuite, l'effet ci-dessous la recalcule (et la transition est animée).
+      //
+      // ⚠️ 600 ms était trop long : sur mobile en production, la carte s'ouvrait instantanément mais
+      // restait remplie de tirets assez longtemps pour qu'on la croie vide — on tapait à côté avant
+      // d'avoir lu quoi que ce soit. À 180 ms l'attente est imperceptible, et on garde l'intention
+      // d'origine (ne pas afficher un chiffre périmé si les données fraîches arrivent tout de suite).
       fallbackTimer.current = setTimeout(() => {
         if (active.current === p) { p.forceFull = true; renderFor(p); }
-      }, 600);
+      }, FILL_FALLBACK_MS);
     });
   }, [liveEnabled, renderFor, anim, drag, clearTimers]);
 
@@ -158,6 +174,16 @@ export default function PulseDeltaHost() {
   // Nettoyage à la dépose (déconnexion, etc.).
   useEffect(() => () => clearTimers(), [clearTimers]);
 
+  // Disparition automatique. Armée sur l'APPARITION de la carte (pas à chaque recalcul de contenu),
+  // sinon chaque vague de refetch repousserait l'échéance.
+  useEffect(() => {
+    if (!feedback) return;
+    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+    autoDismissTimer.current = setTimeout(() => dismissRef.current(), AUTO_DISMISS_MS);
+    return () => { if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!feedback]);
+
   const dismiss = useCallback(() => {
     Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true, easing: Easing.in(Easing.cubic) })
       .start(() => {
@@ -167,6 +193,10 @@ export default function PulseDeltaHost() {
         drag.setValue(0);
       });
   }, [anim, drag, clearTimers]);
+  // Référence vivante : le minuteur d'auto-fermeture est armé AVANT que `dismiss` ne soit défini,
+  // et ne doit pas capturer une version périmée de la fonction.
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
 
   // Balayage vers le HAUT → on referme (la carte repart par où elle est venue).
   const panResponder = useMemo(
@@ -215,12 +245,11 @@ export default function PulseDeltaHost() {
           })}
         </View>
 
-        {/* Le signal que ce geste vient de faire bouger : sa barre se remplit sous les yeux. */}
-        {feedback.signal && (
-          <View style={styles.signalWrap}>
-            <PulseSignalCard key={feedback.signal.id} signal={feedback.signal} delay={120} />
-          </View>
-        )}
+        {/* PAS de carte de signal ici (« Fin de mois », barre de progression…). Elle dépend du
+            recalcul COMPLET du Pouls : elle s'affichait en tirets puis se remplissait, et la carte
+            changeait de hauteur — l'ensemble paraissait lent alors qu'on venait juste d'enregistrer.
+            Ne restent que les pastilles, disponibles tout de suite. Le signal complet est à un tap,
+            dans le Pouls (composant PulseHost), qui a le temps de le calculer. */}
 
         <Text style={styles.hint}>Swipe vers le haut pour fermer</Text>
         <View style={styles.grabber} />
@@ -248,8 +277,6 @@ function makeStyles(c: AppColors) {
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     chipText: { fontSize: 12.5, fontWeight: '800' },
-    // La carte de signal amène sa propre marge basse : on la neutralise ici.
-    signalWrap: { marginTop: 14, marginBottom: -10 },
     hint: { fontSize: 10.5, color: c.textSecondary, marginTop: 14, textAlign: 'center' },
     grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8 },
   });

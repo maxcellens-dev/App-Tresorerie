@@ -33,7 +33,6 @@ export const SEMANTIC = {
   expenseChartDark: '#CC2F26',
   variableExpense:  '#FF9500',
   project:          '#00C4CC',
-  objective:        '#00B67A',
 
   positive: '#00B67A',
   negative: '#f87171',

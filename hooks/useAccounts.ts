@@ -143,12 +143,19 @@ export function useSeedDefaultAccounts(profileId: string | undefined) {
         .limit(1);
       if (existing && existing.length > 0) return; // déjà des comptes → ne rien faire
 
+      // Devise : celle CHOISIE par l'utilisateur, jamais « EUR » en dur. Elle était ignorée ici,
+      // si bien qu'un utilisateur suisse ou canadien démarrait avec un compte en euros alors qu'il
+      // venait de sélectionner sa devise à l'écran précédent.
+      const { data: prof } = await supabase
+        .from('profiles').select('currency_code').eq('id', profileId).maybeSingle();
+
       const { error } = await supabase.from('accounts').insert({
         profile_id: profileId,
         name: 'Compte courant',
         type: 'checking',
-        currency: 'EUR',
+        currency: (prof as any)?.currency_code || 'EUR',
         balance: 0,
+        is_default: true,
       });
       if (error) throw error;
     },

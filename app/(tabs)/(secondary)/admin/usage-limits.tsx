@@ -9,6 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useUsageLimitsConfig, useSaveUsageLimitsConfig } from '../../../../hooks/useUsageLimits';
 import { USAGE_LIMIT_FIELDS, USAGE_LIMIT_DEFAULTS, type UsageLimitsConfig, type UsageTierLimits } from '../../../../lib/usageLimits';
@@ -18,6 +20,7 @@ type Tier = 'free' | 'premium';
 export default function AdminUsageLimits() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
   const { data: cfg } = useUsageLimitsConfig();
   const save = useSaveUsageLimitsConfig();
@@ -55,7 +58,7 @@ export default function AdminUsageLimits() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.back} onPress={goBack}><Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backTxt}>Retour</Text></TouchableOpacity>
         <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={styles.h1}>Limites d'usage</Text>

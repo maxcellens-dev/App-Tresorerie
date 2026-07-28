@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAllAccounts, useUpdateAccount, useCloseAccount, useSetDefaultAccount } from '../../../../hooks/useAccounts';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
 import AccountShareSection from '../../../../components/AccountShareSection';
 import AccountImpactSection from '../../../../components/AccountImpactSection';
@@ -25,6 +27,7 @@ const TYPES = [
 export default function EditAccountScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -118,7 +121,7 @@ export default function EditAccountScreen() {
   if (!user || !account) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]}>
           <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
           <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
         </SafeAreaView>
@@ -130,7 +133,7 @@ export default function EditAccountScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

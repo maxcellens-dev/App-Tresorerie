@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useResponsive } from '../../hooks/useResponsive';
+import { pageColumn } from '../../lib/webLayout';
 import { useNavBack } from '../../hooks/useNavBack';
 import { useUsageGuard } from '../../hooks/useUsageLimits';
 import { parseUsageLimitError } from '../../lib/usageLimits';
@@ -36,6 +38,7 @@ export default withDeferredMount(ConseilsIaScreen);
 function ConseilsIaScreen() {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
+  const { isDesktop } = useResponsive(); // web bureau : conversation dans une colonne lisible
   const { user, isImpersonating } = useAuth();
   const uid = user?.id;
   const goBack = useNavBack();
@@ -339,7 +342,7 @@ function ConseilsIaScreen() {
     <View style={s.root}>
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
+      <SafeAreaView style={[{ flex: 1 }, pageColumn(isDesktop, 'settings', 0)]} edges={['left', 'right']}>
         {/* La colonne se rétrécit de la hauteur visible du clavier → la barre reste posée dessus. */}
         <Reanimated.View style={[{ flex: 1 }, kbAvoid]}>
           {/* Header */}

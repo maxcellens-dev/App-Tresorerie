@@ -14,6 +14,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoadmapIdeas } from '../../../hooks/useRoadmapIdeas';
 import { notifyAdminsEvent } from '../../../lib/pushSend';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 
 
@@ -51,6 +53,7 @@ function useAddSuggestion(profileId: string | undefined) {
 export default function IdeasScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -81,7 +84,7 @@ export default function IdeasScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right']}>
+            <ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
         <ScreenHeader title="Boîte à idées" onBack={goBack} />
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
           <Text style={styles.subtitle}>

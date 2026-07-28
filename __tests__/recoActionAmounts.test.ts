@@ -176,17 +176,19 @@ describe('fin de mois', () => {
     expect(j3.enjoy.amount).toBeLessThan(200);
   });
 
-  it('« Conserver » devient « Reporter sur le mois prochain »', () => {
+  // Vocabulaire figé : le geste s'appelle « Réserver » partout à l'affichage (comme la ligne
+  // « Réservé » du suivi). Seul l'horizon change en fin de mois.
+  it('en fin de mois, le titre bascule sur le mois prochain', () => {
     const end = byType(computeRecommendations(base, { daysLeftInMonth: 2 }));
-    expect(end.keep.title).toBe('Reporter sur le mois prochain');
-    expect(end.keep.shortTitle).toBe('Reporter');
+    expect(end.keep.title).toBe('Réserver pour le mois prochain');
+    expect(end.keep.shortTitle).toBe('Réserver');
     expect(end.keep.description).toContain('mois prochain');
   });
 
   it('hors fin de mois, les libellés ne changent pas', () => {
     const mid = byType(computeRecommendations(base, { daysLeftInMonth: 15 }));
-    expect(mid.keep.title).toBe('Conserver pour plus tard');
-    expect(mid.keep.shortTitle).toBe('Conserver');
+    expect(mid.keep.title).toBe('Réserver pour plus tard');
+    expect(mid.keep.shortTitle).toBe('Réserver');
   });
 });
 

@@ -7,12 +7,15 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../../hooks/useFiscalEnvelopes';
 
 export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -48,7 +51,7 @@ export default function FiscalRatesAdmin() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.bg === '#020617' ? 'light' : 'dark'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />
           <Text style={styles.backLabel}>Retour</Text>

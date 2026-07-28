@@ -11,6 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useSeoConfig, useSaveSeoConfig } from '../../../../hooks/useSeo';
 import { SEO_DEFAULTS, resolveSeoConfig, seoTitleFor, seoDescriptionFor, type SeoConfig } from '../../../../lib/seo';
@@ -87,6 +89,7 @@ function setPath(obj: any, path: string, value: any): any {
 export default function AdminSeoCenter() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
   const { data: cfg } = useSeoConfig();
   const save = useSaveSeoConfig();
@@ -119,7 +122,7 @@ export default function AdminSeoCenter() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.back} onPress={goBack}><Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backTxt}>Retour</Text></TouchableOpacity>
         <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Text style={styles.h1}>SEO Center</Text>

@@ -10,6 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useReliabilityConfig, useSaveReliabilityConfig } from '../../../../hooks/useReliability';
 import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/confidenceEngine';
@@ -31,6 +33,7 @@ const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; p
 export default function AdminReliability() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
   const { data: cfg } = useReliabilityConfig();
   const saveCfg = useSaveReliabilityConfig();
@@ -64,7 +67,7 @@ export default function AdminReliability() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.back} onPress={goBack}><Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backTxt}>Retour</Text></TouchableOpacity>
         <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={styles.h1}>Fiabilité & confiance</Text>

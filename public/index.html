@@ -61,6 +61,96 @@
     </style>
 
     <!--
+      FOCUS — l'anneau natif du navigateur reprend la couleur d'accent du SYSTÈME (orange sur
+      beaucoup de Windows/Android) : il jure avec la charte et il encadre la boîte au lieu de
+      l'habiter. On le neutralise ; chaque champ signale lui-même sa saisie (bordure d'accent +
+      fond teinté sur toute sa surface, cf. les styles `*Focus` des écrans).
+      Les éléments cliquables gardent un repère clavier, mais aux couleurs de l'app.
+    -->
+    <style id="focus-reset">
+      input, textarea, select, [contenteditable] { outline: none !important; }
+      input:focus, input:focus-visible,
+      textarea:focus, textarea:focus-visible,
+      select:focus, select:focus-visible,
+      [contenteditable]:focus, [contenteditable]:focus-visible {
+        outline: none !important;
+        box-shadow: none;
+      }
+      /* Souris/tactile : aucun contour sur les boutons et liens. */
+      button:focus:not(:focus-visible),
+      a:focus:not(:focus-visible),
+      [role="button"]:focus:not(:focus-visible),
+      div[tabindex]:focus:not(:focus-visible) { outline: none !important; }
+      /* Navigation clavier : repère discret, à la couleur d'accent (émeraude). */
+      button:focus-visible,
+      a:focus-visible,
+      [role="button"]:focus-visible,
+      div[tabindex]:focus-visible {
+        outline: 2px solid rgba(0, 182, 122, 0.75) !important;
+        outline-offset: 2px;
+      }
+      /* Autofill Chrome : plus de rectangle bleu/jaune imposé par le navigateur. */
+      input:-webkit-autofill,
+      input:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0 1000px transparent inset;
+        transition: background-color 9999s ease-in-out 0s;
+      }
+    </style>
+
+    <!--
+      BUREAU (>= 1024 px) — finitions « site web » que React Native Web ne sait pas exprimer :
+      curseur souris, ascenseurs discrets, sélection de texte, rendu de police.
+      Tout est enfermé dans une media query : sur téléphone et tablette, rien ne s'applique et
+      l'app garde son comportement tactile à l'identique.
+    -->
+    <style id="desktop-web">
+      @media (min-width: 1024px) {
+        /* Un site se lit et se copie : on rend le texte sélectionnable (RNW le bloque par défaut). */
+        body { -webkit-user-select: text; user-select: text; }
+        /* …sauf sur les éléments d'interface, où la sélection au clic est parasite. */
+        [role="button"], [role="link"], [role="tab"], button, nav { -webkit-user-select: none; user-select: none; }
+
+        /* Curseur : indispensable pour que l'interface réponde comme un site. */
+        [role="button"], [role="link"], button, a, [role="tab"], summary { cursor: pointer; }
+        [role="button"][aria-disabled="true"], button[disabled] { cursor: not-allowed; }
+        input, textarea, [contenteditable] { cursor: text; }
+
+        /* Ascenseurs fins et neutres (Firefox + WebKit), au lieu des barres système épaisses. */
+        * { scrollbar-width: thin; scrollbar-color: rgba(140,140,140,.38) transparent; }
+        ::-webkit-scrollbar { width: 11px; height: 11px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(140,140,140,.32);
+          border-radius: 999px;
+          border: 3px solid transparent;
+          background-clip: content-box;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(140,140,140,.55); background-clip: content-box; }
+        ::-webkit-scrollbar-corner { background: transparent; }
+
+        /* Texte : lissage et ligatures — un écran d'ordinateur montre tout. */
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+
+        /*
+          SURVOL — piloté par l'attribut `data-hover`, posé côté React via les helpers
+          `hoverRow` / `hoverCard` / `hoverTint` de lib/webLayout. Ce détour par le CSS évite de
+          remplacer les TouchableOpacity par des Pressable : le retour TACTILE de l'app mobile
+          reste rigoureusement identique, seul le navigateur d'ordinateur ajoute le survol.
+        */
+        [data-hover] { transition: background-color .15s ease, box-shadow .18s ease, transform .18s ease, border-color .15s ease; }
+        [data-hover="row"]:hover  { background-color: rgba(128,128,128,.10); }
+        [data-hover="tint"]:hover { filter: brightness(1.08); }
+        [data-hover="card"]:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 24px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.10);
+        }
+        [data-hover]:active { transform: none; }
+      }
+      /* Sélection aux couleurs de la marque, quelle que soit la largeur. */
+      ::selection { background: rgba(0, 182, 122, 0.26); }
+    </style>
+
+    <!--
       Écran de chargement (avant le montage de React) — évite l'écran blanc.
       LOGO SEUL, identique à components/AppLoading (même image `icon-512.png`, qui est aussi le logo
       du splash natif ; le favicon est une AUTRE image). Sortie calquée sur le splash natif :

@@ -20,6 +20,8 @@ import {
 import { PROFILE_INFO } from '../../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useSavingsConfig, useSaveSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
 
@@ -591,6 +593,7 @@ function GlobalSection({ userId }: { userId: string }) {
 export default function FinancialProfilesAdmin() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -601,7 +604,7 @@ export default function FinancialProfilesAdmin() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
 
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={22} color={COLORS.text} />

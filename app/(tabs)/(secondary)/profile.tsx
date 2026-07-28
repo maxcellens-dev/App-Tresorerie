@@ -16,6 +16,8 @@ import { supabase } from '../../../lib/supabase';
 import { compressAvatarToWebP } from '../../../lib/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../../services/avatarService';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useCosmetics } from '../../../hooks/useCosmetics';
 import { useNavBack } from '../../../hooks/useNavBack';
 import GuideOverlay, { type BubbleStep } from '../../../components/GuideOverlay';
@@ -25,6 +27,7 @@ import { useScreenGuide } from '../../../hooks/useScreenGuide';
 export default function ProfileScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const { user, signOut } = useAuth();
   const goBack = useNavBack();
@@ -207,7 +210,7 @@ export default function ProfileScreen() {
   if (!user) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={[]}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
           <ScreenHeader title="Mon profil" onBack={goBack} />
           <Text style={styles.text}>Connecte-toi pour modifier ton profil.</Text>
           <View style={styles.loginActions}>
@@ -234,7 +237,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-            <ScreenGradient /><SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+            <ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
         {Platform.OS === 'web' && typeof document !== 'undefined' && (
           <input
             ref={(el: any) => { fileInputRef.current = el; }}

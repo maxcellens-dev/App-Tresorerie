@@ -26,6 +26,8 @@ import EditTransactionMonthModal from '../../components/EditTransactionMonthModa
 import type { RecurrenceRule, TransactionWithDetails } from '../../types/database';
 import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useResponsive } from '../../hooks/useResponsive';
+import { pageColumn } from '../../lib/webLayout';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
@@ -119,6 +121,7 @@ export default function TreasuryPlanScreen() {
 function TreasuryPlanBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne large centrée pour le tableau
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -906,7 +909,7 @@ function TreasuryPlanBody() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
         {/* Retour vers la page précédente */}
         <TouchableOpacity
           style={styles.backRow}

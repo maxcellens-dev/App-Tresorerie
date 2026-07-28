@@ -31,6 +31,8 @@ import { useAllTransactions, useAddTransaction } from '../../../hooks/useTransac
 import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { currencySymbolFor } from '../../../lib/currency';
 import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } from '../../../lib/investment';
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
@@ -70,6 +72,7 @@ function findSymmetricTx(
 export default function AccountDetailScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const modalStyles = makeModalStyles(COLORS);
   const txDetailStyles = makeTxDetailStyles(COLORS);
   const router = useRouter();
@@ -407,7 +410,7 @@ export default function AccountDetailScreen() {
   if (!user || !account) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]}>
           <ScreenHeader title="Compte" onBack={() => router.back()} />
           <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
         </SafeAreaView>
@@ -423,7 +426,7 @@ export default function AccountDetailScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
         <ScreenHeader
           title={account.name}
           onBack={() => router.back()}

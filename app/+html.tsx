@@ -44,6 +44,9 @@ export default function Root({ children }: PropsWithChildren) {
             statique → plus de flash sombre quand l'admin a paramétré le thème clair. */}
         <script dangerouslySetInnerHTML={{ __html: BOOT_THEME_JS }} />
         <style dangerouslySetInnerHTML={{ __html: LOCK_VIEWPORT_CSS }} />
+        {/* Finitions bureau — doit rester le MIROIR du bloc `#desktop-web` de public/index.html
+            (c'est ce dernier qui s'applique réellement tant que web.output vaut "single"). */}
+        <style dangerouslySetInnerHTML={{ __html: DESKTOP_WEB_CSS }} />
         <style dangerouslySetInnerHTML={{ __html: BOOT_LOADER_CSS }} />
       </head>
       <body>
@@ -76,6 +79,30 @@ html, body, #root {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+`;
+
+// Finitions « site web » sur écran d'ordinateur (>= 1024 px) : curseur, ascenseurs discrets,
+// sélection de texte, survols pilotés par `data-hover` (cf. lib/webLayout). Sous la media query,
+// donc sans effet sur téléphone et tablette. MIROIR du bloc `#desktop-web` de public/index.html.
+const DESKTOP_WEB_CSS = `
+@media (min-width: 1024px) {
+  body { -webkit-user-select: text; user-select: text; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  [role="button"], [role="link"], [role="tab"], button, nav { -webkit-user-select: none; user-select: none; }
+  [role="button"], [role="link"], button, a, [role="tab"], summary { cursor: pointer; }
+  [role="button"][aria-disabled="true"], button[disabled] { cursor: not-allowed; }
+  input, textarea, [contenteditable] { cursor: text; }
+  * { scrollbar-width: thin; scrollbar-color: rgba(140,140,140,.38) transparent; }
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(140,140,140,.32); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(140,140,140,.55); background-clip: content-box; }
+  [data-hover] { transition: background-color .15s ease, box-shadow .18s ease, transform .18s ease, border-color .15s ease; }
+  [data-hover="row"]:hover { background-color: rgba(128,128,128,.10); }
+  [data-hover="tint"]:hover { filter: brightness(1.08); }
+  [data-hover="card"]:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.10); }
+  [data-hover]:active { transform: none; }
+}
+::selection { background: rgba(0, 182, 122, 0.26); }
 `;
 
 // Lit le dernier thème connu (clés alignées sur lib/themeBoot.ts) et fixe les variables CSS du

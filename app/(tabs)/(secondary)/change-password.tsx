@@ -10,6 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { supabase } from '../../../lib/supabase';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 
 function showAlert(title: string, message: string) {
@@ -19,6 +21,7 @@ function showAlert(title: string, message: string) {
 export default function ChangePasswordScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const [password, setPassword] = useState('');
@@ -44,7 +47,7 @@ export default function ChangePasswordScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>

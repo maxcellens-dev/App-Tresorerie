@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import type { AppColors } from '../../../../theme/palette';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { usePulseConfig, useSavePulseConfig } from '../../../../hooks/usePulseConfig';
@@ -37,6 +39,7 @@ const BENCHMARK_FIELDS: { key: keyof PulseBenchmark; label: string; help: string
 export default function AdminPouls() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
   const { data: cfg } = usePulseConfig();
   const saveCfg = useSavePulseConfig();
@@ -86,7 +89,7 @@ export default function AdminPouls() {
   if (!draft) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
           <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />
         </SafeAreaView>
       </View>
@@ -96,7 +99,7 @@ export default function AdminPouls() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={styles.back} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backTxt}>Retour</Text>

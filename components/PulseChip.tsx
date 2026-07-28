@@ -2,8 +2,11 @@
  * POULS — l'indicateur du Pilotage. Purement GRAPHIQUE : une pastille par signal jugé, dans la
  * couleur de son état. Pas de libellé (« au vert ») : la couleur dit déjà tout.
  *
- * Il vit DANS la pilule du mois du « Suivi du mois » (« Juillet 2026 🫀 ●●●● ») — pas de bouton de
- * plus dans un écran déjà dense. Au tap : ouvre le Pouls de la semaine.
+ * ⚠️ ACTUELLEMENT MONTÉ NULLE PART. Il vivait dans la pilule du mois du « Suivi du mois »
+ * (« Juillet 2026 🧭 ●●●● »), bloc retiré avec la vue complète du tableau de bord. Le composant est
+ * CONSERVÉ tel quel en attendant de décider où le reposer : le Pouls lui-même n'a pas bougé et
+ * continue de s'ouvrir seul (hebdo / mensuel, cf. PulseHost) — seule l'ouverture À LA DEMANDE n'a
+ * plus de bouton côté utilisateur. Au tap : ouvre l'état des lieux du jour.
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';

@@ -13,11 +13,15 @@ import { supabase } from '../lib/supabase';
 import { useBrandColors } from '../hooks/useBrandColors';
 import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
+import { useResponsive } from '../hooks/useResponsive';
 
 
 export default function LoginScreen() {
   const COLORS = useBrandColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Bureau : le formulaire est centré VERTICALEMENT dans la fenêtre (app/_layout le centre déjà
+  // horizontalement dans une colonne de 480 px) → page de connexion de site web, pas écran d'app.
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
   const passwordRef = useRef<TextInput>(null);
@@ -61,7 +65,7 @@ export default function LoginScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
+          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, isDesktop && { flexGrow: 1, justifyContent: 'center' as const }]}>
           <Text style={styles.title}>Connexion</Text>
           <Text style={styles.subtitle}>Accède à ta trésorerie sur tous tes appareils.</Text>
 

@@ -25,6 +25,8 @@ import { usePlan } from '../../hooks/usePlan';
 import { useNavBack } from '../../hooks/useNavBack';
 import { ACCOUNT_COLORS } from '../../theme/colors';
 import { useAppColors } from '../../hooks/useAppColors';
+import { useResponsive } from '../../hooks/useResponsive';
+import { pageColumn } from '../../lib/webLayout';
 import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
@@ -452,9 +454,12 @@ function ReportingBody() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const { width: screenW } = useWindowDimensions();
+  const { isDesktop } = useResponsive();
   // Largeur INTÉRIEURE des cartes : écran − padding page (20×2) − padding carte (16×2).
   // Sans ça, les graphes débordaient à droite (colonnes collées au bord, marge invisible).
-  const chartWidth = Math.min(screenW - 72, 460);
+  // Bureau : la colonne fait 1180 px — on laisse les graphes respirer jusqu'à 620 px (sinon un
+  // camembert de 460 px flotte, minuscule, au milieu d'une carte trois fois plus large).
+  const chartWidth = Math.min(screenW - 72, isDesktop ? 620 : 460);
 
   const { data: profile } = useProfile(user?.id);
   const { isPremium } = usePlan(user?.id);
@@ -589,8 +594,9 @@ function ReportingBody() {
   return (
     <View style={s.root}>
       <StatusBar style={C.mode === 'light' ? 'dark' : 'light'} /><ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['left', 'right']}>
-        <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}
+      {/* Bureau : colonne de tableau de bord centrée (les graphes gagnent de la largeur utile). */}
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
+        <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, isDesktop && { paddingBottom: 56 }]} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.income} progressBackgroundColor={C.card} />}>
 
           <FadeIn><BackRow C={C} onPress={goBack} /></FadeIn>

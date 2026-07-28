@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorderBaseCategories, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/useBaseCategories';
@@ -19,6 +21,7 @@ import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorde
 export default function AdminCategoriesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -37,7 +40,7 @@ export default function AdminCategoriesScreen() {
 
   if (!profile?.is_admin) {
     return (
-      <View style={styles.root}><ScreenGradient /><SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
         <ScreenHeader title="Catégories de base" onBack={() => router.back()} />
         <Text style={styles.denied}>Réservé aux administrateurs.</Text>
       </SafeAreaView></View>
@@ -91,7 +94,7 @@ export default function AdminCategoriesScreen() {
     <View style={styles.root}>
       <ScreenGradient />
       <StatusBar style="dark" />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
         <ScreenHeader title="Catégories de base" onBack={() => router.back()} />
         <View style={styles.typeRow}>
           {([['expense', 'Dépenses'], ['income', 'Recettes']] as const).map(([t, lbl]) => (

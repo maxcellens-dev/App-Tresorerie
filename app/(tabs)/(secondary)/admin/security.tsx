@@ -14,7 +14,7 @@ import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
-import { useClientErrors, useResolveClientError, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/useSecurity';
+import { useClientErrors, useResolveClientError, useResolveAllClientErrors, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/useSecurity';
 import PasswordStrength from '../../../../components/PasswordStrength';
 import { evaluatePassword } from '../../../../lib/passwordPolicy';
 
@@ -132,15 +132,46 @@ function ErrorsCard({ c, s }: { c: any; s: any }) {
   const [onlyOpen, setOnlyOpen] = useState(true);
   const { data: errors = [], isLoading } = useClientErrors(onlyOpen);
   const resolve = useResolveClientError();
+  const resolveAll = useResolveAllClientErrors();
   const purge = usePurgeClientErrors();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fatal = errors.filter((e) => e.kind === 'fatal').length;
+  const openCount = errors.filter((e) => !e.resolved).length;
+  const busy = resolveAll.isPending || purge.isPending;
 
   const doPurge = () => Alert.alert('Purger les anciennes erreurs ?', 'Supprime les entrées de plus de 30 jours.', [
     { text: 'Annuler', style: 'cancel' },
     { text: 'Purger', style: 'destructive', onPress: () => purge.mutate(30, { onSuccess: (n) => Alert.alert('Purge', `${n} entrée(s) supprimée(s).`) }) },
   ]);
+
+  /* Actions de MASSE. Après une vague de crashs déjà corrigés, la seule sortie était de cocher les
+     entrées une par une (et la purge ne mordait que sur les plus de 30 jours, donc jamais sur
+     celles qui venaient d'arriver). */
+  const doResolveAll = () => Alert.alert(
+    'Tout marquer comme résolu ?',
+    'Toutes les erreurs encore ouvertes passent en résolu. Rien n\'est supprimé : elles restent consultables en décochant le filtre.',
+    [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Tout résoudre', onPress: () => resolveAll.mutate(undefined, {
+        onSuccess: (n) => Alert.alert('Résolues', `${n} entrée(s) marquée(s) comme résolue(s).`),
+        onError: (e) => Alert.alert('Échec', e.message),
+      }) },
+    ],
+  );
+
+  const doPurgeAll = () => Alert.alert(
+    'Tout supprimer ?',
+    'Supprime DÉFINITIVEMENT tout le journal d\'erreurs, y compris les entrées récentes et non résolues. Irréversible.',
+    [
+      { text: 'Annuler', style: 'cancel' },
+      // 0 jour → borne = maintenant → toutes les entrées sont antérieures.
+      { text: 'Tout supprimer', style: 'destructive', onPress: () => purge.mutate(0, {
+        onSuccess: (n) => Alert.alert('Journal vidé', `${n} entrée(s) supprimée(s).`),
+        onError: (e) => Alert.alert('Échec', e.message),
+      }) },
+    ],
+  );
 
   return (
     <View style={s.card}>
@@ -169,9 +200,19 @@ function ErrorsCard({ c, s }: { c: any; s: any }) {
       )}
 
       {errors.length > 0 && (
-        <TouchableOpacity style={[s.secondaryBtn, { marginTop: 8 }]} onPress={doPurge}>
-          <Text style={s.secondaryTxt}>Purger les entrées {'>'} 30 jours</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 8, marginTop: 8 }}>
+          {openCount > 0 && (
+            <TouchableOpacity style={s.secondaryBtn} onPress={doResolveAll} disabled={busy}>
+              <Text style={s.secondaryTxt}>Tout marquer comme résolu</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={s.secondaryBtn} onPress={doPurge} disabled={busy}>
+            <Text style={s.secondaryTxt}>Purger les entrées {'>'} 30 jours</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.secondaryBtn} onPress={doPurgeAll} disabled={busy}>
+            <Text style={[s.secondaryTxt, { color: c.danger }]}>Tout supprimer</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );

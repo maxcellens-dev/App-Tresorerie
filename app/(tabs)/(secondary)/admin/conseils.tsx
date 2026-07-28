@@ -10,6 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { useAllConseils } from '../../../../hooks/useConseils';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
@@ -21,6 +23,7 @@ import type { Conseil } from '../../../../hooks/useConseils';
 export default function AdminConseils() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const qc = useQueryClient();
@@ -64,7 +67,7 @@ export default function AdminConseils() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={goBack} style={{ padding: 4 }}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />

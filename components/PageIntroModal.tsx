@@ -3,15 +3,19 @@
  * Pas d'enchaînement : l'utilisateur lit puis ferme. Ne revient plus (drapeau onboarding),
  * sauf s'il relance le tuto depuis le support.
  *
+ * Rendu en COULEURS INVERSÉES et sans fermeture au tap à côté : c'est une pièce du guide
+ * utilisateur, elle doit ressortir de la page et se fermer par un geste voulu.
+ *
  * Usage :
  *   <PageIntroModal pageKey="transactions" />          // déclenché au focus de l'écran
  *   <PageIntroModal pageKey="menu" active={menuOpen} /> // déclenché par un état explicite
+ *   <PageIntroModal pageKey="comptes" onDone={...} />   // enchaîner une suite (bulles du guide)
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useAppColors } from '../hooks/useAppColors';
+import { useInvertedColors } from '../hooks/useInvertedColors';
 import { usePageIntro } from '../hooks/usePageIntro';
 import type { PageIntroKey } from '../hooks/useOnboarding';
 
@@ -22,6 +26,10 @@ function palette(c: any) {
 }
 
 const CONTENT: Record<PageIntroKey, { icon: string; colorKey: string; title: string; text: string }> = {
+  comptes: {
+    icon: 'wallet-outline', colorKey: 'blue', title: 'Comptes',
+    text: "Tous tes comptes au même endroit : courants, épargne, investissement, crédits.\n\n- Ton compte principal est celui proposé par défaut quand tu saisis quelque chose.\n- « Mettre à jour mon solde » (bouton +) recopie le solde de ta banque : c'est le geste qui remet tous tes chiffres d'aplomb.\n- Tu peux partager un compte avec quelqu'un, ou en ouvrir un joint.",
+  },
   transactions: {
     icon: 'list-outline', colorKey: 'green', title: 'Transactions',
     text: "Enregistre tes dépenses et tes recettes en quelques secondes. \n\nPour tes transactions habituelles (loyer, salaire, abonnements…), active la récurrence : tu ne les saisis qu'une fois.",
@@ -44,10 +52,15 @@ interface Props {
   pageKey: PageIntroKey;
   /** Si fourni, pilote l'affichage (sinon : focus de l'écran courant). */
   active?: boolean;
+  /** Appelé à la fermeture — sert au guide à enchaîner ses repères juste après. */
+  onDone?: () => void;
 }
 
-export default function PageIntroModal({ pageKey, active }: Props) {
-  const COLORS = useAppColors();
+export default function PageIntroModal({ pageKey, active, onDone }: Props) {
+  // Couleurs INVERSÉES (sombre si l'app est en clair, et l'inverse) : ces présentations font partie
+  // du guide, elles doivent trancher franchement sur la page qu'elles recouvrent au lieu de s'y
+  // fondre. Voir hooks/useInvertedColors.
+  const COLORS = useInvertedColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const focused = useIsFocused();
   const { seen, ready, dismiss } = usePageIntro(pageKey);
@@ -68,6 +81,7 @@ export default function PageIntroModal({ pageKey, active }: Props) {
   const close = () => {
     setOpen(false);
     if (!seen) dismiss();
+    onDone?.();
   };
 
   if (!open) return null;
@@ -77,8 +91,11 @@ export default function PageIntroModal({ pageKey, active }: Props) {
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={close}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={close}>
-        <TouchableOpacity style={styles.card} activeOpacity={1} onPress={() => {}}>
+      {/* Pas de fermeture au tap à côté : la présentation d'une page se lit puis se ferme
+          explicitement (« J'ai compris » ou la croix). Un tap au hasard la faisait disparaître à
+          jamais — elle ne revient pas. */}
+      <View style={styles.overlay}>
+        <View style={styles.card}>
           <TouchableOpacity style={styles.closeBtn} onPress={close} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
@@ -91,8 +108,8 @@ export default function PageIntroModal({ pageKey, active }: Props) {
             <Text style={styles.btnText}>J'ai compris</Text>
             <Ionicons name="checkmark" size={18} color={COLORS.bg} />
           </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }

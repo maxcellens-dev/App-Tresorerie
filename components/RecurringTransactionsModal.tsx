@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { sheetWidth } from '../lib/appLayout';
+import { RootPortal } from '../lib/rootPortal';
+import GuideRing from './GuideRing';
 import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../hooks/useRecurringTransactions';
 
 const KIND_META: Record<RecurKind, { title: string; icon: string; colorKey: 'blue' | 'danger' | 'green' }> = {
@@ -18,7 +20,16 @@ const KIND_META: Record<RecurKind, { title: string; icon: string; colorKey: 'blu
   income: { title: 'Recettes récurrentes', icon: 'arrow-up', colorKey: 'green' },
 };
 
-export default function RecurringTransactionsModal({ visible, onClose, userId }: { visible: boolean; onClose: () => void; userId: string | undefined }) {
+export default function RecurringTransactionsModal({ visible, onClose, userId, portal }: {
+  visible: boolean;
+  onClose: () => void;
+  userId: string | undefined;
+  /** Rendu dans la MÊME fenêtre que le guide (lib/rootPortal) au lieu d'un <Modal>.
+   *  Un <Modal> vit dans une fenêtre à part : la bulle du guide, dessinée dans la fenêtre
+   *  principale, passait DESSOUS — d'où l'ancienne carte « Elles vivent ici » qui commentait la
+   *  feuille de loin. Par le portail, bulle et feuille coexistent et se superposent correctement. */
+  portal?: boolean;
+}) {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
@@ -32,10 +43,12 @@ export default function RecurringTransactionsModal({ visible, onClose, userId }:
 
   const openEdit = (id: string) => { onClose(); router.push(`/(tabs)/transactions/edit/${id}` as any); };
 
-  return (
-    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+  const body = (
       <Pressable style={s.overlay} onPress={onClose}>
         <Pressable style={s.sheet} onPress={() => {}}>
+          {/* Anneau tracé par la feuille elle-même : le guide peut la désigner en même temps que
+              le bouton qui l'ouvre, sans aucune position à mesurer. */}
+          <GuideRing target="recurringSheet" radius={22} inset={-3} />
           <View style={s.grabber} />
           <View style={s.header}>
             <Ionicons name="repeat" size={20} color={c.text} />
@@ -84,12 +97,29 @@ export default function RecurringTransactionsModal({ visible, onClose, userId }:
           )}
         </Pressable>
       </Pressable>
+  );
+
+  if (portal) {
+    if (!visible) return null;
+    return (
+      <RootPortal>
+        {/* zIndex sous celui de la bulle du guide (1000) : la feuille remonte, l'explication reste
+            lisible par-dessus, quel que soit l'ordre de montage des deux portails. */}
+        <View style={s.portalFill}>{body}</View>
+      </RootPortal>
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      {body}
     </Modal>
   );
 }
 
 function makeStyles(c: any) {
   return StyleSheet.create({
+    portalFill: { ...StyleSheet.absoluteFillObject, zIndex: 500 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
     sheet: { ...sheetWidth, backgroundColor: c.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 26 },
     grabber: { width: 40, height: 4, borderRadius: 2, backgroundColor: c.cardBorder, alignSelf: 'center', marginBottom: 12 },

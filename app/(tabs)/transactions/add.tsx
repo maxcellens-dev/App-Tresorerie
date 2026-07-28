@@ -17,9 +17,15 @@ import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/Cat
 import type { RecurrenceRule } from '../../../types/database';
 import ScreenHeader from '../../../components/ScreenHeader';
 import CalculatorButton from '../../../components/CalculatorButton';
+import GuideRing from '../../../components/GuideRing';
+import { useGuide } from '../../../contexts/GuideContext';
+import { setGuideHighlight } from '../../../lib/guideHighlight';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
+import { useInvertedColors } from '../../../hooks/useInvertedColors';
 import { currencySymbolFor, convertAmount } from '../../../lib/currency';
 import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
@@ -75,9 +81,18 @@ function AccountChipRow({ accounts, activeId, disabledId, onSelect, styles, COLO
 
 export default function AddTransactionScreen() {
   const COLORS = useAppColors();
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Couleurs inversées : uniquement pour la consigne du guide (« coche Récurrent »), qui doit
+  // trancher sur le formulaire comme les autres messages de démarrage.
+  const INV = useInvertedColors();
+  const styles = useMemo(
+    () => makeStyles({ ...COLORS, guideBg: INV.cardSolid, guideBorder: INV.emerald + '55', guideText: INV.text }),
+    [COLORS, INV],
+  );
+  // Web bureau : un formulaire de saisie se tient dans une colonne étroite — sinon champs et
+  // bouton « Enregistrer » s'étirent sur toute la largeur de l'écran, ce qui ne se fait nulle part.
+  const { isDesktop } = useResponsive();
   const router = useRouter();
-  const params = useLocalSearchParams<{ type?: string; account?: string; on_behalf?: string; on_behalf_name?: string; origin?: string }>();
+  const params = useLocalSearchParams<{ type?: string; account?: string; on_behalf?: string; on_behalf_name?: string; origin?: string; recurring?: string }>();
   const { user } = useAuth();
   // Comptes où je peux ÉCRIRE (perso + joints + partagés écriture) — pas les comptes en consultation.
   const { data: allAccounts = [] } = useAllAccounts(user?.id);
@@ -125,6 +140,18 @@ export default function AddTransactionScreen() {
   const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
   // Projet sélectionné pour rattacher la saisie (null = pas de rattachement).
   const [attachProjectId, setAttachProjectId] = useState<string | null>(null);
+
+  /* ── Guide : première récurrence ───────────────────────────────────────────────────────────────
+     On arrive ici depuis le guide (`?recurring=1`), à l'étape « enregistre une récurrente ». La case
+     n'est VOLONTAIREMENT pas pré-cochée : le geste à apprendre, c'est de la cocher soi-même — c'est
+     lui qu'il faudra refaire pour chaque charge. On l'encadre donc, et on refuse l'enregistrement
+     tant qu'elle ne l'est pas. */
+  const guide = useGuide();
+  const guideNeedsRecurring = params.recurring === '1' && guide.is('tx_recurring') && !isRecurring;
+  useEffect(() => {
+    setGuideHighlight(guideNeedsRecurring ? 'recurringToggle' : null);
+    return () => setGuideHighlight(null);
+  }, [guideNeedsRecurring]);
 
   // Le bouton « + » (ou un lien) peut rouvrir cet écran DÉJÀ monté avec un type différent : expo-router
   // ne réinitialise alors pas le useState → on resynchronise le type sur le param à chaque changement.
@@ -516,7 +543,7 @@ export default function AddTransactionScreen() {
   if (!user) {
     return (
       <View style={styles.root}>
-        <SafeAreaView style={styles.safe} edges={[]}>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
           <Text style={styles.text}>Connecte-toi pour ajouter une transaction.</Text>
           <TouchableOpacity style={styles.btn} onPress={() => router.back()}>
             <Text style={styles.btnLabel}>Retour</Text>
@@ -530,7 +557,7 @@ export default function AddTransactionScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title="Nouvelle transaction" onBack={handleBack} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -608,7 +635,7 @@ export default function AddTransactionScreen() {
                     <Ionicons name={isRefund ? 'checkbox' : 'square-outline'} size={20} color={isRefund ? COLORS.emerald : COLORS.textSecondary} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.refundLabel}>Remboursement (entrée d'argent)</Text>
-                      <Text style={styles.refundHint}>S'impute en − sur la catégorie de dépense choisie</Text>
+                      <Text style={styles.refundHint}>S'impute en négatif sur la catégorie de dépense</Text>
                     </View>
                   </TouchableOpacity>
                 )}
@@ -683,14 +710,29 @@ export default function AddTransactionScreen() {
                 <TouchableOpacity style={[styles.recurringToggle, isRecurring && styles.recurringToggleActive]} onPress={() => setIsRecurring(!isRecurring)}>
                   <Ionicons name={isRecurring ? 'repeat' : 'repeat-outline'} size={22} color={isRecurring ? COLORS.bg : COLORS.textSecondary} />
                   <Text style={[styles.recurringLabel, isRecurring && styles.recurringLabelActive]}>{isTransfer ? 'Virement récurrent' : 'Récurrent (ex. salaire mensuel)'}</Text>
+                  {/* Bordure du guide tracée SUR le bouton lui-même (aucune position mesurée).
+                      `inset: 0` et non le défaut négatif : le bouton occupe toute la largeur
+                      disponible, une bordure débordante était rognée à gauche et à droite. */}
+                  <GuideRing target="recurringToggle" radius={12} inset={0} />
                 </TouchableOpacity>
+                {guideNeedsRecurring && (
+                  // Consigne du guide → couleurs INVERSÉES, comme tous les messages de démarrage :
+                  // sur fond clair, un texte vert clair se fondait dans le formulaire.
+                  <View style={styles.recurringGuideHint}>
+                    <Ionicons name="arrow-up" size={16} color={INV.emerald} />
+                    <Text style={styles.recurringGuideHintText}>
+                      Coche « Récurrent » : c'est ce qui fait rejouer cette opération chaque mois,
+                      sans que tu aies à la ressaisir.
+                    </Text>
+                  </View>
+                )}
                 {isRecurring && (
                   <>
                     <Text style={styles.label}>Période</Text>
-                    <View style={styles.chipRow}>
+                    <View style={styles.periodRow}>
                       {(['weekly', 'monthly', 'quarterly', 'yearly'] as RecurrenceRule[]).map((rule) => (
-                        <TouchableOpacity key={rule} style={[styles.chip, recurrenceRule === rule && styles.chipActive]} onPress={() => setRecurrenceRule(rule)}>
-                          <Text style={[styles.chipText, recurrenceRule === rule && styles.chipTextActive]}>
+                        <TouchableOpacity key={rule} style={[styles.periodChip, recurrenceRule === rule && styles.chipActive]} onPress={() => setRecurrenceRule(rule)}>
+                          <Text style={[styles.periodChipText, recurrenceRule === rule && styles.chipTextActive]} numberOfLines={1}>
                             {rule === 'weekly' ? 'Hebdo' : rule === 'monthly' ? 'Mensuel' : rule === 'quarterly' ? 'Trim.' : 'Annuel'}
                           </Text>
                         </TouchableOpacity>
@@ -770,10 +812,20 @@ export default function AddTransactionScreen() {
             </TouchableOpacity>
           ) : (
             <View style={styles.submitRow}>
-              <TouchableOpacity style={[styles.submitBtn, styles.submitBtnPrimary, addTransaction.isPending && styles.submitBtnDisabled]} onPress={() => handleSubmit(false)} disabled={addTransaction.isPending} accessibilityRole="button">
+              <TouchableOpacity
+                style={[styles.submitBtn, styles.submitBtnPrimary, (addTransaction.isPending || guideNeedsRecurring) && styles.submitBtnDisabled]}
+                onPress={() => handleSubmit(false)}
+                disabled={addTransaction.isPending || guideNeedsRecurring}
+                accessibilityRole="button"
+              >
                 {addTransaction.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.submitBtn, styles.submitBtnDraft, addTransaction.isPending && styles.submitBtnDisabled]} onPress={() => handleSubmit(true)} disabled={addTransaction.isPending} accessibilityRole="button">
+              <TouchableOpacity
+                style={[styles.submitBtn, styles.submitBtnDraft, (addTransaction.isPending || guideNeedsRecurring) && styles.submitBtnDisabled]}
+                onPress={() => handleSubmit(true)}
+                disabled={addTransaction.isPending || guideNeedsRecurring}
+                accessibilityRole="button"
+              >
                 <Text style={styles.submitLabelDraft}>Brouillon</Text>
               </TouchableOpacity>
             </View>
@@ -905,7 +957,24 @@ function makeStyles(c: any) {
   recurringToggleActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   recurringLabel: { fontSize: 15, color: c.textSecondary },
   recurringLabelActive: { color: c.bg, fontWeight: '600' },
+  // Consigne du guide : carte aux couleurs INVERSÉES (cf. useInvertedColors), comme les autres
+  // messages de démarrage — elle doit trancher sur le formulaire, pas s'y fondre.
+  recurringGuideHint: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 9,
+    backgroundColor: c.guideBg, borderWidth: 1, borderColor: c.guideBorder,
+    borderRadius: 14, paddingHorizontal: 13, paddingVertical: 11, marginTop: 2, marginBottom: 12,
+  },
+  recurringGuideHintText: { flex: 1, fontSize: 13, color: c.guideText, lineHeight: 19, fontWeight: '600' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  /* Périodicité : les quatre choix tiennent sur UNE ligne (`flex: 1` chacun), quel que soit
+     l'écran. Style distinct des chips de comptes, qui eux défilent horizontalement et gardent
+     leur taille de lecture. */
+  periodRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  periodChip: {
+    flex: 1, paddingHorizontal: 4, paddingVertical: 9, borderRadius: 14,
+    borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center',
+  },
+  periodChipText: { fontSize: 12.5, fontWeight: '600', color: c.text },
   projectSection: { marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: c.blue + '44', backgroundColor: c.blue + '0D', gap: 8 },
   projectHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17 },
   submitRow: { flexDirection: 'row', gap: 10, marginTop: 24 },

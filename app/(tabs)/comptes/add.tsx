@@ -10,6 +10,8 @@ import { useAddAccount } from '../../../hooks/useAccounts';
 import { useUsageGuard } from '../../../hooks/useUsageLimits';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
 import CurrencyPicker from '../../../components/CurrencyPicker';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
@@ -27,6 +29,7 @@ const TYPES = [
 export default function AddAccountScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
   const router = useRouter();
   const params = useLocalSearchParams<{ joint?: string }>();
   const { user } = useAuth();
@@ -135,7 +138,7 @@ export default function AddAccountScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button">
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>

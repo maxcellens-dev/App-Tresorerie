@@ -6,7 +6,7 @@
  *
  * Types de recommandations :
  *   1. Épargner    → renforcer l'épargne de sécurité
- *   2. Investir    → alimenter un objectif d'investissement
+ *   2. Investir    → alimenter un compte d'investissement
  *   3. Confort     → marge en plus dispo une fois les dépenses variables habituelles couvertes
  *   4. Conserver   → garder en réserve pour le mois suivant
  */
@@ -618,12 +618,12 @@ export const TIER_COLORS: Record<SavingsTier, string> = {
   comfortable:   '#34d399',
 };
 
-/** Descriptions par type pour l'admin */
+/** Descriptions par type pour l'admin. « Réserver » = le mot d'affichage (cf. shortTitle). */
 export const RECO_TYPE_LABELS: Record<RecoType, string> = {
   save: 'Épargner',
   invest: 'Investir',
   enjoy: 'Confort',
-  keep: 'Conserver',
+  keep: 'Réserver',
 };
 
 /** Export les allocations par palier pour l'admin */
@@ -763,8 +763,10 @@ function buildRecommendation(
         percentage,
         color: RECO_COLORS.invest,
         icon: RECO_ICONS.invest,
-        actionRoute: '/(tabs)/objectives',
-        actionLabel: 'Voir objectifs',
+        // Investir se fait par un virement vers le compte d'investissement, comme épargner : la
+        // page « Objectifs » qui portait ce geste n'existe plus.
+        actionRoute: '/(tabs)/comptes',
+        actionLabel: 'Transférer',
       };
     case 'enjoy':
       return {
@@ -783,8 +785,12 @@ function buildRecommendation(
     case 'keep':
       return {
         type,
-        title: monthEnd ? 'Reporter sur le mois prochain' : 'Conserver pour plus tard',
-        shortTitle: monthEnd ? 'Reporter' : 'Conserver',
+        // VOCABULAIRE FIGÉ : à l'affichage on dit « Réserver » / « Réservé » — c'est le mot employé
+        // partout ailleurs dans l'app (ligne « Réservé » du suivi, montants réservés). « Reporter »
+        // introduisait un troisième terme pour la même chose. « Conserver » ne subsiste que dans les
+        // explications, pour dire ce que le geste FAIT.
+        title: monthEnd ? 'Réserver pour le mois prochain' : 'Réserver pour plus tard',
+        shortTitle: 'Réserver',
         description: getKeepDescription(action, data, monthEnd),
         amount,
         actionAmount: action.value,

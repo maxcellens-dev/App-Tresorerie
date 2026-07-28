@@ -12,7 +12,30 @@ export interface DialogInput {
   defaultValue?: string; placeholder?: string;
   keyboardType?: 'default' | 'decimal-pad'; suffix?: string;
 }
-export interface DialogRequest { title?: string; message?: string; buttons: DialogButton[]; input?: DialogInput }
+/**
+ * Choix ILLUSTRÉ : une carte pleine largeur qui montre la CONSÉQUENCE de l'option (le solde obtenu)
+ * au lieu de la décrire. Sur les décisions où l'on hésite — « cette opération est-elle déjà dans ce
+ * solde ? » — voir les deux résultats côte à côte tranche en une seconde, là où deux boutons
+ * « Oui / Non » obligent à reconstituer le calcul de tête.
+ */
+export interface DialogOption {
+  icon?: string;
+  label: string;
+  /** Une ligne d'explication, courte. */
+  hint?: string;
+  /** Résultat mis en avant (ex. « Solde : 1 482 € »). */
+  result?: string;
+  /** Légende du résultat (ex. « inchangé » / « au 28-07-2026 »). */
+  resultHint?: string;
+  tone?: 'accent' | 'neutral' | 'danger';
+  onPress: () => void;
+}
+
+export interface DialogRequest {
+  title?: string; message?: string; buttons: DialogButton[]; input?: DialogInput;
+  /** Si fourni, remplace la rangée de boutons par des cartes de choix illustrées. */
+  options?: DialogOption[];
+}
 
 let controller: ((req: DialogRequest) => void) | null = null;
 
@@ -57,6 +80,25 @@ export function appPrompt(opts: {
       ],
     };
     if (controller) controller(req); else resolve(null);
+  });
+}
+
+/**
+ * Choix entre deux options ILLUSTRÉES (cf. DialogOption). Résout l'index choisi, ou −1 si le
+ * dialogue est fermé sans rien choisir.
+ */
+export function appChoice(opts: {
+  title?: string; message?: string; options: Omit<DialogOption, 'onPress'>[];
+}): Promise<number> {
+  return new Promise((resolve) => {
+    const req: DialogRequest = {
+      title: opts.title,
+      message: opts.message,
+      options: opts.options.map((o, i) => ({ ...o, onPress: () => resolve(i) })),
+      // Repli si l'hôte ne sait pas rendre les options (et fermeture au tap à côté).
+      buttons: [{ text: 'Annuler', style: 'cancel', onPress: () => resolve(-1) }],
+    };
+    if (controller) controller(req); else resolve(-1);
   });
 }
 

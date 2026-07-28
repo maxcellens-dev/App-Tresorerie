@@ -74,9 +74,14 @@ export default function WelcomeScreen() {
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, appNameFontStyle]}>{L.brandName}</Text>
             {/* Accroche BÉNÉFICE (éditable en admin → « Page d'accueil » section Mobile). */}
             <Text style={styles.tagline}>{L.mobileTagline}</Text>
+            {/* Deux lignes autorisées : `adjustsFontSizeToFit` n'existe PAS sur react-native-web —
+                le texte y était simplement coupé par des points de suspension dès que l'écran était
+                un peu étroit (ou le libellé un peu long, il est éditable en admin). En laissant
+                passer à la ligne, il tient partout ; sur mobile, la réduction automatique joue
+                encore et évite d'atteindre la seconde ligne. */}
             <Text
               {...APP_NAME_TEXT_PROPS}
-              numberOfLines={1}
+              numberOfLines={2}
               adjustsFontSizeToFit
               minimumFontScale={0.7}
               style={[styles.subtag, appNameFontStyle]}
@@ -219,6 +224,7 @@ function makeStyles(c: any) {
     alignSelf: 'stretch',
     textAlign: 'center',
     paddingHorizontal: 20,
+    lineHeight: 19, // deux lignes lisibles quand le passage à la ligne est nécessaire (web)
   },
 
   ctaContainer: {

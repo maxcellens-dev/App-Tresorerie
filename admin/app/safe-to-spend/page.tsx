@@ -33,9 +33,9 @@ const STEPS: FormulaStep[] = [
   },
   {
     label: 'Étape 2 — Engagements mensuels',
-    formula: 'committed = Σ projets actifs (allocation mensuelle) + Σ objectifs actifs (cible annuelle ÷ 12)',
+    formula: 'committed = Σ projets actifs (allocation mensuelle)',
     explanation:
-      'Les engagements sont les montants réservés chaque mois pour alimenter les projets et objectifs en cours. Même s\'ils n\'ont pas encore été exécutés, ils sont comptabilisés car l\'utilisateur s\'est engagé à les verser.',
+      'Les engagements sont les montants réservés chaque mois pour alimenter les projets en cours. Même s\'ils n\'ont pas encore été exécutés, ils sont comptabilisés car l\'utilisateur s\'est engagé à les verser.',
     color: STEP_COLORS[1],
   },
   {
@@ -97,7 +97,6 @@ export default function SafeToSpendAdmin() {
 {`  Solde courant
 + Transactions futures du mois (net)
 − Engagements projets (allocation mensuelle)
-− Engagements objectifs (cible annuelle ÷ 12)
 − Réservations même-compte (passées)
 ─────────────────────────────────────────
 = Base à dépenser
@@ -161,7 +160,6 @@ export default function SafeToSpendAdmin() {
               ['solde_courant', 'Σ accounts(type=checking).balance', 'Somme des soldes de tous les comptes courants'],
               ['remaining_month_net', 'transactions (date > today, même mois)', 'Recettes − dépenses encore à venir ce mois'],
               ['committed_projects', 'Σ projects(active).monthly_allocation', 'Allocations mensuelles des projets actifs'],
-              ['committed_objectives', 'Σ objectives(active).target_yearly / 12', 'Objectifs annuels ramenés au mois'],
               ['same_account_reserved', 'transactions passées × allocation', 'Réservations déjà effectuées (même compte)'],
               ['marge_sécurité', 'profiles.safety_margin_percent', 'Pourcentage configuré dans Paramètres (défaut 10 %)'],
             ].map(([variable, source, desc]) => (
@@ -192,7 +190,6 @@ export default function SafeToSpendAdmin() {
             <li>Solde courant : <strong style={{ color: '#60a5fa' }}>4 500 €</strong></li>
             <li>Transactions futures ce mois : <strong style={{ color: COLORS.text }}>+2 800 €</strong> (salaire) − <strong style={{ color: COLORS.text }}>1 200 €</strong> (loyer, EDF…) = <strong>+1 600 €</strong></li>
             <li>Engagements projets : <strong style={{ color: '#22d3ee' }}>300 €</strong> /mois</li>
-            <li>Engagements objectifs : <strong style={{ color: '#34d399' }}>200 €</strong> /mois</li>
             <li>Réservations même-compte : <strong style={{ color: '#a78bfa' }}>150 €</strong> (1 mois passé × 150 €)</li>
             <li>Marge de sécurité : <strong style={{ color: COLORS.text }}>10 %</strong></li>
           </ul>
@@ -210,9 +207,9 @@ export default function SafeToSpendAdmin() {
               margin: 0,
             }}
           >
-{`  4 500 + 1 600 − 300 − 200 − 150 = 5 450 €  (base)
-  5 450 × (1 − 10/100) = 5 450 × 0.90
-  = 4 905 €  → Ce qu'il te reste ce mois-ci`}
+{`  4 500 + 1 600 − 300 − 150 = 5 650 €  (base)
+  5 650 × (1 − 10/100) = 5 650 × 0.90
+  = 5 085 €  → Ce qu'il te reste ce mois-ci`}
           </pre>
         </div>
       </div>

@@ -32,6 +32,8 @@ import {
 } from '../../../hooks/useCategories';
 import type { Category } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import IconPickerModal from '../../../components/IconPickerModal';
 import { iconForCategory } from '../../../lib/categoryIcons';
 import { supabase } from '../../../lib/supabase';
@@ -53,6 +55,8 @@ function groupCategories(categories: Category[]) {
 export default function CategoriesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -222,7 +226,7 @@ export default function CategoriesScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
         <ScreenHeader
           title="Catégories"
           onBack={goBack}

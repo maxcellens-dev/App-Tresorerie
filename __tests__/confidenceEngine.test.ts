@@ -237,3 +237,59 @@ describe('resolveReliabilityConfig', () => {
     expect(resolveReliabilityConfig(null).lowMin).toBe(RELIABILITY_DEFAULTS.lowMin);
   });
 });
+
+// ── Garde-fou : le doute ne peut pas dépasser la base de référence ────────────────────────────
+// Régression observée en production : une calibration polluée par les ancres de solde initial
+// (création de plusieurs comptes soldés d'un coup) donnait une dérive de plusieurs milliers
+// d'euros par jour. Le tableau de bord annonçait « jusqu'à 10 300 € » pour un Relyka de 1 266 €,
+// que son propre détail chiffrait correctement — deux montants contradictoires à l'écran.
+describe('confidenceEngine — le doute est plafonné à la base', () => {
+  const cfg = RELIABILITY_DEFAULTS;
+
+  it('ne laisse pas une dérive aberrante dépasser la base de référence', () => {
+    const res = computeConfidence({
+      today: new Date('2026-07-28T00:00:00'),
+      lastVerifiedAt: '2026-07-20',
+      lastActivityAt: null,
+      // 3 576 €/jour : ordre de grandeur réellement produit par la calibration polluée.
+      calibration: { medianAbsGap: 75_100, medianDaysBetween: 21, sampleCount: 1 },
+      relyka: 1266,
+      floorBase: 2100,
+      variableBase: 650,
+      config: cfg,
+    });
+    // base = max(relyka, floorBase, plancher) = 2 100 → le doute ne peut pas la dépasser.
+    expect(res.uncertaintyEur).toBeLessThanOrEqual(2100);
+  });
+
+  it('la borne haute reste du même ordre de grandeur que le montant affiché', () => {
+    const res = computeConfidence({
+      today: new Date('2026-07-28T00:00:00'),
+      lastVerifiedAt: '2026-07-20',
+      lastActivityAt: null,
+      calibration: { medianAbsGap: 75_100, medianDaysBetween: 21, sampleCount: 1 },
+      relyka: 1266,
+      floorBase: 2100,
+      variableBase: 650,
+      config: cfg,
+    });
+    const range = toRange(1266, res, cfg);
+    // Avant le plafond : high ≈ 10 300 €. Le chiffre principal contredisait son propre détail.
+    expect(range.high).toBeLessThan(1266 * 3);
+  });
+
+  it('n’altère pas un doute normal (calibration saine)', () => {
+    const res = computeConfidence({
+      today: new Date('2026-07-28T00:00:00'),
+      lastVerifiedAt: '2026-07-21',
+      lastActivityAt: null,
+      calibration: { medianAbsGap: 120, medianDaysBetween: 7, sampleCount: 3 },
+      relyka: 1266,
+      floorBase: 2100,
+      variableBase: 650,
+      config: cfg,
+    });
+    // 120/7 × 7 jours ≈ 120 € : très en dessous de la base, donc inchangé par le plafond.
+    expect(Math.round(res.uncertaintyEur)).toBe(120);
+  });
+});

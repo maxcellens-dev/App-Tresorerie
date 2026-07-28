@@ -13,6 +13,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { supabase } from '../../../../lib/supabase';
 import { useGamificationConfig, useSaveGamificationConfig } from '../../../../hooks/useGamificationConfig';
@@ -34,6 +36,7 @@ const METRICS: { value: BadgeMetric; label: string }[] = [
 export default function AdminGamification() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { data: loaded } = useGamificationConfig();
@@ -49,7 +52,7 @@ export default function AdminGamification() {
 
   if (!cfg) {
     return (
-      <View style={styles.root}><SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={styles.root}><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
         <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />
       </SafeAreaView></View>
     );
@@ -101,7 +104,7 @@ export default function AdminGamification() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Admin</Text>

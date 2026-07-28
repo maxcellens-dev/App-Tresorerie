@@ -13,6 +13,8 @@ import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollV
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useAccounts } from '../../../../hooks/useAccounts';
 import { useCategories } from '../../../../hooks/useCategories';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
@@ -26,6 +28,7 @@ const EMOJIS = ['🧾', '🍽️', '🛒', '🚕', '🏨', '🎟️', '⛽', '�
 export default function AddRwExpense() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ projectId: string; expenseId?: string }>();
@@ -137,7 +140,7 @@ export default function AddRwExpense() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title={editing ? 'Modifier la dépense' : 'Ajouter une dépense'} onBack={backToProject} />
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 48 }} keyboardShouldPersistTaps="handled">

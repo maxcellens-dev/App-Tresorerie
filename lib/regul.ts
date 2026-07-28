@@ -15,6 +15,25 @@ export interface RegulLike {
   category?: { name?: string | null } | null;
 }
 
+/**
+ * Note portée par l'ANCRE de solde initial posée à la création d'un compte (useAddAccount).
+ * Marqueur unique, partagé — voir `isInitialBalanceAnchor`.
+ */
+export const INITIAL_BALANCE_NOTE = 'Régularisation solde initial';
+
+/**
+ * true si la transaction est l'ANCRE DE SOLDE INITIAL d'un compte (pas un écart constaté).
+ *
+ * Distinction capitale pour la calibration de fiabilité : une ancre dit « le compte démarre à
+ * 21 000 € », pas « on a trouvé 21 000 € d'écart depuis la dernière vérification ». Les compter
+ * comme des écarts faisait exploser la dérive journalière — un utilisateur qui crée quatre comptes
+ * d'un coup se retrouvait avec un doute de plusieurs dizaines de milliers d'euros, et un Relyka
+ * affiché en « jusqu'à 10 300 € » alors qu'il valait 1 266 €.
+ */
+export function isInitialBalanceAnchor(t: RegulLike | null | undefined): boolean {
+  return (t?.note ?? '') === INITIAL_BALANCE_NOTE;
+}
+
 /** true si la transaction est une régularisation de solde (ajustement, ancre, clôture). */
 export function isRegul(t: RegulLike | null | undefined): boolean {
   if (!t) return false;

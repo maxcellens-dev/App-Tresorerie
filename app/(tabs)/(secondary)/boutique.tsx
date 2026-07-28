@@ -13,6 +13,8 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useGamification } from '../../../hooks/useGamification';
 import { usePlan } from '../../../hooks/usePlan';
 import { useNavBack } from '../../../hooks/useNavBack';
@@ -31,6 +33,7 @@ export default withDeferredMount(BoutiqueScreen);
 function BoutiqueScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -163,7 +166,7 @@ function BoutiqueScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>

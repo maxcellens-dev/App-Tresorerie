@@ -6,6 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useMonthlyClosure, monthLabel } from '../../../hooks/useMonthlyClosure';
@@ -13,6 +15,7 @@ import { useMonthlyClosure, monthLabel } from '../../../hooks/useMonthlyClosure'
 export default function ClotureScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -28,7 +31,7 @@ export default function ClotureScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={goBack} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />

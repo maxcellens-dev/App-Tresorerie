@@ -10,6 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useTour } from '../../../contexts/TourContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUserUnreadCount } from '../../../hooks/useUnreadBadges';
@@ -18,6 +20,7 @@ import { useNavBack } from '../../../hooks/useNavBack';
 export default function SupportScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const tour = useTour();
@@ -48,7 +51,7 @@ export default function SupportScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
         <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>

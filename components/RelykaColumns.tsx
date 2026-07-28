@@ -8,7 +8,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
-import { CURRENCY_SYMBOL, formatRangeLabel } from '../lib/currency';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 export interface RelykaColumn {
   key: string;
@@ -68,10 +68,15 @@ export default function RelykaColumns({
   const anyDone = columns.some((col) => (col.done ?? 0) > 0);
   const anyRange = !!relykaRange?.isRange || columns.some((col) => col.range?.isRange);
 
-  // Borne basse à 0 → « jusqu'à X € » plutôt que « 0–X € » (voir lib/currency.formatRangeLabel).
-  const bigLabel = relykaRange?.isRange
-    ? formatRangeLabel(relykaRange.low, relykaRange.high)
-    : `${fmtInt(relykaAmount)} ${CURRENCY_SYMBOL}`;
+  // LE CHIFFRE PRINCIPAL EST TOUJOURS LE RELYKA — jamais une borne de fourchette.
+  //
+  // Avant, en confiance moyenne/basse, le montant était remplacé par la fourchette (« jusqu'à
+  // 2 300 € » pour un Relyka de 1 266 €). Résultat : l'écran annonçait un nombre que son propre
+  // détail contredisait, et supérieur à ce dont l'utilisateur dispose réellement — exactement
+  // l'inverse du but recherché. L'incertitude reste montrée, mais par les canaux qui ne mentent
+  // pas sur le montant : le badge « Estimation », la partie claire des colonnes (« si tout est à
+  // jour ») et sa légende, plus le bandeau ambre « Vérifier ».
+  const bigLabel = `${fmtInt(relykaAmount)} ${CURRENCY_SYMBOL}`;
 
   return (
     <View style={styles.wrap}>
@@ -79,6 +84,14 @@ export default function RelykaColumns({
         <Text style={[styles.amount, { color: relykaColor ?? c.text }]} numberOfLines={1} adjustsFontSizeToFit>
           {bigLabel}
         </Text>
+        {/* Pastille « i » collée en haut à droite du montant : le seul indice nécessaire pour
+            savoir que le chiffre s'ouvre. Un lien « D'où vient ce chiffre ? » prenait une ligne
+            entière pour dire la même chose. */}
+        {!!onCenterPress && (
+          <View style={[styles.amountInfo, { borderColor: relykaColor ?? c.textSecondary }]}>
+            <Text style={[styles.amountInfoText, { color: relykaColor ?? c.textSecondary }]}>i</Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* Fond ultra léger + trait de base (racine des colonnes) pour donner du relief au graphe. */}
@@ -108,10 +121,9 @@ export default function RelykaColumns({
 
       <View style={styles.labelsRow}>
         {columns.map((col, i) => {
-          // Étiquette de colonne : étroite → forme compacte (« ≤ 260 ») quand la borne basse est nulle.
-          const label = col.range?.isRange
-            ? formatRangeLabel(col.range.low, col.range.high, { symbol: false, compact: true })
-            : fmtInt(col.amount);
+          // Même règle que le montant principal : l'étiquette porte le montant RECOMMANDÉ, pas une
+          // borne. La fourchette reste lisible dans la colonne elle-même (segment clair + légende).
+          const label = fmtInt(col.amount);
           return (
             <TouchableOpacity key={col.key} style={styles.labelCol} activeOpacity={0.7} onPress={() => onColumnPress?.(i)}>
               <Text style={[styles.colValue, { color: col.color }]} numberOfLines={1}>{label}</Text>
@@ -153,8 +165,14 @@ function makeStyles(c: any) {
   const chartBg = c.mode === 'light' ? 'rgba(0,0,0,0.035)' : 'rgba(255,255,255,0.045)';
   return StyleSheet.create({
     wrap: { flex: 1, alignSelf: 'stretch', gap: 8 },
-    amountRow: { alignItems: 'center' },
+    amountRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 5 },
     amount: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
+    amountInfo: {
+      width: 15, height: 15, borderRadius: 8, borderWidth: 1,
+      alignItems: 'center', justifyContent: 'center',
+      alignSelf: 'flex-start', marginTop: 2, opacity: 0.7,
+    },
+    amountInfoText: { fontSize: 10, fontWeight: '800', lineHeight: 13 },
     // Fond léger + trait de base sous les colonnes.
     chartCard: {
       height: CHART_H,

@@ -9,6 +9,9 @@ import {
   PROFILE_ALLOCATIONS,
   safetyMarginFromQ8,
   weeklyVariableFromQ9,
+  q5FromSecurityMonths,
+  NEUTRAL_ANSWERS,
+  Q5_OPTIONS,
 } from '../lib/financialProfileEngine';
 import type {
   UserFinancialProfile,
@@ -136,9 +139,16 @@ export function useSaveQuestionnaire(userId: string | undefined) {
     mutationFn: async ({
       answers,
       isUpdate = false,
+      live = false,
     }: {
       answers: QuestionnaireAnswers;
       isUpdate?: boolean;
+      /**
+       * Profil « vivant » : issu du nouveau démarrage, où q5 est MESURÉE (épargne ÷ revenu) et où
+       * q4/q6 arrivent plus tard. Il se recalcule à chaque changement de données réelles
+       * (useLiveProfileSync) au lieu d'attendre le bilan mensuel, et n'est pas gelé.
+       */
+      live?: boolean;
     }) => {
       if (!supabase || !userId) throw new Error('Non connecté');
 
@@ -170,7 +180,12 @@ export function useSaveQuestionnaire(userId: string | undefined) {
       // Le gel ne se pose qu'au TOUT PREMIER questionnaire : une mise à jour ultérieure (via
       // Paramètres → Profil financier) conserve la date d'origine — elle ne relance JAMAIS le gel.
       let autoUnlockAt: string | null;
-      if (existing) {
+      if (live) {
+        // Profil vivant : AUCUN gel. Il doit pouvoir bouger dès que l'utilisateur complète son
+        // installation (« j'ajoute mon épargne → mon profil suit dans la seconde »). Geler deux
+        // mois un profil calculé sur des données encore partielles n'aurait aucun sens.
+        autoUnlockAt = null;
+      } else if (existing) {
         autoUnlockAt = (existing as any).auto_unlock_at ?? null;
       } else {
         const { data: freezeCfg } = await supabase
@@ -185,6 +200,9 @@ export function useSaveQuestionnaire(userId: string | undefined) {
         .upsert({
           user_id: userId,
           profile_id: profileId,
+          // ⚠️ `profile_source` porte une contrainte CHECK ('questionnaire' | 'automatic') en base :
+          // la phase « vivante » est donc marquée dans `profiles.onboarding_state.pp_live` (jsonb),
+          // ce qui évite une migration pour un simple drapeau de parcours.
           profile_source: 'questionnaire',
           assigned_at: now,
           auto_unlock_at: autoUnlockAt,
@@ -266,6 +284,166 @@ export function useMarkNotificationShown(userId: string | undefined) {
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [CHANGE_LOG_KEY, 'pending', userId] });
+    },
+  });
+}
+
+// ── Métriques réelles (partagées : profil vivant + évaluation mensuelle) ─────
+
+interface RealMetricsResult {
+  metrics: ReturnType<typeof computeMonthlyMetrics>;
+  savingsBalance: number;
+  checkingBalance: number;
+  q3: string | null;
+}
+
+/**
+ * Charge les métriques RÉELLES du compte (soldes + 6 mois de transactions) et les passe au même
+ * `computeMonthlyMetrics` que l'évaluation mensuelle. Une seule façon de mesurer, partagée par les
+ * deux mécanismes — sinon le profil « vivant » et le bilan mensuel raconteraient deux histoires.
+ */
+async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null> {
+  if (!supabase) return null;
+  const today = new Date();
+  const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, 1).toISOString().slice(0, 10);
+
+  const [{ data: answers }, { data: txns }, { data: accounts }] = await Promise.all([
+    supabase.from('user_questionnaire_answers').select('q3').eq('user_id', userId).maybeSingle(),
+    supabase.from('transactions')
+      .select('amount, date, account_id, linked_account_id, is_draft')
+      .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
+    supabase.from('accounts')
+      .select('id, type, balance')
+      .eq('profile_id', userId).eq('is_active', true).eq('is_joint', false),
+  ]);
+
+  const accountTypeMap: Record<string, string> = {};
+  let savingsBalance = 0;
+  let checkingBalance = 0;
+  (accounts ?? []).forEach((a: any) => {
+    accountTypeMap[a.id] = a.type;
+    if (a.type === 'savings') savingsBalance += Number(a.balance);
+    if (a.type === 'checking') checkingBalance += Number(a.balance);
+  });
+
+  const rawTxns = (txns ?? []).map((t: any) => ({
+    amount: Number(t.amount),
+    date: t.date,
+    account_type: accountTypeMap[t.account_id] ?? 'other',
+    linked_account_type: t.linked_account_id ? (accountTypeMap[t.linked_account_id] ?? null) : null,
+  }));
+
+  const q3 = ((answers as any)?.q3 ?? null) as string | null;
+  return {
+    metrics: computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, q3),
+    savingsBalance,
+    checkingBalance,
+    q3,
+  };
+}
+
+// ── PROFIL VIVANT (phase progressive) ────────────────────────
+//
+// Pendant que l'utilisateur complète son installation, son profil ne doit PAS attendre le bilan
+// mensuel : il saisit son épargne, et son profil doit suivre dans la seconde. On recalcule donc
+// `computeInitialProfile` — le moteur n'est pas modifié — mais en lui donnant une q5 MESURÉE
+// (épargne ÷ revenu, cf. lib/securityCushion) au lieu de la q5 déclarée.
+//
+// Périmètre volontairement étroit : n'agit QUE si `onboarding_state.pp_live` est posé, c'est-à-dire
+// pour les comptes créés par le nouveau démarrage. Un compte existant, qui a répondu lui-même aux
+// neuf questions, n'est jamais recalculé dans son dos.
+//
+// Garde-fou : la q5 mesurée ne remplace la q5 déclarée que si on a VRAIMENT des données
+// (une épargne ou un revenu constaté). Sans données, on ne dégrade jamais un profil sur du vide.
+
+export function useLiveProfileSync(userId: string | undefined) {
+  const client = useQueryClient();
+  const { isImpersonating } = useAuth();
+
+  return useMutation({
+    mutationFn: async (): Promise<FinancialProfileId | null> => {
+      if (isImpersonating) return null;          // consultation admin : jamais d'écriture
+      if (!supabase || !userId) return null;
+
+      // La phase vivante est portée par `profiles.onboarding_state.pp_live` (pas de migration) et
+      // s'arrête d'elle-même dès que l'évaluation mensuelle prend la main (source 'automatic') :
+      // à partir de là, c'est le comportement observé qui décide, pas la formule initiale.
+      const [{ data: fp }, { data: prof }] = await Promise.all([
+        supabase.from('user_financial_profile').select('profile_id, profile_source').eq('user_id', userId).maybeSingle(),
+        supabase.from('profiles').select('onboarding_state').eq('id', userId).maybeSingle(),
+      ]);
+      if (!fp) return null;
+      if ((fp as any).profile_source === 'automatic') return null;
+      if (!((prof as any)?.onboarding_state ?? {}).pp_live) return null;
+
+      const { data: answers } = await supabase
+        .from('user_questionnaire_answers')
+        .select('q4, q5, q6')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!answers) return null;
+
+      const real = await loadRealMetrics(userId);
+      if (!real) return null;
+
+      const hasRealData = real.savingsBalance > 0 || real.metrics.avg_income_6m > 0;
+      const q5 = hasRealData
+        ? q5FromSecurityMonths(real.metrics.mois_securite)
+        : ((answers as any).q5 ?? Q5_OPTIONS[0]);
+
+      const next = computeInitialProfile({
+        q1: '', q2: '', q3: real.q3 ?? '', q7: '', q8: '', q9: '',
+        q4: (answers as any).q4 || NEUTRAL_ANSWERS.q4,
+        q5,
+        q6: (answers as any).q6 || NEUTRAL_ANSWERS.q6,
+      });
+
+      // La q5 mesurée est enregistrée : elle devient la réponse de référence, visible dans
+      // « Mon profil financier », et sert de repli si les données disparaissent.
+      if (hasRealData && q5 !== (answers as any).q5) {
+        await supabase.from('user_questionnaire_answers')
+          .update({ q5, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+      }
+
+      if (next === (fp as any).profile_id) return next;
+
+      const now = new Date().toISOString();
+      const alloc = PROFILE_ALLOCATIONS[next];
+      await supabase.from('user_financial_profile').update({
+        profile_id: next,
+        assigned_at: now,
+        updated_at: now,
+      }).eq('user_id', userId);
+
+      await supabase.from('profiles').update({
+        allocation_save_percent: alloc.save,
+        allocation_invest_percent: alloc.invest,
+        allocation_enjoy_percent: alloc.enjoy,
+        allocation_keep_percent: alloc.keep,
+        updated_at: now,
+      }).eq('id', userId);
+
+      // Notification : l'utilisateur voit le modal de changement de profil dans la foulée de son
+      // geste (« mon virement d'épargne vient de me faire passer en P4 »), et non un mois plus tard.
+      await supabase.from('profile_change_log').insert({
+        user_id: userId,
+        previous_profile: (fp as any).profile_id,
+        new_profile: next,
+        change_reason: 'automatic_upgrade',
+        triggered_at: now,
+        notification_shown: false,
+      });
+
+      return next;
+    },
+    onSuccess: (changedTo) => {
+      if (!changedTo) return;
+      client.invalidateQueries({ queryKey: [PROFILE_KEY, userId] });
+      client.invalidateQueries({ queryKey: [QUESTIONNAIRE_KEY, userId] });
+      client.invalidateQueries({ queryKey: [CHANGE_LOG_KEY, 'pending', userId] });
+      client.invalidateQueries({ queryKey: ['profile', userId] });
+      client.invalidateQueries({ queryKey: ['pilotage_data', userId] });
     },
   });
 }

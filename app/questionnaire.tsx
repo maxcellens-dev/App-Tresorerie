@@ -321,7 +321,7 @@ export default function QuestionnaireScreen() {
         {/* Échappatoire anti-abandon : visible dès la 4ᵉ question. */}
         {step >= 4 && step < 10 && (
           <TouchableOpacity style={styles.skipLink} onPress={handleSkip} disabled={saving} hitSlop={{ top: 8, bottom: 8 }}>
-            <Text style={styles.skipLinkText}>{saving ? 'Un instant…' : "Passer le questionnairepour l'instant →"}</Text>
+            <Text style={styles.skipLinkText}>{saving ? 'Un instant…' : "Passer le questionnaire pour l'instant →"}</Text>
           </TouchableOpacity>
         )}
 
@@ -380,7 +380,7 @@ export default function QuestionnaireScreen() {
                 <View style={styles.infoBox}>
                   <Ionicons name="information-circle-outline" size={15} color={COLORS.blue} />
                   <Text style={styles.infoText}>
-                    Revenus irréguliers détectés — calculs sur moyenne glissante.
+                    Revenus irréguliers détectés — les baisses de revenus seront repérées plus tôt.
                   </Text>
                 </View>
               )}
@@ -427,7 +427,7 @@ export default function QuestionnaireScreen() {
                   <View style={styles.infoBox}>
                     <Ionicons name="cart-outline" size={15} color={COLORS.blue} />
                     <Text style={styles.infoText}>
-                      Estimes ton enveloppe de dépenses variables (courses, loisirs, imprévus). Après 2 mois d'utilisation, l’application se basera sur tes dépenses réelles.
+                      Estime ton enveloppe de dépenses variables (courses, loisirs, imprévus). Tant que tu n’as pas 2 mois d’historique, c’est cette estimation qui sert au calcul ; ensuite l’app se base sur tes dépenses réelles.
                     </Text>
                   </View>
                   <View style={styles.q9Row}>
@@ -565,7 +565,7 @@ export default function QuestionnaireScreen() {
                 <View style={styles.infoBox}>
                   <Ionicons name="information-circle-outline" size={15} color={COLORS.blue} />
                   <Text style={styles.infoText}>
-                    Revenus irréguliers pris en compte via une moyenne glissante.
+                    Revenus irréguliers pris en compte : les baisses seront détectées plus tôt.
                   </Text>
                 </View>
               )}
@@ -595,7 +595,7 @@ export default function QuestionnaireScreen() {
               <View style={styles.freezeNote}>
                 <Ionicons name="lock-closed-outline" size={14} color={COLORS.textSecondary} />
                 <Text style={styles.freezeText}>
-                  Ce profil reste actif 6 mois, puis évolue automatiquement selon tes données réelles.
+                  Ce profil évolue automatiquement selon tes données réelles.
                 </Text>
               </View>
 

@@ -1,10 +1,17 @@
 /**
  * QuickAddButton — gros bouton « + » rond et SURÉLEVÉ dans la barre d'onglets (son centre est posé
- * sur le bord haut de la barre). Au tap, il déploie en arc, juste au-dessus, 3 actions de saisie
- * (Virement, Dépense, Recette) avec une animation d'apparition/disparition. Un tap ailleurs referme.
+ * sur le bord haut de la barre). Au tap, il déploie en arc, juste au-dessus, 4 actions de saisie
+ * (Solde, Virement, Dépense, Recette) avec une animation d'apparition/disparition. Un tap ailleurs
+ * referme.
+ *
+ * « Mettre à jour mon solde » est la 4ᵉ action, et un APPUI LONG sur le « + » y va directement.
+ * Ce n'est pas un ajout cosmétique : c'est le seul geste qui VÉRIFIE les données (régularisation +
+ * recalibrage de la confiance), donc celui qui remet tous les chiffres d'aplomb. Il n'était
+ * atteignable que par Comptes → un compte → « Nouveau Solde », ce qui le rendait invisible.
  *
  * Position réglable (Paramètres) : 'right' (défaut, entre Pilotage et Projets), 'left' (entre Pilotage
- * et Transactions) ou 'hidden'. Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre.
+ * et Transactions). Il n'est plus masquable par l'utilisateur : seul l'admin peut le désactiver
+ * globalement. Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre.
  */
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable, useWindowDimensions, Platform } from 'react-native';
@@ -17,14 +24,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useQuickAddPref } from '../hooks/useUiPrefs';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { APP_MAX_WIDTH } from '../lib/appLayout';
+import { useGuideQuickAddOpen } from '../lib/guideHighlight';
+import GuideRing from './GuideRing';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
 const ACTION_SIZE = 54;       // actions plus grosses et lisibles
-const ACTION_W = 84;          // largeur du conteneur d'action (pour afficher le libellé en entier)
-// Rayon d'expansion : plus large en mode barre (place verticale) ; plus court en mode bulle (coin
-// bas-droite → il faut rester dans l'écran). Choisis pour que les libellés ne se chevauchent PAS.
-const RADIUS_TABBAR = 118;
-const RADIUS_BUBBLE = 112;
+// Largeur d'une ligne d'action : libellé (pastille) + gouttière + bouton rond.
+// « Mettre à jour mon solde » est le plus long libellé et doit tenir sans coupure.
+const ACTION_W = 250;
 const BAR_CONTENT = 70;       // hauteur du contenu de la barre d'onglets (hors inset bas)
 
 // Pulse d'attention : une seule fois par session d'app (pas en boucle — juste « je suis là »).
@@ -102,17 +109,30 @@ export default function QuickAddButton() {
   // On lit openRef, pas `open` : deux taps dans la MÊME frame capturent le même `open` périmé et
   // déclenchent deux fois la même branche → état désynchronisé de l'animation.
   const toggle = () => { if (openRef.current) close(); else openMenu(); };
+
+  // Le guide peut demander que le menu soit DÉPLOYÉ pendant qu'il le présente : montrer un « + »
+  // fermé ne montrerait aucune des quatre saisies dont la bulle parle.
+  const guideWantsOpen = useGuideQuickAddOpen();
+  useEffect(() => {
+    if (guideWantsOpen) openMenu();
+    else if (openRef.current) close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideWantsOpen]);
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
   const enabled = flags?.quick_add_enabled !== false;      // admin : défaut activé
   const isBubble = (flags?.quick_add_mode ?? 'tabbar') === 'bubble';
-  if (!enabled || position === 'hidden') return null;
+  // Plus de masquage par l'utilisateur : le bouton porte la mise à jour du solde (le geste qui
+  // vérifie les données). Seul l'admin peut encore le désactiver globalement.
+  if (!enabled) return null;
   // Mode bulle : visible sur le Pilotage (l'écran d'accueil sur lequel on atterrit au démarrage),
   // sur les écrans « Comptes » (liste + détail d'un compte) et
   // sur la liste des « Transactions » (où il remplace les 3 boutons du haut). Jamais sur un écran de
   // SAISIE (add / edit) : y proposer une saisie n'aurait aucun sens.
   const path = pathname ?? '';
-  if (isBubble && (!/(pilotage|comptes|transactions)/.test(path) || /\/(add|edit)(\/|$)/.test(path))) return null;
+  // Jamais sur un écran de SAISIE — y compris la mise à jour de solde, qui EST une saisie.
+  if (/\/(add|edit|solde)(\/|$)/.test(path)) return null;
+  if (isBubble && !/(pilotage|comptes|transactions)/.test(path)) return null;
 
   // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
   const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);
@@ -126,20 +146,19 @@ export default function QuickAddButton() {
   const anchorBottom = isBubble ? barHeight + 12 : barHeight - FAB_SIZE / 2; // bulle au-dessus du menu ; barre = centre sur le bord
   const anchorLeft = isBubble ? width - 16 - FAB_SIZE : width * (position === 'left' ? 0.4 : 0.6) - FAB_SIZE / 2;
 
-  // Arc des actions : vers le haut en mode barre ; vers le haut-GAUCHE en mode bulle (coin bas-droite),
-  // en restant entre ~96° et ~188° pour ne pas sortir par le bord droit de l'écran.
-  // Écarts angulaires ≥ 46° pour que les libellés (pastilles) ne se chevauchent pas.
-  const radius = isBubble ? RADIUS_BUBBLE : RADIUS_TABBAR;
-  const ANG = isBubble
-    ? { transfer: 188, expense: 142, income: 96 }
-    : { transfer: 152, expense: 90, income: 28 };
-  // `up` = décalage vertical supplémentaire (px) vers le haut. « Dépense » est remonté pour que son
-  // libellé ne colle pas au bouton « Virement » (surtout en mode bulle où les deux sont à gauche).
+  // Actions EMPILÉES verticalement au-dessus du bouton (et non plus en arc) : à trois actions
+  // l'arc restait lisible, à quatre les pastilles se chevauchaient et la cible devenait imprécise.
+  // Une colonne se lit d'un coup d'œil et donne des zones tactiles franches.
+  // Ordre de lecture : « Solde » le plus près du pouce (l'action la plus fréquente, la seule qui
+  // VÉRIFIE les données), puis les saisies.
+  const soldeRoute = `/(tabs)/comptes/solde${pathname ? `?origin=${encodeURIComponent(pathname)}` : ''}`;
   const ACTIONS = [
-    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', deg: ANG.transfer, up: 0, color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
-    { key: 'expense', label: 'Dépense', icon: 'arrow-down', deg: ANG.expense, up: 8, color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
-    { key: 'income', label: 'Recette', icon: 'arrow-up', deg: ANG.income, up: 0, color: COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
+    { key: 'income', label: 'Recette', icon: 'arrow-up', color: COLORS.green ?? COLORS.emerald, route: `/(tabs)/transactions/add?type=income${acctParam}${originParam}` },
+    { key: 'expense', label: 'Dépense', icon: 'arrow-down', color: COLORS.danger, route: `/(tabs)/transactions/add?type=expense${acctParam}${originParam}` },
+    { key: 'transfer', label: 'Virement', icon: 'swap-horizontal', color: COLORS.blue, route: `/(tabs)/transactions/add?type=transfer${acctParam}${originParam}` },
+    { key: 'balance', label: 'Mettre à jour mon solde', icon: 'refresh', color: COLORS.emerald, route: soldeRoute },
   ] as const;
+  const ROW_H = ACTION_SIZE + 12;   // hauteur d'une ligne (bouton + gouttière)
 
   // ⚠️ TOUTES les interpolations sont BORNÉES. `anim` est un ressort : il dépasse hors de [0, 1],
   // et des taps rapprochés lui transmettent la vélocité du ressort précédent — le dépassement
@@ -160,12 +179,17 @@ export default function QuickAddButton() {
 
       {/* Ancre carrée à l'emplacement du FAB ; box-none → seuls les boutons captent les taps */}
       <View pointerEvents="box-none" style={[styles.anchor, { bottom: anchorBottom, left: anchorLeft }]}>
-        {mounted && ACTIONS.map((a) => {
-          const rad = (a.deg * Math.PI) / 180;
+        {mounted && ACTIONS.map((a, i) => {
+          // Empilement vertical : la dernière du tableau est la plus proche du « + ».
+          const fromBottom = ACTIONS.length - i;
           // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
-          const left = FAB_SIZE / 2 + radius * Math.cos(rad) - ACTION_W / 2;
-          const top = FAB_SIZE / 2 - radius * Math.sin(rad) - ACTION_SIZE / 2 - (a.up ?? 0);
-          const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1], extrapolate: 'clamp' });
+          const top = -(fromBottom * ROW_H) + (FAB_SIZE - ACTION_SIZE) / 2;
+          // Le menu s'ouvre vers la GAUCHE en mode bulle (le FAB colle au bord droit), et centré
+          // sur le bouton en mode barre — dans les deux cas la colonne reste dans l'écran.
+          const left = isBubble
+            ? FAB_SIZE - ACTION_W
+            : FAB_SIZE / 2 - ACTION_SIZE / 2 - (ACTION_W - ACTION_SIZE);
+          const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1], extrapolate: 'clamp' });
           return (
             <Animated.View
               key={a.key}
@@ -175,36 +199,56 @@ export default function QuickAddButton() {
               style={[styles.action, { left, top, opacity: actionOpacity, transform: [{ scale }] }]}
             >
               <TouchableOpacity
-                // ⚠️ Android : l'ombre `elevation` est dessinée NATIVEMENT et NE SUIT PAS l'opacité
-                // animée du parent → pendant la fermeture, le bouton devient transparent mais son
-                // ombre reste (halos qui clignotent puis disparaissent d'un coup). On coupe donc
-                // l'ombre DÈS le début de la fermeture (`open` passe à false immédiatement).
-                style={[
-                  styles.actionBtn,
-                  open
-                    ? { shadowColor: a.color }
-                    : { shadowColor: 'transparent', shadowOpacity: 0, elevation: 0 },
-                ]}
+                style={styles.actionRow}
                 onPress={() => go(a.route)}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
               >
-                <LinearGradient
-                  colors={[a.color, darkenHex(a.color, 0.22)]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.actionGradient}
+                <Text style={[styles.actionLabel, { color: a.color, borderColor: a.color + '55' }]} numberOfLines={1}>
+                  {a.label}
+                </Text>
+                <View
+                  // ⚠️ Android : l'ombre `elevation` est dessinée NATIVEMENT et NE SUIT PAS l'opacité
+                  // animée du parent → pendant la fermeture, le bouton devient transparent mais son
+                  // ombre reste. On la coupe DÈS le début de la fermeture (`open` passe à false).
+                  style={[
+                    styles.actionBtn,
+                    open
+                      ? { shadowColor: a.color }
+                      : { shadowColor: 'transparent', shadowOpacity: 0, elevation: 0 },
+                  ]}
                 >
-                  <Ionicons name={a.icon as any} size={24} color={'#fff'} />
-                </LinearGradient>
+                  <LinearGradient
+                    colors={[a.color, darkenHex(a.color, 0.22)]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.actionGradient}
+                  >
+                    <Ionicons name={a.icon as any} size={24} color={'#fff'} />
+                  </LinearGradient>
+                </View>
               </TouchableOpacity>
-              <Text style={[styles.actionLabel, { color: a.color, borderColor: a.color + '55' }]} numberOfLines={1}>{a.label}</Text>
             </Animated.View>
           );
         })}
 
         {/* Le bouton « + » — dégradé de marque + halo coloré + pulse d'attention (1×/session) */}
         <Animated.View style={{ transform: [{ scale: pulse }] }}>
-          <TouchableOpacity style={styles.fab} onPress={toggle} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Saisie rapide">
+          {/* Anneau de mise en avant, tracé DANS la boîte du bouton (aucune position mesurée) :
+              la présentation du bouton + peut ainsi le DÉSIGNER à l'écran au lieu d'en parler
+              dans le vide. Voir lib/guideHighlight. */}
+          <GuideRing target="quickAdd" circle inset={-9} />
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={toggle}
+            // Appui long = raccourci vers la mise à jour du solde, sans passer par le menu.
+            onLongPress={() => { close(); setTimeout(() => router.push(soldeRoute as any), 60); }}
+            delayLongPress={400}
+            activeOpacity={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Saisie rapide — appui long pour mettre à jour ton solde"
+          >
             <LinearGradient
               colors={[COLORS.emerald, COLORS.teal ?? COLORS.emerald]}
               start={{ x: 0, y: 0 }}
@@ -237,9 +281,10 @@ function makeStyles(c: any) {
     },
     action: {
       position: 'absolute',
-      width: ACTION_W, // large pour afficher le libellé complet ; le cercle reste centré
-      alignItems: 'center',
+      width: ACTION_W,          // libellé à gauche + pastille à droite, sur une ligne
+      alignItems: 'flex-end',
     },
+    actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     actionBtn: {
       width: ACTION_SIZE, height: ACTION_SIZE, borderRadius: ACTION_SIZE / 2,
       alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
@@ -249,8 +294,8 @@ function makeStyles(c: any) {
     },
     actionGradient: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
     actionLabel: {
-      marginTop: 5, fontSize: 11.5, fontWeight: '800',
-      backgroundColor: c.cardSolid ?? c.card, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999,
+      fontSize: 12.5, fontWeight: '800',
+      backgroundColor: c.cardSolid ?? c.card, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999,
       overflow: 'hidden', borderWidth: 1,
     },
   });

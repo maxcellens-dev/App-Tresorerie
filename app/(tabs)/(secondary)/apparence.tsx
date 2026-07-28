@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useGamification } from '../../../hooks/useGamification';
 import { usePlan } from '../../../hooks/usePlan';
 import { useCosmetics } from '../../../hooks/useCosmetics';
@@ -27,6 +29,7 @@ export default withDeferredMount(AppearanceScreen);
 function AppearanceScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const { user } = useAuth();
   const goBack = useNavBack();
@@ -128,7 +131,7 @@ function AppearanceScreen() {
     <View style={styles.root}>
       <StatusBar style={currentMode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={[]}>
         <ScreenHeader title="Apparence" onBack={goBack} />
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>

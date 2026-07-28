@@ -87,12 +87,21 @@ export function useCalculatorPagesPref(userId: string | undefined) {
   };
 }
 
-/** Position du bouton « + » de saisie rapide (droite par défaut, gauche, ou masqué). */
+/**
+ * Position du bouton « + » de saisie rapide : droite (défaut) ou gauche.
+ *
+ * L'option « masqué » a été RETIRÉE : le bouton porte désormais la mise à jour du solde, le seul
+ * geste qui vérifie les données et remet tous les chiffres d'aplomb. Le masquer privait
+ * l'utilisateur de l'action la plus utile de l'app sans lui offrir d'autre chemin.
+ * Les préférences déjà enregistrées à « hidden » sont ramenées à « right » à la lecture — le
+ * bouton réapparaît donc tout seul, sans migration ni écriture.
+ */
 export function useQuickAddPref(userId: string | undefined) {
   const { prefs, patch } = useUiPrefs(userId);
+  const stored = prefs.quick_add_position;
   return {
-    position: (prefs.quick_add_position ?? 'right') as 'right' | 'left' | 'hidden',
-    setPosition: (v: 'right' | 'left' | 'hidden') => patch({ quick_add_position: v }),
+    position: (stored === 'left' ? 'left' : 'right') as 'right' | 'left',
+    setPosition: (v: 'right' | 'left') => patch({ quick_add_position: v }),
   };
 }
 

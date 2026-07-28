@@ -12,6 +12,8 @@ import ScreenGradient from '../../../../components/ScreenGradient';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 import { sheetWidth } from '../../../../lib/appLayout';
@@ -29,6 +31,7 @@ const fmt = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits:
 export default function RelykaWorldDetail() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -168,17 +171,17 @@ export default function RelykaWorldDetail() {
   };
 
   if (isLoading) {
-    return <View style={styles.root}><ScreenGradient /><SafeAreaView style={styles.safe} edges={[]}><ScreenHeader title="Projet" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
+    return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}><ScreenHeader title="Projet" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
   }
   if (!project) {
-    return <View style={styles.root}><ScreenGradient /><SafeAreaView style={styles.safe} edges={[]}><ScreenHeader title="Projet" onBack={goBack} /><Text style={styles.empty}>Projet introuvable.</Text></SafeAreaView></View>;
+    return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}><ScreenHeader title="Projet" onBack={goBack} /><Text style={styles.empty}>Projet introuvable.</Text></SafeAreaView></View>;
   }
 
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={[]}>
         <ScreenHeader title={`${project.emoji || '💸'} ${project.name}`} onBack={goBack} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>

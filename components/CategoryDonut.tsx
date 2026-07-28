@@ -48,7 +48,11 @@ export default function CategoryDonut({ segments, size = 150, strokeWidth = 20, 
 
   let offset = 0;
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+    // `pointerEvents="none"` : l'anneau est PUREMENT décoratif (le filtrage passe par la légende,
+    // cf. l'en-tête de ce fichier). Sans ça, le <Svg> capte le toucher et le refuse ensuite au
+    // ScrollView parent : dans les modaux de détail, poser le doigt sur le camembert — c'est-à-dire
+    // sur la moitié haute de la feuille — ne faisait rien défiler du tout.
+    <View pointerEvents="none" style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size}>
         {/* Piste de fond */}
         <Circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={strokeWidth} />

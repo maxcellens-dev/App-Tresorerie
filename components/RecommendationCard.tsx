@@ -1,60 +1,19 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput, type StyleProp, type TextStyle } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, PanResponder, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useRecoDismissals } from '../hooks/useUiPrefs';
-import { CURRENCY_SYMBOL, formatRangeLabel } from '../lib/currency';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 import { unverifiedSincePhrase, verifiedAgoPhrase } from '../lib/confidenceEngine';
 import { isHidden } from '../lib/recoDismissals';
 import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
+// Mise en gras des montants et message du garde-fou : PARTAGÉS avec la vue simplifiée
+// (components/RecoMessagesCarousel) — les deux vues disent la même phrase, au mot près.
+import RichAmounts from './RichAmounts';
+import { composeGuardMessage } from '../lib/recoMessages';
 import RelykaColumns from './RelykaColumns';
-
-/* ── Mise en gras des MONTANTS dans les textes des recos ──────────────────────
-   Les phrases sont construites côté moteur (chaînes simples). Plutôt que d'y injecter du balisage,
-   on repère ici les montants (« 1 500 € », « ~63 594 € »…) et on les rend en gras. Le séparateur de
-   milliers de toLocaleString('fr-FR') est une espace insécable (U+00A0 / U+202F) → incluse. */
-const CURRENCY_RE = CURRENCY_SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const AMOUNT_RE = new RegExp(`(~?\\d[\\d\\s\\u00a0\\u202f.,]*\\s?${CURRENCY_RE})`, 'g');
-
-/** Rend un texte avec les montants en gras (le reste garde le poids du style parent). */
-function RichAmounts({ text, style }: { text: string; style?: StyleProp<TextStyle> }) {
-  // `split` avec un groupe capturant place les montants aux index IMPAIRS.
-  const parts = text.split(AMOUNT_RE);
-  return (
-    <Text style={style}>
-      {parts.map((p, i) => (i % 2 === 1 ? <Text key={i} style={{ fontWeight: '800' }}>{p}</Text> : p))}
-    </Text>
-  );
-}
-
-/**
- * Compose LE message orange du garde-fou marge × projection (affiché sur la slide « Ton Relyka »).
- *  • épargne ET invest plafonnés → UN SEUL message combiné (« investir X et épargner Y de plus… ») ;
- *  • un seul des deux → message avec le total possible entre parenthèses ;
- *  • trajectoire déjà sous la marge (tout conserver) → message tout prêt (reco.guardNote).
- * Le verbe est DANS le message (plus de préfixe « Investir — »).
- */
-function composeGuardMessage(recos: SmartRecommendation[]): string | null {
-  const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`;
-  const tail = 'mais ton solde repasserait sous ta marge de sécurité d\'ici 6 mois.';
-  const inv = recos.find((r) => r.type === 'invest')?.guard;
-  const sav = recos.find((r) => r.type === 'save')?.guard;
-
-  if (inv && sav) {
-    return `Tu pourrais investir ${eur(inv.addMore)} et épargner ${eur(sav.addMore)} de plus ce mois-ci, ${tail}`;
-  }
-  if (inv) {
-    return `Tu pourrais investir ${eur(inv.addMore)} de plus ce mois-ci (soit ${eur(inv.total)} au total), ${tail}`;
-  }
-  if (sav) {
-    return `Tu pourrais épargner ${eur(sav.addMore)} de plus ce mois-ci (soit ${eur(sav.total)} au total), ${tail}`;
-  }
-  // Cas « tout conserver » : message autonome (majuscule initiale).
-  const keepNote = recos.find((r) => r.guardNote)?.guardNote;
-  return keepNote ? keepNote.charAt(0).toUpperCase() + keepNote.slice(1) : null;
-}
 
 
 interface SmartRecommendationCardProps {
@@ -338,6 +297,7 @@ export default function RecommendationCard({
             onColumnPress={(i) => setCurrentIndex(lead + i)}
             onCenterPress={onOpenRelyka}
           />
+
           {!!relykaMessage && <Text style={styles.leadMessage}>{relykaMessage}</Text>}
           {/* Garde-fou marge × projection — REGROUPÉ ici sur la slide « Ton Relyka » (plus visible
               qu'enfoui sur chaque reco). Épargne + invest plafonnés → UN SEUL message combiné. */}
@@ -381,16 +341,12 @@ export default function RecommendationCard({
             <Text style={styles.recoTitle}>{currentReco.title}</Text>
             <Text style={[styles.recoAmount, { color: currentReco.color }]}>
               {(() => {
-                // « Conserver » : montant PLEIN, jamais en fourchette. La carte porte une DÉCISION
-                // (combien je garde), et on garde d'autant plus qu'on est incertain — afficher
-                // « jusqu'à 200 € » au-dessus d'un bouton qui propose 150 € n'aurait aucun sens.
-                // La fourchette reste sur le graphe en colonnes, qui parle de l'argent disponible.
-                const r = currentReco.type === 'keep' ? undefined : recoRange?.(currentReco.amount);
-                // Fourchette dont la borne basse tombe à 0 → « jusqu'à X € » (un « 0–X € » laissait
-                // croire qu'il ne restait peut-être rien, juste au-dessus d'un CTA qui propose X).
-                return r?.isRange
-                  ? formatRangeLabel(r.low, r.high)
-                  : `${currentReco.amount.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
+                // Montant PLEIN, jamais une borne de fourchette — même règle que le chiffre
+                // principal du Relyka. Une carte porte une DÉCISION (« je place 900 € ») : y
+                // afficher « jusqu'à 900 € » au-dessus d'un bouton qui en propose 900 faisait
+                // douter d'un chiffre pourtant exact, et contredisait le détail du calcul.
+                // L'incertitude reste portée par le badge d'état et le graphe en colonnes.
+                return `${currentReco.amount.toLocaleString('fr-FR')} ${CURRENCY_SYMBOL}`;
               })()}
             </Text>
           </View>
@@ -509,10 +465,8 @@ export default function RecommendationCard({
                 activeOpacity={0.7}
               >
                 <Ionicons name="bookmark-outline" size={16} color={currentReco.color} />
-                {/* Fin de mois : la reco devient « Reporter sur le mois prochain » (shortTitle). */}
-                <Text style={[styles.actionText, { color: currentReco.color }]}>
-                  {currentReco.shortTitle === 'Reporter' ? 'Reporter' : 'Réserver'}
-                </Text>
+                {/* Un seul mot pour ce geste dans toute l'app : « Réserver ». */}
+                <Text style={[styles.actionText, { color: currentReco.color }]}>Réserver</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -709,6 +663,7 @@ function makeStyles(c: any) {
   leadTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', alignSelf: 'stretch' },
   leadTitle: { fontSize: 13, color: c.textSecondary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   leadMessage: { fontSize: 12, color: c.textSecondary, lineHeight: 17, textAlign: 'center', paddingHorizontal: 4 },
+
   // Version compacte (Relyka à 0 € sans reco) : une ligne titre + montant, message à gauche.
   leadCompact: { gap: 6 },
   leadCompactRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

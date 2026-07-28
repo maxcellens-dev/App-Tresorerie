@@ -34,18 +34,31 @@ export default function LandingPage() {
   const slide = useRef(new Animated.Value(40)).current;
   const float = useRef(new Animated.Value(0)).current;
 
+  /* Apparition du héros — relancée À CHAQUE FOIS que le contenu est monté, jamais une seule fois.
+     ⚠️ React Native ARRÊTE une animation dès que la vue qui la porte se démonte
+     (AnimatedValue.__detach → stopAnimation). Or à la déconnexion, `queryClient.clear()` vide la
+     config de l'accueil une fraction de seconde : le héros se démontait EN PLEINE apparition, la
+     valeur d'opacité restait figée à mi-course, et la page revenait « grisée » définitivement —
+     l'effet en `[]` ne pouvant plus rien relancer. On repart donc de zéro à chaque montage. */
+  const contentReady = !!cfg;
   useEffect(() => {
-    Animated.parallel([
+    if (!contentReady) return;
+    fade.setValue(0);
+    slide.setValue(40);
+    const entry = Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 700, useNativeDriver: Platform.OS !== 'web' }),
       Animated.timing(slide, { toValue: 0, duration: 700, useNativeDriver: Platform.OS !== 'web' }),
-    ]).start();
-    Animated.loop(
+    ]);
+    entry.start();
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(float, { toValue: -1, duration: 2200, useNativeDriver: Platform.OS !== 'web' }),
         Animated.timing(float, { toValue: 0, duration: 2200, useNativeDriver: Platform.OS !== 'web' }),
       ]),
-    ).start();
-  }, []);
+    );
+    loop.start();
+    return () => { entry.stop(); loop.stop(); };
+  }, [contentReady, fade, slide, float]);
 
   const floatY = float.interpolate({ inputRange: [-1, 0], outputRange: [-10, 0] });
 

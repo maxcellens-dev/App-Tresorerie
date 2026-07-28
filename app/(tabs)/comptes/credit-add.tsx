@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../../../components/ScreenHeader';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories } from '../../../hooks/useCategories';
@@ -51,6 +53,7 @@ const EXTRA_FEES: { key: string; label: string }[] = [
 export default function CreditAddScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
   const router = useRouter();
   const params = useLocalSearchParams<{ simulation?: string; id?: string; shared?: string }>();
   const editId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -329,7 +332,7 @@ export default function CreditAddScreen() {
     <View style={styles.root}>
       <ScreenGradient />
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title={editId ? 'Modifier le crédit' : 'Nouveau crédit'} onBack={() => router.back()} />
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {error && <View style={styles.errorBanner}><Ionicons name="alert-circle" size={16} color={COLORS.danger} /><Text style={styles.errorText}>{error}</Text></View>}

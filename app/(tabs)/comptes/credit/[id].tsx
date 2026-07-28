@@ -11,6 +11,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAppColors } from '../../../../hooks/useAppColors';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useCredits, useDeleteCredit, useUpdateCredit } from '../../../../hooks/useCredits';
 import { useAllAccounts } from '../../../../hooks/useAccounts';
@@ -23,6 +25,7 @@ import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -84,7 +87,7 @@ export default function CreditDetailScreen() {
 
   if (!credit || !amort) {
     return (
-      <View style={styles.root}><ScreenGradient /><SafeAreaView style={styles.safe} edges={[]}>
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
         <ScreenHeader title="Crédit" onBack={() => router.back()} />
         <Text style={styles.empty}>Crédit introuvable.</Text>
       </SafeAreaView></View>
@@ -123,7 +126,7 @@ export default function CreditDetailScreen() {
     <View style={styles.root}>
       <ScreenGradient />
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={styles.safe} edges={[]}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
         <ScreenHeader
           title={credit.label}
           onBack={() => router.back()}

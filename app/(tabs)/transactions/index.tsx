@@ -4,6 +4,7 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import ScreenSkeleton from '../../../components/ScreenSkeleton';
 import { useDeferredMount } from '../../../hooks/useDeferredMount';
 import PageIntroModal from '../../../components/PageIntroModal';
+import MicroQuestion from '../../../components/MicroQuestion';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
 import { tabRect } from '../../../lib/tourTargets';
@@ -24,6 +25,14 @@ import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '.
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideOverlay from '../../../components/GuideOverlay';
+import GuideModal from '../../../components/guide/GuideModal';
+import GuideRing from '../../../components/GuideRing';
+import { getGuideAnchor } from '../../../lib/guideAnchors';
+import { useGuideBubbles } from '../../../components/guide/useGuideBubbles';
+import { useGuide } from '../../../contexts/GuideContext';
+import { usePageIntro } from '../../../hooks/usePageIntro';
+import { setGuideQuickAddOpen } from '../../../lib/guideHighlight';
+import { useIsFocused } from '@react-navigation/native';
 import CalculatorButton from '../../../components/CalculatorButton';
 import RecurringTransactionsModal from '../../../components/RecurringTransactionsModal';
 import type { BubbleStep } from '../../../components/GuideOverlay';
@@ -31,6 +40,8 @@ import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
 import { sheetWidth } from '../../../lib/appLayout';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { hoverRow } from '../../../lib/webLayout';
 import { iconForTransaction } from '../../../lib/categoryIcons';
 import { isProjectSpendTx } from '../../../lib/projectTx';
 import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
@@ -121,6 +132,7 @@ export default function TransactionsListScreen() {
 function TransactionsListBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée + survol des lignes
   const onbRecurring = useOnbHighlight('recurring_tx');
   const router = useRouter();
   const goBack = useNavBack();
@@ -133,12 +145,14 @@ function TransactionsListBody() {
   const [refreshing, setRefreshing] = useState(false);
 
   // ── Guide "bulles" ──
-  const guide = useScreenGuide('transactions', user?.id);
+  const screenGuide = useScreenGuide('transactions', user?.id);
   const expenseBtnRef = useRef<any>(null);
   const incomeBtnRef = useRef<any>(null);
   const transferBtnRef = useRef<any>(null);
   const periodNavRef = useRef<any>(null);
   const actionsRef = useRef<any>(null);
+  const filterBtnRef = useRef<any>(null);
+  const recurBtnRef = useRef<any>(null);
 
   const TX_GUIDE_STEPS: BubbleStep[] = [
     {
@@ -169,6 +183,101 @@ function TransactionsListBody() {
   const initializedAccountsSig = useRef<string | null>(null);
   const [showAccountFilter, setShowAccountFilter] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
+
+  /* ── Guide utilisateur (démarrage) ────────────────────────────────────────────────────────────
+     Étape 2 : les récurrences. Ce sont elles qui rendent le Relyka juste — sans elles, l'app ne sait
+     ni ce qui rentre ni ce qui part, et le chiffre ne vaut rien. Le modal reste donc tant qu'aucune
+     récurrence n'existe (l'utilisateur peut naviguer ailleurs, il le retrouvera en revenant). */
+  const guide = useGuide();
+  const txFocused = useIsFocused();
+  // `seen` couvre le redémarrage entre la présentation et les repères : sans lui, la présentation
+  // déjà lue ne se rouvrirait pas et les repères resteraient bloqués derrière elle.
+  const txIntro = usePageIntro('transactions');
+  const [txIntroClosed, setTxIntroClosed] = useState(false);
+  const txBubbles = useGuideBubbles(
+    guide.is('tx_tour') && (txIntroClosed || txIntro.seen), 3,
+    () => { setGuideQuickAddOpen(false); setShowRecurring(false); guide.done('g2_tx_tour'); },
+  );
+
+  /* Étapes 2 et 3 : on OUVRE réellement ce dont on parle — la liste des récurrentes, puis le menu
+     de saisie. Avec un délai avant l'ouverture et un autre avant de passer à la suite : la bulle se
+     lit d'abord, le panneau glisse ensuite, et il a le temps de se refermer avant la bulle suivante.
+     Sans ces délais, tout apparaissait et disparaissait d'un coup — brutal et illisible. */
+  const OPEN_DELAY = 320;   // laisse lire la bulle avant que le panneau ne s'ouvre
+  const CLOSE_DELAY = 260;  // laisse le panneau se refermer avant l'étape suivante
+
+  /* La feuille des récurrentes s'ouvre PENDANT la bulle qui la présente (et non à l'étape d'après,
+     commentée par une carte séparée). Le bouton et la feuille sont éclairés ensemble : on montre
+     d'un seul geste où l'on clique et ce que ça donne. */
+  const wantRecurOpen = txBubbles.visible && txBubbles.step === 1;
+  useEffect(() => {
+    if (!wantRecurOpen) return;
+    const t = setTimeout(() => setShowRecurring(true), OPEN_DELAY);
+    return () => { clearTimeout(t); setShowRecurring(false); };
+  }, [wantRecurOpen]);
+
+  const wantQuickAddOpen = txBubbles.visible && txBubbles.step === 2;
+  useEffect(() => {
+    if (!wantQuickAddOpen) return;
+    const t = setTimeout(() => setGuideQuickAddOpen(true), OPEN_DELAY);
+    return () => { clearTimeout(t); setGuideQuickAddOpen(false); };
+  }, [wantQuickAddOpen]);
+
+  /* Le modal « Étape 2 » ne doit pas rester derrière l'écran de saisie ni derrière les dialogues
+     qu'il ouvre : dès que l'utilisateur part créer sa récurrence, on le referme. Il ne revient
+     qu'AU RETOUR sur cette page, et seulement si rien n'a été enregistré (l'étape serait alors
+     franchie et le modal n'existerait plus). */
+  const [recurAttempt, setRecurAttempt] = useState(false);
+  useEffect(() => {
+    if (!txFocused || !recurAttempt) return;
+    const t = setTimeout(() => setRecurAttempt(false), 400); // laisse finir la transition de retour
+    return () => clearTimeout(t);
+  }, [txFocused, recurAttempt]);
+
+  /** Ferme le panneau ouvert, PUIS avance : la fermeture reste visible. */
+  const nextAfterClose = () => {
+    setShowRecurring(false);
+    setGuideQuickAddOpen(false);
+    setTimeout(() => txBubbles.next(), CLOSE_DELAY);
+  };
+
+  const GUIDE_TX_BUBBLES: BubbleStep[] = [
+    {
+      getRef: () => filterBtnRef,
+      icon: 'filter',
+      iconColor: COLORS.emerald,
+      title: 'Filtrer',
+      description: 'Choisis les comptes à afficher. \nPar défaut, tu vois tes comptes courants — ceux qui font ton quotidien.',
+    },
+    // La feuille des récurrentes est OUVERTE pendant cette étape : on éclaire à la fois le bouton
+    // et ce qu'il ouvre. Mode auto-bordure (pas de spotlight sombre) — sinon le voile aurait
+    // assombri la feuille qu'on demande justement de regarder.
+    {
+      highlightKey: ['recurringList', 'recurringSheet'],
+      anchorRef: () => recurBtnRef,
+      anchorPlacement: 'below',
+      anchorOffset: -8,
+      icon: 'repeat',
+      iconColor: COLORS.orange,
+      title: 'Tes récurrences',
+      description: 'Le raccourci vers tout ce qui revient chaque mois : salaire, loyer, abonnements. \nTu les saisis une fois, elles se rejouent toutes seules — et tu les retrouves dans cette liste pour les modifier ou les arrêter.',
+    },
+    {
+      highlightKey: 'quickAdd',
+      // MÊME EMPLACEMENT que les bulles précédentes : les repères forment une seule pop-up dont
+      // seul le contenu change, elle ne saute pas d'un écran à l'autre. Décalage −8 : la bulle 1
+      // est posée à `cible + PAD(8) + 14` = 22 px, contre 30 par défaut en mode ancre.
+      // BUREAU : le « + » rond n'existe pas (la saisie vit dans la barre latérale) — on ancre donc
+      // la bulle sur le vrai bouton « Nouvelle opération », qui s'éclaire et se déploie pareil.
+      anchorRef: () => (isDesktop ? getGuideAnchor('quickAdd') : recurBtnRef),
+      anchorPlacement: 'below',
+      anchorOffset: isDesktop ? 0 : -8,
+      icon: 'add-circle',
+      iconColor: COLORS.green,
+      title: isDesktop ? 'Le bouton « Nouvelle opération »' : 'Le bouton « + »',
+      description: 'Recette, Dépense, Virement, et \n« Mettre à jour mon solde » — le geste pour avoir tes chiffres justes rapidement.',
+    },
+  ];
 
   const transactionsQuery = useAllTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
@@ -710,6 +819,7 @@ function TransactionsListBody() {
       <TouchableOpacity
         key={`${item.id}-${item.displayDate || ''}`}
         style={rowBaseStyle}
+        {...hoverRow}
         onPress={isReadOnlyAcct ? () => setDetailTx(item) : navigateToEdit}
         activeOpacity={0.7}
         accessibilityRole="button"
@@ -798,9 +908,17 @@ function TransactionsListBody() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <PageIntroModal pageKey="transactions" />
+      <PageIntroModal
+        pageKey="transactions"
+        active={guide.active ? guide.is('tx_tour') : undefined}
+        onDone={() => setTxIntroClosed(true)}
+      />
       <OnboardingHintBanner />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      {/* Bureau : toute la page (filtres + liste) tient dans une colonne de lecture centrée —
+          une liste de transactions étalée sur 1600 px devient illisible (l'œil perd la ligne). */}
+      <SafeAreaView style={[styles.safe, isDesktop && styles.safeDesktop]} edges={['left', 'right']}>
+        {/* Question du profil progressif — entrer dans ses transactions est un déclencheur sûr. */}
+        <MicroQuestion track="tx" />
         {cameFromDeepLink && (
           <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />
@@ -828,15 +946,20 @@ function TransactionsListBody() {
               <Ionicons name="chevron-forward" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <TouchableOpacity
+              ref={recurBtnRef}
               style={[styles.filterBtn, { backgroundColor: COLORS.orange + '22', borderColor: COLORS.orange }]}
               onPress={() => setShowRecurring(true)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Transactions récurrentes"
             >
+              {/* Le bouton trace lui-même son anneau quand le guide le désigne — en même temps que
+                  la feuille qu'il ouvre (cf. GUIDE_TX_BUBBLES). */}
+              <GuideRing target="recurringList" radius={12} inset={-5} />
               <Ionicons name="repeat" size={18} color={COLORS.orange} />
             </TouchableOpacity>
             <TouchableOpacity
+              ref={filterBtnRef}
               style={[styles.filterBtn, accountFilterIds.length > 0 && styles.filterBtnActive]}
               onPress={() => setShowAccountFilter(!showAccountFilter)}
               activeOpacity={0.7}
@@ -962,7 +1085,7 @@ function TransactionsListBody() {
         ) : (
           <FlatList
             style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, isDesktop && { paddingBottom: 48 }]}
             data={listData}
             keyExtractor={(li) => li.k}
             renderItem={renderListItem}
@@ -1063,15 +1186,61 @@ function TransactionsListBody() {
       </SafeAreaView>
 
       <GuideOverlay
-        visible={guide.visible}
+        visible={screenGuide.visible}
         steps={TX_GUIDE_STEPS}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(TX_GUIDE_STEPS.length)}
-        onSkip={guide.skip}
+        currentStep={screenGuide.step}
+        onNext={() => screenGuide.goNext(TX_GUIDE_STEPS.length)}
+        onSkip={screenGuide.skip}
         screenTitle="Transactions"
       />
+
+      {/* ── GUIDE : repères de la page (filtre, récurrences + leur liste ouverte, bouton de saisie) ── */}
+      <GuideOverlay
+        visible={txBubbles.visible}
+        steps={GUIDE_TX_BUBBLES}
+        currentStep={txBubbles.step}
+        // Les étapes 2 et 3 ont un panneau déployé (la feuille des récurrentes, puis le menu de
+        // saisie) : on le referme, PUIS on avance — le panneau se replie au lieu de disparaître.
+        onNext={txBubbles.step >= 1 ? nextAfterClose : txBubbles.next}
+        onSkip={() => {}}
+        inverted
+        hideSkip
+      />
+
       <CalculatorButton page="transactions" />
-      <RecurringTransactionsModal visible={showRecurring} onClose={() => setShowRecurring(false)} userId={user?.id} />
+      <RecurringTransactionsModal
+        visible={showRecurring}
+        onClose={() => setShowRecurring(false)}
+        userId={user?.id}
+        // Pendant l'étape du guide : même fenêtre que la bulle, sinon la feuille passerait devant.
+        portal={wantRecurOpen}
+      />
+
+      {/* ── GUIDE : créer une première récurrence (reste tant que ce n'est pas fait) ──
+          Monté APRÈS la liste des récurrentes pour que la révélation ci-dessous passe par-dessus. */}
+      <GuideModal
+        visible={guide.is('tx_recurring') && txFocused && !showRecurring && !recurAttempt}
+        icon="repeat"
+        iconColor={COLORS.orange}
+        eyebrow="Étape 2 · Ce qui revient chaque mois"
+        title="Enregistre une dépense ou une recette récurrente"
+        text="Ton salaire, ton loyer, tes abonnements : saisis-les une seule fois en cochant « Récurrent ». C'est ce qui permet à Relyka d'anticiper ton mois."
+        choices={[
+          {
+            icon: 'arrow-up', color: COLORS.green,
+            title: 'Ma rentrée d\'argent',
+            text: 'Salaire, pension, revenus d\'activité.',
+            onPress: () => { setRecurAttempt(true); router.push('/(tabs)/transactions/add?type=income&recurring=1' as any); },
+          },
+          {
+            icon: 'arrow-down', color: COLORS.danger,
+            title: 'Une charge fixe',
+            text: 'Loyer, énergie, téléphone, abonnements.',
+            onPress: () => { setRecurAttempt(true); router.push('/(tabs)/transactions/add?type=expense&recurring=1' as any); },
+          },
+        ]}
+      />
+
     </View>
   );
 }
@@ -1080,6 +1249,8 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  // Web bureau : colonne de lecture centrée (max 1000) — filtres, en-tête et liste alignés.
+  safeDesktop: { width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: 32, paddingTop: 16 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   backText: { fontSize: 14, fontWeight: '600', color: c.text },
   header: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },

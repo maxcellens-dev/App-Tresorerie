@@ -10,7 +10,7 @@ import { isProjectSpendTx, projectMode } from '../lib/projectTx';
 import { computeTresoRows } from '../lib/tresoProjection';
 import { computeCashflowTrough } from '../lib/relyka';
 import type { DriftCalibration } from '../lib/confidenceEngine';
-import type { Account, Transaction, Project, Objective, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
+import type { Account, Transaction, Project, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
 export interface TransactionWithCategory extends TransactionWithDetails {
   category?: { name: string; type: string; is_variable?: boolean };
@@ -65,7 +65,6 @@ export interface PilotageData {
   month_expenses_total: number;          // total dépenses du mois (passées + à venir, hors virements) — info
   month_expenses_past: number;           // dépenses validées déjà passées ce mois (déjà dans le solde) — info
   month_expenses_remaining: number;      // dépenses à venir ce mois (date > aujourd'hui) → déduites du budget
-  committed_objective_monthly: number;   // engagements objectifs actifs (cible annuelle ÷ 12)
   reserved_by_project: Array<{           // détail du Réservé par projet (pour le modal)
     id: string; name: string; total: number;
     source_account_id: string | null; linked_account_id: string | null;
@@ -106,19 +105,6 @@ export interface PilotageData {
     status: string;
   }>;
   global_projects_percentage: number;
-
-  // Step 5: Objectives
-  objectives_with_progress: Array<{
-    id: string;
-    name: string;
-    target_yearly_amount: number;
-    current_year_invested: number;
-    progress_percentage: number;
-    account_name?: string;
-    account_type?: string;
-    status: string;
-  }>;
-  global_objectives_percentage: number;
 
   // Account Aggregations
   total_checking: number;
@@ -166,7 +152,6 @@ async function fetchPilotageData(profileId: string): Promise<{
   transactions: TransactionWithCategory[];
   questionnaireAnswers: any | null;
   projects: Project[];
-  objectives: Objective[];
   monthOverrides: { transaction_id: string; year: number; month: number; override_amount: number | null }[];
   rates: RatesMap;
 }> {
@@ -181,7 +166,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   const nowD = new Date();
   const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
 
-  const [profileRes, accountsRes, transactionsRes, projectsRes, objectivesRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes, closuresRes] = await Promise.all([
+  const [profileRes, accountsRes, transactionsRes, projectsRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes, closuresRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
     // Jointure catégorie réduite aux champs consommés par le moteur (type/name/is_variable/parent).
@@ -189,7 +174,6 @@ async function fetchPilotageData(profileId: string): Promise<{
       .eq('profile_id', profileId)
       .or(`date.gte.${histStart},is_recurring.eq.true`),
     supabase.from('projects').select('*').eq('profile_id', profileId),
-    supabase.from('objectives').select('*').eq('profile_id', profileId),
     supabase.from('user_questionnaire_answers').select('*').eq('user_id', profileId).maybeSingle(),
     supabase.from('currency_rates').select('code, rate'),
     supabase.from('transaction_month_overrides').select('transaction_id, year, month, override_amount').eq('profile_id', profileId),
@@ -202,7 +186,6 @@ async function fetchPilotageData(profileId: string): Promise<{
   if (accountsRes.error) throw accountsRes.error;
   if (transactionsRes.error) throw transactionsRes.error;
   if (projectsRes.error) throw projectsRes.error;
-  if (objectivesRes.error) throw objectivesRes.error;
   if (qaRes.error) throw qaRes.error;
   // Taux : non bloquant (si erreur → EUR seul ; la conversion laissera les montants tels quels).
   const rates: RatesMap = { EUR: 1 };
@@ -251,10 +234,6 @@ async function fetchPilotageData(profileId: string): Promise<{
       target_amount: Number(p.target_amount),
       monthly_allocation: Number(p.monthly_allocation),
     })) as Project[],
-    objectives: (objectivesRes.data ?? []).map((o: any) => ({
-      ...o,
-      target_yearly_amount: Number(o.target_yearly_amount),
-    })) as Objective[],
     questionnaireAnswers: qaRes.data ?? null,
     monthOverrides: (overridesRes.data ?? []) as { transaction_id: string; year: number; month: number; override_amount: number | null }[],
     rates,
@@ -500,7 +479,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const { profile, projects, objectives, rates } = data;
+  const { profile, projects, rates } = data;
 
   // ── Multi-devises : on NORMALISE comptes & transactions dans la devise de RÉFÉRENCE de
   // l'utilisateur AVANT tout calcul. Tout le reste de la fonction raisonne donc en une seule
@@ -556,9 +535,8 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // Formula:
   //   remaining_month_net = Σ transactions this month AFTER today (income – expenses)
   //   committed_projects  = Σ active projects monthly_allocation
-  //   committed_objectives = Σ active objectives target_yearly / 12
   //   base_to_spend = checking_balance + remaining_month_net
-  //                   - committed_projects - committed_objectives
+  //                   - committed_projects
   //   safe_to_spend = base_to_spend × (1 - safety_margin_percent / 100)
   // ─────────────────────────────────────────────────────────────────────
   const current_checking_balance = total_checking;
@@ -645,13 +623,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     return Math.max(0, sum);
   };
 
-  // Engagements (projets actifs) + objectifs (info, non déduits du budget)
+  // Engagements : allocations mensuelles des projets actifs.
   const committed_project_allocations = projects
     .filter(p => p.status === 'active')
     .reduce((sum, p) => sum + Number(p.monthly_allocation), 0);
-  const committed_objective_monthly = objectives
-    .filter(o => o.status === 'active')
-    .reduce((sum, o) => sum + (Number(o.target_yearly_amount) / 12), 0);
   const committed_allocations = committed_project_allocations;
   const monthly_commitments = committed_allocations;
 
@@ -859,36 +834,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     : 0;
 
   // =====================================================================
-  // STEP 5: Objectives Achievement
-  // =====================================================================
-  const objectives_with_progress = objectives
-    .filter(o => o.status === 'active')
-    .map(o => {
-      // Sum transfers to linked_account_id in current year
-      const current_year_invested = transactions
-        .filter(t => {
-          const [tYear] = t.date.split('-').map(Number);
-          return tYear === currentYear && t.account_id === o.linked_account_id && t.amount > 0;
-        })
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-
-      return {
-        id: o.id,
-        name: o.name,
-        target_yearly_amount: Number(o.target_yearly_amount),
-        current_year_invested,
-        progress_percentage: Number(o.target_yearly_amount) > 0 ? (current_year_invested / Number(o.target_yearly_amount)) * 100 : 0,
-        account_name: data.accounts.find(a => a.id === o.linked_account_id)?.name,
-        account_type: data.accounts.find(a => a.id === o.linked_account_id)?.type,
-        status: o.status,
-      };
-    });
-
-  const sum_all_yearly_targets = objectives.filter(o => o.status === 'active').reduce((sum, o) => sum + Number(o.target_yearly_amount), 0);
-  const sum_invested_ytd = objectives_with_progress.reduce((sum, o) => sum + o.current_year_invested, 0);
-  const global_objectives_percentage = sum_all_yearly_targets > 0 ? (sum_invested_ytd / sum_all_yearly_targets) * 100 : 0;
-
-  // =====================================================================
   // SUIVI : engagements du mois en cours (épargne / invest / dépenses)
   // =====================================================================
   // Projets : distinguer ceux qui transfèrent vers un autre compte (épargne), ceux qui réservent sur
@@ -977,7 +922,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   }
 
   const monthly_savings_planned = transfer_savings + project_savings_monthly;
-  const monthly_invest_planned = transfer_invest; // virements réels uniquement (objectifs exclus)
+  const monthly_invest_planned = transfer_invest; // virements réels uniquement
 
   // ── Virements épargne / investissement du mois (affichage Suivi) ──
   // TOUS les virements du mois courant (passés + futurs), y compris ceux liés à un projet,
@@ -1254,7 +1199,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     month_expenses_total,
     month_expenses_past,
     month_expenses_remaining,
-    committed_objective_monthly,
     reserved_by_project,
     avg_variable_expenses_3m,
     current_month_variable,
@@ -1277,8 +1221,6 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     available_savings,
     projects_with_progress,
     global_projects_percentage,
-    objectives_with_progress,
-    global_objectives_percentage,
     total_checking,
     total_savings,
     total_invested,

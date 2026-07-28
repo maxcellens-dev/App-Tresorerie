@@ -122,7 +122,9 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 13, paddingRight: 32, paddingBottom: 15, marginBottom: 10 },
+    // Pas de `marginBottom` : l'écran hôte (Pilotage) espace déjà ses blocs avec un `gap`. La marge
+    // s'y ajoutait, et le vide sous ce bandeau paraissait plus grand que partout ailleurs.
+    card: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, padding: 13, paddingRight: 32, paddingBottom: 15 },
     labelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 5 },
     label: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
     dots: { flexDirection: 'row', gap: 4, marginLeft: 6 },

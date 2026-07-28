@@ -7,6 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
@@ -22,6 +24,7 @@ function formatDate(iso: string) {
 export default function AssistanceScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
@@ -54,7 +57,7 @@ export default function AssistanceScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
         <ScreenHeader title="Assistance" onBack={goBack} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <Text style={styles.subtitle}>
@@ -116,7 +119,7 @@ export default function AssistanceScreen() {
             </View>
             <View style={styles.faqItem}>
               <Text style={styles.faqQ}>Comment fonctionne le "Budget libre à allouer" ?</Text>
-              <Text style={styles.faqA}>Ce montant prend ton solde courant et déduit les dépenses à venir (fixes, variables prévues, allocations projets et objectifs) ainsi qu'une marge de sécurité configurable dans les Paramètres.</Text>
+              <Text style={styles.faqA}>Ce montant prend ton solde courant et déduit les dépenses à venir (fixes, variables prévues, allocations projets) ainsi qu'une marge de sécurité configurable dans les Paramètres.</Text>
             </View>
             <View style={styles.faqItem}>
               <Text style={styles.faqQ}>Les transactions récurrentes sont-elles automatiques ?</Text>

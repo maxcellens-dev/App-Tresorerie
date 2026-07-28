@@ -77,7 +77,7 @@ const MODES: Record<ProjectMode, {
     icon: 'trending-up',
     title: 'Mettre de côté',
     pitch: 'Envoyer l’argent sur un compte épargne ou investissement',
-    what: 'À chaque échéance, l’app prépare un VIREMENT de ton compte courant vers ton épargne (ou ton investissement). Tu le valides quand il est fait : l’argent change vraiment de compte, et le projet avance.',
+    what: 'À chaque échéance, l’app prépare un VIREMENT de ton compte courant vers ton épargne (ou ton investissement). Tu le valides quand il est fait sur la page Transactions : l’argent change vraiment de compte, et le projet avance.',
     amountLabel: 'Montant à atteindre',
     amountHint: 'La somme totale que tu veux avoir mise de côté au bout du compte.',
     monthlyLabel: 'Montant mis de côté chaque mois',
@@ -92,7 +92,7 @@ const MODES: Record<ProjectMode, {
   reserve: {
     key: 'reserve',
     icon: 'lock-closed',
-    title: 'Conserver pour plus tard',
+    title: 'Réserver pour plus tard',
     pitch: 'Garder l’argent sur le compte, mais le mettre de côté « pour ce projet »',
     what: 'L’argent ne bouge PAS : il reste sur ton compte, simplement marqué « Réservé ». Il ne compte plus dans ce que tu peux dépenser ce mois-ci, mais il t’attend pour ton projet. Aucun virement, aucune dépense.',
     amountLabel: 'Montant à réserver',
@@ -694,9 +694,12 @@ export default function AddProjectModal() {
                 {wizard && step === 1 && (
                   <>
                     <Text style={styles.modeIntro}>
-                      Pour ce projet, l’argent doit faire quoi ? Choisis, et l’app s’occupe du reste.
+                      Pour ce projet, que doit faire l’argent ?
                     </Text>
-                    {(['transfer', 'reserve', 'spend'] as ProjectMode[]).map((m) => {
+                    {/* Ordre : mettre de côté → dépenser petit à petit → réserver. « Dépenser » est
+                        le second cas le plus courant (cours, abonnement, voyage payé en plusieurs
+                        fois) ; « réserver » est le plus subtil des trois, il vient en dernier. */}
+                    {(['transfer', 'spend', 'reserve'] as ProjectMode[]).map((m) => {
                       const cfg = MODES[m];
                       const active = mode === m;
                       return (

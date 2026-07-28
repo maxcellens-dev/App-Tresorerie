@@ -4,6 +4,8 @@ import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
 import CalculatorButton from '../../../components/CalculatorButton';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
+import MicroQuestion from '../../../components/MicroQuestion';
+import PageIntroModal from '../../../components/PageIntroModal';
 import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +20,12 @@ import { ACCOUNT_ICONS } from '../../../theme/colors';
 import { semanticText } from '../../../theme/palette';
 import GuideOverlay from '../../../components/GuideOverlay';
 import GuideRing from '../../../components/GuideRing';
+import GuideModal from '../../../components/guide/GuideModal';
+import QuickAccountsModal from '../../../components/QuickAccountsModal';
+import { useGuideBubbles } from '../../../components/guide/useGuideBubbles';
+import { useGuide } from '../../../contexts/GuideContext';
+import { usePageIntro } from '../../../hooks/usePageIntro';
+import { useIsFocused } from '@react-navigation/native';
 import CreditsTab from '../../../components/CreditsTab';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
@@ -28,6 +36,8 @@ import { useProfile } from '../../../hooks/useProfile';
 import { useAccountsTotalsFilter } from '../../../hooks/useUiPrefs';
 import { useSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
 import StaggerIn from '../../../components/StaggerIn';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { contentWidth, hoverRow } from '../../../lib/webLayout';
 
 
 const TYPE_LABELS: Record<string, string> = {
@@ -40,6 +50,7 @@ const TYPE_LABELS: Record<string, string> = {
 export default function AccountsListScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : colonne de lecture centrée + survol souris
   const onbAccount = useOnbHighlight('account_initialized');
   const router = useRouter();
   const { user, isImpersonating } = useAuth();
@@ -77,7 +88,7 @@ export default function AccountsListScreen() {
   // Chaque étape ne fait que NOMMER l'élément à mettre en avant (`highlightKey`) : c'est le bouton
   // lui-même qui trace sa bordure (<GuideRing>), il n'y a donc AUCUNE position à mesurer ni estimer.
   // `placement` place la bulle en haut ou en bas, sans jamais recouvrir la cible.
-  const guide = useScreenGuide('comptes', user?.id);
+  const screenGuide = useScreenGuide('comptes', user?.id);
   const scrollRef = useRef<ScrollView>(null);
   const actionsRef = useRef<any>(null); // ancre de la bulle « Commence ici » (posée juste dessous)
 
@@ -109,6 +120,47 @@ export default function AccountsListScreen() {
     },
   ];
   
+  /* ── Guide utilisateur (démarrage) ────────────────────────────────────────────────────────────
+     La page Comptes est la 1ʳᵉ étape concrète : sans compte, aucun chiffre de l'app n'a de sens.
+     Tant qu'aucun compte n'existe, le modal REVIENT — il ne se ferme que par une création réelle. */
+  const guide = useGuide();
+  const focused = useIsFocused();
+  const [quickAccounts, setQuickAccounts] = useState(false);
+  // « Créer un compte » : on efface le modal et on ENTOURE le vrai bouton (GuideRing), au lieu d'en
+  // parler dans le vide. Remis à zéro à chaque retour sur la page → le modal se represente.
+  const [pointing, setPointing] = useState(false);
+  useEffect(() => { if (!focused) setPointing(false); }, [focused]);
+  const askingAccount = focused && guide.active
+    && (guide.is('accounts') || guide.is('accounts_checking') || guide.is('accounts_savings'));
+
+  const overviewRef = useRef<View>(null);
+  const tabsRef = useRef<View>(null);
+  // Présentation de la page (modal) PUIS repères : elle ne s'ouvre qu'une fois le 1er compte créé.
+  // `seen` couvre le cas d'un redémarrage entre les deux — sans lui, la présentation déjà lue ne se
+  // rouvrirait pas et les repères resteraient bloqués derrière elle.
+  const comptesIntro = usePageIntro('comptes');
+  const [comptesIntroClosed, setComptesIntroClosed] = useState(false);
+  const comptesBubbles = useGuideBubbles(
+    guide.is('comptes_tour') && (comptesIntroClosed || comptesIntro.seen), 2,
+    () => guide.done('g2_comptes_tour'),
+  );
+  const COMPTES_BUBBLES: BubbleStep[] = [
+    {
+      getRef: () => overviewRef,
+      icon: 'pie-chart-outline',
+      iconColor: COLORS.blue,
+      title: 'Ta vue d\'ensemble',
+      description: 'C\'est la photo de ton patrimoine financier à l\'instant T.',
+    },
+    {
+      getRef: () => tabsRef,
+      icon: 'layers-outline',
+      iconColor: COLORS.emerald,
+      title: 'Comptes et crédits',
+      description: 'Ici tu gères tes comptes.\nL\'onglet « Crédits » suit tes emprunts : mensualités, intérêts, capital restant, etc..',
+    },
+  ];
+
   const { data: allAccounts = [], isLoading } = accountsQuery;
   const { data: archivedAccounts = [] } = archivedQuery;
 
@@ -181,12 +233,20 @@ export default function AccountsListScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
+      {/* Pendant le guide, la présentation de la page attend le 1er compte créé (étape
+          « comptes_tour ») : l'ouvrir plus tôt viendrait par-dessus le modal qui demande justement
+          de créer un compte. Hors guide, comportement inchangé (1ʳᵉ visite). */}
+      <PageIntroModal
+        pageKey="comptes"
+        active={guide.active ? guide.is('comptes_tour') : undefined}
+        onDone={() => setComptesIntroClosed(true)}
+      />
       <OnboardingHintBanner />
       <SafeAreaView style={styles.safe} edges={['left', 'right']}>
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, contentWidth(isDesktop, 'list'), isDesktop && styles.scrollContentDesktop]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -197,10 +257,13 @@ export default function AccountsListScreen() {
             />
           }
         >
+          {/* Question du profil progressif — la 1ʳᵉ visite des Comptes est un déclencheur sûr. */}
+          <MicroQuestion track="comptes" style={{ marginHorizontal: 16, marginTop: 12 }} />
+
           {/* ── Vue d'ensemble patrimoine (avant le total) ── */}
           {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
           {accounts.length > 0 && (
-            <View>
+            <View ref={overviewRef} collapsable={false}>
             <View style={styles.overviewHeaderRow}>
               {/* « Vue d'ensemble » et non « Patrimoine » : ce total ne couvre que l'argent DES COMPTES
                   (courant + épargne + investissement), pas les biens possédés (logement, véhicule…). */}
@@ -254,7 +317,7 @@ export default function AccountsListScreen() {
           )}
 
           {/* ── Onglets Comptes / Crédits (#6b : à la place de l'ancien « Total Liquidités ») ── */}
-          <View style={styles.tabsRow}>
+          <View style={styles.tabsRow} ref={tabsRef} collapsable={false}>
             {(['comptes', 'credits'] as const).map((t) => (
               <TouchableOpacity key={t} style={[styles.tabItem, tab === t && styles.tabItemActive]} onPress={() => setTab(t)} activeOpacity={0.8} accessibilityRole="button">
                 <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>{t === 'comptes' ? 'Comptes' : 'Crédits'}</Text>
@@ -340,6 +403,7 @@ export default function AccountsListScreen() {
                   <StaggerIn key={acc.id} index={idx} groupKey="comptes">
                   <TouchableOpacity
                     style={[styles.accountRow, !isLast && styles.accountRowBorder]}
+                    {...hoverRow}
                     onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
@@ -384,6 +448,7 @@ export default function AccountsListScreen() {
                     <TouchableOpacity
                       key={acc.id}
                       style={[styles.accountRow, !isLast && styles.accountRowBorder]}
+                      {...hoverRow}
                       onPress={() => router.push(`/(tabs)/comptes/${acc.id}`)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
@@ -487,13 +552,90 @@ export default function AccountsListScreen() {
       </SafeAreaView>
 
       <GuideOverlay
-        visible={guide.visible}
+        visible={screenGuide.visible}
         steps={GUIDE_STEPS}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(GUIDE_STEPS.length)}
-        onSkip={guide.skip}
+        currentStep={screenGuide.step}
+        onNext={() => screenGuide.goNext(GUIDE_STEPS.length)}
+        onSkip={screenGuide.skip}
         scrollRef={scrollRef}
         screenTitle="Comptes"
+      />
+
+      {/* ── GUIDE : repères de la page, après la création du 1er compte ── */}
+      <GuideOverlay
+        visible={comptesBubbles.visible}
+        steps={COMPTES_BUBBLES}
+        currentStep={comptesBubbles.step}
+        onNext={comptesBubbles.next}
+        onSkip={() => {}}
+        scrollRef={scrollRef}
+        inverted
+        hideSkip
+      />
+
+      {/* ── GUIDE : « crée un compte » — revient tant qu'aucun compte n'existe ── */}
+      <GuideModal
+        visible={askingAccount && !pointing && !quickAccounts && !showCreateType}
+        icon={guide.is('accounts_savings') ? 'leaf-outline' : 'wallet-outline'}
+        iconColor={guide.is('accounts_savings') ? COLORS.savings : COLORS.checking}
+        eyebrow="Étape 1 · Tes comptes"
+        title={
+          guide.is('accounts') ? 'Commençons par tes comptes'
+          : guide.is('accounts_checking') ? 'Il te manque un compte courant'
+          : 'Et ton épargne ?'
+        }
+        text={
+          guide.is('accounts')
+            ? "Ajoute tes comptes avec le montant affiché aujourd'hui par ta banque."
+          : guide.is('accounts_checking')
+            ? "C'est le compte sur lequel ton argent arrive et tes charges partent : sans lui, impossible de savoir ce qu'il te reste."
+            : "Livret A, LDDS, PEA… c'est ce qui permet de calculer ton matelas de sécurité : combien de mois tu tiendrais sans rentrée d'argent."
+        }
+        choices={[
+          {
+            icon: 'flash-outline', color: COLORS.emerald,
+            title: 'Création rapide',
+            text: 'Tous tes comptes d\'un coup : courant, épargne, placements.',
+            onPress: () => setQuickAccounts(true),
+          },
+          {
+            icon: 'add-circle-outline', color: COLORS.blue,
+            title: 'Créer un compte',
+            text: 'Un seul compte, avec tous ses détails.',
+            onPress: () => setPointing(true),
+          },
+        ]}
+        secondary={guide.is('accounts_savings')
+          ? { label: 'Je n\'en ai pas pour l\'instant', onPress: () => guide.done('g2_nudge_savings') }
+          : undefined}
+        note={guide.is('accounts_savings') ? undefined : 'Tu pourras corriger un solde à tout moment.'}
+      />
+
+      {/* Le modal s'efface, le VRAI bouton est entouré : c'est lui qu'il faut apprendre à trouver. */}
+      <GuideOverlay
+        visible={askingAccount && pointing && !showCreateType}
+        steps={[{
+          highlightKey: 'accountActions',
+          anchorRef: () => actionsRef,
+          icon: 'add-circle',
+          iconColor: COLORS.emerald,
+          title: 'Appuie sur « Créer Compte »',
+          description: 'Le bouton entouré, en haut de la page. Tu choisiras ensuite le type de compte et son solde actuel.',
+        }]}
+        currentStep={0}
+        // Le bouton de la bulle fait la MÊME chose que le bouton entouré : on n'oblige personne à
+        // viser juste pour avancer, mais on lui a montré où ça se trouve.
+        onNext={() => { setPointing(false); setShowCreateType(true); }}
+        onSkip={() => {}}
+        nextLabel="Créer un compte"
+        inverted
+        hideSkip
+      />
+
+      <QuickAccountsModal
+        visible={quickAccounts}
+        userId={user?.id}
+        onClose={() => setQuickAccounts(false)}
       />
 
       {/* Choix du type de compte — MÊME forme que le modal « Quel type de projet ? » */}
@@ -535,6 +677,8 @@ function makeStyles(c: any) {
   safe: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
+  // Bureau : plus de barre d'onglets à dégager, mais de l'air en haut et en bas de la colonne.
+  scrollContentDesktop: { paddingBottom: 56, paddingTop: 12 },
   loader: { marginVertical: 40 },
   overviewTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, paddingHorizontal: 24, marginBottom: 8, marginTop: 4 },
   overviewHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 },
