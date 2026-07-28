@@ -144,12 +144,10 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             est à jour, et plus de gros bouton qui rivalise avec le + juste à côté. */}
         <View style={styles.heroTop}>
           <Text style={styles.heroLabel}>Ton Relyka</Text>
-          {p.confidenceLevel === 'high' ? (
-            <View style={[styles.badge, { backgroundColor: (COLORS.green ?? COLORS.emerald) + '1F', borderColor: (COLORS.green ?? COLORS.emerald) + '55' }]}>
-              <Ionicons name="checkmark-circle" size={11} color={COLORS.green ?? COLORS.emerald} />
-              <Text style={[styles.badgeText, { color: COLORS.green ?? COLORS.emerald }]}>À jour</Text>
-            </View>
-          ) : (
+          {/* RIEN quand tout est à jour. Un badge « À jour » ne demande aucun geste et n'apprend
+              rien : c'est l'état NORMAL. Le badge n'apparaît donc que lorsqu'il porte une action —
+              le solde mérite d'être revérifié — et il porte alors le bouton pour le faire. */}
+          {p.confidenceLevel !== 'high' && (
             <TouchableOpacity
               style={[
                 styles.badge,

@@ -77,19 +77,20 @@ import { useReliabilityConfig, deriveRelykaConfidence } from '../../hooks/useRel
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
 import { buildMaterializedIndex, recurrenceForMonth } from '../../lib/recurrenceMonth';
 
-/** Divise par 2 l'alpha d'une couleur rgb(a)/hex (#RRGGBBAA) — pour atténuer un fond translucide. */
-function halfAlpha(color: string): string {
-  const rgba = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(color);
-  if (rgba) {
-    const a = rgba[4] !== undefined ? parseFloat(rgba[4]) : 1;
-    return `rgba(${rgba[1]}, ${rgba[2]}, ${rgba[3]}, ${(a / 4).toFixed(3)})`;
-  }
-  const hex8 = /^(#[0-9A-Fa-f]{6})([0-9A-Fa-f]{2})$/.exec(color);
-  if (hex8) return hex8[1] + Math.round(parseInt(hex8[2], 16) / 4).toString(16).padStart(2, '0');
-  const hex6 = /^#[0-9A-Fa-f]{6}$/.test(color);
-  if (hex6) return color + '80'; // opaque → 50 %
-  return color;
-}
+
+/**
+ * Puces de filtre / de légende posées DANS une liste défilante.
+ *
+ * Le camembert, lui, est `pointerEvents="none"` (purement décoratif) : un glissement dessus part
+ * droit au ScrollView, donc « ça scrolle ». Les puces, elles, sont des `TouchableOpacity` : elles
+ * prennent le doigt dès qu'il se pose, et le ScrollView doit ensuite le leur reprendre — c'est ce
+ * temps de négociation qu'on ressent comme un scroll qui « galère » quand on démarre le geste sur
+ * la barre de filtres.
+ *
+ * `delayPressIn` diffère la prise : un glissement part directement au ScrollView, un vrai appui
+ * reste parfaitement normal (le délai est sous le seuil de perception).
+ */
+const scrollFriendlyPress = { delayPressIn: 120 } as const;
 
 /** « 24 juillet » — date lisible, pour situer le point bas de trésorerie dans le temps. */
 function shortDay(iso: string | null | undefined): string {
@@ -608,34 +609,41 @@ export default function PilotageScreen() {
     }));
   }, [pilotageData, recoOptions, relConf, COLORS]);
 
-  /* ── Message PÉDAGOGIQUE du Relyka ─────────────────────────────────────────────────────────────
-     Il dit ce qu'EST le chiffre (le reste estimé de fin de mois, une fois les dépenses habituelles
-     couvertes → utilisable via les recos). Le point bas de trésorerie et le fait qu'un revenu soit
-     DEVINÉ y sont ajoutés : c'est ce qui explique un Relyka bas alors que « tout va bien », et sa
-     remontée le lendemain de la paie. Sans cette phrase, le chiffre paraît arbitraire.
-     Calculé ICI plutôt que dans le JSX : il alimente le carrousel de messages du bloc principal. */
-  const relykaMessage = React.useMemo(() => [
-    relykaAffiche < 0
-      ? 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.'
-      : relykaAffiche <= 0
+  /* ── Message de BASE du Relyka : ce qu'EST le chiffre ──────────────────────────────────────────
+     Quand le Relyka est POSITIF, la phrase est passe-partout (« voici ce qu'il devrait te rester…
+     utilise-le librement ») : elle ne vaut que si elle est seule à l'écran — d'où `isGeneric`, que
+     buildRelykaMessages utilise pour l'effacer dès qu'un autre message a du concret à dire.
+     Les autres variantes QUALIFIENT le montant (budget dépassé, plus de marge, tout est rangé
+     ailleurs) : elles restent toujours affichées, en tête.
+     Le point bas et le revenu deviné ne sont PLUS collés à cette phrase : ce sont des messages à
+     part entière, chacun son tour de carrousel. */
+  const relykaBase = React.useMemo(() => {
+    if (relykaAffiche < 0) {
+      return { text: 'Budget dépassé ce mois-ci — mieux vaut lever le pied sur les dépenses.', isGeneric: false };
+    }
+    if (relykaAffiche <= 0) {
       // Relyka à 0 par CHOIX (réservations / cumuls) : c'est le geste qu'on a recommandé — on le
       // salue au lieu d'alerter. Sinon seulement, on met en garde.
-      ? (relykaAlloueVolontairement
-          ? `Rien d'inquiétant : tu as mis ${Math.round(misDeCoteTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} de côté ce mois-ci (épargne, investissement, réservé). Ton Relyka est à 0 parce que cet argent est rangé ailleurs, pas parce qu'il te manque de l'argent.`
-          : Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
+      if (relykaAlloueVolontairement) {
+        return {
+          text: `Rien d'inquiétant : tu as mis ${Math.round(misDeCoteTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} de côté ce mois-ci (épargne, investissement, réservé). Ton Relyka est à 0 parce que cet argent est rangé ailleurs, pas parce qu'il te manque de l'argent.`,
+          isGeneric: false,
+        };
+      }
+      return {
+        text: Math.round(Math.max(0, variableEnvelopeRemaining)) > 0
           ? 'Ton Relyka est épuisé - tout ton argent est alloué, donc reste prudent.'
-          : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.')
-      : relConf?.relykaRange.isRange
-      ? 'Voici ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
-      : 'Voici ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.',
-    troughExplain,
-    incomeIsGuessed
-      ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
-      : '',
-  ].filter(Boolean).join(' '), [
-    relykaAffiche, relykaAlloueVolontairement, misDeCoteTotal, variableEnvelopeRemaining,
-    relConf, troughExplain, incomeIsGuessed,
-  ]);
+          : 'Pas de marge — évite de dépenser avant ta prochaine rentrée d\'argent.',
+        isGeneric: false,
+      };
+    }
+    return {
+      text: relConf?.relykaRange.isRange
+        ? 'Voici ce qu\'il devrait te rester à la fin du mois. Tu peux suivre les recommandations — vérifie ton solde pour affiner l\'estimation.'
+        : 'Voici ce qu\'il devrait te rester à la fin du mois. Utilise ton Relyka librement, idéalement en suivant les recommandations.',
+      isGeneric: true,
+    };
+  }, [relykaAffiche, relykaAlloueVolontairement, misDeCoteTotal, variableEnvelopeRemaining, relConf]);
 
   /** Données de projection alimentant l'encadré contextuel des recos (les deux vues). */
   const recoFinancials = recoContextEnabled && pilotageData
@@ -651,17 +659,23 @@ export default function PilotageScreen() {
   }), [recoList, recoContextEnabled, pilotageData]);
 
   /* Les messages du CHIFFRE PRINCIPAL, déroulés sous le montant : garde-fou marge × projection,
-     consigne « solde non vérifié » (que portait le bandeau ambre), puis l'explication du Relyka.
+     consigne « solde non vérifié » (que portait le bandeau ambre), point bas de trésorerie, revenu
+     deviné — et la phrase de base seulement si elle a quelque chose à apporter (cf. isGeneric).
      Ils ne se mélangent pas aux décisions : ils commentent tout l'écran, pas une tuile. */
   const relykaMessages = React.useMemo(() => buildRelykaMessages({
-    relykaMessage,
+    baseMessage: relykaBase.text,
+    baseIsGeneric: relykaBase.isGeneric,
+    troughMessage: troughExplain,
+    incomeGuessedMessage: incomeIsGuessed
+      ? 'Ta rentrée d\'argent principale est estimée à partir de ton historique : enregistre-la en récurrente pour un Relyka plus juste.'
+      : null,
     guardMessage: composeGuardMessage(recoList.filter((r) => r.amount > 0)),
     unverifiedMessage: relConf?.result.level === 'low'
       ? `Solde non vérifié ${unverifiedSincePhrase(relConf.result.daysSinceVerification)} — fais une régul ou saisis tes dépenses pour l'actualiser.`
       : null,
     relykaColor: relykaAffiche > 0 ? COLORS.emerald : relykaAlloueVolontairement ? COLORS.blue : relykaAffiche < 0 ? COLORS.danger : COLORS.orange,
     warnColor: COLORS.orange,
-  }), [relykaMessage, recoList, relConf, relykaAffiche, relykaAlloueVolontairement, COLORS]);
+  }), [relykaBase, troughExplain, incomeIsGuessed, recoList, relConf, relykaAffiche, relykaAlloueVolontairement, COLORS]);
 
   // ── Détails du « Suivi du mois » (listes pour les modaux au clic, §3) ──
   const suiviDetail = React.useMemo(() => {
@@ -1483,6 +1497,7 @@ export default function PilotageScreen() {
                                           onPress={() => { setSpentUpcomingOnly(false); setSpentFilter(active ? null : g.key); }}
                                           activeOpacity={0.7}
                                           {...hoverRow}
+                                          {...scrollFriendlyPress}
                                         >
                                           <View style={[styles.pieDot, { backgroundColor: g.color }]} />
                                           <Ionicons name={g.icon as any} size={13} color={COLORS.textSecondary} />
@@ -1503,6 +1518,7 @@ export default function PilotageScreen() {
                                           onPress={() => { setSpentUpcomingOnly(false); setSpentRecurOnly((v) => !v); }}
                                           activeOpacity={0.7}
                                           {...hoverRow}
+                                          {...scrollFriendlyPress}
                                         >
                                           <Ionicons name="repeat" size={13} color={COLORS.orange} />
                                           <Text style={styles.filterChipText} numberOfLines={1}>Récurrentes</Text>
@@ -1515,6 +1531,7 @@ export default function PilotageScreen() {
                                           onPress={() => { setSpentRecurOnly(false); setSpentFilter(null); setSpentUpcomingOnly((v: boolean) => !v); }}
                                           activeOpacity={0.7}
                                           {...hoverRow}
+                                          {...scrollFriendlyPress}
                                         >
                                           <Ionicons name="time-outline" size={13} color={COLORS.textSecondary} />
                                           <Text style={styles.filterChipText} numberOfLines={1}>À venir</Text>
@@ -1727,6 +1744,7 @@ export default function PilotageScreen() {
                                                 onPress={() => setRecurFilter(active ? null : g.key)}
                                                 activeOpacity={0.7}
                                                 {...hoverRow}
+                                          {...scrollFriendlyPress}
                                               >
                                                 <View style={[styles.pieDot, { backgroundColor: g.color }]} />
                                                 <Ionicons name={g.icon as any} size={13} color={COLORS.textSecondary} />
@@ -1746,6 +1764,7 @@ export default function PilotageScreen() {
                                               onPress={() => setRecurFilter(viewingUpcoming ? null : UPCOMING_KEY)}
                                               activeOpacity={0.7}
                                               {...hoverRow}
+                                          {...scrollFriendlyPress}
                                             >
                                               <Ionicons name="time-outline" size={13} color={COLORS.textSecondary} />
                                               <Text style={styles.filterChipText} numberOfLines={1}>À venir</Text>

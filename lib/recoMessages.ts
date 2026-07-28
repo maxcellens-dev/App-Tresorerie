@@ -63,8 +63,20 @@ export function composeGuardMessage(recos: SmartRecommendation[]): string | null
  * mélanger à des explications d'épargne ou d'investissement.
  */
 export function buildRelykaMessages(input: {
-  /** Message pédagogique sous le montant (ce qu'EST le Relyka + point bas + revenu deviné). */
-  relykaMessage?: string;
+  /** Ce qu'EST le chiffre. Voir `baseIsGeneric`. */
+  baseMessage?: string;
+  /**
+   * Le message de base est-il la phrase PASSE-PARTOUT (« voici ce qu'il devrait te rester…
+   * utilise-le librement ») ? Elle ne vaut que si elle est SEULE : dès qu'un autre message a
+   * quelque chose de concret à dire, elle occupe un tour de carrousel pour ne rien apprendre.
+   * Les variantes non génériques (budget dépassé, plus de marge, tout est déjà rangé) restent
+   * TOUJOURS affichées, en tête : elles qualifient le montant.
+   */
+  baseIsGeneric?: boolean;
+  /** Point bas de trésorerie : jusqu'à quand le Relyka est contraint, et ce qui le fera remonter. */
+  troughMessage?: string | null;
+  /** Rentrée d'argent inférée de l'historique plutôt que saisie en récurrente. */
+  incomeGuessedMessage?: string | null;
   /** Garde-fou marge × projection (cf. composeGuardMessage). */
   guardMessage?: string | null;
   /** Solde non vérifié depuis longtemps : la consigne que portait le bandeau ambre des recos. */
@@ -72,19 +84,36 @@ export function buildRelykaMessages(input: {
   relykaColor: string;
   warnColor: string;
 }): RecoMessage[] {
-  const { relykaMessage, guardMessage, unverifiedMessage, relykaColor, warnColor } = input;
-  const out: RecoMessage[] = [];
-  // Les mises en garde d'abord : c'est ce qu'on veut voir en premier si on ne lit qu'un message.
+  const {
+    baseMessage, baseIsGeneric, troughMessage, incomeGuessedMessage,
+    guardMessage, unverifiedMessage, relykaColor, warnColor,
+  } = input;
+
+  const base: RecoMessage | null = baseMessage?.trim()
+    ? { key: 'relyka:main', label: 'Ton Relyka', color: relykaColor, text: baseMessage.trim(), icon: 'sparkles', tone: 'info' }
+    : null;
+
+  // Tout ce qui a quelque chose de CONCRET à dire. Mises en garde d'abord : c'est ce qu'on veut
+  // voir en premier si on ne lit qu'un message.
+  const substantive: RecoMessage[] = [];
   if (guardMessage?.trim()) {
-    out.push({ key: 'relyka:guard', label: 'À savoir', color: warnColor, text: guardMessage.trim(), icon: 'alert-circle', tone: 'warn' });
+    substantive.push({ key: 'relyka:guard', label: 'À savoir', color: warnColor, text: guardMessage.trim(), icon: 'alert-circle', tone: 'warn' });
   }
   if (unverifiedMessage?.trim()) {
-    out.push({ key: 'relyka:unverified', label: 'À vérifier', color: warnColor, text: unverifiedMessage.trim(), icon: 'shield-outline', tone: 'warn' });
+    substantive.push({ key: 'relyka:unverified', label: 'À vérifier', color: warnColor, text: unverifiedMessage.trim(), icon: 'shield-outline', tone: 'warn' });
   }
-  if (relykaMessage?.trim()) {
-    out.push({ key: 'relyka:main', label: 'Ton Relyka', color: relykaColor, text: relykaMessage.trim(), icon: 'sparkles', tone: 'info' });
+  if (troughMessage?.trim()) {
+    substantive.push({ key: 'relyka:trough', label: 'Point bas', color: relykaColor, text: troughMessage.trim(), icon: 'trending-down-outline', tone: 'tip' });
   }
-  return out;
+  if (incomeGuessedMessage?.trim()) {
+    substantive.push({ key: 'relyka:income', label: 'Ta rentrée d’argent', color: warnColor, text: incomeGuessedMessage.trim(), icon: 'help-circle-outline', tone: 'warn' });
+  }
+
+  if (!base) return substantive;
+  // Non générique = il qualifie le montant → en tête, toujours.
+  if (!baseIsGeneric) return [base, ...substantive];
+  // Générique = seulement s'il n'y a rien d'autre à dire.
+  return substantive.length > 0 ? substantive : [base];
 }
 
 /**
