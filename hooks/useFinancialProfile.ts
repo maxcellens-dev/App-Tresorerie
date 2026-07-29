@@ -3,15 +3,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import {
   computeInitialProfile,
+  computeProfileFromData,
   detectIrregularIncome,
   evaluateAutoTransition,
   computeMonthlyMetrics,
   PROFILE_ALLOCATIONS,
   safetyMarginFromQ8,
   weeklyVariableFromQ9,
-  q5FromSecurityMonths,
-  NEUTRAL_ANSWERS,
-  Q5_OPTIONS,
 } from '../lib/financialProfileEngine';
 import type {
   UserFinancialProfile,
@@ -294,6 +292,7 @@ interface RealMetricsResult {
   metrics: ReturnType<typeof computeMonthlyMetrics>;
   savingsBalance: number;
   checkingBalance: number;
+  investedBalance: number;
   q3: string | null;
 }
 
@@ -320,10 +319,12 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
   const accountTypeMap: Record<string, string> = {};
   let savingsBalance = 0;
   let checkingBalance = 0;
+  let investedBalance = 0;
   (accounts ?? []).forEach((a: any) => {
     accountTypeMap[a.id] = a.type;
     if (a.type === 'savings') savingsBalance += Number(a.balance);
     if (a.type === 'checking') checkingBalance += Number(a.balance);
+    if (a.type === 'investment') investedBalance += Number(a.balance);
   });
 
   const rawTxns = (txns ?? []).map((t: any) => ({
@@ -338,23 +339,22 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     metrics: computeMonthlyMetrics(rawTxns, savingsBalance, checkingBalance, 6, 3, q3),
     savingsBalance,
     checkingBalance,
+    investedBalance,
     q3,
   };
 }
 
-// ── PROFIL VIVANT (phase progressive) ────────────────────────
+// ── PROFIL VIVANT — recalculé sur les SEULES DONNÉES RÉELLES ─────────────────────────────────
 //
-// Pendant que l'utilisateur complète son installation, son profil ne doit PAS attendre le bilan
-// mensuel : il saisit son épargne, et son profil doit suivre dans la seconde. On recalcule donc
-// `computeInitialProfile` — le moteur n'est pas modifié — mais en lui donnant une q5 MESURÉE
-// (épargne ÷ revenu, cf. lib/securityCushion) au lieu de la q5 déclarée.
+// Le profil ne dépend plus d'aucune réponse déclarée : ni questionnaire d'accueil, ni « micro-
+// questions ». Il se déduit de ce que l'utilisateur a saisi (épargne, revenu constaté, mis de côté,
+// placements) — donc dès qu'il renseigne la dernière donnée manquante, son profil apparaît, et il
+// reste P1 (le plus prudent) tant qu'il manque quelque chose.
 //
-// Périmètre volontairement étroit : n'agit QUE si `onboarding_state.pp_live` est posé, c'est-à-dire
-// pour les comptes créés par le nouveau démarrage. Un compte existant, qui a répondu lui-même aux
-// neuf questions, n'est jamais recalculé dans son dos.
-//
-// Garde-fou : la q5 mesurée ne remplace la q5 déclarée que si on a VRAIMENT des données
-// (une épargne ou un revenu constaté). Sans données, on ne dégrade jamais un profil sur du vide.
+// Il n'y a plus non plus de garde  : le recalcul vaut pour tout le monde, puisqu'il ne
+// contredit plus une réponse que l'utilisateur aurait donnée lui-même. Seule exception conservée :
+// dès que l'évaluation MENSUELLE a pris la main (source « automatic »), c'est le comportement observé
+// dans la durée qui décide, pas la photo du jour.
 
 export function useLiveProfileSync(userId: string | undefined) {
   const client = useQueryClient();
@@ -365,51 +365,29 @@ export function useLiveProfileSync(userId: string | undefined) {
       if (isImpersonating) return null;          // consultation admin : jamais d'écriture
       if (!supabase || !userId) return null;
 
-      // La phase vivante est portée par `profiles.onboarding_state.pp_live` (pas de migration) et
-      // s'arrête d'elle-même dès que l'évaluation mensuelle prend la main (source 'automatic') :
-      // à partir de là, c'est le comportement observé qui décide, pas la formule initiale.
-      const [{ data: fp }, { data: prof }] = await Promise.all([
-        supabase.from('user_financial_profile').select('profile_id, profile_source').eq('user_id', userId).maybeSingle(),
-        supabase.from('profiles').select('onboarding_state').eq('id', userId).maybeSingle(),
-      ]);
-      if (!fp) return null;
-      if ((fp as any).profile_source === 'automatic') return null;
-      if (!((prof as any)?.onboarding_state ?? {}).pp_live) return null;
-
-      const { data: answers } = await supabase
-        .from('user_questionnaire_answers')
-        .select('q4, q5, q6')
+      const { data: fp } = await supabase
+        .from('user_financial_profile')
+        .select('profile_id, profile_source')
         .eq('user_id', userId)
         .maybeSingle();
-      if (!answers) return null;
+      if (!fp) return null;
+      if ((fp as any).profile_source === 'automatic') return null;
 
       const real = await loadRealMetrics(userId);
       if (!real) return null;
 
-      const hasRealData = real.savingsBalance > 0 || real.metrics.avg_income_6m > 0;
-      const q5 = hasRealData
-        ? q5FromSecurityMonths(real.metrics.mois_securite)
-        : ((answers as any).q5 ?? Q5_OPTIONS[0]);
-
-      const next = computeInitialProfile({
-        q1: '', q2: '', q3: real.q3 ?? '', q7: '', q8: '', q9: '',
-        q4: (answers as any).q4 || NEUTRAL_ANSWERS.q4,
-        q5,
-        q6: (answers as any).q6 || NEUTRAL_ANSWERS.q6,
+      // Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
+      const next = computeProfileFromData({
+        availableSavings: real.savingsBalance,
+        avgMonthlyIncome: real.metrics.avg_income_6m,
+        monthlySetAside: real.metrics.flux_total,
+        totalInvested: real.investedBalance,
       });
-
-      // La q5 mesurée est enregistrée : elle devient la réponse de référence, visible dans
-      // « Mon profil financier », et sert de repli si les données disparaissent.
-      if (hasRealData && q5 !== (answers as any).q5) {
-        await supabase.from('user_questionnaire_answers')
-          .update({ q5, updated_at: new Date().toISOString() })
-          .eq('user_id', userId);
-      }
 
       if (next === (fp as any).profile_id) return next;
 
       const now = new Date().toISOString();
-      const alloc = PROFILE_ALLOCATIONS[next];
+      const alloc = PROFILE_ALLOCATIONS[next as FinancialProfileId];
       await supabase.from('user_financial_profile').update({
         profile_id: next,
         assigned_at: now,

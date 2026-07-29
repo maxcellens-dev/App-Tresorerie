@@ -26,6 +26,8 @@ export interface PulseOp {
   toType?: PulseAccountType;
   /** Opération datée dans le futur (planifiée) — le solde d'aujourd'hui ne bouge pas encore. */
   isFuture?: boolean;
+  /** Date de l'opération (YYYY-MM-DD) — pour savoir si elle tombe dans le mois courant. */
+  date?: string;
 }
 
 export interface PulseDeltaChip {
@@ -38,6 +40,53 @@ export interface PulseFeedback {
   chips: PulseDeltaChip[];
   /** Le signal que cette opération vient de faire bouger (null = rien de pertinent à montrer). */
   signal: PulseSignal | null;
+  /** Solde projeté au 1er du mois suivant, recalculé PAR ARITHMÉTIQUE (cf. computeEndOfMonth). */
+  endOfMonth: EndOfMonthPreview | null;
+}
+
+export interface EndOfMonthPreview {
+  /** Nouveau solde projeté au 1er du mois suivant. */
+  amount: number;
+  /** Ce que l'opération vient de lui faire (0 = elle ne le touche pas). */
+  delta: number;
+  /** Le solde projeté passe-t-il sous la marge de sécurité ? (marge > 0 uniquement) */
+  belowMargin: boolean;
+  /** Le solde projeté passe-t-il dans le rouge ? */
+  negative: boolean;
+}
+
+/**
+ * FIN DE MOIS — recalcul INSTANTANÉ, par arithmétique.
+ *
+ * Cette carte avait été retirée parce qu'elle attendait le recalcul complet du Pouls : elle
+ * s'affichait en tirets, se remplissait, changeait de hauteur — l'ensemble paraissait lent juste
+ * après une saisie. Or le solde projeté de fin de mois varie EXACTEMENT du montant de l'opération
+ * quand celle-ci tombe dans le mois courant et touche un compte courant. On l'obtient donc sans
+ * aucun refetch, à partir de l'instantané pris juste avant la saisie — même principe que la
+ * pastille d'effet direct, qui est « toujours exacte ».
+ *
+ * Règles (le solde projeté est celui des comptes COURANTS) :
+ *  • recette / dépense sur un compte courant → ± le montant ;
+ *  • recette / dépense sur épargne ou investissement → 0 (hors du solde courant) ;
+ *  • virement courant → ailleurs → − le montant ; l'inverse → + le montant ;
+ *  • virement courant → courant, ou épargne → invest → 0 (rien ne sort du périmètre).
+ * Hors du mois courant → 0 : une opération datée du mois prochain ne change pas le 1er qui vient.
+ */
+export function computeEndOfMonthDelta(op: PulseOp, today: Date): number {
+  // Sans date connue, on ne présume rien plutôt que d'annoncer un chiffre faux.
+  if (!op.date) return 0;
+  const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  if (op.date.slice(0, 7) !== ym) return 0;
+
+  const amount = Math.abs(op.amount);
+  if (op.kind === 'income') return op.accountType === 'checking' ? amount : 0;
+  if (op.kind === 'expense') return op.accountType === 'checking' ? -amount : 0;
+
+  const fromChecking = op.fromType === 'checking';
+  const toChecking = op.toType === 'checking';
+  if (fromChecking && !toChecking) return -amount;
+  if (!fromChecking && toChecking) return amount;
+  return 0;
 }
 
 const eur = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('fr-FR')} €`;
@@ -195,6 +244,8 @@ export function computeOpFeedback(
   after: PulseResult | null,
   relykaBefore: number | null,
   relykaAfter: number | null,
+  /** Solde projeté au 1er du mois suivant AVANT la saisie, et marge de sécurité. */
+  endOfMonth?: { before: number | null; margin: number; today?: Date },
 ): PulseFeedback {
   const chips: PulseDeltaChip[] = [directChip(op)];
 
@@ -226,5 +277,19 @@ export function computeOpFeedback(
     }
   }
 
-  return { chips: chips.slice(0, MAX_CHIPS), signal };
+  // Fin de mois : calculée sur place, jamais attendue. Elle n'apparaît que si on connaît le solde
+  // projeté d'AVANT — sinon on préfère ne rien dire à afficher un tiret.
+  let endOfMonthPreview: EndOfMonthPreview | null = null;
+  if (endOfMonth && endOfMonth.before != null) {
+    const delta = computeEndOfMonthDelta(op, endOfMonth.today ?? new Date());
+    const amount = endOfMonth.before + delta;
+    endOfMonthPreview = {
+      amount,
+      delta,
+      belowMargin: endOfMonth.margin > 0 && amount < endOfMonth.margin,
+      negative: amount < 0,
+    };
+  }
+
+  return { chips: chips.slice(0, MAX_CHIPS), signal, endOfMonth: endOfMonthPreview };
 }

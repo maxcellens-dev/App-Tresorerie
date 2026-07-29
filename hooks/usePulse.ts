@@ -91,6 +91,13 @@ export interface PulseData {
    * lieux » d'un mois où il n'existait pas — le pire premier contact possible.
    */
   hadActivityLastMonth: boolean;
+  /**
+   * Solde COURANT projeté au 1er du mois suivant, et marge de sécurité. Exposés bruts (et pas
+   * seulement à travers le signal « Fin de mois ») parce que la carte de confirmation de saisie les
+   * recalcule PAR ARITHMÉTIQUE, sans attendre un recalcul complet du Pouls (cf. lib/pulseDelta).
+   */
+  endOfMonthBalance: number;
+  safetyMargin: number;
 }
 
 /**
@@ -351,6 +358,8 @@ function buildPulse(deps: PulseDeps): PulseData | null {
       relyka,
       wealth,
       hadActivityLastMonth,
+      endOfMonthBalance: endOfMonthLeft,
+      safetyMargin,
     };
   }
 }

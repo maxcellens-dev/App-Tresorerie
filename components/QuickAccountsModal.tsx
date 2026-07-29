@@ -1,7 +1,7 @@
 /**
  * QuickAccountsModal — création RAPIDE de plusieurs comptes d'un coup.
  *
- * Reprend le principe de l'écran « Autres comptes » du démarrage (app/onboarding.tsx) : on ajoute
+ * Reprend le principe de l'écran « Autres comptes » de l'ancien démarrage : on ajoute
  * des lignes en un tap depuis des propositions, on met un nom et un solde, et tout part en une fois.
  * Pas d'enveloppe fiscale, pas de date d'ouverture — ces détails se complètent plus tard dans la
  * fiche du compte. Le but ici est d'avoir vite des soldes réels, seule condition pour que le Relyka

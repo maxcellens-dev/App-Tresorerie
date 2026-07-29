@@ -82,7 +82,6 @@ export default function AdminBannersPreview() {
     { label: 'Clôture en attente', inputs: { ...base, pendingClosureMonth: ymAdd(-1) } },
     { label: 'Confiance basse (16 j sans vérif)', inputs: { ...base, confidenceLow: true, daysSinceVerification: 16 } },
     { label: 'Compte commun bientôt à découvert', inputs: { ...base, jointLow: { accountId: 'demo', name: 'Compte commun' } } },
-    { label: 'Tout est à jour (état positif, ~5 s)', inputs: base },
   ];
 
   /* ── 3. Carte Relyka aux 3 niveaux de confiance (mêmes moteurs qu'en production) ── */
@@ -143,7 +142,7 @@ export default function AdminBannersPreview() {
           {actionVariants.map((v) => (
             <View key={v.label} style={styles.item}>
               <Text style={styles.itemLabel}>{v.label}</Text>
-              <ActionBannerCard action={getCurrentAction(v.inputs)} onDismiss={noop} />
+              {(() => { const a = getCurrentAction(v.inputs); return a ? <ActionBannerCard action={a} onDismiss={noop} /> : null; })()}
             </View>
           ))}
 

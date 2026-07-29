@@ -61,7 +61,12 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
 
   return {
     customTierAllocations: x.customTierAllocations,
-    financialProfileId: x.financialProfileId,
+    /* PAS ENCORE DE PROFIL → P1, le plus prudent.
+       Le profil se déduit maintenant des seules données réelles (financialProfileEngine.
+       computeProfileFromData) : tant qu'il manque une donnée pour le calculer, on n'invente pas un
+       palier depuis le seul montant d'épargne — un compte neuf avec 20 000 € dormants passait ainsi
+       pour « confortable » alors qu'on ne connaissait ni son revenu ni son rythme. */
+    financialProfileId: x.financialProfileId ?? 'P1',
     // Budget « enveloppe juste atteinte » : le dépassement est rajouté (le moteur le re-déduit en cascade).
     budget: recoGrossBudget + variableOverspend + savingsExecuted + investExecuted,
     thresholds: x.thresholds ?? undefined,
@@ -78,7 +83,13 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
       x.thresholds?.consumption_orders,
     ),
     // Garde-fou marge × projection 6 mois : point bas de la trajectoire (écran Projection).
-    projectionGuard: { balances: data.projection_balances_6m ?? [], margin },
+    //  (12 mois) sert à juger si un virement RÉCURRENT est durable — un horizon
+    // court conclut toujours « tenable », il suffit d'entamer le matelas assez lentement.
+    projectionGuard: {
+      balances: data.projection_balances_6m ?? [],
+      margin,
+      sustainBalances: data.projection_balances_12m ?? [],
+    },
     maxAmount: Math.max(0, floorToTen(resteDisponible)),
     daysLeftInMonth,
   };

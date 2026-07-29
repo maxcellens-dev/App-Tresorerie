@@ -90,6 +90,10 @@ export default function CustomTabBar({ state, navigation }: any) {
             }}
             accessibilityRole="button"
           >
+            {/* Anneau tracé sur l'ONGLET lui-même : le guide peut désigner « Pilotage » ou
+                « Projets » sans jamais calculer « largeur ÷ 5 », un découpage qui tombait à côté
+                dès que la barre changeait de hauteur ou de nombre d'onglets. */}
+            <GuideRing target={`tab:${it.name}` as any} radius={14} inset={-4} />
             <View>
               {focused ? (
                 <View style={[styles.activeIndicator, { backgroundColor: COLORS.tabActive + '20' }]}>

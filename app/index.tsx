@@ -14,8 +14,9 @@ import AppLoading from '../components/AppLoading';
  * avant d'avoir montré quoi que ce soit produisait un profil déclaratif et zéro donnée, donc un
  * Relyka vide et des recommandations creuses.
  *
- * `app/onboarding.tsx` (socle en 5 écrans) et `app/questionnaire.tsx` restent dans le projet et
- * restent atteignables, mais ne sont plus la porte d'entrée de personne.
+ * Le questionnaire d'accueil et le socle en 5 écrans ont été SUPPRIMÉS : ils recréaient un compte
+ * courant et une récurrente, et le profil financier n'a plus besoin de réponses déclarées — il se
+ * déduit des seules données réelles (cf. lib/financialProfileEngine.computeProfileFromData).
  */
 export default function Index() {
   const { user, loading } = useAuth();

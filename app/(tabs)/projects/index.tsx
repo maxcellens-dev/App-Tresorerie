@@ -24,7 +24,6 @@ import { Ionicons } from '@expo/vector-icons';
 import GuideOverlay from '../../../components/GuideOverlay';
 import type { BubbleStep } from '../../../components/GuideOverlay';
 import { useScreenGuide } from '../../../hooks/useScreenGuide';
-import { tabRect } from '../../../lib/tourTargets';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   useProjects,
@@ -45,6 +44,8 @@ import { todayISO } from '../../../lib/dateUtils';
 import { useProfile } from '../../../hooks/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/useRelykaWorld';
+import { getGuideAnchor } from '../../../lib/guideAnchors';
+import GuideRing from '../../../components/GuideRing';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -105,8 +106,8 @@ export default function ProjectsScreen() {
   const guide = useScreenGuide('projets', user?.id);
   const addBtnRef = useRef<any>(null);
   const PROJETS_GUIDE: BubbleStep[] = [
-    { getRect: () => tabRect(4), icon: 'flag', iconColor: COLORS.primary, title: 'Onglet Projets', description: 'Touche « Projets » pour gérer tes projets d\'épargne (voiture, voyage…).' },
-    { getRef: () => addBtnRef, icon: 'add-circle', iconColor: COLORS.primary, title: 'Créer un projet', description: 'Appuyez sur « + Projet » pour définir un objectif et son rythme d\'épargne.' },
+    { highlightKey: 'tab:projects', anchorRef: () => getGuideAnchor('tabbar'), anchorPlacement: 'above', icon: 'flag', iconColor: COLORS.primary, title: 'Onglet Projets', description: 'Touche « Projets » pour gérer tes projets d\'épargne (voiture, voyage…).' },
+    { highlightKey: 'projectAdd', anchorRef: () => addBtnRef, icon: 'add-circle', iconColor: COLORS.primary, title: 'Créer un projet', description: 'Appuyez sur « + Projet » pour définir un objectif et son rythme d\'épargne.' },
   ];
 
   const [refreshing, setRefreshing] = useState(false);
@@ -474,6 +475,7 @@ export default function ProjectsScreen() {
             onPress={() => setShowTypeChoice(true)}
             accessibilityRole="button"
           >
+            <GuideRing target="projectAdd" radius={14} inset={-5} />
             <Ionicons name="add" size={20} color={COLORS.primary} />
             <Text style={[styles.addBtnLabel, { color: COLORS.primary }]}>Projet</Text>
           </TouchableOpacity>

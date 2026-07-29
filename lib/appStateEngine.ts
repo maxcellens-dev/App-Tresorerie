@@ -9,8 +9,7 @@ export type AppActionType =
   | 'app_lock'       // proposition unique d'activer le verrouillage biométrique
   | 'soft_close'     // un mois précédent en attente de clôture
   | 'check_balance'  // confiance basse → inviter à vérifier le solde
-  | 'joint_low'      // mode Contribution : compte commun bientôt à découvert
-  | 'ok';            // rien à signaler (état positif discret)
+  | 'joint_low';     // mode Contribution : compte commun bientôt à découvert
 
 export interface AppAction {
   type: AppActionType;
@@ -54,8 +53,15 @@ function monthLabel(key: string): string {
   return new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long' });
 }
 
-/** Retourne LA prochaine action prioritaire. Ton : TUTOIEMENT partout (cohérent avec l'app). */
-export function getCurrentAction(i: AppStateInputs): AppAction {
+/**
+ * Retourne LA prochaine action prioritaire, ou `null` quand il n'y a RIEN à faire.
+ *
+ * Il y avait ici un 6ᵉ cas « Tout est à jour » : un bandeau positif qui n'appelait aucun geste.
+ * Ne rien avoir à dire ne justifie pas de prendre le haut de l'écran — le badge « À jour » posé
+ * juste à côté du Relyka porte déjà cette information, là où on regarde le chiffre.
+ * Ton : TUTOIEMENT partout (cohérent avec l'app).
+ */
+export function getCurrentAction(i: AppStateInputs): AppAction | null {
   // Deeplink solde : directement le modal « Nouveau Solde » du compte principal si connu.
   const balanceLink = i.mainCheckingId ? `/(tabs)/comptes/${i.mainCheckingId}?verify=1` : '/(tabs)/comptes';
 
@@ -135,11 +141,6 @@ export function getCurrentAction(i: AppStateInputs): AppAction {
     };
   }
 
-  // 6) Rien à signaler → état positif discret. `relykaText` = MÊME montant que la carte « Ton Relyka »
-  //    (même formule, même arrondi) — atteint uniquement en confiance haute (pas de fourchette).
-  return {
-    type: 'ok', title: 'Tout est à jour',
-    reason: i.relykaText ? `ton Relyka est bien de ${i.relykaText}` : 'tes chiffres sont fiables',
-    dismissKey: 'ok', positive: true,
-  };
+  // 6) Rien à signaler → AUCUN bandeau.
+  return null;
 }

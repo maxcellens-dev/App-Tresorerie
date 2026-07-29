@@ -30,7 +30,6 @@ import {
   useSaveQuestionnaire,
 } from '../../../hooks/useFinancialProfile';
 import { usePilotageData } from '../../../hooks/usePilotageData';
-import { useProgressiveProfile } from '../../../hooks/useProgressiveProfile';
 import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
   Q1_OPTIONS, Q2_OPTIONS, Q4_OPTIONS, Q6_OPTIONS,
@@ -103,7 +102,6 @@ function ProfilFinancierScreen() {
   const { data: saved, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
   const { data: pilotage } = usePilotageData(user?.id);
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
-  const progressive = useProgressiveProfile();
 
   /** Panneau d'édition ouvert (une seule ligne à la fois). */
   const [editing, setEditing] = useState<null | 'rhythm' | 'q4' | 'q6' | 'q8' | 'q9'>(null);
@@ -154,8 +152,6 @@ function ProfilFinancierScreen() {
         ...patch,
       };
       await saveQuestionnaire.mutateAsync({ answers: next, isUpdate: true });
-      // Répondre ICI vaut réponse : la question ne sera plus posée dans le fil de l'app.
-      doneKeys.forEach((k) => progressive.answer(k as any, (next as any)[k]));
       setEditing(null);
     } catch (e: unknown) {
       Alert.alert('Un souci', (e as any)?.message ?? 'Impossible d’enregistrer.');
@@ -173,13 +169,15 @@ function ProfilFinancierScreen() {
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
           <ScreenHeader title="Profil financier" onBack={goBack} />
           <View style={styles.card}>
-            <Text style={styles.emptyTitle}>Ton profil n’est pas encore calculé</Text>
+            <Text style={styles.emptyTitle}>Ton profil se calcule tout seul</Text>
             <Text style={styles.emptyText}>
-              C’est lui qui décide de la répartition entre Épargner, Investir, Confort et Conserver.
-              Sans lui, l’app ne peut pas te proposer de recommandations.
+              Il décide de la répartition entre Épargner, Investir, Confort et Conserver, et il se
+              déduit de tes données : le solde de tes comptes, ton revenu et ce que tu mets de côté.
+              {'\n\n'}Aucune question à remplir : renseigne tes comptes et tes revenus récurrents,
+              et ton profil apparaît ici.
             </Text>
-            <TouchableOpacity style={styles.cta} onPress={() => router.push('/onboarding' as any)} activeOpacity={0.85}>
-              <Text style={styles.ctaText}>Le calculer en 2 minutes</Text>
+            <TouchableOpacity style={styles.cta} onPress={() => router.push('/(tabs)/comptes' as any)} activeOpacity={0.85}>
+              <Text style={styles.ctaText}>Voir mes comptes</Text>
               <Ionicons name="arrow-forward" size={17} color={COLORS.bg} />
             </TouchableOpacity>
           </View>

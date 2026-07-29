@@ -292,6 +292,68 @@ const Q4_MINIMAL = new Set([
  * Retourne le profil P1-P5 selon la matrice du questionnaire.
  * Évaluation du plus élevé (P5) au plus bas (P1).
  */
+/* ── LE PROFIL, À PARTIR DES SEULES DONNÉES RÉELLES ────────────────────────────────────────────
+ *
+ * Plus aucune réponse déclarée n'entre dans le calcul : ni questionnaire d'accueil, ni « micro-
+ * questions ». Trois mesures suffisent, toutes issues de ce que l'utilisateur a réellement saisi.
+ * Conséquence directe : dès qu'il renseigne la dernière donnée manquante (son revenu), son profil
+ * apparaît — et tant qu'il manque quelque chose, il reste P1, le profil le plus prudent.
+ *
+ * La matrice reprend EXACTEMENT les paliers de l'ancienne (mois de sécurité × taux d'épargne ×
+ * comportement d'investissement), en remplaçant chaque réponse par sa mesure :
+ *   q5 « combien de temps tiendrais-tu ? »  → mois de sécurité (épargne ÷ revenu)
+ *   q6 « quelle part mets-tu de côté ? »    → taux d'épargne constaté (mis de côté ÷ revenu)
+ *   q4 « que fais-tu de ce qui reste ? »    → épargne-t-il / investit-il vraiment ?
+ */
+export interface ProfileDataInputs {
+  /** Épargne disponible (comptes d'épargne). */
+  availableSavings: number;
+  /** Revenu mensuel moyen CONSTATÉ. 0/absent = donnée manquante → P1. */
+  avgMonthlyIncome: number;
+  /** Mis de côté chaque mois en moyenne (épargne + investissement). */
+  monthlySetAside: number;
+  /** Total réellement placé sur des comptes d'investissement. */
+  totalInvested: number;
+}
+
+/** Seuils du taux d'épargne, alignés sur les anciennes tranches déclarées (10 % / 20 %). */
+const RATE_MID = 0.10;
+const RATE_HIGH = 0.20;
+
+export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId {
+  // Sans revenu constaté, aucun ratio n'a de sens : on ne devine pas, on reste au plus prudent.
+  if (!(i.avgMonthlyIncome > 0)) return 'P1';
+
+  const months = computeSecurityCushion({
+    availableSavings: Math.max(0, i.availableSavings),
+    avgMonthlyIncome: i.avgMonthlyIncome,
+  }).months;
+  if (months == null) return 'P1';
+
+  const rate = Math.max(0, i.monthlySetAside) / i.avgMonthlyIncome;
+  const rateHigh = rate >= RATE_HIGH;
+  const rateMid = rate >= RATE_MID;
+  // « Investit » = il a réellement placé de l'argent (équivalent des deux dernières options de q4).
+  const invests = i.totalInvested > 0;
+  // « Épargne régulièrement » = il met effectivement de côté (équivalent des options épargne de q4).
+  const saves = i.monthlySetAside > 0;
+
+  // P5 : plus de 6 mois de sécurité ET (il investit OU il met beaucoup de côté).
+  if (months > 6 && (invests || rateHigh)) return 'P5';
+  // P4 : plus de 6 mois, ou 3–6 mois avec un fort taux d'épargne.
+  if (months > 6) return 'P4';
+  if (months >= 3 && rateHigh) return 'P4';
+  // P3 : 3–6 mois avec un comportement d'épargne, ou 1–3 mois avec un fort taux.
+  if (months >= 3 && saves) return 'P3';
+  if (months >= 1 && rateHigh) return 'P3';
+  // P2 : 1–3 mois, ou 3–6 mois sans rien mettre de côté, ou moins d'un mois mais un taux correct.
+  if (months >= 1) return 'P2';
+  if (months >= 3) return 'P2';
+  if (rateMid) return 'P2';
+  // P1 : tout le reste.
+  return 'P1';
+}
+
 export function computeInitialProfile(answers: QuestionnaireAnswers): FinancialProfileId {
   const { q4, q5, q6 } = answers;
 

@@ -288,7 +288,7 @@ export function useAddTransaction(profileId: string | undefined) {
       skipInvalidations?: boolean;
       /** Virement : émis par la 2ᵉ jambe dès son INSERT réussi (= virement committé) — la carte
        *  Pouls apparaît sans attendre le recalcul des soldes. */
-      pulseTransferOp?: { amount: number; fromAccountId: string; toAccountId: string; isFuture: boolean } | null;
+      pulseTransferOp?: { amount: number; fromAccountId: string; toAccountId: string; isFuture: boolean; date: string } | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const contribution = balanceContribution({ amount: input.amount, date: input.date, is_draft: input.is_draft, is_recurring: input.is_recurring });
@@ -380,6 +380,7 @@ export function useAddTransaction(profileId: string | undefined) {
           amount: Math.abs(signedAmount),
           accountId: input.account_id,
           isFuture: input.date > localTodayISO(),
+          date: input.date,
         });
       }
       if (input.pulseTransferOp) {
@@ -497,6 +498,7 @@ export async function createTransferLegs(
         fromAccountId: p.fromAccountId,
         toAccountId: p.toAccountId,
         isFuture: p.date > localTodayISO(),
+        date: p.date,
       },
     });
   } catch (legErr) {

@@ -61,6 +61,13 @@ export interface SmartRecommendation {
    * est composé avec la projection dans un seul bloc (lib/recoContext) — on ne veut pas 3 messages.
    */
   recurringFit?: RecurringFit;
+  /**
+   * État FACTUEL rattaché à la reco, sans son montant (il est déjà lu sur la tuile). Aujourd'hui
+   * seul « Épargner » en a un : le niveau du matelas de sécurité. Le tableau de bord le met en
+   * préambule du message de la décision — c'est la seule chose que la description apportait et que
+   * la projection ne dit pas.
+   */
+  stateNote?: string;
 }
 
 /**
@@ -324,7 +331,16 @@ export interface ComputeRecoOptions {
    * sont plafonnés pour que le POINT BAS des 6 mois reste au-dessus de la marge (invest réduit en
    * premier, excédent → « Conserver »). Ignoré si margin ≤ 0 ou balances vide.
    */
-  projectionGuard?: { balances: number[]; margin: number };
+  projectionGuard?: {
+    balances: number[];
+    margin: number;
+    /**
+     * Trajectoire LONGUE (12 mois) servant à juger la DURABILITÉ d'un virement récurrent
+     * (cf. computeRecurringFit). Le garde-fou, lui, reste sur les 6 mois de  — c'est
+     * l'horizon annoncé dans ses messages. Absente → repli sur .
+     */
+    sustainBalances?: number[];
+  };
   /**
    * Plafond absolu du montant d'une reco (= reste réellement disponible « Ton Relyka », arrondi à
    * la dizaine). Appliqué AVANT la construction des textes → montant affiché, description, conseils
@@ -567,7 +583,11 @@ export function computeRecommendations(
       const info = guardInfo[reco.type];
       if (info) reco.guard = info;
       if ((reco.type === 'save' || reco.type === 'invest') && !info) {
-        reco.recurringFit = computeRecurringFit(reco.actionAmount, guard!.balances, guard!.margin);
+        // Durabilité jugée sur la trajectoire LONGUE quand elle est fournie : un mois atypique
+        // pèse moins sur la pente, et un comportement qui ne casse qu'au 10ᵉ mois est vu.
+        reco.recurringFit = computeRecurringFit(
+          reco.actionAmount, guard!.sustainBalances?.length ? guard!.sustainBalances : guard!.balances, guard!.margin,
+        );
       }
     }
   }
@@ -575,16 +595,50 @@ export function computeRecommendations(
 }
 
 /**
- * Le montant est-il tenable en le répétant chaque mois ? Au mois k (0 = mois courant), le solde
- * projeté supporte (k+1) exécutions cumulées → tenable ⟺ montant ≤ min sur k de (solde_k − marge) ÷ (k+1).
+ * Pente mensuelle du solde projeté = SURPLUS STRUCTUREL (ce que le mois type dégage réellement,
+ * virements récurrents déjà déduits puisqu'ils sont dans la trajectoire).
+ *
+ * Le mois 0 est PARTIEL (on est au milieu du mois courant : il ne porte que la fin du mois) — il
+ * fausserait la pente vers le haut ou le bas selon le jour où on regarde. On part donc du mois 1.
+ * Renvoie `null` quand la série est trop courte pour conclure.
+ */
+function monthlySurplus(balances: number[]): number | null {
+  if (balances.length >= 3) return (balances[balances.length - 1] - balances[1]) / (balances.length - 2);
+  if (balances.length === 2) return balances[1] - balances[0];
+  return null;
+}
+
+/**
+ * Le montant est-il tenable en le répétant chaque mois ?
+ *
+ * DEUX conditions, et il faut les deux :
+ *
+ *  1. TRANSITION — ne pas passer sous la marge pendant l'horizon projeté. Au mois k, le solde
+ *     projeté supporte (k+1) exécutions cumulées → montant ≤ min sur k de (solde_k − marge) ÷ (k+1).
+ *
+ *  2. DURABILITÉ — le solde ne doit pas DÉCLINER. C'est la condition qui manquait : la 1ʳᵉ n'est
+ *     qu'un test d'épuisement sur horizon FINI, qui répond toujours « oui » si l'horizon est assez
+ *     court, puisqu'elle autorise à grignoter le matelas lentement. Un montant qui ne casse rien à
+ *     6 mois pouvait mettre l'utilisateur dans le rouge au 15ᵉ. On borne donc aussi par le surplus
+ *     mensuel structurel : au-delà, chaque mois retire plus que le mois ne rapporte.
+ *
+ * Surplus ≤ 0 → RIEN n'est tenable en récurrent : le geste ne peut être que ponctuel.
  */
 export function computeRecurringFit(amount: number, balances: number[], margin: number): RecurringFit | undefined {
   if (amount <= 0 || balances.length === 0) return undefined;
-  let maxSustainable = Infinity;
+
+  // 1) Transition : jamais sous la marge sur l'horizon projeté.
+  let maxHorizon = Infinity;
   for (let k = 0; k < balances.length; k++) {
-    maxSustainable = Math.min(maxSustainable, (balances[k] - margin) / (k + 1));
+    maxHorizon = Math.min(maxHorizon, (balances[k] - margin) / (k + 1));
   }
-  if (!Number.isFinite(maxSustainable)) return undefined;
+  if (!Number.isFinite(maxHorizon)) return undefined;
+
+  // 2) Durabilité : ne pas retirer plus que ce que le mois dégage.
+  const surplus = monthlySurplus(balances);
+  const maxSustainable = surplus == null ? maxHorizon : Math.min(maxHorizon, surplus);
+
+  if (maxSustainable <= 0) return { kind: 'month_only' };
   if (amount <= maxSustainable) return { kind: 'sustainable', monthly: amount };
   const maxMonthly = Math.max(0, floorToTen(maxSustainable));
   return maxMonthly > 0 ? { kind: 'capped', monthly: maxMonthly } : { kind: 'month_only' };
@@ -744,6 +798,7 @@ function buildRecommendation(
         title: 'Épargner',
         shortTitle: 'Épargner',
         description: getSaveDescription(tier, action, data),
+        stateNote: getSaveStateNote(tier, data),
         amount,
         actionAmount: action.value,
         percentage,
@@ -805,6 +860,19 @@ function buildRecommendation(
 
 /* ── Descriptions contextuelles ──────────────────────────── */
 
+/**
+ * Appréciation du niveau d'épargne, formulée en TITRE (« Épargne à renforcer ») plutôt qu'en
+ * suffixe (« … — niveau à renforcer »). Le jugement passe ainsi devant le chiffre, en trois mots,
+ * au lieu de rallonger une phrase déjà longue.
+ */
+const SAVE_LEVEL_LABEL: Record<SavingsTier, string> = {
+  critical:      'Épargne à constituer',
+  below_optimal: 'Épargne à renforcer',
+  healthy:       'Épargne correcte',
+  p4_dynamic:    'Épargne solide',
+  comfortable:   'Épargne confortable',
+};
+
 function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: PilotageData): string {
   // Approche générique : épargne de sécurité totale + nb de mois de sécurité (= mois de REVENUS
   // couverts par l'épargne) + appréciation de niveau. Plus parlant qu'un écart à un « seuil » abstrait.
@@ -815,17 +883,24 @@ function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: Pilot
     avgMonthlyIncome: data.avg_monthly_income,
   }).months;
 
-  const QUAL: Record<SavingsTier, string> = {
-    critical:      'Niveau encore faible, à renforcer en priorité',
-    below_optimal: 'Niveau à renforcer',
-    healthy:       'Niveau correct',
-    p4_dynamic:    'Niveau solide',
-    comfortable:   'Niveau confortable',
-  };
-
   // Revenu non détecté → on n'affiche pas les « mois de sécurité » (juste le total + l'appréciation).
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
-  return `Épargne de sécurité : ${savings.toLocaleString('fr-FR')} €${coverage}. \nTu peux placer ${amountPhrase(action)} ce mois-ci pour la consolider.`;
+  return `${SAVE_LEVEL_LABEL[tier]} : ${savings.toLocaleString('fr-FR')} €${coverage}. \nTu peux placer ${amountPhrase(action)} ce mois-ci pour la consolider.`;
+}
+
+/**
+ * État FACTUEL du matelas de sécurité, sans le montant de la reco (il est déjà sur la tuile).
+ * Sert de préambule au message d'épargne du tableau de bord : c'est la seule information que la
+ * description apporte et que la projection ne dit pas.
+ */
+function getSaveStateNote(tier: SavingsTier, data: PilotageData): string {
+  const savings = Math.max(0, data.current_savings);
+  const months = computeSecurityCushion({
+    availableSavings: savings,
+    avgMonthlyIncome: data.avg_monthly_income,
+  }).months;
+  const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';
+  return `${SAVE_LEVEL_LABEL[tier]} : ${savings.toLocaleString('fr-FR')} €${coverage}`;
 }
 
 function getInvestDescription(tier: SavingsTier, action: ActionAmount, _data: PilotageData): string {
@@ -841,7 +916,7 @@ function getInvestDescription(tier: SavingsTier, action: ActionAmount, _data: Pi
 function getEnjoyDescription(action: ActionAmount, _data: PilotageData): string {
   // « Confort » = la marge totalement libre, une fois tes dépenses variables habituelles couvertes.
   // C'est elle qui est entamée en premier si tu dépenses au-delà de ton budget variable.
-  return `Il te reste ${amountPhrase(action)} totalement disponibles ce mois-ci. \nFais-en ce que tu veux : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
+  return `Fais ce que tu veux des ${amountPhrase(action)} restants : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
 function getKeepDescription(action: ActionAmount, data: PilotageData, monthEnd = false): string {

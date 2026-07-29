@@ -19,7 +19,6 @@ import AdSlot from '../../components/AdSlot';
 import { useUpdateOnboarding } from '../../hooks/useOnboarding';
 import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
-import { tabRect } from '../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { computeContributed } from '../../lib/contributed';
 import { computeTresoRows } from '../../lib/tresoProjection';
@@ -49,6 +48,8 @@ import {
 import { semanticText } from '../../theme/palette';
 import { computeConfidence, resolveReliabilityConfig } from '../../lib/confidenceEngine';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
+import GuideRing from '../../components/GuideRing';
+import { getGuideAnchor } from '../../lib/guideAnchors';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -197,9 +198,9 @@ function ProjectionBody() {
   }, [onbHypo]);
 
   const PROJECTION_GUIDE: BubbleStep[] = [
-    { getRect: () => tabRect(3), icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touche « Projection » dans la barre du bas pour projeter ton patrimoine.' },
-    { getRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Bascule entre la projection de tes investissements et celle de ton épargne.' },
-    { getRef: () => hypoRef, icon: 'options-outline', iconColor: COLORS.green, title: 'Tes hypothèses', description: 'Ajuste apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
+    { highlightKey: 'tab:projection', anchorRef: () => getGuideAnchor('tabbar'), anchorPlacement: 'above', icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touche « Projection » dans la barre du bas pour projeter ton patrimoine.' },
+    { highlightKey: 'projectionTabs', anchorRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Bascule entre la projection de tes investissements et celle de ton épargne.' },
+    { highlightKey: 'projectionHypo', anchorRef: () => hypoRef, icon: 'options-outline', iconColor: COLORS.green, title: 'Tes hypothèses', description: 'Ajuste apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
   ];
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');
@@ -541,6 +542,7 @@ function ProjectionBody() {
 
           {/* Onglets */}
           <View style={styles.tabs} ref={tabsRef}>
+            <GuideRing target="projectionTabs" radius={12} inset={-5} />
             <TouchableOpacity style={[styles.tab, activeTab === 'treso' && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]} onPress={() => setActiveTab('treso')}>
               <Ionicons name="calendar-outline" size={15} color={activeTab === 'treso' ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'treso' && { color: '#fff' }]} numberOfLines={1}>Trésorerie</Text>
@@ -613,6 +615,7 @@ function ProjectionBody() {
 
           {/* Hypothèses PAR COMPTE */}
           <View style={[styles.controlsCard, onbHypo ? onbGlow(COLORS, true) : null]} ref={hypoRef}>
+            <GuideRing target="projectionHypo" radius={16} inset={-5} />
             <View style={styles.controlsTitleRow}>
               <Text style={[styles.controlsTitle, { marginBottom: 0 }]}>Hypothèses par compte</Text>
               {selectedAcc && (

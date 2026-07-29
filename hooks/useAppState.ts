@@ -116,10 +116,8 @@ export function useAppState(): AppAction | null {
       closureEnabled,
       mainCheckingId,
     });
-    // Jamais « tout est à jour » quand les chiffres sont en fourchette (confiance non haute) — ni
-    // quand la confiance n'est pas encore CALCULABLE : dans le doute on se tait, plutôt que d'annoncer
-    // « tout est à jour » puis de le contredire une seconde plus tard par une fourchette.
-    if (action.type === 'ok' && conf?.result.level !== 'high') return null;
+    // (Le cas « tout est à jour » n'existe plus : rien à signaler = aucun bandeau.)
+    if (!action) return null;
     // Pendant le guide « Pour bien démarrer », les étapes de setup sont déjà raillées par le guide
     // → pas de double sollicitation (le bandeau reprendra pour le quotidien une fois le guide fini).
     if (action.type === 'setup' && !onboardingDone) return null;

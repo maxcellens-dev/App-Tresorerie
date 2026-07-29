@@ -20,6 +20,12 @@ export interface PulseOpEvent {
   toAccountId?: string;
   /** Opération datée dans le futur : le solde d'aujourd'hui ne bouge pas encore. */
   isFuture?: boolean;
+  /**
+   * Date de l'opération (YYYY-MM-DD). Sert à savoir si elle tombe DANS le mois courant : c'est la
+   * condition pour qu'elle déplace le solde projeté de fin de mois (une dépense datée du mois
+   * prochain ne change rien au 1er du mois qui vient).
+   */
+  date?: string;
 }
 
 type Listener = (event: PulseOpEvent) => void;

@@ -14,12 +14,9 @@ import PilotageWelcome from '../../components/PilotageWelcome';
 import TroughChart from '../../components/TroughChart';
 import InfoDot from '../../components/InfoDot';
 import type { GlossaryTerm } from '../../lib/glossary';
-import MicroQuestion from '../../components/MicroQuestion';
-import { useProgressiveProfile } from '../../hooks/useProgressiveProfile';
 import MonthlyClosure from '../../components/MonthlyClosure';
 import { useMonthlyClosure } from '../../hooks/useMonthlyClosure';
 import { useTransactions } from '../../hooks/useTransactions';
-import { tabRect } from '../../lib/tourTargets';
 import { useOnbHighlight } from '../../lib/onbHighlight';
 import { useUpdateOnboarding } from '../../hooks/useOnboarding';
 import { supabase } from '../../lib/supabase';
@@ -228,7 +225,6 @@ export default function PilotageScreen() {
   const releaseReserved = useReleaseReservedByProject(user?.id);
   const updateOnboarding = useUpdateOnboarding(user?.id);
   // Découverte : vue pédagogique des 4 recommandations (1ʳᵉ visite) + file des questions progressives.
-  const progressive = useProgressiveProfile();
   const [showDiscovery, setShowDiscovery] = useState(false);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
   // Modale de saisie de l'estimation hebdo des dépenses variables (alimente q9)
@@ -272,12 +268,6 @@ export default function PilotageScreen() {
       const t = setTimeout(() => setShowDiscovery(true), 600);
       return () => clearTimeout(t);
     }, [discoveryPending]),
-  );
-
-  // Chaque arrivée sur le tableau de bord compte comme une interaction : c'est ce qui fait avancer
-  // la file des questions progressives sans dépendre d'un événement qui pourrait ne jamais arriver.
-  useFocusEffect(
-    useCallback(() => { progressive.trackEvent('any'); }, [progressive.trackEvent]),
   );
 
   const fmtMain = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
@@ -349,21 +339,25 @@ export default function PilotageScreen() {
 
   const PILOTAGE_GUIDE: BubbleStep[] = [
     {
-      getRect: () => tabRect(2),
+      highlightKey: 'tab:pilotage',
+      anchorRef: () => getGuideAnchor('tabbar'),
+      anchorPlacement: 'above',
       icon: 'home',
       iconColor: COLORS.green,
       title: 'Onglet Pilotage',
       description: 'Touche « Pilotage » dans la barre du bas : c\'est ton tableau de bord.',
     },
     {
-      getRef: () => recoCardRef,
+      highlightKey: 'recoCard',
+      anchorRef: () => recoCardRef,
       icon: 'bulb-outline',
       iconColor: '#f59e0b',
       title: 'Recommandations',
       description: 'Des conseils personnalisés selon ton profil financier pour optimiser ton mois : épargne, investissement, réserve…',
     },
     {
-      getRef: () => monthCardRef,
+      highlightKey: 'monthCard',
+      anchorRef: () => monthCardRef,
       icon: 'wallet-outline',
       iconColor: COLORS.green,
       title: 'Ce mois-ci',
@@ -379,21 +373,24 @@ export default function PilotageScreen() {
      « Tes recommandations » sur un écran vide n'apprend rien. */
   const PILOT_BUBBLES: BubbleStep[] = [
     {
-      getRef: () => heroRef,
+      highlightKey: 'relykaHero',
+      anchorRef: () => heroRef,
       icon: 'sparkles',
       iconColor: COLORS.emerald,
       title: 'Ton Relyka',
       description: 'Le chiffre à retenir : Touche-le pour voir son calcul, ligne par ligne. \n\nC\'est la somme que tu peux utiliser ce mois-ci sans risque.',
     },
     {
-      getRef: () => recoCardRef,
+      highlightKey: 'recoCard',
+      anchorRef: () => recoCardRef,
       icon: 'bulb-outline',
       iconColor: COLORS.orange,
       title: '4  recommandations',
       description: 'Épargner, investir, en profiter, ou garder de côté : \n\nOn te fais jusqu\'à 4 recommandations selon ta situation. \n\nUne tape pour une action rapide.',
     },
     {
-      getRef: () => monthCardRef,
+      highlightKey: 'monthCard',
+      anchorRef: () => monthCardRef,
       icon: 'calendar-outline',
       iconColor: COLORS.blue,
       title: 'Ce mois-ci',
@@ -971,10 +968,6 @@ export default function PilotageScreen() {
             />
           ) : null}
 
-          {/* Question du profil progressif — carte INLINE, en tête : elle ne disparaît pas toute
-              seule et ne bloque rien. Une seule à la fois, toujours passable (cf. MicroQuestion). */}
-          <MicroQuestion />
-
           <PilotageSimple
               relykaAmount={relykaAffiche}
               relykaColor={
@@ -1020,7 +1013,6 @@ export default function PilotageScreen() {
               investedTotal={pilotageData.month_invest_total ?? 0}
               onOpenRelyka={() => {
                 setDetailKey('relyka');
-                progressive.trackEvent('relyka');
                 if (userGuide.is('pilotage_relyka')) userGuide.done('g2_relyka');
               }}
               // « Tu devrais encore dépenser » : pendant l'étape du guide, ce tap ouvre directement la
@@ -1088,7 +1080,8 @@ export default function PilotageScreen() {
       <GuideOverlay
         visible={userGuide.is('pilotage_variable') && pilotFocused && !showVariableModal}
         steps={[{
-          getRef: () => variableLineRef,
+          highlightKey: 'variableLine',
+          anchorRef: () => variableLineRef,
           icon: 'cart-outline',
           iconColor: COLORS.orange,
           title: 'Tes dépenses variables',
@@ -1107,7 +1100,8 @@ export default function PilotageScreen() {
       <GuideOverlay
         visible={userGuide.is('pilotage_margin') && pilotFocused && !showMarginModal}
         steps={[{
-          getRef: () => marginLineRef,
+          highlightKey: 'marginLine',
+          anchorRef: () => marginLineRef,
           icon: 'shield-checkmark-outline',
           iconColor: COLORS.teal,
           title: 'Ta marge de sécurité',
@@ -1122,13 +1116,13 @@ export default function PilotageScreen() {
         hideSkip
       />
 
-      {/* 6. Tout à la fin : le menu de l'entête. En SPOTLIGHT (cible mesurée, écran assombri) et
-             non en simple anneau : c'est ce qui manquait pour qu'on remarque le cadre. */}
+      {/* 6. Tout à la fin : le menu de l'entête. L'avatar trace lui-même son anneau (rond), donc
+             le cadre tombe pile dessus quelle que soit la hauteur de la barre de statut. */}
       <GuideOverlay
         visible={userGuide.is('pilotage_menu') && pilotFocused && detailKey === null}
         steps={[{
-          getRef: () => getGuideAnchor('headerProfile'),
-          circle: true,
+          highlightKey: 'headerProfile',
+          anchorRef: () => getGuideAnchor('headerProfile'),
           icon: 'person-circle',
           iconColor: COLORS.emerald,
           title: 'Ton menu',
@@ -1146,7 +1140,8 @@ export default function PilotageScreen() {
       <GuideOverlay
         visible={userGuide.is('pilotage_relyka') && pilotFocused && detailKey === null}
         steps={[{
-          getRef: () => heroRef,
+          highlightKey: 'relykaHero',
+      anchorRef: () => heroRef,
           icon: 'sparkles',
           iconColor: COLORS.emerald,
           title: 'Comment il est calculé',

@@ -37,17 +37,43 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     expect(r.keep.amount).toBe(300);
   });
 
-  it('headroom large : montants intacts + conseil « virement récurrent tenable »', () => {
+  it('headroom large + solde qui MONTE : montants intacts, récurrent tenable', () => {
     const recos = computeRecommendations(base, {
-      projectionGuard: { balances: [5000, 5000, 5000, 5000, 5000, 5000], margin: 2000 },
+      // Le solde progresse de 500 €/mois → surplus structurel 500, et le point bas reste
+      // largement au-dessus de la marge.
+      projectionGuard: { balances: [5000, 5000, 5500, 6000, 6500, 7000], margin: 2000 },
     });
     const r = byType(recos);
     // headroom = 3000 ≥ save+invest (500) → rien ne bouge.
     expect(r.save.amount).toBe(400);
     expect(r.invest.amount).toBe(100);
     expect(r.save.guard).toBeUndefined();
-    // Tenable en récurrent : min((5000−2000)/(k+1)) = 500 ≥ 400.
+    // Tenable : 400 ≤ min(horizon 500, surplus 500).
     expect(r.save.recurringFit).toEqual({ kind: 'sustainable', monthly: 400 });
+    expect(r.invest.recurringFit).toEqual({ kind: 'sustainable', monthly: 100 });
+  });
+
+  it("solde PLAT : rien n'est tenable en récurrent, même très au-dessus de la marge", () => {
+    const recos = computeRecommendations(base, {
+      // 5 000 € stables, marge 2 000 : l'ancien test d'horizon concluait « tenable 400 €/mois »…
+      // alors qu'un solde plat signifie ZÉRO surplus : 400 €/mois de plus, et le compte perd
+      // 400 € par mois — il touche la marge au 8ᵉ mois et zéro au 13ᵉ.
+      projectionGuard: { balances: [5000, 5000, 5000, 5000, 5000, 5000], margin: 2000 },
+    });
+    const r = byType(recos);
+    expect(r.save.amount).toBe(400); // le montant ponctuel du mois reste bon
+    expect(r.save.recurringFit).toEqual({ kind: 'month_only' });
+    expect(r.invest.recurringFit).toEqual({ kind: 'month_only' });
+  });
+
+  it('surplus plus petit que le disponible : plafonné au surplus mensuel', () => {
+    const recos = computeRecommendations(base, {
+      // +150 €/mois de surplus, point bas très haut → c'est le surplus qui borne, pas la marge.
+      projectionGuard: { balances: [9000, 9000, 9150, 9300, 9450, 9600], margin: 2000 },
+    });
+    const r = byType(recos);
+    expect(r.save.recurringFit).toEqual({ kind: 'capped', monthly: 150 });
+    // invest (100) tient sous le surplus → durable.
     expect(r.invest.recurringFit).toEqual({ kind: 'sustainable', monthly: 100 });
   });
 
@@ -82,16 +108,19 @@ describe('computeRecommendations — garde-fou marge × projection', () => {
     expect(recos.reduce((s, x) => s + x.amount, 0)).toBe(1000);
   });
 
-  it('récurrent non tenable : conseil avec plafond mensuel', () => {
+  it('récurrent non tenable : plafonné par la MARGE quand elle mord avant le surplus', () => {
     const recos = computeRecommendations(base, {
-      // headroom = 600 (pas de réduction 1×), mais 400/mois répétés cassent la marge :
-      // min((solde_k − 2000)/(k+1)) = (2600−2000)/6 = 100 → « reste sous 100 €/mois ».
-      projectionGuard: { balances: [2600, 2600, 2600, 2600, 2600, 2600], margin: 2000 },
+      // Surplus confortable (+300 €/mois) mais on démarre juste au-dessus de la marge :
+      // min((solde_k − 2000)/(k+1)) = (2600−2000)/1 = 600 au mois 0… et (4100−2000)/6 = 350 au
+      // mois 5 → l'horizon borne à 350, sous le surplus de 300 ? non : le surplus (300) est plus
+      // petit → c'est lui qui gagne.
+      projectionGuard: { balances: [2600, 2900, 3200, 3500, 3800, 4100], margin: 2000 },
     });
     const r = byType(recos);
     expect(r.save.amount).toBe(400);
-    expect(r.save.recurringFit).toEqual({ kind: 'capped', monthly: 100 });
-    // invest 100 ≤ 100 → tenable.
+    // min(horizon, surplus 300) = 300 < 400 → plafonné à 300.
+    expect(r.save.recurringFit).toEqual({ kind: 'capped', monthly: 300 });
+    // invest 100 ≤ 300 → tenable.
     expect(r.invest.recurringFit).toEqual({ kind: 'sustainable', monthly: 100 });
   });
 

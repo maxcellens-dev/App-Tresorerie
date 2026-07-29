@@ -4,10 +4,8 @@ import ScreenGradient from '../../../components/ScreenGradient';
 import ScreenSkeleton from '../../../components/ScreenSkeleton';
 import { useDeferredMount } from '../../../hooks/useDeferredMount';
 import PageIntroModal from '../../../components/PageIntroModal';
-import MicroQuestion from '../../../components/MicroQuestion';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
-import { tabRect } from '../../../lib/tourTargets';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -156,7 +154,9 @@ function TransactionsListBody() {
 
   const TX_GUIDE_STEPS: BubbleStep[] = [
     {
-      getRect: () => tabRect(1),
+      highlightKey: 'tab:transactions',
+      anchorRef: () => getGuideAnchor('tabbar'),
+      anchorPlacement: 'above',
       icon: 'list',
       iconColor: COLORS.green,
       title: 'Onglet Transactions',
@@ -164,7 +164,8 @@ function TransactionsListBody() {
     },
     SHOW_TOP_ACTIONS
       ? {
-          getRef: () => actionsRef,
+          highlightKey: 'txActions',
+          anchorRef: () => actionsRef,
           icon: 'swap-vertical',
           iconColor: COLORS.green,
           title: 'Saisir une opération',
@@ -243,7 +244,8 @@ function TransactionsListBody() {
 
   const GUIDE_TX_BUBBLES: BubbleStep[] = [
     {
-      getRef: () => filterBtnRef,
+      highlightKey: 'txFilter',
+      anchorRef: () => filterBtnRef,
       icon: 'filter',
       iconColor: COLORS.emerald,
       title: 'Filtrer',
@@ -918,7 +920,6 @@ function TransactionsListBody() {
           une liste de transactions étalée sur 1600 px devient illisible (l'œil perd la ligne). */}
       <SafeAreaView style={[styles.safe, isDesktop && styles.safeDesktop]} edges={['left', 'right']}>
         {/* Question du profil progressif — entrer dans ses transactions est un déclencheur sûr. */}
-        <MicroQuestion track="tx" />
         {cameFromDeepLink && (
           <TouchableOpacity style={styles.backRow} onPress={goBack} accessibilityRole="button">
             <Ionicons name="arrow-back" size={22} color={COLORS.text} />
@@ -964,6 +965,7 @@ function TransactionsListBody() {
               onPress={() => setShowAccountFilter(!showAccountFilter)}
               activeOpacity={0.7}
             >
+              <GuideRing target="txFilter" radius={12} inset={-5} />
               <Ionicons name="filter" size={18} color={accountFilterIds.length > 0 ? COLORS.bg : COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -996,6 +998,7 @@ function TransactionsListBody() {
         )}
         {SHOW_TOP_ACTIONS && (
         <View style={[styles.header, onbRecurring ? onbGlow(COLORS, true) : null]} ref={actionsRef}>
+          <GuideRing target="txActions" radius={14} inset={-5} />
           {/* Ordre : Virement, Dépense, Recette (identique à l'écran de création). */}
           <TouchableOpacity
             ref={transferBtnRef}

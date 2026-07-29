@@ -10,12 +10,31 @@
  */
 import { useSyncExternalStore } from 'react';
 
+/**
+ * Chaque valeur NOMME un élément réel de l'interface. Il n'existe AUCUN ciblage par coordonnées :
+ * c'est l'élément lui-même qui trace sa bordure, dans sa propre boîte de layout — donc parfaitement
+ * aligné sur n'importe quel écran, quelle que soit la densité, l'encoche ou la barre système.
+ */
 export type GuideHighlightKey =
-  | 'accountActions' | 'tabbar' | 'headerProfile' | 'quickAdd' | 'recurringToggle'
-  /** Le bouton « récurrences » de la page Transactions. */
-  | 'recurringList'
-  /** La feuille « Transactions récurrentes » elle-même, quand le guide l'ouvre. */
-  | 'recurringSheet';
+  /* Éléments partagés (barre du bas, en-tête, saisie rapide). */
+  | 'tabbar' | 'headerProfile' | 'quickAdd'
+  /* Onglets de la barre du bas, individuellement. */
+  | 'tab:comptes' | 'tab:transactions' | 'tab:pilotage' | 'tab:projection' | 'tab:projects'
+  /* Comptes */
+  | 'accountActions' | 'accountsOverview' | 'accountsTabs'
+  /* Transactions */
+  | 'recurringToggle' | 'recurringList' | 'recurringSheet' | 'txFilter' | 'txActions'
+  /* Tableau de bord */
+  | 'relykaHero' | 'recoCard' | 'monthCard' | 'variableLine' | 'marginLine'
+  /* Projection */
+  | 'projectionTabs' | 'projectionHypo'
+  /* Projets */
+  | 'projectAdd'
+  /* Plan de trésorerie */
+  | 'tresoTable'
+  /* Paramètres & profil */
+  | 'settingsCategories' | 'settingsMargin'
+  | 'profileAvatar' | 'profileInfo' | 'profilePassword';
 
 /* PLUSIEURS cibles à la fois : une étape peut désigner un bouton ET ce qu'il ouvre (le bouton
    « récurrences » et la feuille qui remonte du bas). Une clé unique obligeait à découper ça en deux

@@ -3,7 +3,7 @@
  *
  * Il déclenchait le tour ancré OBLIGATOIRE (3 bulles sur l'écran Comptes) juste après le
  * questionnaire. Ce tour faisait doublon : il présentait l'interface sans jamais expliquer LE
- * chiffre, alors que le nouveau démarrage (app/onboarding.tsx) installe réellement les comptes,
+ * chiffre, alors que le guide de démarrage (contexts/GuideContext) installe réellement les comptes,
  * et que la vue de découverte du tableau de bord (components/DiscoveryIntro) explique les quatre
  * décisions et les deux façons de se servir de l'app.
  *

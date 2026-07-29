@@ -40,9 +40,12 @@ export interface RecoFinancials {
 /** Phrase de tenue en virement récurrent (vide si la trajectoire est indisponible). */
 function fitSentence(fit: RecurringFit | undefined, S: string): string {
   if (!fit) return '';
-  if (fit.kind === 'sustainable') return `Tenable chaque mois : ${fmt(fit.monthly)} ${S}/mois sans entamer ta marge.`;
-  if (fit.kind === 'capped') return `En virement récurrent, reste sous ${fmt(fit.monthly)} ${S}/mois pour préserver ta marge.`;
-  return 'Pas tenable chaque mois : garde ce geste ponctuel.';
+  // Le critère est la DURABILITÉ (le solde ne décline pas), pas seulement « la marge tient ce
+  // mois-ci ». On le dit donc en clair : ce qui compte pour l'utilisateur, c'est de ne pas finir
+  // dans le rouge à force de répéter le geste.
+  if (fit.kind === 'sustainable') return `Tu peux le faire tous les mois : à ${fmt(fit.monthly)} ${S}/mois, ton compte ne se vide pas.`;
+  if (fit.kind === 'capped') return `Chaque mois, ne dépasse pas ${fmt(fit.monthly)} ${S} : au-delà, ton compte baisserait mois après mois.`;
+  return 'À faire une fois, pas tous les mois : répété, ce montant finirait par vider ton compte.';
 }
 
 /**

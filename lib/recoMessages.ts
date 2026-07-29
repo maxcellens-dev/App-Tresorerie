@@ -133,19 +133,29 @@ export function buildRecoMessages(input: {
   const out: RecoMessage[] = [];
 
   for (const r of visible) {
-    if (r.description?.trim()) {
-      out.push({
-        key: `${r.type}:desc`, label: r.shortTitle, color: r.color,
-        text: r.description.trim(), icon: r.icon, tone: 'info', recoType: r.type,
-      });
-    }
+    /* UN SEUL message par décision.
+       Deux messages, c'était une redondance : la description reprend surtout le MONTANT, déjà lu en
+       gros sur la tuile juste au-dessus (« Épargner — 400 € » puis « Tu peux placer 400 € ce
+       mois-ci… »). On garde donc la PROJECTION, qui seule dit ce que le geste PRODUIT — et on lui
+       met en préambule l'état factuel quand il y en a un (le niveau du matelas, côté épargne).
+       Pas de projection calculable (Confort, ou trajectoire indisponible) → la description reprend
+       sa place, plutôt que de laisser la décision muette. */
     const ctx = financials
       ? getRecoContextText(r.type, r.actionAmount ?? r.amount, financials, r.recurringFit)
       : null;
+
     if (ctx) {
+      const note = r.stateNote?.trim();
       out.push({
         key: `${r.type}:ctx`, label: r.shortTitle, color: r.color,
-        text: ctx, icon: 'trending-up-outline', tone: 'tip', recoType: r.type,
+        // Retour à la ligne entre l'état et la projection : deux idées, deux respirations.
+        text: note ? `${note}\n${ctx}` : ctx,
+        icon: 'trending-up-outline', tone: 'tip', recoType: r.type,
+      });
+    } else if (r.description?.trim()) {
+      out.push({
+        key: `${r.type}:desc`, label: r.shortTitle, color: r.color,
+        text: r.description.trim(), icon: r.icon, tone: 'info', recoType: r.type,
       });
     }
   }

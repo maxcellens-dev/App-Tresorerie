@@ -11,7 +11,6 @@ import { useNavBack } from '../../hooks/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import GuideOverlay from '../../components/GuideOverlay';
-import { tabRect } from '../../lib/tourTargets';
 import type { BubbleStep } from '../../components/GuideOverlay';
 import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
@@ -31,6 +30,8 @@ import { pageColumn } from '../../lib/webLayout';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
+import GuideRing from '../../components/GuideRing';
+import { getGuideAnchor } from '../../lib/guideAnchors';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -142,14 +143,17 @@ function TreasuryPlanBody() {
 
   const TRESO_GUIDE: BubbleStep[] = [
     {
-      getRect: () => tabRect(3),
+      highlightKey: 'tab:projection',
+      anchorRef: () => getGuideAnchor('tabbar'),
+      anchorPlacement: 'above',
       icon: 'calendar',
       iconColor: COLORS.green,
       title: 'Onglet Tréso',
       description: 'Touche « Tréso » dans la barre du bas pour ton plan de trésorerie sur 12 mois.',
     },
     {
-      getRef: () => tableRef,
+      highlightKey: 'tresoTable',
+      anchorRef: () => tableRef,
       icon: 'pencil',
       iconColor: '#a78bfa',
       title: 'Ton plan de trésorerie',
@@ -968,6 +972,7 @@ function TreasuryPlanBody() {
               nestedScrollEnabled={true}
             >
             <View style={styles.tableWrap} ref={tableRef}>
+              <GuideRing target="tresoTable" radius={14} inset={-5} />
             <View style={styles.table}>
               {(() => {
                 const idx = planData.months.findIndex((m) => m.key === highlightMonthKey);

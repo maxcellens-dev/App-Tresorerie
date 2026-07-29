@@ -52,7 +52,6 @@ const ICONS: Record<AppActionType, string> = {
   soft_close: 'lock-closed-outline',
   check_balance: 'wallet-outline',
   joint_low: 'warning-outline',
-  ok: 'checkmark-circle',
 };
 
 /**

@@ -4,7 +4,6 @@ import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
 import CalculatorButton from '../../../components/CalculatorButton';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
-import MicroQuestion from '../../../components/MicroQuestion';
 import PageIntroModal from '../../../components/PageIntroModal';
 import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
@@ -146,14 +145,16 @@ export default function AccountsListScreen() {
   );
   const COMPTES_BUBBLES: BubbleStep[] = [
     {
-      getRef: () => overviewRef,
+      highlightKey: 'accountsOverview',
+      anchorRef: () => overviewRef,
       icon: 'pie-chart-outline',
       iconColor: COLORS.blue,
       title: 'Ta vue d\'ensemble',
       description: 'C\'est la photo de ton patrimoine financier à l\'instant T.',
     },
     {
-      getRef: () => tabsRef,
+      highlightKey: 'accountsTabs',
+      anchorRef: () => tabsRef,
       icon: 'layers-outline',
       iconColor: COLORS.emerald,
       title: 'Comptes et crédits',
@@ -258,12 +259,12 @@ export default function AccountsListScreen() {
           }
         >
           {/* Question du profil progressif — la 1ʳᵉ visite des Comptes est un déclencheur sûr. */}
-          <MicroQuestion track="comptes" style={{ marginHorizontal: 16, marginTop: 12 }} />
 
           {/* ── Vue d'ensemble patrimoine (avant le total) ── */}
           {/* Décorrélé de pilotageData : les totaux viennent des comptes (convertis en référence). */}
           {accounts.length > 0 && (
             <View ref={overviewRef} collapsable={false}>
+              <GuideRing target="accountsOverview" radius={16} inset={-5} />
             <View style={styles.overviewHeaderRow}>
               {/* « Vue d'ensemble » et non « Patrimoine » : ce total ne couvre que l'argent DES COMPTES
                   (courant + épargne + investissement), pas les biens possédés (logement, véhicule…). */}
@@ -318,6 +319,7 @@ export default function AccountsListScreen() {
 
           {/* ── Onglets Comptes / Crédits (#6b : à la place de l'ancien « Total Liquidités ») ── */}
           <View style={styles.tabsRow} ref={tabsRef} collapsable={false}>
+            <GuideRing target="accountsTabs" radius={12} inset={-5} />
             {(['comptes', 'credits'] as const).map((t) => (
               <TouchableOpacity key={t} style={[styles.tabItem, tab === t && styles.tabItemActive]} onPress={() => setTab(t)} activeOpacity={0.8} accessibilityRole="button">
                 <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>{t === 'comptes' ? 'Comptes' : 'Crédits'}</Text>

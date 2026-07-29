@@ -1,13 +1,21 @@
 /**
- * GuideOverlay — guide interactif en "bulles" dynamiques.
- * Pour chaque étape :
- *   1. scrolle automatiquement pour amener la zone cible à l'écran
- *   2. assombrit le reste de l'écran (spotlight sur la cible)
- *   3. affiche une bulle (tooltip) qui pointe vers la zone
+ * GuideOverlay — guide interactif en « bulles ».
  *
- * Chaque étape fournit `getRef()` → ref de la View cible.
+ * RÈGLE ABSOLUE : on ne vise JAMAIS une zone par ses coordonnées.
+ * Chaque étape NOMME l'élément à mettre en avant (`highlightKey`) ; c'est cet élément qui trace sa
+ * propre bordure, à l'intérieur de sa boîte de layout (<GuideRing>, cf. lib/guideHighlight). Il n'y
+ * a donc rien à mesurer et rien à deviner : le surlignage épouse le bouton ou la carte au pixel
+ * près, sur n'importe quel téléphone, quelles que soient la densité, l'encoche ou la barre système.
+ *
+ * Les rectangles calculés (`getRect`, largeur ÷ 5 pour un onglet, `hauteur − 76`…) et les cadres
+ * dessinés par-dessus une position mesurée ont été RETIRÉS : ils tombaient à côté dès que l'écran
+ * changeait. Il n'existe plus aucun chemin de code capable de les réintroduire.
+ *
+ * La seule mesure restante concerne la BULLE : `anchorRef` sert à la poser près de son sujet (et à
+ * l'amener à l'écran si elle est dans une zone défilante). Le résultat est clampé dans l'écran —
+ * une mesure imprécise décale la bulle de quelques pixels, jamais le surlignage.
  */
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, useWindowDimensions,
   findNodeHandle, Platform, ScrollView, StatusBar,
@@ -20,22 +28,13 @@ import { RootPortal } from '../lib/rootPortal';
 import { setGuideHighlight, type GuideHighlightKey } from '../lib/guideHighlight';
 
 export interface BubbleStep {
-  /** Retourne la ref de la View à mettre en avant (MESURÉE au moment de l'affichage). */
-  getRef?: () => React.RefObject<any>;
-  /** Plusieurs cibles : chacune est mesurée et reçoit SON cadre ; le trou de l'overlay les couvre toutes. */
-  getRefs?: () => React.RefObject<any>[];
-  /** Alternative : rectangle calculé — prioritaire sur getRef. À éviter (fragile selon l'appareil) :
-      préférer une ref réelle, au besoin via lib/guideAnchors pour les composants partagés. */
-  getRect?: () => { x: number; y: number; w: number; h: number };
-  /** Cadre circulaire (ex. avatar) au lieu d'arrondi. */
-  circle?: boolean;
-  /** Méthode privilégiée : NOMME le ou les éléments à surligner. C'est le bouton qui trace sa
-      bordure (<GuideRing>), donc AUCUNE mesure. Ni spotlight sombre : la cible ressort d'elle-même. */
+  /** SEULE façon de mettre en avant : NOMMER le ou les éléments concernés. C'est l'élément qui
+      trace sa bordure (<GuideRing>) dans sa propre boîte → aucune mesure, aucun décalage possible. */
   highlightKey?: GuideHighlightKey | GuideHighlightKey[];
   /** Place la bulle en haut ou en bas de l'écran (ne recouvre jamais la cible). */
   placement?: 'top' | 'bottom';
-  /** Mode auto-bordure : réf. d'un élément près duquel poser la bulle. Mesuré UNIQUEMENT pour la
-      hauteur de la bulle (tolérant à un petit écart) — la mise en avant, elle, reste auto-tracée. */
+  /** Élément près duquel poser la bulle. Mesuré UNIQUEMENT pour ça (et pour l'amener à l'écran) —
+      la mise en avant, elle, n'est jamais mesurée. */
   anchorRef?: () => React.RefObject<any>;
   /** Côté où poser la bulle par rapport à l'ancre (défaut 'below'). */
   anchorPlacement?: 'above' | 'below';
@@ -64,10 +63,6 @@ interface Props {
   nextLabel?: string;
 }
 
-interface Rect { x: number; y: number; w: number; h: number; }
-
-
-const PAD = 8;             // marge autour du spotlight
 const BUBBLE_H = 230;      // hauteur estimée de la bulle (pour décider au-dessus/en-dessous)
 /* Largeur MAXIMALE de la bulle. Sans elle, `left:16 / right:16` étirait la bulle sur toute la
    fenêtre : sur un écran d'ordinateur, l'explication d'un bouton devenait un bandeau de 2 000 px
@@ -97,18 +92,13 @@ export default function GuideOverlay({
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0);
   const TOP_SAFE = topInset + 12;
   const BOTTOM_SAFE = Math.max(insets.bottom, 16) + 12;
-  // Cibles mesurées : chacune reçoit son cadre ; le trou de l'overlay = leur enveloppe commune.
-  const [frames, setFrames] = useState<Rect[] | null>(null);
-  const [measuring, setMeasuring] = useState(true);
   // Rect de l'ancre (mode auto-bordure) : bornes verticales pour poser la bulle juste au-dessus /
   // dessous, et centre horizontal pour la caler sur la cible (utile dès que la fenêtre est large).
   const [anchor, setAnchor] = useState<{ top: number; bottom: number; centerX: number } | null>(null);
   // Hauteur RÉELLE de la bulle (mesurée) → positionnement fiable quel que soit le texte/écran.
   const [bubbleH, setBubbleH] = useState(BUBBLE_H);
-  const attemptRef = useRef(0);
 
   const step = steps[currentStep];
-  const selfMode = !!step?.highlightKey; // le bouton trace sa propre bordure → aucune mesure
 
   // ⚠️ Les effets ci-dessous NE dépendent JAMAIS de l'objet `step`. Les écrans construisent leur
   // tableau d'étapes dans le corps du composant : il est recréé à chaque rendu, donc `step` change
@@ -129,256 +119,100 @@ export default function GuideOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, highlightSig]);
 
+  /* Placement de la BULLE (et rien d'autre).
+     La mise en avant, elle, n'est jamais calculée ici : c'est l'élément ciblé qui trace sa propre
+     bordure dans sa boîte de layout (<GuideRing>, cf. lib/guideHighlight). Il n'y a donc plus aucun
+     rectangle deviné — c'était la cause des encadrés à côté de la cible selon le téléphone.
+     Ce qu'on mesure ici sert UNIQUEMENT à poser la bulle près de son sujet, et le résultat est
+     clampé dans l'écran : une mesure imprécise décale la bulle de quelques pixels, jamais plus. */
   useEffect(() => {
     if (!visible || !step) return;
-    // Mode auto-bordure : la mise en avant est auto-tracée (rien à mesurer). On mesure seulement,
-    // le cas échéant, le bas de l'ancre pour poser la bulle juste dessous (tolérant, même fenêtre).
-    if (selfMode) {
-      setFrames(null);
-      setMeasuring(false);
-      setAnchor(null);
-      const aref = step.anchorRef?.().current;
-      if (aref?.measureInWindow) {
-        let tries = 0;
-        const m = () => aref.measureInWindow((x: number, y: number, w: number, h: number) => {
-          if (h > 0) setAnchor({ top: y, bottom: y + h, centerX: x + w / 2 });
-          else if (tries++ < 5) setTimeout(m, 120);
-        });
-        const t = setTimeout(m, 60); // laisser le layout se poser
-        return () => clearTimeout(t);
-      }
-      return;
-    }
+    setAnchor(null);
+    const aref = step.anchorRef?.().current;
+    if (!aref?.measureInWindow) return;
+
     let cancelled = false;
-    attemptRef.current += 1;
-    const myAttempt = attemptRef.current;
-    setMeasuring(true);
-    setFrames(null);
-
-    // Étape à rectangle calculé (héritage) : pas de mesure ni de scroll.
-    if (step.getRect) {
-      const r = step.getRect();
-      if (r) { setFrames([r]); setMeasuring(false); return; }
+    // 1) Amener la cible à l'écran si elle est dans une zone défilante.
+    //    WEB : `findNodeHandle` LÈVE sur react-native-web → on passe par le DOM.
+    if (scrollRef?.current) {
+      if (Platform.OS === 'web') {
+        const el: any = (scrollRef.current as any)?.getScrollableNode?.();
+        if (el) {
+          const currentY = Number(el.scrollTop) || 0;
+          aref.measureInWindow((_x: number, y: number) => {
+            if (cancelled) return;
+            scrollRef.current?.scrollTo({ y: Math.max(0, currentY + y - SH * 0.28), animated: true });
+          });
+        }
+      } else {
+        const scrollNode = findNodeHandle(scrollRef.current);
+        if (scrollNode && typeof aref.measureLayout === 'function') {
+          aref.measureLayout(scrollNode, (_lx: number, ly: number) => {
+            if (cancelled) return;
+            scrollRef.current?.scrollTo({ y: Math.max(0, ly - SH * 0.28), animated: true });
+          }, () => {});
+        }
+      }
     }
 
-    // Cibles réelles : une ou plusieurs refs, TOUTES mesurées au moment de l'affichage
-    // (measureInWindow) — jamais de position estimée ni mise en cache.
-    const nodes = (step.getRefs ? step.getRefs() : step.getRef ? [step.getRef()] : [])
-      .map((r) => r?.current)
-      .filter((n) => n && typeof n.measureInWindow === 'function');
-    if (nodes.length === 0) {
-      // Pas de cible → bulle centrée
-      setMeasuring(false);
-      return;
-    }
-
-    const measureAll = (retries = 0) => {
-      if (cancelled || myAttempt !== attemptRef.current) return;
-      const out: (Rect | null)[] = new Array(nodes.length).fill(null);
-      let pending = nodes.length;
-      nodes.forEach((node, i) => {
-        node.measureInWindow((x: number, y: number, w: number, h: number) => {
-          out[i] = { x, y, w, h };
-          pending -= 1;
-          if (pending > 0) return;
-          if (cancelled || myAttempt !== attemptRef.current) return;
-          // Une cible pas encore posée (0×0) → retenter, le layout n'est pas fini.
-          if (out.some((r) => !r || (r.w === 0 && r.h === 0)) && retries < 5) {
-            setTimeout(() => measureAll(retries + 1), 120);
-            return;
-          }
-          const good = out.filter((r): r is Rect => !!r && r.w > 0 && r.h > 0);
-          setFrames(good.length > 0 ? good : null);
-          setMeasuring(false);
-        });
+    // 2) Mesurer l'ancre une fois le défilement posé (et retenter tant que le layout n'est pas fini).
+    let tries = 0;
+    const measure = () => {
+      if (cancelled) return;
+      aref.measureInWindow((x: number, y: number, w: number, h: number) => {
+        if (cancelled) return;
+        if (h > 0) setAnchor({ top: y, bottom: y + h, centerX: x + w / 2 });
+        else if (tries++ < 5) setTimeout(measure, 120);
       });
     };
-
-    // 1) Scroller pour rendre la (première) cible visible.
-    //
-    // WEB : `findNodeHandle` LÈVE une exception sur react-native-web (« not supported on web ») —
-    // elle remontait jusqu'au GlobalErrorBoundary, donc écran « Oups, un souci est survenu » dès
-    // qu'une bulle visait un élément de la page. On passe donc par le DOM : position de la cible
-    // dans la fenêtre (measureInWindow) + défilement courant du conteneur = offset absolu visé.
-    if (Platform.OS === 'web') {
-      const el: any = (scrollRef?.current as any)?.getScrollableNode?.();
-      if (el && typeof nodes[0].measureInWindow === 'function') {
-        const currentY = Number(el.scrollTop) || 0;
-        nodes[0].measureInWindow((_x: number, y: number) => {
-          if (cancelled || myAttempt !== attemptRef.current) return;
-          scrollRef?.current?.scrollTo({ y: Math.max(0, currentY + y - SH * 0.28), animated: true });
-          setTimeout(() => measureAll(), 380);
-        });
-      } else {
-        measureAll();
-      }
-      return () => { cancelled = true; };
-    }
-
-    const scrollNode = scrollRef?.current ? findNodeHandle(scrollRef.current) : null;
-    if (scrollNode && typeof nodes[0].measureLayout === 'function') {
-      nodes[0].measureLayout(
-        scrollNode,
-        (_lx: number, ly: number) => {
-          if (cancelled || myAttempt !== attemptRef.current) return;
-          // Positionner la cible vers le tiers haut de l'écran
-          const targetY = Math.max(0, ly - SH * 0.28);
-          scrollRef?.current?.scrollTo({ y: targetY, animated: true });
-          setTimeout(() => measureAll(), 380);
-        },
-        () => measureAll(),
-      );
-    } else {
-      measureAll();
-    }
-
-    return () => { cancelled = true; };
+    const t = setTimeout(measure, scrollRef?.current ? 380 : 60);
+    return () => { cancelled = true; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, currentStep, selfMode]);
+  }, [visible, currentStep]);
 
   if (!visible || !step) return null;
 
   const isLast = currentStep === steps.length - 1;
 
-  // Spotlight = enveloppe de TOUTES les cibles (clampée à l'écran) : la découpe de l'overlay les
-  // laisse toutes en pleine lumière, chacune recevant en plus son propre cadre.
-  const union = frames && frames.length > 0
-    ? frames.reduce((a, r) => ({
-        x1: Math.min(a.x1, r.x), y1: Math.min(a.y1, r.y),
-        x2: Math.max(a.x2, r.x + r.w), y2: Math.max(a.y2, r.y + r.h),
-      }), { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity })
-    : null;
-  const spot = union
-    ? {
-        x: Math.max(0, union.x1 - PAD),
-        y: Math.max(0, union.y1 - PAD),
-        w: Math.min(SW, union.x2 - union.x1 + PAD * 2),
-        h: union.y2 - union.y1 + PAD * 2,
-      }
-    : null;
-
-  // Position de la bulle : sous la cible si elle tient entièrement, sinon au-dessus, sinon dans la
-  // plus grande zone libre (sans flèche). Toujours CLAMPÉE dans la zone visible → jamais coupée.
-  const maxTop = SH - BOTTOM_SAFE - bubbleH; // plus haut possible pour que la bulle tienne en bas
+  /* Position VERTICALE de la bulle : juste sous l'ancre, ou juste au-dessus quand l'élément vit en
+     bas d'écran (barre d'onglets). Toujours CLAMPÉE dans la zone visible → jamais coupée, jamais
+     sous l'encoche. Sans ancre mesurable, repli en haut ou en bas selon . */
+  const maxTop = SH - BOTTOM_SAFE - bubbleH;
   let bubbleTop: number;
-  let pointer: 'up' | 'down' | null = null;
-  if (selfMode) {
-    // Mode auto-bordure : bulle posée juste sous l'ancre (ex. sous « Créer Compte ») ou juste
-    // au-dessus (ex. au-dessus de la barre du bas), avec une marge confortable. Sinon repli haut/bas.
-    // Jamais sur la cible, qui s'éclaire via sa propre bordure.
-    if (anchor) {
-      const extra = step.anchorOffset ?? 0;
-      const raw = step.anchorPlacement === 'above'
-        ? anchor.top - bubbleH - 18 - extra
-        : anchor.bottom + 30 + extra;
-      bubbleTop = Math.min(Math.max(raw, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
-    } else {
-      bubbleTop = step.placement === 'top' ? TOP_SAFE + 56 : Math.max(TOP_SAFE, maxTop);
-    }
-    pointer = null;
-  } else if (step.placement === 'bottom') {
-    // Épinglée en bas, TOUJOURS : ne recouvre jamais la cible (demandé pour « Commence ici »).
-    bubbleTop = Math.max(TOP_SAFE, maxTop);
-    pointer = spot && spot.y + spot.h + 14 <= bubbleTop ? 'up' : null;
-  } else if (spot) {
-    const belowY = spot.y + spot.h + 14;
-    const aboveY = spot.y - bubbleH - 14;
-    if (belowY <= maxTop) {
-      bubbleTop = belowY; pointer = 'up';
-    } else if (aboveY >= TOP_SAFE) {
-      bubbleTop = aboveY; pointer = 'down';
-    } else {
-      // Ne tient ni dessous ni dessus en entier → on choisit la plus grande zone, sans flèche.
-      const spaceBelow = SH - BOTTOM_SAFE - (spot.y + spot.h);
-      const spaceAbove = spot.y - TOP_SAFE;
-      bubbleTop = spaceBelow >= spaceAbove ? maxTop : TOP_SAFE;
-      pointer = null;
-    }
-    bubbleTop = Math.min(Math.max(bubbleTop, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
+  if (anchor) {
+    const extra = step.anchorOffset ?? 0;
+    const raw = step.anchorPlacement === 'above'
+      ? anchor.top - bubbleH - 18 - extra
+      : anchor.bottom + 30 + extra;
+    bubbleTop = Math.min(Math.max(raw, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
   } else {
-    bubbleTop = Math.max(TOP_SAFE, (SH - bubbleH) / 2);
+    bubbleTop = step.placement === 'top' ? TOP_SAFE + 56 : Math.max(TOP_SAFE, maxTop);
   }
 
-  /* Position HORIZONTALE : la bulle est une carte bornée, centrée sur ce qu'elle commente.
-     Sur téléphone elle occupe toute la largeur utile (comme avant) ; sur écran large elle se cale
-     sur sa cible au lieu de s'étirer d'un bord à l'autre. Toujours clampée dans la fenêtre. */
+  /* Position HORIZONTALE : carte bornée, centrée sur ce qu'elle commente. Sur téléphone elle occupe
+     toute la largeur utile ; sur écran large elle se cale sur sa cible au lieu de s'étirer d'un bord
+     à l'autre. Toujours clampée dans la fenêtre. */
   const bubbleW = Math.min(SW - 32, BUBBLE_MAX_W);
-  const targetCenterX = spot ? spot.x + spot.w / 2 : anchor?.centerX ?? null;
-  const bubbleLeft = targetCenterX == null
+  const bubbleLeft = anchor == null
     ? (SW - bubbleW) / 2
-    : Math.min(Math.max(targetCenterX - bubbleW / 2, 16), Math.max(16, SW - 16 - bubbleW));
-
-  // Position horizontale de la flèche (centrée sur la cible, sans déborder de la bulle)
-  const arrowLeft = spot
-    ? Math.min(bubbleLeft + bubbleW - 32, Math.max(bubbleLeft + 16, spot.x + spot.w / 2 - 8))
-    : bubbleLeft + bubbleW / 2 - 8;
+    : Math.min(Math.max(anchor.centerX - bubbleW / 2, 16), Math.max(16, SW - 16 - bubbleW));
 
   return (
     // RootPortal (pas Modal) : rendu dans la MÊME fenêtre que les boutons ciblés → measureInWindow
     // et le dessin partagent le même repère, les cadres tombent PILE sur les boutons. Voir lib/rootPortal.
     <RootPortal>
     <View style={styles.fill} pointerEvents="box-none">
-      {/* Mode auto-bordure : AUCUN voile sombre — la cible ressort d'elle-même via sa bordure. Un
-          calque transparent capte le tap (bloquant) et permet de sortir en touchant à côté. */}
-      {/* Étape OBLIGATOIRE (hideSkip) : aucun calque bloquant — la cible entourée doit rester
+      {/* AUCUN voile sombre, AUCUN découpage : la cible ressort d'elle-même, en traçant sa propre
+          bordure (<GuideRing>). C'est ce qui rend le surlignage juste sur tous les écrans.
+          Étape OBLIGATOIRE (hideSkip) : aucun calque bloquant — la cible entourée doit rester
           appuyable, c'est justement le geste qu'on demande. Sinon, calque transparent qui capte le
           tap « à côté » pour sortir du guide. */}
-      {selfMode && !hideSkip && (
+      {!hideSkip && (
         <TouchableOpacity activeOpacity={1} onPress={dismiss} style={StyleSheet.absoluteFill} />
-      )}
-      {/* Modes hérités (autres écrans) : voile sombre avec trou (spotlight) mesuré. */}
-      {!selfMode && spot && !measuring ? (
-        <>
-          {/* Haut */}
-          <TouchableOpacity activeOpacity={1} onPress={dismiss}
-            style={[styles.mask, { top: 0, left: 0, right: 0, height: spot.y }]} />
-          {/* Bas */}
-          <TouchableOpacity activeOpacity={1} onPress={dismiss}
-            style={[styles.mask, { top: spot.y + spot.h, left: 0, right: 0, bottom: 0 }]} />
-          {/* Gauche */}
-          <TouchableOpacity activeOpacity={1} onPress={dismiss}
-            style={[styles.mask, { top: spot.y, left: 0, width: spot.x, height: spot.h }]} />
-          {/* Droite */}
-          <TouchableOpacity activeOpacity={1} onPress={dismiss}
-            style={[styles.mask, { top: spot.y, left: spot.x + spot.w, right: 0, height: spot.h }]} />
-          {/* Cadre lumineux autour de CHAQUE cible (cercle si demandé, ex. avatar) */}
-          {frames?.map((f, i) => {
-            const inflate = 4;
-            const w = f.w + inflate * 2;
-            const h = f.h + inflate * 2;
-            return (
-              <View
-                key={i}
-                pointerEvents="none"
-                style={[styles.highlight, {
-                  top: f.y - inflate, left: f.x - inflate, width: w, height: h,
-                  borderRadius: step.circle ? Math.min(w, h) / 2 : 14,
-                }]}
-              />
-            );
-          })}
-        </>
-      ) : !selfMode ? (
-        // Pas de cible mesurée → overlay plein
-        <TouchableOpacity activeOpacity={1} onPress={dismiss} style={[styles.mask, StyleSheet.absoluteFillObject]} />
-      ) : null}
-
-      {/* ── Flèche pointeur ── */}
-      {spot && !measuring && pointer && (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.arrow,
-            pointer === 'up'
-              ? { top: bubbleTop - 8, left: arrowLeft, borderBottomColor: b.cardSolid }
-              : { top: bubbleTop + bubbleH - 2, left: arrowLeft, borderTopColor: b.cardSolid },
-            pointer === 'up' ? styles.arrowUp : styles.arrowDown,
-          ]}
-        />
       )}
 
       {/* ── Bulle ── */}
-      {!measuring && (
+      {(
         <View
           style={[bubbleStyles.bubble, { top: bubbleTop, left: bubbleLeft, width: bubbleW }]}
           pointerEvents="auto"

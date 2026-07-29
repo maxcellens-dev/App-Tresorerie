@@ -26,6 +26,7 @@ import { usePulseConfig } from '../hooks/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../lib/pulseBus';
 import { computeOpFeedback, type PulseFeedback, type PulseOp } from '../lib/pulseDelta';
 import { pulseColor } from './PulseSignalCard';
+import type { PulseStatus } from '../lib/pulseEngine';
 
 /** Instantané du Pouls juste avant la saisie (pour mesurer ce qui a bougé). */
 interface Pending {
@@ -57,11 +58,26 @@ const SEAMLESS_LAYOUT: LayoutAnimationConfig = {
   delete: { type: 'easeInEaseOut', property: 'opacity' },
 };
 
+/** « au 1er août » — l'échéance que la ligne « Fin de mois » annonce. */
+function firstOfNextMonthLabel(today = new Date()): string {
+  const d = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  return `au 1er ${d.toLocaleDateString('fr-FR', { month: 'long' })}`;
+}
+
+/** Montant en euros, avec signe explicite pour un écart (`delta`). */
+function eurSigned(n: number, withSign: boolean): string {
+  const v = Math.round(n);
+  const body = `${Math.abs(v).toLocaleString('fr-FR')} €`;
+  if (!withSign) return v < 0 ? `−${body}` : body;
+  return v < 0 ? `(−${body})` : `(+${body})`;
+}
+
 /** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé.
  *  Le signal n'y figure pas : il n'est plus rendu ici (voir le commentaire dans le JSX), donc ses
  *  variations ne doivent déclencher ni re-rendu ni animation de mise en page. */
 function feedbackSignature(f: PulseFeedback): string {
-  return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|');
+  const eom = f.endOfMonth ? `eom:${f.endOfMonth.amount}:${f.endOfMonth.delta}` : '';
+  return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|') + '#' + eom;
 }
 
 export default function PulseDeltaHost() {
@@ -110,6 +126,7 @@ export default function PulseDeltaHost() {
       fromType: typeOf(event.fromAccountId),
       toType: typeOf(event.toAccountId),
       isFuture: event.isFuture,
+      date: event.date,
     };
   }, []);
 
@@ -124,6 +141,10 @@ export default function PulseDeltaHost() {
       fresh?.live ?? null,
       p.before?.relyka ?? null,
       fresh?.relyka ?? null,
+      // Fin de mois : recalculée par ARITHMÉTIQUE depuis l'instantané d'AVANT la saisie. Elle ne
+      // dépend donc d'aucun refetch et s'affiche juste, tout de suite — c'est ce qui la rendait
+      // inutilisable auparavant (tirets puis remplissage, la carte changeait de hauteur).
+      p.before ? { before: p.before.endOfMonthBalance, margin: p.before.safetyMargin } : undefined,
     );
     setFeedback((prev) => {
       // Rien n'a changé (renderFor est appelé à chaque vague de refetch) → on NE re-rend PAS :
@@ -245,11 +266,27 @@ export default function PulseDeltaHost() {
           })}
         </View>
 
-        {/* PAS de carte de signal ici (« Fin de mois », barre de progression…). Elle dépend du
-            recalcul COMPLET du Pouls : elle s'affichait en tirets puis se remplissait, et la carte
-            changeait de hauteur — l'ensemble paraissait lent alors qu'on venait juste d'enregistrer.
-            Ne restent que les pastilles, disponibles tout de suite. Le signal complet est à un tap,
-            dans le Pouls (composant PulseHost), qui a le temps de le calculer. */}
+        {/* FIN DE MOIS — la seule info du Pouls affichée ici, parce que c'est la seule qui n'a
+            besoin d'AUCUN recalcul : le solde projeté varie exactement du montant de l'opération
+            (cf. lib/pulseDelta.computeEndOfMonthDelta). Elle est donc juste et instantanée, là où
+            la carte de signal complète s'affichait en tirets puis se remplissait en changeant de
+            hauteur — ce qui paraissait lent juste après une saisie. Le reste du Pouls est à un tap.
+            Pas de ligne quand l'opération ne déplace pas ce solde (datée hors du mois courant, ou
+            hors des comptes courants) : on ne répète pas un chiffre qui n'a pas bougé. */}
+        {!!feedback.endOfMonth && feedback.endOfMonth.delta !== 0 && (() => {
+          const eom = feedback.endOfMonth;
+          const tone: PulseStatus = eom.negative ? 'alert' : eom.belowMargin ? 'watch' : 'good';
+          const color = pulseColor(COLORS, tone);
+          return (
+            <View style={[styles.eom, { borderColor: color + '55', backgroundColor: color + '14' }]}>
+              <Text style={styles.eomLabel}>🗓️ {firstOfNextMonthLabel()}</Text>
+              <Text style={[styles.eomValue, { color }]}>
+                {eurSigned(eom.amount, false)}
+                <Text style={styles.eomDelta}>  {eurSigned(eom.delta, true)}</Text>
+              </Text>
+            </View>
+          );
+        })()}
 
         <Text style={styles.hint}>Swipe vers le haut pour fermer</Text>
         <View style={styles.grabber} />
@@ -277,6 +314,16 @@ function makeStyles(c: AppColors) {
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     chipText: { fontSize: 12.5, fontWeight: '800' },
+
+    // Ligne « Fin de mois » : une seule ligne, pas une carte — elle complète les pastilles sans
+    // rallonger la confirmation.
+    eom: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10,
+    },
+    eomLabel: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    eomValue: { fontSize: 14, fontWeight: '800' },
+    eomDelta: { fontSize: 12, fontWeight: '700', color: c.textSecondary },
     hint: { fontSize: 10.5, color: c.textSecondary, marginTop: 14, textAlign: 'center' },
     grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8 },
   });

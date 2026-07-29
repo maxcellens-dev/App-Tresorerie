@@ -29,7 +29,6 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useAddTransaction } from '../../../hooks/useTransactions';
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
-import { useProgressiveProfile } from '../../../hooks/useProgressiveProfile';
 import { useLiveProfileSync } from '../../../hooks/useFinancialProfile';
 import { currencySymbolFor } from '../../../lib/currency';
 import { todayISO } from '../../../lib/dateUtils';
@@ -46,7 +45,6 @@ export default function BalanceUpdateScreen() {
   const addTransaction = useAddTransaction(user?.id);
   const recalibrate = useRecalibrateReliability(user?.id);
   const liveSync = useLiveProfileSync(user?.id);
-  const { trackEvent } = useProgressiveProfile();
 
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -95,7 +93,6 @@ export default function BalanceUpdateScreen() {
       }
       recalibrate.mutate();
       liveSync.mutate();                     // les soldes ont bougé → le profil peut suivre
-      trackEvent('any');
       router.replace((params.origin || '/(tabs)/pilotage') as any);
     } catch (e: unknown) {
       Alert.alert('Un souci', e instanceof Error ? e.message : "Impossible d'enregistrer.");
