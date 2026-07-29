@@ -13,12 +13,9 @@ import ScreenGradient from '../../components/ScreenGradient';
 import ScreenSkeleton from '../../components/ScreenSkeleton';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import CalculatorButton from '../../components/CalculatorButton';
-import PageIntroModal from '../../components/PageIntroModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
 import AdSlot from '../../components/AdSlot';
 import { useUpdateOnboarding } from '../../hooks/useOnboarding';
-import GuideOverlay, { type BubbleStep } from '../../components/GuideOverlay';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
 import { computeContributed } from '../../lib/contributed';
 import { computeTresoRows } from '../../lib/tresoProjection';
@@ -48,8 +45,6 @@ import {
 import { semanticText } from '../../theme/palette';
 import { computeConfidence, resolveReliabilityConfig } from '../../lib/confidenceEngine';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
-import GuideRing from '../../components/GuideRing';
-import { getGuideAnchor } from '../../lib/guideAnchors';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -165,7 +160,6 @@ function ProjectionBody() {
   const num = (s: string) => parseFloat(String(s).replace(/\s/g, '').replace(/,/g, '.')) || 0;
 
   // ── Guide de présentation (bulles) ──
-  const guide = useScreenGuide('projection', user?.id);
   const scrollRef = React.useRef<ScrollView>(null);
   const tabsRef = React.useRef<View>(null);
   const chartRef = React.useRef<View>(null);
@@ -197,11 +191,6 @@ function ProjectionBody() {
     return () => clearTimeout(t);
   }, [onbHypo]);
 
-  const PROJECTION_GUIDE: BubbleStep[] = [
-    { highlightKey: 'tab:projection', anchorRef: () => getGuideAnchor('tabbar'), anchorPlacement: 'above', icon: 'trending-up', iconColor: '#a78bfa', title: 'Onglet Projection', description: 'Touche « Projection » dans la barre du bas pour projeter ton patrimoine.' },
-    { highlightKey: 'projectionTabs', anchorRef: () => tabsRef, icon: 'swap-horizontal-outline', iconColor: '#a78bfa', title: 'Investissement & Épargne', description: 'Bascule entre la projection de tes investissements et celle de ton épargne.' },
-    { highlightKey: 'projectionHypo', anchorRef: () => hypoRef, icon: 'options-outline', iconColor: COLORS.green, title: 'Tes hypothèses', description: 'Ajuste apports, rendement, fiscalité et durée : la projection se recalcule en direct.' },
-  ];
 
   const [activeTab, setActiveTab] = useState<'invest' | 'epargne' | 'treso'>('treso');
 
@@ -535,14 +524,12 @@ function ProjectionBody() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <PageIntroModal pageKey="projection" />
       <OnboardingHintBanner />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Onglets */}
           <View style={styles.tabs} ref={tabsRef}>
-            <GuideRing target="projectionTabs" radius={12} inset={-5} />
             <TouchableOpacity style={[styles.tab, activeTab === 'treso' && { backgroundColor: COLORS.blue, borderColor: COLORS.blue }]} onPress={() => setActiveTab('treso')}>
               <Ionicons name="calendar-outline" size={15} color={activeTab === 'treso' ? '#fff' : COLORS.textSecondary} />
               <Text style={[styles.tabText, activeTab === 'treso' && { color: '#fff' }]} numberOfLines={1}>Trésorerie</Text>
@@ -615,7 +602,6 @@ function ProjectionBody() {
 
           {/* Hypothèses PAR COMPTE */}
           <View style={[styles.controlsCard, onbHypo ? onbGlow(COLORS, true) : null]} ref={hypoRef}>
-            <GuideRing target="projectionHypo" radius={16} inset={-5} />
             <View style={styles.controlsTitleRow}>
               <Text style={[styles.controlsTitle, { marginBottom: 0 }]}>Hypothèses par compte</Text>
               {selectedAcc && (
@@ -843,15 +829,6 @@ function ProjectionBody() {
         </ScrollView>
       </SafeAreaView>
 
-      <GuideOverlay
-        visible={guide.visible}
-        steps={PROJECTION_GUIDE}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(PROJECTION_GUIDE.length)}
-        onSkip={guide.skip}
-        scrollRef={scrollRef}
-        screenTitle="Projection"
-      />
       <CalculatorButton page="projection" />
     </View>
   );

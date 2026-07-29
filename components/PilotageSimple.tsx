@@ -26,7 +26,6 @@ import { semanticText } from '../theme/palette';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { verifiedAgoPhrase } from '../lib/confidenceEngine';
 import { onbGlow } from '../lib/onbHighlight';
-import GuideRing from './GuideRing';
 import InfoDot from './InfoDot';
 import RecoMessagesCarousel from './RecoMessagesCarousel';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
@@ -139,7 +138,6 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
       <View style={styles.hero} ref={p.heroRef} collapsable={false}>
         {/* Le guide met en avant cette carte en traçant sa bordure DANS sa propre boîte : aucune
             position n'est mesurée, donc l'encadré tombe juste sur tous les écrans. */}
-        <GuideRing target="relykaHero" radius={22} inset={-4} />
         {/* ÉTAT + ACTION AU MÊME ENDROIT.
             Le geste « mettre à jour mon solde » n'a pas besoin d'un bouton permanent : le bouton +
             le porte déjà (et l'appui long y va directement). Ici, il n'apparaît QUE lorsqu'il sert
@@ -233,7 +231,6 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
         ref={p.recoRef}
         collapsable={false}
       >
-        <GuideRing target="recoCard" radius={20} inset={-4} />
         <Text style={styles.cardTitle}>Tes recommandations</Text>
 
         {/* Dépassement des réservations sur le reste disponible : alerte permanente, pas un
@@ -309,7 +306,6 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
 
       {/* ── 3. Où j'en suis ────────────────────────────────────────────────── */}
       <View style={[styles.card, isDesktop && styles.column]} ref={p.monthRef} collapsable={false}>
-        <GuideRing target="monthCard" radius={20} inset={-4} />
         <Text style={styles.cardTitle}>Ce mois-ci</Text>
 
         <TouchableOpacity style={styles.line} activeOpacity={0.7} onPress={() => p.onOpenDetail('checking')}>
@@ -340,7 +336,6 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
           onPress={() => p.onOpenDetail('planned')}
           ref={p.variableLineRef}
         >
-          <GuideRing target="variableLine" radius={10} inset={-4} />
           <View style={styles.lineLabelCol}>
             <View style={styles.lineLabelRow}>
               <Text style={styles.lineLabel}>Tu devrais encore dépenser</Text>
@@ -362,7 +357,6 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
             que l'utilisateur fixe, pas un fait garanti. Rien n'empêche le solde de passer dessous —
             et quand c'est le cas, on le dit au lieu d'affirmer le contraire juste à côté. */}
         <TouchableOpacity style={styles.line} activeOpacity={0.7} onPress={p.onOpenMargin} ref={p.marginLineRef}>
-          <GuideRing target="marginLine" radius={10} inset={-4} />
           <View style={styles.lineLabelCol}>
             <View style={styles.lineLabelRow}>
               <Text style={styles.lineLabel}>Tu veux garder au moins</Text>

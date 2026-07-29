@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import CalculatorButton from '../../../components/CalculatorButton';
-import PageIntroModal from '../../../components/PageIntroModal';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
@@ -21,9 +20,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import GuideOverlay from '../../../components/GuideOverlay';
-import type { BubbleStep } from '../../../components/GuideOverlay';
-import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   useProjects,
@@ -44,8 +40,6 @@ import { todayISO } from '../../../lib/dateUtils';
 import { useProfile } from '../../../hooks/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/useRelykaWorld';
-import { getGuideAnchor } from '../../../lib/guideAnchors';
-import GuideRing from '../../../components/GuideRing';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -103,12 +97,7 @@ export default function ProjectsScreen() {
       setRwErr(e?.message ?? 'Création impossible.');
     } finally { setRwBusy(false); }
   };
-  const guide = useScreenGuide('projets', user?.id);
   const addBtnRef = useRef<any>(null);
-  const PROJETS_GUIDE: BubbleStep[] = [
-    { highlightKey: 'tab:projects', anchorRef: () => getGuideAnchor('tabbar'), anchorPlacement: 'above', icon: 'flag', iconColor: COLORS.primary, title: 'Onglet Projets', description: 'Touche « Projets » pour gérer tes projets d\'épargne (voiture, voyage…).' },
-    { highlightKey: 'projectAdd', anchorRef: () => addBtnRef, icon: 'add-circle', iconColor: COLORS.primary, title: 'Créer un projet', description: 'Appuyez sur « + Projet » pour définir un objectif et son rythme d\'épargne.' },
-  ];
 
   const [refreshing, setRefreshing] = useState(false);
   const projectsQuery = useProjects(user?.id || '');
@@ -464,7 +453,6 @@ export default function ProjectsScreen() {
     <View style={[styles.root, { backgroundColor: COLORS.background }]}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <PageIntroModal pageKey="projets" />
       <OnboardingHintBanner />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'list')]} edges={['left', 'right']}>
         <View style={styles.header}>
@@ -475,7 +463,6 @@ export default function ProjectsScreen() {
             onPress={() => setShowTypeChoice(true)}
             accessibilityRole="button"
           >
-            <GuideRing target="projectAdd" radius={14} inset={-5} />
             <Ionicons name="add" size={20} color={COLORS.primary} />
             <Text style={[styles.addBtnLabel, { color: COLORS.primary }]}>Projet</Text>
           </TouchableOpacity>
@@ -703,14 +690,6 @@ export default function ProjectsScreen() {
         </View>
       </Modal>
 
-      <GuideOverlay
-        visible={guide.visible}
-        steps={PROJETS_GUIDE}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(PROJETS_GUIDE.length)}
-        onSkip={guide.skip}
-        screenTitle="Projets"
-      />
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (

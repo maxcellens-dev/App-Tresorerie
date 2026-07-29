@@ -12,7 +12,6 @@ import AnimatedSplash from '../components/AnimatedSplash';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
-import { TourProvider } from '../contexts/TourContext';
 import { GuideProvider } from '../contexts/GuideContext';
 import { AppIntroGate } from '../components/guide/AppIntroCarousel';
 import { CalculatorProvider } from '../contexts/CalculatorContext';
@@ -22,7 +21,6 @@ import AchievementCelebration from '../components/AchievementCelebration';
 import PulseHost from '../components/PulseHost';
 import PulseDeltaHost from '../components/PulseDeltaHost';
 import DataPrefetcher from '../components/DataPrefetcher';
-import NavPerfProbe from '../components/NavPerfProbe';
 import { RootPortalHost } from '../lib/rootPortal';
 import { useConfigSync } from '../hooks/useConfigSync';
 import { useMaterializeRecurring } from '../hooks/useMaterializeRecurring';
@@ -36,6 +34,7 @@ import { setAnalyticsUser, logEvent, trackScreen } from '../lib/analytics';
 import { recordRoute, consumePreviousRoute } from '../lib/navHistory';
 import ProfileChangeModal from '../components/ProfileChangeModal';
 import ProfileTourConclusion from '../components/ProfileTourConclusion';
+import LiveProfileSync from '../components/LiveProfileSync';
 import StreakRecoveryModal from '../components/StreakRecoveryModal';
 import FontApplier from '../components/FontApplier';
 import GamificationSync from '../components/GamificationSync';
@@ -371,7 +370,6 @@ function AppChrome() {
   }, [router, backPathname]);
 
   return (
-    <TourProvider>
     <GuideProvider>
     <View style={styles.root}>
       <View style={desktopColumnStyle ?? (limitWidth ? styles.webColumn : styles.fullColumn)}>
@@ -408,6 +406,8 @@ function AppChrome() {
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
       {/* Conclusion du parcours : le profil financier, montré UNE fois, après la dernière bulle. */}
       {isTabs && user && <ProfileTourConclusion />}
+      {/* Le profil financier suit les comptes et les transactions, où qu'ils changent. */}
+      {isTabs && user && <LiveProfileSync />}
       {/* Récupération de série perdue — proposée à l'arrivée sur l'app */}
       {isTabs && user && <StreakRecoveryModal />}
       <AnalyticsTracker />
@@ -423,8 +423,6 @@ function AppChrome() {
           l'utilisateur a validé son opération (saisie, virement, saisie rapide…). */}
       {isTabs && user && <PulseHost />}
       {isTabs && user && <PulseDeltaHost />}
-      {/* Sonde de perf navigation (admin) — badge « ⚡ ms · page » sur TOUTES les pages. */}
-      {user && <NavPerfProbe />}
       {/* Cible des portails racine (guide de présentation) — MÊME fenêtre que le contenu, au-dessus
           de la navigation → surlignages alignés au pixel sur les boutons réels. Voir lib/rootPortal. */}
       <RootPortalHost />
@@ -438,7 +436,6 @@ function AppChrome() {
       <SignOutVeil />
     </View>
     </GuideProvider>
-    </TourProvider>
   );
 }
 

@@ -155,8 +155,6 @@ export interface GamificationConfig {
   streak: StreakConfig;
   shop: ShopItem[];
   premium_discount_pct: number; // remise globale boutique pour les abonnés Premium
-  /** Remise de la « Sélection du mois » — appliquée à TOUS (cumulée avec le Premium). Défaut 30. */
-  monthly_selection_discount_pct?: number;
   /** Affiche l'onglet « Relyka » (services) dans la boutique. Si false : seul l'onglet App, sans barre d'onglets. */
   relyka_tab_enabled: boolean;
 }
@@ -171,7 +169,6 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
   },
   streak: { weeklyGems: 20, freezeCost: 50 },
   premium_discount_pct: 20,
-  monthly_selection_discount_pct: 30,
   relyka_tab_enabled: true,
   // Succès DISSOCIÉS : chacun est un palier distinct (1 seuil, 1 récompense), pas de niveaux.
   badges: [
@@ -256,7 +253,6 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
     identity: { ...DEFAULT_GAMIFICATION.identity, ...(stored.identity ?? {}) },
     streak: { ...DEFAULT_GAMIFICATION.streak, ...(stored.streak ?? {}) },
     premium_discount_pct: stored.premium_discount_pct ?? DEFAULT_GAMIFICATION.premium_discount_pct,
-    monthly_selection_discount_pct: stored.monthly_selection_discount_pct ?? DEFAULT_GAMIFICATION.monthly_selection_discount_pct,
     relyka_tab_enabled: stored.relyka_tab_enabled ?? DEFAULT_GAMIFICATION.relyka_tab_enabled,
     badges: mergeBadges(stored.badges),
     shop: mergeShop(stored.shop),
@@ -337,33 +333,14 @@ export function isUniqueItem(item: ShopItem): boolean {
 // donc un deal encore meilleur sur ces articles). Le calcul des articles mis en avant est DÉTERMINISTE
 // (rotation par mois) et partagé entre l'affichage (boutique) et l'achat (buyItem) pour honorer la remise.
 
-const MONTHLY_VISUAL_CATS: ShopCategory[] = ['apparence', 'cosmetiques', 'titres'];
-export const MONTHLY_SELECTION_DISCOUNT_PCT = 30;
+/* La « Sélection du mois » (2 articles tournants à −30 %) a été RETIRÉE : elle encombrait la
+   boutique plus qu'elle ne servait, et faisait cohabiter deux prix pour le même article. Il ne
+   reste qu'une remise, celle des abonnés Premium. */
 
-/** Clés des 2 articles mis en avant ce mois (même logique que la boutique). */
-export function monthlySelectionKeys(shop: ShopItem[], date = new Date()): string[] {
-  const pool = MONTHLY_VISUAL_CATS.flatMap((cat) => shop.filter((s) => (s.category ?? 'series') === cat));
-  if (pool.length < 2) return [];
-  const m = date.getMonth() + date.getFullYear() * 12;
-  const picks = [pool[m % pool.length], pool[(m + Math.floor(pool.length / 2)) % pool.length]];
-  return [...new Set(picks.map((p) => p.key))];
-}
-
-/** Facteur de prix (0..1) pour un article : Premium × (Sélection du mois si l'article est en promo). */
-export function shopPriceFactor(opts: { isPremium: boolean; premiumPct: number; isMonthlyPick: boolean; monthlyPct: number }): number {
-  const premium = opts.isPremium ? 1 - Math.max(0, opts.premiumPct) / 100 : 1;
-  const monthly = opts.isMonthlyPick ? 1 - Math.max(0, opts.monthlyPct) / 100 : 1;
-  return Math.max(0, premium * monthly);
-}
-
-/** Prix final arrondi d'un article (remise Premium + éventuelle promo du mois cumulées). */
-export function shopFinalPrice(base: number, opts: { isPremium: boolean; premiumPct: number; isMonthlyPick: boolean; monthlyPct: number }): number {
-  return Math.round(base * shopPriceFactor(opts));
-}
-
-/** % de réduction TOTAL affiché à l'utilisateur pour un article (0..100). */
-export function shopDiscountPct(opts: { isPremium: boolean; premiumPct: number; isMonthlyPick: boolean; monthlyPct: number }): number {
-  return Math.round((1 - shopPriceFactor(opts)) * 100);
+/** Prix final arrondi d'un article (remise Premium le cas échéant). */
+export function shopFinalPrice(base: number, opts: { isPremium: boolean; premiumPct: number }): number {
+  const factor = opts.isPremium ? Math.max(0, 1 - Math.max(0, opts.premiumPct) / 100) : 1;
+  return Math.round(base * factor);
 }
 
 // ── Semaines (pour le streak) ───────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { useGamification } from '../../../hooks/useGamification';
 import { usePlan } from '../../../hooks/usePlan';
 import { useCosmetics } from '../../../hooks/useCosmetics';
 import { useNavBack } from '../../../hooks/useNavBack';
+import { useLocalSearchParams } from 'expo-router';
 import { COSMETIC_DEFS } from '../../../lib/gamification';
 import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
@@ -32,7 +33,12 @@ function AppearanceScreen() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const { user } = useAuth();
-  const goBack = useNavBack();
+  /* Retour EXPLICITE quand l'écran a été ouvert depuis un endroit précis (« Consulter mes achats »
+     dans la boutique) : l'historique générique dépilait vers une autre page. L'appelant dit d'où il
+     vient, on y retourne — et à défaut on retombe sur le comportement habituel. */
+  const { origin } = useLocalSearchParams<{ origin?: string }>();
+  const navBack = useNavBack();
+  const goBack = () => { if (origin) router.navigate(origin as any); else navBack(); };
   const { data: profile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
   const isAdmin = profile?.is_admin ?? false;

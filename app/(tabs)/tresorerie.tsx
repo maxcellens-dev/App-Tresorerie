@@ -10,9 +10,6 @@ import { useRouter } from 'expo-router';
 import { useNavBack } from '../../hooks/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import GuideOverlay from '../../components/GuideOverlay';
-import type { BubbleStep } from '../../components/GuideOverlay';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
 import { isProjectSpendTx } from '../../lib/projectTx';
 import { usePilotageData } from '../../hooks/usePilotageData';
@@ -30,8 +27,6 @@ import { pageColumn } from '../../lib/webLayout';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { CURRENCY_SYMBOL } from '../../lib/currency';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
-import GuideRing from '../../components/GuideRing';
-import { getGuideAnchor } from '../../lib/guideAnchors';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -136,30 +131,10 @@ function TreasuryPlanBody() {
   const toggleSimplified = () => { const v = !simplified; setSimplified(v); updateProfileTreso.mutate({ treso_simplified: v }); };
 
   // ── Guide "bulles" ──
-  const guide = useScreenGuide('projection', user?.id);
   const navRowRef = React.useRef<any>(null);
   const tableRef = React.useRef<any>(null);
   const scrollOuterRef = React.useRef<ScrollView>(null);
 
-  const TRESO_GUIDE: BubbleStep[] = [
-    {
-      highlightKey: 'tab:projection',
-      anchorRef: () => getGuideAnchor('tabbar'),
-      anchorPlacement: 'above',
-      icon: 'calendar',
-      iconColor: COLORS.green,
-      title: 'Onglet Tréso',
-      description: 'Touche « Tréso » dans la barre du bas pour ton plan de trésorerie sur 12 mois.',
-    },
-    {
-      highlightKey: 'tresoTable',
-      anchorRef: () => tableRef,
-      icon: 'pencil',
-      iconColor: '#a78bfa',
-      title: 'Ton plan de trésorerie',
-      description: 'Tes recettes, dépenses et soldes anticipés, mois par mois. Navigue entre les périodes avec les flèches, et sur les mois futurs appuie sur un montant pour le modifier.',
-    },
-  ];
 
   const transactionsQuery = useTransactions(user?.id);
   const categoriesQuery = useCategories(user?.id);
@@ -972,7 +947,6 @@ function TreasuryPlanBody() {
               nestedScrollEnabled={true}
             >
             <View style={styles.tableWrap} ref={tableRef}>
-              <GuideRing target="tresoTable" radius={14} inset={-5} />
             <View style={styles.table}>
               {(() => {
                 const idx = planData.months.findIndex((m) => m.key === highlightMonthKey);
@@ -1493,15 +1467,6 @@ function TreasuryPlanBody() {
         </TouchableOpacity>
       </Modal>
 
-      <GuideOverlay
-        visible={guide.visible}
-        steps={TRESO_GUIDE}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(TRESO_GUIDE.length)}
-        onSkip={guide.skip}
-        scrollRef={scrollOuterRef}
-        screenTitle="Plan de trésorerie"
-      />
     </View>
   );
 }

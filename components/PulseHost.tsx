@@ -25,7 +25,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
-import { useTour } from '../contexts/TourContext';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
 import { usePulse, type PulseData } from '../hooks/usePulse';
@@ -54,7 +53,6 @@ export default function PulseHost() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const segments = useSegments();
-  const tour = useTour();
   const { user, isImpersonating } = useAuth();
 
   const { data: config } = usePulseConfig();
@@ -103,7 +101,7 @@ export default function PulseHost() {
   })();
   const oldEnough = accountAgeDays >= 7;
 
-  const canShow = appReady && inTabs && !tour.active && !isImpersonating && !seenLoading
+  const canShow = appReady && inTabs && !isImpersonating && !seenLoading
     && !!config?.enabled && !!pulse && oldEnough;
 
   // `open` pose seulement la vue : l'animation d'entrée est pilotée par l'effet ci-dessous, qui

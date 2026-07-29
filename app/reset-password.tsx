@@ -7,6 +7,8 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsive } from '../hooks/useResponsive';
+import { contentWidthBare } from '../lib/webLayout';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +25,7 @@ function showAlert(title: string, message: string) {
 export default function ResetPasswordScreen() {
   const COLORS = useBrandColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const { isDesktop } = useResponsive(); // web bureau : carte centrée, comme login/inscription
   const router = useRouter();
   const { passwordRecovery, clearPasswordRecovery } = useAuth();
 
@@ -67,7 +70,10 @@ export default function ResetPasswordScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.keyboard, contentWidthBare(isDesktop, 'auth'), isDesktop && { justifyContent: 'center' }]}
+        >
           <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/login'))}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>

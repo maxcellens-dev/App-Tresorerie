@@ -117,6 +117,23 @@
 
         /* Ascenseurs fins et neutres (Firefox + WebKit), au lieu des barres système épaisses. */
         * { scrollbar-width: thin; scrollbar-color: rgba(140,140,140,.38) transparent; }
+
+        /*
+          ASCENSEURS RENDUS À L'ORDINATEUR.
+
+          Les écrans sont écrits pour le mobile, où l'on fait défiler au doigt : ils passent donc
+          presque tous `showsVerticalScrollIndicator={false}` (et l'équivalent horizontal). React
+          Native Web traduit ça par `scrollbar-width: none` — sur un navigateur, la page défilait
+          sans qu'AUCUNE barre ne dise qu'il y a quelque chose plus bas, et les rangées horizontales
+          (liste des comptes dans les filtres, à la saisie d'une transaction, au choix du compte de
+          prélèvement d'un crédit) n'étaient plus atteignables du tout : pas de barre, et pas de
+          glissement au doigt non plus.
+
+          On rétablit donc les ascenseurs sur ordinateur uniquement. `!important` est nécessaire :
+          on écrase une classe générée par la bibliothèque, plus spécifique que nos sélecteurs.
+          `auto` reste la règle → la barre n'apparaît que si le contenu déborde réellement.
+        */
+        *, *::before, *::after { scrollbar-width: thin !important; }
         ::-webkit-scrollbar { width: 11px; height: 11px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {

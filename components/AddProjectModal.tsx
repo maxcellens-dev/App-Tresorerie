@@ -29,6 +29,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsive } from '../hooks/useResponsive';
+import { pageColumn } from '../lib/webLayout';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import ScreenGradient from './ScreenGradient';
@@ -159,6 +161,7 @@ function getNext12Months(): { key: string; label: string; dayOne: string }[] {
 
 export default function AddProjectModal() {
   const COLORS = useAppColors();
+  const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire centrée
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -658,7 +661,9 @@ export default function AddProjectModal() {
       <ScreenGradient />
       {/* edges={[]} comme TOUTES les pages secondaires : avec ['top'], l'inset du haut était compté
           DEUX FOIS (le layout l'applique déjà) → vide au-dessus du bouton « Retour ». */}
-      <SafeAreaView style={styles.safe} edges={[]}>
+      {/* Bureau : colonne de FORMULAIRE centrée. Sans elle, cet écran s'étirait sur toute la
+          largeur de la fenêtre — des champs de 1 500 px pour saisir un montant. */}
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form', 16)]} edges={[]}>
         <ScreenHeader
           title={isEdit ? 'Modifier le projet' : 'Nouveau projet'}
           onBack={handleClose}

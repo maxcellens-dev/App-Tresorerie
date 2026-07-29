@@ -11,6 +11,7 @@ import {
   safetyMarginFromQ8,
   weeklyVariableFromQ9,
 } from '../lib/financialProfileEngine';
+import { computeAvgMonthlyIncome } from '../lib/incomeAverage';
 import type {
   UserFinancialProfile,
   UserQuestionnaireAnswers,
@@ -293,6 +294,8 @@ interface RealMetricsResult {
   savingsBalance: number;
   checkingBalance: number;
   investedBalance: number;
+  /** Revenu de référence — LE MÊME que celui affiché partout (cf. lib/incomeAverage). */
+  avgMonthlyIncome: number;
   q3: string | null;
 }
 
@@ -306,24 +309,28 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
   const today = new Date();
   const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, 1).toISOString().slice(0, 10);
 
-  const [{ data: answers }, { data: txns }, { data: accounts }] = await Promise.all([
+  const [{ data: answers }, { data: txns }, { data: accounts }, { data: prof }] = await Promise.all([
     supabase.from('user_questionnaire_answers').select('q3').eq('user_id', userId).maybeSingle(),
     supabase.from('transactions')
-      .select('amount, date, account_id, linked_account_id, is_draft')
+      // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
+      // partagé (une recette « régul » ou posée sur une catégorie de dépense n'en est pas une).
+      .select('amount, date, account_id, linked_account_id, is_draft, is_reserved, note, category:categories(type)')
       .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
     supabase.from('accounts')
       .select('id, type, balance')
       .eq('profile_id', userId).eq('is_active', true).eq('is_joint', false),
+    supabase.from('profiles').select('created_at').eq('id', userId).maybeSingle(),
   ]);
 
   const accountTypeMap: Record<string, string> = {};
+  const checkingIds = new Set<string>();
   let savingsBalance = 0;
   let checkingBalance = 0;
   let investedBalance = 0;
   (accounts ?? []).forEach((a: any) => {
     accountTypeMap[a.id] = a.type;
     if (a.type === 'savings') savingsBalance += Number(a.balance);
-    if (a.type === 'checking') checkingBalance += Number(a.balance);
+    if (a.type === 'checking') { checkingBalance += Number(a.balance); checkingIds.add(a.id); }
     if (a.type === 'investment') investedBalance += Number(a.balance);
   });
 
@@ -340,6 +347,12 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     savingsBalance,
     checkingBalance,
     investedBalance,
+    // MÊME mesure que le Pilotage et la page « Profil financier ». Il y en avait deux, elles ne
+    // s'accordaient pas, et c'est le profil qui en payait le prix (cf. lib/incomeAverage).
+    avgMonthlyIncome: computeAvgMonthlyIncome(
+      (txns ?? []) as any[], checkingIds, today.toISOString().slice(0, 10),
+      (prof as any)?.created_at ?? null,
+    ),
     q3,
   };
 }
@@ -351,10 +364,19 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
 // placements) — donc dès qu'il renseigne la dernière donnée manquante, son profil apparaît, et il
 // reste P1 (le plus prudent) tant qu'il manque quelque chose.
 //
-// Il n'y a plus non plus de garde  : le recalcul vaut pour tout le monde, puisqu'il ne
-// contredit plus une réponse que l'utilisateur aurait donnée lui-même. Seule exception conservée :
-// dès que l'évaluation MENSUELLE a pris la main (source « automatic »), c'est le comportement observé
-// dans la durée qui décide, pas la photo du jour.
+// Il n'y a plus non plus de garde : le recalcul vaut pour tout le monde, puisqu'il ne contredit
+// plus une réponse que l'utilisateur aurait donnée lui-même.
+//
+// ⚠️ Il y en avait encore une, et c'était le bug derrière « le profil ne se met plus à jour » :
+// dès que le premier BILAN MENSUEL (useAutoProfileEvaluation) changeait le profil, il posait
+// `profile_source: 'automatic'` — et ce recalcul s'arrêtait alors DÉFINITIVEMENT (`return null`
+// avant même de lire les données), puisqu'il ne s'exécutait plus jamais que sur `'questionnaire'`.
+// Un seul bilan mensuel suffisait à figer le profil pour toujours, pendant que les recos (qui
+// lisent la même ligne mais ne passent pas par ce recalcul) continuaient de refléter sa dernière
+// valeur — d'où l'impression de « deux profils différents ». Cette garde datait d'avant le profil
+// vivant, où 'automatic' signifiait « le questionnaire a laissé la main » : ça n'a plus de sens
+// depuis qu'il n'y a plus de questionnaire à laisser. Et le gel (`auto_unlock_at`) n'y était pour
+// rien : le profil vivant est explicitement posé SANS gel dès sa création (cf. plus bas, `live`).
 
 export function useLiveProfileSync(userId: string | undefined) {
   const client = useQueryClient();
@@ -367,13 +389,12 @@ export function useLiveProfileSync(userId: string | undefined) {
 
       const { data: fp } = await supabase
         .from('user_financial_profile')
-        .select('profile_id, profile_source')
+        .select('profile_id')
         .eq('user_id', userId)
         .maybeSingle();
       // Ligne ABSENTE = compte qui n'a jamais eu de profil (le questionnaire, qui la créait, n'existe
       // plus). On la CRÉE au lieu d'abandonner : sans ça, aucun profil n'était jamais attribué et
       // l'écran restait vide indéfiniment.
-      if (fp && (fp as any).profile_source === 'automatic') return null;
 
       const real = await loadRealMetrics(userId);
       if (!real) return null;
@@ -382,8 +403,13 @@ export function useLiveProfileSync(userId: string | undefined) {
       // Données incomplètes → P1, le plus prudent (cf. computeProfileFromData).
       const next = computeProfileFromData({
         availableSavings: real.savingsBalance,
-        avgMonthlyIncome: real.metrics.avg_income_6m,
-        monthlySetAside: real.metrics.flux_total,
+        // ⚠️ PAS `metrics.avg_income_6m` : celui-là divise par 6 des mois RÉVOLUS et renvoie donc 0
+        // pour un compte neuf, dont la seule paie est dans le mois courant → « aucun revenu
+        // constaté » → P1 à vie, alors que l'app affiche par ailleurs 2 000 € et 7,5 mois.
+        avgMonthlyIncome: real.avgMonthlyIncome,
+        // ⚠️ PAS `metrics.flux_total` : c'est un POURCENTAGE, et il était lu comme un montant en
+        // euros — le taux d'épargne calculé derrière valait alors 1,5 % au lieu de 30 %.
+        monthlySetAside: real.metrics.set_aside_monthly,
         totalInvested: real.investedBalance,
       });
 

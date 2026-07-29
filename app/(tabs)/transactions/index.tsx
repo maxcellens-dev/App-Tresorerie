@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import ScreenGradient from '../../../components/ScreenGradient';
 import ScreenSkeleton from '../../../components/ScreenSkeleton';
 import { useDeferredMount } from '../../../hooks/useDeferredMount';
-import PageIntroModal from '../../../components/PageIntroModal';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
 import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
@@ -22,19 +21,11 @@ import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
-import GuideOverlay from '../../../components/GuideOverlay';
 import GuideModal from '../../../components/guide/GuideModal';
-import GuideRing from '../../../components/GuideRing';
-import { getGuideAnchor } from '../../../lib/guideAnchors';
-import { useGuideBubbles } from '../../../components/guide/useGuideBubbles';
 import { useGuide } from '../../../contexts/GuideContext';
-import { usePageIntro } from '../../../hooks/usePageIntro';
-import { setGuideQuickAddOpen } from '../../../lib/guideHighlight';
 import { useIsFocused } from '@react-navigation/native';
 import CalculatorButton from '../../../components/CalculatorButton';
 import RecurringTransactionsModal from '../../../components/RecurringTransactionsModal';
-import type { BubbleStep } from '../../../components/GuideOverlay';
-import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
 import { sheetWidth } from '../../../lib/appLayout';
@@ -143,7 +134,6 @@ function TransactionsListBody() {
   const [refreshing, setRefreshing] = useState(false);
 
   // ── Guide "bulles" ──
-  const screenGuide = useScreenGuide('transactions', user?.id);
   const expenseBtnRef = useRef<any>(null);
   const incomeBtnRef = useRef<any>(null);
   const transferBtnRef = useRef<any>(null);
@@ -152,32 +142,6 @@ function TransactionsListBody() {
   const filterBtnRef = useRef<any>(null);
   const recurBtnRef = useRef<any>(null);
 
-  const TX_GUIDE_STEPS: BubbleStep[] = [
-    {
-      highlightKey: 'tab:transactions',
-      anchorRef: () => getGuideAnchor('tabbar'),
-      anchorPlacement: 'above',
-      icon: 'list',
-      iconColor: COLORS.green,
-      title: 'Onglet Transactions',
-      description: 'Touche « Transactions » dans la barre du bas pour saisir et consulter tes opérations.',
-    },
-    SHOW_TOP_ACTIONS
-      ? {
-          highlightKey: 'txActions',
-          anchorRef: () => actionsRef,
-          icon: 'swap-vertical',
-          iconColor: COLORS.green,
-          title: 'Saisir une opération',
-          description: 'Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
-        }
-      : {
-          icon: 'add-circle',
-          iconColor: COLORS.green,
-          title: 'Saisir une opération',
-          description: 'Le bouton « + » ouvre la saisie rapide : Virement entre comptes, Dépense (sortie) ou Recette (revenu) — ponctuelle ou récurrente. Pensez à la catégoriser.',
-        },
-  ];
   // Multi-compte : ensemble des IDs sélectionnés ([] = tous)
   const [accountFilterIds, setAccountFilterIds] = useState<string[]>([]);
   const [defaultCheckingIds, setDefaultCheckingIds] = useState<string[]>([]);
@@ -191,39 +155,6 @@ function TransactionsListBody() {
      récurrence n'existe (l'utilisateur peut naviguer ailleurs, il le retrouvera en revenant). */
   const guide = useGuide();
   const txFocused = useIsFocused();
-  // `seen` couvre le redémarrage entre la présentation et les repères : sans lui, la présentation
-  // déjà lue ne se rouvrirait pas et les repères resteraient bloqués derrière elle.
-  const txIntro = usePageIntro('transactions');
-  const [txIntroClosed, setTxIntroClosed] = useState(false);
-  const txBubbles = useGuideBubbles(
-    guide.is('tx_tour') && (txIntroClosed || txIntro.seen), 3,
-    () => { setGuideQuickAddOpen(false); setShowRecurring(false); guide.done('g2_tx_tour'); },
-  );
-
-  /* Étapes 2 et 3 : on OUVRE réellement ce dont on parle — la liste des récurrentes, puis le menu
-     de saisie. Avec un délai avant l'ouverture et un autre avant de passer à la suite : la bulle se
-     lit d'abord, le panneau glisse ensuite, et il a le temps de se refermer avant la bulle suivante.
-     Sans ces délais, tout apparaissait et disparaissait d'un coup — brutal et illisible. */
-  const OPEN_DELAY = 320;   // laisse lire la bulle avant que le panneau ne s'ouvre
-  const CLOSE_DELAY = 260;  // laisse le panneau se refermer avant l'étape suivante
-
-  /* La feuille des récurrentes s'ouvre PENDANT la bulle qui la présente (et non à l'étape d'après,
-     commentée par une carte séparée). Le bouton et la feuille sont éclairés ensemble : on montre
-     d'un seul geste où l'on clique et ce que ça donne. */
-  const wantRecurOpen = txBubbles.visible && txBubbles.step === 1;
-  useEffect(() => {
-    if (!wantRecurOpen) return;
-    const t = setTimeout(() => setShowRecurring(true), OPEN_DELAY);
-    return () => { clearTimeout(t); setShowRecurring(false); };
-  }, [wantRecurOpen]);
-
-  const wantQuickAddOpen = txBubbles.visible && txBubbles.step === 2;
-  useEffect(() => {
-    if (!wantQuickAddOpen) return;
-    const t = setTimeout(() => setGuideQuickAddOpen(true), OPEN_DELAY);
-    return () => { clearTimeout(t); setGuideQuickAddOpen(false); };
-  }, [wantQuickAddOpen]);
-
   /* Le modal « Étape 2 » ne doit pas rester derrière l'écran de saisie ni derrière les dialogues
      qu'il ouvre : dès que l'utilisateur part créer sa récurrence, on le referme. Il ne revient
      qu'AU RETOUR sur cette page, et seulement si rien n'a été enregistré (l'étape serait alors
@@ -242,48 +173,6 @@ function TransactionsListBody() {
     return () => clearTimeout(t);
   }, [txFocused, recurAttempt]);
 
-  /** Ferme le panneau ouvert, PUIS avance : la fermeture reste visible. */
-  const nextAfterClose = () => {
-    setShowRecurring(false);
-    setGuideQuickAddOpen(false);
-    setTimeout(() => txBubbles.next(), CLOSE_DELAY);
-  };
-
-  const GUIDE_TX_BUBBLES: BubbleStep[] = [
-    {
-      highlightKey: 'txFilter',
-      anchorRef: () => filterBtnRef,
-      icon: 'filter',
-      iconColor: COLORS.emerald,
-      title: 'Filtrer',
-      description: 'Choisis les comptes à afficher. \nPar défaut, tu vois tes comptes courants — ceux qui font ton quotidien.',
-    },
-    // La feuille des récurrentes est OUVERTE pendant cette étape : on éclaire à la fois le bouton
-    // et ce qu'il ouvre. Mode auto-bordure (pas de spotlight sombre) — sinon le voile aurait
-    // assombri la feuille qu'on demande justement de regarder.
-    {
-      highlightKey: ['recurringList', 'recurringSheet'],
-      anchorRef: () => recurBtnRef,
-      anchorPlacement: 'below',
-      icon: 'repeat',
-      iconColor: COLORS.orange,
-      title: 'Tes récurrences',
-      description: 'Le raccourci vers tout ce qui revient chaque mois : salaire, loyer, abonnements. \nTu les saisis une fois, elles se rejouent toutes seules — et tu les retrouves dans cette liste pour les modifier ou les arrêter.',
-    },
-    {
-      highlightKey: 'quickAdd',
-      // MÊME EMPLACEMENT que les bulles précédentes : les repères forment une seule pop-up dont
-      // seul le contenu change, elle ne saute pas d'un écran à l'autre.
-      // BUREAU : le « + » rond n'existe pas (la saisie vit dans la barre latérale) — on ancre donc
-      // la bulle sur le vrai bouton « Nouvelle opération », qui s'éclaire et se déploie pareil.
-      anchorRef: () => (isDesktop ? getGuideAnchor('quickAdd') : recurBtnRef),
-      anchorPlacement: 'below',
-      icon: 'add-circle',
-      iconColor: COLORS.green,
-      title: isDesktop ? 'Le bouton « Nouvelle opération »' : 'Le bouton « + »',
-      description: 'Recette, Dépense, Virement, et \n« Mettre à jour mon solde » — le geste pour avoir tes chiffres justes rapidement.',
-    },
-  ];
 
   const transactionsQuery = useAllTransactions(user?.id);
   const overridesQuery = useTransactionMonthOverrides(user?.id);
@@ -914,11 +803,6 @@ function TransactionsListBody() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <PageIntroModal
-        pageKey="transactions"
-        active={guide.active ? guide.is('tx_tour') : undefined}
-        onDone={() => setTxIntroClosed(true)}
-      />
       <OnboardingHintBanner />
       {/* Bureau : toute la page (filtres + liste) tient dans une colonne de lecture centrée —
           une liste de transactions étalée sur 1600 px devient illisible (l'œil perd la ligne). */}
@@ -960,7 +844,6 @@ function TransactionsListBody() {
             >
               {/* Le bouton trace lui-même son anneau quand le guide le désigne — en même temps que
                   la feuille qu'il ouvre (cf. GUIDE_TX_BUBBLES). */}
-              <GuideRing target="recurringList" radius={12} inset={-5} />
               <Ionicons name="repeat" size={18} color={COLORS.orange} />
             </TouchableOpacity>
             <TouchableOpacity
@@ -969,7 +852,6 @@ function TransactionsListBody() {
               onPress={() => setShowAccountFilter(!showAccountFilter)}
               activeOpacity={0.7}
             >
-              <GuideRing target="txFilter" radius={12} inset={-5} />
               <Ionicons name="filter" size={18} color={accountFilterIds.length > 0 ? COLORS.bg : COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -1002,7 +884,6 @@ function TransactionsListBody() {
         )}
         {SHOW_TOP_ACTIONS && (
         <View style={[styles.header, onbRecurring ? onbGlow(COLORS, true) : null]} ref={actionsRef}>
-          <GuideRing target="txActions" radius={14} inset={-5} />
           {/* Ordre : Virement, Dépense, Recette (identique à l'écran de création). */}
           <TouchableOpacity
             ref={transferBtnRef}
@@ -1192,35 +1073,14 @@ function TransactionsListBody() {
         </Modal>
       </SafeAreaView>
 
-      <GuideOverlay
-        visible={screenGuide.visible}
-        steps={TX_GUIDE_STEPS}
-        currentStep={screenGuide.step}
-        onNext={() => screenGuide.goNext(TX_GUIDE_STEPS.length)}
-        onSkip={screenGuide.skip}
-        screenTitle="Transactions"
-      />
 
       {/* ── GUIDE : repères de la page (filtre, récurrences + leur liste ouverte, bouton de saisie) ── */}
-      <GuideOverlay
-        visible={txBubbles.visible}
-        steps={GUIDE_TX_BUBBLES}
-        currentStep={txBubbles.step}
-        // Les étapes 2 et 3 ont un panneau déployé (la feuille des récurrentes, puis le menu de
-        // saisie) : on le referme, PUIS on avance — le panneau se replie au lieu de disparaître.
-        onNext={txBubbles.step >= 1 ? nextAfterClose : txBubbles.next}
-        onSkip={() => {}}
-        inverted
-        hideSkip
-      />
 
       <CalculatorButton page="transactions" />
       <RecurringTransactionsModal
         visible={showRecurring}
         onClose={() => setShowRecurring(false)}
         userId={user?.id}
-        // Pendant l'étape du guide : même fenêtre que la bulle, sinon la feuille passerait devant.
-        portal={wantRecurOpen}
       />
 
       {/* ── GUIDE : créer une première récurrence (reste tant que ce n'est pas fait) ──

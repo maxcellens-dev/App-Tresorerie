@@ -395,7 +395,12 @@ export interface MatrixConfig {
 
 export interface MonthlyMetrics {
   mois_securite: number;
+  /** Part des recettes mise de côté, en POURCENTAGE (épargne + investissement). */
   flux_total: number;
+  /** Montant mis de côté chaque mois, en EUROS. ⚠️ À ne pas confondre avec `flux_total`, qui est un
+   *  pourcentage : le profil vivant les a longtemps confondus et lisait un taux d'épargne de 1,5 %
+   *  là où l'utilisateur en mettait 30 % — aucun palier « fort taux » ne se déclenchait jamais. */
+  set_aside_monthly: number;
   avg_income_6m: number;
   avg_income_2m: number;
 }
@@ -594,9 +599,27 @@ export function computeMonthlyMetrics(
   const flux_invest = revenusBruts > 0 ? (virInvest / revenusBruts) * 100 : 0;
   const flux_total = flux_epargne + flux_invest;
 
+  /* Le même mouvement, mais en EUROS PAR MOIS — c'est ce dont le profil a besoin (il le rapporte
+     ensuite au revenu pour en tirer un taux). Fenêtre INCLUANT le mois courant : un compte neuf
+     n'a encore aucun mois révolu, et l'écarter revenait à dire « il ne met rien de côté » de
+     quelqu'un qui venait précisément de faire son premier virement d'épargne. */
+  const inRecent = (t: RawTransaction) => {
+    const { year, month } = txMonth(t);
+    for (let i = 0; i < windowFlux; i++) {
+      const w = monthsAgo(i);
+      if (w.year === year && w.month === month) return true;
+    }
+    return false;
+  };
+  const setAside = transactions
+    .filter((t) => inRecent(t) && t.amount < 0
+      && (t.linked_account_type === 'savings' || t.linked_account_type === 'investment'))
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+
   return {
     mois_securite,
     flux_total,
+    set_aside_monthly: setAside / windowFlux,
     avg_income_6m,
     avg_income_2m: rev2 / 2,
   };

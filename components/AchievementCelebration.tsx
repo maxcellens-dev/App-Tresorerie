@@ -14,7 +14,6 @@ import { useSegments } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
 import { useAppColors } from '../hooks/useAppColors';
-import { useTour } from '../contexts/TourContext';
 import { isAppReady, onAppReady } from '../lib/splashGate';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type BadgeDef } from '../lib/gamification';
 
@@ -23,14 +22,13 @@ export default function AchievementCelebration() {
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user, isImpersonating } = useAuth();
   const { badges, config, markBadgesCelebrated } = useGamification(user?.id);
-  const tour = useTour();
   const segments = useSegments();
   // Quand peut-on célébrer ? Quand l'utilisateur est RÉELLEMENT dans l'app (onglets) et que le guide
   // de présentation n'est pas en cours. On ne se fie plus à `profiles.initial_onboarding_completed` :
   // son écriture est best-effort (questionnaire.tsx l'avale en cas d'échec) et il reste faux sur les
   // comptes créés avant son introduction → plus AUCUNE célébration ne se mettait en file, jamais.
   // Être dans `(tabs)` exclut de fait welcome / login / questionnaire.
-  const onboardingDone = segments[0] === '(tabs)' && !tour.active;
+  const onboardingDone = segments[0] === '(tabs)';
 
   // Succès déjà pris en charge cette session (évite de re-traiter avant le refetch du serveur).
   const handledRef = useRef<Set<string>>(new Set());

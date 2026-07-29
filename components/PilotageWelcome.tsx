@@ -2,13 +2,14 @@
  * PilotageWelcome — l'accueil du tableau de bord TANT QU'IL N'A RIEN À DIRE.
  *
  * Un tableau de bord sans données n'est pas un tableau de bord : c'est une grille de zéros qui donne
- * l'impression que l'app ne marche pas, et qui n'indique nulle part par où commencer. Tant qu'aucun
- * compte n'existe, on remplace donc TOUT le contenu du Pilotage par un accueil qui ne dit qu'une
- * chose : va créer tes comptes (variante `accounts`).
+ * l'impression que l'app ne marche pas, et qui n'indique nulle part par où commencer. Tant que
+ * l'installation n'est pas assez avancée pour que le Relyka soit calculable, on remplace donc TOUT
+ * le contenu du Pilotage par cet accueil, dont le bouton porte la PROCHAINE action à faire.
  *
- * Une fois les comptes créés, les chiffres ont un sens et le tableau de bord reprend sa place — mais
- * sans aucune opération il reste incomplet : la variante `transactions` (compacte, posée en tête)
- * envoie alors saisir les premières.
+ * « Assez avancée » veut dire deux choses, dans cet ordre : des comptes (sinon aucun solde), puis
+ * au moins une opération récurrente (sinon l'app ne sait ni ce qui rentre ni ce qui part). Les deux
+ * réglages qui suivent — dépenses variables, marge de sécurité — se renseignent, eux, PAR-DESSUS le
+ * tableau de bord : ils affinent un Relyka qui existe déjà, et on doit voir la ligne qu'ils pilotent.
  */
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
@@ -16,15 +17,55 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useInvertedColors } from '../hooks/useInvertedColors';
 
+/** L'étape en cours, telle que le parcours la voit (cf. contexts/GuideContext). */
+export type WelcomeStep = 'accounts' | 'checking' | 'savings' | 'recurring';
+
 interface Props {
-  variant: 'accounts' | 'transactions';
-  /** Version compacte : une carte posée en tête du tableau de bord (au lieu de le remplacer). */
+  step: WelcomeStep;
+  /** Version compacte : une carte posée en tête du tableau de bord (au lieu de le remplacer).
+   *  Sert HORS parcours, à un compte qui a des soldes mais aucune opération. */
   compact?: boolean;
   firstName?: string | null;
   onPress: () => void;
 }
 
-export default function PilotageWelcome({ variant, compact, firstName, onPress }: Props) {
+/** Ce que chaque étape raconte, et ce vers quoi elle envoie. */
+const STEP_COPY: Record<WelcomeStep, { title: string; text: string; cta: string; icon: string }> = {
+  accounts: {
+    title: 'Commence par \ncréer tes comptes',
+    text: 'Relyka ne devine rien : il part des soldes réels de tes comptes.\n\nAjoute-les avec le montant affiché aujourd’hui par ta banque, et ton tableau de bord se remplira tout seul.',
+    cta: 'Créer mes comptes',
+    icon: 'wallet-outline',
+  },
+  checking: {
+    title: 'Il te manque \nun compte courant',
+    text: 'C’est le compte sur lequel ton argent arrive et tes charges partent. Sans lui, impossible de savoir ce qu’il te reste.',
+    cta: 'Ajouter mon compte courant',
+    icon: 'card-outline',
+  },
+  savings: {
+    title: 'Et ton épargne ?',
+    text: 'Livret A, LDDS, PEA… c’est ce qui permet de calculer ton matelas de sécurité : combien de mois tu tiendrais sans rentrée d’argent.',
+    cta: 'Ajouter mon épargne',
+    icon: 'leaf-outline',
+  },
+  recurring: {
+    title: 'Il manque \ntes opérations',
+    text: 'Tes comptes sont là, mais Relyka ne sait ni ce qui rentre, ni ce qui part. Enregistre ton salaire et tes charges fixes en récurrentes : tu ne les saisis qu’une fois.',
+    cta: 'Saisir mes opérations',
+    icon: 'repeat',
+  },
+};
+
+/** Les quatre jalons du démarrage, dans l'ordre. Sert à situer l'étape en cours. */
+const MILESTONES: { icon: string; label: string; steps: WelcomeStep[] }[] = [
+  { icon: 'wallet-outline', label: 'Tes comptes', steps: ['accounts', 'checking', 'savings'] },
+  { icon: 'repeat', label: 'Ce qui revient chaque mois', steps: ['recurring'] },
+  { icon: 'options-outline', label: 'Tes deux repères', steps: [] },
+  { icon: 'sparkles', label: 'Ton Relyka et ton profil', steps: [] },
+];
+
+export default function PilotageWelcome({ step, compact, firstName, onPress }: Props) {
   const APP = useAppColors();
   const INV = useInvertedColors();
   // La carte compacte est une CONSIGNE de démarrage, au même titre que les modaux du guide : elle
@@ -32,25 +73,22 @@ export default function PilotageWelcome({ variant, compact, firstName, onPress }
   const COLORS = compact ? INV : APP;
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
 
-  const isAccounts = variant === 'accounts';
+  const copy = STEP_COPY[step];
+  const isAccounts = step !== 'recurring';
   const accent = isAccounts ? COLORS.emerald : COLORS.orange;
   const hello = firstName ? `Bienvenue ${firstName},` : 'Bienvenue,';
-
-  const title = isAccounts ? 'Commence par \ncréer tes comptes' : 'Il manque tes opérations';
-  const text = isAccounts
-    ? 'Relyka ne devine rien : \nil part des soldes réels de tes comptes. \n\nAjoute-les avec le montant affiché aujourd’hui par ta banque, et ton tableau de bord se remplira tout seul.'
-    : 'Tes comptes sont là, mais aucune opération n’est encore enregistrée : Relyka ne sait ni ce qui rentre, ni ce qui part. Commence par ton salaire et tes charges fixes.';
-  const cta = isAccounts ? 'Créer mes comptes' : 'Saisir mes opérations';
+  // Index du jalon en cours : tout ce qui précède est acquis.
+  const currentMilestone = Math.max(0, MILESTONES.findIndex((m) => m.steps.includes(step)));
 
   if (compact) {
     return (
       <TouchableOpacity style={[styles.card, { borderColor: accent + '55' }]} onPress={onPress} activeOpacity={0.85} accessibilityRole="button">
         <View style={[styles.cardIcon, { backgroundColor: accent + '1F' }]}>
-          <Ionicons name="swap-vertical" size={20} color={accent} />
+          <Ionicons name={copy.icon as any} size={20} color={accent} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardText}>{text}</Text>
+          <Text style={styles.cardTitle}>{copy.title.replace(/\n/g, '')}</Text>
+          <Text style={styles.cardText}>{copy.text}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={accent} />
       </TouchableOpacity>
@@ -61,33 +99,41 @@ export default function PilotageWelcome({ variant, compact, firstName, onPress }
     <View style={styles.wrap}>
       <View style={[styles.halo, { backgroundColor: accent + '14', borderColor: accent + '2A' }]}>
         <View style={[styles.circle, { backgroundColor: accent + '22', borderColor: accent + '55' }]}>
-          <Ionicons name="wallet-outline" size={38} color={accent} />
+          <Ionicons name={copy.icon as any} size={38} color={accent} />
         </View>
       </View>
 
       <Text style={styles.hello}>{hello}</Text>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.text}>{text}</Text>
+      <Text style={styles.title}>{copy.title}</Text>
+      <Text style={styles.text}>{copy.text}</Text>
 
       {/* Ce qui se débloque ensuite : on montre la contrepartie, pas seulement la corvée. */}
       <View style={styles.steps}>
-        {[
-          { icon: 'wallet-outline', label: 'Tes comptes', done: false },
-          { icon: 'repeat', label: 'Ce qui revient chaque mois', done: false },
-          { icon: 'sparkles', label: 'Ton Relyka et tes conseils', done: false },
-        ].map((s, i) => (
-          <View key={s.label} style={styles.step}>
-            <View style={[styles.stepDot, i === 0 && { borderColor: accent, backgroundColor: accent + '1F' }]}>
-              <Ionicons name={s.icon as any} size={13} color={i === 0 ? accent : COLORS.textSecondary} />
+        {MILESTONES.map((m, i) => {
+          const done = i < currentMilestone;
+          const current = i === currentMilestone;
+          return (
+            <View key={m.label} style={styles.step}>
+              <View style={[
+                styles.stepDot,
+                current && { borderColor: accent, backgroundColor: accent + '1F' },
+                done && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '1F' },
+              ]}>
+                <Ionicons
+                  name={(done ? 'checkmark' : m.icon) as any}
+                  size={13}
+                  color={done ? COLORS.emerald : current ? accent : COLORS.textSecondary}
+                />
+              </View>
+              <Text style={[styles.stepLabel, current && { color: COLORS.text, fontWeight: '700' }]}>{m.label}</Text>
             </View>
-            <Text style={[styles.stepLabel, i === 0 && { color: COLORS.text, fontWeight: '700' }]}>{s.label}</Text>
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       <TouchableOpacity style={[styles.cta, { backgroundColor: accent }]} onPress={onPress} activeOpacity={0.85} accessibilityRole="button">
         <Ionicons name="add" size={20} color={COLORS.bg} />
-        <Text style={styles.ctaLabel}>{cta}</Text>
+        <Text style={styles.ctaLabel}>{copy.cta}</Text>
       </TouchableOpacity>
     </View>
   );

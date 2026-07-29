@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStep } from '../hooks/useOnboarding';
-import { useTour } from '../contexts/TourContext';
 import { subscribeChecklistOpen, openOnboardingChecklist, closeOnboardingChecklist } from '../lib/onboardingChecklist';
 import { sheetWidth } from '../lib/appLayout';
 
@@ -21,7 +20,6 @@ export default function OnboardingChecklist() {
   const router = useRouter();
   const { user, isImpersonating } = useAuth();
   const ob = useOnboarding(user?.id);
-  const tour = useTour();
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
 
@@ -33,11 +31,11 @@ export default function OnboardingChecklist() {
   // du message de fin envoie directement sur la 1re étape (coachmark). On marque juste l'intro.
   useEffect(() => {
     if (isImpersonating) return; // consultation admin : pas d'écriture sur le compte cible
-    if (ob.shouldAutoOpenChecklist && !tour.finished && !autoOpened.current) {
+    if (ob.shouldAutoOpenChecklist && !autoOpened.current) {
       autoOpened.current = true;
       ob.markFlag('checklist_intro_shown');
     }
-  }, [ob.shouldAutoOpenChecklist, tour.finished, isImpersonating]);
+  }, [ob.shouldAutoOpenChecklist, isImpersonating]);
 
   // Fige les étapes accomplies (validées pour toujours, même si l'élément créé est supprimé).
   useEffect(() => {

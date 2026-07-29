@@ -8,9 +8,9 @@ import ScreenGradient from '../../components/ScreenGradient';
 import CalculatorButton from '../../components/CalculatorButton';
 import RecurringTransactionsModal from '../../components/RecurringTransactionsModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
-import DiscoveryIntro from '../../components/DiscoveryIntro';
 import PilotageSimple from '../../components/PilotageSimple';
 import PilotageWelcome from '../../components/PilotageWelcome';
+import GuideModal from '../../components/guide/GuideModal';
 import TroughChart from '../../components/TroughChart';
 import InfoDot from '../../components/InfoDot';
 import type { GlossaryTerm } from '../../lib/glossary';
@@ -53,15 +53,10 @@ import { unverifiedSincePhrase } from '../../lib/confidenceEngine';
 import type { PreSavingType } from '../../types/database';
 import { useRecommendationTiers } from '../../hooks/useRecommendationTiers';
 import { useFinancialProfile } from '../../hooks/useFinancialProfile';
-import { useAutoProfileEvaluation, useLiveProfileSync } from '../../hooks/useFinancialProfile';
+import { useAutoProfileEvaluation } from '../../hooks/useFinancialProfile';
 import type { FinancialProfileId } from '../../types/database';
-import GuideOverlay from '../../components/GuideOverlay';
-import type { BubbleStep } from '../../components/GuideOverlay';
-import { useGuideBubbles } from '../../components/guide/useGuideBubbles';
 import { useGuide } from '../../contexts/GuideContext';
-import { getGuideAnchor } from '../../lib/guideAnchors';
 import { useIsFocused } from '@react-navigation/native';
-import { useScreenGuide } from '../../hooks/useScreenGuide';
 import { useAppColors } from '../../hooks/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { semanticText } from '../../theme/palette';
@@ -100,7 +95,7 @@ function eur(n: number): string { return Math.round(n).toLocaleString('fr-FR') +
 export default function PilotageScreen() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ closure?: string }>();
-  const { user, isImpersonating } = useAuth();
+  const { user } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
   // Web bureau : le tableau de bord se lit dans une colonne large centrée (pas la colonne
@@ -163,7 +158,6 @@ export default function PilotageScreen() {
   const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const autoEval = useAutoProfileEvaluation(user?.id);
-  const liveSync = useLiveProfileSync(user?.id);
 
   // ── Données recos évoluées : cumuls, réservations, seuils, comptes ──
   const { data: accountsPerso = [] } = useAccounts(user?.id);
@@ -224,8 +218,6 @@ export default function PilotageScreen() {
   const [showRecurringModal, setShowRecurringModal] = useState(false); // modal « Transactions récurrentes » (toutes récurrences)
   const releaseReserved = useReleaseReservedByProject(user?.id);
   const updateOnboarding = useUpdateOnboarding(user?.id);
-  // Découverte : vue pédagogique des 4 recommandations (1ʳᵉ visite) + file des questions progressives.
-  const [showDiscovery, setShowDiscovery] = useState(false);
   const openReservedModal = () => { setShowReservedModal(true); updateOnboarding.mutate({ flags: { reserved_consulted: true } }); };
   // Modale de saisie de l'estimation hebdo des dépenses variables (alimente q9)
   const { data: profile } = useProfile(user?.id);
@@ -243,15 +235,6 @@ export default function PilotageScreen() {
   /** Guide utilisateur (parcours de démarrage) — lu très tôt : il conditionne aussi la découverte. */
   const userGuide = useGuide();
 
-  // ── Découverte : une seule vue pédagogique, à la 1ʳᵉ arrivée ────────────────────────────────
-  // Elle remplace à la fois le tour ancré obligatoire et la modale de présentation de page. Le
-  // drapeau vit dans onboarding_state (comme le reste du guide) → relançable depuis l'assistance.
-  // Elle ne s'ouvre JAMAIS pendant le guide utilisateur : celui-ci raconte la même chose, mieux
-  // placé (le guide pose d'ailleurs le drapeau à son démarrage — ceci couvre le laps de temps avant
-  // que le profil ne soit relu).
-  const obState = ((profile as any)?.onboarding_state ?? {}) as Record<string, any>;
-  const discoveryPending = !!profile && !obState.discovery_intro_seen && !isImpersonating && !userGuide.active;
-
   /* ── UNE SEULE VUE DU TABLEAU DE BORD ─────────────────────────────────────────────────────────
      Il y avait deux mises en page du même écran (« complète » et « simplifiée ») et une bascule.
      La complète a été retirée : deux tableaux de bord à maintenir sur les mêmes chiffres, c'était
@@ -260,15 +243,6 @@ export default function PilotageScreen() {
      « dont récurrentes / variables », bandeaux de cumuls, pilule du mois) a été volontairement
      abandonné ; ce qui comptait (fourchette, messages du Relyka) a été repris dans le bloc
      principal. Les modaux de détail, eux, n'ont pas bougé d'une ligne. */
-  useFocusEffect(
-    useCallback(() => {
-      if (!discoveryPending) return;
-      // Petit délai : on laisse l'écran se stabiliser (et les recos se calculer) avant d'ouvrir,
-      // sinon la vue annonce « aucune décision active » le temps d'un rendu.
-      const t = setTimeout(() => setShowDiscovery(true), 600);
-      return () => clearTimeout(t);
-    }, [discoveryPending]),
-  );
 
   const fmtMain = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
   const preEpargneTotal = preSavings?.epargne.total_cumule ?? 0;
@@ -288,12 +262,12 @@ export default function PilotageScreen() {
     .sort((a, b) => Number(b.balance) - Number(a.balance))[0]?.id;
 
   /* ── GUIDE UTILISATEUR (démarrage) ─────────────────────────────────────────────────────────────
-     Le Pilotage est le point d'arrivée ET le point final du parcours : on y explique d'abord ce
-     qu'il va falloir faire (comptes → récurrences → recommandations), et on y revient à la fin pour
-     situer les zones, puis renseigner les deux réglages sans lesquels le Relyka reste approximatif :
-     l'estimation des dépenses variables et la marge de sécurité. */
+     Le Pilotage porte les DEUX DERNIÈRES étapes du parcours : l'estimation des dépenses variables et
+     la marge de sécurité. Elles se jouent ICI, et pas dans un écran de réglages à part, parce que
+     ces deux montants n'ont de sens qu'au regard des lignes qu'ils pilotent : on fait donc défiler
+     la page jusqu'à la ligne concernée, le tableau de bord reste visible derrière, et le modal
+     explique ce qu'on renseigne et à quel endroit. */
   const pilotFocused = useIsFocused();
-  const heroRef = React.useRef<any>(null);
   const recoCardRef = React.useRef<any>(null);
   const monthCardRef = React.useRef<any>(null);
   const variableLineRef = React.useRef<any>(null);
@@ -303,123 +277,59 @@ export default function PilotageScreen() {
   const requireVariable = userGuide.is('pilotage_variable');
   const requireMargin = userGuide.is('pilotage_margin');
 
-  // ── Guide "bulles" (ancien tour de présentation, relançable depuis l'assistance) ──
-  const guide = useScreenGuide('pilotage', user?.id);
   const scrollRef = React.useRef<ScrollView>(null);
 
-  /* Scroll vers la zone mise en évidence par le guide « Pour bien démarrer ».
-     Les cibles sont celles du tableau de bord réel : la carte des recommandations, et la carte
-     « Ce mois-ci » qui porte la tuile « Réservé ». (Elles visaient auparavant des blocs de la vue
-     complète, qui n'existe plus.) */
+  /* Amène une ligne du tableau de bord à l'écran. Sert à la checklist « Pour bien démarrer » ET aux
+     deux dernières étapes du parcours : on ne demande pas un montant dans le vide, on fait défiler
+     jusqu'à la ligne qu'il pilote pour qu'on voie ce qu'on renseigne et à quel endroit.
+     WEB : `findNodeHandle` LÈVE une exception sur react-native-web → on y passe par le DOM
+     (défilement courant + position mesurée dans la fenêtre), même résultat sans crash. */
+  const scrollToRow = React.useCallback((target: React.RefObject<any>) => {
+    if (Platform.OS === 'web') {
+      const el: any = (scrollRef.current as any)?.getScrollableNode?.();
+      if (el && target.current?.measureInWindow) {
+        const currentY = Number(el.scrollTop) || 0;
+        target.current.measureInWindow((_x: number, y: number) => {
+          scrollRef.current?.scrollTo({ y: Math.max(0, currentY + y - 90), animated: true });
+        });
+      }
+      return;
+    }
+    const node = scrollRef.current ? findNodeHandle(scrollRef.current) : null;
+    if (node && target.current?.measureLayout) {
+      target.current.measureLayout(node, (_x: number, y: number) => {
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - 90), animated: true });
+      }, () => {});
+    }
+  }, []);
+
+  /* Mise en évidence de la checklist « Pour bien démarrer » (arrivée via ?onb=…). */
   React.useEffect(() => {
     const target = onbReco ? recoCardRef : onbReserved ? monthCardRef : null;
     if (!target) return;
-    const t = setTimeout(() => {
-      // WEB : `findNodeHandle` LÈVE une exception sur react-native-web. On y passe par le DOM
-      // (défilement courant + position mesurée dans la fenêtre) — même résultat, sans crash.
-      if (Platform.OS === 'web') {
-        const el: any = (scrollRef.current as any)?.getScrollableNode?.();
-        if (el && target.current?.measureInWindow) {
-          const currentY = Number(el.scrollTop) || 0;
-          target.current.measureInWindow((_x: number, y: number) => {
-            scrollRef.current?.scrollTo({ y: Math.max(0, currentY + y - 90), animated: true });
-          });
-        }
-        return;
-      }
-      const node = scrollRef.current ? findNodeHandle(scrollRef.current) : null;
-      if (node && target.current?.measureLayout) {
-        target.current.measureLayout(node, (_x: number, y: number) => {
-          scrollRef.current?.scrollTo({ y: Math.max(0, y - 90), animated: true });
-        }, () => {});
-      }
-    }, 350);
+    const t = setTimeout(() => scrollToRow(target), 350);
     return () => clearTimeout(t);
-  }, [onbReco, onbReserved]);
+  }, [onbReco, onbReserved, scrollToRow]);
 
-  const PILOTAGE_GUIDE: BubbleStep[] = [
-    {
-      highlightKey: 'tab:pilotage',
-      anchorRef: () => getGuideAnchor('tabbar'),
-      anchorPlacement: 'above',
-      icon: 'home',
-      iconColor: COLORS.green,
-      title: 'Onglet Pilotage',
-      description: 'Touche « Pilotage » dans la barre du bas : c\'est ton tableau de bord.',
-    },
-    {
-      highlightKey: 'recoCard',
-      anchorRef: () => recoCardRef,
-      icon: 'bulb-outline',
-      iconColor: '#f59e0b',
-      title: 'Recommandations',
-      description: 'Des conseils personnalisés selon ton profil financier pour optimiser ton mois : épargne, investissement, réserve…',
-    },
-    {
-      highlightKey: 'monthCard',
-      anchorRef: () => monthCardRef,
-      icon: 'wallet-outline',
-      iconColor: COLORS.green,
-      title: 'Ce mois-ci',
-      description: 'Ton solde, ce que tu as dépensé, ce qu\'il reste à sortir et ta marge de sécurité. Chaque ligne s\'ouvre sur son détail — et en bas, ce que tu as déjà mis à l\'abri.',
-    },
-  ];
+  /* Étapes 3 et 4 du parcours : la ligne concernée est amenée à l'écran AVANT que le modal
+     n'explique quoi y mettre. Le tableau de bord reste visible derrière (voile allégé) : c'est tout
+     l'intérêt de faire ces deux réglages ici plutôt que dans un écran de réglages isolé. */
+  React.useEffect(() => {
+    if (!pilotFocused) return;
+    const target = requireVariable ? variableLineRef : requireMargin ? marginLineRef : null;
+    if (!target) return;
+    const t = setTimeout(() => scrollToRow(target), 420);
+    return () => clearTimeout(t);
+  }, [pilotFocused, requireVariable, requireMargin, scrollToRow]);
 
-  /* ── LA présentation du tableau de bord (guide) ─────────────────────────────────────────────────
-     UNE seule séquence, et pas un modal explicatif suivi de bulles : on l'a vécu, c'était deux fois
-     le même discours, dont une fois dans le vide. Ici chaque étape DÉSIGNE la zone réelle à l'écran
-     (le reste s'assombrit) et porte ce que le modal disait — les quatre décisions, le bouton de
-     saisie, le menu. Elle ne se lance qu'une fois de vraies données présentes : présenter
-     « Tes recommandations » sur un écran vide n'apprend rien. */
-  const PILOT_BUBBLES: BubbleStep[] = [
-    {
-      highlightKey: 'relykaHero',
-      anchorRef: () => heroRef,
-      icon: 'sparkles',
-      iconColor: COLORS.emerald,
-      title: 'Ton Relyka',
-      description: 'Le chiffre à retenir : Touche-le pour voir son calcul, ligne par ligne. \n\nC\'est la somme que tu peux utiliser ce mois-ci sans risque.',
-    },
-    {
-      highlightKey: 'recoCard',
-      anchorRef: () => recoCardRef,
-      icon: 'bulb-outline',
-      iconColor: COLORS.orange,
-      title: '4  recommandations',
-      description: 'Épargner, investir, en profiter, ou garder de côté : \n\nOn te fais jusqu\'à 4 recommandations selon ta situation. \n\nUne tape pour une action rapide.',
-    },
-    {
-      highlightKey: 'monthCard',
-      anchorRef: () => monthCardRef,
-      icon: 'calendar-outline',
-      iconColor: COLORS.blue,
-      title: 'Ce mois-ci',
-      description: 'Ton suivi mensuel. \nChaque ligne s\'ouvre sur son détail.',
-    },
-    // PAS de bulle sur le bouton « + » ici : il a déjà été présenté, menu déployé, sur la page
-    // Transactions. Le répéter allongeait la séquence sans rien apprendre.
-    // PAS de bulle « Ton menu » non plus : elle vient TOUT À LA FIN du parcours (étape à part), là
-    // où l'écran lui appartient. Coincée ici, elle héritait de l'écran non assombri du « + » et son
-    // cadre passait inaperçu.
-  ];
-  const pilotBubbles = useGuideBubbles(
-    userGuide.is('pilotage_tour'), PILOT_BUBBLES.length,
-    () => userGuide.done('g2_pilot_tour'),
-  );
 
   // Évaluation automatique mensuelle (silencieuse, 1er du mois)
   React.useEffect(() => {
     if (financialProfile) autoEval.mutate();
   }, [financialProfile?.last_auto_evaluation]);
 
-  // PROFIL VIVANT : pendant la phase d'installation progressive, le profil ne doit pas attendre le
-  // bilan mensuel. Il se recalcule dès que les soldes bougent — « j'ajoute mon épargne, mon profil
-  // suit dans la seconde ». Le hook ne fait rien hors de cette phase (drapeau pp_live).
-  const totalSavingsForProfile = Math.round(pilotageQuery.data?.total_savings ?? -1);
-  React.useEffect(() => {
-    if (totalSavingsForProfile >= 0) liveSync.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalSavingsForProfile]);
+  // (Le PROFIL VIVANT n'est plus déclenché depuis cet écran : un observateur global surveille les
+  //  comptes et les transactions, cf. components/LiveProfileSync.)
 
   const { data: pilotageData, isLoading: pilotageLoading, error: pilotageError } = pilotageQuery;
   const isLoading = pilotageLoading;
@@ -527,7 +437,7 @@ export default function PilotageScreen() {
 
   /* ── Le tableau de bord a-t-il quelque chose à dire ? ───────────────────────────────────────────
      Sans compte : rien du tout (tous les chiffres valent 0) → accueil à la place.
-     Sans opération : les soldes existent, mais ni les entrées ni les sorties → message en tête.
+     Sans opération : les soldes existent, mais ni les entrées ni les sorties → accueil aussi.
      ⚠️ Une régularisation de solde n'est PAS une saisie de l'utilisateur : la création d'un compte
      avec un solde en produit une, et elle ferait disparaître le message alors qu'il reste vrai. */
   const noAccountsYet = accounts.length === 0;
@@ -539,6 +449,25 @@ export default function PilotageScreen() {
   const setupHint = accounts.length === 0
     ? "Ton Relyka est à 0 € : il n'a encore rien à calculer. Crée tes comptes avec leur solde d'aujourd'hui pour le faire apparaître."
     : "Ton Relyka est à 0 € : Relyka ne sait pas encore ce qui rentre ni ce qui part. Enregistre ta rentrée d'argent et tes charges fixes en récurrentes — il se calculera tout seul.";
+
+  /* ── PENDANT L'INSTALLATION, PAS DE TABLEAU DE BORD ────────────────────────────────────────────
+     Le Relyka n'est pas calculable tant qu'il manque les comptes ou les flux du mois : le montrer
+     à 0 € avec ses quatre recommandations vides ferait croire que l'app ne sert à rien, au moment
+     précis où il faut au contraire dire quoi faire ensuite. On remplace donc TOUT le contenu par
+     l'accueil, dont le bouton porte la prochaine action.
+     Deux façons d'y entrer, et c'est voulu : le PARCOURS de démarrage (guide.inSetup, qui suit ses
+     propres étapes), et le simple constat « aucun compte / aucune opération » — qui vaut aussi pour
+     un compte ancien vidé de ses données, lequel n'est plus dans le parcours. */
+  const welcomeStep: import('../../components/PilotageWelcome').WelcomeStep | null =
+    userGuide.is('accounts') ? 'accounts'
+    : userGuide.is('accounts_checking') ? 'checking'
+    : userGuide.is('accounts_savings') ? 'savings'
+    : userGuide.is('tx_recurring') ? 'recurring'
+    : noAccountsYet ? 'accounts'
+    : !hasAnyTx ? 'recurring'
+    : null;
+  /** Où le bouton de l'accueil emmène : là où l'étape se joue réellement. */
+  const welcomeRoute = welcomeStep === 'recurring' ? '/(tabs)/transactions' : '/(tabs)/comptes';
 
   /** Ouvre la SAISIE de l'estimation des dépenses variables (et non sa fiche de lecture). */
   const openVariableInput = () => {
@@ -929,28 +858,18 @@ export default function PilotageScreen() {
           }
         >
           {/* ── ACCUEIL tant que le tableau de bord n'a rien à dire ───────────────────────────────
-              Sans compte, tous les chiffres valent 0 : afficher la grille complète donnerait
-              l'impression que l'app ne fonctionne pas, et ne dirait nulle part par où commencer. On
-              la remplace donc par un accueil qui n'a qu'un seul but — envoyer créer les comptes.
-              Dès le premier compte, le tableau de bord reprend sa place. */}
-          {noAccountsYet ? (
+              Tant qu'il manque les comptes ou les flux du mois, le Relyka ne peut pas être calculé :
+              on remplace TOUT le contenu par l'accueil, dont le bouton porte la prochaine action
+              (créer un compte, puis saisir une récurrente). Dès que les deux sont là, le tableau de
+              bord reprend sa place — et les deux derniers réglages se font PAR-DESSUS lui. */}
+          {welcomeStep ? (
             <PilotageWelcome
-              variant="accounts"
+              step={welcomeStep}
               firstName={firstName}
-              onPress={() => router.push('/(tabs)/comptes' as any)}
+              onPress={() => router.push(welcomeRoute as any)}
             />
           ) : (
           <>
-          {/* Comptes créés mais aucune opération : les chiffres existent, mais l'app ne sait pas
-              encore ce qui rentre ni ce qui part. On le dit, en tête, avec le chemin pour corriger. */}
-          {!hasAnyTx && (
-            <PilotageWelcome
-              variant="transactions"
-              compact
-              onPress={() => router.push('/(tabs)/transactions' as any)}
-            />
-          )}
-
           {/* Zone conseils / clôture (priorité à la clôture si mois en attente) */}
           {showClosure ? (
             <MonthlyClosure
@@ -999,7 +918,6 @@ export default function PilotageScreen() {
               relykaMessages={relykaMessages}
               // Fourchette : sous le montant, jamais à sa place.
               relykaRange={relConf?.relykaRange}
-              heroRef={heroRef}
               recoRef={recoCardRef}
               monthRef={monthCardRef}
               variableLineRef={variableLineRef}
@@ -1011,10 +929,7 @@ export default function PilotageScreen() {
               reservedTotal={(pilotageData.monthly_reserve_planned ?? 0) + reservationsTotal + cumulsTotal}
               savedTotal={pilotageData.month_savings_total ?? 0}
               investedTotal={pilotageData.month_invest_total ?? 0}
-              onOpenRelyka={() => {
-                setDetailKey('relyka');
-                if (userGuide.is('pilotage_relyka')) userGuide.done('g2_relyka');
-              }}
+              onOpenRelyka={() => setDetailKey('relyka')}
               // « Tu devrais encore dépenser » : pendant l'étape du guide, ce tap ouvre directement la
               // SAISIE de l'estimation (ce qu'on lui demande de faire), pas la fiche de lecture.
               onOpenDetail={(k) => {
@@ -1048,15 +963,6 @@ export default function PilotageScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <GuideOverlay
-        visible={guide.visible}
-        steps={PILOTAGE_GUIDE}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(PILOTAGE_GUIDE.length)}
-        onSkip={guide.skip}
-        scrollRef={scrollRef}
-        screenTitle="Pilotage"
-      />
 
       {/* ══════════ GUIDE UTILISATEUR ══════════ */}
 
@@ -1064,96 +970,47 @@ export default function PilotageScreen() {
           app/_layout : ils ne doivent pas attendre le chargement de ce tableau de bord. */}
 
       {/* LA présentation du tableau de bord — une seule séquence, cinq zones. */}
-      <GuideOverlay
-        visible={pilotBubbles.visible}
-        steps={PILOT_BUBBLES}
-        currentStep={pilotBubbles.step}
-        onNext={pilotBubbles.next}
-        onSkip={() => {}}
-        scrollRef={scrollRef}
-        screenTitle="Ton tableau de bord"
-        inverted
-        hideSkip
-      />
 
       {/* 3. Dépenses variables — la bulle scrolle jusqu'à la ligne et l'ouvre. */}
-      <GuideOverlay
-        visible={userGuide.is('pilotage_variable') && pilotFocused && !showVariableModal}
-        steps={[{
-          highlightKey: 'variableLine',
-          anchorRef: () => variableLineRef,
-          icon: 'cart-outline',
-          iconColor: COLORS.orange,
-          title: 'Tes dépenses variables',
-          description: 'Courses, sorties, imprévus : dis-nous à peu près combien tu dépenses en moyenne. \nAu début c\'est une estimation — elle s\'ajustera ensuite à ton réel.',
-        }]}
-        currentStep={0}
-        onNext={openVariableInput}
-        onSkip={() => {}}
-        scrollRef={scrollRef}
-        nextLabel="Renseigner"
-        inverted
-        hideSkip
-      />
 
       {/* 4. Marge de sécurité. */}
-      <GuideOverlay
-        visible={userGuide.is('pilotage_margin') && pilotFocused && !showMarginModal}
-        steps={[{
-          highlightKey: 'marginLine',
-          anchorRef: () => marginLineRef,
-          icon: 'shield-checkmark-outline',
-          iconColor: COLORS.teal,
-          title: 'Ta marge de sécurité',
-          description: 'Le montant que tu veux toujours garder sur tes comptes courants. \n\nRelyka ne le déplacera nulle part : il ne te proposera simplement jamais d\'y toucher. 0 € est une réponse valable.',
-        }]}
-        currentStep={0}
-        onNext={() => { setMarginInput(String(Math.round(pilotageData.safety_margin_amount ?? 0))); setShowMarginModal(true); }}
-        onSkip={() => {}}
-        scrollRef={scrollRef}
-        nextLabel="Renseigner"
-        inverted
-        hideSkip
-      />
 
       {/* 6. Tout à la fin : le menu de l'entête. L'avatar trace lui-même son anneau (rond), donc
              le cadre tombe pile dessus quelle que soit la hauteur de la barre de statut. */}
-      <GuideOverlay
-        visible={userGuide.is('pilotage_menu') && pilotFocused && detailKey === null}
-        steps={[{
-          highlightKey: 'headerProfile',
-          anchorRef: () => getGuideAnchor('headerProfile'),
-          icon: 'person-circle',
-          iconColor: COLORS.emerald,
-          title: 'Ton menu',
-          description: 'En haut à droite : ton profil, tes réglages, les Conseils intelligents, ton abonnement et l\'assistance. Tout le reste est là.\n\nC\'est bon, tu sais tout — à toi de jouer !',
-        }]}
-        currentStep={0}
-        onNext={() => userGuide.done('g2_menu')}
-        onSkip={() => {}}
-        nextLabel="Terminer"
-        inverted
-        hideSkip
-      />
 
       {/* 5. Ouvrir le détail du Relyka (remonte en haut de page). */}
-      <GuideOverlay
-        visible={userGuide.is('pilotage_relyka') && pilotFocused && detailKey === null}
-        steps={[{
-          highlightKey: 'relykaHero',
-      anchorRef: () => heroRef,
-          icon: 'sparkles',
-          iconColor: COLORS.emerald,
-          title: 'Comment il est calculé',
-          description: 'Appuie sur ton Relyka pour voir comment il est calculé.',
-        }]}
-        currentStep={0}
-        onNext={() => { setDetailKey('relyka'); userGuide.done('g2_relyka'); }}
-        onSkip={() => {}}
-        scrollRef={scrollRef}
-        nextLabel="Ouvrir"
-        inverted
-        hideSkip
+
+      {/* ══ PARCOURS DE DÉMARRAGE — étapes 3 et 4, les deux derniers repères ══════════════════════
+          Elles se jouent SUR le tableau de bord, pas dans un écran de réglages : la page a défilé
+          jusqu'à la ligne concernée (cf. `scrollToRow`) et le voile du modal est allégé, donc on
+          voit la ligne qu'on est en train de renseigner. Ces deux montants sont les derniers qui
+          manquent au profil financier — une fois saisis, le parcours se termine et le profil est
+          présenté (components/ProfileTourConclusion). */}
+      <GuideModal
+        visible={requireVariable && pilotFocused && !showVariableModal && detailKey === null}
+        icon="cart-outline"
+        iconColor={COLORS.orange}
+        eyebrow="Étape 3 · Tes dépenses variables"
+        title="Combien pars-tu en courses et en sorties ?"
+        text={"Courses, essence, restos, imprévus : tout ce qui n'est pas une charge fixe. Donne un ordre de grandeur — c'est la ligne « Tu devrais encore dépenser », juste derrière ce message.\n\nAu début c'est une estimation ; dès que tu auras deux mois de saisies, Relyka la remplacera par ton vrai rythme."}
+        cta={{ label: 'Renseigner', icon: 'arrow-forward', onPress: openVariableInput }}
+      />
+
+      <GuideModal
+        visible={requireMargin && pilotFocused && !showMarginModal && detailKey === null}
+        icon="shield-checkmark-outline"
+        iconColor={COLORS.teal}
+        eyebrow="Étape 4 · Ta marge de sécurité"
+        title="Combien veux-tu toujours garder ?"
+        text={"Le montant que tu ne veux jamais voir descendre de tes comptes courants — c'est la ligne « Tu veux garder au moins », derrière ce message.\n\nRelyka ne le déplacera nulle part : il ne te proposera simplement jamais d'y toucher. 0 € est une réponse valable."}
+        cta={{
+          label: 'Renseigner',
+          icon: 'arrow-forward',
+          onPress: () => {
+            setMarginInput(String(Math.round(pilotageData.safety_margin_amount ?? 0)));
+            setShowMarginModal(true);
+          },
+        }}
       />
 
       {/* Modale pré-épargne / pré-invest */}
@@ -1434,8 +1291,26 @@ export default function PilotageScreen() {
                         const sub = t.category?.name || 'Autre';
                         return catParentName[String(sub).toLowerCase()] || sub;
                       };
+                      // Filtre « Récurrentes » : combiné au filtre par catégorie, il répond à la
+                      // question « qu'est-ce que je paie tous les mois, là-dedans ? ».
+                      const recurSpent = suiviDetail.spent.filter(isRecurringTx);
+                      // Filtre « À venir » : les occurrences récurrentes du mois PAS ENCORE prélevées.
+                      // Elles ne sont évidemment pas « dépensées » — elles ne comptent donc dans aucun
+                      // total, et s'affichent grisées, exactement comme dans le modal des récurrentes.
+                      // Mais c'est ici qu'on se pose la question « et qu'est-ce qui va encore tomber ? ».
+                      const upcomingList = recurUpcoming.list;
+                      const viewingUpcoming = spentUpcomingOnly && upcomingList.length > 0;
+
+                      /* ⚠️ Le graphique se calcule sur la liste FILTRÉE, pas sur toutes les dépenses.
+                         Seul le montant au centre suivait les filtres : l'anneau et sa légende
+                         restaient ceux du mois entier, si bien qu'en cochant « Récurrentes » on
+                         lisait un total récurrent posé sur une répartition qui ne l'était pas. */
+                      const chartSource = viewingUpcoming ? upcomingList
+                        : spentRecurOnly ? recurSpent
+                        : suiviDetail.spent;
+
                       const groups: Record<string, { key: string; total: number; icon: string; color: string }> = {};
-                      for (const t of suiviDetail.spent) {
+                      for (const t of chartSource) {
                         const key = parentOf(t);
                         (groups[key] ??= { key, total: 0, icon: iconForCategory(t.category), color: '' });
                         groups[key].total += toRef(t);
@@ -1444,26 +1319,19 @@ export default function PilotageScreen() {
                       const arr = Object.values(groups).sort((a, b) => b.total - a.total);
                       arr.forEach((g, i) => { g.color = palette[i % palette.length]; });
                       const totalSpent = arr.reduce((s, g) => s + g.total, 0);
-                      // Filtre « Récurrentes » : combiné au filtre par catégorie, il répond à la
-                      // question « qu'est-ce que je paie tous les mois, là-dedans ? ».
-                      const recurSpent = suiviDetail.spent.filter(isRecurringTx);
-                      const recurSpentTotal = recurSpent.reduce((s, t) => s + toRef(t), 0);
-                      // Filtre « À venir » : les occurrences récurrentes du mois PAS ENCORE prélevées.
-                      // Elles ne sont évidemment pas « dépensées » — elles ne comptent donc dans aucun
-                      // total, et s'affichent grisées, exactement comme dans le modal des récurrentes.
-                      // Mais c'est ici qu'on se pose la question « et qu'est-ce qui va encore tomber ? ».
-                      const upcomingList = recurUpcoming.list;
-                      const upcomingTotal = recurUpcoming.amount;
-                      const viewingUpcoming = spentUpcomingOnly && upcomingList.length > 0;
-                      const filtered = viewingUpcoming
-                        ? upcomingList
-                        : (spentFilter ? suiviDetail.spent.filter((t) => parentOf(t) === spentFilter) : suiviDetail.spent)
-                            .filter((t) => !spentRecurOnly || isRecurringTx(t));
+
+                      /* Catégorie choisie AVANT de cocher « Récurrentes » : elle peut ne plus exister
+                         dans la nouvelle répartition (rien de récurrent dans cette catégorie). On
+                         l'ignore alors, au lieu d'afficher une liste vide et un total à 0. */
+                      const effectiveFilter = spentFilter && groups[spentFilter] ? spentFilter : null;
+                      const filtered = effectiveFilter
+                        ? chartSource.filter((t) => parentOf(t) === effectiveFilter)
+                        : chartSource;
                       // Centre de l'anneau : ce que la liste affichée représente réellement.
-                      const centerVal = viewingUpcoming ? upcomingTotal
-                        : spentRecurOnly && !spentFilter ? recurSpentTotal
-                        : spentFilter ? (groups[spentFilter]?.total ?? 0)
-                        : totalSpent;
+                      const centerVal = effectiveFilter ? (groups[effectiveFilter]?.total ?? 0) : totalSpent;
+                      // Totaux des PASTILLES : ce qu'elles sélectionneraient, donc calculés hors filtre.
+                      const recurSpentTotal = recurSpent.reduce((s, t) => s + toRef(t), 0);
+                      const upcomingTotal = recurUpcoming.amount;
                       return (
                         <>
                           {arr.length > 0 && (
@@ -1474,7 +1342,7 @@ export default function PilotageScreen() {
                                     segments={arr.map((g) => ({ key: g.key, value: g.total, color: g.color }))}
                                     size={isDesktop ? 184 : 150}
                                     strokeWidth={isDesktop ? 24 : 20}
-                                    activeKey={viewingUpcoming ? null : spentFilter}
+                                    activeKey={effectiveFilter}
                                     centerLabel={fmt(centerVal)}
                                     centerSub={viewingUpcoming ? 'à venir' : spentRecurOnly ? 'récurrent' : undefined}
                                     centerColor={COLORS.text}
@@ -1484,7 +1352,7 @@ export default function PilotageScreen() {
                                 <View style={isDesktop ? styles.chartLegendDesktop : undefined}>
                                   <View style={styles.pieLegend}>
                                     {arr.map((g) => {
-                                      const active = spentFilter === g.key;
+                                      const active = effectiveFilter === g.key;
                                       return (
                                         <TouchableOpacity
                                           key={g.key}
@@ -2203,23 +2071,6 @@ export default function PilotageScreen() {
       </Modal>
       <CalculatorButton page="pilotage" />
       <RecurringTransactionsModal visible={showRecurringModal} onClose={() => setShowRecurringModal(false)} userId={user?.id} />
-
-      {/* Vue pédagogique de première visite : les 4 recommandations (avec les VRAIES raisons
-          d'inactivité, lues dans le moteur) puis les deux façons de se servir de l'app. */}
-      {showDiscovery && pilotageData && (
-        <DiscoveryIntro
-          data={pilotageData}
-          recommendations={recoList}
-          financialProfileId={financialProfile?.profile_id as FinancialProfileId | undefined}
-          // Freins de sécurité : quand ils s'appliquent, le moteur ne renvoie QUE « Conserver ».
-          guardActive={recoList.length === 1 && recoList[0].type === 'keep' && !!recoList[0].guardNote}
-          onOpenAi={() => router.push('/(tabs)/conseils-ia' as any)}
-          onClose={() => {
-            setShowDiscovery(false);
-            updateOnboarding.mutate({ flags: { discovery_intro_seen: true } as any });
-          }}
-        />
-      )}
     </View>
   );
 }

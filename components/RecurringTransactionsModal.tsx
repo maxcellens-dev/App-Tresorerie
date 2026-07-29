@@ -11,7 +11,6 @@ import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { sheetWidth } from '../lib/appLayout';
 import { RootPortal } from '../lib/rootPortal';
-import GuideRing from './GuideRing';
 import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../hooks/useRecurringTransactions';
 
 const KIND_META: Record<RecurKind, { title: string; icon: string; colorKey: 'blue' | 'danger' | 'green' }> = {
@@ -48,7 +47,6 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
         <Pressable style={s.sheet} onPress={() => {}}>
           {/* Anneau tracé par la feuille elle-même : le guide peut la désigner en même temps que
               le bouton qui l'ouvre, sans aucune position à mesurer. */}
-          <GuideRing target="recurringSheet" radius={22} inset={-3} />
           <View style={s.grabber} />
           <View style={s.header}>
             <Ionicons name="repeat" size={20} color={c.text} />

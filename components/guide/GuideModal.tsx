@@ -47,13 +47,10 @@ interface Props {
   secondary?: { label: string; onPress: () => void };
   /** Petite note en pied (précision, rassurance). */
   note?: string;
-  /** Position verticale. 'top' laisse la moitié basse libre — pour commenter une feuille ouverte
-      (liste des récurrentes…) sans la recouvrir. Défaut : centré. */
-  align?: 'center' | 'top';
 }
 
 export default function GuideModal({
-  visible, eyebrow, icon, iconColor, title, text, steps, choices, cta, secondary, note, align,
+  visible, eyebrow, icon, iconColor, title, text, steps, choices, cta, secondary, note,
 }: Props) {
   const c = useInvertedColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -63,7 +60,7 @@ export default function GuideModal({
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
-      <View style={[styles.overlay, align === 'top' && styles.overlayTop]}>
+      <View style={styles.overlay}>
         <View style={styles.card}>
           <ScrollView
             style={{ flexGrow: 0 }}
@@ -155,10 +152,11 @@ export default function GuideModal({
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-    // Voile plus dense que les modaux ordinaires : le guide doit couper court à la page.
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.66)', alignItems: 'center', justifyContent: 'center', padding: 20 },
-    // Voile plus léger en haut : ce qu'on commente (la feuille ouverte en bas) doit rester lisible.
-    overlayTop: { justifyContent: 'flex-start', paddingTop: 56, backgroundColor: 'rgba(0,0,0,0.45)' },
+    /* Voile VOLONTAIREMENT léger. Il était à 0,66 : la page disparaissait derrière, alors que ces
+       étapes parlent justement de ce qu'il y a dessous (la ligne « Tu devrais encore dépenser », le
+       bouton de création de compte…). On garde juste assez de contraste pour que la carte se
+       détache et que le reste ne capte pas l'œil. */
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.38)', alignItems: 'center', justifyContent: 'center', padding: 20 },
     card: {
       width: '100%', maxWidth: 400, maxHeight: '88%',
       backgroundColor: c.cardSolid, borderRadius: 26,

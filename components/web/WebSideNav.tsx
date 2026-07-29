@@ -22,13 +22,9 @@ import { useRwInvitations } from '../../hooks/useRelykaWorld';
 import { useAccountInvitations, useSharedAccountsRealtime } from '../../hooks/useSharedAccounts';
 import { useCreditInvitations, useSharedCreditsRealtime } from '../../hooks/useSharedCredits';
 import { useAdminUnreadCount, useUserUnreadCount } from '../../hooks/useUnreadBadges';
-import { markNavTap, markNavDispatched } from '../../lib/navPerf';
 import { SIDEBAR_WIDTH, pointer, transition, shadow } from '../../lib/webLayout';
 import { APP_VERSION } from '../../lib/appVersion';
 import { UnreadBadge } from '../HeaderWithProfile';
-import { useGuideQuickAddOpen } from '../../lib/guideHighlight';
-import GuideRing from '../GuideRing';
-import { registerGuideAnchor, unregisterGuideAnchor } from '../../lib/guideAnchors';
 
 interface NavItem {
   key: string;
@@ -60,17 +56,6 @@ export default function WebSideNav() {
   const { data: flags } = useFeatureFlags();
   const appNameFontStyle = useAppNameFontStyle();
   const [quickOpen, setQuickOpen] = useState(false);
-
-  /* Guide utilisateur : sur un écran d'ordinateur, le « + » rond n'existe pas — c'est CE bouton qui
-     porte la saisie. Il obéit donc aux mêmes signaux que lui : anneau de mise en avant (GuideRing)
-     et déploiement piloté, sinon le guide présentait un bouton absent de l'écran. */
-  const guideWantsQuickOpen = useGuideQuickAddOpen();
-  useEffect(() => { setQuickOpen(guideWantsQuickOpen); }, [guideWantsQuickOpen]);
-  const quickBtnRef = useRef<View>(null);
-  useEffect(() => {
-    registerGuideAnchor('quickAdd', quickBtnRef);
-    return () => unregisterGuideAnchor('quickAdd');
-  }, []);
 
   const isAdmin = (profile as any)?.is_admin === true;
   const adminUnread = useAdminUnreadCount(isAdmin, user?.id);
@@ -146,11 +131,9 @@ export default function WebSideNav() {
    * veut bien pouvoir quitter avec « retour ».
    */
   const go = (route: string, mode: 'navigate' | 'push' = 'navigate') => {
-    markNavTap();
     setQuickOpen(false);
     if (mode === 'push') router.push(route as any);
     else router.navigate(route as any);
-    markNavDispatched();
   };
 
   const renderItem = (it: NavItem) => {
@@ -199,10 +182,7 @@ export default function WebSideNav() {
       {/* ── Action principale (remplace le « + » flottant) ── */}
       {flags?.quick_add_enabled !== false && (
         <View style={styles.quickWrap}>
-          <View ref={quickBtnRef} collapsable={false}>
-            {/* Anneau tracé DANS la boîte du bouton (aucune position mesurée) : le guide peut le
-                désigner à l'écran, exactement comme le « + » rond sur mobile. */}
-            <GuideRing target="quickAdd" radius={14} inset={-7} />
+          <View>
             <Pressable
               onPress={() => setQuickOpen((v) => !v)}
               accessibilityRole="button"

@@ -9,7 +9,6 @@ import { useSharedContribution } from './useSharedContribution';
 import { usePreSavings } from './usePreSavings';
 import { useReservations } from './useReservations';
 import { useOnboarding } from './useOnboarding';
-import { usePageIntro } from './usePageIntro';
 import { useAppLockPrompt } from './useAppLockPrompt';
 import { useReliabilityConfig, deriveRelykaConfidence } from './useReliability';
 import { isRegul } from '../lib/regul';
@@ -27,11 +26,11 @@ export function useAppState(): AppAction | null {
   const { data: reservations = [] } = useReservations(user?.id);
   const { data: relCfg } = useReliabilityConfig();
   const { allDone: onboardingDone } = useOnboarding(user?.id);
-  // Proposition du verrouillage biométrique : seulement APRÈS la présentation du Pilotage (le modal
-  // d'intro a été lu et fermé), et jamais en consultation admin (le verrou est local à l'appareil).
-  const { seen: pilotageIntroSeen } = usePageIntro('pilotage');
+  /* Proposition du verrouillage biométrique. Elle attendait la fermeture du modal de présentation
+     du Pilotage — ce modal n'existe plus (plus aucune présentation en pop-up) : il ne reste que la
+     garde qui compte vraiment, la consultation admin (le verrou est local à l'appareil). */
   const { offer: appLockOffer } = useAppLockPrompt();
-  const offerAppLock = appLockOffer && pilotageIntroSeen && !isImpersonating;
+  const offerAppLock = appLockOffer && !isImpersonating;
 
   return useMemo(() => {
     if (!pilotage) return null;

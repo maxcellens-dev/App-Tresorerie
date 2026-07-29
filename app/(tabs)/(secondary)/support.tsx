@@ -12,7 +12,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { pageColumn } from '../../../lib/webLayout';
-import { useTour } from '../../../contexts/TourContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUserUnreadCount } from '../../../hooks/useUnreadBadges';
 import { useNavBack } from '../../../hooks/useNavBack';
@@ -23,7 +22,6 @@ export default function SupportScreen() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
-  const tour = useTour();
   const { user } = useAuth();
   const assistanceUnread = useUserUnreadCount(user?.id);
 
@@ -35,7 +33,6 @@ export default function SupportScreen() {
       items: [
         { icon: 'headset-outline', label: 'Assistance', color: COLORS.emerald, onPress: () => router.push('/(tabs)/(secondary)/assistance'), badge: assistanceUnread },
         { icon: 'bulb-outline', label: 'Boîte à idées', color: '#f59e0b', onPress: () => router.push('/(tabs)/(secondary)/ideas') },
-        { icon: 'navigate-circle-outline', label: 'Revoir le guide de présentation', color: COLORS.textSecondary, onPress: () => tour.start(), italic: true },
       ],
     },
     {

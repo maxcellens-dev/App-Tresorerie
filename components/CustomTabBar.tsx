@@ -1,7 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform, DeviceEventEmitter } from 'react-native';
-import { registerGuideAnchor, unregisterGuideAnchor } from '../lib/guideAnchors';
-import GuideRing from './GuideRing';
 
 /** Événement émis quand on tape l'onglet « Comptes » → la page réinitialise son sous-onglet sur « Comptes ». */
 export const COMPTES_TAB_PRESSED = 'comptesTabPressed';
@@ -9,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
-import { markNavTap, markNavDispatched } from '../lib/navPerf';
 import { useRwInvitations } from '../hooks/useRelykaWorld';
 import { useAccountInvitations, useSharedAccountsRealtime } from '../hooks/useSharedAccounts';
 import { useCreditInvitations, useSharedCreditsRealtime } from '../hooks/useSharedCredits';
@@ -54,20 +51,12 @@ export default function CustomTabBar({ state, navigation }: any) {
   useSharedAccountsRealtime(user?.id); // sync live des comptes partagés/joints + invitations
   useSharedCreditsRealtime(user?.id);  // sync live des crédits partagés + invitations
 
-  // Ancre du guide : la vraie position de la barre (mesurée), pas un rectangle « height - 78 » approximatif.
-  const barRef = useRef<any>(null);
-  useEffect(() => {
-    registerGuideAnchor('tabbar', barRef);
-    return () => unregisterGuideAnchor('tabbar');
-  }, []);
-
   return (
     // paddingBottom = inset système (barre de navigation / gestes) → le contenu remonte
     // au-dessus des boutons du téléphone, et le fond couvre toute la zone (pas de bande vide).
-    <View ref={barRef} collapsable={false} style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.topBorder} />
       {/* Bordure du guide tracée SUR la barre elle-même (aucune mesure). */}
-      <GuideRing target="tabbar" radius={12} inset={-2} />
       {ITEMS.map((it) => {
         const focused = activeRoute === it.name;
         const color = focused ? COLORS.tabActive : COLORS.tabInactive;
@@ -76,7 +65,6 @@ export default function CustomTabBar({ state, navigation }: any) {
             key={it.name}
             style={styles.item}
             onPress={() => {
-              markNavTap(); // sonde de perf globale (NavPerfProbe)
               setPressedTab(it.name); // surlignage optimiste (état local, harmless)
               if (it.name === 'comptes') DeviceEventEmitter.emit(COMPTES_TAB_PRESSED);
               // Navigation SYNCHRONE et directe = l'état STABLE mesuré (453/507, aucun pic).
@@ -86,14 +74,12 @@ export default function CustomTabBar({ state, navigation }: any) {
               const nested = it.name === 'comptes' || it.name === 'transactions' || it.name === 'projects';
               if (nested) navigation.navigate(it.name, { screen: 'index' });
               else navigation.navigate(it.name);
-              markNavDispatched(); // fin du dispatch synchrone (sonde : sépare calcul / attente)
             }}
             accessibilityRole="button"
           >
             {/* Anneau tracé sur l'ONGLET lui-même : le guide peut désigner « Pilotage » ou
                 « Projets » sans jamais calculer « largeur ÷ 5 », un découpage qui tombait à côté
                 dès que la barre changeait de hauteur ou de nombre d'onglets. */}
-            <GuideRing target={`tab:${it.name}` as any} radius={14} inset={-4} />
             <View>
               {focused ? (
                 <View style={[styles.activeIndicator, { backgroundColor: COLORS.tabActive + '20' }]}>

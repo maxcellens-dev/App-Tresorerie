@@ -1,10 +1,11 @@
 /**
  * CONCLUSION DU PARCOURS DE DÉMARRAGE — « voici ton profil financier ».
  *
- * S'affiche UNE SEULE FOIS, juste après la toute dernière bulle du guide (« Ton menu »), jamais
- * avant : pendant l'installation, le profil bouge à chaque saisie (comptes, puis récurrences), et
- * l'annoncer en cours de route revenait à interrompre l'utilisateur pour un chiffre pas encore
- * stabilisé. Ici, il conclut : « voilà ce que tes données disent de toi ».
+ * S'affiche UNE SEULE FOIS, juste après la DERNIÈRE étape (la marge de sécurité), jamais avant :
+ * pendant l'installation, le profil bouge à chaque saisie — comptes, puis récurrences, puis les deux
+ * repères — et l'annoncer en cours de route revenait à interrompre l'utilisateur pour un chiffre pas
+ * encore stabilisé. À ce moment précis, en revanche, TOUTES les données qui le déterminent ont été
+ * saisies : il conclut « voilà ce que tes données disent de toi », et c'est vrai.
  *
  * Deux cas, et AUCUNE action demandée dans les deux :
  *  • tout est renseigné → on présente le profil obtenu et sa répartition ;

@@ -1,6 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
-import { registerGuideAnchor, unregisterGuideAnchor } from '../lib/guideAnchors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +13,6 @@ import { useCosmetics } from '../hooks/useCosmetics';
 import OnboardingChecklist from './OnboardingChecklist';
 import StreakChip from './StreakChip';
 import ProfileMenuModal from './ProfileMenuModal';
-import GuideRing from './GuideRing';
 
 /** Mélange opaque base + overlay à alpha (0-1). */
 function blendHex(base: string, overlay: string, alpha: number): string {
@@ -111,14 +109,6 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
   const isOnSettings = currentPage === 'parametres';
   const isAdmin = (profile as any)?.is_admin === true;
   const [menuOpen, setMenuOpen] = useState(false);
-  // Ancre du guide : la vraie position de l'avatar (mesurée), pas un rectangle approximatif.
-  const avatarRef = useRef<any>(null);
-  useEffect(() => {
-    if (hideProfile) return;
-    registerGuideAnchor('headerProfile', avatarRef);
-    return () => unregisterGuideAnchor('headerProfile');
-  }, [hideProfile]);
-
   // Badges « non lu » : réponses assistance pour l'utilisateur, assistance + idées pour l'admin.
   const userUnread = useUserUnreadCount(user?.id);
   const adminUnread = useAdminUnreadCount(isAdmin, user?.id);
@@ -195,7 +185,6 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          ref={avatarRef}
           style={styles.avatarWrap}
           onPress={() => setMenuOpen(true)}
           activeOpacity={0.8}
@@ -212,7 +201,6 @@ export default function HeaderWithProfile({ title, leftContent, height = 56, sho
             )}
           </View>
           {/* Bordure du guide tracée SUR l'avatar lui-même (aucune mesure). */}
-          <GuideRing target="headerProfile" circle inset={-3} />
           <UnreadBadge count={userUnread} style={{ top: -2, right: -4 }} />
         </TouchableOpacity>
       </View>}

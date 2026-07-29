@@ -13,17 +13,11 @@ import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import { currencySymbolFor } from '../../../lib/currency';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
+import { pageColumn, IS_WEB } from '../../../lib/webLayout';
 import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
-import { getGuideAnchor } from '../../../lib/guideAnchors';
-import GuideRing from '../../../components/GuideRing';
-import { useTour } from '../../../contexts/TourContext';
 import { useFeatureFlags } from '../../../hooks/useFeatureFlags';
 import CurrencyPicker from '../../../components/CurrencyPicker';
-import GuideOverlay from '../../../components/GuideOverlay';
-import type { BubbleStep } from '../../../components/GuideOverlay';
-import { useScreenGuide } from '../../../hooks/useScreenGuide';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
 import { usePilotageTips, useRecoDismissals, useQuickAddPref, CALCULATOR_PAGES } from '../../../hooks/useUiPrefs';
@@ -111,7 +105,6 @@ function SettingsScreen() {
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
   const isAdmin = profile?.is_admin ?? false;
-  const tour = useTour();
   const { data: featureFlags } = useFeatureFlags();
   const closureEnabled = Boolean(featureFlags?.monthly_closure_enabled);
   // Bouton « Mise à jour » : compare la version installée à la dernière publiée (config admin).
@@ -150,7 +143,6 @@ function SettingsScreen() {
 
   // ── Guide "bulles" ──
   const insets = useSafeAreaInsets();
-  const guide = useScreenGuide('parametres', user?.id);
   const scrollRef = useRef<ScrollView>(null);
   // Scroll auto vers la section « Affichage & aides » quand on arrive via la roue crantée du bandeau conseils.
   const params = useLocalSearchParams<{ scrollTo?: string }>();
@@ -166,34 +158,6 @@ function SettingsScreen() {
   const marginRowRef = useRef<any>(null);
   const monProfilRowRef = useRef<any>(null);
 
-  const GUIDE_STEPS: BubbleStep[] = [
-    {
-      highlightKey: 'headerProfile',
-      anchorRef: () => getGuideAnchor('headerProfile'),
-      icon: 'settings',
-      iconColor: COLORS.emerald,
-      title: 'Paramètres',
-      description: 'Accessible en haut à droite via ton avatar. Tu y règles l\'app, tes catégories et l\'assistance.',
-    },
-    {
-      highlightKey: 'settingsCategories',
-      anchorRef: () => categoriesRowRef,
-      icon: 'pie-chart-outline',
-      iconColor: COLORS.emerald,
-      title: 'Gérer les catégories',
-      description: 'Ajoute, renomme ou supprime tes catégories et sous-catégories de dépenses et de recettes. Elles structurent ton plan de trésorerie et tes statistiques.',
-    },
-    // L'étape « Marge de sécurité » n'est présentée ici que si le réglage y est affiché ; sinon elle
-    // pointerait sur un élément absent (le réglage vit dans le Pilotage).
-    ...(SHOW_SAFETY_MARGIN ? [{
-      highlightKey: 'settingsMargin',
-      anchorRef: () => marginRowRef,
-      icon: 'shield-outline',
-      iconColor: '#60a5fa',
-      title: 'Marge de sécurité',
-      description: 'Montant que tu souhaites conserver au minimum sur tes comptes courants à la fin du mois, par sécurité. Déduit du "Budget libre à allouer" dans le Pilotage.',
-    }] as BubbleStep[] : []),
-  ];
 
   // ── Safety margin (montant en €) ──
   const handleSafetyAmountSave = useCallback(() => {
@@ -268,7 +232,6 @@ function SettingsScreen() {
                 place pour un même réglage). Code conservé (SHOW_SAFETY_MARGIN pour le rétablir). */}
             {SHOW_SAFETY_MARGIN && (
             <View ref={marginRowRef} style={[styles.row, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, borderBottomWidth: 0 }]}>
-              <GuideRing target="settingsMargin" radius={12} inset={-5} />
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' }}>
                 <Ionicons name="shield-outline" size={20} color={COLORS.textSecondary} />
                 <Text numberOfLines={1} style={[styles.rowLabel, { flex: 1 }]}>Marge de sécurité</Text>
@@ -356,7 +319,6 @@ function SettingsScreen() {
           <Text style={styles.sectionTitle}>Paramétrage</Text>
           <View style={styles.card}>
             <TouchableOpacity ref={categoriesRowRef} style={styles.row} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/categories')}>
-              <GuideRing target="settingsCategories" radius={12} inset={-5} />
               <Ionicons name="pie-chart-outline" size={20} color={COLORS.textSecondary} />
               <Text style={styles.rowLabel}>Gérer les catégories</Text>
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
@@ -486,7 +448,13 @@ function SettingsScreen() {
             })()}
           </View>
 
-          {/* ── Application (notifications + mise à jour) ── */}
+          {/* ── Application ─────────────────────────────────────────────────────────────────
+              Masquée sur le WEB : les trois réglages qu'elle porte n'y existent pas. Les
+              notifications sont celles du mobile, le verrouillage s'appuie sur Face ID / l'empreinte
+              de l'appareil, et la « mise à jour » installe un correctif OTA — sur un navigateur,
+              recharger la page suffit. Les proposer là-bas revenait à afficher trois interrupteurs
+              sans effet. */}
+          {!IS_WEB && (<>
           <Text style={styles.sectionTitle}>Application</Text>
           <View style={styles.card}>
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
@@ -532,18 +500,10 @@ function SettingsScreen() {
               <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
+          </>)}
         </KeyboardAwareScrollView>
       </SafeAreaView>
 
-      <GuideOverlay
-        visible={guide.visible}
-        steps={GUIDE_STEPS}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(GUIDE_STEPS.length)}
-        onSkip={guide.skip}
-        scrollRef={scrollRef}
-        screenTitle="Paramètres"
-      />
     </View>
   );
 }

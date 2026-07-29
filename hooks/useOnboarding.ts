@@ -24,18 +24,12 @@ export type OnboardingStepKey =
   | 'reserved_consulted'
   | 'projection_edited';
 
-// 'comptes' remplace le tour ancré qui présentait cette page : la page la plus structurante de
-// l'app n'avait plus aucune présentation depuis son retrait.
-export type PageIntroKey = 'transactions' | 'pilotage' | 'projets' | 'projection' | 'comptes';
-
 export type OnboardingFlag =
   | 'dismissed' | 'checklist_intro_shown' | 'reserved_consulted' | 'projection_edited' | 'reco_validated'
-  /** Vue pédagogique du tableau de bord (4 recommandations + 2 façons de s'en servir) déjà lue. */
-  | 'discovery_intro_seen'
-  // (`pilotage_simple` retiré : le tableau de bord n'a plus qu'une seule mise en page. D'anciens
-  //  profils portent encore la clé dans `onboarding_state` — elle n'est simplement plus lue.)
-  | 'intro_seen_transactions' | 'intro_seen_pilotage' | 'intro_seen_projets' | 'intro_seen_projection'
-  | 'intro_seen_comptes' | 'intro_seen_menu';
+  /* Anciennes vues de découverte. Elles n'existent plus, mais le drapeau reste ÉCRIT et LU : c'est
+     lui qui distingue un compte déjà installé d'un compte neuf, et donc qui empêche de relancer le
+     parcours de démarrage chez quelqu'un qui a fini le sien (cf. contexts/GuideContext). */
+  | 'discovery_intro_seen';
 
 export interface OnboardingStep {
   key: OnboardingStepKey;
@@ -48,22 +42,12 @@ export interface OnboardingStep {
 interface OnboardingState {
   dismissed?: boolean;
   checklist_intro_shown?: boolean;
-  /** Vue pédagogique du tableau de bord déjà lue (remplace le tour ancré obligatoire). */
+  /** Compte déjà installé via une ancienne version du démarrage (cf. OnboardingFlag). */
   discovery_intro_seen?: boolean;
   reserved_consulted?: boolean;
   projection_edited?: boolean;
   reco_validated?: boolean;
-  // Présentations « 1ʳᵉ visite » par page (modal centré). Réinitialisées si on relance le tuto.
-  intro_seen_transactions?: boolean;
-  intro_seen_pilotage?: boolean;
-  intro_seen_projets?: boolean;
-  intro_seen_projection?: boolean;
-  intro_seen_comptes?: boolean;
-  intro_seen_menu?: boolean;
 }
-
-/** Toutes les clés de présentation de page, pour réinitialiser le tuto. */
-export const ALL_PAGE_INTRO_KEYS: PageIntroKey[] = ['transactions', 'comptes', 'projets', 'projection', 'pilotage'];
 
 // Les DEUX premières étapes sont les conditions de FIABILITÉ des calculs : sans elles, le Relyka
 // et les conseils restent approximatifs. Les suivantes font découvrir des fonctions utiles mais

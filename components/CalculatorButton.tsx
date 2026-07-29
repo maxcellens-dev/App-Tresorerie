@@ -7,11 +7,13 @@
  * et de la barre d'onglets). Surchargeable via `style`.
  */
 import React, { useRef, useCallback } from 'react';
-import { StyleSheet, View, Animated, PanResponder, ViewStyle, StyleProp } from 'react-native';
+import { StyleSheet, View, Animated, PanResponder, ViewStyle, StyleProp, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCalculator } from '../contexts/CalculatorContext';
+import { useResponsive } from '../hooks/useResponsive';
+import { MAX_W, SIDEBAR_WIDTH } from '../lib/webLayout';
 import type { CalculatorPageId } from '../hooks/useUiPrefs';
 
 interface Props {
@@ -28,6 +30,19 @@ const TAP_THRESHOLD = 5; // px : en-dessous, on considère un tap (pas un glisse
 export default function CalculatorButton({ page, style, size = 48 }: Props) {
   const COLORS = useAppColors();
   const { isOpen, toggle, enabled, pages } = useCalculator();
+  const { isDesktop } = useResponsive();
+  const { width: winW } = useWindowDimensions();
+
+  /* ORDINATEUR : le contenu vit dans une colonne CENTRÉE, alors que ce bouton était collé au bord
+     droit de la fenêtre — sur un écran large il se retrouvait à des centaines de pixels de ce qu'il
+     accompagne, isolé dans le vide. On le ramène juste à côté de la colonne : il reste hors du
+     texte, mais dans le champ de vision. (Sur mobile, rien ne change : le bord droit EST la
+     colonne.) L'utilisateur peut toujours le déplacer au doigt/à la souris. */
+  const desktopRight = React.useMemo(() => {
+    if (!isDesktop) return null;
+    const contentW = Math.max(0, winW - SIDEBAR_WIDTH); // la barre latérale décale déjà l'écran
+    return Math.max(16, (contentW - MAX_W.dashboard) / 2 - size - 8);
+  }, [isDesktop, winW, size]);
 
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const moved = useRef(false);
@@ -66,7 +81,12 @@ export default function CalculatorButton({ page, style, size = 48 }: Props) {
 
   return (
     <Animated.View
-      style={[styles.wrap, style, { transform: pan.getTranslateTransform() }]}
+      style={[
+        styles.wrap,
+        desktopRight != null && { right: desktopRight },
+        style,
+        { transform: pan.getTranslateTransform() },
+      ]}
       {...responder.panHandlers}
       accessibilityRole="button"
       accessibilityLabel="Calculatrice (glisser pour déplacer)"

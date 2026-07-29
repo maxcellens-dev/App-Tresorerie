@@ -17,9 +17,7 @@ import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/Cat
 import type { RecurrenceRule } from '../../../types/database';
 import ScreenHeader from '../../../components/ScreenHeader';
 import CalculatorButton from '../../../components/CalculatorButton';
-import GuideRing from '../../../components/GuideRing';
 import { useGuide } from '../../../contexts/GuideContext';
-import { setGuideHighlight } from '../../../lib/guideHighlight';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
 import { useAppColors } from '../../../hooks/useAppColors';
@@ -146,14 +144,10 @@ export default function AddTransactionScreen() {
   /* ── Guide : première récurrence ───────────────────────────────────────────────────────────────
      On arrive ici depuis le guide (`?recurring=1`), à l'étape « enregistre une récurrente ». La case
      n'est VOLONTAIREMENT pas pré-cochée : le geste à apprendre, c'est de la cocher soi-même — c'est
-     lui qu'il faudra refaire pour chaque charge. On l'encadre donc, et on refuse l'enregistrement
-     tant qu'elle ne l'est pas. */
+     lui qu'il faudra refaire pour chaque charge. On refuse donc l'enregistrement tant qu'elle ne
+     l'est pas (le message d'erreur le dit ; il n'y a plus d'encadrement, cf. GuideModal). */
   const guide = useGuide();
   const guideNeedsRecurring = params.recurring === '1' && guide.is('tx_recurring') && !isRecurring;
-  useEffect(() => {
-    setGuideHighlight(guideNeedsRecurring ? 'recurringToggle' : null);
-    return () => setGuideHighlight(null);
-  }, [guideNeedsRecurring]);
 
   // Le bouton « + » (ou un lien) peut rouvrir cet écran DÉJÀ monté avec un type différent : expo-router
   // ne réinitialise alors pas le useState → on resynchronise le type sur le param à chaque changement.
@@ -722,7 +716,6 @@ export default function AddTransactionScreen() {
                   {/* Bordure du guide tracée SUR le bouton lui-même (aucune position mesurée).
                       `inset: 0` et non le défaut négatif : le bouton occupe toute la largeur
                       disponible, une bordure débordante était rognée à gauche et à droite. */}
-                  <GuideRing target="recurringToggle" radius={12} inset={0} />
                 </TouchableOpacity>
                 {guideNeedsRecurring && (
                   // Consigne du guide → couleurs INVERSÉES, comme tous les messages de démarrage :

@@ -86,10 +86,10 @@ function ConseilsIaScreen() {
   }, []);
 
   const { isPremium } = usePlan(uid);
-  const { data: profile } = useProfile(uid);
+  const { data: profile, isSuccess: profileReady } = useProfile(uid);
   const isAdmin = (profile as any)?.is_admin === true;
 
-  const { data: cfg } = useAiConfig();
+  const { data: cfg, isSuccess: cfgReady } = useAiConfig();
   const { data: quota, refetch: refetchQuota } = useAiQuota(uid);
   useAiExtraCreditsRealtime(uid); // crédit d'achat affiché dès qu'il tombe (webhook async)
   // Filet de sécurité : à chaque fois qu'on revient sur l'écran, on relit le quota (crédit tardif).
@@ -153,6 +153,12 @@ function ConseilsIaScreen() {
     }
   }, [lastUserId, scrollToQuestion]);
 
+  /* ⚠️ Les TROIS conditions d'accès viennent de requêtes : l'abonnement (profil), le rôle admin
+     (profil) et l'ouverture à tous (config IA). Tant qu'elles n'ont pas répondu, elles valent toutes
+     `false` — l'écran « réservé aux abonnés » s'affichait donc une fraction de seconde à CHAQUE
+     ouverture, y compris pour un abonné ou quand l'accès est ouvert à tous. On ne tranche qu'une
+     fois les deux lectures posées. */
+  const accessReady = profileReady && cfgReady;
   const allowed = isPremium || isAdmin || !!cfg?.open_to_all;
   const readOnly = isImpersonating || (!isPremium && !isAdmin && !cfg?.open_to_all); // consultation : pas d'envoi
   const remaining = quota?.remaining ?? 0;
@@ -310,6 +316,19 @@ function ConseilsIaScreen() {
   };
 
   const analyses = (prompts ?? []).filter((p) => p.key.startsWith('analysis_') && p.is_active);
+
+  // On ne sait pas encore si l'accès est ouvert : on attend plutôt que d'annoncer un refus à tort.
+  if (!accessReady) {
+    return (
+      <View style={s.root}>
+        <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
+        <ScreenGradient />
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} edges={['left', 'right']}>
+          <ActivityIndicator size="large" color={c.emerald} />
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   // ── Paywall (ni Premium, ni admin, ni ouvert à tous) ──
   if (!allowed) {

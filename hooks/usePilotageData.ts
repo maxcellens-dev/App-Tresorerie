@@ -9,6 +9,7 @@ import { isRegul } from '../lib/regul';
 import { isProjectSpendTx, projectMode } from '../lib/projectTx';
 import { computeTresoRows } from '../lib/tresoProjection';
 import { computeCashflowTrough } from '../lib/relyka';
+import { computeAvgMonthlyIncome } from '../lib/incomeAverage';
 import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
@@ -418,53 +419,6 @@ function detectExpectedIncome(transactions: any[], checkingIds: Set<string>, tod
   return none;
 }
 
-/**
- * Revenu mensuel « de référence » pour les mois de sécurité : moyenne des SOMMES de recettes par
- * mois sur les 6 derniers mois (toutes recettes confondues, hors virements/brouillons/régul).
- * On EXCLUT le tout 1ᵉʳ mois de l'utilisateur (arrivée sur l'app → données souvent incomplètes,
- * salaire pas forcément saisi) SAUF s'il contient déjà une vraie recette (> 1000 €, pas un simple
- * remboursement). Renvoie 0 si rien d'exploitable (mention « mois de sécurité » alors masquée).
- */
-function computeAvgMonthlyIncome(
-  transactions: any[],
-  checkingIds: Set<string>,
-  todayStr: string,
-  /** Date de création du profil : compte créé AVANT la fenêtre = utilisateur établi (le fetch est
-   *  désormais FENÊTRÉ → on ne peut plus compter sur la présence de recettes très anciennes). */
-  profileCreatedAt?: string | null,
-): number {
-  const REAL_INCOME_MIN = 1000; // seuil « vraie recette » (vs remboursement) pour valider le 1ᵉʳ mois
-  const now = new Date(todayStr + 'T00:00:00');
-  const windowStart = isoDay(new Date(now.getFullYear(), now.getMonth() - 5, 1)); // 6 mois (courant inclus)
-  const establishedByAge = !!profileCreatedAt && String(profileCreatedAt).slice(0, 10) < windowStart;
-  const qualifies = (t: any) =>
-    checkingIds.has(t.account_id) && !t.is_draft && !t.is_reserved && !t.linked_account_id
-    && Number(t.amount) > 0 && t.date <= todayStr && !/r[ée]gul/i.test(t.note ?? '')
-    // Un montant positif sur une catégorie de DÉPENSE = remboursement, pas un revenu.
-    && (t as any).category?.type !== 'expense';
-
-  const byMonth: Record<string, { sum: number; maxOne: number }> = {};
-  let hasOlderIncome = false; // une recette antérieure à la fenêtre → utilisateur établi (pas un 1ᵉʳ mois)
-  for (const t of transactions) {
-    if (!qualifies(t)) continue;
-    if (t.date < windowStart) { hasOlderIncome = true; continue; }
-    const amt = Number(t.amount);
-    const mk = t.date.slice(0, 7);
-    const e = (byMonth[mk] ??= { sum: 0, maxOne: 0 });
-    e.sum += amt;
-    e.maxOne = Math.max(e.maxOne, amt);
-  }
-
-  let months = Object.keys(byMonth).sort(); // chronologique
-  if (months.length === 0) return 0;
-  // Si la fenêtre atteint le 1ᵉʳ mois de l'utilisateur, on ne le retient que s'il a une vraie recette.
-  if (!hasOlderIncome && !establishedByAge && byMonth[months[0]].maxOne <= REAL_INCOME_MIN) {
-    months = months.slice(1);
-  }
-  if (months.length === 0) return 0;
-  const total = months.reduce((s, mk) => s + byMonth[mk].sum, 0);
-  return total / months.length;
-}
 
 /** Prudence (0..1, 1 = très prudent). Override profiles.prudence_level (0..100), sinon dérivée des allocations. */
 function profilePrudence(profile: any): number {

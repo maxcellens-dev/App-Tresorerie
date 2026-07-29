@@ -20,9 +20,6 @@ import { useResponsive } from '../../../hooks/useResponsive';
 import { pageColumn } from '../../../lib/webLayout';
 import { useCosmetics } from '../../../hooks/useCosmetics';
 import { useNavBack } from '../../../hooks/useNavBack';
-import GuideOverlay, { type BubbleStep } from '../../../components/GuideOverlay';
-import { useScreenGuide } from '../../../hooks/useScreenGuide';
-import GuideRing from '../../../components/GuideRing';
 
 
 export default function ProfileScreen() {
@@ -61,16 +58,10 @@ export default function ProfileScreen() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // ── Guide de présentation (bulles) ──
-  const guide = useScreenGuide('parametres', user?.id);
   const scrollRef = useRef<ScrollView>(null);
   const avatarRef = useRef<View>(null);
   const infoRef = useRef<View>(null);
   const pwdRef = useRef<View>(null);
-  const PROFILE_GUIDE: BubbleStep[] = [
-    { highlightKey: 'profileAvatar', anchorRef: () => avatarRef, icon: 'person-circle-outline', iconColor: COLORS.green, title: 'Ton profil', description: 'Ajoute une photo et personnalise ton compte.' },
-    { highlightKey: 'profileInfo', anchorRef: () => infoRef, icon: 'create-outline', iconColor: '#60a5fa', title: 'Tes informations', description: 'Modifie ton nom puis enregistre. L\'e-mail est géré par la connexion.' },
-    { highlightKey: 'profilePassword', anchorRef: () => pwdRef, icon: 'lock-closed-outline', iconColor: '#a78bfa', title: 'Sécurité', description: 'Change ton mot de passe quand tu le souhaites.' },
-  ];
 
   useEffect(() => {
     setFullName(profile?.full_name ?? user?.user_metadata?.full_name ?? '');
@@ -275,7 +266,6 @@ export default function ProfileScreen() {
         />
         <KeyboardAwareScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection} ref={avatarRef}>
-            <GuideRing target="profileAvatar" radius={16} inset={-5} />
             <View style={avatarFrameColor ? [styles.avatarFrame, { borderColor: avatarFrameColor }] : undefined}>
               {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} style={styles.avatar} />
@@ -322,7 +312,6 @@ export default function ProfileScreen() {
           </View>
 
           <View ref={infoRef}>
-            <GuideRing target="profileInfo" radius={16} inset={-5} />
             <Text style={styles.label}>Nom</Text>
             <TextInput
               style={styles.input}
@@ -354,7 +343,6 @@ export default function ProfileScreen() {
 
           {/* Accès rapides : mes données + changement de mot de passe */}
           <View style={styles.linksCard} ref={pwdRef}>
-            <GuideRing target="profilePassword" radius={16} inset={-5} />
             <TouchableOpacity style={styles.linkRow} activeOpacity={0.7} onPress={() => router.push('/(tabs)/(secondary)/mes-donnees')}>
               <Ionicons name="download-outline" size={20} color={COLORS.emerald} />
               <Text style={styles.linkLabel}>Mes données</Text>
@@ -444,15 +432,6 @@ export default function ProfileScreen() {
         </Modal>
       </SafeAreaView>
 
-      <GuideOverlay
-        visible={guide.visible}
-        steps={PROFILE_GUIDE}
-        currentStep={guide.step}
-        onNext={() => guide.goNext(PROFILE_GUIDE.length)}
-        onSkip={guide.skip}
-        scrollRef={scrollRef}
-        screenTitle="Profil"
-      />
     </View>
   );
 }

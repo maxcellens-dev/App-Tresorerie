@@ -24,8 +24,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useQuickAddPref } from '../hooks/useUiPrefs';
 import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { APP_MAX_WIDTH } from '../lib/appLayout';
-import { useGuideQuickAddOpen } from '../lib/guideHighlight';
-import GuideRing from './GuideRing';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
 const ACTION_SIZE = 54;       // actions plus grosses et lisibles
@@ -110,14 +108,6 @@ export default function QuickAddButton() {
   // déclenchent deux fois la même branche → état désynchronisé de l'animation.
   const toggle = () => { if (openRef.current) close(); else openMenu(); };
 
-  // Le guide peut demander que le menu soit DÉPLOYÉ pendant qu'il le présente : montrer un « + »
-  // fermé ne montrerait aucune des quatre saisies dont la bulle parle.
-  const guideWantsOpen = useGuideQuickAddOpen();
-  useEffect(() => {
-    if (guideWantsOpen) openMenu();
-    else if (openRef.current) close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guideWantsOpen]);
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
   const enabled = flags?.quick_add_enabled !== false;      // admin : défaut activé
@@ -238,7 +228,6 @@ export default function QuickAddButton() {
           {/* Anneau de mise en avant, tracé DANS la boîte du bouton (aucune position mesurée) :
               la présentation du bouton + peut ainsi le DÉSIGNER à l'écran au lieu d'en parler
               dans le vide. Voir lib/guideHighlight. */}
-          <GuideRing target="quickAdd" circle inset={-9} />
           <TouchableOpacity
             style={styles.fab}
             onPress={toggle}

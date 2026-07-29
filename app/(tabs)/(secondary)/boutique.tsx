@@ -18,7 +18,7 @@ import { pageColumn } from '../../../lib/webLayout';
 import { useGamification } from '../../../hooks/useGamification';
 import { usePlan } from '../../../hooks/usePlan';
 import { useNavBack } from '../../../hooks/useNavBack';
-import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, monthlySelectionKeys, shopFinalPrice, shopDiscountPct, type ShopItem, type ShopCategory } from '../../../lib/gamification';
+import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, shopFinalPrice, type ShopItem, type ShopCategory } from '../../../lib/gamification';
 import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/purchases';
 
 type ShopTab = 'app' | 'relyka';
@@ -56,12 +56,9 @@ function BoutiqueScreen() {
   const gems = state?.gems ?? 0;
   const freezes = state?.freezes ?? 0;
   const discountPct = config?.premium_discount_pct ?? 0;
-  // Remise de la « Sélection du mois » — appliquée à TOUS (cumulée avec le Premium).
-  const monthlyPct = config?.monthly_selection_discount_pct ?? 30;
-  const monthlyKeys = useMemo(() => new Set(monthlySelectionKeys(config?.shop ?? [])), [config?.shop]);
-  // Prix final key-aware : remise Premium + promo du mois (si l'article est dans la sélection).
-  const priceOf = (base: number, key?: string) =>
-    shopFinalPrice(base, { isPremium, premiumPct: discountPct, isMonthlyPick: !!key && monthlyKeys.has(key), monthlyPct });
+  /* Prix final : la remise Premium, et rien d'autre. La « Sélection du mois » (2 articles tournants
+     à −30 %) a été retirée — elle encombrait la page et faisait cohabiter deux prix par article. */
+  const priceOf = (base: number) => shopFinalPrice(base, { isPremium, premiumPct: discountPct });
   const currencyName = config?.identity.currencyName ?? 'Relyk';
   // Libellé / description calculés pour les articles « monnaie » (toujours au nom courant + pluriel).
   const gemsOf = (item: ShopItem) => Number((item.payload as any)?.gems) || 0;
@@ -135,8 +132,7 @@ function BoutiqueScreen() {
       );
     }
     // Produit unique déjà acquis : prix grisé, achat impossible (même avec assez de relyks).
-    const owned = (inventory.find((i) => i.item_key === item.key)?.qty ?? 0) > 0;
-    if (isUniqueItem(item) && owned) {
+    if (isUniqueItem(item) && (inventory.find((i) => i.item_key === item.key)?.qty ?? 0) > 0) {
       return (
         <View style={[styles.buyBtn, { backgroundColor: COLORS.cardBorder }]}>
           <Ionicons name="checkmark" size={12} color={COLORS.textSecondary} />
@@ -144,12 +140,12 @@ function BoutiqueScreen() {
         </View>
       );
     }
-    const price = priceOf(item.price, item.key);
-    const isPick = monthlyKeys.has(item.key);
+    const price = priceOf(item.price);
     const canBuy = gems >= price && !busy;
     return (
       <View style={{ alignItems: 'flex-end', gap: 2 }}>
-        {isPick && price < item.price && <Text style={styles.gridStrike}>{item.price}</Text>}
+        {/* Prix barré : uniquement quand la remise Premium s'applique réellement. */}
+        {price < item.price && <Text style={styles.gridStrike}>{item.price}</Text>}
         <TouchableOpacity style={[styles.buyBtn, { backgroundColor: canBuy ? COLORS.emerald : COLORS.cardBorder }]} onPress={() => canBuy && setConfirmItem({ key: item.key, label: item.label, price })} disabled={!canBuy} activeOpacity={0.85}>
           {busy ? <ActivityIndicator size="small" color="#fff" /> : (
             <>
@@ -238,11 +234,22 @@ function BoutiqueScreen() {
               {shopByCategory.length > 1 && (
                 <ScrollView ref={filterScrollRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} style={{ marginBottom: 6 }}>
                   {(() => {
-                    const cats: ShopCategory[] = shopByCategory.map((g) => g.cat).filter((c) => c !== 'premium');
-                    if (shopByCategory.some((g) => g.cat === 'premium')) cats.splice(1, 0, 'premium' as ShopCategory);
+                    /* Ordre voulu : Tout · Premium · Relyks · le reste.
+                       « Gratuit » n'a pas de pastille : c'est déjà la première section de la page,
+                       un raccourci vers ce qu'on a sous les yeux n'apporte rien. */
+                    const present = (c: ShopCategory) => shopByCategory.some((g) => g.cat === c);
+                    const head: ShopCategory[] = (['premium', 'gems'] as ShopCategory[]).filter(present);
+                    const rest = shopByCategory
+                      .map((g) => g.cat)
+                      .filter((c) => c !== 'gratuit' && !head.includes(c));
                     return [
                       { cat: 'all' as const, label: 'Tout', icon: 'apps-outline' },
-                      ...cats.map((c) => ({ cat: c, label: c === 'premium' ? 'Premium' : SHOP_CATEGORY_LABELS[c as ShopCategory], icon: SHOP_CATEGORY_ICONS[c as ShopCategory] })),
+                      ...[...head, ...rest].map((c) => ({
+                        cat: c,
+                        // « Recharger en relyks » est le titre de SECTION ; sur une pastille, il déborde.
+                        label: c === 'premium' ? 'Premium' : c === 'gems' ? 'Relyks' : SHOP_CATEGORY_LABELS[c as ShopCategory],
+                        icon: SHOP_CATEGORY_ICONS[c as ShopCategory],
+                      })),
                     ];
                   })().map((f) => {
                     const active = catFilter === f.cat;
@@ -255,50 +262,6 @@ function BoutiqueScreen() {
                   })}
                 </ScrollView>
               )}
-
-              {/* ── Sélection du mois : mise en avant tournante (déterministe par mois) de 2 articles
-                  cosmétiques/apparence → crée un rendez-vous mensuel dans la boutique. ── */}
-              {catFilter === 'all' && (() => {
-                const pool = shopByCategory
-                  .filter((g) => g.cat === 'apparence' || g.cat === 'cosmetiques' || g.cat === 'titres')
-                  .flatMap((g) => g.items);
-                if (pool.length < 2) return null;
-                const m = new Date().getMonth() + new Date().getFullYear() * 12;
-                const picks = [pool[m % pool.length], pool[(m + Math.floor(pool.length / 2)) % pool.length]]
-                  .filter((v, i, a) => a.indexOf(v) === i);
-                const monthLabel = new Date().toLocaleDateString('fr-FR', { month: 'long' });
-                return (
-                  <View style={styles.monthlyPickCard}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Ionicons name="star" size={14} color={'#F5B301'} />
-                      <Text style={styles.monthlyPickTitle}>Sélection de {monthLabel}</Text>
-                    </View>
-                    {picks.map((item) => {
-                      const final = priceOf(item.price, item.key);
-                      const pct = shopDiscountPct({ isPremium, premiumPct: discountPct, isMonthlyPick: true, monthlyPct });
-                      return (
-                        <View key={item.key} style={styles.monthlyPickRow}>
-                          <Text style={styles.monthlyPickLabel} numberOfLines={1}>{itemLabel(item)}</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            {pct > 0 && (
-                              <>
-                                <View style={styles.discountPill}>
-                                  <Text style={styles.discountPillText}>−{pct}%</Text>
-                                </View>
-                                <Text style={styles.strikePrice}>{item.price}</Text>
-                              </>
-                            )}
-                            <Text style={styles.monthlyPickPrice}>{final} {currencyName}{final > 1 ? 's' : ''}</Text>
-                          </View>
-                        </View>
-                      );
-                    })}
-                    <Text style={styles.monthlyPickHint}>
-                      {`−${monthlyPct}% ce mois-ci${isPremium && discountPct > 0 ? ` · cumulé avec ton −${discountPct}% Premium` : ''} · Profites-en 👇`}
-                    </Text>
-                  </View>
-                );
-              })()}
 
               {(catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter)).map(({ cat, items }) => {
                 const compact = cat === 'gems' || cat === 'series';
@@ -317,7 +280,7 @@ function BoutiqueScreen() {
                       </View>
                       {/* Lien « Consulter mes achats » → Apparence (cosmétiques équipables : cadres, titres, flammes…) */}
                       {(cat === 'apparence' || cat === 'cosmetiques' || cat === 'titres' || cat === 'premium') && (
-                        <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence' as any)} activeOpacity={0.7}>
+                        <TouchableOpacity style={styles.apparenceLink} onPress={() => router.push('/(tabs)/(secondary)/apparence?origin=/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.7}>
                           <Ionicons name="color-palette-outline" size={13} color={COLORS.emerald} />
                           <Text style={styles.apparenceLinkText}>Consulter mes achats</Text>
                         </TouchableOpacity>
@@ -344,7 +307,6 @@ function BoutiqueScreen() {
                       </View>
                     ) : (
                       items.map((item) => {
-                        const owned = inventory.find((i) => i.item_key === item.key)?.qty ?? 0;
                         const frozen = !!item.premiumOnly && !isPremium; // exclusif Premium, non débloqué
                         // Cosmétiques (cadres/flammes) : teinte = leur vraie couleur → style cohérent (ex. flamme bleue ≈ flamme dorée).
                         const cosmeticColor = COSMETIC_DEFS[item.key] && /^#[0-9A-Fa-f]{6}$/.test(COSMETIC_DEFS[item.key].value) ? COSMETIC_DEFS[item.key].value : null;
@@ -460,16 +422,6 @@ function makeStyles(c: any) {
     tabTextActive: { color: c.emerald },
     sectionIntro: { fontSize: 13, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },
     catHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    /* Sélection du mois */
-    monthlyPickCard: { backgroundColor: c.card, borderWidth: 1.5, borderColor: '#F5B301' + '66', borderRadius: 14, padding: 14, marginBottom: 14, gap: 8 },
-    monthlyPickTitle: { fontSize: 14, fontWeight: '800', color: c.text, textTransform: 'capitalize' },
-    monthlyPickRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-    monthlyPickLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: c.text },
-    monthlyPickPrice: { fontSize: 13, fontWeight: '800', color: '#F5B301' },
-    monthlyPickHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
-    discountPill: { backgroundColor: '#F5B301', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
-    discountPillText: { fontSize: 10.5, fontWeight: '900', color: '#1a1200' },
-    strikePrice: { fontSize: 12, color: c.textSecondary, textDecorationLine: 'line-through' },
     gridStrike: { fontSize: 10.5, color: c.textSecondary, textDecorationLine: 'line-through' },
     catHeader: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6 },
     gemsNote: { fontSize: 11.5, color: c.textSecondary, marginTop: -4, marginBottom: 8, lineHeight: 15 },

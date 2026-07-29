@@ -19,44 +19,48 @@
  * persistée. Sans ça, chaque étape attendait l'aller-retour Supabase pour disparaître.
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useIsMutating } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useAccounts } from '../hooks/useAccounts';
 import { useTransactions } from '../hooks/useTransactions';
 import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
-import { useUpdateOnboarding, ALL_PAGE_INTRO_KEYS } from '../hooks/useOnboarding';
+import { useUpdateOnboarding } from '../hooks/useOnboarding';
 
 /** Drapeaux du parcours (dans profiles.onboarding_state — aucune migration). */
 export type GuideFlag =
   | 'g2_started'        // le parcours a démarré (fige l'éligibilité : plus de dépendance aux données)
   | 'g2_intro'          // explication initiale lue (« J'ai compris »)
-  | 'g2_comptes_tour'   // présentation de la page Comptes + repères vus
   | 'g2_nudge_savings'  // invitation « ajoute une épargne » passée ou honorée
-  | 'g2_tx_tour'        // présentation de la page Transactions + repères vus
-  | 'g2_pilot_tour'     // repères du Pilotage vus
   | 'g2_variable'       // estimation des dépenses variables saisie (> 0)
   | 'g2_margin'         // marge de sécurité enregistrée (0 accepté)
-  | 'g2_relyka'         // détail du Relyka ouvert
-  | 'g2_menu'           // menu de l'entête présenté (dernier geste du parcours)
   | 'g2_done'           // parcours terminé
   | 'g2_profile_shown'; // conclusion « ton profil financier » montrée (une seule fois, à la fin)
 
-/** Étape active. Une seule à la fois, dans cet ordre. */
+/**
+ * Étape active. Une seule à la fois, dans cet ordre — et CHACUNE demande une vraie action.
+ *
+ * Il n'existe plus aucune étape « présentation » : les tours en bulles ont été retirés (l'app se
+ * découvre en s'en servant, pas en lisant des pop-up par-dessus). Ce qui reste est exactement la
+ * liste des données SANS LESQUELLES le Relyka ne veut rien dire, dans l'ordre où elles se
+ * conditionnent :
+ *   comptes → ce qui rentre/sort chaque mois → dépenses variables → marge de sécurité.
+ * Une fois les quatre réunies, le profil financier est calculable : c'est la conclusion du parcours
+ * (cf. `tourJustFinished` et components/ProfileTourConclusion).
+ */
 export type GuideStage =
   | 'idle'
   | 'intro'
   | 'accounts'            // aucun compte : modal à 2 choix (création rapide / créer un compte)
-  | 'comptes_tour'        // 1er compte créé → présentation de la page Comptes
   | 'accounts_checking'   // des comptes, mais aucun compte courant (bloquant)
   | 'accounts_savings'    // aucune épargne (recommandé, passable)
-  | 'tx_tour'             // présentation de la page Transactions
   | 'tx_recurring'        // créer au moins une dépense/recette récurrente (bloquant)
-  | 'pilotage_tour'       // repères du Pilotage
   | 'pilotage_variable'   // « Tu devrais encore dépenser » → estimation obligatoire
-  | 'pilotage_margin'     // « Tu veux garder au moins » → enregistrement obligatoire
-  | 'pilotage_relyka'     // ouvrir le détail du Relyka
-  | 'pilotage_menu';      // le menu de l'entête — en DERNIER, sinon il passait par-dessus le
-                          // déploiement du bouton « + » et son cadre ne se remarquait pas
+  | 'pilotage_margin';    // « Tu veux garder au moins » → enregistrement obligatoire
+
+/** Étapes pendant lesquelles le tableau de bord n'a rien à montrer : le Relyka ne peut pas encore
+ *  être calculé (ni comptes, ni flux mensuels). Le Pilotage affiche l'accueil à la place. */
+export const SETUP_STAGES: readonly GuideStage[] = ['accounts', 'accounts_checking', 'accounts_savings', 'tx_recurring'];
 
 interface GuideCtx {
   /** Le parcours concerne-t-il cet utilisateur (et n'est-il pas terminé) ? */
@@ -65,7 +69,7 @@ interface GuideCtx {
    *  (sinon l'app se montre une seconde avant que la présentation ne prenne la main). */
   booting: boolean;
   stage: GuideStage;
-  /** Raccourci de lecture : `guide.is('tx_tour')`. */
+  /** Raccourci de lecture : `guide.is('tx_recurring')`. */
   is: (s: GuideStage) => boolean;
   /** Marque un drapeau (optimiste + persisté) → l'étape suivante s'active. */
   done: (flag: GuideFlag) => void;
@@ -74,12 +78,20 @@ interface GuideCtx {
   hasSavings: boolean;
   /** Le tour vient de se terminer et sa CONCLUSION (le profil financier) reste à montrer. */
   tourJustFinished: boolean;
+  /** L'installation n'est pas assez avancée pour que le tableau de bord ait un sens (cf. SETUP_STAGES). */
+  inSetup: boolean;
 }
 
 const Ctx = createContext<GuideCtx>({
   active: false, booting: false, stage: 'idle', is: () => false, done: () => {},
-  hasChecking: false, hasSavings: false, tourJustFinished: false,
+  hasChecking: false, hasSavings: false, tourJustFinished: false, inSetup: false,
 });
+
+/* Délai après la dernière écriture avant de reconclure sur les données. Assez long pour couvrir
+   l'invalidation + le départ de la relecture sur un téléphone lent, assez court pour qu'une étape
+   légitime n'attende pas. Si l'écriture a réellement échoué, l'étape revient après ce délai : rien
+   n'est perdu, c'est juste différé. */
+const WRITE_GRACE_MS = 1200;
 
 export function GuideProvider({ children }: { children: React.ReactNode }) {
   const { user, isImpersonating } = useAuth();
@@ -98,11 +110,26 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
      autre réponse réseau) : elle affichait déjà les comptes créés pendant que le guide, lui, en
      était encore à « tu n'as aucun compte » et rouvrait le modal « Étape 1 » par-dessus.
      Tant que la liste est vide ET en cours de lecture, on ne conclut rien. */
-  const accountsSettled = !accountsQuery.isFetching;
+  /* ⚠️ Et il reste un TROU que `isFetching` ne couvre pas, celui qui ramenait le modal « Étape 1 »
+     sous le nez de l'utilisateur : entre la fin de l'écriture et le début de la relecture, la
+     requête n'est NI en cours d'écriture NI en cours de lecture — elle rend encore l'ancienne
+     liste, vide. Sur un téléphone lent, cette fenêtre dure assez pour que le modal se rouvre.
+     On considère donc l'état comme non conclu tant qu'une écriture est en vol, plus un court
+     délai après la dernière : le temps que l'invalidation ait déclenché la relecture.
+     Vaut pour TOUTES les étapes déduites des données, pas seulement les comptes. */
+  const mutating = useIsMutating();
+  const [writeSettled, setWriteSettled] = useState(true);
+  useEffect(() => {
+    if (mutating > 0) { setWriteSettled(false); return; }
+    const t = setTimeout(() => setWriteSettled(true), WRITE_GRACE_MS);
+    return () => clearTimeout(t);
+  }, [mutating]);
+
+  const accountsSettled = !accountsQuery.isFetching && writeSettled;
   /* Même règle pour les RÉCURRENCES : au retour de l'écran de saisie, la liste est encore en cours
      de relecture — le guide en concluait « aucune récurrente » et rouvrait le modal « Étape 2 »
      par-dessus, alors que l'utilisateur venait précisément d'en créer une. */
-  const txSettled = !txQuery.isFetching;
+  const txSettled = !txQuery.isFetching && writeSettled;
 
   // Drapeaux posés dans CE rendu, avant retour serveur (fermeture immédiate des modaux).
   const [justSet, setJustSet] = useState<Record<string, boolean>>({});
@@ -112,13 +139,7 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
   const done = useCallback((f: GuideFlag) => {
     setJustSet((prev) => (prev[f] ? prev : { ...prev, [f]: true }));
     if (isImpersonating) return;
-    // Fin des écrans de présentation : ils ont déjà raconté chaque page (leurs textes en viennent).
-    // On éteint donc les présentations « 1ʳᵉ visite » de chaque onglet — sinon l'utilisateur se
-    // reprend le même discours en modal, cette fois en plein milieu d'une action.
-    const extra = f === 'g2_intro'
-      ? Object.fromEntries(ALL_PAGE_INTRO_KEYS.map((k) => ['intro_seen_' + k, true]))
-      : {};
-    update.mutate({ flags: { [f]: true, ...extra } as any });
+    update.mutate({ flags: { [f]: true } as any });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isImpersonating, update.mutate]);
 
@@ -195,29 +216,33 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
     if (!dataReady) return 'idle';
     // Liste vide : ce n'est « aucun compte » que si la lecture est POSÉE (cf. accountsSettled).
     if (accounts.length === 0) return accountsSettled ? 'accounts' : 'idle';
-    if (!flag('g2_comptes_tour')) return 'comptes_tour';
     if (!hasChecking) return 'accounts_checking';
     if (!hasSavings && !flag('g2_nudge_savings')) return 'accounts_savings';
-    if (!flag('g2_tx_tour')) return 'tx_tour';
     // Aucune récurrente : on ne le conclut que si la lecture est POSÉE (cf. txSettled).
     if (!hasRecurring) return txSettled ? 'tx_recurring' : 'idle';
-    if (!flag('g2_pilot_tour')) return 'pilotage_tour';
+    /* À partir d'ici le tableau de bord AFFICHE un Relyka : les deux dernières étapes se jouent
+       donc par-dessus lui, ligne à l'appui, pour qu'on voie ce qu'on renseigne et à quel endroit. */
     if (!flag('g2_variable')) return 'pilotage_variable';
     if (!flag('g2_margin')) return 'pilotage_margin';
-    if (!flag('g2_relyka')) return 'pilotage_relyka';
-    if (!flag('g2_menu')) return 'pilotage_menu';
     return 'idle';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, justSet, state, dataReady, accountsSettled, txSettled, accounts.length, hasChecking, hasSavings, hasRecurring]);
 
-  /* CONCLUSION : le parcours est fini (dernière bulle passée) mais le profil financier n'a pas
+  /* Installation en cours : le Relyka n'a pas encore de quoi être calculé. Le Pilotage remplace
+     alors tout son contenu par l'accueil, qui porte la PROCHAINE action — afficher une grille de
+     zéros ferait croire que l'app ne marche pas, et n'indiquerait nulle part par où commencer. */
+  const inSetup = active && SETUP_STAGES.includes(stage);
+
+  /* CONCLUSION : le parcours est fini (dernière étape franchie) mais le profil financier n'a pas
      encore été présenté. C'est le seul moment où on le montre — pas pendant l'installation, où il
      bouge à chaque saisie. */
   const tourJustFinished = !!profile && !isImpersonating && flag('g2_done') && !flag('g2_profile_shown');
 
   // Fin du parcours : toutes les étapes franchies → on referme définitivement.
+  // La marge de sécurité (g2_margin) est désormais la DERNIÈRE étape réelle (cf. `stage` ci-dessus :
+  // les présentations en bulles qui suivaient — Relyka, menu — ont été retirées).
   const closedRef = useRef(false);
-  const lastStepDone = flag('g2_menu');
+  const lastStepDone = flag('g2_margin');
   useEffect(() => {
     if (!active || stage !== 'idle' || !lastStepDone || closedRef.current) return;
     closedRef.current = true;
@@ -235,9 +260,9 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<GuideCtx>(() => ({
     active, booting, stage, is: (s: GuideStage) => stage === s, done, hasChecking, hasSavings,
-    tourJustFinished,
+    tourJustFinished, inSetup,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [active, booting, stage, done, hasChecking, hasSavings, tourJustFinished]);
+  }), [active, booting, stage, done, hasChecking, hasSavings, tourJustFinished, inSetup]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

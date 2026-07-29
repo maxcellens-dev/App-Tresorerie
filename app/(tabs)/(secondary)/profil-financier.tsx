@@ -62,6 +62,9 @@ function ProfilFinancierScreen() {
   const { data: userProfile } = useProfile(user?.id);
   const updateProfile = useUpdateProfile(user?.id);
 
+  /* (Le recalcul du profil n'est pas déclenché ici : un observateur global surveille les comptes et
+     les transactions et le relance dès qu'ils bougent — cf. components/LiveProfileSync.) */
+
   /** Panneau d'édition ouvert (une seule ligne à la fois). */
   const [editing, setEditing] = useState<null | 'q8' | 'q9'>(null);
   const [amountDraft, setAmountDraft] = useState('');
