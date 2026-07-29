@@ -387,10 +387,19 @@ export function useAddTransaction(profileId: string | undefined) {
           accountId: input.account_id,
           isFuture: input.date > localTodayISO(),
           date: input.date,
+          // Contexte nécessaire à l'estimation de fin de mois (cf. lib/pulseDelta) : une opération
+          // couverte par la régul du jour ne bouge aucun solde, et une dépense du quotidien est
+          // absorbée par l'enveloppe variable.
+          regulCovered,
+          categoryId: input.category_id || null,
+          isRecurring: input.is_recurring ?? false,
+          projectId: input.project_id ?? null,
         });
       }
       if (input.pulseTransferOp) {
-        emitPulseOp({ kind: 'transfer', ...input.pulseTransferOp });
+        // `regulCovered` de CETTE jambe (la 2ᵉ) : l'appariement jambe par jambe n'a pas de sens ici,
+        // et le chiffre exact arrive de toute façon au recalcul.
+        emitPulseOp({ kind: 'transfer', ...input.pulseTransferOp, regulCovered });
       }
 
       // Solde = recalcul depuis les faits (source de vérité, anti-dérive) — sauf si l'appelant

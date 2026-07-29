@@ -98,6 +98,12 @@ export interface PulseData {
    */
   endOfMonthBalance: number;
   safetyMargin: number;
+  /**
+   * Enveloppe variable RESTANTE du mois — exposée pour la même raison : le solde projeté la déduit
+   * déjà, donc une dépense du quotidien qui la consomme ne le déplace pas. Sans ce chiffre, la carte
+   * de confirmation annonçait une fin de mois amputée à chaque course (cf. lib/pulseDelta).
+   */
+  variableEnvelopeRemaining: number;
 }
 
 /**
@@ -360,6 +366,7 @@ function buildPulse(deps: PulseDeps): PulseData | null {
       hadActivityLastMonth,
       endOfMonthBalance: endOfMonthLeft,
       safetyMargin,
+      variableEnvelopeRemaining: relykaInputs.variableEnvelopeRemaining,
     };
   }
 }

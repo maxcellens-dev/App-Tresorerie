@@ -21,6 +21,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
 import { useAuth } from '../contexts/AuthContext';
 import { useAllAccounts } from '../hooks/useAccounts';
+import { useCategories } from '../hooks/useCategories';
 import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../lib/pulseBus';
@@ -87,6 +88,7 @@ export default function PulseDeltaHost() {
   const { user } = useAuth();
   const { data: config } = usePulseConfig();
   const { data: accounts = [] } = useAllAccounts(user?.id);
+  const { data: categories = [] } = useCategories(user?.id);
   const pulse = usePulse();
   const fetching = useIsFetching({ predicate: (q) => WATCHED_QUERIES.has(String(q.queryKey[0])) });
 
@@ -104,6 +106,8 @@ export default function PulseDeltaHost() {
   fetchingRef.current = fetching;
   const accountsRef = useRef<any[]>(accounts);
   accountsRef.current = accounts;
+  const categoriesRef = useRef<any[]>(categories);
+  categoriesRef.current = categories;
 
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
@@ -115,18 +119,34 @@ export default function PulseDeltaHost() {
     if (autoDismissTimer.current) { clearTimeout(autoDismissTimer.current); autoDismissTimer.current = null; }
   }, []);
 
-  /** Événement → opération jugeable : c'est ici qu'on résout les TYPES de comptes. */
+  /** Événement → opération jugeable : c'est ici qu'on résout les TYPES de comptes et de catégories
+   *  (l'hôte les a déjà en cache ; les mutations n'ont pas à aller les chercher). */
   const toOp = useCallback((event: PulseOpEvent): PulseOp => {
     const typeOf = (id?: string) =>
       id ? (accountsRef.current.find((a: any) => a.id === id)?.type as string | undefined) : undefined;
+    const accountType = typeOf(event.accountId);
+    // Consomme l'enveloppe variable ? MÊME règle que le « dépensé variable » du Pilotage
+    // (usePilotageData.isBudgetExpense + isRecurringTx) : dépense du quotidien sur un compte
+    // courant, non récurrente, hors projet, sur une catégorie de dépense (ou sans catégorie).
+    const category = event.categoryId
+      ? categoriesRef.current.find((c: any) => c.id === event.categoryId)
+      : null;
+    const hitsVariableEnvelope =
+      event.kind === 'expense'
+      && accountType === 'checking'
+      && !event.isRecurring
+      && !event.projectId
+      && (!event.categoryId || category?.type === 'expense');
     return {
       kind: event.kind,
       amount: event.amount,
-      accountType: typeOf(event.accountId),
+      accountType,
       fromType: typeOf(event.fromAccountId),
       toType: typeOf(event.toAccountId),
       isFuture: event.isFuture,
       date: event.date,
+      regulCovered: event.regulCovered,
+      hitsVariableEnvelope,
     };
   }, []);
 
@@ -135,16 +155,28 @@ export default function PulseDeltaHost() {
    *  direct — toujours exact — plutôt qu'un Relyka / signal PÉRIMÉS calculés sur l'état d'avant. */
   const renderFor = useCallback((p: Pending) => {
     const fresh = (p.forceFull || p.sawRefetch) && fetchingRef.current === 0 ? pulseRef.current : null;
+    // Fin de mois : on ne remplace l'estimation que par un solde VRAIMENT recalculé — un refetch
+    // ABOUTI depuis la saisie. Jamais le cache du filet (`forceFull`, 180 ms) : à cet instant les
+    // invalidations n'ont souvent pas encore eu lieu, et on annoncerait « inchangé » sur des
+    // données d'avant la saisie.
+    const settled = p.sawRefetch && fetchingRef.current === 0 ? pulseRef.current : null;
     const next = computeOpFeedback(
       toOp(p.event),
       p.before?.live ?? null,
       fresh?.live ?? null,
       p.before?.relyka ?? null,
       fresh?.relyka ?? null,
-      // Fin de mois : recalculée par ARITHMÉTIQUE depuis l'instantané d'AVANT la saisie. Elle ne
-      // dépend donc d'aucun refetch et s'affiche juste, tout de suite — c'est ce qui la rendait
-      // inutilisable auparavant (tirets puis remplissage, la carte changeait de hauteur).
-      p.before ? { before: p.before.endOfMonthBalance, margin: p.before.safetyMargin } : undefined,
+      // Fin de mois : ESTIMÉE par arithmétique depuis l'instantané d'AVANT (donc affichée tout de
+      // suite, sans tirets ni saut de hauteur), puis remplacée par le solde RECALCULÉ dès qu'il est
+      // frais — le seul juste dans tous les cas de saisie (cf. lib/pulseDelta).
+      p.before
+        ? {
+            before: p.before.endOfMonthBalance,
+            after: settled?.endOfMonthBalance ?? null,
+            margin: settled?.safetyMargin ?? p.before.safetyMargin,
+            variableEnvelopeRemaining: p.before.variableEnvelopeRemaining,
+          }
+        : undefined,
     );
     setFeedback((prev) => {
       // Rien n'a changé (renderFor est appelé à chaque vague de refetch) → on NE re-rend PAS :
@@ -266,17 +298,19 @@ export default function PulseDeltaHost() {
           })}
         </View>
 
-        {/* FIN DE MOIS — la seule info du Pouls affichée ici, parce que c'est la seule qui n'a
-            besoin d'AUCUN recalcul : le solde projeté varie exactement du montant de l'opération
-            (cf. lib/pulseDelta.computeEndOfMonthDelta). Elle est donc juste et instantanée, là où
-            la carte de signal complète s'affichait en tirets puis se remplissait en changeant de
-            hauteur — ce qui paraissait lent juste après une saisie. Le reste du Pouls est à un tap.
-            Pas de ligne quand l'opération ne déplace pas ce solde (datée hors du mois courant, ou
-            hors des comptes courants) : on ne répète pas un chiffre qui n'a pas bougé. */}
-        {!!feedback.endOfMonth && feedback.endOfMonth.delta !== 0 && (() => {
+        {/* FIN DE MOIS — la seule info du Pouls affichée ici, parce qu'elle s'affiche SANS attendre :
+            estimation arithmétique immédiate, puis solde recalculé (cf. lib/pulseDelta). La carte de
+            signal complète, elle, s'affichait en tirets puis se remplissait en changeant de hauteur —
+            ce qui paraissait lent juste après une saisie. Le reste du Pouls est à un tap.
+            Ligne affichée dès que l'opération CONCERNE ce solde (mois courant, compte courant), même
+            si l'écart est nul : c'est le cas d'une dépense variable déjà provisionnée ou d'une
+            opération comprise dans la régularisation du jour — le solde reste l'info attendue, seul
+            le « (−X €) » disparaît, parce que rien n'a bougé. */}
+        {!!feedback.endOfMonth && feedback.endOfMonth.concerns && (() => {
           const eom = feedback.endOfMonth;
           const tone: PulseStatus = eom.negative ? 'alert' : eom.belowMargin ? 'watch' : 'good';
           const color = pulseColor(COLORS, tone);
+          const moved = Math.round(eom.delta) !== 0;
           return (
             <View style={[styles.eom, { borderColor: color + '55', backgroundColor: color + '14' }]}>
               {/* Une PHRASE, pas deux colonnes de chiffres : on dit ce que le solde sera, quand, et
@@ -285,7 +319,9 @@ export default function PulseDeltaHost() {
                 🗓️ {firstOfNextMonthLabel()}, tu devrais avoir{' '}
                 <Text style={[styles.eomValue, { color }]}>{eurSigned(eom.amount, false)}</Text>
                 {' '}sur tes comptes courants
-                <Text style={styles.eomDelta}> ({eurSigned(eom.delta, true)})</Text>
+                {moved
+                  ? <Text style={styles.eomDelta}> ({eurSigned(eom.delta, true)})</Text>
+                  : <Text style={styles.eomDelta}> — inchangé par cette opération</Text>}
               </Text>
             </View>
           );

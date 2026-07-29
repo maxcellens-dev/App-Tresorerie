@@ -28,6 +28,18 @@ export interface PulseOp {
   isFuture?: boolean;
   /** Date de l'opération (YYYY-MM-DD) — pour savoir si elle tombe dans le mois courant. */
   date?: string;
+  /**
+   * L'opération est DÉJÀ comprise dans une régularisation de solde du même jour (réponse « oui,
+   * déjà incluse » — cf. useAddTransaction / regul_covered). Le solde du compte NE BOUGE PAS :
+   * annoncer « −750 € sur ta fin de mois » était alors totalement faux.
+   */
+  regulCovered?: boolean;
+  /**
+   * Dépense qui CONSOMME l'enveloppe variable du mois (dépense du quotidien, non récurrente, sur un
+   * compte courant). Son effet sur la fin de mois est ABSORBÉ par l'enveloppe restante : le solde
+   * projeté retirait déjà ces dépenses « à venir », les réaliser ne le change donc pas.
+   */
+  hitsVariableEnvelope?: boolean;
 }
 
 export interface PulseDeltaChip {
@@ -47,46 +59,87 @@ export interface PulseFeedback {
 export interface EndOfMonthPreview {
   /** Nouveau solde projeté au 1er du mois suivant. */
   amount: number;
-  /** Ce que l'opération vient de lui faire (0 = elle ne le touche pas). */
+  /** Ce que l'opération vient de lui faire (0 = elle ne le déplace pas). */
   delta: number;
   /** Le solde projeté passe-t-il sous la marge de sécurité ? (marge > 0 uniquement) */
   belowMargin: boolean;
   /** Le solde projeté passe-t-il dans le rouge ? */
   negative: boolean;
+  /**
+   * L'opération CONCERNE-t-elle ce solde (mois courant + au moins une jambe sur un compte courant) ?
+   * Sépare « ça ne me concerne pas » (→ pas de ligne) de « ça me concerne mais l'écart est nul »
+   * (dépense absorbée par l'enveloppe, opération déjà comprise dans la régul du jour…) : dans ce
+   * second cas le CHIFFRE reste utile, c'est le « (−750 €) » qui serait faux.
+   */
+  concerns: boolean;
+  /** Le chiffre est-il le solde RECALCULÉ (exact) plutôt que l'estimation arithmétique immédiate ? */
+  exact: boolean;
+}
+
+/** Clé de mois `YYYY-MM` d'une date locale. */
+function monthKeyOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**
- * FIN DE MOIS — recalcul INSTANTANÉ, par arithmétique.
- *
- * Cette carte avait été retirée parce qu'elle attendait le recalcul complet du Pouls : elle
- * s'affichait en tirets, se remplissait, changeait de hauteur — l'ensemble paraissait lent juste
- * après une saisie. Or le solde projeté de fin de mois varie EXACTEMENT du montant de l'opération
- * quand celle-ci tombe dans le mois courant et touche un compte courant. On l'obtient donc sans
- * aucun refetch, à partir de l'instantané pris juste avant la saisie — même principe que la
- * pastille d'effet direct, qui est « toujours exacte ».
- *
- * Règles (le solde projeté est celui des comptes COURANTS) :
- *  • recette / dépense sur un compte courant → ± le montant ;
- *  • recette / dépense sur épargne ou investissement → 0 (hors du solde courant) ;
- *  • virement courant → ailleurs → − le montant ; l'inverse → + le montant ;
- *  • virement courant → courant, ou épargne → invest → 0 (rien ne sort du périmètre).
- * Hors du mois courant → 0 : une opération datée du mois prochain ne change pas le 1er qui vient.
+ * L'opération CONCERNE-t-elle le solde courant projeté de fin de mois ? (mois courant + au moins une
+ * jambe sur un compte courant). Indépendant de l'ÉCART : une dépense variable du jour ne déplace pas
+ * ce solde (elle était déjà provisionnée dans l'enveloppe) mais le chiffre reste ce que
+ * l'utilisateur veut voir après sa saisie.
  */
-export function computeEndOfMonthDelta(op: PulseOp, today: Date): number {
+export function touchesEndOfMonth(op: PulseOp, today: Date): boolean {
+  if (!op.date || op.date.slice(0, 7) !== monthKeyOf(today)) return false;
+  if (op.kind === 'transfer') return op.fromType === 'checking' || op.toType === 'checking';
+  return op.accountType === 'checking';
+}
+
+/**
+ * FIN DE MOIS — ESTIMATION immédiate, par arithmétique.
+ *
+ * Sert uniquement le temps que le Pouls se recalcule : dès que les données fraîches arrivent, c'est
+ * le solde RECALCULÉ qui s'affiche (cf. computeOpFeedback). L'estimation existe parce que la carte
+ * apparaît à l'instant de la saisie : elle doit être PROCHE, sinon le chiffre saute sous les yeux.
+ *
+ * Le solde projeté vaut `point bas − virements épargne/invest à venir − enveloppe variable restante`
+ * (cf. hooks/usePulse). D'où les deux corrections, longtemps absentes, qui rendaient le chiffre
+ * « totalement faux » :
+ *
+ *  1. RÉGULARISATION DU MÊME JOUR. Répondre « oui, déjà incluse » pose `regul_covered` : le solde du
+ *     compte ne bouge PAS (la régul l'a déjà absorbée). Seule l'enveloppe variable est consommée.
+ *  2. ENVELOPPE VARIABLE. Une dépense du quotidien déjà ÉCHUE creuse le solde ET consomme
+ *     l'enveloppe restante, qui était justement déduite du solde projeté : les deux s'annulent tant
+ *     qu'il reste de l'enveloppe. Annoncer « −100 € » à chaque course était l'erreur la plus visible
+ *     — le vrai chiffre ne bougeait pas.
+ *
+ * Reste inchangé : recette/dépense hors compte courant → 0 ; virement courant → ailleurs → −
+ * montant, l'inverse → + montant ; courant → courant → 0 ; hors du mois courant → 0.
+ */
+export function computeEndOfMonthDelta(op: PulseOp, today: Date, variableEnvelopeRemaining = 0): number {
   // Sans date connue, on ne présume rien plutôt que d'annoncer un chiffre faux.
   if (!op.date) return 0;
-  const ym = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  if (op.date.slice(0, 7) !== ym) return 0;
+  if (op.date.slice(0, 7) !== monthKeyOf(today)) return 0;
 
   const amount = Math.abs(op.amount);
-  if (op.kind === 'income') return op.accountType === 'checking' ? amount : 0;
-  if (op.kind === 'expense') return op.accountType === 'checking' ? -amount : 0;
 
-  const fromChecking = op.fromType === 'checking';
-  const toChecking = op.toType === 'checking';
-  if (fromChecking && !toChecking) return -amount;
-  if (!fromChecking && toChecking) return amount;
-  return 0;
+  // Part de la dépense ABSORBÉE par l'enveloppe variable restante (dépense échue uniquement : une
+  // dépense datée plus tard n'est pas encore « consommée », elle s'ajoute au creux projeté).
+  const absorbed = op.kind === 'expense' && op.hitsVariableEnvelope && !op.isFuture
+    ? Math.min(amount, Math.max(0, variableEnvelopeRemaining))
+    : 0;
+
+  // Effet sur le solde lui-même — nul si l'opération est déjà comprise dans la régul du jour.
+  let balanceDelta = 0;
+  if (!op.regulCovered) {
+    if (op.kind === 'income') balanceDelta = op.accountType === 'checking' ? amount : 0;
+    else if (op.kind === 'expense') balanceDelta = op.accountType === 'checking' ? -amount : 0;
+    else {
+      const fromChecking = op.fromType === 'checking';
+      const toChecking = op.toType === 'checking';
+      balanceDelta = fromChecking && !toChecking ? -amount : !fromChecking && toChecking ? amount : 0;
+    }
+  }
+
+  return balanceDelta + absorbed;
 }
 
 const eur = (n: number) => `${Math.round(Math.abs(n)).toLocaleString('fr-FR')} €`;
@@ -244,8 +297,15 @@ export function computeOpFeedback(
   after: PulseResult | null,
   relykaBefore: number | null,
   relykaAfter: number | null,
-  /** Solde projeté au 1er du mois suivant AVANT la saisie, et marge de sécurité. */
-  endOfMonth?: { before: number | null; margin: number; today?: Date },
+  /** Solde projeté au 1er du mois suivant : AVANT la saisie, APRÈS recalcul (`after`, null tant que
+   *  les données ne sont pas fraîches), marge de sécurité et enveloppe variable restante d'avant. */
+  endOfMonth?: {
+    before: number | null;
+    after?: number | null;
+    margin: number;
+    variableEnvelopeRemaining?: number;
+    today?: Date;
+  },
 ): PulseFeedback {
   const chips: PulseDeltaChip[] = [directChip(op)];
 
@@ -277,17 +337,24 @@ export function computeOpFeedback(
     }
   }
 
-  // Fin de mois : calculée sur place, jamais attendue. Elle n'apparaît que si on connaît le solde
-  // projeté d'AVANT — sinon on préfère ne rien dire à afficher un tiret.
+  // Fin de mois : estimée sur place (jamais attendue), puis REMPLACÉE par le solde recalculé dès
+  // qu'il est frais — c'est lui qui fait foi, quelle que soit la situation de saisie (régularisation
+  // du jour, enveloppe variable, projet, crédit…). L'écart affiché se déduit du chiffre retenu :
+  // jamais un « (−750 €) » qui ne correspond pas au solde annoncé juste à côté.
+  // Rien si on ne connaît pas le solde projeté d'AVANT : on préfère ne rien dire à un tiret.
   let endOfMonthPreview: EndOfMonthPreview | null = null;
   if (endOfMonth && endOfMonth.before != null) {
-    const delta = computeEndOfMonthDelta(op, endOfMonth.today ?? new Date());
-    const amount = endOfMonth.before + delta;
+    const today = endOfMonth.today ?? new Date();
+    const estimated = endOfMonth.before + computeEndOfMonthDelta(op, today, endOfMonth.variableEnvelopeRemaining ?? 0);
+    const exact = endOfMonth.after != null;
+    const amount = exact ? endOfMonth.after! : estimated;
     endOfMonthPreview = {
       amount,
-      delta,
+      delta: amount - endOfMonth.before,
       belowMargin: endOfMonth.margin > 0 && amount < endOfMonth.margin,
       negative: amount < 0,
+      concerns: touchesEndOfMonth(op, today),
+      exact,
     };
   }
 

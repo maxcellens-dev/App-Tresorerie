@@ -991,6 +991,7 @@ export default function PilotageScreen() {
         icon="cart-outline"
         iconColor={COLORS.orange}
         eyebrow="Étape 3 · Tes dépenses variables"
+        step={{ index: 3, total: 4 }}
         title="Évalue ton budget mensuel"
         text={"Courses, essence, restos, imprévus : tout ce qui n'est pas une charge fixe. Donne un ordre de grandeur.\n\nDès que tu auras deux mois de saisies, Relyka remplacera cette estimation par ton vrai rythme."}
         cta={{ label: 'Renseigner', icon: 'arrow-forward', onPress: openVariableInput }}
@@ -1001,6 +1002,7 @@ export default function PilotageScreen() {
         icon="shield-checkmark-outline"
         iconColor={COLORS.teal}
         eyebrow="Étape 4 · Ta marge de sécurité"
+        step={{ index: 4, total: 4 }}
         title="Fixe un solde minimum à ne pas dépasser"
         text={"Le montant sous lequel tu ne veux pas voir tes comptes courants. \n\nRelyka te fera des recommandations pour ne pas tomber sous ce chiffre."}
         cta={{
@@ -1522,25 +1524,12 @@ export default function PilotageScreen() {
                               </TouchableOpacity>
                             ))
                           )}
-                          <TouchableOpacity
-                            style={styles.detailEditBtn}
-                            activeOpacity={0.7}
-                            onPress={() => { setDetailKey(null); setShowRecurringModal(true); }}
-                          >
-                            <Ionicons name="repeat" size={15} color={COLORS.emerald} />
-                            <Text style={styles.detailEditBtnText}>Voir toutes mes récurrentes</Text>
-                          </TouchableOpacity>
-                          {/* Répartition par catégorie des récurrentes du mois. Elle n'était
-                              atteignable que par la tuile « dont récurrentes » du tableau de bord,
-                              retirée : sans ce lien, tout ce camembert devenait inaccessible. */}
-                          <TouchableOpacity
-                            style={styles.detailEditBtn}
-                            activeOpacity={0.7}
-                            onPress={() => { setRecurFilter(null); setPlannedTab('recurrentes'); setDetailKey('planned'); }}
-                          >
-                            <Ionicons name="pie-chart-outline" size={15} color={COLORS.emerald} />
-                            <Text style={styles.detailEditBtnText}>Répartition par catégorie</Text>
-                          </TouchableOpacity>
+                          {/* Aucun bouton de renvoi en pied (« Voir toutes mes récurrentes »,
+                              « Répartition par catégorie ») : ce modal répond à UNE question — ce
+                              qui va encore sortir du compte d'ici la fin du mois. La liste complète
+                              des récurrentes reste à un tap, par l'icône ↻ de l'entête.
+                              ⚠️ Le camembert des récurrentes (branche `detailKey === 'planned'`
+                              ci-dessous) n'avait que ce bouton comme entrée : il n'est plus atteint. */}
                         </View>
                       );
                     })()}

@@ -483,6 +483,7 @@ export default function AccountsListScreen() {
         icon={guide.is('accounts_savings') ? 'leaf-outline' : 'wallet-outline'}
         iconColor={guide.is('accounts_savings') ? COLORS.savings : COLORS.checking}
         eyebrow="Étape 1 · Tes comptes"
+        step={{ index: 1, total: 4 }}
         title={
           guide.is('accounts') ? 'Commençons par tes comptes'
           : guide.is('accounts_checking') ? 'Il te manque un compte courant'

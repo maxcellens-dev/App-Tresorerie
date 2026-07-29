@@ -26,6 +26,7 @@ import { useAppColors } from '../../../hooks/useAppColors';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { pageColumn } from '../../../lib/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useNavBack } from '../../../hooks/useNavBack';
 import { useAccounts } from '../../../hooks/useAccounts';
 import { useAddTransaction } from '../../../hooks/useTransactions';
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
@@ -39,6 +40,11 @@ export default function BalanceUpdateScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ origin?: string }>();
   const { user } = useAuth();
+  /* Retour EXPLICITE. `router.back()` (le défaut de ScreenHeader) ne faisait RIEN ici : l'écran est
+     poussé depuis un AUTRE onglet (bouton « + » du Pilotage, des Transactions…), donc la pile
+     « comptes » ne contient que lui — il n'y a rien à dépiler. On revient sur la route réellement
+     précédente (navHistory), avec l'origine transmise par l'appelant en repli. */
+  const goBack = useNavBack(params.origin || '/(tabs)/pilotage');
 
   const { data: accounts = [] } = useAccounts(user?.id);
   const addTransaction = useAddTransaction(user?.id);
@@ -103,9 +109,12 @@ export default function BalanceUpdateScreen() {
   return (
     <View style={styles.root}>
       <ScreenGradient />
-      <SafeAreaView style={[{ flex: 1 }, pageColumn(isDesktop, 'form', 0)]} edges={['left', 'right', 'bottom']}>
+      {/* edges={[]} comme tous les écrans de saisie de l'app (comptes/add, transactions/add,
+          transfer) : l'inset du bas est DÉJÀ pris en charge par la barre d'onglets, qui se dessine
+          juste en dessous. Le rajouter ici laissait une bande vide entre le pied de page et le menu. */}
+      <SafeAreaView style={[{ flex: 1 }, pageColumn(isDesktop, 'form', 0)]} edges={[]}>
         <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-          <ScreenHeader title="Mettre à jour mon solde" />
+          <ScreenHeader title="Mettre à jour mon solde" onBack={goBack} />
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

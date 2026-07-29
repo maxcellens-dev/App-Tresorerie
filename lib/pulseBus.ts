@@ -26,6 +26,18 @@ export interface PulseOpEvent {
    * prochain ne change rien au 1er du mois qui vient).
    */
   date?: string;
+  /**
+   * L'opération est DÉJÀ comprise dans une régularisation de solde du même jour (`regul_covered`) :
+   * elle n'a donc bougé AUCUN solde. Sans cette information, la carte annonçait une fin de mois
+   * amputée du montant alors que rien n'avait changé.
+   */
+  regulCovered?: boolean;
+  /** Catégorie de l'opération — l'hôte en déduit si la dépense consomme l'enveloppe variable. */
+  categoryId?: string | null;
+  /** Récurrente (modèle) : hors enveloppe variable, qui ne compte que le non récurrent. */
+  isRecurring?: boolean;
+  /** Rattachée à un projet : comptée à part, hors enveloppe variable. */
+  projectId?: string | null;
 }
 
 type Listener = (event: PulseOpEvent) => void;

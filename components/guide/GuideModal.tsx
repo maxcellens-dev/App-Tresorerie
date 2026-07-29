@@ -33,6 +33,9 @@ interface Props {
   visible: boolean;
   /** Sur-titre discret (ex. « Étape 1 sur 3 »). */
   eyebrow?: string;
+  /** Position dans le parcours, affichée en petit en HAUT À DROITE (ex. « 2/4 ») : on sait à tout
+   *  moment combien d'étapes restent — sans ça le guide paraît sans fin. */
+  step?: { index: number; total: number };
   icon?: string;
   iconColor?: string;
   title: string;
@@ -50,7 +53,7 @@ interface Props {
 }
 
 export default function GuideModal({
-  visible, eyebrow, icon, iconColor, title, text, steps, choices, cta, secondary, note,
+  visible, eyebrow, step, icon, iconColor, title, text, steps, choices, cta, secondary, note,
 }: Props) {
   const c = useInvertedColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -62,6 +65,13 @@ export default function GuideModal({
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
       <View style={styles.overlay}>
         <View style={styles.card}>
+          {/* Compteur d'étape : POSÉ EN ABSOLU au-dessus du contenu, pour ne rien décaler (le
+              contenu est centré ; une ligne de plus dans le flux aurait poussé l'icône vers le bas). */}
+          {!!step && (
+            <Text style={styles.stepCounter} accessibilityLabel={`Étape ${step.index} sur ${step.total}`}>
+              {step.index}/{step.total}
+            </Text>
+          )}
           <ScrollView
             style={{ flexGrow: 0 }}
             contentContainerStyle={styles.body}
@@ -164,6 +174,10 @@ function makeStyles(c: any) {
       paddingHorizontal: 22, paddingTop: 24, paddingBottom: 18, gap: 12,
     },
     body: { alignItems: 'center', gap: 10 },
+    stepCounter: {
+      position: 'absolute', top: 12, right: 14, zIndex: 2,
+      fontSize: 11.5, fontWeight: '800', color: c.textSecondary, letterSpacing: 0.3,
+    },
     iconCircle: {
       width: 66, height: 66, borderRadius: 33, borderWidth: 1,
       alignItems: 'center', justifyContent: 'center', marginBottom: 4,
