@@ -40,8 +40,14 @@ export default function GuideRing({
 
   if (!active) return null;
 
-  // Pulsation = UNIQUEMENT grossir/rétrécir (scale). Pas de variation d'opacité ni de couleur.
-  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
+  /* Pulsation VERS L'INTÉRIEUR (1 → 0.96), jamais vers l'extérieur.
+   *
+   * En grossissant (1 → 1.05), l'anneau d'un élément qui occupe toute la largeur utile dépassait
+   * la marge de l'écran et se faisait rogner à gauche et à droite — le cadre paraissait coupé, et
+   * d'autant plus sur les écrans étroits. En rétrécissant, il reste TOUJOURS dans la boîte de son
+   * élément : impossible de le rogner, quel que soit l'écran ou l'élément entouré.
+   * (Toujours pas de variation d'opacité ni de couleur : seule la taille bouge.) */
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] });
 
   // PAS d'ombre ni d'elevation : sur Android l'ombre portée (verte, décalée) faisait paraître les
   // cercles décentrés et « coupait » la barre du bas d'un liseré qui bougeait avec le scale.

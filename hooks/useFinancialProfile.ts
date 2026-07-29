@@ -370,13 +370,16 @@ export function useLiveProfileSync(userId: string | undefined) {
         .select('profile_id, profile_source')
         .eq('user_id', userId)
         .maybeSingle();
-      if (!fp) return null;
-      if ((fp as any).profile_source === 'automatic') return null;
+      // Ligne ABSENTE = compte qui n'a jamais eu de profil (le questionnaire, qui la créait, n'existe
+      // plus). On la CRÉE au lieu d'abandonner : sans ça, aucun profil n'était jamais attribué et
+      // l'écran restait vide indéfiniment.
+      if (fp && (fp as any).profile_source === 'automatic') return null;
 
       const real = await loadRealMetrics(userId);
       if (!real) return null;
 
       // Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
+      // Données incomplètes → P1, le plus prudent (cf. computeProfileFromData).
       const next = computeProfileFromData({
         availableSavings: real.savingsBalance,
         avgMonthlyIncome: real.metrics.avg_income_6m,
@@ -384,15 +387,18 @@ export function useLiveProfileSync(userId: string | undefined) {
         totalInvested: real.investedBalance,
       });
 
-      if (next === (fp as any).profile_id) return next;
+      if (fp && next === (fp as any).profile_id) return next;
 
       const now = new Date().toISOString();
       const alloc = PROFILE_ALLOCATIONS[next as FinancialProfileId];
-      await supabase.from('user_financial_profile').update({
+      await supabase.from('user_financial_profile').upsert({
+        user_id: userId,
         profile_id: next,
+        // Le profil n'est plus « gelé » : il suit les données en continu.
+        auto_unlock_at: null,
         assigned_at: now,
         updated_at: now,
-      }).eq('user_id', userId);
+      }, { onConflict: 'user_id' });
 
       await supabase.from('profiles').update({
         allocation_save_percent: alloc.save,
@@ -404,14 +410,18 @@ export function useLiveProfileSync(userId: string | undefined) {
 
       // Notification : l'utilisateur voit le modal de changement de profil dans la foulée de son
       // geste (« mon virement d'épargne vient de me faire passer en P4 »), et non un mois plus tard.
-      await supabase.from('profile_change_log').insert({
-        user_id: userId,
-        previous_profile: (fp as any).profile_id,
-        new_profile: next,
-        change_reason: 'automatic_upgrade',
-        triggered_at: now,
-        notification_shown: false,
-      });
+      // PREMIÈRE attribution → aucune notification : il n'y a pas de « changement » à annoncer, et
+      // un modal « ton profil a changé » sur un compte qui vient d'en recevoir un serait absurde.
+      if (fp) {
+        await supabase.from('profile_change_log').insert({
+          user_id: userId,
+          previous_profile: (fp as any).profile_id,
+          new_profile: next,
+          change_reason: 'automatic_upgrade',
+          triggered_at: now,
+          notification_shown: false,
+        });
+      }
 
       return next;
     },

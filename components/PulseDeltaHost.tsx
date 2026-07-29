@@ -69,7 +69,7 @@ function eurSigned(n: number, withSign: boolean): string {
   const v = Math.round(n);
   const body = `${Math.abs(v).toLocaleString('fr-FR')} €`;
   if (!withSign) return v < 0 ? `−${body}` : body;
-  return v < 0 ? `(−${body})` : `(+${body})`;
+  return v < 0 ? `−${body}` : `+${body}`;
 }
 
 /** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé.
@@ -279,10 +279,13 @@ export default function PulseDeltaHost() {
           const color = pulseColor(COLORS, tone);
           return (
             <View style={[styles.eom, { borderColor: color + '55', backgroundColor: color + '14' }]}>
-              <Text style={styles.eomLabel}>🗓️ {firstOfNextMonthLabel()}</Text>
-              <Text style={[styles.eomValue, { color }]}>
-                {eurSigned(eom.amount, false)}
-                <Text style={styles.eomDelta}>  {eurSigned(eom.delta, true)}</Text>
+              {/* Une PHRASE, pas deux colonnes de chiffres : on dit ce que le solde sera, quand, et
+                  sur quoi (les comptes COURANTS — l'épargne n'est pas dedans). */}
+              <Text style={styles.eomText}>
+                🗓️ {firstOfNextMonthLabel()}, tu devrais avoir{' '}
+                <Text style={[styles.eomValue, { color }]}>{eurSigned(eom.amount, false)}</Text>
+                {' '}sur tes comptes courants
+                <Text style={styles.eomDelta}> ({eurSigned(eom.delta, true)})</Text>
               </Text>
             </View>
           );
@@ -318,12 +321,11 @@ function makeStyles(c: AppColors) {
     // Ligne « Fin de mois » : une seule ligne, pas une carte — elle complète les pastilles sans
     // rallonger la confirmation.
     eom: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10,
     },
-    eomLabel: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
+    eomText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, lineHeight: 18 },
     eomValue: { fontSize: 14, fontWeight: '800' },
-    eomDelta: { fontSize: 12, fontWeight: '700', color: c.textSecondary },
+    eomDelta: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
     hint: { fontSize: 10.5, color: c.textSecondary, marginTop: 14, textAlign: 'center' },
     grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8 },
   });

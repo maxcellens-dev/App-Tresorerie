@@ -9,7 +9,7 @@ import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useCategories, useAddCategory } from '../../../hooks/useCategories';
-import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions } from '../../../hooks/useTransactions';
+import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions , useAskRegulCoverage } from '../../../hooks/useTransactions';
 import { parseUsageLimitError } from '../../../lib/usageLimits';
 import { appAlert } from '../../../lib/appDialog';
 import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
@@ -102,6 +102,8 @@ export default function AddTransactionScreen() {
   // Verrou de clôture gaté par le flag de fonctionnalité (null si Clôture désactivée).
   const { lockDate: closureLockDate } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
+  // Question « déjà comptée dans ce solde ? » : posée AVANT de rendre la main (cf. plus bas).
+  const askRegulCoverage = useAskRegulCoverage(user?.id);
   const deleteTransaction = useDeleteTransaction(user?.id);
   // Rattachement à un projet EN COURS quand la saisie correspond à sa configuration (comptes d'un
   // virement / compte + catégorie d'une dépense) : le projet se tient à jour sans repasser par
@@ -441,10 +443,15 @@ export default function AddTransactionScreen() {
     // l'échéancier du projet — useValidateProjectDraft).
     const asProjectDraft = !!attachedProject && isTransfer && (isDraft || date > today);
 
+    /* Régularisation le MÊME JOUR : la question se pose ICI, avant de rendre la main.
+       Elle porte sur l'opération en cours et attend une décision — posée dans la mutation (qui
+       tourne en arrière-plan), elle surgissait une fois l'utilisateur DÉJÀ revenu sur la liste,
+       par-dessus un autre écran, voire par-dessus un modal du guide. */
+    const regulCoveredAnswer = await askRegulCoverage(accountId, date, note || null, finalAmount);
+
     // ── NAVIGATION OPTIMISTE : on rend la main TOUT DE SUITE (retour à l'écran d'origine), la
     // sauvegarde part en arrière-plan. La carte Pouls (host global) apparaît par-dessus l'écran
-    // d'origine dès l'insert ; en cas d'échec, une alerte globale prévient (appAlert), et le
-    // dialog « régul le même jour » (host global lui aussi) peut s'afficher après la navigation.
+    // d'origine dès l'insert ; en cas d'échec, une alerte globale prévient (appAlert).
     // Les valeurs du formulaire sont déjà CAPTURÉES dans des constantes locales → resetForm() ne
     // change rien à la sauvegarde en vol.
     const origin = params.origin ? decodeURIComponent(String(params.origin)) : null;
@@ -482,7 +489,8 @@ export default function AddTransactionScreen() {
           recurrenceEndDate: endDateISO,
           // Projet posé sur les DEUX jambes, comme le fait la validation d'un brouillon de projet.
           projectId: attachedProject?.id ?? null,
-          checkRegulConflict: true,
+          checkRegulConflict: false,
+          regulCoveredAnswer,
           onBehalfMemberId: params.on_behalf || null,
         });
       } else {
@@ -498,7 +506,8 @@ export default function AddTransactionScreen() {
           recurrence_rule: isRecurring ? recurrenceRule : null,
           recurrence_end_date: endDateISO,
           project_id: attachedProject?.id ?? null,
-          checkRegulConflict: true,
+          checkRegulConflict: false,
+          regulCoveredAnswer,
           on_behalf_member_id: params.on_behalf || null,
         });
         if ((row as any)?.id) insertedIds.push((row as any).id);

@@ -274,6 +274,12 @@ export function useAddTransaction(profileId: string | undefined) {
       /** Saisie interactive : si une régul existe le même jour, demander si l'opération y est
        *  déjà incluse (→ ne pas réimpacter le solde) ou si c'est une nouvelle opération. */
       checkRegulConflict?: boolean;
+      /**
+       * Réponse DÉJÀ donnée à la question « déjà comptée dans ce solde ? ».
+       * L'écran de saisie la pose AVANT de rendre la main (cf. useAskRegulCoverage) : la question
+       * porte sur l'opération en cours, elle ne peut pas surgir une fois l'utilisateur reparti.
+       */
+      regulCoveredAnswer?: boolean;
       /** Pour une ligne de régularisation : solde cible saisi (affichage). */
       regul_target?: number | null;
       /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
@@ -297,8 +303,8 @@ export function useAddTransaction(profileId: string | undefined) {
       // est DÉJÀ incluse dans ce solde (→ regul_covered = true, le recalcul l'exclut) ou si c'est
       // une NOUVELLE opération postérieure à la régul (→ elle compte). L'absorption « avant la
       // régul » n'a PAS besoin d'être stockée : le recalcul la dérive de la date.
-      let regulCovered = false;
-      if (input.checkRegulConflict && contribution !== 0) {
+      let regulCovered = input.regulCoveredAnswer ?? false;
+      if (input.regulCoveredAnswer === undefined && input.checkRegulConflict && contribution !== 0) {
         const noteLc = (input.note ?? '').toLowerCase();
         const isRegulItself = noteLc.includes('gul') || input.note === 'Ajustement de solde';
         if (!isRegulItself) {
@@ -434,6 +440,8 @@ export interface CreateTransferLegsInput {
   /** Saisie interactive : demander, pour chaque jambe, si l'opération est déjà incluse dans une
    *  régularisation de solde du même jour (cf. addTransaction.checkRegulConflict). */
   checkRegulConflict?: boolean;
+  /** Réponse déjà obtenue par l'écran (cf. useAskRegulCoverage). */
+  regulCoveredAnswer?: boolean;
   /** #4bis — virement saisi « au nom de » ce membre (non-user) d'un compte joint. */
   onBehalfMemberId?: string | null;
 }
@@ -465,6 +473,7 @@ export async function createTransferLegs(
     project_id: p.projectId ?? null,
     // Chaque jambe vérifie sa propre date vs une éventuelle régul sur SON compte.
     checkRegulConflict: p.checkRegulConflict ?? false,
+    regulCoveredAnswer: p.regulCoveredAnswer,
     on_behalf_member_id: p.onBehalfMemberId ?? null,
   };
   const firstLeg = await add.mutateAsync({
@@ -1008,4 +1017,54 @@ export function useValidateProjectDraft(profileId: string | undefined) {
       client.invalidateQueries({ queryKey: ['projects', profileId] });
     },
   });
+}
+
+/**
+ * Pose la question « déjà comptée dans ce solde ? » AVANT de quitter l'écran de saisie.
+ *
+ * La saisie rend la main immédiatement (perf) et termine l'enregistrement en arrière-plan. Or cette
+ * question porte sur l'opération en cours et attend une décision : posée dans la mutation, elle
+ * surgissait une fois l'utilisateur DÉJÀ revenu sur la liste, par-dessus un autre écran. On la pose
+ * donc ici, avant la navigation, et on transmet la réponse à la mutation (`regulCoveredAnswer`).
+ *
+ * Renvoie `undefined` quand il n'y a aucun conflit (cas normal) : la mutation n'a alors rien à faire.
+ */
+export function useAskRegulCoverage(profileId: string | undefined) {
+  const client = useQueryClient();
+  return async (accountId: string, date: string, note: string | null, contribution: number): Promise<boolean | undefined> => {
+    if (!profileId || !accountId || contribution === 0) return undefined;
+    const noteLc = (note ?? '').toLowerCase();
+    if (noteLc.includes('gul') || note === 'Ajustement de solde') return undefined; // la régul elle-même
+    const cachedAll = client.getQueryData<TransactionWithDetails[]>([KEY, profileId, 'all']);
+    const conflict = await regulOnSameDay(accountId, date, cachedAll ?? null);
+    if (!conflict) return undefined;
+
+    const bal = conflict.balance;
+    const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' €';
+    const dateLbl = formatDateFrench(date);
+    const choice = await appChoice({
+      title: 'Déjà comptée dans ce solde ?',
+      message: `Tu as fait une régularisation le ${dateLbl} sur « ${conflict.accountName} ». Cette opération y était-elle déjà comprise ?`,
+      options: [
+        {
+          icon: 'checkmark-done',
+          label: 'Oui, déjà incluse',
+          hint: 'Elle apparaît pour l’historique, mais ne rebouge pas le solde.',
+          tone: 'neutral',
+          result: bal != null ? fmt(bal) : undefined,
+          resultHint: `solde inchangé au ${dateLbl}`,
+        },
+        {
+          icon: 'add-circle',
+          label: 'Non, c’est une nouvelle opération',
+          hint: 'Elle s’ajoute au solde régularisé.',
+          tone: contribution < 0 ? 'danger' : 'accent',
+          result: bal != null ? fmt(bal + contribution) : undefined,
+          resultHint: `nouveau solde au ${dateLbl}`,
+        },
+      ],
+    });
+    // Fermeture sans choisir → on ne couvre pas : l'opération compte (comportement d'avant).
+    return choice === 0;
+  };
 }

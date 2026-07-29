@@ -174,18 +174,42 @@ export default function GuideOverlay({
 
   const isLast = currentStep === steps.length - 1;
 
-  /* Position VERTICALE de la bulle : juste sous l'ancre, ou juste au-dessus quand l'élément vit en
-     bas d'écran (barre d'onglets). Toujours CLAMPÉE dans la zone visible → jamais coupée, jamais
-     sous l'encoche. Sans ancre mesurable, repli en haut ou en bas selon . */
-  const maxTop = SH - BOTTOM_SAFE - bubbleH;
+  /* Position VERTICALE de la bulle — RÈGLE : elle ne recouvre JAMAIS ce qu'elle désigne.
+   *
+   * L'ancien calcul posait la bulle « sous l'ancre », puis la clampait dans l'écran. Sur une grande
+   * carte (le Relyka, les recommandations, le suivi du mois), « sous l'ancre » tombait hors écran :
+   * le clamp la ramenait alors PAR-DESSUS la zone encadrée — exactement ce qu'il ne faut pas.
+   *
+   * On raisonne donc en PLACE DISPONIBLE de chaque côté de la cible :
+   *   1. le côté demandé s'il y a la place ;
+   *   2. sinon l'autre côté s'il y a la place ;
+   *   3. sinon le côté le plus grand (cible plus haute que l'écran : le chevauchement est
+   *      inévitable, on le limite au minimum et on garde la bulle entièrement visible).
+   * Tout est borné par la zone sûre : la bulle n'est jamais coupée ni sous l'encoche. */
+  const GAP = 14;                              // respiration entre la cible et la bulle
+  const maxTop = SH - BOTTOM_SAFE - bubbleH;   // plus bas possible sans sortir de l'écran
   let bubbleTop: number;
+
   if (anchor) {
     const extra = step.anchorOffset ?? 0;
-    const raw = step.anchorPlacement === 'above'
-      ? anchor.top - bubbleH - 18 - extra
-      : anchor.bottom + 30 + extra;
+    const spaceAbove = anchor.top - TOP_SAFE;
+    const spaceBelow = SH - BOTTOM_SAFE - anchor.bottom;
+    const needed = bubbleH + GAP;
+    const wantsAbove = step.anchorPlacement === 'above';
+
+    const fitsAbove = spaceAbove >= needed;
+    const fitsBelow = spaceBelow >= needed;
+    const placeAbove = wantsAbove
+      ? (fitsAbove || !fitsBelow)
+      : (!fitsBelow && (fitsAbove || spaceAbove > spaceBelow));
+
+    const raw = placeAbove
+      ? anchor.top - bubbleH - GAP - extra
+      : anchor.bottom + GAP + extra;
     bubbleTop = Math.min(Math.max(raw, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
   } else {
+    // Ancre non mesurable : on se range en haut ou en bas, jamais au milieu (où l'on masquerait
+    // le contenu le plus probable).
     bubbleTop = step.placement === 'top' ? TOP_SAFE + 56 : Math.max(TOP_SAFE, maxTop);
   }
 

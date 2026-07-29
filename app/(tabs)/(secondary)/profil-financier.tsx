@@ -32,7 +32,6 @@ import {
 import { usePilotageData } from '../../../hooks/usePilotageData';
 import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
-  Q1_OPTIONS, Q2_OPTIONS, Q4_OPTIONS, Q6_OPTIONS,
   weeklyVariableFromQ9, safetyMarginFromQ8, WEEKS_PER_MONTH,
 } from '../../../lib/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from '../../../lib/securityCushion';
@@ -43,49 +42,6 @@ import { useResponsive } from '../../../hooks/useResponsive';
 import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCurrencySymbol } from '../../../hooks/useCurrency';
-
-/* ── Rythme de revenus : une question à 3 choix qui porte q1 + q2 ─────────────── */
-
-type Rhythm = 'fixe' | 'variable' | 'mixte';
-
-const RHYTHM_TO_ANSWERS: Record<Rhythm, { q1: string; q2: string }> = {
-  fixe:     { q1: Q1_OPTIONS[0], q2: Q2_OPTIONS[0] },
-  variable: { q1: Q1_OPTIONS[1], q2: Q2_OPTIONS[3] },
-  mixte:    { q1: `${Q1_OPTIONS[0]}|${Q1_OPTIONS[1]}`, q2: Q2_OPTIONS[1] },
-};
-
-const RHYTHM_LABEL: Record<Rhythm, string> = {
-  fixe: 'Le même montant chaque mois',
-  variable: 'Ça change d’un mois à l’autre',
-  mixte: 'Un fixe + des compléments',
-};
-
-/** Déduit le rythme depuis les réponses stockées (les comptes existants ont les 6 valeurs de q1). */
-function rhythmFromAnswers(q1?: string | null, q2?: string | null): Rhythm {
-  const parts = (q1 ?? '').split('|').filter(Boolean);
-  if (parts.length > 1) return 'mixte';
-  if (q2 === Q2_OPTIONS[3] || q2 === Q2_OPTIONS[2] || parts[0] === Q1_OPTIONS[1]) return 'variable';
-  return 'fixe';
-}
-
-/** Libellés courts des réponses de comportement (les valeurs stockées sont trop longues à lire). */
-const Q4_SHORT: Record<string, string> = {
-  [Q4_OPTIONS[0]]: 'Le plus souvent rien',
-  [Q4_OPTIONS[1]]: 'De quoi vivre, sans épargner',
-  [Q4_OPTIONS[2]]: 'Une somme mise de côté',
-  [Q4_OPTIONS[3]]: 'J’épargne et j’investis',
-  [Q4_OPTIONS[4]]: 'J’investis en priorité',
-};
-
-const Q6_SHORT: Record<string, string> = {
-  [Q6_OPTIONS[0]]: 'Rien pour l’instant',
-  [Q6_OPTIONS[1]]: 'Moins de 10 %',
-  [Q6_OPTIONS[2]]: 'Entre 10 et 20 %',
-  [Q6_OPTIONS[3]]: 'Entre 20 et 30 %',
-  [Q6_OPTIONS[4]]: 'Plus de 30 %',
-  [Q6_OPTIONS[5]]: 'Plus besoin d’augmenter',
-  [Q6_OPTIONS[6]]: 'Je ne sais pas',
-};
 
 export default withDeferredMount(ProfilFinancierScreen);
 
@@ -104,7 +60,7 @@ function ProfilFinancierScreen() {
   const saveQuestionnaire = useSaveQuestionnaire(user?.id);
 
   /** Panneau d'édition ouvert (une seule ligne à la fois). */
-  const [editing, setEditing] = useState<null | 'rhythm' | 'q4' | 'q6' | 'q8' | 'q9'>(null);
+  const [editing, setEditing] = useState<null | 'q8' | 'q9'>(null);
   const [amountDraft, setAmountDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -114,7 +70,7 @@ function ProfilFinancierScreen() {
   useEffect(() => {
     if (params.edit && saved && !autoOpened.current) {
       autoOpened.current = true;
-      setEditing(params.edit === 'q9' ? 'q9' : 'q4');
+      setEditing(params.edit === 'q9' ? 'q9' : 'q8');
     }
   }, [params.edit, saved]);
 
@@ -140,7 +96,6 @@ function ProfilFinancierScreen() {
 
   const margin = safetyMarginFromQ8(a.q8 ?? '');
   const weekly = weeklyVariableFromQ9(a.q9 ?? '');
-  const rhythm = rhythmFromAnswers(a.q1, a.q2);
 
   /** Enregistre une réponse et laisse le moteur recalculer le profil. */
   async function persist(patch: Partial<QuestionnaireAnswers>, doneKeys: string[] = []) {
@@ -168,19 +123,26 @@ function ProfilFinancierScreen() {
         <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right', 'bottom']}>
           <ScreenHeader title="Profil financier" onBack={goBack} />
-          <View style={styles.card}>
-            <Text style={styles.emptyTitle}>Ton profil se calcule tout seul</Text>
-            <Text style={styles.emptyText}>
-              Il décide de la répartition entre Épargner, Investir, Confort et Conserver, et il se
-              déduit de tes données : le solde de tes comptes, ton revenu et ce que tu mets de côté.
-              {'\n\n'}Aucune question à remplir : renseigne tes comptes et tes revenus récurrents,
-              et ton profil apparaît ici.
-            </Text>
-            <TouchableOpacity style={styles.cta} onPress={() => router.push('/(tabs)/comptes' as any)} activeOpacity={0.85}>
-              <Text style={styles.ctaText}>Voir mes comptes</Text>
-              <Ionicons name="arrow-forward" size={17} color={COLORS.bg} />
-            </TouchableOpacity>
-          </View>
+          {/* DÉFILANT : le conteneur est à hauteur fixe, sans lui la fin du paragraphe se faisait
+              couper en bas sur les écrans étroits. Deux paragraphes distincts plutôt qu'un `\n\n`
+              dans un seul Text : chacun se mesure et s'affiche pour lui-même. */}
+          <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+            <View style={styles.card}>
+              <Text style={styles.emptyTitle}>Ton profil se calcule tout seul</Text>
+              <Text style={styles.emptyText}>
+                Il décide de la répartition entre Épargner, Investir, Confort et Conserver, et il se
+                déduit de tes données : le solde de tes comptes, ton revenu et ce que tu mets de côté.
+              </Text>
+              <Text style={styles.emptyText}>
+                Aucune question à remplir : renseigne tes comptes et tes revenus récurrents, et ton
+                profil apparaît ici.
+              </Text>
+              <TouchableOpacity style={styles.cta} onPress={() => router.push('/(tabs)/comptes' as any)} activeOpacity={0.85}>
+                <Text style={styles.ctaText}>Voir mes comptes</Text>
+                <Ionicons name="arrow-forward" size={17} color={COLORS.bg} />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAwareScrollView>
         </SafeAreaView>
       </View>
     );
@@ -209,7 +171,7 @@ function ProfilFinancierScreen() {
 
   /** Ligne modifiable : ouvre son panneau de choix / de saisie. */
   const editableRow = (
-    key: 'rhythm' | 'q4' | 'q6' | 'q8' | 'q9',
+    key: 'q8' | 'q9',
     label: string,
     value: string,
     term?: any,
@@ -234,24 +196,6 @@ function ProfilFinancierScreen() {
     </TouchableOpacity>
   );
 
-  const choicePanel = (options: readonly string[], shortLabels: Record<string, string>, current: string | undefined, onPick: (v: string) => void) => (
-    <View style={styles.panel}>
-      {options.map((opt) => (
-        <TouchableOpacity
-          key={opt}
-          style={[styles.choice, current === opt && styles.choiceActive]}
-          onPress={() => onPick(opt)}
-          disabled={saving}
-          activeOpacity={0.75}
-        >
-          <Text style={[styles.choiceText, current === opt && { color: COLORS.text, fontWeight: '700' }]}>
-            {shortLabels[opt] ?? opt}
-          </Text>
-          {current === opt && <Ionicons name="checkmark-circle" size={17} color={COLORS.emerald} />}
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
 
   const amountPanel = (unit: string, hint: string, onSave: (v: string) => void) => (
     <View style={styles.panel}>
@@ -349,38 +293,16 @@ function ProfilFinancierScreen() {
             )}
           </View>
 
-          {/* ── Ce que TU renseignes ── */}
+          {/* ── Ce que TU renseignes ──
+              Il ne reste que ce que l'app ne peut PAS mesurer. Le rythme de revenus, le
+              comportement de fin de mois et la capacité d'épargne étaient des questions déclarées :
+              elles n'entrent plus dans le calcul du profil (il se déduit des données réelles), donc
+              les demander ne servait plus à rien. */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Ce que tu nous dis</Text>
             <Text style={styles.cardLead}>
-              Les seules choses que l’app ne peut pas deviner. Appuie pour les modifier.
+              Les deux seules choses que l'app ne peut pas deviner. Appuie pour les modifier.
             </Text>
-
-            {editableRow('rhythm', 'Tes revenus', RHYTHM_LABEL[rhythm])}
-            {editing === 'rhythm' && (
-              <View style={styles.panel}>
-                {(['fixe', 'variable', 'mixte'] as Rhythm[]).map((r) => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[styles.choice, rhythm === r && styles.choiceActive]}
-                    onPress={() => persist(RHYTHM_TO_ANSWERS[r])}
-                    disabled={saving}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[styles.choiceText, rhythm === r && { color: COLORS.text, fontWeight: '700' }]}>
-                      {RHYTHM_LABEL[r]}
-                    </Text>
-                    {rhythm === r && <Ionicons name="checkmark-circle" size={17} color={COLORS.emerald} />}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {editableRow('q4', 'En fin de mois, il te reste', Q4_SHORT[a.q4 ?? ''] ?? 'à préciser')}
-            {editing === 'q4' && choicePanel(Q4_OPTIONS, Q4_SHORT, a.q4, (v) => persist({ q4: v }, ['q4']))}
-
-            {editableRow('q6', 'Ce que tu mets de côté', Q6_SHORT[a.q6 ?? ''] ?? 'à préciser')}
-            {editing === 'q6' && choicePanel(Q6_OPTIONS, Q6_SHORT, a.q6, (v) => persist({ q6: v }, ['q6']))}
 
             {editableRow(
               'q8', 'Ta marge de sécurité',

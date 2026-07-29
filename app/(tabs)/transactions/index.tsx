@@ -258,7 +258,6 @@ function TransactionsListBody() {
       highlightKey: ['recurringList', 'recurringSheet'],
       anchorRef: () => recurBtnRef,
       anchorPlacement: 'below',
-      anchorOffset: -8,
       icon: 'repeat',
       iconColor: COLORS.orange,
       title: 'Tes récurrences',
@@ -267,13 +266,11 @@ function TransactionsListBody() {
     {
       highlightKey: 'quickAdd',
       // MÊME EMPLACEMENT que les bulles précédentes : les repères forment une seule pop-up dont
-      // seul le contenu change, elle ne saute pas d'un écran à l'autre. Décalage −8 : la bulle 1
-      // est posée à `cible + PAD(8) + 14` = 22 px, contre 30 par défaut en mode ancre.
+      // seul le contenu change, elle ne saute pas d'un écran à l'autre.
       // BUREAU : le « + » rond n'existe pas (la saisie vit dans la barre latérale) — on ancre donc
       // la bulle sur le vrai bouton « Nouvelle opération », qui s'éclaire et se déploie pareil.
       anchorRef: () => (isDesktop ? getGuideAnchor('quickAdd') : recurBtnRef),
       anchorPlacement: 'below',
-      anchorOffset: isDesktop ? 0 : -8,
       icon: 'add-circle',
       iconColor: COLORS.green,
       title: isDesktop ? 'Le bouton « Nouvelle opération »' : 'Le bouton « + »',

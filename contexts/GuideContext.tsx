@@ -96,6 +96,10 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
      était encore à « tu n'as aucun compte » et rouvrait le modal « Étape 1 » par-dessus.
      Tant que la liste est vide ET en cours de lecture, on ne conclut rien. */
   const accountsSettled = !accountsQuery.isFetching;
+  /* Même règle pour les RÉCURRENCES : au retour de l'écran de saisie, la liste est encore en cours
+     de relecture — le guide en concluait « aucune récurrente » et rouvrait le modal « Étape 2 »
+     par-dessus, alors que l'utilisateur venait précisément d'en créer une. */
+  const txSettled = !txQuery.isFetching;
 
   // Drapeaux posés dans CE rendu, avant retour serveur (fermeture immédiate des modaux).
   const [justSet, setJustSet] = useState<Record<string, boolean>>({});
@@ -192,7 +196,8 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
     if (!hasChecking) return 'accounts_checking';
     if (!hasSavings && !flag('g2_nudge_savings')) return 'accounts_savings';
     if (!flag('g2_tx_tour')) return 'tx_tour';
-    if (!hasRecurring) return 'tx_recurring';
+    // Aucune récurrente : on ne le conclut que si la lecture est POSÉE (cf. txSettled).
+    if (!hasRecurring) return txSettled ? 'tx_recurring' : 'idle';
     if (!flag('g2_pilot_tour')) return 'pilotage_tour';
     if (!flag('g2_variable')) return 'pilotage_variable';
     if (!flag('g2_margin')) return 'pilotage_margin';
@@ -200,7 +205,7 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
     if (!flag('g2_menu')) return 'pilotage_menu';
     return 'idle';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, justSet, state, dataReady, accountsSettled, accounts.length, hasChecking, hasSavings, hasRecurring]);
+  }, [active, justSet, state, dataReady, accountsSettled, txSettled, accounts.length, hasChecking, hasSavings, hasRecurring]);
 
   // Fin du parcours : toutes les étapes franchies → on referme définitivement.
   const closedRef = useRef(false);

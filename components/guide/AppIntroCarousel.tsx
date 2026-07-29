@@ -2,7 +2,7 @@
  * ÉCRANS DE PRÉSENTATION — la toute première ouverture de l'app.
  *
  * Six écrans pleine page qui MONTRENT l'app avant de demander quoi que ce soit : à quoi ressemble
- * un Relyka, une liste de comptes, une saisie, le suivi du mois, un projet, une projection. Les
+ * un Relyka, une liste de comptes, une saisie, le suivi du mois, un projet, les conseils. Les
  * textes reprennent (condensés) les présentations de page qui s'ouvraient jusqu'ici à la 1ʳᵉ visite
  * de chaque onglet — d'où la mise en sommeil de ces modaux à la fin du carrousel : tout a déjà été
  * dit, au bon moment, sans couper l'utilisateur en pleine action.
@@ -134,15 +134,8 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
       key: 'ia',
       eyebrow: 'Conseils intelligents',
       title: 'Une analyse\nrien que pour toi',
-      text: 'Relyka lit **tes** chiffres \n— épargne, dépenses, tendances —\net t’explique où tu en es, en français.\n\nDes conseils ==adaptés à ta situation==.',
+      text: 'Relyka transmet **tes chiffres anonymisés** \n— Une IA te répond — \net t’explique où tu en es, en français.\n\nDes conseils ==adaptés à ta situation==.',
       render: (c, s) => <MockAi c={c} s={s} />,
-    },
-    {
-      key: 'start',
-      eyebrow: 'On y va',
-      title: 'Trois étapes\net tout devient juste',
-      text: 'Relyka ne devine rien : il calcule à partir de \n==tes vrais chiffres==.\n\nOn te guide à chaque étape.',
-      render: (c, s) => <MockSteps c={c} s={s} />,
     },
   ], []);
 
@@ -486,32 +479,6 @@ function MockAi({ c, s }: any) {
   );
 }
 
-function MockSteps({ c, s }: any) {
-  const steps = [
-    { icon: 'wallet-outline', color: c.checking, title: 'Créer tes comptes', text: 'Avec leur solde d’aujourd’hui.' },
-    { icon: 'repeat', color: c.orange, title: 'Enregistrer ce qui revient', text: 'Salaire, loyer, abonnements.' },
-    { icon: 'sparkles', color: c.emerald, title: 'Recevoir tes recommandations', text: 'Adaptées à ta situation réelle.' },
-  ];
-  return (
-    <View style={{ width: '100%', gap: 12 }}>
-      {steps.map((st, i) => (
-        <View key={st.title} style={s.mockStep}>
-          <View style={[s.mockStepIcon, { backgroundColor: st.color + '22', borderColor: st.color + '55' }]}>
-            <Ionicons name={st.icon as any} size={20} color={st.color} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={s.mockRowTitleLine}>
-              <Text style={[s.mockStepNum, { color: st.color }]}>{i + 1}</Text>
-              <Text style={s.mockRowTitle}>{st.title}</Text>
-            </View>
-            <Text style={s.mockRowSub}>{st.text}</Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
@@ -612,11 +579,5 @@ function makeStyles(c: any) {
     mockAiLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 9 },
     mockAiDot: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
 
-    mockStep: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 12,
-    },
-    mockStepIcon: { width: 42, height: 42, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-    mockStepNum: { fontSize: 11, fontWeight: '900' },
   });
 }
