@@ -38,7 +38,8 @@ export type GuideFlag =
   | 'g2_margin'         // marge de sécurité enregistrée (0 accepté)
   | 'g2_relyka'         // détail du Relyka ouvert
   | 'g2_menu'           // menu de l'entête présenté (dernier geste du parcours)
-  | 'g2_done';          // parcours terminé
+  | 'g2_done'           // parcours terminé
+  | 'g2_profile_shown'; // conclusion « ton profil financier » montrée (une seule fois, à la fin)
 
 /** Étape active. Une seule à la fois, dans cet ordre. */
 export type GuideStage =
@@ -71,11 +72,13 @@ interface GuideCtx {
   /** L'utilisateur a des comptes ? (utile aux écrans pour adapter leur texte) */
   hasChecking: boolean;
   hasSavings: boolean;
+  /** Le tour vient de se terminer et sa CONCLUSION (le profil financier) reste à montrer. */
+  tourJustFinished: boolean;
 }
 
 const Ctx = createContext<GuideCtx>({
   active: false, booting: false, stage: 'idle', is: () => false, done: () => {},
-  hasChecking: false, hasSavings: false,
+  hasChecking: false, hasSavings: false, tourJustFinished: false,
 });
 
 export function GuideProvider({ children }: { children: React.ReactNode }) {
@@ -207,6 +210,11 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, justSet, state, dataReady, accountsSettled, txSettled, accounts.length, hasChecking, hasSavings, hasRecurring]);
 
+  /* CONCLUSION : le parcours est fini (dernière bulle passée) mais le profil financier n'a pas
+     encore été présenté. C'est le seul moment où on le montre — pas pendant l'installation, où il
+     bouge à chaque saisie. */
+  const tourJustFinished = !!profile && !isImpersonating && flag('g2_done') && !flag('g2_profile_shown');
+
   // Fin du parcours : toutes les étapes franchies → on referme définitivement.
   const closedRef = useRef(false);
   const lastStepDone = flag('g2_menu');
@@ -227,8 +235,9 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<GuideCtx>(() => ({
     active, booting, stage, is: (s: GuideStage) => stage === s, done, hasChecking, hasSavings,
+    tourJustFinished,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [active, booting, stage, done, hasChecking, hasSavings]);
+  }), [active, booting, stage, done, hasChecking, hasSavings, tourJustFinished]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

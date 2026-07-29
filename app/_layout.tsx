@@ -35,6 +35,7 @@ import ImpersonationBanner from '../components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from '../lib/analytics';
 import { recordRoute, consumePreviousRoute } from '../lib/navHistory';
 import ProfileChangeModal from '../components/ProfileChangeModal';
+import ProfileTourConclusion from '../components/ProfileTourConclusion';
 import StreakRecoveryModal from '../components/StreakRecoveryModal';
 import FontApplier from '../components/FontApplier';
 import GamificationSync from '../components/GamificationSync';
@@ -405,6 +406,8 @@ function AppChrome() {
       {user && <AppIntroGate />}
       {/* Modale de changement de profil — affichée au-dessus de tout */}
       {isTabs && user && <ProfileChangeModal userId={user.id} />}
+      {/* Conclusion du parcours : le profil financier, montré UNE fois, après la dernière bulle. */}
+      {isTabs && user && <ProfileTourConclusion />}
       {/* Récupération de série perdue — proposée à l'arrivée sur l'app */}
       {isTabs && user && <StreakRecoveryModal />}
       <AnalyticsTracker />

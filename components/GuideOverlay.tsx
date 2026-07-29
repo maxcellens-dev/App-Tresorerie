@@ -12,12 +12,14 @@
  * changeait. Il n'existe plus aucun chemin de code capable de les réintroduire.
  *
  * La seule mesure restante concerne la BULLE : `anchorRef` sert à la poser près de son sujet (et à
- * l'amener à l'écran si elle est dans une zone défilante). Le résultat est clampé dans l'écran —
- * une mesure imprécise décale la bulle de quelques pixels, jamais le surlignage.
+ * l'amener à l'écran si elle est dans une zone défilante). Et là encore, la bulle ne peut PAS
+ * recouvrir sa cible : on ne calcule pas « où elle commence », on fixe le bord qui l'en sépare et on
+ * borne la place qu'elle a le droit d'occuper (cf. `place` plus bas). Sa hauteur n'entre jamais dans
+ * le calcul, donc aucune estimation ne peut être fausse.
  */
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions,
+  View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Animated, Easing,
   findNodeHandle, Platform, ScrollView, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,12 +65,20 @@ interface Props {
   nextLabel?: string;
 }
 
-const BUBBLE_H = 230;      // hauteur estimée de la bulle (pour décider au-dessus/en-dessous)
 /* Largeur MAXIMALE de la bulle. Sans elle, `left:16 / right:16` étirait la bulle sur toute la
    fenêtre : sur un écran d'ordinateur, l'explication d'un bouton devenait un bandeau de 2 000 px
    de large, sans aucun lien visuel avec la petite zone qu'elle commente. Bornée, elle redevient
-   une carte — et on la CENTRE sur sa cible (cf. bubbleLeft) pour dire de quoi elle parle. */
+   une carte — et on la CENTRE sur sa cible pour dire de quoi elle parle. */
 const BUBBLE_MAX_W = 460;
+/** Respiration entre la cible encadrée et la bulle. */
+const GAP = 16;
+/** En dessous, une bulle n'est plus lisible (en-tête + deux lignes + bouton). */
+const MIN_USABLE_H = 190;
+/* Où amener la cible dans l'écran avant de poser la bulle : assez HAUT pour qu'il reste de la
+   place en dessous, y compris pour une grande carte. À 28 % (l'ancienne valeur), une carte qui
+   fait la moitié de l'écran ne laissait plus rien sous elle et la bulle devait passer au-dessus,
+   voire se serrer. */
+const SCROLL_TARGET_RATIO = 0.16;
 
 export default function GuideOverlay({
   visible, steps, currentStep, onNext, onSkip, scrollRef, screenTitle, inverted, hideSkip, nextLabel,
@@ -92,11 +102,13 @@ export default function GuideOverlay({
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0);
   const TOP_SAFE = topInset + 12;
   const BOTTOM_SAFE = Math.max(insets.bottom, 16) + 12;
-  // Rect de l'ancre (mode auto-bordure) : bornes verticales pour poser la bulle juste au-dessus /
-  // dessous, et centre horizontal pour la caler sur la cible (utile dès que la fenêtre est large).
-  const [anchor, setAnchor] = useState<{ top: number; bottom: number; centerX: number } | null>(null);
-  // Hauteur RÉELLE de la bulle (mesurée) → positionnement fiable quel que soit le texte/écran.
-  const [bubbleH, setBubbleH] = useState(BUBBLE_H);
+  // Rect de l'ancre : bornes verticales pour poser la bulle au-dessus / en dessous, et centre
+  // horizontal pour la caler sur la cible. `undefined` = pas encore mesuré, `null` = pas d'ancre.
+  const [anchor, setAnchor] = useState<{ top: number; bottom: number; centerX: number } | null | undefined>(undefined);
+  /* Apparition de la bulle. La bulle n'est JAMAIS rendue tant que sa place n'est pas connue :
+     c'est ce qui produisait le saut « la pop-up part du bas puis remonte » — elle s'affichait
+     d'abord au repli (bas d'écran) le temps de la mesure, puis se replaçait d'un coup. */
+  const appear = useRef(new Animated.Value(0)).current;
 
   const step = steps[currentStep];
 
@@ -127,9 +139,11 @@ export default function GuideOverlay({
      clampé dans l'écran : une mesure imprécise décale la bulle de quelques pixels, jamais plus. */
   useEffect(() => {
     if (!visible || !step) return;
-    setAnchor(null);
+    // Nouvelle étape → on repart d'une bulle INVISIBLE, le temps de connaître sa place.
+    setAnchor(undefined);
+    appear.setValue(0);
     const aref = step.anchorRef?.().current;
-    if (!aref?.measureInWindow) return;
+    if (!aref?.measureInWindow) { setAnchor(null); return; }
 
     let cancelled = false;
     // 1) Amener la cible à l'écran si elle est dans une zone défilante.
@@ -141,7 +155,7 @@ export default function GuideOverlay({
           const currentY = Number(el.scrollTop) || 0;
           aref.measureInWindow((_x: number, y: number) => {
             if (cancelled) return;
-            scrollRef.current?.scrollTo({ y: Math.max(0, currentY + y - SH * 0.28), animated: true });
+            scrollRef.current?.scrollTo({ y: Math.max(0, currentY + y - SH * SCROLL_TARGET_RATIO), animated: true });
           });
         }
       } else {
@@ -149,7 +163,7 @@ export default function GuideOverlay({
         if (scrollNode && typeof aref.measureLayout === 'function') {
           aref.measureLayout(scrollNode, (_lx: number, ly: number) => {
             if (cancelled) return;
-            scrollRef.current?.scrollTo({ y: Math.max(0, ly - SH * 0.28), animated: true });
+            scrollRef.current?.scrollTo({ y: Math.max(0, ly - SH * SCROLL_TARGET_RATIO), animated: true });
           }, () => {});
         }
       }
@@ -163,63 +177,102 @@ export default function GuideOverlay({
         if (cancelled) return;
         if (h > 0) setAnchor({ top: y, bottom: y + h, centerX: x + w / 2 });
         else if (tries++ < 5) setTimeout(measure, 120);
+        else setAnchor(null); // cible introuvable → bulle en bord d'écran plutôt que rien
       });
     };
-    const t = setTimeout(measure, scrollRef?.current ? 380 : 60);
+    // Le défilement est ANIMÉ : mesurer avant qu'il ne se pose donnerait une position périmée, et
+    // la bulle se retrouverait à côté de sa cible. On attend donc qu'il ait fini.
+    const t = setTimeout(measure, scrollRef?.current ? 420 : 80);
     return () => { cancelled = true; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, currentStep]);
+
+  /* Entrée en douceur, une fois la place connue : la bulle monte/descend LÉGÈREMENT depuis sa
+     cible, en fondu. Le petit retard laisse le défilement et le cadre se poser — sans lui, la
+     bulle apparaît pendant que la page bouge encore, ce qui donne l'impression d'un à-coup. */
+  useEffect(() => {
+    if (anchor === undefined) return;
+    const a = Animated.timing(appear, {
+      toValue: 1, duration: 240, delay: 90,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    });
+    a.start();
+    return () => a.stop();
+  }, [anchor, appear]);
 
   if (!visible || !step) return null;
 
   const isLast = currentStep === steps.length - 1;
 
-  /* Position VERTICALE de la bulle — RÈGLE : elle ne recouvre JAMAIS ce qu'elle désigne.
+  /* ══ PLACEMENT DE LA BULLE ═══════════════════════════════════════════════════════════════════
    *
-   * L'ancien calcul posait la bulle « sous l'ancre », puis la clampait dans l'écran. Sur une grande
-   * carte (le Relyka, les recommandations, le suivi du mois), « sous l'ancre » tombait hors écran :
-   * le clamp la ramenait alors PAR-DESSUS la zone encadrée — exactement ce qu'il ne faut pas.
+   * RÈGLE : la bulle ne peut PAS recouvrir ce qu'elle désigne. Pas « on essaie de l'éviter » —
+   * c'est impossible par construction, et c'est tout l'objet de ce calcul.
    *
-   * On raisonne donc en PLACE DISPONIBLE de chaque côté de la cible :
-   *   1. le côté demandé s'il y a la place ;
-   *   2. sinon l'autre côté s'il y a la place ;
-   *   3. sinon le côté le plus grand (cible plus haute que l'écran : le chevauchement est
-   *      inévitable, on le limite au minimum et on garde la bulle entièrement visible).
-   * Tout est borné par la zone sûre : la bulle n'est jamais coupée ni sous l'encoche. */
-  const GAP = 14;                              // respiration entre la cible et la bulle
-  const maxTop = SH - BOTTOM_SAFE - bubbleH;   // plus bas possible sans sortir de l'écran
-  let bubbleTop: number;
-
-  if (anchor) {
-    const extra = step.anchorOffset ?? 0;
-    const spaceAbove = anchor.top - TOP_SAFE;
-    const spaceBelow = SH - BOTTOM_SAFE - anchor.bottom;
-    const needed = bubbleH + GAP;
-    const wantsAbove = step.anchorPlacement === 'above';
-
-    const fitsAbove = spaceAbove >= needed;
-    const fitsBelow = spaceBelow >= needed;
-    const placeAbove = wantsAbove
-      ? (fitsAbove || !fitsBelow)
-      : (!fitsBelow && (fitsAbove || spaceAbove > spaceBelow));
-
-    const raw = placeAbove
-      ? anchor.top - bubbleH - GAP - extra
-      : anchor.bottom + GAP + extra;
-    bubbleTop = Math.min(Math.max(raw, TOP_SAFE), Math.max(TOP_SAFE, maxTop));
-  } else {
-    // Ancre non mesurable : on se range en haut ou en bas, jamais au milieu (où l'on masquerait
-    // le contenu le plus probable).
-    bubbleTop = step.placement === 'top' ? TOP_SAFE + 56 : Math.max(TOP_SAFE, maxTop);
-  }
-
-  /* Position HORIZONTALE : carte bornée, centrée sur ce qu'elle commente. Sur téléphone elle occupe
-     toute la largeur utile ; sur écran large elle se cale sur sa cible au lieu de s'étirer d'un bord
-     à l'autre. Toujours clampée dans la fenêtre. */
+   * Ce qui ne marchait pas, et pourquoi :
+   *   • on posait la bulle à `top = bas de la cible + marge`, puis on la CLAMPAIT dans l'écran.
+   *     Sur une grande carte, ce `top` tombait hors écran et le clamp la ramenait PAR-DESSUS la
+   *     cible. Le clamp, censé protéger, était la cause du chevauchement ;
+   *   • le choix du côté se faisait avec une hauteur DEVINÉE (230 px), corrigée seulement après le
+   *     premier rendu : la décision était donc prise sur une valeur fausse dès que le texte était
+   *     long — exactement les étapes où la place manque.
+   *
+   * Ce qu'on fait à la place — on ne calcule plus « où commence la bulle », on FIXE LE BORD QUI LA
+   * SÉPARE DE LA CIBLE et on borne la place qu'elle a le droit d'occuper :
+   *   • en dessous → `top` = bas de la cible + marge, `maxHeight` = ce qui reste jusqu'au bas ;
+   *   • au-dessus → `bottom` = (écran − haut de la cible) + marge, `maxHeight` = ce qui reste
+   *     jusqu'en haut. La bulle grandit alors VERS LE HAUT depuis une ligne fixe.
+   * Dans les deux cas la hauteur de la bulle n'entre plus dans le calcul : quelle qu'elle soit,
+   * elle ne peut ni franchir ce bord (le contenu défile à l'intérieur), ni sortir de l'écran.
+   * Aucune estimation, aucun clamp, donc aucun chevauchement possible. */
   const bubbleW = Math.min(SW - 32, BUBBLE_MAX_W);
-  const bubbleLeft = anchor == null
-    ? (SW - bubbleW) / 2
-    : Math.min(Math.max(anchor.centerX - bubbleW / 2, 16), Math.max(16, SW - 16 - bubbleW));
+  const extra = step.anchorOffset ?? 0;
+
+  const place = (() => {
+    if (!anchor) {
+      // Pas d'ancre : on se range en bord d'écran (jamais au milieu, où l'on masquerait le contenu
+      // le plus probable). Rien à recouvrir ici, puisqu'il n'y a pas de cible désignée.
+      const side = step.placement === 'top' ? 'top' : 'bottom';
+      return {
+        arrow: null as null | 'up' | 'down',
+        left: (SW - bubbleW) / 2,
+        ...(side === 'top'
+          ? { top: TOP_SAFE, maxHeight: SH - TOP_SAFE - BOTTOM_SAFE }
+          : { bottom: BOTTOM_SAFE, maxHeight: SH - TOP_SAFE - BOTTOM_SAFE }),
+      };
+    }
+
+    const spaceAbove = anchor.top - TOP_SAFE - GAP - extra;
+    const spaceBelow = SH - BOTTOM_SAFE - anchor.bottom - GAP - extra;
+    const wantsAbove = step.anchorPlacement === 'above';
+    // Le côté demandé s'il est utilisable, sinon celui qui offre le plus de place.
+    const preferred = wantsAbove ? spaceAbove : spaceBelow;
+    const above = preferred >= MIN_USABLE_H ? wantsAbove : spaceAbove > spaceBelow;
+    /* Cible plus haute que l'écran moins une bulle lisible : les deux côtés sont trop étroits.
+       On garde alors la bulle lisible (plancher) — le HAUT de la cible, celui qui porte son titre,
+       reste visible, et c'est le seul cas où un recouvrement partiel subsiste. Il est inévitable :
+       il n'existe pas de place pour les deux. */
+    const room = Math.max(above ? spaceAbove : spaceBelow, MIN_USABLE_H);
+    const left = Math.min(Math.max(anchor.centerX - bubbleW / 2, 16), Math.max(16, SW - 16 - bubbleW));
+
+    return above
+      ? { arrow: 'down' as const, left, bottom: SH - anchor.top + GAP + extra, maxHeight: room }
+      : { arrow: 'up' as const, left, top: anchor.bottom + GAP + extra, maxHeight: room };
+  })();
+
+  /* Petite flèche vers la cible : maintenant qu'on sait de quel côté est la bulle ET où est le
+     centre de la cible, elle est fiable — elle relie visuellement l'explication à ce qu'elle
+     désigne, ce que le simple voisinage ne suffisait pas à dire. */
+  const arrowLeft = anchor
+    ? Math.min(Math.max(anchor.centerX - 8, place.left + 18), place.left + bubbleW - 34)
+    : 0;
+
+  // Glissement d'entrée : la bulle vient DEPUIS sa cible (elle descend si elle est en dessous,
+  // elle monte si elle est au-dessus). Le mouvement dit d'où vient l'information.
+  const enterShift = appear.interpolate({
+    inputRange: [0, 1],
+    outputRange: [place.arrow === 'down' ? 14 : -14, 0],
+  });
 
   return (
     // RootPortal (pas Modal) : rendu dans la MÊME fenêtre que les boutons ciblés → measureInWindow
@@ -235,16 +288,40 @@ export default function GuideOverlay({
         <TouchableOpacity activeOpacity={1} onPress={dismiss} style={StyleSheet.absoluteFill} />
       )}
 
-      {/* ── Bulle ── */}
-      {(
-        <View
-          style={[bubbleStyles.bubble, { top: bubbleTop, left: bubbleLeft, width: bubbleW }]}
+      {/* ── Bulle ──
+          RENDUE UNIQUEMENT une fois sa place connue (`anchor !== undefined`). C'est ce qui
+          supprime le saut « elle apparaît en bas, puis remonte » : avant, elle s'affichait au repli
+          le temps de la mesure, puis se replaçait d'un coup sous les yeux de l'utilisateur. */}
+      {anchor !== undefined && (
+        <Animated.View
+          style={[
+            bubbleStyles.bubble,
+            {
+              left: place.left, width: bubbleW, maxHeight: place.maxHeight,
+              ...('top' in place ? { top: place.top } : { bottom: place.bottom }),
+              opacity: appear,
+              transform: [
+                { translateY: enterShift },
+                { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+              ],
+            },
+          ]}
           pointerEvents="auto"
-          onLayout={(e) => {
-            const h = e.nativeEvent.layout.height;
-            if (h > 0 && Math.abs(h - bubbleH) > 1) setBubbleH(h);
-          }}
         >
+          {/* Flèche vers la cible, collée au bord qui lui fait face. */}
+          {place.arrow && (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.arrow,
+                { left: arrowLeft - place.left },
+                place.arrow === 'up'
+                  ? [styles.arrowUp, { top: -8, borderBottomColor: b.cardSolid }]
+                  : [styles.arrowDown, { bottom: -8, borderTopColor: b.cardSolid }],
+              ]}
+            />
+          )}
+
           {/* Header */}
           {(!!screenTitle || !hideSkip) && (
             <View style={styles.bubbleHeader}>
@@ -257,8 +334,14 @@ export default function GuideOverlay({
             </View>
           )}
 
-          {/* Contenu */}
-          <View style={styles.bubbleBody}>
+          {/* Contenu — DÉFILANT : quand la place est comptée, c'est le texte qui défile, jamais le
+              bouton « Suivant » qui se fait couper. `flexShrink` pour qu'il cède avant le pied. */}
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={styles.bubbleBody}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
             <View style={[styles.iconBox, { backgroundColor: step.iconColor + '22', borderColor: step.iconColor + '44' }]}>
               <Ionicons name={step.icon as any} size={26} color={step.iconColor} />
             </View>
@@ -266,7 +349,7 @@ export default function GuideOverlay({
               <Text style={bubbleStyles.title}>{step.title}</Text>
               <Text style={bubbleStyles.desc}>{step.description}</Text>
             </View>
-          </View>
+          </ScrollView>
 
           {/* Dots + bouton */}
           <View style={styles.bubbleFooter}>
@@ -279,12 +362,12 @@ export default function GuideOverlay({
                 ]} />
               ))}
             </View>
-            <TouchableOpacity style={bubbleStyles.nextBtn} onPress={onNext}>
+            <TouchableOpacity style={bubbleStyles.nextBtn} onPress={onNext} activeOpacity={0.85}>
               <Text style={bubbleStyles.nextLabel}>{nextLabel ?? (isLast ? 'Terminer' : 'Suivant')}</Text>
               <Ionicons name={nextLabel ? 'arrow-forward' : isLast ? 'checkmark' : 'arrow-forward'} size={16} color={b.bg} />
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       )}
     </View>
     </RootPortal>
@@ -330,19 +413,21 @@ function makeStyles(c: any) {
 function makeBubbleStyles(c: any) {
   return StyleSheet.create({
   bubble: {
-    // `left` et `width` sont calculés au rendu (centrage sur la cible + largeur bornée).
+    // `left`, `width`, `top`/`bottom` et `maxHeight` sont calculés au rendu (cf. `place`).
     position: 'absolute',
-    backgroundColor: c.cardSolid, borderRadius: 18,
-    borderWidth: 1, borderColor: c.emerald + '44',
-    padding: 18, gap: 14,
+    backgroundColor: c.cardSolid, borderRadius: 20,
+    borderWidth: 1, borderColor: c.emerald + '3D',
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14, gap: 14,
+    // Ombre franche : la bulle doit se DÉTACHER de la page, pas s'y fondre — c'est ce qui la fait
+    // lire comme une voix par-dessus l'app.
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0 12px 40px rgba(0,0,0,0.5)' } as any
-      : { shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 12 }),
+      ? { boxShadow: '0 18px 48px rgba(0,0,0,0.42), 0 2px 8px rgba(0,0,0,0.22)' } as any
+      : { shadowColor: '#000', shadowOpacity: 0.34, shadowRadius: 26, shadowOffset: { width: 0, height: 12 }, elevation: 16 }),
   },
   screenTitle: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
   skip: { fontSize: 13, color: c.textSecondary },
-  title: { fontSize: 17, fontWeight: '800', color: c.text, marginBottom: 4 },
-  desc: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },
+  title: { fontSize: 17, fontWeight: '800', color: c.text, marginBottom: 5, letterSpacing: -0.2 },
+  desc: { fontSize: 14, color: c.textSecondary, lineHeight: 20.5 },
   nextBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: c.emerald, borderRadius: 12,

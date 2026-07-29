@@ -55,6 +55,11 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
   // Première ouverture : on amorce avec un compte courant, la ligne que tout le monde a.
   const [rows, setRows] = useState<Row[]>([{ key: 'courant-0', label: 'Compte courant', type: 'checking', amount: '' }]);
   const [busy, setBusy] = useState(false);
+  /* Avancement de la création. Les comptes sont insérés UN PAR UN (chacun recalcule son solde) :
+     sur un téléphone, ça prend un instant visible. Le formulaire cède donc la place à une carte
+     d'attente qui DIT ce qui se passe — avant, la feuille restait affichée, figée, et on ne savait
+     pas si le tap avait été pris en compte. */
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
 
   const num = (s: string) => {
     const n = parseFloat(String(s).replace(',', '.'));
@@ -69,6 +74,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
   async function save() {
     if (!canSave) return;
     setBusy(true);
+    setProgress({ done: 0, total: rows.length });
     let created = 0;
     try {
       // Compte principal : seulement si l'utilisateur n'en a pas déjà un.
@@ -88,6 +94,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
         } as any);
         if (isFirstChecking) needsDefault = false;
         created += 1;
+        setProgress({ done: created, total: rows.length });
       }
       setRows([]);
       onCreated?.(created);
@@ -97,6 +104,25 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
     } finally {
       setBusy(false);
     }
+  }
+
+  /* ATTENTE : le formulaire disparaît dès la validation et laisse une carte compacte qui montre
+     l'avancement. Le tap est ainsi confirmé tout de suite, et la fermeture ne se fait qu'une fois
+     les comptes réellement créés — on ne rend jamais la main sur une liste encore vide. */
+  if (visible && busy) {
+    return (
+      <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
+        <View style={styles.overlay}>
+          <View style={[styles.card, styles.waitCard]}>
+            <ActivityIndicator size="large" color={COLORS.emerald} />
+            <Text style={styles.waitTitle}>Création de tes comptes…</Text>
+            <Text style={styles.waitSub}>
+              {progress.total > 1 ? `${progress.done} sur ${progress.total}` : 'Encore un instant.'}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    );
   }
 
   return (
@@ -202,6 +228,10 @@ function makeStyles(c: any) {
       width: '100%', maxWidth: 420, backgroundColor: c.cardSolid, borderRadius: 24,
       borderWidth: 1, borderColor: c.cardBorder, padding: 18, gap: 12,
     },
+    // Carte d'ATTENTE : elle remplace le formulaire pendant la création.
+    waitCard: { alignItems: 'center', gap: 12, paddingVertical: 30 },
+    waitTitle: { fontSize: 16, fontWeight: '800', color: c.text },
+    waitSub: { fontSize: 13, color: c.textSecondary },
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     title: { fontSize: 19, fontWeight: '800', color: c.text },
     sub: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginTop: 3 },

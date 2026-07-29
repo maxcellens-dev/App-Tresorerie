@@ -392,6 +392,25 @@ export default function AccountDetailScreen() {
       .sort(compareTransactionsForDisplay);
   }, [id, transactions]);
 
+  /* À VENIR CE MOIS — les opérations de ce compte datées APRÈS aujourd'hui mais encore dans le
+     mois courant. L'historique s'arrête volontairement à aujourd'hui (il raconte ce qui s'est
+     passé) : sans ce bloc, une échéance déjà saisie pour le 28 n'apparaissait NULLE PART sur la
+     fiche du compte, alors qu'elle va bel et bien sortir. */
+  const upcomingThisMonth = useMemo(() => {
+    const today = todayISO();
+    const monthPrefix = today.slice(0, 7);
+    return ((transactions as TransactionWithDetails[]) ?? [])
+      .filter((t) => t.account_id === id && !(t as any).is_draft
+        && (t.date ?? '') > today && (t.date ?? '').startsWith(monthPrefix))
+      .sort((x, y) => (x.date ?? '').localeCompare(y.date ?? ''));
+  }, [id, transactions]);
+  const upcomingTotal = useMemo(
+    () => upcomingThisMonth.reduce((sum, t) => sum + Number(t.amount), 0),
+    [upcomingThisMonth],
+  );
+  /** Bascule « à venir » : la liste montre alors ce qui reste à passer, au lieu de l'historique. */
+  const [showUpcoming, setShowUpcoming] = useState(false);
+
   // Fenêtre affichée : les `monthsShown` derniers MOIS CALENDAIRES (mois courant inclus).
   // On borne par mois plutôt que par nombre de lignes pour que « charger plus » ait un sens lisible
   // (« depuis avril 2026 ») quel que soit le rythme de saisie de l'utilisateur.
@@ -579,7 +598,29 @@ export default function AccountDetailScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Historique des transactions</Text>
+        {/* À VENIR CE MOIS — même geste que sur la liste des transactions : un bouton qui bascule
+            la liste sur ce qui n'est pas encore passé. Posé AU-DESSUS de l'historique, puisqu'il
+            parle du futur proche et que l'historique, lui, remonte le temps. */}
+        {upcomingThisMonth.length > 0 && (
+          <TouchableOpacity
+            style={[styles.upcomingBtn, showUpcoming && styles.upcomingBtnActive]}
+            onPress={() => setShowUpcoming((v) => !v)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+          >
+            <Ionicons name="time-outline" size={16} color={showUpcoming ? COLORS.bg : COLORS.textSecondary} />
+            <Text style={[styles.upcomingLabel, showUpcoming && { color: COLORS.bg }]}>
+              À venir ce mois ({upcomingThisMonth.length})
+            </Text>
+            <Text style={[styles.upcomingAmount, showUpcoming && { color: COLORS.bg }]}>
+              {upcomingTotal > 0 ? '+' : ''}{Math.round(upcomingTotal).toLocaleString('fr-FR')} {CURRENCY_SYMBOL}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <Text style={styles.sectionTitle}>
+          {showUpcoming ? 'À venir ce mois' : 'Historique des transactions'}
+        </Text>
         {txLoading ? (
           <ActivityIndicator size="small" color={COLORS.emerald} style={styles.loader} />
         ) : accountTransactions.length === 0 ? (
@@ -589,7 +630,7 @@ export default function AccountDetailScreen() {
           </View>
         ) : (
           <View style={styles.listCard}>
-            {visibleTransactions.map((t, idx) => {
+            {(showUpcoming ? upcomingThisMonth : visibleTransactions).map((t, idx) => {
               const amount = Number(t.amount);
               const isTransfer = t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transactions as TransactionWithDetails[], id));
               const pair = isTransfer
@@ -614,7 +655,7 @@ export default function AccountDetailScreen() {
               return (
                 <TouchableOpacity
                   key={`${t.id}-${idx}`}
-                  style={[styles.transferRow, idx === visibleTransactions.length - 1 && styles.transferRowLast]}
+                  style={[styles.transferRow, idx === (showUpcoming ? upcomingThisMonth : visibleTransactions).length - 1 && styles.transferRowLast]}
                   onPress={() => setSelectedTx(t)}
                   activeOpacity={0.7}
                 >
@@ -1339,6 +1380,16 @@ function makeStyles(c: any) {
   apportSave: { width: 30, height: 30, borderRadius: 8, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
   apportHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 2 },
   sectionTitle: { fontSize: 15, fontWeight: '700', color: c.textSecondary, marginBottom: 12 },
+
+  // Bascule « À venir ce mois » : discrète quand elle dort, pleine quand elle filtre.
+  upcomingBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12,
+  },
+  upcomingBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
+  upcomingLabel: { flex: 1, fontSize: 13.5, fontWeight: '700', color: c.text },
+  upcomingAmount: { fontSize: 13.5, fontWeight: '800', color: c.textSecondary },
   loader: { marginVertical: 20 },
   emptyCard: {
     backgroundColor: c.card,

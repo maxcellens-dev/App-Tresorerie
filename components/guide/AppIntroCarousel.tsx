@@ -12,8 +12,8 @@
  * périment pas quand l'interface bouge, et elles ne pèsent rien dans le bundle. Les chiffres qu'on
  * y lit sont des EXEMPLES — jamais les données de l'utilisateur, qui n'en a pas encore.
  */
-import React, { useMemo, useRef, useState } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, ScrollView, Platform, Image } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, Easing, ScrollView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/useAppColors';
@@ -90,6 +90,37 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
   const [index, setIndex] = useState(0);
   const fade = useRef(new Animated.Value(1)).current;
   const rise = useRef(new Animated.Value(1)).current;
+
+  /* ── ENTRÉE DANS L'APP ────────────────────────────────────────────────────────────────────────
+     Jusqu'ici, « Commencer » faisait disparaître le carrousel d'un coup : on se retrouvait sur le
+     tableau de bord sans avoir rien franchi. Il manquait le moment de bascule.
+     La sortie se joue donc en trois temps, sur une seule valeur (0 → 1) :
+       1. le CONTENU part vers le haut en s'effaçant — la présentation se retire ;
+       2. le logo de marque grossit un instant au centre — le repère qu'on garde entre les deux ;
+       3. tout l'écran s'écarte vers l'avant (zoom + fondu) — on passe DANS l'app, qui est déjà
+          montée dessous et se découvre en grand.
+     `useNativeDriver` partout (opacité + transformations uniquement) : fluide même sur un appareil
+     modeste. Court (≈ 620 ms) : une transition, pas une attente. */
+  const [leaving, setLeaving] = useState(false);
+  const exit = useRef(new Animated.Value(0)).current;
+  /* Apparition : le Modal n'a plus d'animation native (elle écrasait la sortie), on la refait donc
+     ici. Courte et sans mouvement : les écrans de présentation doivent être là tout de suite. */
+  const enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!visible) { enter.setValue(0); return; }
+    Animated.timing(enter, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }, [visible, enter]);
+
+  const enterApp = () => {
+    if (leaving) return;                     // double tap : une seule sortie
+    setLeaving(true);
+    Animated.timing(exit, {
+      toValue: 1,
+      duration: 620,
+      easing: Easing.bezier(0.4, 0, 0.2, 1), // départ franc, arrivée douce
+      useNativeDriver: true,
+    }).start(({ finished }) => { if (finished) onDone(); });
+  };
 
   const SLIDES: Slide[] = useMemo(() => [
     {
@@ -169,10 +200,55 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
     );
   }
 
+  /* ── Étapes de la sortie, découpées sur la même valeur 0 → 1 ──────────────────────────────────
+     Chaque élément a sa fenêtre : le contenu s'en va d'abord (0 → 0.45), le logo prend le relais
+     au milieu (0.15 → 0.75), et l'écran entier ne s'ouvre qu'à la fin (0.55 → 1). C'est ce
+     décalage qui fait lire une SÉQUENCE (« je sors, puis j'entre ») au lieu d'un simple fondu. */
+  const contentOut = {
+    opacity: exit.interpolate({ inputRange: [0, 0.45], outputRange: [1, 0], extrapolate: 'clamp' }),
+    transform: [
+      { translateY: exit.interpolate({ inputRange: [0, 0.45], outputRange: [0, -40], extrapolate: 'clamp' }) },
+      { scale: exit.interpolate({ inputRange: [0, 0.45], outputRange: [1, 0.94], extrapolate: 'clamp' }) },
+    ],
+  };
+  // Le logo grossit doucement puis s'efface avec l'écran : c'est le seul repère qui traverse la
+  // transition, celui qu'on retrouve ensuite dans l'en-tête de l'app.
+  const markStyle = {
+    opacity: exit.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 0, 1, 0], extrapolate: 'clamp' }),
+    transform: [
+      { scale: exit.interpolate({ inputRange: [0.15, 0.75, 1], outputRange: [0.5, 1, 1.6], extrapolate: 'clamp' }) },
+    ],
+  };
+  // L'écran s'écarte vers l'avant : on ne le voit pas « disparaître », on le TRAVERSE.
+  const screenOut = {
+    // Apparition ET sortie sur la même opacité : elles ne se chevauchent jamais (l'une finit avant
+    // que l'autre ne démarre), le produit vaut donc toujours celle qui est en cours.
+    opacity: Animated.multiply(
+      enter,
+      exit.interpolate({ inputRange: [0.55, 1], outputRange: [1, 0], extrapolate: 'clamp' }),
+    ),
+    transform: [
+      { scale: exit.interpolate({ inputRange: [0.55, 1], outputRange: [1, 1.12], extrapolate: 'clamp' }) },
+    ],
+  };
+
   return (
-    <Modal visible transparent={false} animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
-      <View style={styles.root}>
+    /* `animationType="none"` : la sortie est ENTIÈREMENT la nôtre — le fondu natif du Modal se
+       superposait à elle et écrasait la séquence en un simple évanouissement.
+       `transparent` : INDISPENSABLE ici. Avec une fenêtre opaque, s'effacer ne découvrait que le
+       fond du Modal, pas l'app — la transition ne pouvait pas se lire comme « j'entre ». L'écran
+       reste visuellement plein : c'est `styles.root` (couleur de fond) qui le couvre, et c'est LUI
+       qu'on écarte pour laisser paraître le tableau de bord déjà monté dessous. */
+    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={() => {}}>
+      <Animated.View style={[styles.root, screenOut]}>
         <ScreenGradient />
+        {/* Logo de bascule : présent seulement pendant la sortie, au centre exact de l'écran. */}
+        {leaving && (
+          <Animated.View style={[styles.exitMark, markStyle]} pointerEvents="none">
+            <Image source={require('../../assets/logo.png')} style={styles.bootLogo} resizeMode="contain" fadeDuration={0} />
+          </Animated.View>
+        )}
+        <Animated.View style={[{ flex: 1 }, contentOut]}>
         <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
 
           <View style={styles.topBar}>
@@ -227,7 +303,8 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
             </View>
             <TouchableOpacity
               style={styles.cta}
-              onPress={() => (last ? onDone() : goTo(index + 1))}
+              onPress={() => (last ? enterApp() : goTo(index + 1))}
+              disabled={leaving}
               activeOpacity={0.85}
               accessibilityRole="button"
             >
@@ -239,7 +316,8 @@ export default function AppIntroCarousel({ visible, booting, onDone }: {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </Modal>
   );
 }
@@ -489,6 +567,9 @@ function makeStyles(c: any) {
     logo: { width: 30, height: 30, borderRadius: 9 },
     // Même taille et même centrage que le splash : la transition ne se voit pas.
     bootLogo: { width: 96, height: 96, borderRadius: 26 },
+    // Logo de la transition de sortie : centré sur l'ÉCRAN entier (pas dans la mise en page, qui
+    // est en train de s'en aller au même moment).
+    exitMark: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
     brand: { fontSize: 18, fontWeight: '800', color: c.text },
 
     /* Titre + illustration + texte : UN SEUL bloc, ALIGNÉ EN HAUT, avec le MÊME écart partout.

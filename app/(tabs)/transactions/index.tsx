@@ -227,11 +227,18 @@ function TransactionsListBody() {
   /* Le modal « Étape 2 » ne doit pas rester derrière l'écran de saisie ni derrière les dialogues
      qu'il ouvre : dès que l'utilisateur part créer sa récurrence, on le referme. Il ne revient
      qu'AU RETOUR sur cette page, et seulement si rien n'a été enregistré (l'étape serait alors
-     franchie et le modal n'existerait plus). */
+     franchie et le modal n'existerait plus).
+     ⚠️ DÉLAI DE GRÂCE au retour. L'enregistrement se termine en arrière-plan (retour immédiat à la
+     liste) : pendant ces quelques centaines de millisecondes, la récurrente n'existe pas encore
+     côté données, et le guide en concluait « toujours rien » — le modal réapparaissait sous le nez
+     de l'utilisateur qui venait juste d'enregistrer. Sur un téléphone, plus lent, ça se voyait
+     franchement. On laisse donc l'écriture aboutir avant de reposer la question. Si elle a
+     réellement échoué, le modal revient après ce délai : rien n'est perdu, c'est juste différé. */
+  const RECUR_SAVE_GRACE_MS = 2500;
   const [recurAttempt, setRecurAttempt] = useState(false);
   useEffect(() => {
     if (!txFocused || !recurAttempt) return;
-    const t = setTimeout(() => setRecurAttempt(false), 400); // laisse finir la transition de retour
+    const t = setTimeout(() => setRecurAttempt(false), RECUR_SAVE_GRACE_MS);
     return () => clearTimeout(t);
   }, [txFocused, recurAttempt]);
 

@@ -4,8 +4,8 @@
  * L'écran ne présente plus un questionnaire de neuf questions : la plupart des réponses sont
  * désormais MESURÉES sur les données réelles (matelas de sécurité = épargne ÷ revenu, revenu de
  * référence = recettes constatées). Seules restent modifiables les rares choses que l'app ne peut
- * pas deviner : ton comportement de fin de mois, ta capacité d'épargne, ta marge de sécurité et
- * ton enveloppe de dépenses variables.
+ * pas deviner : ta marge de sécurité et ton enveloppe de dépenses variables. Toutes deux vivent
+ * dans `profiles`, la MÊME source que le reste de l'app — jamais dans d'anciennes réponses.
  *
  * Le profil n'est plus figé : il se recalcule dès que les données bougent (useLiveProfileSync),
  * puis le bilan mensuel prend le relais.
@@ -24,15 +24,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import {
-  useFinancialProfile,
-  useQuestionnaireAnswers,
-  useSaveQuestionnaire,
-} from '../../../hooks/useFinancialProfile';
+import { useFinancialProfile, useQuestionnaireAnswers } from '../../../hooks/useFinancialProfile';
 import { usePilotageData } from '../../../hooks/usePilotageData';
+import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
 import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
-  weeklyVariableFromQ9, safetyMarginFromQ8, WEEKS_PER_MONTH,
+  WEEKS_PER_MONTH,
 } from '../../../lib/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from '../../../lib/securityCushion';
 import type { QuestionnaireAnswers } from '../../../lib/financialProfileEngine';
@@ -57,7 +54,13 @@ function ProfilFinancierScreen() {
   const { data: fp, isLoading: fpLoading } = useFinancialProfile(user?.id);
   const { data: saved, isLoading: answersLoading } = useQuestionnaireAnswers(user?.id);
   const { data: pilotage } = usePilotageData(user?.id);
-  const saveQuestionnaire = useSaveQuestionnaire(user?.id);
+  /* ⚠️ La marge de sécurité et l'enveloppe variable vivent dans `profiles` — c'est là que tout le
+     reste de l'app les écrit et les lit (le guide de démarrage, le Pilotage, le moteur du Relyka).
+     Cet écran allait les chercher dans les anciennes réponses q8/q9 du questionnaire : DEUX
+     stockages différents, d'où des cases vides ici alors que l'utilisateur venait de les saisir
+     pendant le tour, et un doublon avec la ligne mesurée juste au-dessus. Une seule source. */
+  const { data: userProfile } = useProfile(user?.id);
+  const updateProfile = useUpdateProfile(user?.id);
 
   /** Panneau d'édition ouvert (une seule ligne à la fois). */
   const [editing, setEditing] = useState<null | 'q8' | 'q9'>(null);
@@ -94,19 +97,17 @@ function ProfilFinancierScreen() {
     questionnaireQ3: a.q3 ?? null,
   });
 
-  const margin = safetyMarginFromQ8(a.q8 ?? '');
-  const weekly = weeklyVariableFromQ9(a.q9 ?? '');
+  const margin = Number((userProfile as any)?.safety_margin_amount ?? 0);
+  const weekly = Number((userProfile as any)?.weekly_variable_budget ?? 0);
 
-  /** Enregistre une réponse et laisse le moteur recalculer le profil. */
-  async function persist(patch: Partial<QuestionnaireAnswers>, doneKeys: string[] = []) {
+  /** Enregistre une valeur LÀ OÙ TOUTE L'APP la lit (profiles), puis laisse le profil se recalculer. */
+  async function persistAmount(key: 'margin' | 'weekly', raw: string) {
+    const n = Math.max(0, Math.round(parseFloat(String(raw).replace(',', '.')) || 0));
     setSaving(true);
     try {
-      const next: QuestionnaireAnswers = {
-        q1: a.q1 ?? '', q2: a.q2 ?? '', q3: a.q3 ?? '', q4: a.q4 ?? '',
-        q5: a.q5 ?? '', q6: a.q6 ?? '', q7: a.q7 ?? '', q8: a.q8 ?? '', q9: a.q9 ?? '',
-        ...patch,
-      };
-      await saveQuestionnaire.mutateAsync({ answers: next, isUpdate: true });
+      await updateProfile.mutateAsync(
+        key === 'margin' ? { safety_margin_amount: n } : { weekly_variable_budget: n > 0 ? n : null },
+      );
       setEditing(null);
     } catch (e: unknown) {
       Alert.alert('Un souci', (e as any)?.message ?? 'Impossible d’enregistrer.');
@@ -312,7 +313,7 @@ function ProfilFinancierScreen() {
             {editing === 'q8' && amountPanel(
               symbol,
               'Le montant que tu veux avoir au minimum sur tes comptes courants en fin de mois. Il reste sur ton compte : on te dit juste ce que tu peux utiliser avant d’y toucher.',
-              (v) => persist({ q8: v }, ['q8']),
+              (v) => persistAmount('margin', v),
             )}
 
             {editableRow(
@@ -323,7 +324,7 @@ function ProfilFinancierScreen() {
             {editing === 'q9' && amountPanel(
               `${symbol} / semaine`,
               `Courses, sorties, imprévus. ${amountDraft ? `Soit environ ${Math.round((parseFloat(amountDraft.replace(',', '.')) || 0) * WEEKS_PER_MONTH).toLocaleString('fr-FR')} ${symbol} par mois. ` : ''}Sert tant que tu n’as pas 2 mois d’historique réel.`,
-              (v) => persist({ q9: v }, ['q9']),
+              (v) => persistAmount('weekly', v),
             )}
           </View>
 
@@ -332,8 +333,7 @@ function ProfilFinancierScreen() {
             <Text style={styles.cardTitle}>Comment il évolue</Text>
             <Text style={styles.cardLead}>
               Il n’est pas figé. Dès qu’une donnée réelle change — un virement d’épargne, une mise à
-              jour de solde — il se recalcule, et tu es prévenu s’il bouge. Le bilan mensuel prend
-              ensuite le relais avec ton comportement observé.
+              jour de solde — il se recalcule, et tu es prévenu s’il bouge.
             </Text>
             {(fp?.is_irregular_income ?? false) && (
               <View style={styles.note}>

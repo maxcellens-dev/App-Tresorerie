@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages } from '../hooks/useFinancialProfile';
@@ -6,6 +6,7 @@ import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
+import { useGuide } from '../contexts/GuideContext';
 import { sheetWidth } from '../lib/appLayout';
 
 
@@ -58,13 +59,31 @@ export default function ProfileChangeModal({ userId }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isImpersonating } = useAuth();
+  const guide = useGuide();
   const { data: pendingChange } = usePendingProfileChange(userId);
   const { data: dbMessages = [] } = useProfileNotificationMessages();
   const markShown = useMarkNotificationShown(userId);
 
+  /* PARCOURS DE DÉMARRAGE : on ne montre RIEN, et on consomme la notification en arrière-plan.
+     Pendant l'installation, l'utilisateur saisit ses comptes puis ses récurrences : son profil se
+     recalcule à chaque fois et grimpe (P1 → P3…). Chaque saut créait une notification, qui
+     s'affichait par-dessus les écrans de présentation — un « ton profil a changé » avant même
+     d'avoir vu l'app. On la marque donc comme vue sans la montrer : elle n'attend pas non plus la
+     fin du guide pour resurgir hors contexte. */
+  /* Silence pendant TOUT le parcours de démarrage, ET jusqu'à ce que sa conclusion ait été
+     montrée (ProfileTourConclusion) : c'est elle qui présente le profil à la fin du tour, ce modal
+     ne doit pas la doubler ni la précéder. */
+  const duringGuide = guide.active || guide.booting || guide.tourJustFinished;
+  useEffect(() => {
+    if (!duringGuide || isImpersonating || !pendingChange) return;
+    markShown.mutate(pendingChange.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duringGuide, isImpersonating, pendingChange?.id]);
+
   // En consultation admin : ne pas afficher le message de bilan/changement de profil du compte
   // cible (ni le marquer comme « vu »). C'est une notification destinée à l'utilisateur lui-même.
   if (isImpersonating) return null;
+  if (duringGuide) return null;
   if (!pendingChange) return null;
 
   const key = getTransitionKey(
@@ -124,7 +143,9 @@ export default function ProfileChangeModal({ userId }: Props) {
               <Text style={[styles.directionText, {
                 color: isUpgrade ? COLORS.emerald : isDowngrade ? '#f87171' : isSame ? '#60a5fa' : '#f59e0b',
               }]}>
-                {isUpgrade ? 'Progression' : isDowngrade ? 'Ajustement' : isSame ? 'Bilan du mois' : 'Alerte'}
+                {/* Pas « Bilan du mois » : ce message n'est pas un bilan mensuel, il peut arriver
+                    à n'importe quel moment dès que les données bougent. */}
+                {isUpgrade ? 'Progression' : isDowngrade ? 'Ajustement' : isSame ? 'Ton profil' : 'Alerte'}
               </Text>
             </View>
 
