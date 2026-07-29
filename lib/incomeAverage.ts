@@ -15,6 +15,7 @@
 
 /** Transaction, vue minimale suffisante pour reconnaître une recette. */
 export interface IncomeTx {
+  id?: string | null;
   account_id: string;
   amount: number | string;
   date: string;
@@ -26,6 +27,8 @@ export interface IncomeTx {
   is_recurring?: boolean | null;
   recurrence_rule?: string | null;
   recurrence_end_date?: string | null;
+  /** Id du MODÈLE dont cette ligne est une occurrence matérialisée (migration 030). */
+  materialized_from?: string | null;
 }
 
 /* Date LOCALE au format AAAA-MM-JJ. ⚠️ Surtout pas `toISOString()` : il convertit en UTC, et un
@@ -116,66 +119,72 @@ export function computeAvgMonthlyIncome(
 }
 
 /**
- * Combien d'occurrences d'une récurrence tombent dans le mois `mk` (« AAAA-MM ») ?
+ * Ce qu'une récurrence rapporte PAR MOIS, quelle que soit sa périodicité.
  *
- * ⚠️ `startDate` est la date du MODÈLE, et le modèle porte toujours la PROCHAINE occurrence : la
- * matérialisation (materialize_due_recurring) transforme chaque échéance passée en vraie ligne puis
- * avance la date du modèle. Compter les occurrences à partir de cette date ne peut donc jamais
- * doubler ce qui a déjà été matérialisé — c'est ce qui rend l'addition ci-dessous sûre.
+ * Un revenu trimestriel de 6 000 € n'est pas « 6 000 € un mois et rien les deux suivants » quand on
+ * cherche à savoir combien quelqu'un gagne : c'est 2 000 €/mois. Idem pour l'annuel. Le matelas de
+ * sécurité et le profil raisonnent en rythme mensuel — on ramène donc tout au mois, y compris
+ * l'hebdomadaire (4,33 semaines par mois en moyenne).
  */
-function occurrencesInMonth(
-  startDate: string,
-  rule: string | null | undefined,
-  endDate: string | null | undefined,
-  mk: string,
-): number {
-  const monthStart = `${mk}-01`;
-  const [y, m] = mk.split('-').map(Number);
-  const monthEnd = isoDay(new Date(y, m, 0)); // jour 0 du mois suivant = dernier jour de `mk`
-  if (startDate > monthEnd) return 0;
-  if (endDate && endDate < monthStart) return 0;
-
-  if (rule === 'weekly') {
-    // Seule périodicité qui peut tomber PLUSIEURS fois dans le même mois.
-    let count = 0;
-    const d = new Date(startDate + 'T00:00:00');
-    for (let guard = 0; guard < 60; guard++) {
-      const day = isoDay(d);
-      if (day > monthEnd) break;
-      if (day >= monthStart && (!endDate || day <= endDate)) count++;
-      d.setDate(d.getDate() + 7);
-    }
-    return count;
+function monthlyEquivalent(rule: string | null | undefined, amount: number): number {
+  switch (rule) {
+    case 'weekly': return amount * (365 / 12 / 7); // ≈ 4,348 occurrences par mois
+    case 'monthly': return amount;
+    case 'quarterly': return amount / 3;
+    case 'yearly': return amount / 12;
+    default: return 0;
   }
-  // Mensuel / trimestriel / annuel : au plus une occurrence par mois — celle du modèle.
-  if (rule !== 'monthly' && rule !== 'quarterly' && rule !== 'yearly') return 0;
-  const inMonth = startDate.slice(0, 7) === mk;
-  return inMonth && (!endDate || startDate <= endDate) ? 1 : 0;
 }
 
 /**
- * TOTAL des rentrées d'argent d'un mois donné — « combien il gagne, en gros, sur ce mois ».
+ * La récurrence tourne-t-elle pendant le mois `mk` ?
  *
- * On additionne TOUT ce qui tombe dans le mois, sans privilégier une source sur une autre :
- *  • les lignes réelles datées dans le mois — déjà tombées OU encore à venir. Une paie du 5 déjà
- *    reçue et une prime du 28 encore à venir font un mois à deux rentrées, pas une ;
- *  • les occurrences des récurrentes qui tombent dans ce mois et ne sont pas encore matérialisées.
+ * ⚠️ On ne peut PAS répondre avec la seule date du modèle. La matérialisation avance cette date au
+ * fur et à mesure : un salaire tombé le 5 de ce mois laisse un modèle daté du mois PROCHAIN. Le
+ * lire naïvement ferait conclure « pas encore commencée » pour le mois en cours — et ce mois-là
+ * perdrait le salaire, alors qu'il vient d'être versé.
  *
- * Chaque euro est compté une fois et une seule : une échéance passée est une ligne réelle (premier
- * point) et n'est plus portée par le modèle, dont la date a été avancée (cf. occurrencesInMonth).
+ * D'où `running` : l'ensemble des modèles qui ont DÉJÀ produit au moins une occurrence réelle. Ils
+ * tournent, point. Un modèle absent de cet ensemble n'a jamais rien versé : sa date est alors bien
+ * sa première échéance, et on peut la comparer au mois.
+ */
+function isActiveInMonth(t: IncomeTx, mk: string, running: Set<string>): boolean {
+  const [y, m] = mk.split('-').map(Number);
+  const monthEnd = isoDay(new Date(y, m, 0)); // jour 0 du mois suivant = dernier jour de `mk`
+  if (t.recurrence_end_date && t.recurrence_end_date < `${mk}-01`) return false; // déjà terminée
+  if (t.id && running.has(String(t.id))) return true;                            // déjà en cours
+  return t.date <= monthEnd;                                                     // 1ʳᵉ échéance
+}
+
+/**
+ * REVENU MENSUEL estimé à partir d'un mois de référence — « combien il gagne, en gros, par mois ».
+ *
+ * On additionne TOUT, sans privilégier une source sur une autre :
+ *  • les rentrées PONCTUELLES datées dans le mois — déjà tombées OU encore à venir. Une paie du 5
+ *    déjà reçue et une prime du 28 à venir font un mois à deux rentrées, pas une ;
+ *  • chaque RÉCURRENCE active, ramenée au mois (cf. monthlyEquivalent).
+ *
+ * Aucun euro n'est compté deux fois : les occurrences déjà matérialisées portent `materialized_from`
+ * (migration 030) et sont donc écartées du premier point — c'est leur récurrence, ramenée au mois,
+ * qui les représente. Sans cette exclusion, un salaire déjà tombé aurait compté une fois comme ligne
+ * réelle et une fois comme récurrence.
  */
 export function computeMonthIncome(
   transactions: IncomeTx[],
   checkingIds: Set<string>,
   mk: string,
 ): number {
+  // Modèles ayant déjà produit une occurrence réelle → ils tournent (cf. isActiveInMonth).
+  const running = new Set<string>();
+  for (const t of transactions) if (t.materialized_from) running.add(String(t.materialized_from));
+
   let total = 0;
   for (const t of transactions) {
     if (!isRealIncome(t, checkingIds)) continue;
     const amount = Number(t.amount);
     if (t.is_recurring && t.recurrence_rule) {
-      total += amount * occurrencesInMonth(t.date, t.recurrence_rule, t.recurrence_end_date ?? null, mk);
-    } else if (t.date.slice(0, 7) === mk) {
+      if (isActiveInMonth(t, mk, running)) total += monthlyEquivalent(t.recurrence_rule, amount);
+    } else if (!t.materialized_from && t.date.slice(0, 7) === mk) {
       total += amount;
     }
   }

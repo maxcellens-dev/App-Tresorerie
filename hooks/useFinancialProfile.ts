@@ -314,7 +314,7 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     supabase.from('transactions')
       // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
       // partagé (une recette « régul » ou posée sur une catégorie de dépense n'en est pas une).
-      .select('amount, date, account_id, linked_account_id, is_draft, is_reserved, note, is_recurring, recurrence_rule, recurrence_end_date, category:categories(type)')
+      .select('id, amount, date, account_id, linked_account_id, is_draft, is_reserved, note, is_recurring, recurrence_rule, recurrence_end_date, materialized_from, category:categories(type)')
       .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
     supabase.from('accounts')
       .select('id, type, balance')

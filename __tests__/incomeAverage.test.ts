@@ -78,8 +78,12 @@ describe('computeAvgMonthlyIncome — la seule mesure du revenu de référence',
  */
 describe('démarrage — le TOTAL du mois, pas seulement ce qui est déjà tombé', () => {
   const today = iso(new Date());
-  const recurring = (date: string, amount = 2000, rule = 'monthly') => ({
-    ...salary(date, amount), is_recurring: true, recurrence_rule: rule,
+  const recurring = (date: string, amount = 2000, rule = 'monthly', id = 'r1') => ({
+    ...salary(date, amount), id, is_recurring: true, recurrence_rule: rule,
+  });
+  /** Occurrence déjà matérialisée d'un modèle (migration 030 : is_recurring=false + lien). */
+  const materializedOf = (date: string, amount: number, parent = 'r1') => ({
+    ...salary(date, amount), materialized_from: parent,
   });
   /** Jour du mois SUIVANT (le cas « je m'inscris le 28, ma prochaine paie est en septembre »). */
   const dayOfNextMonth = (day: number) => {
@@ -106,20 +110,49 @@ describe('démarrage — le TOTAL du mois, pas seulement ce qui est déjà tomb�
     expect(computeMonthIncome(txs, CHECKING, THIS)).toBe(2350);
   });
 
-  it('compte une récurrente hebdomadaire autant de fois qu’elle tombe', () => {
-    // Modèle au 1er du mois : 1, 8, 15, 22, 29 → au moins 4 occurrences dans tout mois.
-    const total = computeMonthIncome([recurring(dayOfThisMonth(1), 300, 'weekly')], CHECKING, THIS);
-    expect(total).toBeGreaterThanOrEqual(1200);
-    expect(total).toBeLessThanOrEqual(1500);
+  /* ── Toute périodicité est ramenée au MOIS ────────────────────────────────────────────────
+     Un revenu trimestriel de 6 000 €, ce n'est pas « 6 000 € un mois et rien les deux suivants »
+     quand on cherche combien quelqu'un gagne : c'est 2 000 €/mois. Le matelas et le profil
+     raisonnent en rythme mensuel. */
+  it('ramène l’hebdomadaire au mois (≈ 4,35 semaines)', () => {
+    expect(computeMonthIncome([recurring(dayOfThisMonth(1), 300, 'weekly')], CHECKING, THIS))
+      .toBeCloseTo(300 * (365 / 12 / 7), 2);
+  });
+
+  it('ramène le TRIMESTRIEL au mois (÷ 3)', () => {
+    expect(computeMonthIncome([recurring(dayOfThisMonth(10), 6000, 'quarterly')], CHECKING, THIS)).toBe(2000);
+  });
+
+  it('ramène l’ANNUEL au mois (÷ 12)', () => {
+    expect(computeMonthIncome([recurring(dayOfThisMonth(10), 12000, 'yearly')], CHECKING, THIS)).toBe(1000);
+  });
+
+  it('un trimestriel rapporte AUSSI les mois où il ne tombe pas', () => {
+    // Modèle daté dans 2 mois : il ne tombe pas ce mois-ci, mais il rapporte bien 2 000 €/mois.
+    const n = new Date();
+    const inTwoMonths = iso(new Date(n.getFullYear(), n.getMonth() + 2, 10));
+    const txs = [{ ...recurring(inTwoMonths, 6000, 'quarterly'), id: 'q1' },
+                 materializedOf(dayOfThisMonth(2), 6000, 'q1')];
+    expect(computeMonthIncome(txs, CHECKING, THIS)).toBe(2000);
   });
 
   it('ne compte PAS deux fois une échéance déjà matérialisée', () => {
-    /* Après matérialisation, l'échéance passée est une ligne réelle ET le modèle a été avancé au
-       mois suivant. Le mois courant ne doit donc voir que la ligne réelle. */
-    const materialized = salary(dayOfThisMonth(5), 2000);            // is_recurring: false
-    const template = recurring(dayOfNextMonth(5), 2000);             // modèle avancé
-    expect(computeMonthIncome([materialized, template], CHECKING, THIS)).toBe(2000);
-    expect(computeMonthIncome([materialized, template], CHECKING, NEXT)).toBe(2000);
+    /* Après matérialisation, l'échéance passée est une ligne réelle (avec materialized_from) ET le
+       modèle a été avancé au mois suivant. Le mois ne doit compter le salaire qu'une fois. */
+    const txs = [materializedOf(dayOfThisMonth(5), 2000), recurring(dayOfNextMonth(5), 2000)];
+    expect(computeMonthIncome(txs, CHECKING, THIS)).toBe(2000);
+    expect(computeMonthIncome(txs, CHECKING, NEXT)).toBe(2000);
+  });
+
+  it('le mois où le salaire est DÉJÀ tombé garde aussi les primes ponctuelles', () => {
+    /* Le modèle a été avancé au mois prochain : le lire naïvement ferait conclure « rien ce
+       mois-ci » et le mois perdrait le salaire, ne gardant que la prime. */
+    const txs = [
+      materializedOf(dayOfThisMonth(5), 2000),      // salaire déjà versé
+      recurring(dayOfNextMonth(5), 2000),           // modèle avancé
+      salary(dayOfThisMonth(20), 500),              // prime ponctuelle
+    ];
+    expect(computeMonthIncome(txs, CHECKING, THIS)).toBe(2500);
   });
 
   it('ignore charges fixes, virements internes et remboursements', () => {

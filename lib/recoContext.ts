@@ -87,7 +87,7 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
     } else {
       // Épargne : accumulation SIMPLE (pas de rendement supposé sur un livret).
       if (rate > 0) {
-        const tail = `tu aurais mis de côté ~${fmt(rate * 12)} ${S} en 1 an et ~${fmt(rate * 60)} ${S} en 5 ans.`;
+        const tail = `tu pourrais mettre de côté ~${fmt(rate * 12)} ${S} en 1 an et ~${fmt(rate * 60)} ${S} en 5 ans.`;
         b = a ? `À ce rythme, ${tail}` : `En épargnant ${fmt(rate)} ${S}/mois, ${tail}`;
       } else {
         b = `Ces ${fmt(amount)} ${S} renforcent directement ton épargne de sécurité.`;
