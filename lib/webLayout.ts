@@ -139,6 +139,42 @@ export function formColumn(isDesktop: boolean, variant: ContentVariant = 'form')
   return { width: '100%', maxWidth: MAX_W[variant], alignSelf: 'center' };
 }
 
+/* ───────────────────────── Écrans d'authentification ───────────────────────── */
+
+/**
+ * CARTE d'authentification (connexion, inscription, mot de passe), sur ordinateur.
+ *
+ * Ces écrans restaient une bande verticale pleine hauteur, aux couleurs de l'app, plantée au milieu
+ * d'un fond vide : la capture d'un téléphone posée sur un écran d'ordinateur. Un site présente au
+ * contraire une CARTE — largeur limitée, hauteur libre, bord et ombre qui la détachent du fond,
+ * centrée dans la fenêtre. C'est ce que rend ce couple de helpers : `authPage` sur le conteneur
+ * pleine page (il centre), `authCard` sur le bloc de contenu (il se détache).
+ *
+ * Sur mobile, les deux renvoient `null` : l'écran garde exactement sa mise en page actuelle.
+ */
+export function authPage(isDesktop: boolean): ViewStyle | null {
+  if (!isDesktop) return null;
+  // `flexGrow` (et non `flex`) : ce style sert AUSSI de `contentContainerStyle` de ScrollView, où
+  // `flex: 1` bride la hauteur du contenu et empêche le défilement dès que la carte dépasse.
+  return { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 };
+}
+
+export function authCard(isDesktop: boolean, colors: { card: string; cardBorder: string }): ViewStyle | null {
+  if (!isDesktop) return null;
+  return {
+    width: '100%',
+    maxWidth: MAX_W.auth,
+    alignSelf: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: 20,
+    paddingHorizontal: 36,
+    paddingVertical: 36,
+    ...(shadow(3) as any),
+  };
+}
+
 /* ───────────────────────── Grilles de cartes ───────────────────────── */
 
 /**

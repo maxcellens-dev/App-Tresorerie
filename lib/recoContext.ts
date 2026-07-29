@@ -43,7 +43,7 @@ function fitSentence(fit: RecurringFit | undefined, S: string): string {
   // Le critère est la DURABILITÉ (le solde ne décline pas), pas seulement « la marge tient ce
   // mois-ci ». On le dit donc en clair : ce qui compte pour l'utilisateur, c'est de ne pas finir
   // dans le rouge à force de répéter le geste.
-  if (fit.kind === 'sustainable') return `Tu peux le faire tous les mois : épargne ${fmt(fit.monthly)} ${S}/mois, ton compte ne se vide pas.`;
+  if (fit.kind === 'sustainable') return `Tu peux créer un virement mensuel de ${fmt(fit.monthly)} ${S} sans risquer de vider ton compte.`;
   if (fit.kind === 'capped') return `Chaque mois, ne dépasse pas ${fmt(fit.monthly)} ${S} : au-delà, ton compte baisserait mois après mois.`;
   return 'À faire une fois, pas tous les mois : répété, ce montant finirait par vider ton compte.';
 }

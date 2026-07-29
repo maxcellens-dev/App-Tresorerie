@@ -14,7 +14,7 @@ import { useBrandColors } from '../hooks/useBrandColors';
 import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { useResponsive } from '../hooks/useResponsive';
-import { contentWidthBare } from '../lib/webLayout';
+import { authPage, authCard } from '../lib/webLayout';
 import PasswordStrength from '../components/PasswordStrength';
 import { evaluatePassword } from '../lib/passwordPolicy';
 
@@ -72,7 +72,9 @@ export default function RegisterScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, isDesktop && { flexGrow: 1, justifyContent: 'center' as const }, contentWidthBare(isDesktop, 'auth')]}>
+          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, authPage(isDesktop)]}>
+          {/* Bureau : tout le formulaire vit dans une CARTE posée sur la page (cf. authCard). */}
+          <View style={authCard(isDesktop, COLORS)}>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Tes données seront synchronisées et sauvegardées.</Text>
 
@@ -135,6 +137,7 @@ export default function RegisterScreen() {
             <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')}>
               <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
             </TouchableOpacity>
+          </View>
           </View>
           </ScrollView>
         </KeyboardAvoidingView>

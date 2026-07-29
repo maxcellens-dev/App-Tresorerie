@@ -9,7 +9,7 @@ import { isRegul } from '../lib/regul';
 import { isProjectSpendTx, projectMode } from '../lib/projectTx';
 import { computeTresoRows } from '../lib/tresoProjection';
 import { computeCashflowTrough } from '../lib/relyka';
-import { computeAvgMonthlyIncome } from '../lib/incomeAverage';
+import { computeReferenceMonthlyIncome } from '../lib/incomeAverage';
 import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
@@ -605,7 +605,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // `next_income_date` ce qui le fera remonter. Le revenu non saisi est INFÉRÉ de l'historique et
   // pondéré par la prudence (profil).
   const expectedIncome = detectExpectedIncome(transactions, checkingIds, todayStr);
-  const avgMonthlyIncome = computeAvgMonthlyIncome(transactions, checkingIds, todayStr, (data.profile as any)?.created_at ?? null);
+  // Constaté si des recettes sont déjà tombées, DÉCLARÉ (récurrentes) sinon : sans ce repli, un
+  // compte neuf dont le salaire est daté d'après aujourd'hui n'avait « aucun revenu » — et le
+  // matelas de sécurité restait vide (cf. lib/incomeAverage).
+  const avgMonthlyIncome = computeReferenceMonthlyIncome(transactions, checkingIds, todayStr, (data.profile as any)?.created_at ?? null);
 
   // Confiance accordée à un revenu INFÉRÉ (non saisi comme récurrent) : pondérée par la prudence.
   const inferredTrust = clamp01(1 - prudence) * expectedIncome.confidence;

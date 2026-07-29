@@ -1,5 +1,8 @@
-import { computeAvgMonthlyIncome } from '../lib/incomeAverage';
+import {
+  computeAvgMonthlyIncome, computeDeclaredMonthlyIncome, computeReferenceMonthlyIncome,
+} from '../lib/incomeAverage';
 import { computeProfileFromData } from '../lib/financialProfileEngine';
+import { computeSecurityCushion } from '../lib/securityCushion';
 
 /**
  * Le revenu de référence décidait du PROFIL, et il en existait deux mesures divergentes : celle du
@@ -55,6 +58,57 @@ describe('computeAvgMonthlyIncome — la seule mesure du revenu de référence',
 
   it('ne compte pas les comptes qui ne sont pas des comptes courants', () => {
     expect(computeAvgMonthlyIncome([salary(dayOfThisMonth(1))], new Set(['autre']), today)).toBe(0);
+  });
+});
+
+/**
+ * Le revenu constaté ignore volontairement le futur. Au DÉMARRAGE c'est un piège : saisir son
+ * salaire à une date encore à venir (le 30 quand on est le 20, ou le mois suivant) est parfaitement
+ * légitime, et laissait pourtant l'app sans aucun revenu — matelas vide, profil bloqué sur P1.
+ */
+describe('revenu DÉCLARÉ — le repli quand rien n’est encore tombé', () => {
+  const today = iso(new Date());
+  const future = iso(new Date(Date.now() + 9 * 86400000));
+  const recurring = (date: string, amount = 2000, rule = 'monthly') => ({
+    ...salary(date, amount), is_recurring: true, recurrence_rule: rule,
+  });
+
+  it('un salaire récurrent à venir compte comme revenu mensuel', () => {
+    expect(computeAvgMonthlyIncome([recurring(future)], CHECKING, today)).toBe(0);
+    expect(computeReferenceMonthlyIncome([recurring(future)], CHECKING, today)).toBe(2000);
+  });
+
+  it('ramène chaque périodicité au mois', () => {
+    expect(computeDeclaredMonthlyIncome([recurring(future, 300, 'weekly')], CHECKING)).toBeCloseTo(1299, 0);
+    expect(computeDeclaredMonthlyIncome([recurring(future, 3000, 'quarterly')], CHECKING)).toBe(1000);
+    expect(computeDeclaredMonthlyIncome([recurring(future, 12000, 'yearly')], CHECKING)).toBe(1000);
+  });
+
+  it('additionne plusieurs rentrées récurrentes', () => {
+    expect(computeDeclaredMonthlyIncome([recurring(future, 2000), recurring(future, 400)], CHECKING)).toBe(2400);
+  });
+
+  it('ignore une dépense récurrente, un virement interne et une non-récurrente', () => {
+    const txs = [
+      recurring(future, -900),                                   // charge fixe
+      { ...recurring(future, 5000), linked_account_id: 'c2' },   // virement interne
+      salary(future, 5000),                                      // ponctuelle, pas une récurrence
+    ];
+    expect(computeDeclaredMonthlyIncome(txs, CHECKING)).toBe(0);
+  });
+
+  it('le CONSTATÉ reprend la main dès la première vraie recette', () => {
+    const txs = [recurring(future, 2000), salary(dayOfThisMonth(1), 1800)];
+    expect(computeReferenceMonthlyIncome(txs, CHECKING, today)).toBe(1800);
+  });
+
+  it('le matelas de sécurité se remplit dès la saisie, sans attendre la paie', () => {
+    const income = computeReferenceMonthlyIncome([recurring(future, 2000)], CHECKING, today);
+    const cushion = computeSecurityCushion({ availableSavings: 15000, avgMonthlyIncome: income });
+    expect(cushion.months).toBe(7.5);   // au lieu de `null` (« — » à l'écran)
+    expect(computeProfileFromData({
+      availableSavings: 15000, avgMonthlyIncome: income, monthlySetAside: 0, totalInvested: 0,
+    })).toBe('P4');                     // au lieu de P1
   });
 });
 

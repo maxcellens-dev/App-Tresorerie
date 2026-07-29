@@ -23,6 +23,8 @@ export interface IncomeTx {
   linked_account_id?: string | null;
   note?: string | null;
   category?: { type?: string | null } | null;
+  is_recurring?: boolean | null;
+  recurrence_rule?: string | null;
 }
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -73,4 +75,58 @@ export function computeAvgMonthlyIncome(
   if (months.length === 0) return 0;
   const total = months.reduce((s, mk) => s + byMonth[mk].sum, 0);
   return total / months.length;
+}
+
+/** Équivalent MENSUEL d'une récurrence, quelle que soit sa périodicité. */
+function monthlyEquivalent(rule: string | null | undefined, amount: number): number {
+  switch (rule) {
+    case 'weekly': return amount * 4.33;
+    case 'monthly': return amount;
+    case 'quarterly': return amount / 3;
+    case 'yearly': return amount / 12;
+    default: return 0;
+  }
+}
+
+/**
+ * Revenu mensuel DÉCLARÉ : somme des recettes récurrentes entrantes sur les comptes courants,
+ * ramenées au mois. Contrairement au revenu constaté, la DATE n'entre pas en jeu — une récurrence
+ * décrit un rythme, pas un événement passé.
+ */
+export function computeDeclaredMonthlyIncome(transactions: IncomeTx[], checkingIds: Set<string>): number {
+  return transactions.reduce((sum, t: any) => {
+    if (!checkingIds.has(t.account_id)) return sum;
+    if (!t.is_recurring || !t.recurrence_rule) return sum;
+    if (t.is_draft || t.linked_account_id) return sum;          // virement interne : pas un revenu
+    if (Number(t.amount) <= 0) return sum;                      // dépense
+    if (t.category?.type === 'expense') return sum;             // remboursement
+    return sum + monthlyEquivalent(t.recurrence_rule, Number(t.amount));
+  }, 0);
+}
+
+/**
+ * LE revenu de référence de l'app — constaté si possible, DÉCLARÉ sinon.
+ *
+ * Pourquoi ce repli : le revenu constaté ne compte que les recettes DÉJÀ TOMBÉES (`date <= today`).
+ * C'est juste pour un compte installé, mais faux au démarrage — et de la pire façon. Quelqu'un qui
+ * crée son compte le 20 et saisit son salaire du 30 (ou du mois suivant, ce qui est parfaitement
+ * légitime) n'avait AUCUN revenu constaté : le matelas de sécurité restait vide, le revenu de
+ * référence affichait « — », et le profil financier restait bloqué sur P1 parce qu'il conclut
+ * « aucun revenu » avant même de regarder l'épargne. Il fallait, par hasard, ressaisir une recette
+ * antérieure au jour même pour que tout se débloque d'un coup.
+ *
+ * Or l'utilisateur A renseigné son revenu : il l'a déclaré en récurrente, ce que le parcours de
+ * démarrage lui demande explicitement. Une récurrence mensuelle de 2 000 € DIT que le revenu
+ * mensuel est de 2 000 €, que sa première occurrence soit demain ou le mois prochain. On s'en sert
+ * donc tant qu'aucune recette n'est encore tombée, et le constaté reprend la main dès la première.
+ */
+export function computeReferenceMonthlyIncome(
+  transactions: IncomeTx[],
+  checkingIds: Set<string>,
+  todayStr: string,
+  profileCreatedAt?: string | null,
+): number {
+  const observed = computeAvgMonthlyIncome(transactions, checkingIds, todayStr, profileCreatedAt);
+  if (observed > 0) return observed;
+  return computeDeclaredMonthlyIncome(transactions, checkingIds);
 }

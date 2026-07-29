@@ -11,7 +11,7 @@ import {
   safetyMarginFromQ8,
   weeklyVariableFromQ9,
 } from '../lib/financialProfileEngine';
-import { computeAvgMonthlyIncome } from '../lib/incomeAverage';
+import { computeReferenceMonthlyIncome } from '../lib/incomeAverage';
 import type {
   UserFinancialProfile,
   UserQuestionnaireAnswers,
@@ -314,7 +314,7 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     supabase.from('transactions')
       // `note`, `is_reserved` et le TYPE de catégorie sont nécessaires au revenu de référence
       // partagé (une recette « régul » ou posée sur une catégorie de dépense n'en est pas une).
-      .select('amount, date, account_id, linked_account_id, is_draft, is_reserved, note, category:categories(type)')
+      .select('amount, date, account_id, linked_account_id, is_draft, is_reserved, note, is_recurring, recurrence_rule, category:categories(type)')
       .eq('profile_id', userId).eq('is_draft', false).gte('date', sixMonthsAgo),
     supabase.from('accounts')
       .select('id, type, balance')
@@ -349,7 +349,7 @@ async function loadRealMetrics(userId: string): Promise<RealMetricsResult | null
     investedBalance,
     // MÊME mesure que le Pilotage et la page « Profil financier ». Il y en avait deux, elles ne
     // s'accordaient pas, et c'est le profil qui en payait le prix (cf. lib/incomeAverage).
-    avgMonthlyIncome: computeAvgMonthlyIncome(
+    avgMonthlyIncome: computeReferenceMonthlyIncome(
       (txns ?? []) as any[], checkingIds, today.toISOString().slice(0, 10),
       (prof as any)?.created_at ?? null,
     ),

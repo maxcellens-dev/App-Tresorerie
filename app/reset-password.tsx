@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useResponsive } from '../hooks/useResponsive';
-import { contentWidthBare } from '../lib/webLayout';
+import { authPage, authCard } from '../lib/webLayout';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,15 +70,18 @@ export default function ResetPasswordScreen() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        {/* « Retour » HORS de la zone centrée : sinon il se centrerait avec la carte, au lieu de
+            rester en haut à gauche comme sur les autres écrans d'authentification. */}
+        <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/login'))}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
+        </TouchableOpacity>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={[styles.keyboard, contentWidthBare(isDesktop, 'auth'), isDesktop && { justifyContent: 'center' }]}
+          style={[styles.keyboard, authPage(isDesktop)]}
         >
-          <TouchableOpacity style={styles.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/login'))}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
-
+          {/* Bureau : le contenu vit dans une CARTE posée sur la page (cf. authCard). */}
+          <View style={authCard(isDesktop, COLORS)}>
           {passwordRecovery ? (
             <>
               <Text style={styles.title}>Nouveau mot de passe</Text>
@@ -119,6 +122,7 @@ export default function ResetPasswordScreen() {
               </Text>
             </>
           )}
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>

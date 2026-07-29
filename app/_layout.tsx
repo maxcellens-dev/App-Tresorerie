@@ -315,15 +315,17 @@ function AppChrome() {
   // air d'app mobile posée au milieu d'un écran vide. En bureau on la supprime :
   //  • (tabs) → pleine largeur : le gabarit de site (barre latérale + contenu) est monté par
   //    app/(tabs)/_layout, qui centre lui-même son contenu.
-  //  • authentification → carte étroite centrée (un formulaire de 1400 px n'existe pas).
+  //  • authentification → PLEINE LARGEUR, et c'est l'écran lui-même qui centre sa carte
+  //    (lib/webLayout.authPage/authCard). Le brider ici à 480 px produisait une bande verticale
+  //    pleine hauteur aux couleurs de l'app : un écran de téléphone posé au milieu du vide, alors
+  //    qu'un site montre une carte posée SUR la page.
   //  • parcours (démarrage, questionnaire, notifications…) → colonne de lecture confortable.
   // En dessous de 1024 px, RIEN ne change : on garde la colonne d'app historique.
   const isDesktopWeb = Platform.OS === 'web' && windowWidth >= DESKTOP_MIN_WIDTH;
   const isAuthForm = root === 'login' || root === 'register' || root === 'reset-password';
   const desktopColumnStyle = !isDesktopWeb || !limitWidth
     ? null
-    : isTabs ? styles.fullColumn
-    : isAuthForm ? styles.authColumn
+    : isTabs || isAuthForm ? styles.fullColumn
     : styles.readingColumn;
 
   // Lien de réinitialisation de mot de passe → écran dédié (prioritaire sur le reste).
@@ -490,7 +492,6 @@ function makeStyles(c: any) {
     // Colonne centrée pour le web ÉTROIT (tablette / petite fenêtre) : largeur d'app « mobile ».
     webColumn: { flex: 1, width: '100%', maxWidth: 840, alignSelf: 'center', borderLeftWidth: 1, borderRightWidth: 1, borderColor: c.cardBorder },
     // Web BUREAU : colonnes sans bordures — l'app n'est plus « une app dans un cadre », c'est la page.
-    authColumn: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
     readingColumn: { flex: 1, width: '100%', maxWidth: 880, alignSelf: 'center' },
     headerSafe: {
       paddingHorizontal: 24,
