@@ -991,8 +991,8 @@ export default function PilotageScreen() {
         icon="cart-outline"
         iconColor={COLORS.orange}
         eyebrow="Étape 3 · Tes dépenses variables"
-        title="Combien pars-tu en courses et en sorties ?"
-        text={"Courses, essence, restos, imprévus : tout ce qui n'est pas une charge fixe. Donne un ordre de grandeur — c'est la ligne « Tu devrais encore dépenser », juste derrière ce message.\n\nAu début c'est une estimation ; dès que tu auras deux mois de saisies, Relyka la remplacera par ton vrai rythme."}
+        title="Évalue ton budget mensuel"
+        text={"Courses, essence, restos, imprévus : tout ce qui n'est pas une charge fixe. Donne un ordre de grandeur.\n\nDès que tu auras deux mois de saisies, Relyka remplacera cette estimation par ton vrai rythme."}
         cta={{ label: 'Renseigner', icon: 'arrow-forward', onPress: openVariableInput }}
       />
 
@@ -1001,8 +1001,8 @@ export default function PilotageScreen() {
         icon="shield-checkmark-outline"
         iconColor={COLORS.teal}
         eyebrow="Étape 4 · Ta marge de sécurité"
-        title="Combien veux-tu toujours garder ?"
-        text={"Le montant que tu ne veux jamais voir descendre de tes comptes courants — c'est la ligne « Tu veux garder au moins », derrière ce message.\n\nRelyka ne le déplacera nulle part : il ne te proposera simplement jamais d'y toucher. 0 € est une réponse valable."}
+        title="Fixe un solde minimum à ne pas dépasser"
+        text={"Le montant sous lequel tu ne veux pas voir tes comptes courants. \n\nRelyka te fera des recommandations pour ne pas tomber sous ce chiffre."}
         cta={{
           label: 'Renseigner',
           icon: 'arrow-forward',
