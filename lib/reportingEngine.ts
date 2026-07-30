@@ -223,7 +223,14 @@ export interface InsightInputs {
   categoryBreakdown: { label: string; amount: number }[];
   monthIncome: number;
   monthSaved: number;
-  variableTrendPct: number | null; // 100 = pile la moyenne
+  /**
+   * RYTHME de dépenses variables : 100 = pile le budget variable habituel, au rythme actuel.
+   * `null` = trop tôt dans le mois pour conclure (cf. lib/spendingPace) → aucun constat.
+   * ⚠️ Ne PAS y brancher un taux de remplissage (dépensé ÷ enveloppe) : il vaut mécaniquement 5 %
+   * le 3 du mois, ce qui faisait féliciter l'utilisateur (« 95 % sous ton budget ») avant même
+   * qu'il ait eu le temps de dépenser.
+   */
+  variablePacePct: number | null;
   hasVariableBaseline: boolean;
 }
 
@@ -241,10 +248,10 @@ export function buildInsights(inp: InsightInputs): Insight[] {
   // (Le Reporting ne parle PAS de vérification de solde : c'est un bilan d'analyse, la fiabilité se
   // gère sur le Pilotage. Aucun message « ces chiffres sont des estimations » ici.)
   // Dépenses variables au-dessus des habitudes.
-  if (inp.hasVariableBaseline && inp.variableTrendPct != null) {
-    const delta = Math.round(inp.variableTrendPct - 100);
+  if (inp.hasVariableBaseline && inp.variablePacePct != null) {
+    const delta = Math.round(inp.variablePacePct - 100);
     if (delta >= 12) out.push({ tone: 'alert', icon: 'trending-up', priority: 10,
-      text: `Tes dépenses variables sont ${delta} % au-dessus de ton budget variable habituel — surveille les sorties non prévues.` });
+      text: `À ce rythme, tes dépenses variables finiront ${delta} % au-dessus de ton budget variable habituel — surveille les sorties non prévues.` });
   }
   // Mois déficitaire (dépenses > revenus).
   if (last && last.income > 0 && last.net < 0) {
@@ -284,10 +291,10 @@ export function buildInsights(inp: InsightInputs): Insight[] {
     }
   }
   // Dépenses variables sous contrôle.
-  if (inp.hasVariableBaseline && inp.variableTrendPct != null) {
-    const delta = Math.round(inp.variableTrendPct - 100);
+  if (inp.hasVariableBaseline && inp.variablePacePct != null) {
+    const delta = Math.round(inp.variablePacePct - 100);
     if (delta <= -12) out.push({ tone: 'win', icon: 'trending-down', priority: 24,
-      text: `Tes dépenses variables sont ${Math.abs(delta)} % sous ton budget variable habituel. Beau contrôle 👌` });
+      text: `À ce rythme, tes dépenses variables finiront ${Math.abs(delta)} % sous ton budget variable habituel. Beau contrôle 👌` });
   }
   // Dépenses en baisse vs mois dernier.
   if (last && prev && prev.expense > 0) {

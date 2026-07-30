@@ -10,6 +10,7 @@ import { isProjectSpendTx, projectMode } from '../lib/projectTx';
 import { computeTresoRows } from '../lib/tresoProjection';
 import { computeCashflowTrough } from '../lib/relyka';
 import { computeReferenceMonthlyIncome } from '../lib/incomeAverage';
+import { variablePacePercentage } from '../lib/spendingPace';
 import type { DriftCalibration } from '../lib/confidenceEngine';
 import type { Account, Transaction, Project, Profile, Category, FinancialProfile, RecurrenceRule, TransactionWithDetails } from '../types/database';
 
@@ -74,7 +75,14 @@ export interface PilotageData {
   // Step 2: Variable Expense Trend
   avg_variable_expenses_3m: number;
   current_month_variable: number;
+  /** Part de l'enveloppe variable déjà consommée (0-100+). Un REMPLISSAGE, pas un jugement. */
   variable_trend_percentage: number;
+  /**
+   * RYTHME de dépenses variables rapporté à l'avancement du mois (100 = rythme habituel), ou `null`
+   * quand il est trop tôt dans le mois pour conclure. C'est CE chiffre qui permet de dire « tu
+   * dépenses plus/moins que d'habitude » — jamais `variable_trend_percentage` (cf. lib/spendingPace).
+   */
+  variable_pace_percentage: number | null;
 
   // Enveloppe des dépenses variables (estimation dynamique)
   variable_envelope_initial: number;    // enveloppe estimée du mois (historique ou onboarding)
@@ -1050,9 +1058,21 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   // fenêtre s'élargit). Le Reporting compare donc à la MÊME référence que le curseur « dont variables »
   // du Pilotage — plus d'écart « 600 € ici / 5 000 € là ».
   const avg_variable_expenses_3m = variable_envelope_initial;
+  /** Part de l'enveloppe DÉJÀ consommée (0-100+). Sert à l'affichage, pas à juger un comportement. */
   const variable_trend_percentage = avg_variable_expenses_3m > 0
     ? (current_month_variable / avg_variable_expenses_3m) * 100
     : 0;
+  /* RYTHME (≠ remplissage) : le dépensé rapporté à l'AVANCEMENT du mois — 100 = pile le rythme
+     habituel, quel que soit le jour où on regarde. `variable_trend_percentage` ci-dessus vaut
+     mécaniquement 5 % le 3 du mois et 95 % le 28 : en tirer « dépenses en baisse / en hausse »
+     revenait à juger le calendrier, pas l'utilisateur (cf. lib/spendingPace). `null` = trop tôt
+     dans le mois pour conclure ; les lecteurs doivent alors ne RIEN conclure. */
+  const variable_pace_percentage = variablePacePercentage({
+    spent: variable_envelope_spent,
+    envelope: variable_envelope_initial,
+    dayOfMonth: now.getDate(),
+    daysInMonth: new Date(currentYear, currentMonth, 0).getDate(),
+  });
 
   // σ des dépenses variables (mois FIABLES uniquement) — alimente le cône de la Projection.
   // < 2 mois fiables → 0 (les écrans utilisent alors leur repli : fraction de l'enveloppe).
@@ -1160,6 +1180,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     avg_variable_expenses_3m,
     current_month_variable,
     variable_trend_percentage,
+    variable_pace_percentage,
     variable_envelope_initial,
     variable_envelope_spent,
     variable_envelope_remaining,

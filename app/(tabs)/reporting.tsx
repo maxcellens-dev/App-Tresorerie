@@ -565,7 +565,9 @@ function ReportingBody() {
   // ── Bilan intelligent. ──
   const insights = useMemo(() => buildInsights({
     monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved,
-    variableTrendPct: pilotage?.variable_trend_percentage ?? null,
+    // RYTHME (rapporté à l'avancement du mois), pas taux de remplissage : ce dernier valant ~5 % le
+    // 3 du mois, le bilan félicitait « 95 % sous ton budget » avant toute dépense.
+    variablePacePct: pilotage?.variable_pace_percentage ?? null,
     hasVariableBaseline: (pilotage?.avg_variable_expenses_3m ?? 0) > 0,
   }), [monthlyFlux, savingsSeries, netWorthTotal, categoryBreakdown, monthIncome, monthSaved, pilotage]);
 

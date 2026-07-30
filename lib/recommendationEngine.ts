@@ -205,13 +205,19 @@ const MIN_PERCENT_THRESHOLD = 5;
 const MIN_FALLBACK_AMOUNT = 10;
 
 /**
- * FIN DE MOIS — fenêtre (jours restants) sur laquelle la part « Confort » bascule progressivement
- * vers « Conserver » : à quelques jours de la fin, proposer de la marge de plaisir n'a plus de sens
- * (pas le temps d'en profiter) ; ce qui reste se reporte naturellement sur le mois suivant.
+ * FIN DE PÉRIODE — fenêtre (jours restants AVANT LA PROCHAINE RENTRÉE D'ARGENT) sur laquelle la part
+ * « Confort » bascule progressivement vers « Conserver » : à quelques jours de la fin, proposer de la
+ * marge de plaisir n'a plus de sens (pas le temps d'en profiter) et ce qui reste se reporte
+ * naturellement sur la période suivante.
+ *
+ * ⚠️ « PÉRIODE », PAS « MOIS CALENDAIRE ». Cette bascule suivait le 31 du mois : quelqu'un payé le 25
+ * se voyait donc supprimer son Confort du 25 au 31 — c'est-à-dire au tout DÉBUT de son mois d'argent,
+ * quand il vient d'être payé. Le calendrier est une supposition ; la rentrée d'argent, elle, est une
+ * donnée réelle (cf. daysLeftInPeriod dans lib/recoInputs). Période inconnue → aucune bascule.
  */
-const MONTH_END_WINDOW_DAYS = 7;
-/** En deçà de ce nombre de jours restants, « Conserver » devient « Reporter sur le mois prochain ». */
-const MONTH_END_LABEL_DAYS = 5;
+const PERIOD_END_WINDOW_DAYS = 7;
+/** En deçà de ce nombre de jours restants, « Conserver » devient un report sur la période suivante. */
+const PERIOD_END_LABEL_DAYS = 5;
 
 /* ── Helpers ─────────────────────────────────────────────── */
 
@@ -255,8 +261,8 @@ export function deriveRecoAllocations(
   opts: {
     customTierAllocations?: Record<SavingsTier, Record<RecoType, number>>;
     financialProfileId?: FinancialProfileId;
-    /** Jours restants dans le mois (fin de mois : « Confort » → « Conserver »). */
-    daysLeftInMonth?: number;
+    /** Jours restants avant la prochaine rentrée d'argent (fin de période : « Confort » → « Conserver »). */
+    daysLeftInPeriod?: number | null;
   } = {},
 ): { tier: SavingsTier; alloc: Record<RecoType, number> } {
   let tier: SavingsTier;
@@ -287,12 +293,12 @@ export function deriveRecoAllocations(
   }
 
   // Modificateurs contextuels puis normalisation à 100 %.
-  applyVariableTrendModifier(alloc, data.variable_trend_percentage);
+  applyVariablePaceModifier(alloc, data.variable_pace_percentage);
   applyCheckingHealthModifier(alloc, data);
   applyInvestmentRatioModifier(alloc, data);
-  // Fin de mois EN DERNIER : ne touche que « Confort » → « Conserver » (épargne/invest inchangés,
+  // Fin de PÉRIODE EN DERNIER : ne touche que « Confort » → « Conserver » (épargne/invest inchangés,
   // pour que la capacité d'investissement annoncée par le Pouls reste la même).
-  applyMonthEndModifier(alloc, opts.daysLeftInMonth);
+  applyPeriodEndModifier(alloc, opts.daysLeftInPeriod);
   normalizeAllocations(alloc);
   return { tier, alloc };
 }
@@ -357,10 +363,11 @@ export interface ComputeRecoOptions {
    */
   actionAmountFor?: (amount: number, type: RecoType) => { value: number; isRange: boolean };
   /**
-   * Jours restants dans le mois : bascule progressive « Confort » → « Conserver » en fin de mois,
-   * et « Conserver » devient « Reporter sur le mois prochain ». Absent = pas de modificateur.
+   * Jours restants avant la PROCHAINE RENTRÉE D'ARGENT (fin de la période d'argent réelle, pas du
+   * mois calendaire) : bascule progressive « Confort » → « Conserver », et « Conserver » devient un
+   * report sur la période suivante. Absent / `null` = aucun modificateur (cf. lib/recoInputs).
    */
-  daysLeftInMonth?: number;
+  daysLeftInPeriod?: number | null;
 }
 
 export function computeRecommendations(
@@ -420,7 +427,7 @@ export function computeRecommendations(
   if (budget <= 0) return [];
 
   const { tier, alloc } = deriveRecoAllocations(data, {
-    customTierAllocations, financialProfileId, daysLeftInMonth: opts.daysLeftInMonth,
+    customTierAllocations, financialProfileId, daysLeftInPeriod: opts.daysLeftInPeriod,
   });
 
   // 5. Filtrer les recommandations trop petites (< seuil minimum)
@@ -685,16 +692,26 @@ export { TIER_ALLOCATIONS, RECO_COLORS, RECO_ICONS };
 
 /* ── Modificateurs ───────────────────────────────────────── */
 
-function applyVariableTrendModifier(alloc: Record<RecoType, number>, trendPct: number) {
-  // Si dépenses variables en hausse → réduire "plaisir", augmenter "conserver"
-  if (trendPct > 120) {
-    const shift = clamp((trendPct - 120) / 10, 0, 15);
+/**
+ * RYTHME de dépenses variables (100 = rythme habituel), pas taux de remplissage.
+ *
+ * ⚠️ Attend `variable_pace_percentage` (lib/spendingPace), qui rapporte le dépensé à l'AVANCEMENT
+ * du mois. L'ancien `variable_trend_percentage` était un remplissage : il valait mécaniquement 5 %
+ * le 3 du mois → cette fonction lisait « dépenses en baisse » et gonflait « Confort » de 5 points
+ * en début de mois, puis le dégonflait jour après jour sans qu'aucune dépense ne le justifie.
+ * `null` (trop tôt dans le mois pour conclure) → on ne touche à RIEN.
+ */
+function applyVariablePaceModifier(alloc: Record<RecoType, number>, pacePct: number | null | undefined) {
+  if (pacePct == null || !Number.isFinite(pacePct) || pacePct <= 0) return;
+  // Rythme au-dessus des habitudes → réduire « Confort », renforcer « Conserver ».
+  if (pacePct > 120) {
+    const shift = clamp((pacePct - 120) / 10, 0, 15);
     alloc.enjoy = Math.max(0, alloc.enjoy - shift);
     alloc.keep += shift;
   }
-  // Si dépenses variables en baisse → un peu plus de "plaisir"
-  if (trendPct > 0 && trendPct < 80) {
-    const shift = clamp((80 - trendPct) / 20, 0, 5);
+  // Rythme en dessous des habitudes → un peu plus de « Confort ».
+  if (pacePct < 80) {
+    const shift = clamp((80 - pacePct) / 20, 0, 5);
     alloc.enjoy += shift;
     alloc.keep = Math.max(0, alloc.keep - shift);
   }
@@ -712,13 +729,17 @@ function applyCheckingHealthModifier(alloc: Record<RecoType, number>, data: Pilo
 }
 
 /**
- * FIN DE MOIS : la part « Confort » se déverse progressivement dans « Conserver » sur les derniers
- * jours (100 % le dernier jour). À J-2, proposer « fais-toi plaisir avec 30 € » n'a plus de sens :
- * ce qui reste se reporte sur le mois suivant. Épargner / Investir ne bougent pas.
+ * FIN DE PÉRIODE : la part « Confort » se déverse progressivement dans « Conserver » sur les derniers
+ * jours AVANT LA PROCHAINE RENTRÉE D'ARGENT (100 % la veille). La veille de la paie, proposer
+ * « fais-toi plaisir avec 30 € » n'a plus de sens : ce qui reste se reporte sur la période suivante.
+ * Épargner / Investir ne bougent pas.
+ *
+ * `daysLeft` nul/inconnu → AUCUNE bascule. On ne retombe surtout pas sur le calendrier : mieux vaut
+ * un Confort intact qu'un Confort supprimé pour une raison fausse (cf. PERIOD_END_WINDOW_DAYS).
  */
-function applyMonthEndModifier(alloc: Record<RecoType, number>, daysLeft?: number) {
-  if (daysLeft == null || !Number.isFinite(daysLeft) || daysLeft >= MONTH_END_WINDOW_DAYS) return;
-  const t = clamp((MONTH_END_WINDOW_DAYS - Math.max(0, daysLeft)) / MONTH_END_WINDOW_DAYS, 0, 1);
+function applyPeriodEndModifier(alloc: Record<RecoType, number>, daysLeft?: number | null) {
+  if (daysLeft == null || !Number.isFinite(daysLeft) || daysLeft >= PERIOD_END_WINDOW_DAYS) return;
+  const t = clamp((PERIOD_END_WINDOW_DAYS - Math.max(0, daysLeft)) / PERIOD_END_WINDOW_DAYS, 0, 1);
   const shift = alloc.enjoy * t;
   alloc.enjoy = Math.max(0, alloc.enjoy - shift);
   alloc.keep += shift;
@@ -776,7 +797,7 @@ function buildRecommendation(
   rawAmount: number,
   tier: SavingsTier,
   data: PilotageData,
-  opts?: Pick<ComputeRecoOptions, 'maxAmount' | 'actionAmountFor' | 'daysLeftInMonth'>,
+  opts?: Pick<ComputeRecoOptions, 'maxAmount' | 'actionAmountFor' | 'daysLeftInPeriod'>,
 ): SmartRecommendation {
   // Montant « proposition » : plafonné au reste réellement disponible (maxAmount) PUIS arrondi à la
   // dizaine inférieure → le montant affiché, les sous-textes/conseils et l'action validée
@@ -789,8 +810,9 @@ function buildRecommendation(
   // On retombe alors sur le montant proposé lui-même.
   const proposed = opts?.actionAmountFor?.(amount, type);
   const action: ActionAmount = proposed && proposed.value > 0 ? proposed : { value: amount, isRange: false };
-  // Fin de mois : « Conserver » devient explicitement un report sur le mois suivant.
-  const monthEnd = opts?.daysLeftInMonth != null && opts.daysLeftInMonth <= MONTH_END_LABEL_DAYS;
+  // Fin de PÉRIODE (veille de la prochaine rentrée d'argent) : « Conserver » devient explicitement
+  // un report sur la période suivante.
+  const periodEnd = opts?.daysLeftInPeriod != null && opts.daysLeftInPeriod <= PERIOD_END_LABEL_DAYS;
   switch (type) {
     case 'save':
       return {
@@ -844,9 +866,11 @@ function buildRecommendation(
         // partout ailleurs dans l'app (ligne « Réservé » du suivi, montants réservés). « Reporter »
         // introduisait un troisième terme pour la même chose. « Conserver » ne subsiste que dans les
         // explications, pour dire ce que le geste FAIT.
-        title: monthEnd ? 'Réserver pour le mois prochain' : 'Réserver pour plus tard',
+        // « Après ta paie » plutôt que « le mois prochain » : l'horizon est la prochaine rentrée
+        // d'argent, qui ne tombe pas le 1ᵉʳ pour tout le monde.
+        title: periodEnd ? 'Réserver pour après ta rentrée d’argent' : 'Réserver pour plus tard',
         shortTitle: 'Réserver',
-        description: getKeepDescription(action, data, monthEnd),
+        description: getKeepDescription(action, data, periodEnd),
         amount,
         actionAmount: action.value,
         percentage,
@@ -919,11 +943,11 @@ function getEnjoyDescription(action: ActionAmount, _data: PilotageData): string 
   return `Fais ce que tu veux des ${amountPhrase(action)} restants : des loisirs, un projet qui te tient à cœur, ou réinvestis-les pour accélérer tes objectifs !`;
 }
 
-function getKeepDescription(action: ActionAmount, data: PilotageData, monthEnd = false): string {
-  if (monthEnd) {
-    // Fin de mois : le geste attendu n'est plus « mettre de côté au cas où » mais « ne pas cramer
-    // le reste sur les derniers jours ». On dit clairement où va l'argent : dans le mois suivant.
-    return `Le mois se termine. Garde ${amountPhrase(action)} sur ton compte plutôt que de les dépenser d'ici la fin du mois : tu les retrouveras dans ton budget du mois prochain.`;
+function getKeepDescription(action: ActionAmount, data: PilotageData, periodEnd = false): string {
+  if (periodEnd) {
+    // Fin de PÉRIODE : le geste attendu n'est plus « mettre de côté au cas où » mais « ne pas cramer
+    // le reste dans les derniers jours avant la paie ». On dit où va l'argent : dans le budget d'après.
+    return `Ta prochaine rentrée d'argent approche. Garde ${amountPhrase(action)} sur ton compte plutôt que de les dépenser d'ici là : tu les retrouveras dans ton budget suivant.`;
   }
   if (data.current_checking_balance < data.committed_allocations * 2) {
     return `Ton solde courant est un peu juste. Garde ${amountPhrase(action)} en réserve pour couvrir les imprévus.`;

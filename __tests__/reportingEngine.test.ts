@@ -123,7 +123,7 @@ describe('buildInsights', () => {
       categoryBreakdown: [{ label: 'Logement', amount: 900 }, { label: 'Courses', amount: 500 }],
       monthIncome: 2000,
       monthSaved: 400,
-      variableTrendPct: 130, // +30 % → alerte
+      variablePacePct: 130, // rythme +30 % → alerte
       hasVariableBaseline: true,
     });
     expect(ins.length).toBeGreaterThan(0);
@@ -139,7 +139,7 @@ describe('buildInsights', () => {
     const ins = buildInsights({
       monthlyFlux: [{ ym: '2026-07', label: 'juil.', income: 2000, expense: 2500, net: -500, rate: 0 }],
       savingsSeries: [], netWorthTotal: [], categoryBreakdown: [],
-      monthIncome: 2000, monthSaved: 0, variableTrendPct: null, hasVariableBaseline: false,
+      monthIncome: 2000, monthSaved: 0, variablePacePct: null, hasVariableBaseline: false,
     });
     expect(ins.every((i) => !/vérif/i.test(i.text))).toBe(true);
   });

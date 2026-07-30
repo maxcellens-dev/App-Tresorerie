@@ -156,10 +156,10 @@ describe('freins de sécurité — plus de carte « 0 € », plus de double com
   });
 });
 
-describe('fin de mois', () => {
+describe('fin de période (avant la prochaine rentrée d’argent)', () => {
   it('le « Confort » bascule vers « Conserver » sur les derniers jours', () => {
-    const mid = byType(computeRecommendations(base, { daysLeftInMonth: 20 }));
-    const end = byType(computeRecommendations(base, { daysLeftInMonth: 0 }));
+    const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 20 }));
+    const end = byType(computeRecommendations(base, { daysLeftInPeriod: 0 }));
     expect(mid.enjoy.amount).toBe(200);
     expect(end.enjoy).toBeUndefined();          // 0 % → filtré, son montant part en réserve
     expect(end.keep.amount).toBe(500);          // 300 + 200
@@ -169,26 +169,38 @@ describe('fin de mois', () => {
   });
 
   it('bascule PROGRESSIVE (pas d’effet falaise au 7ᵉ jour avant la fin)', () => {
-    const j7 = byType(computeRecommendations(base, { daysLeftInMonth: 7 }));
-    const j3 = byType(computeRecommendations(base, { daysLeftInMonth: 3 }));
+    const j7 = byType(computeRecommendations(base, { daysLeftInPeriod: 7 }));
+    const j3 = byType(computeRecommendations(base, { daysLeftInPeriod: 3 }));
     expect(j7.enjoy.amount).toBe(200);
     expect(j3.enjoy.amount).toBeGreaterThan(0);
     expect(j3.enjoy.amount).toBeLessThan(200);
   });
 
   // Vocabulaire figé : le geste s'appelle « Réserver » partout à l'affichage (comme la ligne
-  // « Réservé » du suivi). Seul l'horizon change en fin de mois.
-  it('en fin de mois, le titre bascule sur le mois prochain', () => {
-    const end = byType(computeRecommendations(base, { daysLeftInMonth: 2 }));
-    expect(end.keep.title).toBe('Réserver pour le mois prochain');
+  // « Réservé » du suivi). Seul l'horizon change à l'approche de la rentrée d'argent.
+  it('à l’approche de la rentrée d’argent, le titre bascule sur la suite', () => {
+    const end = byType(computeRecommendations(base, { daysLeftInPeriod: 2 }));
+    expect(end.keep.title).toBe('Réserver pour après ta rentrée d’argent');
     expect(end.keep.shortTitle).toBe('Réserver');
-    expect(end.keep.description).toContain('mois prochain');
+    expect(end.keep.description).toContain('rentrée d\'argent');
   });
 
-  it('hors fin de mois, les libellés ne changent pas', () => {
-    const mid = byType(computeRecommendations(base, { daysLeftInMonth: 15 }));
+  it('en pleine période, les libellés ne changent pas', () => {
+    const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 15 }));
     expect(mid.keep.title).toBe('Réserver pour plus tard');
     expect(mid.keep.shortTitle).toBe('Réserver');
+  });
+
+  /* LE BUG CORRIGÉ : payé le 25, l'utilisateur perdait son « Confort » du 25 au 31 — le calendrier
+     décrétait « fin de mois » alors qu'il venait d'être payé. Période inconnue ou lointaine = rien
+     ne bouge ; seule la vraie rentrée d'argent déclenche la bascule. */
+  it('sans période connue, « Confort » reste INTACT (plus de fonte calendaire)', () => {
+    const mid = byType(computeRecommendations(base, { daysLeftInPeriod: 20 }));
+    const inconnu = byType(computeRecommendations(base, {}));
+    const nul = byType(computeRecommendations(base, { daysLeftInPeriod: null }));
+    expect(inconnu.enjoy.amount).toBe(mid.enjoy.amount);
+    expect(nul.enjoy.amount).toBe(mid.enjoy.amount);
+    expect(inconnu.keep.title).toBe('Réserver pour plus tard');
   });
 });
 

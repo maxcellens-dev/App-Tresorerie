@@ -38,12 +38,56 @@ export interface RecoBuildExtras {
  *  - cascade de consommation selon la prudence, garde-fou marge × projection 6 mois ;
  *  - plafond absolu = Relyka (reste disponible), arrondi à la dizaine.
  */
+/**
+ * Part de la rentrée d'argent MENSUELLE moyenne en dessous de laquelle une entrée n'ouvre pas une
+ * nouvelle période. Une petite recette dans 3 jours (remboursement, extra) ne « recommence » pas un
+ * budget — et un revenu hebdomadaire ne doit pas mettre l'utilisateur en fin de période toute
+ * l'année (il serait alors toujours à moins de 7 jours de sa prochaine rentrée).
+ */
+const PERIOD_START_INCOME_RATIO = 0.4;
+
+/** Nombre de jours entiers entre deux dates ISO (yyyy-mm-dd), ou null si l'une est invalide. */
+function daysBetweenIso(fromIso: string, toIso: string): number | null {
+  const a = new Date(`${fromIso}T00:00:00`);
+  const b = new Date(`${toIso}T00:00:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+/**
+ * Jours restants avant la fin de la PÉRIODE D'ARGENT en cours = veille de la prochaine rentrée.
+ *
+ * ⚠️ Surtout PAS le nombre de jours restants dans le mois calendaire, qui était utilisé avant : payé
+ * le 25, un utilisateur voyait sa part « Confort » fondre du 25 au 31 — au moment précis où il
+ * venait d'être payé et où il en avait le plus. Le mois civil est une supposition ; la prochaine
+ * rentrée d'argent (`next_income_date`, déjà détectée pour le point bas de trésorerie) est une
+ * donnée réelle.
+ *
+ * Renvoie `null` — donc AUCUNE bascule, Confort intact — quand on ne peut rien affirmer : pas de
+ * rentrée détectée, revenu de référence inconnu, entrée trop petite pour ouvrir une période, ou
+ * date hors d'un horizon plausible.
+ */
+export function daysLeftInPeriod(data: PilotageData, today: Date): number | null {
+  const next = data.next_income_date;
+  if (!next) return null;
+  const monthlyIncome = data.avg_monthly_income ?? 0;
+  if (!(monthlyIncome > 0)) return null;
+  if ((data.next_income_amount ?? 0) < monthlyIncome * PERIOD_START_INCOME_RATIO) return null;
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const days = daysBetweenIso(`${y}-${m}-${d}`, next);
+  if (days == null || days < 0 || days > 60) return null;
+  return days;
+}
+
 export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): ComputeRecoOptions {
   const cumulsTotal = x.preEpargneTotal + x.preInvestTotal;
-  // Avancement du mois : en fin de mois la part « Confort » bascule vers « Conserver » (reporter sur
-  // le mois prochain). Calculé ICI → le Pilotage et le Pouls raisonnent sur la même date.
+  // Avancement de la PÉRIODE (pas du mois civil) : à l'approche de la prochaine rentrée d'argent, la
+  // part « Confort » bascule vers « Conserver ». Calculé ICI → le Pilotage et le Pouls raisonnent
+  // sur la même date.
   const now = x.today ?? new Date();
-  const daysLeftInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+  const daysLeft = daysLeftInPeriod(data, now);
   const margin = data.safety_margin_amount ?? 0;
   const varRemaining = data.variable_envelope_remaining ?? 0;
   const trough = data.cashflow_trough ?? (data.current_checking_balance ?? 0);
@@ -91,6 +135,6 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
       sustainBalances: data.projection_balances_12m ?? [],
     },
     maxAmount: Math.max(0, floorToTen(resteDisponible)),
-    daysLeftInMonth,
+    daysLeftInPeriod: daysLeft,
   };
 }
