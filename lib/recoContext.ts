@@ -69,7 +69,7 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
     if (fit?.kind === 'month_only') {
       return `💡 ${ceMois} : cette somme n'est pas nécessaire d'ici la fin du mois. À faire une fois, pas tous les mois — répété, ce montant finirait par vider ton compte.`;
     }
-    return `💡 ${ceMois} : c'est de l'argent dont tu n'as pas besoin d'ici la fin du mois, ta marge de sécurité comprise. À refaire le mois prochain seulement s'il réapparaît.`;
+    return `💡 ${ceMois} : c'est de l'argent dont tu n'as pas besoin d'ici la fin du mois, ta marge de sécurité comprise. Mais surveille ta projection pour les mois suivants.`;
   }
 
   if (type === 'keep') {
