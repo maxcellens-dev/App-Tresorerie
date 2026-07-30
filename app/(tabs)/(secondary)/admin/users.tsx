@@ -2,8 +2,9 @@
  * Admin — Utilisateurs (page unique, 3 onglets) :
  *  • Utilisateurs : recherche + passage Premium ⇄ Normal + « Consulter » (impersonation).
  *  • Groupes : groupes custom pour cibler les notifications (créer / supprimer / affecter des membres).
- *  • Inactifs : lister les inactifs (≥ 1 / 6 / 12 / 15 mois) et SUPPRIMER en masse (compte + données),
- *    avec sélection décochable et DOUBLE confirmation.
+ *  • Inactifs : lister les inactifs (≥ 1 / 6 / 12 / 15 mois) OU rechercher n'importe quel compte
+ *    (actif ou non), puis SUPPRIMER la sélection (compte + données) — DOUBLE confirmation, et la
+ *    liste des noms concernés à l'écran de confirmation.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, Modal, Pressable } from 'react-native';
@@ -20,7 +21,7 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { supabase } from '../../../../lib/supabase';
 import { sheetWidth } from '../../../../lib/appLayout';
-import { useInactiveUsers, useDeleteUsers, type InactiveUser } from '../../../../hooks/useInactiveUsers';
+import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, type InactiveUser } from '../../../../hooks/useInactiveUsers';
 
 type Tab = 'users' | 'groups' | 'inactive';
 
@@ -257,19 +258,39 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
   );
 }
 
-/* ══════════════ Onglet INACTIFS ══════════════ */
+/* ══════════════ Onglet INACTIFS ══════════════
+   Deux façons d'alimenter la même liste à cocher :
+    • le SEUIL d'inactivité (+1 / 6 / 12 / 15 mois) — la purge de masse ;
+    • la RECHERCHE par nom ou e-mail, qui porte sur TOUS les comptes, actifs ou non — pour viser
+      quelqu'un de précis (compte de test, doublon, demande de suppression).
+   Les deux modes partagent la sélection, la double confirmation et le bouton de suppression, mais
+   PAS le pré-cochage : une liste d'inactifs arrive tout cochée (c'est son but), une recherche
+   arrive vide (cocher d'office des comptes ACTIFS serait une invitation à l'accident). */
 const MONTH_OPTIONS = [1, 6, 12, 15];
 function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
   const [months, setMonths] = useState(6);
-  const { data: list = [], isLoading, refetch } = useInactiveUsers(months, true);
+  const [query, setQuery] = useState('');
+  const searching = query.trim().length >= 2;
+
+  const { data: inactiveList = [], isLoading: inactiveLoading } = useInactiveUsers(months, true);
+  const { data: found = [], isLoading: searchLoading } = useAdminUserSearch(query, searching);
   const del = useDeleteUsers();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Par défaut : tout coché. Se resynchronise quand la liste change (changement de seuil / après purge).
-  useEffect(() => { setSelected(new Set(list.map((u) => u.id))); }, [list]);
+  const list = searching ? found : inactiveList;
+  const isLoading = searching ? searchLoading : inactiveLoading;
+
+  // Inactifs : tout coché (resynchronisé au changement de seuil / après purge). Recherche : rien.
+  useEffect(() => {
+    setSelected(searching ? new Set() : new Set(inactiveList.map((u) => u.id)));
+  }, [searching, inactiveList]);
 
   const toggle = (id: string) => setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const allChecked = list.length > 0 && selected.size === list.length;
+
+  /* On ne supprime QUE ce qui est à l'écran : sans ça, cocher quelqu'un puis affiner la recherche
+     laissait une sélection invisible partir avec le lot. */
+  const visible = useMemo(() => list.filter((u) => selected.has(u.id)), [list, selected]);
+  const allChecked = list.length > 0 && visible.length === list.length;
 
   const fmtSince = (u: InactiveUser) => {
     const d = u.last_active ?? u.created_at;
@@ -277,18 +298,20 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
     if (Number.isNaN(dt.getTime())) return '—';
     return `${u.last_active ? 'vu' : 'créé'} le ${dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`;
   };
+  const nameOf = (u: InactiveUser) => u.full_name || u.email || u.id;
 
   const doDelete = () => {
-    const ids = [...selected];
-    del.mutate(ids, {
+    del.mutate(visible.map((u) => u.id), {
       onSuccess: (r) => Alert.alert('Terminé', `${r.deleted} compte(s) supprimé(s)${r.skipped ? `, ${r.skipped} ignoré(s) (admin/soi)` : ''}.`),
       onError: (e: any) => Alert.alert('Échec', e?.message ?? 'Erreur'),
     });
   };
   const confirmDelete = () => {
-    const n = selected.size;
+    const n = visible.length;
     if (n === 0) return;
-    Alert.alert(`Supprimer ${n} utilisateur(s) ?`, 'Leur compte ET TOUTES leurs données seront supprimés définitivement. Action IRRÉVERSIBLE.', [
+    // On NOMME qui va disparaître : sur une recherche, la sélection peut viser un compte actif.
+    const who = visible.slice(0, 5).map((u) => `• ${nameOf(u)}`).join('\n') + (n > 5 ? `\n• …et ${n - 5} autre(s)` : '');
+    Alert.alert(`Supprimer ${n} utilisateur(s) ?`, `${who}\n\nLeur compte ET TOUTES leurs données seront supprimés définitivement. Action IRRÉVERSIBLE.`, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Continuer', style: 'destructive', onPress: () => Alert.alert('Confirmation finale', `Dernière vérification : ${n} compte(s) vont être effacés pour toujours.`, [
         { text: 'Annuler', style: 'cancel' },
@@ -299,16 +322,33 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
 
   return (
     <>
-      <View style={s.chipRow}>
-        {MONTH_OPTIONS.map((m) => (
-          <TouchableOpacity key={m} style={[s.chip, months === m && s.chipOn]} onPress={() => setMonths(m)}>
-            <Text style={[s.chipTxt, months === m && s.chipTxtOn]}>+{m} mois</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={s.searchBox}>
+        <Ionicons name="search" size={18} color={COLORS.textSecondary} />
+        <TextInput
+          style={s.searchInput} value={query} onChangeText={setQuery}
+          placeholder="Rechercher un compte à supprimer (nom ou e-mail)…"
+          placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false}
+        />
+        {query.length > 0 && <TouchableOpacity onPress={() => setQuery('')}><Ionicons name="close-circle" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
       </View>
 
+      {/* Le seuil d'inactivité n'a plus de sens pendant une recherche : elle balaie tout le monde. */}
+      {!searching && (
+        <View style={s.chipRow}>
+          {MONTH_OPTIONS.map((m) => (
+            <TouchableOpacity key={m} style={[s.chip, months === m && s.chipOn]} onPress={() => setMonths(m)}>
+              <Text style={[s.chipTxt, months === m && s.chipTxtOn]}>+{m} mois</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       <View style={s.selRow}>
-        <Text style={s.selCount}>{list.length} inactif{list.length > 1 ? 's' : ''} · {selected.size} sélectionné{selected.size > 1 ? 's' : ''}</Text>
+        <Text style={s.selCount}>
+          {searching
+            ? `${list.length} résultat${list.length > 1 ? 's' : ''} · ${visible.length} sélectionné${visible.length > 1 ? 's' : ''}`
+            : `${list.length} inactif${list.length > 1 ? 's' : ''} · ${visible.length} sélectionné${visible.length > 1 ? 's' : ''}`}
+        </Text>
         {list.length > 0 && (
           <TouchableOpacity onPress={() => setSelected(allChecked ? new Set() : new Set(list.map((u) => u.id)))}>
             <Text style={s.selAll}>{allChecked ? 'Tout décocher' : 'Tout cocher'}</Text>
@@ -318,7 +358,11 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
 
       <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {isLoading ? <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 24 }} />
-          : list.length === 0 ? <Text style={s.hint}>Aucun utilisateur inactif depuis +{months} mois. 🎉</Text>
+          : list.length === 0 ? (
+            <Text style={s.hint}>
+              {searching ? `Aucun compte ne correspond à « ${query.trim()} ».` : `Aucun utilisateur inactif depuis +${months} mois. 🎉`}
+            </Text>
+          )
           : list.map((u) => {
             const checked = selected.has(u.id);
             return (
@@ -332,12 +376,15 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
               </TouchableOpacity>
             );
           })}
+        {searching && (
+          <Text style={s.hint}>Ta recherche porte sur tous les comptes, actifs ou non. Les admins et ton propre compte n’y figurent jamais.</Text>
+        )}
       </KeyboardAwareScrollView>
 
       {list.length > 0 && (
-        <TouchableOpacity style={[s.deleteBtn, (selected.size === 0 || del.isPending) && { opacity: 0.5 }]} onPress={confirmDelete} disabled={selected.size === 0 || del.isPending}>
+        <TouchableOpacity style={[s.deleteBtn, (visible.length === 0 || del.isPending) && { opacity: 0.5 }]} onPress={confirmDelete} disabled={visible.length === 0 || del.isPending}>
           {del.isPending ? <ActivityIndicator color="#fff" /> : (
-            <><Ionicons name="trash" size={18} color="#fff" /><Text style={s.deleteTxt}>Supprimer {selected.size} compte{selected.size > 1 ? 's' : ''} + données</Text></>
+            <><Ionicons name="trash" size={18} color="#fff" /><Text style={s.deleteTxt}>Supprimer {visible.length} compte{visible.length > 1 ? 's' : ''} + données</Text></>
           )}
         </TouchableOpacity>
       )}

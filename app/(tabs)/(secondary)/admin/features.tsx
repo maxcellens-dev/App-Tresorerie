@@ -127,7 +127,7 @@ export default function AdminFeatures() {
             />
             <Toggle
               label="Messages des recommandations"
-              desc="Phrase motivante sous chaque reco (projection investissement à 10/20 ans, économie possible…). Désactivé = recos sans ce message."
+              desc="Phrase sous chaque reco : ce que le geste engage (montant tenable ce mois-ci, virement mensuel possible, solde de fin de mois). Désactivé = recos sans ce message."
               value={recoContextOn}
               onToggle={() => save.mutate({ reco_context_enabled: !recoContextOn })}
             />

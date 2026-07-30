@@ -1,32 +1,30 @@
 /**
- * recoContext — phrase motivante affichée sous chaque recommandation pour donner envie de l'utiliser.
- * - Investir : projection à 10/20 ans (estimation sur la reco si rien investi, sinon basée sur le réel).
- * - Épargner : invite à créer un projet d'épargne.
- * - Conserver : effet sur le SOLDE DE FIN DE MOIS projeté (avec / sans la somme), pas le solde actuel,
- *   + marge cumulée si on répète chaque mois.
- * Hypothèse de rendement : 7 %/an (intérêts composés mensuels).
+ * recoContext — phrase affichée sous chaque recommandation pour dire ce que le geste ENGAGE.
+ *
+ * ── Épargner / Investir : deux messages, et deux seulement ────────────────────────────────────────
+ *  • RÉCURRENT (le solde ne baisse pas à ce rythme) → on propose un virement mensuel : c'est le seul
+ *    cas où l'app peut parler de long terme, puisqu'elle a vérifié que le geste se répète sans
+ *    creuser le compte (cf. computeRecurringFit : transition + durabilité).
+ *  • PONCTUEL (rien n'est tenable en récurrent, ou trajectoire inconnue) → on s'en tient au mois en
+ *    cours : « voilà ce que tu peux mettre ce mois-ci sans risque ».
+ *
+ * PLUS AUCUNE PROJECTION À 10 / 20 ANS. Elle s'affichait dans les DEUX cas, y compris quand l'app
+ * venait de constater que le montant n'était PAS répétable : annoncer « ~48 000 € dans 10 ans » sous
+ * une somme qu'il ne faut justement pas remettre tous les mois promettait un capital construit sur
+ * un geste que l'app déconseille. Et un rendement supposé (7 %/an) n'est pas une donnée de
+ * l'utilisateur : ce qui est vrai, vérifié et utile, c'est le montant tenable — pas le capital rêvé.
+ *
+ * ── Conserver ─────────────────────────────────────────────────────────────────────────────────────
+ * Effet sur le SOLDE DE FIN DE MOIS projeté (avec / sans la somme), pas sur le solde actuel.
  */
 import { CURRENCY_SYMBOL } from './currency';
 import type { RecoType, RecurringFit } from './recommendationEngine';
-
-const ANNUAL_RATE = 0.07; // 7 %/an
-
-/** Valeur future : capital initial + versements mensuels, intérêts composés mensuels. */
-function futureValue(principal: number, monthly: number, years: number, annualRate = ANNUAL_RATE): number {
-  const r = annualRate / 12;
-  const n = years * 12;
-  const fvPrincipal = principal * Math.pow(1 + r, n);
-  const fvMonthly = r === 0 ? monthly * n : monthly * ((Math.pow(1 + r, n) - 1) / r);
-  return fvPrincipal + fvMonthly;
-}
 
 function fmt(n: number): string {
   return Math.round(n).toLocaleString('fr-FR');
 }
 
 export interface RecoFinancials {
-  /** Total déjà placé sur les comptes d'investissement. */
-  totalInvested: number;
   /** Solde courant actuel. */
   currentChecking: number;
   /**
@@ -37,63 +35,41 @@ export interface RecoFinancials {
   projectedEndChecking?: number;
 }
 
-/** Phrase de tenue en virement récurrent (vide si la trajectoire est indisponible). */
-function fitSentence(fit: RecurringFit | undefined, S: string): string {
-  if (!fit) return '';
-  // Le critère est la DURABILITÉ (le solde ne décline pas), pas seulement « la marge tient ce
-  // mois-ci ». On le dit donc en clair : ce qui compte pour l'utilisateur, c'est de ne pas finir
-  // dans le rouge à force de répéter le geste.
-  if (fit.kind === 'sustainable') return `Tu peux créer un virement mensuel de ${fmt(fit.monthly)} ${S} sans risquer de vider ton compte.`;
-  if (fit.kind === 'capped') return `Chaque mois, ne dépasse pas ${fmt(fit.monthly)} ${S} : au-delà, ton compte baisserait mois après mois.`;
-  return 'À faire une fois, pas tous les mois : répété, ce montant finirait par vider ton compte.';
-}
-
 /**
  * Retourne la phrase contextuelle (ou null si non pertinent / montant nul).
  * `amount` = montant ACTIONNABLE de la reco (borne basse quand les montants sont en fourchette).
- * `fit` = tenue en virement récurrent : la projection est calculée sur le montant RÉELLEMENT
- * tenable (sinon on projetterait 350 €/mois juste après avoir dit « reste sous 160 €/mois »).
+ * `fit` = tenue en virement récurrent, seule donnée qui autorise à parler d'autre chose que du mois
+ * en cours. Absente = trajectoire indisponible → message ponctuel, comme pour `month_only`.
  */
 export function getRecoContextText(type: RecoType, amount: number, fin: RecoFinancials, fit?: RecurringFit): string | null {
   const S = CURRENCY_SYMBOL;
   if (!(amount > 0)) return null;
 
   if (type === 'invest' || type === 'save') {
-    const a = fitSentence(fit, S);
-    // Rythme mensuel retenu pour la projection : le montant tenable, 0 si rien n'est tenable,
-    // et le montant de la reco quand la trajectoire est inconnue (hypothèse « si tu le refais »).
-    const rate = fit ? (fit.kind === 'month_only' ? 0 : fit.monthly) : amount;
+    // « placer » / « mettre de côté » : le verbe du geste, pour ne pas répéter le titre de la tuile.
+    const verbe = type === 'invest' ? 'placer' : 'mettre de côté';
+    const dest = type === 'invest' ? 'ton compte d’investissement' : 'ton épargne';
+    const ceMois = `Tu peux ${verbe} ces ${fmt(amount)} ${S} ce mois-ci sans risque`;
 
-    let b: string;
-    if (type === 'invest') {
-      if (rate > 0) {
-        const y10 = futureValue(fin.totalInvested, rate, 10);
-        const y20 = futureValue(fin.totalInvested, rate, 20);
-        const tail = `tu pourrais atteindre ~${fmt(y10)} ${S} dans 10 ans et ~${fmt(y20)} ${S} dans 20 ans, avec un placement à 7 %/an.`;
-        if (fin.totalInvested > 0) {
-          b = a
-            ? `En plus de tes ${fmt(fin.totalInvested)} ${S} déjà placés, ${tail}`
-            : `En investissant ${fmt(rate)} ${S}/mois, en plus de tes ${fmt(fin.totalInvested)} ${S} déjà placés, ${tail}`;
-        } else {
-          b = a ? `À ce rythme, ${tail}` : `En investissant ${fmt(rate)} ${S}/mois, ${tail}`;
-        }
-      } else {
-        // Versement ponctuel : on projette le capital, sans versement récurrent.
-        const y10 = futureValue(fin.totalInvested + amount, 0, 10);
-        b = fin.totalInvested > 0
-          ? `Tes ${fmt(fin.totalInvested)} ${S} déjà placés + ces ${fmt(amount)} ${S} pourraient devenir ~${fmt(y10)} ${S} dans 10 ans, à 7 %/an.`
-          : `Ces ${fmt(amount)} ${S} pourraient devenir ~${fmt(y10)} ${S} dans 10 ans, à 7 %/an.`;
-      }
-    } else {
-      // Épargne : accumulation SIMPLE (pas de rendement supposé sur un livret).
-      if (rate > 0) {
-        const tail = `tu pourrais mettre de côté ~${fmt(rate * 12)} ${S} en 1 an et ~${fmt(rate * 60)} ${S} en 5 ans.`;
-        b = a ? `À ce rythme, ${tail}` : `En épargnant ${fmt(rate)} ${S}/mois, ${tail}`;
-      } else {
-        b = `Ces ${fmt(amount)} ${S} renforcent directement ton épargne de sécurité.`;
-      }
+    // 1) DURABLE — le montant se répète chaque mois sans faire baisser le solde. C'est LE cas où
+    //    l'app propose d'automatiser : le geste n'a plus à être repris tous les mois.
+    if (fit?.kind === 'sustainable') {
+      return `💡 ${ceMois} : ton solde ne baisse pas à ce rythme. Tu peux même en faire un virement mensuel de ${fmt(fit.monthly)} ${S} vers ${dest} — c'est tenable sur la durée, sans y repenser.`;
     }
-    return `💡 ${a ? a + ' ' : ''}${b}`;
+
+    // 2) PLAFONNÉ — le geste passe ce mois-ci, mais répété tel quel il creuserait le compte. On
+    //    donne le montant réellement tenable : c'est la version « longue durée » de la même reco.
+    if (fit?.kind === 'capped') {
+      return `💡 ${ceMois}. Si tu veux en faire un virement mensuel vers ${dest}, reste à ${fmt(fit.monthly)} ${S}/mois : au-delà, ton compte baisserait mois après mois.`;
+    }
+
+    // 3) PONCTUEL — rien n'est tenable en récurrent (`month_only`), ou trajectoire indisponible
+    //    (`fit` absent, ex. reco déjà plafonnée par le garde-fou projection). On ne parle QUE du
+    //    mois en cours : c'est tout ce que l'app peut affirmer sans risque.
+    if (fit?.kind === 'month_only') {
+      return `💡 ${ceMois} : cette somme n'est pas nécessaire d'ici la fin du mois. À faire une fois, pas tous les mois — répété, ce montant finirait par vider ton compte.`;
+    }
+    return `💡 ${ceMois} : c'est de l'argent dont tu n'as pas besoin d'ici la fin du mois, ta marge de sécurité comprise. À refaire le mois prochain seulement s'il réapparaît.`;
   }
 
   if (type === 'keep') {

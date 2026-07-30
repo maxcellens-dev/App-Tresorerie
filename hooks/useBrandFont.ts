@@ -9,7 +9,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useStyleConfig } from './useStyleConfig';
-import { ensureNativeFonts, useNativeFontsVersion } from '../lib/nativeFonts';
+import { ensureNativeFonts, useNativeFontsVersion, isNativeFontReady } from '../lib/nativeFonts';
 
 /**
  * Props à étaler sur un <Text> qui affiche le NOM de l'app. Sur WEB, pose l'attribut `data-appfont`
@@ -53,4 +53,31 @@ export function useAppNameFontStyle(): { fontFamily: string; fontWeight?: 'norma
   const selected = data?.app_name_font?.trim();
   const isImported = !!selected && (data?.custom_fonts ?? []).some((cf) => cf.family === selected);
   return Platform.OS !== 'web' && isImported ? { fontFamily, fontWeight: 'normal' } : { fontFamily };
+}
+
+/**
+ * La police du nom est-elle DÉJÀ posée, ou le texte va-t-il changer d'aspect sous les yeux ?
+ *
+ * Sur natif, une police importée se charge en asynchrone : le texte s'affiche d'abord avec la police
+ * système, puis SAUTE quand `ensureNativeFonts` termine (cf. useNativeFontsVersion). Sur un écran de
+ * marque (accueil), ce saut se voit — surtout à la déconnexion, où plus aucun splash ne le couvre.
+ * Les écrans concernés s'en servent pour ne RÉVÉLER leur contenu qu'une fois la police en place.
+ *
+ * Renvoie `true` sur WEB (le navigateur gère le remplacement via `font-display`).
+ *
+ * ⚠️ Renvoie `false` tant que la config de style n'est pas LUE : c'est précisément l'état de la
+ * déconnexion (`queryClient.clear()` vide le cache) et du démarrage à froid — le nom s'affiche
+ * alors avec la police de repli, puis saute dès que la config arrive. « Pas encore su » n'est donc
+ * pas « rien à attendre ». C'est à l'APPELANT de borner cette attente (aucune config lisible
+ * hors-ligne → sans plafond, l'écran ne s'afficherait jamais).
+ */
+export function useAppNameFontReady(): boolean {
+  const { data } = useStyleConfig();
+  useNativeFontsVersion(); // re-render dès qu'une police importée finit de charger
+  if (Platform.OS === 'web') return true;
+  if (data === undefined) return false; // config inconnue → on ne sait pas encore quelle police sortira
+  const selected = data.app_name_font?.trim();
+  const isImported = !!selected && (data.custom_fonts ?? []).some((cf) => cf.family === selected);
+  if (!isImported) return true; // police système : appliquée dès la première frame
+  return isNativeFontReady(selected);
 }

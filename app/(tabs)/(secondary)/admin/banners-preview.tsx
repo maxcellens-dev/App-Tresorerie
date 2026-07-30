@@ -184,7 +184,7 @@ export default function AdminBannersPreview() {
                   confidenceLevel={conf.result.level}
                   daysSinceVerification={conf.result.daysSinceVerification}
                   onVerify={noop}
-                  financials={{ totalInvested: 1500, currentChecking: 4000, projectedEndChecking: 4180 }}
+                  financials={{ currentChecking: 4000, projectedEndChecking: 4180 }}
                   tierLabel="" tierColor={COLORS.emerald}
                   hasSavingsAccount hasInvestmentAccount
                   onEpargner={noop} onInvestir={noop} onCumuler={noop} onReserver={noop}
@@ -212,7 +212,7 @@ export default function AdminBannersPreview() {
                   recoRange={conf.proportional}
                   confidenceLevel={conf.result.level}
                   daysSinceVerification={conf.result.daysSinceVerification}
-                  financials={{ totalInvested: 1500, currentChecking: 4000, projectedEndChecking: 4180 }}
+                  financials={{ currentChecking: 4000, projectedEndChecking: 4180 }}
                   tierLabel="" tierColor={COLORS.emerald}
                   hasSavingsAccount hasInvestmentAccount
                   onEpargner={noop} onInvestir={noop} onCumuler={noop} onReserver={noop}

@@ -352,8 +352,8 @@ export default function RecommendationCard({
           </View>
         </View>
         <RichAmounts text={currentReco.description} style={styles.recoDescription} />
-        {/* UN SEUL bloc coloré : tenue en virement récurrent + projection, composés ensemble
-            (lib/recoContext) — on ne veut pas 3 messages sous le montant. */}
+        {/* UN SEUL bloc coloré : ce que le geste engage — montant tenable ce mois-ci, et virement
+            mensuel quand il est durable (lib/recoContext). On ne veut pas 3 messages sous le montant. */}
         {financials && (() => {
           // Tip calculé sur le montant ACTIONNABLE (borne basse si fourchette) → cohérent avec la
           // description et les CTA.

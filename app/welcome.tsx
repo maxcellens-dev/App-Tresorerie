@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Animated, Dimensions, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -6,14 +6,18 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWindowDimensions } from 'react-native';
+import { useAuth } from '../contexts/AuthContext';
 import { useBrandColors } from '../hooks/useBrandColors';
-import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
+import { useAppNameFontStyle, useAppNameFontReady, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
 import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { signalAppReady } from '../lib/splashGate';
 import LandingPage from '../components/LandingPage';
 import PlayStoreBadge from '../components/PlayStoreBadge';
 
 const { width } = Dimensions.get('window');
+
+/** Attente MAXIMALE avant de révéler l'accueil (police de marque + textes admin). Cf. `canReveal`. */
+const REVEAL_CAP_MS = 700;
 
 
 export default function WelcomeScreen() {
@@ -32,10 +36,39 @@ export default function WelcomeScreen() {
   // Sur web large (bureau) : page d'accueil marketing dédiée (≠ mobile), si activée en admin.
   const showLanding = Platform.OS === 'web' && winWidth >= 980 && (landing?.enabled ?? true);
 
-  // Écran de destination (non connecté) prêt immédiatement → libère le splash animé.
-  useEffect(() => { signalAppReady(); }, []);
+  /* ── NE RIEN MONTRER QUI VA CHANGER SOUS LES YEUX ──────────────────────────────────────────────
+     Deux choses arrivent en retard sur cet écran : la police du nom (importée → chargée en
+     asynchrone sur natif) et les textes eux-mêmes (config admin `landing`). Le contenu s'affichait
+     aussitôt, puis les titres SAUTAIENT en changeant de police.
+
+     Le cas le plus visible est la DÉCONNEXION, et il n'est pas dû au réseau : `signOut()` fait
+     `queryClient.clear()`, donc la config de style et les textes DISPARAISSENT juste avant que le
+     voile ne se lève (cf. components/SignOutVeil). L'accueil se découvrait alors avec la police de
+     repli et les textes par défaut, puis tout se remettait en place à la relecture — pile sous les
+     yeux. D'où les trois conditions ci-dessous, et surtout `signingOut` : tant que la purge est en
+     cours, rien de ce qu'on affiche n'est définitif.
+
+     ⚠️ Plafond OBLIGATOIRE (REVEAL_CAP_MS) : hors-ligne, ni la config ni la police n'arriveront
+     jamais — au pire on retombe sur l'ancien comportement, jamais sur une page vide. Il ne court
+     qu'une fois le voile parti : le dépenser dessous ne servirait à rien (c'est déjà masqué). */
+  const { signingOut } = useAuth();
+  const fontReady = useAppNameFontReady();
+  const configReady = landing !== undefined;
+  const [capReached, setCapReached] = useState(false);
+  useEffect(() => {
+    if (signingOut) { setCapReached(false); return; }
+    const t = setTimeout(() => setCapReached(true), REVEAL_CAP_MS);
+    return () => clearTimeout(t);
+  }, [signingOut]);
+  /* Web exclu de l'attente : le navigateur remplace la police tout seul (`font-display`), et rien
+     ne couvre le premier rendu là-bas — on afficherait une page vide au lieu d'éviter un saut. */
+  const canReveal = !signingOut && (Platform.OS === 'web' || (fontReady && configReady) || capReached);
 
   useEffect(() => {
+    if (!canReveal) return;
+    // Le splash animé n'est libéré qu'ici : sur un démarrage à froid, c'est LUI qui couvre l'attente
+    // (au lieu de révéler une page dont les titres vont encore bouger).
+    signalAppReady();
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -48,7 +81,7 @@ export default function WelcomeScreen() {
         useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start();
-  }, []);
+  }, [canReveal]);
 
   if (showLanding) return <LandingPage />;
 
@@ -67,8 +100,11 @@ export default function WelcomeScreen() {
 
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]} showsVerticalScrollIndicator={false}>
-          
-          <Animated.View style={[styles.hero, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          {/* TOUT le contenu passe par ce fondu, carte de connexion comprise : elle restait visible
+              pendant que le reste apparaissait, ce qui exposait à nouveau le changement de police. */}
+          <Animated.View style={{ opacity: fadeAnim }}>
+
+          <Animated.View style={[styles.hero, { transform: [{ translateY: slideAnim }] }]}>
             <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
 
             <Text {...APP_NAME_TEXT_PROPS} style={[styles.appName, appNameFontStyle]}>{L.brandName}</Text>
@@ -116,7 +152,7 @@ export default function WelcomeScreen() {
           </View>
 
           {/* Fonctionnalités PHARES — éditables en admin (section Mobile). */}
-          <Animated.View style={[styles.features, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          <Animated.View style={[styles.features, { transform: [{ translateY: slideAnim }] }]}>
             {L.mobileFeatures.map((f, i) => (
               <View key={i} style={styles.featureRow}>
                 <View style={styles.featureIcon}>
@@ -137,6 +173,7 @@ export default function WelcomeScreen() {
             </View>
           )}
 
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
     </View>

@@ -117,9 +117,9 @@ export function buildRelykaMessages(input: {
 }
 
 /**
- * Les messages des RECOMMANDATIONS : pour chaque décision, sa description puis sa projection,
- * gardées collées — on ne fait pas défiler deux explications d'épargne entre deux phrases sur
- * l'investissement.
+ * Les messages des RECOMMANDATIONS : pour chaque décision, ce que le geste engage (cf.
+ * lib/recoContext), gardés collés — on ne fait pas défiler deux explications d'épargne entre deux
+ * phrases sur l'investissement.
  *
  * ⚠️ Ce qui relève du Relyka lui-même passe par `buildRelykaMessages`, pas par ici.
  */
@@ -136,10 +136,11 @@ export function buildRecoMessages(input: {
     /* UN SEUL message par décision.
        Deux messages, c'était une redondance : la description reprend surtout le MONTANT, déjà lu en
        gros sur la tuile juste au-dessus (« Épargner — 400 € » puis « Tu peux placer 400 € ce
-       mois-ci… »). On garde donc la PROJECTION, qui seule dit ce que le geste PRODUIT — et on lui
-       met en préambule l'état factuel quand il y en a un (le niveau du matelas, côté épargne).
-       Pas de projection calculable (Confort, ou trajectoire indisponible) → la description reprend
-       sa place, plutôt que de laisser la décision muette. */
+       mois-ci… »). On garde donc le message de CONTEXTE, qui seul dit ce que le geste ENGAGE (mois
+       en cours, ou virement mensuel quand il est tenable) — et on lui met en préambule l'état
+       factuel quand il y en a un (le niveau du matelas, côté épargne).
+       Pas de contexte calculable (Confort) → la description reprend sa place, plutôt que de laisser
+       la décision muette. */
     const ctx = financials
       ? getRecoContextText(r.type, r.actionAmount ?? r.amount, financials, r.recurringFit)
       : null;

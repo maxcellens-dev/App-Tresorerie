@@ -125,7 +125,8 @@ export default function PilotageScreen() {
     }, [user?.id, queryClient]),
   );
   const { data: projectsForConseils = [] } = useProjects(user?.id);
-  const { data: txPersoForConseils = [] } = useTransactions(user?.id);
+  const txPersoQuery = useTransactions(user?.id);
+  const { data: txPersoForConseils = [] } = txPersoQuery;
   // #2/#5 — les modaux (Dépensé/Épargné/Investi/récurrentes) doivent inclure les opérations des comptes
   // partagés/joints, mises à l'échelle du % d'impact (et annotées du %). Exclues si 0%.
   const { data: sharedContrib } = useSharedContribution(user?.id);
@@ -160,7 +161,8 @@ export default function PilotageScreen() {
   const autoEval = useAutoProfileEvaluation(user?.id);
 
   // ── Données recos évoluées : cumuls, réservations, seuils, comptes ──
-  const { data: accountsPerso = [] } = useAccounts(user?.id);
+  const accountsQuery = useAccounts(user?.id);
+  const { data: accountsPerso = [] } = accountsQuery;
   // Inclure les comptes partagés (pondérés) pour que les modaux du suivi connaissent leurs types.
   const accounts = useMemo(
     () => [...accountsPerso, ...(sharedContrib?.accounts ?? [])],
@@ -336,15 +338,34 @@ export default function PilotageScreen() {
   // Hors-ligne, la requête est « en pause » (onlineManager/NetInfo) : ni données, ni erreur.
   const isOffline = pilotageQuery.fetchStatus === 'paused';
 
+  /* ── PAS D'ÉCRAN QUI SAUTE À L'OUVERTURE ────────────────────────────────────────────────────────
+     L'accueil (« crée ton premier compte ») se déduit de l'ABSENCE de comptes et d'opérations. Or
+     une lecture EN COURS rend exactement la même chose qu'un compte neuf : une liste vide. Un
+     utilisateur installé voyait donc l'accueil du tout début clignoter avant que son tableau de
+     bord ne le remplace. Même garde que le guide (contexts/GuideContext.dataReady) : tant que les
+     deux lectures n'ont pas ABOUTI, on ne conclut rien et on reste sur le chargement.
+     ⚠️ Filet OBLIGATOIRE : hors-ligne les requêtes restent « en pause » et n'aboutissent jamais →
+     sans borne de temps, l'écran resterait bloqué sur le rond de chargement. */
+  const baseDataReady = accountsQuery.isSuccess && txPersoQuery.isSuccess;
+  const baseDataPaused = accountsQuery.fetchStatus === 'paused' || txPersoQuery.fetchStatus === 'paused';
+  const [bootTimedOut, setBootTimedOut] = useState(false);
+  React.useEffect(() => {
+    const t = setTimeout(() => setBootTimedOut(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  const stillBooting = !baseDataReady && !baseDataPaused && !bootTimedOut;
+
   // Signale au splash animé que l'app peut s'afficher : dès que les données sont là OU en erreur,
   // sinon au bout de 900 ms MAX. On n'attend plus la fin du (lourd) chargement pour OUVRIR l'app :
   // l'utilisateur voit le tableau de bord tout de suite, les données finissent d'arriver derrière
   // (indicateur de chargement in-app). Crucial hors-ligne : plus de splash bloqué ~15 s.
+  // (Le splash couvre aussi la lecture des comptes/opérations quand elle arrive dans les temps :
+  //  sinon on enchaînait splash → rond de chargement. Le plafond de 900 ms reste le même.)
   React.useEffect(() => {
-    if (pilotageData || pilotageError || isOffline) { signalAppReady(); return; }
+    if ((pilotageData && baseDataReady) || pilotageError || isOffline) { signalAppReady(); return; }
     const t = setTimeout(signalAppReady, 900);
     return () => clearTimeout(t);
-  }, [pilotageData, pilotageError, isOffline]);
+  }, [pilotageData, baseDataReady, pilotageError, isOffline]);
 
   // Messages contextuels des recos (projection invest, économie…) — activables en admin (défaut : oui).
   const { data: featureFlags } = useFeatureFlags();
@@ -463,6 +484,9 @@ export default function PilotageScreen() {
     : userGuide.is('accounts_checking') ? 'checking'
     : userGuide.is('accounts_savings') ? 'savings'
     : userGuide.is('tx_recurring') ? 'recurring'
+    // Constat « aucun compte / aucune opération » : ne vaut que sur des lectures ABOUTIES
+    // (cf. baseDataReady) — sinon l'accueil s'affiche pendant le chargement d'un compte installé.
+    : !baseDataReady ? null
     : noAccountsYet ? 'accounts'
     : !hasAnyTx ? 'recurring'
     : null;
@@ -573,7 +597,7 @@ export default function PilotageScreen() {
 
   /** Données de projection alimentant l'encadré contextuel des recos (les deux vues). */
   const recoFinancials = recoContextEnabled && pilotageData
-    ? { totalInvested: pilotageData.total_invested, currentChecking: pilotageData.current_checking_balance, projectedEndChecking: pilotageData.projection_balances_6m?.[0] }
+    ? { currentChecking: pilotageData.current_checking_balance, projectedEndChecking: pilotageData.projection_balances_6m?.[0] }
     : undefined;
 
   /* Les messages des DÉCISIONS (description + projection de chaque reco), à plat : ils défilent
@@ -784,7 +808,10 @@ export default function PilotageScreen() {
 
   // Chargement actif (en ligne, données en route) : cercle. Hors-ligne, on ne « charge » pas → on
   // saute ce bloc pour afficher le message de connexion (ci-dessous).
-  if (isLoading && !pilotageData && !isOffline) {
+  // `stillBooting` : les comptes / opérations ne sont pas encore lus → on ne sait pas ENCORE s'il
+  // faut afficher le tableau de bord ou l'accueil. On attend plutôt que de montrer l'un puis
+  // l'autre (borné à 4 s, cf. bootTimedOut).
+  if (((isLoading && !pilotageData) || stillBooting) && !isOffline) {
     return (
       <View style={styles.root}>
         <StatusBar style="light" />

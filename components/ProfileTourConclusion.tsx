@@ -12,9 +12,15 @@
  *  • il manque une donnée → on dit LAQUELLE, sans rien réclamer. Le jour où elle arrive, le
  *    comportement normal reprend : le profil se recalcule et l'utilisateur en est informé par
  *    ProfileChangeModal.
+ *
+ * MISE EN SCÈNE (deux temps) : le profil apparaissait d'un coup, sans qu'on comprenne d'où il
+ * sortait — on aurait dit un écran de plus. Il est donc précédé d'un court dépouillement (~1,6 s)
+ * qui NOMME ce qu'on regarde (tes comptes, tes charges, ta rentrée d'argent) : le résultat se lit
+ * alors comme la CONCLUSION de ce que l'utilisateur vient de saisir. Puis il se pose (fondu +
+ * remontée), l'emblème apparaît en ressort et les barres de répartition se remplissent en cascade.
  */
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +33,15 @@ import { computeSecurityCushion, securityMonthsLabel } from '../lib/securityCush
 import type { FinancialProfileId } from '../types/database';
 import { sheetWidth } from '../lib/appLayout';
 
+/** Durée du dépouillement. Assez long pour être lu, assez court pour ne pas faire attendre. */
+const SCAN_MS = 1650;
+/** Ce qu'on dit qu'on regarde — ce sont exactement les données saisies pendant le parcours. */
+const SCAN_LINES = [
+  'On regarde tes comptes et leurs soldes…',
+  'Puis ta rentrée d’argent et tes charges…',
+  'Ton profil se dessine…',
+];
+
 export default function ProfileTourConclusion() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -38,7 +53,53 @@ export default function ProfileTourConclusion() {
 
   // Le parcours est TERMINÉ (dernière bulle passée) et la conclusion n'a pas encore été montrée.
   const shouldShow = guide.tourJustFinished;
-  if (isImpersonating || !shouldShow || !fp) return null;
+  const visible = !isImpersonating && shouldShow && !!fp;
+
+  /* ── Mise en scène ─────────────────────────────────────────────────────────────────────────────
+     `phase` : on dépouille, PUIS on annonce. Les valeurs animées sont créées une fois et rejouées
+     à chaque ouverture (l'écran n'apparaît qu'une fois dans la vie du compte, mais un remontage
+     ne doit pas laisser une animation figée à mi-course). */
+  const [phase, setPhase] = useState<'computing' | 'result'>('computing');
+  const [scanStep, setScanStep] = useState(0);
+  const scan = useRef(new Animated.Value(0)).current;   // jauge du dépouillement (largeur → pas de driver natif)
+  const cardIn = useRef(new Animated.Value(0)).current; // arrivée de la carte de résultat
+  const emblem = useRef(new Animated.Value(0)).current; // ressort de l'emblème du profil
+  const bars = useRef(new Animated.Value(0)).current;   // remplissage des barres, en cascade
+
+  useEffect(() => {
+    if (!visible) return;
+    setPhase('computing');
+    setScanStep(0);
+    scan.setValue(0); cardIn.setValue(0); emblem.setValue(0); bars.setValue(0);
+
+    const gauge = Animated.timing(scan, {
+      toValue: 1, duration: SCAN_MS, easing: Easing.inOut(Easing.quad), useNativeDriver: false,
+    });
+    gauge.start();
+
+    const timers = SCAN_LINES.map((_, i) =>
+      i === 0 ? null : setTimeout(() => setScanStep(i), (SCAN_MS / SCAN_LINES.length) * i),
+    );
+    const reveal = setTimeout(() => {
+      setPhase('result');
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(cardIn, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.spring(emblem, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+        ]),
+        Animated.timing(bars, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      ]).start();
+    }, SCAN_MS + 140);
+
+    return () => {
+      gauge.stop();
+      timers.forEach((t) => t && clearTimeout(t));
+      clearTimeout(reveal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  if (!visible) return null;
 
   const profileId = (fp as any).profile_id as FinancialProfileId;
   const info = PROFILE_INFO[profileId];
@@ -72,25 +133,86 @@ export default function ProfileTourConclusion() {
     { label: 'Conserver', pct: alloc.keep, color: COLORS.blue },
   ];
 
+  /* DÉPOUILLEMENT — l'écran d'attente qui relie le parcours à son résultat. Volontairement sobre :
+     une jauge, une phrase qui change, rien à faire. */
+  if (phase === 'computing') {
+    return (
+      <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
+        <View style={styles.overlay}>
+          <View style={[styles.sheet, styles.scanSheet]}>
+            <Text style={styles.eyebrow}>Parcours terminé</Text>
+            <Text style={styles.scanTitle}>On calcule ton profil financier</Text>
+            <View style={styles.scanTrack}>
+              <Animated.View
+                style={[
+                  styles.scanFill,
+                  { width: scan.interpolate({ inputRange: [0, 1], outputRange: ['4%', '100%'] }) },
+                ]}
+              />
+            </View>
+            <Text style={styles.scanLine}>{SCAN_LINES[scanStep]}</Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              opacity: cardIn,
+              transform: [
+                { translateY: cardIn.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+                { scale: cardIn.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+              ],
+            },
+          ]}
+        >
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-            <Text style={styles.eyebrow}>Pour finir</Text>
-            <Text style={styles.emoji}>{info.emoji}</Text>
+            <Text style={styles.eyebrow}>Voilà ce que tes données disent</Text>
+            <Animated.Text
+              style={[
+                styles.emoji,
+                {
+                  transform: [
+                    { scale: emblem.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
+                    { rotate: emblem.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] }) },
+                  ],
+                },
+              ]}
+            >
+              {info.emoji}
+            </Animated.Text>
             <Text style={styles.title}>Ton profil : {info.name}</Text>
             <Text style={styles.desc}>{info.description}</Text>
 
-            {/* Ce que le profil DÉCIDE : la répartition. C'est son unique rôle, autant le montrer. */}
+            {/* Ce que le profil DÉCIDE : la répartition. C'est son unique rôle, autant le montrer.
+                Les barres se remplissent en CASCADE (décalage de 0,1 par ligne sur la même valeur
+                animée) : on voit la répartition se constituer, ligne après ligne. */}
             <View style={styles.allocCard}>
               <Text style={styles.allocTitle}>Comment ton Relyka sera réparti</Text>
-              {ALLOC_ROWS.map((r) => (
+              {ALLOC_ROWS.map((r, i) => (
                 <View key={r.label} style={styles.allocRow}>
                   <Text style={styles.allocLabel}>{r.label}</Text>
                   <View style={styles.allocTrack}>
-                    <View style={[styles.allocFill, { width: `${r.pct}%`, backgroundColor: r.color }]} />
+                    <Animated.View
+                      style={[
+                        styles.allocFill,
+                        {
+                          backgroundColor: r.color,
+                          width: bars.interpolate({
+                            inputRange: [0.1 * i, Math.min(1, 0.1 * i + 0.7)],
+                            outputRange: ['0%', `${r.pct}%`],
+                            extrapolate: 'clamp',
+                          }),
+                        },
+                      ]}
+                    />
                   </View>
                   <Text style={[styles.allocPct, { color: r.color }]}>{r.pct} %</Text>
                 </View>
@@ -123,7 +245,7 @@ export default function ProfileTourConclusion() {
             <Text style={styles.ctaText}>C’est parti</Text>
             <Ionicons name="arrow-forward" size={18} color={COLORS.bg} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -139,7 +261,15 @@ function makeStyles(c: any) {
       paddingHorizontal: 20, paddingTop: 22, paddingBottom: 16, gap: 12,
     },
     content: { alignItems: 'center', gap: 8 },
-    eyebrow: { fontSize: 11.5, fontWeight: '800', color: c.emerald, textTransform: 'uppercase', letterSpacing: 1 },
+    eyebrow: { fontSize: 11.5, fontWeight: '800', color: c.emerald, textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' },
+
+    /* Dépouillement : même carte, mais courte et centrée — on n'y fait rien, on regarde. */
+    scanSheet: { alignItems: 'center', paddingVertical: 30, gap: 16 },
+    scanTitle: { fontSize: 18, fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -0.3 },
+    scanTrack: { width: '82%', height: 6, borderRadius: 3, backgroundColor: c.cardBorder, overflow: 'hidden' },
+    scanFill: { height: 6, borderRadius: 3, backgroundColor: c.emerald },
+    scanLine: { fontSize: 13, color: c.textSecondary, textAlign: 'center', minHeight: 19 },
+
     emoji: { fontSize: 40, marginTop: 2 },
     title: { fontSize: 21, fontWeight: '800', color: c.text, textAlign: 'center', letterSpacing: -0.4 },
     desc: { fontSize: 14, color: c.textSecondary, textAlign: 'center', lineHeight: 20 },

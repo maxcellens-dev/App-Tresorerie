@@ -26,6 +26,26 @@ export function useInactiveUsers(months: number, enabled: boolean) {
   });
 }
 
+/**
+ * Recherche ADMIN sur tous les utilisateurs (actifs ou non), même forme que `useInactiveUsers` :
+ * la purge doit pouvoir viser quelqu'un de précis, pas seulement les comptes dormants.
+ * L'RPC exclut déjà l'appelant et les autres admins (migration 161) → un compte protégé n'apparaît
+ * jamais dans la liste, donc ne peut pas être coché.
+ */
+export function useAdminUserSearch(query: string, enabled: boolean) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: ['admin_users_search', q],
+    enabled: enabled && q.length >= 2 && !!supabase,
+    queryFn: async (): Promise<InactiveUser[]> => {
+      const { data, error } = await supabase!.rpc('search_users_admin', { p_query: q });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as InactiveUser[];
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
 /** Supprime en masse des utilisateurs (compte Auth + toutes leurs données) via l'Edge Function. */
 export function useDeleteUsers() {
   const qc = useQueryClient();
@@ -43,6 +63,8 @@ export function useDeleteUsers() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inactive_users'] });
+      qc.invalidateQueries({ queryKey: ['admin_users_search'] });
+      qc.invalidateQueries({ queryKey: ['admin_user_search'] }); // onglet Utilisateurs (recherche simple)
       qc.invalidateQueries({ queryKey: ['unread_badges'] });
     },
   });

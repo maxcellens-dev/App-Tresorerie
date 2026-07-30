@@ -28,6 +28,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
 import { useAccountParticipants, useAccountMembers } from '../../../hooks/useSharedAccounts';
 import { useAllTransactions, useAddTransaction } from '../../../hooks/useTransactions';
+import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
+import { buildOverrideMap, applyMonthOverrides } from '../../../lib/txOverrides';
 import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
@@ -80,7 +82,15 @@ export default function AccountDetailScreen() {
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
   const { data: accounts = [] } = useAllAccounts(user?.id);
-  const { data: transactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
+  const { data: rawTransactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
+  // Une échéance modifiée « pour ce mois seulement » vit dans transaction_month_overrides, pas dans
+  // la ligne : sans ça, la fiche du compte affichait l'ancien montant d'une transaction que la page
+  // Transactions montrait déjà modifiée (même transaction, deux valeurs).
+  const { data: overrides = [] } = useTransactionMonthOverrides(user?.id);
+  const transactions = useMemo(
+    () => applyMonthOverrides(rawTransactions as TransactionWithDetails[], buildOverrideMap(overrides)),
+    [rawTransactions, overrides],
+  );
   const addTransaction = useAddTransaction(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
   const recalibrate = useRecalibrateReliability(user?.id);
@@ -126,7 +136,13 @@ export default function AccountDetailScreen() {
   const [balanceDateDisplay, setBalanceDateDisplay] = useState(formatDateFrench(todayISO()));
   const [showBalanceCalendar, setShowBalanceCalendar] = useState(false);
 
-  const [selectedTx, setSelectedTx] = useState<TransactionWithDetails | null>(null);
+  // On garde l'ID, pas la ligne : une copie figée dans le state continuait d'afficher l'ancien
+  // montant après une modification (le cache se rafraîchit, pas le snapshot).
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
+  const selectedTx = useMemo(
+    () => (selectedTxId ? transactions.find((t) => t.id === selectedTxId) ?? null : null),
+    [transactions, selectedTxId],
+  );
 
   // Historique paginé : on n'affiche que les N derniers mois, « Charger plus » en ajoute 3.
   // La liste n'est pas virtualisée et chaque ligne cherche sa jambe symétrique de virement dans
@@ -656,7 +672,7 @@ export default function AccountDetailScreen() {
                 <TouchableOpacity
                   key={`${t.id}-${idx}`}
                   style={[styles.transferRow, idx === (showUpcoming ? upcomingThisMonth : visibleTransactions).length - 1 && styles.transferRowLast]}
-                  onPress={() => setSelectedTx(t)}
+                  onPress={() => setSelectedTxId(t.id)}
                   activeOpacity={0.7}
                 >
                   <Ionicons name={(isTransfer ? VIREMENT_ICON : iconForCategory(t.category)) as any} size={16} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
@@ -1237,8 +1253,8 @@ export default function AccountDetailScreen() {
       </Modal>
 
       {/* Transaction detail (read-only) */}
-      <Modal visible={!!selectedTx} transparent animationType="slide" onRequestClose={() => setSelectedTx(null)}>
-        <TouchableOpacity style={txDetailStyles.overlay} activeOpacity={1} onPress={() => setSelectedTx(null)}>
+      <Modal visible={!!selectedTx} transparent animationType="slide" onRequestClose={() => setSelectedTxId(null)}>
+        <TouchableOpacity style={txDetailStyles.overlay} activeOpacity={1} onPress={() => setSelectedTxId(null)}>
           <TouchableOpacity style={txDetailStyles.sheet} activeOpacity={1} onPress={() => {}}>
             {selectedTx && (() => {
               const amt = Number(selectedTx.amount);
@@ -1307,15 +1323,25 @@ export default function AccountDetailScreen() {
                     </View>
                   ))}
                   <View style={txDetailStyles.btnRow}>
-                    <TouchableOpacity style={txDetailStyles.closeBtn} onPress={() => setSelectedTx(null)}>
+                    <TouchableOpacity style={txDetailStyles.closeBtn} onPress={() => setSelectedTxId(null)}>
                       <Text style={txDetailStyles.closeBtnText}>Fermer</Text>
                     </TouchableOpacity>
                     {account?._role !== 'read' && (
                       <TouchableOpacity
                         style={txDetailStyles.editBtn}
                         onPress={() => {
-                          setSelectedTx(null);
-                          router.push(`/(tabs)/transactions/edit/${selectedTx!.id}?origin=${encodeURIComponent(`/comptes/${id}`)}` as any);
+                          const tx = selectedTx!;
+                          setSelectedTxId(null);
+                          // Même geste que depuis Transactions / Pilotage : sur une échéance
+                          // récurrente on passe le mois de l'occurrence, sinon l'éditeur modifiait
+                          // toute la SÉRIE alors que la même ligne, ouverte depuis Transactions,
+                          // ne modifiait que cette échéance.
+                          const instance = (tx as any).instance_month as string | undefined;
+                          const origin = `origin=${encodeURIComponent(`/comptes/${id}`)}`;
+                          const route = instance
+                            ? `/(tabs)/transactions/edit/${tx.id}?instanceDate=${instance}&${origin}`
+                            : `/(tabs)/transactions/edit/${tx.id}?${origin}`;
+                          router.push(route as any);
                         }}
                       >
                         <Ionicons name="pencil" size={16} color={COLORS.emerald} />
