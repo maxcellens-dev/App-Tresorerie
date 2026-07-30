@@ -234,8 +234,8 @@ export default function ProfileTourConclusion() {
               </View>
             ) : (
               <Text style={styles.okText}>
-                Calculé sur tes vraies données{cushionMonths != null ? ` — ton épargne couvre ≈ ${securityMonthsLabel(cushionMonths)} de revenus` : ''}.
-                {'\n'}Il évoluera tout seul au fil de tes mois.
+                Calculé sur tes vraies données{cushionMonths != null ? ` \nton épargne couvre ≈ ${securityMonthsLabel(cushionMonths)} de revenus` : ''}.
+                {'\n'}Ton profil peut évoluer selon ta situation.
               </Text>
             )}
 

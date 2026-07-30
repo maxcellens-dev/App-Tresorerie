@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingProfileChange, useMarkNotificationShown, useProfileNotificationMessages } from '../hooks/useFinancialProfile';
-import { PROFILE_INFO } from '../lib/financialProfileEngine';
+import { PROFILE_INFO, PROFILE_ALLOCATIONS } from '../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
@@ -56,6 +56,16 @@ const DEFAULT_MESSAGES: Record<string, { title: string; body: string }> = {
   'P5|same': { title: '🎯 Tu conserves le profil', body: 'Ta maturité financière se maintient ce mois-ci. \nContinue à optimiser ton patrimoine.' },
 };
 
+/* Repli de DERNIER recours, par sens de variation. Les libellés ci-dessus ne couvrent que les sauts
+   d'UN palier (P2_P3, P3_P4…) : un saut de plusieurs paliers — typiquement une baisse P4 → P2 —
+   ne trouvait donc rien, ni en base ni ici, et le modal se réduisait au nom du nouveau profil.
+   Le détail de ce qui change, lui, est toujours donné par la répartition affichée en dessous. */
+const GENERIC_BY_DIRECTION: Record<string, string> = {
+  upgrade: 'Ta situation s’est renforcée : Relyka en tient compte dans ce qu’il te recommande.',
+  downgrade: 'Ta situation s’est resserrée : Relyka redevient plus prudent, le temps que ça remonte.',
+  exceptional: 'Relyka s’adapte à ce que disent tes derniers mois.',
+};
+
 export default function ProfileChangeModal({ userId }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -106,6 +116,7 @@ export default function ProfileChangeModal({ userId }: Props) {
     } else {
       const fallback = DEFAULT_MESSAGES[`${key.transition}|${key.direction}`];
       if (fallback) { title = fallback.title; body = fallback.body; }
+      else body = GENERIC_BY_DIRECTION[key.direction] ?? '';
     }
   }
 
@@ -116,6 +127,24 @@ export default function ProfileChangeModal({ userId }: Props) {
   const isDowngrade = key?.direction === 'downgrade';
   const isSame = key?.direction === 'same';
   const accentColor = profileInfo?.color ?? COLORS.emerald;
+
+  /* ── CE QUE LE CHANGEMENT CHANGE POUR DE VRAI ──────────────────────────────────────────────────
+     Le modal annonçait un profil sans jamais dire à quoi il sert. Or son UNIQUE rôle est de fixer
+     la répartition du Relyka (cf. deriveRecoAllocations : le profil choisit directement la table
+     d'allocation) : sans ça, un « ton profil évolue » se lisait comme un simple badge — surtout à
+     la BAISSE, où la ligne de message est souvent vide (aucun libellé n'existe pour les sauts de
+     plusieurs paliers, ex. P4 → P2) et où il ne restait donc que le nom du nouveau profil.
+     On montre donc les nouveaux pourcentages, avec l'écart par poste quand il y a un avant : c'est
+     exactement ce qui bouge, et ça se lit en une seconde. */
+  const nextAlloc = PROFILE_ALLOCATIONS[newProfileId];
+  const prevProfileId = pendingChange.previous_profile as FinancialProfileId | null;
+  const prevAlloc = prevProfileId && prevProfileId !== newProfileId ? PROFILE_ALLOCATIONS[prevProfileId] : null;
+  const ALLOC_ROWS: { label: string; k: 'save' | 'invest' | 'enjoy' | 'keep'; color: string }[] = [
+    { label: 'Épargner', k: 'save', color: COLORS.green ?? COLORS.emerald },
+    { label: 'Investir', k: 'invest', color: COLORS.violet },
+    { label: 'Confort', k: 'enjoy', color: COLORS.orange },
+    { label: 'Conserver', k: 'keep', color: COLORS.blue },
+  ];
 
   function handleClose() {
     markShown.mutate(pendingChange!.id);
@@ -179,6 +208,37 @@ export default function ProfileChangeModal({ userId }: Props) {
                 <Text style={[styles.transitionTo, { color: accentColor }]}>
                   {profileInfo?.emoji} {profileInfo?.name}
                 </Text>
+              </View>
+            )}
+
+            {/* La conséquence CONCRÈTE du profil : la répartition des recommandations. */}
+            {!!nextAlloc && (
+              <View style={styles.allocCard}>
+                <View style={styles.allocHead}>
+                  <Ionicons name="pie-chart-outline" size={15} color={COLORS.textSecondary} />
+                  <Text style={styles.allocNote}>
+                    {isSame
+                      ? 'Tes recommandations ne changent pas : ton Relyka continue de se répartir ainsi.'
+                      : 'Tes recommandations s’adaptent : ton Relyka se répartira désormais ainsi.'}
+                  </Text>
+                </View>
+                <View style={styles.allocGrid}>
+                  {ALLOC_ROWS.map((r) => {
+                    const pct = nextAlloc[r.k];
+                    const delta = prevAlloc ? pct - prevAlloc[r.k] : 0;
+                    return (
+                      <View key={r.k} style={styles.allocChip}>
+                        <Text style={styles.allocLabel}>{r.label}</Text>
+                        <Text style={[styles.allocPct, { color: r.color }]}>{pct} %</Text>
+                        {/* Écart NEUTRE (jamais en rouge/vert) : plus d'épargne n'est pas « mieux »
+                            que plus d'investissement — ça dépend justement du profil. */}
+                        {delta !== 0 && (
+                          <Text style={styles.allocDelta}>{delta > 0 ? '+' : '−'}{Math.abs(delta)}</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             )}
 
@@ -254,6 +314,24 @@ function makeStyles(c: any) {
   },
   transitionFrom: { color: c.textSecondary, fontSize: 13, fontWeight: '500', flex: 1 },
   transitionTo: { fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
+
+  // Répartition des recos : volontairement compacte (la feuille est déjà dense) — une phrase, puis
+  // les quatre postes sur une ligne qui se replie.
+  allocCard: {
+    backgroundColor: c.card, borderRadius: 12, padding: 14, gap: 12,
+    borderWidth: 1, borderColor: c.cardBorder,
+  },
+  allocHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  allocNote: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
+  allocGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  allocChip: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 5,
+    backgroundColor: c.bg, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 6,
+    borderWidth: 1, borderColor: c.cardBorder,
+  },
+  allocLabel: { fontSize: 11.5, color: c.textSecondary },
+  allocPct: { fontSize: 13, fontWeight: '800' },
+  allocDelta: { fontSize: 10.5, color: c.textSecondary, fontWeight: '700' },
 
   // Marge basse MINIMALE : c'est le SafeAreaView autour qui ajoute la hauteur réelle de la barre
   // système. Cumuler les deux repoussait le bouton hors de la feuille sur les petits écrans.
