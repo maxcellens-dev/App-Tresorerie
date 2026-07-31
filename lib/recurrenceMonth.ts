@@ -114,3 +114,43 @@ export function recurrenceForMonth(
   // La matérialisation n'a pas (encore) tourné : on projette, échue si son jour l'est (aujourd'hui inclus).
   return { total: amt, passed: day <= dToday ? amt : 0 };
 }
+
+/**
+ * Montant SIGNÉ d'un modèle récurrent sur un mois DONNÉ (passé ou futur), échéance modifiée
+ * comprise. C'est la projection « à plat » : contrairement à `recurrenceForMonth`, elle ne
+ * s'appuie pas sur les lignes réelles — elle sert à PROJETER des mois où rien n'existe encore
+ * (trésorerie prévue, mois à venir du Reporting).
+ *
+ * Extraite de lib/tresoProjection (à l'identique) pour que la Projection et le Reporting comptent
+ * les mêmes échéances aux mêmes mois : deux copies de cette arithmétique auraient fini par diverger.
+ *
+ * `overridesMap` : `${transactionId}:${year}:${month}` → montant FINAL signé de CETTE échéance.
+ */
+export function recurringAmountForMonth(
+  t: RecurrenceTemplate,
+  year: number,
+  month: number,
+  overridesMap: Record<string, number> = {},
+): number {
+  const okey = `${t.id}:${year}:${month}`;
+  if (overridesMap[okey] !== undefined) return overridesMap[okey];
+  const rule = t.recurrence_rule;
+  const start = new Date(t.date);
+  const end = t.recurrence_end_date ? new Date(t.recurrence_end_date) : new Date(year + 5, 0, 1);
+  const msStart = new Date(year, month - 1, 1);
+  const msEnd = new Date(year, month, 0);
+  if (start > msEnd || end < msStart) return 0;
+  if (rule === 'monthly') return Number(t.amount);
+  if (rule === 'quarterly') {
+    const sm = start.getFullYear() * 12 + start.getMonth();
+    const tm = year * 12 + (month - 1);
+    return (tm - sm) % 3 === 0 && tm >= sm ? Number(t.amount) : 0;
+  }
+  if (rule === 'yearly') return start.getMonth() === month - 1 ? Number(t.amount) : 0;
+  if (rule === 'weekly') {
+    let count = 0; const d = new Date(start);
+    while (d <= msEnd) { if (d >= msStart && d <= end) count++; d.setDate(d.getDate() + 7); }
+    return count * Number(t.amount);
+  }
+  return 0;
+}

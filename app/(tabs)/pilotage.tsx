@@ -576,7 +576,7 @@ export default function PilotageScreen() {
       // salue au lieu d'alerter. Sinon seulement, on met en garde.
       if (relykaAlloueVolontairement) {
         return {
-          text: `Rien d'inquiétant : tu as mis ${Math.round(misDeCoteTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} de côté ce mois-ci (épargne, investissement, réservé). Ton Relyka est à 0 parce que cet argent est rangé ailleurs, pas parce qu'il te manque de l'argent.`,
+          text: `Rien d'inquiétant : tu as mis ${Math.round(misDeCoteTotal).toLocaleString('fr-FR')} ${CURRENCY_SYMBOL} de côté ce mois-ci (épargne, investissement, réservé). \nTon Relyka est à 0 parce que cet argent est rangé ailleurs.`,
           isGeneric: false,
         };
       }

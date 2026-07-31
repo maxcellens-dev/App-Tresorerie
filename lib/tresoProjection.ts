@@ -5,6 +5,7 @@
  * (courbe/cartes de la Projection) et pour le frein des recos épargne/invest.
  * Les virements récurrents courant ↔ épargne/invest sont inclus (« Autre », signé).
  */
+import { recurringAmountForMonth } from './recurrenceMonth';
 
 export interface TresoMonthRow {
   year: number;
@@ -94,6 +95,12 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
     return linkedType === 'savings' || linkedType === 'investment';
   };
 
+  // Échéance modifiée : un override remplace le montant calculé pour ce mois précis (signé), sinon
+  // la Projection garderait le montant récurrent de base et ignorerait l'édition d'une échéance.
+  // Arithmétique PARTAGÉE avec le Reporting (mois à venir) — cf. lib/recurrenceMonth.
+  const recurrenceAmount = (t: any, year: number, month: number): number =>
+    recurringAmountForMonth(t, year, month, overridesMap);
+
   // Renvoie le flux NET signé du mois (négatif = sortie d'épargne, positif = retour vers le courant).
   const otherForMonth = (year: number, month: number, onlyRemaining: boolean) => {
     const prefix = `${year}-${String(month).padStart(2, '0')}`;
@@ -116,33 +123,6 @@ export function computeTresoRows(input: TresoProjectionInput): TresoMonthRow[] {
     }
     return total;
   };
-
-  function recurrenceAmount(t: any, year: number, month: number): number {
-    // Échéance modifiée : un override remplace le montant calculé pour ce mois précis (signé),
-    // exactement comme dans le plan de trésorerie. Sans cela, la Projection garderait le montant
-    // récurrent de base et ignorerait l'édition d'une échéance.
-    const okey = `${t.id}:${year}:${month}`;
-    if (overridesMap[okey] !== undefined) return overridesMap[okey];
-    const rule = t.recurrence_rule;
-    const start = new Date(t.date);
-    const end = t.recurrence_end_date ? new Date(t.recurrence_end_date) : new Date(year + 5, 0, 1);
-    const msStart = new Date(year, month - 1, 1);
-    const msEnd = new Date(year, month, 0);
-    if (start > msEnd || end < msStart) return 0;
-    if (rule === 'monthly') return Number(t.amount);
-    if (rule === 'quarterly') {
-      const sm = start.getFullYear() * 12 + start.getMonth();
-      const tm = year * 12 + (month - 1);
-      return (tm - sm) % 3 === 0 && tm >= sm ? Number(t.amount) : 0;
-    }
-    if (rule === 'yearly') return start.getMonth() === month - 1 ? Number(t.amount) : 0;
-    if (rule === 'weekly') {
-      let count = 0; let d = new Date(start);
-      while (d <= msEnd) { if (d >= msStart && d <= end) count++; d.setDate(d.getDate() + 7); }
-      return count * Number(t.amount);
-    }
-    return 0;
-  }
 
   const months = Array.from({ length: input.monthsCount ?? 6 }, (_, i) => {
     const d = new Date(currentYear, currentMonth - 1 + i, 1);

@@ -31,11 +31,13 @@ import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
 import { computeSecurityCushion } from '../../lib/securityCushion';
-import { buildPerimeterCtx, transformFluxTransactions } from '../../lib/perimeter';
+import { buildPerimeterCtx, transformFluxTransactions, fluxFactor, effectiveSharedMode } from '../../lib/perimeter';
+import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
 import {
-  monthsWindow, buildMonthlyFlux, buildSavingsSeries, buildCategoryBreakdown,
+  monthsWindow, futureMonthsWindow, buildMonthlyFlux, buildForecastFlux, variableShareByAccount,
+  buildSavingsSeries, buildCategoryBreakdown,
   buildTopCategoriesCompare, buildBalanceSeries, buildInsights,
-  type ReportTx, type InsightTone,
+  type ReportTx, type InsightTone, type MonthlyFlux,
 } from '../../lib/reportingEngine';
 
 /* ── Palette catégorielle VALIDÉE (dataviz) — light/dark, ordre fixe (jamais cyclé). ── */
@@ -69,7 +71,10 @@ const fmtSigned = (n: number) => `${n >= 0 ? '+' : '−'}${fmtFull(Math.abs(n))}
 /* ═══ Barres groupées Revenus vs Dépenses — colonne entière cliquable + bandeau détail.
    Les zones tapables sont des Views RN SUPERPOSÉES au SVG : les événements de clic sur les
    éléments SVG sont peu fiables selon la plateforme (web/natif) — les Views, elles, le sont. ═══ */
-function IncomeExpenseBars({ data, width }: { data: { label: string; income: number; expense: number }[]; width: number }) {
+function IncomeExpenseBars({ data, width }: {
+  data: { label: string; income: number; expense: number; forecast?: boolean; variableEstimate?: number }[];
+  width: number;
+}) {
   const C = useReportingColors();
   const s = makeStyles(C);
   const [active, setActive] = useState<number | null>(null);
@@ -79,8 +84,12 @@ function IncomeExpenseBars({ data, width }: { data: { label: string; income: num
   const gap = 4;
   const usableH = chartH - padT;
   const maxVal = Math.max(...data.flatMap((d) => [d.income, d.expense]), 1);
-  // Toujours un mois sélectionné (le dernier par défaut) → le détail est visible d'emblée.
-  const sel = active != null && active < data.length ? active : data.length - 1;
+  /* Le mois sélectionné par défaut est le DERNIER MOIS RÉEL, pas la dernière colonne : depuis que
+     la prévision est affichée, ouvrir l'écran sur « octobre, prévision » aurait mis en avant une
+     estimation là où l'utilisateur attend son mois en cours. */
+  const lastRealIdx = (() => { for (let i = data.length - 1; i >= 0; i--) if (!data[i].forecast) return i; return data.length - 1; })();
+  const firstForecastIdx = data.findIndex((d) => d.forecast);
+  const sel = active != null && active < data.length ? active : lastRealIdx;
   const selData = data[sel];
   return (
     <View>
@@ -95,18 +104,28 @@ function IncomeExpenseBars({ data, width }: { data: { label: string; income: num
               </G>
             );
           })}
+          {/* Frontière réel / prévu : une simple ligne verticale, pour qu'on ne lise jamais une
+              estimation comme un relevé. Les barres prévues sont en plus atténuées. */}
+          {firstForecastIdx > 0 && (
+            <Line
+              x1={48 + firstForecastIdx * groupW} y1={0}
+              x2={48 + firstForecastIdx * groupW} y2={chartH}
+              stroke={C.textSecondary} strokeWidth={1} strokeDasharray="3,3" opacity={0.7}
+            />
+          )}
           {data.map((d, i) => {
             const gx = 48 + i * groupW;
             const x = gx + (groupW - barW * 2 - gap) / 2;
             const ih = (d.income / maxVal) * usableH;
             const eh = (d.expense / maxVal) * usableH;
             const on = sel === i;
+            const dim = d.forecast ? 0.55 : 1;
             return (
               <G key={i}>
                 {on && <Rect x={gx} y={0} width={groupW} height={chartH} rx={8} fill={C.violet + '14'} />}
-                <Rect x={x} y={chartH - ih} width={barW} height={Math.max(ih, 1)} rx={4} fill={C.income} opacity={on ? 1 : 0.5} />
-                <Rect x={x + barW + gap} y={chartH - eh} width={barW} height={Math.max(eh, 1)} rx={4} fill={C.expense} opacity={on ? 1 : 0.5} />
-                <SvgText x={x + barW + gap / 2} y={chartH + 14} fill={on ? C.text : C.textSecondary} fontSize={10} fontWeight={on ? '700' : '400'} textAnchor="middle">{d.label}</SvgText>
+                <Rect x={x} y={chartH - ih} width={barW} height={Math.max(ih, 1)} rx={4} fill={C.income} opacity={(on ? 1 : 0.5) * dim} />
+                <Rect x={x + barW + gap} y={chartH - eh} width={barW} height={Math.max(eh, 1)} rx={4} fill={C.expense} opacity={(on ? 1 : 0.5) * dim} />
+                <SvgText x={x + barW + gap / 2} y={chartH + 14} fill={on ? C.text : C.textSecondary} fontSize={10} fontWeight={on ? '700' : '400'} textAnchor="middle" opacity={d.forecast ? 0.75 : 1}>{d.label}</SvgText>
               </G>
             );
           })}
@@ -121,13 +140,22 @@ function IncomeExpenseBars({ data, width }: { data: { label: string; income: num
       {/* Bandeau détail du mois sélectionné (revenus · dépenses · net). */}
       {selData ? (
         <View style={s.ieDetail}>
-          <Text style={s.ieDetailMonth}>{selData.label}</Text>
+          <Text style={s.ieDetailMonth}>{selData.label}{selData.forecast ? ' · prévu' : ''}</Text>
           <View style={s.ieDetailVals}>
             <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.income)}</Text></View>
             <View style={s.ieDetailItem}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.ieDetailTxt}>{fmtFull(selData.expense)}</Text></View>
             <View style={s.ieDetailItem}><Text style={s.ieDetailNetLabel}>Net</Text><Text style={[s.ieDetailTxt, { color: selData.income - selData.expense >= 0 ? C.income : C.expense, fontWeight: '800' }]}>{fmtSigned(selData.income - selData.expense)}</Text></View>
           </View>
         </View>
+      ) : null}
+      {/* D'où sort une barre prévue : charges connues + estimation des dépenses variables. Sans
+          cette phrase, un mois futur passe pour un relevé. */}
+      {selData?.forecast ? (
+        <Text style={s.forecastNote}>
+          Prévision : tes échéances connues
+          {(selData.variableEstimate ?? 0) > 0 ? ` + ~${fmtFull(selData.variableEstimate ?? 0)} de dépenses variables estimées` : ''}.
+          Ce que tu n’as pas encore saisi n’y est pas.
+        </Text>
       ) : null}
     </View>
   );
@@ -523,9 +551,69 @@ function ReportingBody() {
   const months = useMemo(() => monthsWindow(6, dataStartYM), [dataStartYM]);
   const monthsBars = months;
 
+  /* ══ Revenus vs Dépenses — filtre par compte courant + 3 mois d'anticipation ══════════════════
+     Le filtre ne vaut QUE pour cette section : le reste de la page (patrimoine, catégories, bilan)
+     raisonne sur l'ensemble, et le restreindre à un compte n'aurait pas de sens.
+
+     COMPTES JOINTS : on ne propose que les comptes courants qui sont DANS le périmètre quotidien
+     (`fluxFactor > 0`), c'est-à-dire perso ou joint en mode « suivi partagé ». Un joint en mode
+     « contribution » est hors budget par construction : ses opérations n'apparaissent nulle part
+     dans ces barres — ce sont les virements vers lui qui comptent, en dépense, sur le compte
+     SOURCE. Le proposer au filtre aurait donc affiché un graphe vide. */
+  const [fluxAccountId, setFluxAccountId] = useState<string | null>(null);
+  const fluxCheckingAccounts = useMemo(
+    () => (allAccounts as any[]).filter((a) => a.type === 'checking' && fluxFactor(perimeterCtx, a.id) > 0),
+    [allAccounts, perimeterCtx],
+  );
+  /** Joints « contribution » exclus du filtre : on le DIT plutôt que de les faire disparaître en silence. */
+  const contributionJointCount = useMemo(
+    () => (allAccounts as any[]).filter((a) => a.type === 'checking'
+      && !!(sharedContrib?.factorByAccount && a.id in sharedContrib.factorByAccount)
+      && effectiveSharedMode(sharedContrib?.modeByAccount?.[a.id]) === 'contribution').length,
+    [allAccounts, sharedContrib],
+  );
+  // Le compte filtré peut disparaître (partage retiré, compte supprimé) → on retombe sur « Tous ».
+  const activeFluxAccountId = fluxAccountId && fluxCheckingAccounts.some((a: any) => a.id === fluxAccountId) ? fluxAccountId : null;
+  const sectionFluxTx = useMemo(
+    () => (activeFluxAccountId ? fluxTx.filter((t) => t.account_id === activeFluxAccountId) : fluxTx),
+    [fluxTx, activeFluxAccountId],
+  );
+
+  // Échéances modifiées (« ce mois-là seulement ») — la prévision doit les respecter, comme la Projection.
+  const { data: monthOverrides = [] } = useTransactionMonthOverrides(user?.id);
+  const overridesMap = useMemo(() => {
+    const txById = new Map((rawTxPerso ?? []).map((t: any) => [t.id, t]));
+    const map: Record<string, number> = {};
+    for (const o of monthOverrides) {
+      if (o.override_amount == null) continue; // override de DATE seule → pas de montant
+      const cur = (txById.get(o.transaction_id) as any)?.account?.currency || refCode;
+      map[`${o.transaction_id}:${o.year}:${o.month}`] =
+        convertAmount(Number(o.override_amount), cur, refCode, rates) ?? Number(o.override_amount);
+    }
+    return map;
+  }, [monthOverrides, rawTxPerso, rates, refCode]);
+
   // ── Séries. ──
   const monthlyFlux = useMemo(() => buildMonthlyFlux(fluxTx, months, categoryType), [fluxTx, months, catTypeById]);
-  const monthlyFluxBars = useMemo(() => buildMonthlyFlux(fluxTx, monthsBars, categoryType), [fluxTx, monthsBars, catTypeById]);
+  /** Historique de la SECTION (= `monthlyFlux` quand aucun compte n'est filtré). */
+  const sectionFlux = useMemo(
+    () => (activeFluxAccountId ? buildMonthlyFlux(sectionFluxTx, months, categoryType) : monthlyFlux),
+    [activeFluxAccountId, sectionFluxTx, months, catTypeById, monthlyFlux],
+  );
+  const forecastMonths = useMemo(() => futureMonthsWindow(3), []);
+  /* Enveloppe variable estimée des mois à venir. Filtrée sur un compte → on ne lui attribue que SA
+     part observée des dépenses variables (sinon un compte secondaire hériterait des courses faites
+     sur le compte principal). */
+  const varShare = useMemo(() => variableShareByAccount(fluxTx, months), [fluxTx, months]);
+  const forecastVariable = useMemo(() => {
+    const envelope = pilotage?.variable_envelope_initial ?? 0;
+    return activeFluxAccountId ? envelope * (varShare[activeFluxAccountId] ?? 0) : envelope;
+  }, [pilotage, activeFluxAccountId, varShare]);
+  const forecastFlux = useMemo(() => buildForecastFlux({
+    fluxTx: sectionFluxTx, months: forecastMonths, categoryType,
+    overridesMap, variableMonthly: forecastVariable,
+  }), [sectionFluxTx, forecastMonths, catTypeById, overridesMap, forecastVariable]);
+  const monthlyFluxBars = useMemo<MonthlyFlux[]>(() => [...sectionFlux, ...forecastFlux], [sectionFlux, forecastFlux]);
   const savingsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], months, typeById), [allTx, months, typeById]);
   const savingsBarsSeries = useMemo(() => buildSavingsSeries(allTx as ReportTx[], monthsBars, typeById), [allTx, monthsBars, typeById]);
   const allIds = useMemo(() => new Set(allAccounts.map((a: any) => a.id)), [allAccounts]);
@@ -648,6 +736,42 @@ function ReportingBody() {
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="bar-chart-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Revenus vs Dépenses</Text></View>
               <Text style={s.sectionSub}>Revenus, dépenses et net par mois · {months.length} mois</Text>
+              {/* Filtre par compte courant — seulement s'il y a un choix à faire. */}
+              {fluxCheckingAccounts.length > 1 && (
+                <>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.acctFilterRow}>
+                    <TouchableOpacity
+                      style={[s.acctChip, !activeFluxAccountId && s.acctChipOn]}
+                      onPress={() => setFluxAccountId(null)}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[s.acctChipTxt, !activeFluxAccountId && s.acctChipTxtOn]}>Tous</Text>
+                    </TouchableOpacity>
+                    {fluxCheckingAccounts.map((a: any) => {
+                      const on = activeFluxAccountId === a.id;
+                      return (
+                        <TouchableOpacity
+                          key={a.id}
+                          style={[s.acctChip, on && s.acctChipOn]}
+                          onPress={() => setFluxAccountId(on ? null : a.id)}
+                          activeOpacity={0.75}
+                          accessibilityRole="button"
+                        >
+                          <Text style={[s.acctChipTxt, on && s.acctChipTxtOn]} numberOfLines={1}>{a.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  {contributionJointCount > 0 && (
+                    <Text style={s.acctFilterHint}>
+                      {contributionJointCount > 1
+                        ? `${contributionJointCount} comptes joints en mode « contribution » ne sont pas listés`
+                        : 'Un compte joint en mode « contribution » n’est pas listé'} : leurs opérations ne comptent pas dans ton budget — seuls tes virements vers eux apparaissent, en dépense.
+                    </Text>
+                  )}
+                </>
+              )}
               <View style={s.tableCard}>
                 <View style={s.tableHeaderRow}>
                   <Text style={[s.tableHeaderCell, { flex: 2 }]}>Mois</Text>
@@ -655,7 +779,7 @@ function ReportingBody() {
                   <Text style={[s.tableHeaderCell, { flex: 2, textAlign: 'right' }]}>Dépenses</Text>
                   <Text style={[s.tableHeaderCell, { flex: 2, textAlign: 'right' }]}>Net</Text>
                 </View>
-                {monthlyFlux.map((row, i) => (
+                {sectionFlux.map((row, i) => (
                   <View key={i} style={[s.tableRow, i % 2 === 0 && s.tableRowAlt]}>
                     <Text style={[s.tableCell, { flex: 2 }]}>{row.label}</Text>
                     <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income }]}>{fmtFull(row.income)}</Text>
@@ -663,8 +787,8 @@ function ReportingBody() {
                     <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: row.net >= 0 ? C.income : C.expense }]}>{fmtSigned(row.net)}</Text>
                   </View>
                 ))}
-                {monthlyFlux.length > 0 && (() => {
-                  const ti = monthlyFlux.reduce((a, r) => a + r.income, 0), te = monthlyFlux.reduce((a, r) => a + r.expense, 0);
+                {sectionFlux.length > 0 && (() => {
+                  const ti = sectionFlux.reduce((a, r) => a + r.income, 0), te = sectionFlux.reduce((a, r) => a + r.expense, 0);
                   return (
                     <View style={[s.tableRow, { borderTopWidth: 1, borderTopColor: C.cardBorder }]}>
                       <Text style={[s.tableCell, { flex: 2, fontWeight: '800' }]}>Total</Text>
@@ -679,11 +803,14 @@ function ReportingBody() {
           </FadeIn>
           <FadeIn delay={250}>
             <View style={[s.section, { marginTop: 12 }]}>
-              <Text style={[s.sectionSub, { marginTop: 0 }]}>{monthsBars.length} derniers mois · touche un mois pour le détail</Text>
+              <Text style={[s.sectionSub, { marginTop: 0 }]}>
+                {months.length} derniers mois + {forecastMonths.length} à venir · touche un mois pour le détail
+              </Text>
               <View style={s.chartCard}>
                 <View style={s.legendRow}>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.legendSmall}>Revenus</Text></View>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.legendSmall}>Dépenses</Text></View>
+                  <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.textSecondary, opacity: 0.55 }]} /><Text style={s.legendSmall}>À venir (prévu)</Text></View>
                 </View>
                 {monthlyFluxBars.length > 0 ? <IncomeExpenseBars data={monthlyFluxBars} width={chartWidth} /> : <Text style={s.emptyChart}>Aucune transaction</Text>}
               </View>
@@ -832,6 +959,15 @@ function makeStyles(C: any) {
     ieDetailItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
     ieDetailTxt: { fontSize: 13, fontWeight: '700', color: C.text },
     ieDetailNetLabel: { fontSize: 11, color: C.textSecondary, fontWeight: '600' },
+    forecastNote: { marginTop: 8, fontSize: 11, color: C.textSecondary, lineHeight: 16 },
+
+    // Filtre par compte courant (section Revenus vs Dépenses)
+    acctFilterRow: { flexDirection: 'row', gap: 8, paddingVertical: 10, paddingRight: 4 },
+    acctChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: C.cardBorder, backgroundColor: C.card, maxWidth: 190 },
+    acctChipOn: { backgroundColor: C.violet, borderColor: C.violet },
+    acctChipTxt: { fontSize: 12.5, fontWeight: '700', color: C.textSecondary },
+    acctChipTxtOn: { color: '#fff' },
+    acctFilterHint: { fontSize: 11, color: C.textSecondary, lineHeight: 16, marginBottom: 8 },
 
     investStatRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.cardBorder },
     investStat: { flex: 1, alignItems: 'center' },

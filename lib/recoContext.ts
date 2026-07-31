@@ -67,7 +67,7 @@ export function getRecoContextText(type: RecoType, amount: number, fin: RecoFina
     //    (`fit` absent, ex. reco déjà plafonnée par le garde-fou projection). On ne parle QUE du
     //    mois en cours : c'est tout ce que l'app peut affirmer sans risque.
     if (fit?.kind === 'month_only') {
-      return `💡 ${ceMois} : cette somme n'est pas nécessaire d'ici la fin du mois. À faire une fois, pas tous les mois — répété, ce montant finirait par vider ton compte.`;
+      return `💡 ${ceMois} : mais surveille ta projection pour les mois suivants pour ne pas descendre sous ta marge de sécurité.`;
     }
     return `💡 ${ceMois} : c'est de l'argent dont tu n'as pas besoin d'ici la fin du mois, ta marge de sécurité comprise. Mais surveille ta projection pour les mois suivants.`;
   }

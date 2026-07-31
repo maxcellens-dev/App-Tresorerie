@@ -16,12 +16,14 @@
  *    datées dans le FUTUR (sinon les points passés sont faussés).
  */
 import { isRegul } from './regul';
+import { recurringAmountForMonth } from './recurrenceMonth';
 
 export type ReportingPeriod = 3 | 6 | 12;
 
 export interface MonthBucket { year: number; month: number; ym: string; label: string }
 
 export interface ReportTx {
+  id?: string;
   date: string;
   amount: number;
   account_id: string;
@@ -31,9 +33,26 @@ export interface ReportTx {
   regul_target?: number | null;
   note?: string | null;
   category?: { name?: string } | null;
+  /** Modèle récurrent (son ancre est toujours dans le FUTUR après matérialisation). */
+  is_recurring?: boolean | null;
+  recurrence_rule?: string | null;
+  recurrence_end_date?: string | null;
+  /** Occurrence déjà matérialisée d'un modèle récurrent (= ligne réelle, pas une projection). */
+  materialized_from?: string | null;
 }
 
-export interface MonthlyFlux { ym: string; label: string; income: number; expense: number; net: number; rate: number }
+export interface MonthlyFlux {
+  ym: string;
+  label: string;
+  income: number;
+  expense: number;
+  net: number;
+  rate: number;
+  /** Mois À VENIR : les montants sont une PRÉVISION, pas un relevé. */
+  forecast?: boolean;
+  /** Part « dépenses variables estimées » incluse dans `expense` (mois prévus uniquement). */
+  variableEstimate?: number;
+}
 
 /** Type d'une catégorie : 'income' (recette) / 'expense' / null (sans catégorie → côté dépense). */
 export type CategoryTypeResolver = (categoryId: string | null | undefined) => 'income' | 'expense' | null;
@@ -53,6 +72,26 @@ export function monthsWindow(maxN: number, dataStartYM: string | null, now = new
     });
   }
   return out;
+}
+
+/** Fenêtre des N mois À VENIR (le mois courant est exclu : il appartient à l'historique). */
+export function futureMonthsWindow(n: number, now = new Date()): MonthBucket[] {
+  const out: MonthBucket[] = [];
+  for (let i = 1; i <= n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    out.push({
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      ym: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', ''),
+    });
+  }
+  return out;
+}
+
+/** Modèle récurrent VIVANT (à projeter), par opposition à une occurrence déjà matérialisée. */
+export function isRecurringTemplate(t: ReportTx): boolean {
+  return !!t.is_recurring && !!t.recurrence_rule;
 }
 
 /** Une transaction compte-t-elle comme revenu/dépense « réel » ? (hors régul / virement interne / brouillon) */
@@ -95,6 +134,102 @@ export function buildMonthlyFlux(fluxTx: ReportTx[], months: MonthBucket[], cate
     const net = income - expense;
     const rate = income > 0 ? (net / income) * 100 : 0;
     return { ym: m.ym, label: m.label, income, expense, net, rate };
+  });
+}
+
+/* ══════════════ MOIS À VENIR (prévision) ══════════════════════════════════════════════════════ */
+
+/**
+ * Occurrences PROJETÉES des modèles récurrents sur des mois à venir, sous forme de transactions
+ * synthétiques directement consommables par `buildMonthlyFlux` : la prévision passe donc par
+ * EXACTEMENT les mêmes règles que l'historique (recette = catégorie « income », dépense = négatif
+ * hors régul/virement…). Sans ça, les barres passées et futures auraient chacune leur définition.
+ *
+ * ⚠️ N'inclut QUE les récurrentes : les ponctuels déjà saisis sur un mois futur sont de vraies
+ * lignes, à passer tels quels à `buildMonthlyFlux` (cf. buildForecastFlux).
+ */
+export function projectRecurringFlux(
+  fluxTx: ReportTx[],
+  months: MonthBucket[],
+  overridesMap: Record<string, number> = {},
+): ReportTx[] {
+  const out: ReportTx[] = [];
+  for (const t of fluxTx) {
+    if (!isRecurringTemplate(t) || t.is_draft) continue;
+    if (t.linked_account_id) continue; // virement interne : neutre pour le budget, comme dans le passé
+    for (const m of months) {
+      const amount = recurringAmountForMonth(
+        { id: t.id ?? '', date: t.date, amount: Number(t.amount), recurrence_rule: t.recurrence_rule, recurrence_end_date: t.recurrence_end_date },
+        m.year, m.month, overridesMap,
+      );
+      if (!amount) continue;
+      // Date = 1er du mois projeté : seul le MOIS compte pour le regroupement.
+      out.push({ ...t, id: undefined, date: `${m.ym}-01`, amount, is_recurring: false, recurrence_rule: null });
+    }
+  }
+  return out;
+}
+
+/**
+ * Part de chaque compte dans les dépenses VARIABLES (non récurrentes) observées sur `months`.
+ * Sert à répartir l'enveloppe variable estimée quand l'utilisateur filtre sur UN compte courant :
+ * lui attribuer l'enveloppe entière gonflerait ses dépenses prévues de tout ce qu'il dépense
+ * ailleurs. Comptes sans historique → part 0 (on n'invente rien).
+ */
+export function variableShareByAccount(fluxTx: ReportTx[], months: MonthBucket[]): Record<string, number> {
+  const ymSet = new Set(months.map((m) => m.ym));
+  const byAccount: Record<string, number> = {};
+  let total = 0;
+  for (const t of fluxTx) {
+    if (!isRealFlux(t) || isRecurringTemplate(t) || t.materialized_from) continue;
+    if (!ymSet.has((t.date ?? '').substring(0, 7))) continue;
+    const amt = Number(t.amount);
+    if (amt >= 0) continue; // dépenses seulement
+    byAccount[t.account_id] = (byAccount[t.account_id] ?? 0) + -amt;
+    total += -amt;
+  }
+  if (total <= 0) return {};
+  const share: Record<string, number> = {};
+  for (const [id, v] of Object.entries(byAccount)) share[id] = v / total;
+  return share;
+}
+
+/**
+ * Revenus / dépenses PRÉVUS des mois à venir : récurrentes projetées + ponctuels déjà saisis, plus
+ * l'enveloppe de dépenses variables estimée.
+ *
+ * Pourquoi ajouter l'enveloppe variable : les mois passés contiennent TOUT ce qui a réellement été
+ * dépensé, courses et imprévus compris. Un mois futur ne contient que les charges connues — sans
+ * l'estimation, ses barres seraient mécaniquement deux fois plus courtes et donneraient à lire une
+ * chute des dépenses qui n'existe pas. La part estimée est renvoyée à part (`variableEstimate`)
+ * pour que l'écran puisse le dire.
+ */
+export function buildForecastFlux(input: {
+  fluxTx: ReportTx[];
+  months: MonthBucket[];
+  categoryType: CategoryTypeResolver;
+  overridesMap?: Record<string, number>;
+  /** Enveloppe variable mensuelle estimée (déjà proratisée si un seul compte est affiché). */
+  variableMonthly?: number;
+}): MonthlyFlux[] {
+  const { fluxTx, months, categoryType, overridesMap = {}, variableMonthly = 0 } = input;
+  if (months.length === 0) return [];
+  // Ponctuels déjà saisis sur ces mois (vraies lignes) + occurrences projetées des récurrentes.
+  const oneOff = fluxTx.filter((t) => !isRecurringTemplate(t));
+  const projected = projectRecurringFlux(fluxTx, months, overridesMap);
+  const rows = buildMonthlyFlux([...oneOff, ...projected], months, categoryType);
+  const variable = Math.max(0, variableMonthly);
+  return rows.map((r) => {
+    const expense = r.expense + variable;
+    const net = r.income - expense;
+    return {
+      ...r,
+      expense,
+      net,
+      rate: r.income > 0 ? (net / r.income) * 100 : 0,
+      forecast: true,
+      variableEstimate: variable,
+    };
   });
 }
 
