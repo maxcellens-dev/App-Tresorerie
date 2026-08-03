@@ -398,7 +398,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                   return (
                     <View style={styles.splitBox}>
                       <Text style={styles.splitTitle}>
-                        Écart constaté : {fmt(totalGap)}. Quelle part vient de {targetKey ? monthLabel(targetKey) : 'ce mois'} ?
+                        Écart constaté : {fmt(totalGap)}. Quelle part était en {targetKey ? monthLabel(targetKey) : 'ce mois'} ?
                       </Text>
                       <View style={styles.splitSteps}>
                         {[0, 25, 50, 75, 100].map((v) => (
