@@ -1594,10 +1594,10 @@ export default function PilotageScreen() {
                           <Text style={styles.detailNote}>
                             {varMode === 'auto'
                               ? (pilotageData.variable_real_available
-                                  ? `Auto : dès que tu as 2 mois complets, Relyka bascule sur le calculé — ici la moyenne de tes ${pilotageData.variable_envelope_months_used} derniers mois (hors mois non clôturés).`
+                                  ? `Auto : dès que tu as 2 mois complets, Relyka bascule sur le calculé — ici la moyenne de tes ${pilotageData.variable_real_months} derniers mois (hors mois non clôturés).`
                                   : 'Auto : tant que tu n’as pas 2 mois complets derrière toi, Relyka s’en tient à ton estimation. Il passera au calculé tout seul ensuite.')
                               : varMode === 'real'
-                              ? `Calculé : moyenne de tes ${pilotageData.variable_envelope_months_used} derniers mois de dépenses variables (les mois non clôturés sont exclus).`
+                              ? `Calculé : moyenne de tes ${pilotageData.variable_real_months} derniers mois de dépenses variables (les mois non clôturés sont exclus).`
                               : 'Estimation : le montant que tu as déclaré toi-même (ton budget hebdomadaire ramené au mois).'}
                           </Text>
                           <Text style={styles.detailNote}>

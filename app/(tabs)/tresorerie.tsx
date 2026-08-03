@@ -118,6 +118,75 @@ const getOverrideKey = (transactionId: string, year: number, month: number): str
  * indispensable pour que `position: sticky` tienne (tout ancêtre qui défile ou qui rogne entre la
  * cellule et le conteneur casse le collage).
  */
+/**
+ * Conteneur du tableau.
+ *
+ * BUREAU : une simple `View` en `overflow: auto` — surtout PAS un `ScrollView`. React Native Web
+ * impose ses propres règles d'overflow à un ScrollView (`overflow-x: hidden` quand il est
+ * vertical) : elles écrasaient le `overflow: auto` posé en style, d'où un tableau rogné à droite,
+ * sans barre et sans possibilité de défiler latéralement. Une `View` n'a pas cette logique : le
+ * style passe, les deux axes défilent, et `position: sticky` a enfin un vrai conteneur de
+ * référence.
+ *
+ * AILLEURS : le `ScrollView` vertical habituel, avec son « tirer pour rafraîchir ».
+ */
+function TableScrollHost({ desktop, deskStyle, scrollRef, style, contentContainerStyle, refreshControl, children }: {
+  desktop: boolean;
+  deskStyle: any;
+  scrollRef: React.RefObject<ScrollView | null>;
+  style?: any;
+  contentContainerStyle?: any;
+  refreshControl?: React.ReactElement<any>;
+  children: React.ReactNode;
+}) {
+  if (desktop) return <View style={deskStyle}>{children}</View>;
+  return (
+    <ScrollView
+      ref={scrollRef}
+      style={style}
+      contentContainerStyle={contentContainerStyle}
+      showsVerticalScrollIndicator
+      nestedScrollEnabled
+      refreshControl={refreshControl}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+/** Décompose une couleur CSS (#rgb, #rrggbb, #rrggbbaa, rgb(a)) en canaux 0-255 + alpha 0-1. */
+function parseColor(c: string | undefined): { r: number; g: number; b: number; a: number } | null {
+  if (!c) return null;
+  const s = c.trim();
+  const rgba = s.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgba) {
+    const p = rgba[1].split(',').map((v) => parseFloat(v.trim()));
+    if (p.length < 3 || p.some((v) => Number.isNaN(v))) return null;
+    return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
+  }
+  const hex = s.match(/^#([0-9a-f]{3,8})$/i);
+  if (!hex) return null;
+  let h = hex[1];
+  if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+  if (h.length !== 6 && h.length !== 8) return null;
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+    a: h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1,
+  };
+}
+
+/** Compose `overlay` (éventuellement translucide) sur `base` et renvoie une couleur OPAQUE. */
+function compositeOver(overlay: string | undefined, base: string): string {
+  const o = parseColor(overlay);
+  const b = parseColor(base);
+  if (!o || !b) return base;           // teinte inconnue → au moins un fond opaque
+  if (o.a >= 1) return overlay!;
+  const mix = (x: number, y: number) => Math.round(x * o.a + y * (1 - o.a));
+  return `rgb(${mix(o.r, b.r)}, ${mix(o.g, b.g)}, ${mix(o.b, b.b)})`;
+}
+
 function MaybeHScroll({ enabled, innerRef, showBar, style, contentContainerStyle, onScrollX, children }: {
   enabled: boolean;
   innerRef: React.RefObject<ScrollView | null>;
@@ -230,8 +299,23 @@ function TreasuryPlanBody() {
      fond opaque nécessaire au défilement est celui de la LIGNE, hérité naturellement. */
   /** Mode « tableau bureau » : un SEUL conteneur qui défile dans les deux axes (web large). */
   const deskTable = Platform.OS === 'web' && isDesktop;
-  const stickyLabel: any = deskTable ? { position: 'sticky', left: 0, zIndex: 2 } : null;
-  const stickyCorner: any = deskTable ? { zIndex: 4 } : null;
+  /* Le fond doit couvrir la ligne ENTIÈRE, bords compris. Les lignes ont leur propre padding
+     (8 en vertical, 4 à gauche) : sans ces marges négatives, le fond de la colonne se dessinait en
+     rectangle plus petit que la ligne — le bloc qui « ressortait ». On compense donc le padding de
+     la ligne par une marge négative, puis on le redonne en padding pour ne pas déplacer le texte. */
+  const stickyLabel: any = deskTable
+    ? { position: 'sticky', left: 0, zIndex: 2, marginVertical: -8, paddingVertical: 8, marginLeft: -4, paddingLeft: 14 }
+    : null;
+  /* Le COIN du tableau est figé sur les deux axes : il passe donc au-dessus de tout le reste, et
+     son fond doit être opaque comme celui de l'entête (sinon les mois défilent sous « Poste »). */
+  const stickyCorner: any = deskTable
+    ? {
+        zIndex: 4,
+        backgroundColor: COLORS.cardOpaque ?? COLORS.cardSolid ?? COLORS.card,
+        // L'entête a son propre padding vertical (14) : même compensation que pour les lignes.
+        marginVertical: -14, paddingVertical: 14,
+      }
+    : null;
 
   /* MOBILE / web étroit : l'entête vit hors du défilement vertical, donc il faut le tenir aligné à
      la main sur le défilement horizontal du corps. (En bureau, rien de tout ça : `position: sticky`
@@ -806,6 +890,37 @@ function TreasuryPlanBody() {
   /** Largeur totale du tableau (libellés + colonnes de mois) — entête et mode bureau. */
   const tableWidth = labelWidth + planData.months.length * colWidth;
 
+  /**
+   * Fond OPAQUE d'une ligne, pour la colonne figée.
+   *
+   * Les teintes de ligne sont des rgba semi-transparents posés sur la carte : les réutiliser tels
+   * quels laisserait voir les montants défiler dessous. On les COMPOSE donc sur le fond de la carte
+   * pour obtenir la couleur solide équivalente — la colonne garde exactement l'aspect de sa ligne.
+   * On lit la teinte depuis les styles eux-mêmes (StyleSheet.flatten) : aucune valeur dupliquée ici,
+   * donc rien à re-synchroniser si une teinte change.
+   */
+  const opaqueRowBg = React.useCallback((row: any): string => {
+    /* Base = `cardOpaque`, l'équivalent OPAQUE de la carte telle qu'elle est réellement rendue
+       (carte translucide composée sur le fond de l'app). `cardSolid` serait faux : c'est du blanc
+       pur en thème clair, et la colonne ressortait alors comme un bloc collé sur le tableau. */
+    const base = COLORS.cardOpaque ?? COLORS.cardSolid ?? COLORS.card;
+    const tint = StyleSheet.flatten([
+      row.type === 'income' && styles.tableRowIncome,
+      row.type === 'expense' && styles.tableRowExpense,
+      row.type === 'balance' && styles.tableRowBalance,
+      row.type === 'mouvement' && !row.isSectionHeader && styles.tableRowMouvement,
+      row.isParentCategory && row.type === 'income' && styles.tableRowParentCategoryIncome,
+      row.isParentCategory && row.type === 'expense' && styles.tableRowParentCategoryExpense,
+      row.isTotalLine && row.type === 'income' && styles.tableRowTotalRecettes,
+      row.isTotalLine && row.type === 'expense' && styles.tableRowTotalDepenses,
+      row.isSectionHeader && styles.tableRowSectionHeader,
+      row.isSectionHeader && row.type === 'income' && styles.tableRowSectionRecettes,
+      row.isSectionHeader && row.type === 'expense' && styles.tableRowSectionDepenses,
+      row.isSectionHeader && row.type === 'mouvement' && styles.tableRowSectionMouvements,
+    ])?.backgroundColor as string | undefined;
+    return compositeOver(tint, base);
+  }, [COLORS, styles]);
+
   const goToTransactions = (monthKey: string, categoryId: string | null) => {
     const url = categoryId
       ? `/(tabs)/transactions?focusMonth=${monthKey}&categoryId=${categoryId}&singleMonth=1`
@@ -1018,12 +1133,12 @@ function TreasuryPlanBody() {
               </View>
             </ScrollView>
           )}
-          <ScrollView
-            ref={scrollOuterRef}
-            style={[styles.scrollOuter, isDesktop && styles.scrollOuterDesktop, deskTable && styles.deskScrollBox]}
+          <TableScrollHost
+            desktop={deskTable}
+            deskStyle={styles.deskScrollBox}
+            scrollRef={scrollOuterRef}
+            style={[styles.scrollOuter, isDesktop && styles.scrollOuterDesktop]}
             contentContainerStyle={styles.scrollOuterContent}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1100,7 +1215,16 @@ function TreasuryPlanBody() {
                       row.isBlockStart && styles.tableRowBlockStart,
                     ]}
                   >
-                  <View style={[styles.cell, styles.cellLabel, stickyLabel, { width: labelWidth }, row.isChild && styles.cellLabelIndent]}>
+                  {/* Colonne figée : elle DOIT être opaque, sinon les montants défilent visiblement
+                      sous les libellés. On ne peut pas y plaquer une couleur unique — chaque ligne
+                      a sa propre teinte (recette, dépense, section, total…) et un fond uniforme
+                      repeignait toute la colonne. On compose donc la teinte RÉELLE de la ligne
+                      sur le fond de la carte : le résultat est opaque et strictement identique. */}
+                  <View style={[
+                    styles.cell, styles.cellLabel, stickyLabel,
+                    stickyLabel && { backgroundColor: opaqueRowBg(row) },
+                    { width: labelWidth }, row.isChild && styles.cellLabelIndent,
+                  ]}>
                     <Text
                       style={[
                         styles.cellLabelText,
@@ -1220,7 +1344,7 @@ function TreasuryPlanBody() {
             </View>
             </View>
             </MaybeHScroll>
-            </ScrollView>
+            </TableScrollHost>
             {/* Légende — hors des deux défilements : elle reste lisible pendant qu'on navigue dans
                 le tableau (c'est sa seule raison d'être). */}
             <View style={styles.legend}>
@@ -1688,7 +1812,10 @@ function makeStyles(c: any) {
     paddingVertical: 12,
   },
   cell: { paddingHorizontal: 10, justifyContent: 'center' },
-  cellLabel: {},
+  /* La colonne figée porte un fond : elle doit occuper TOUTE la hauteur de sa ligne, sinon le fond
+     se dessine en bloc plus court que la ligne — le rectangle qui « ressortait ». Les lignes ont
+     leur padding vertical propre : on l'annule ici en s'étirant. */
+  cellLabel: { alignSelf: 'stretch' },
   cellLabelIndent: { paddingLeft: 24 },
   cellNum: { alignItems: 'flex-end', paddingRight: 14 },
   cellNumCurrent: { paddingRight: 18 },

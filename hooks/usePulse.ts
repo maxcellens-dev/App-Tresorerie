@@ -85,6 +85,11 @@ export interface PulseData {
   live: PulseResult;
   /** Chiffres bruts de l'anneau hebdo : épargné + investi du mois vs capacité du mois. */
   weeklyStats: { saved: number; invested: number; capacity: number };
+  /**
+   * Anneau + légende du bilan MENSUEL, sur le mois écoulé (pas « à date ») : ce qui a été mis de
+   * côté, placé, et conservé pendant ce mois-là.
+   */
+  monthlyStats: { saved: number; invested: number; kept: number; capacity: number };
   profileId: FinancialProfileId;
   /** Relyka du jour — sert aux delta chips (avant / après une saisie). */
   relyka: number;
@@ -374,6 +379,13 @@ function buildPulse(deps: PulseDeps): PulseData | null {
       // Dépense variable = sortie NON récurrente (une occurrence matérialisée porte materialized_from).
       if (amt < 0 && !t.is_recurring && !t.materialized_from) lastMonthVariable += -amt;
     }
+    /* CONSERVÉ du mois écoulé = ce qui a été mis en réserve PENDANT ce mois. Les réservations
+       portent leur date de création : c'est la seule trace historique dont on dispose, et elle
+       suffit — « conserver » est un geste daté, pas un état. */
+    const lastMonthKept = (reservations as any[])
+      .filter((r) => String(r.created_at ?? '').slice(0, 7) === lastMonth)
+      .reduce((s, r) => s + Math.max(0, Number(r.montant) || 0), 0);
+
     const lastMonthInputs: PulseInputs = {
       ...inputs,
       spendingSoFar: lastMonthVariable,
@@ -402,6 +414,14 @@ function buildPulse(deps: PulseDeps): PulseData | null {
       monthly: computePulse(lastMonthInputs, config, 'month'),
       live: computePulse(inputs, allConfig, 'full'),
       weeklyStats,
+      // Anneau du bilan mensuel : ce qui a été mis de côté SUR LE MOIS ÉCOULÉ. Le mois est fini,
+      // donc plus rien n'est « prévu » : la capacité se réduit à ce qui a réellement été fait.
+      monthlyStats: {
+        saved: lastMonthSaved,
+        invested: lastMonthInvested,
+        kept: lastMonthKept,
+        capacity: Math.max(lastMonthSaved + lastMonthInvested, weeklyStats.capacity),
+      },
       profileId,
       relyka,
       wealth,

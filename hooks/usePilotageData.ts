@@ -97,6 +97,13 @@ export interface PilotageData {
   variable_real_value: number;
   /** La moyenne réelle est-elle calculable (≥ 2 mois exploitables) ? */
   variable_real_available: boolean;
+  /**
+   * Nombre de mois qui composent la moyenne « calculée » — TOUJOURS renseigné, même quand ce n'est
+   * pas la référence retenue. `variable_envelope_months_used`, lui, ne vaut quelque chose que si
+   * l'enveloppe VIENT de l'historique : l'écran affichait donc « moyenne de tes 0 derniers mois »
+   * dès qu'on regardait le mode « Calculé » sans y être.
+   */
+  variable_real_months: number;
   variable_envelope_months_used: number; // nb de mois d'historique utilisés (si source = history)
 
   // Step 3: Surplus & Recommendation
@@ -1211,6 +1218,7 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     variable_estimate_value,
     variable_real_value,
     variable_real_available: realAvailable,
+    variable_real_months: monthsWithData.length,
     variable_envelope_months_used,
     projected_surplus,
     recommendation,

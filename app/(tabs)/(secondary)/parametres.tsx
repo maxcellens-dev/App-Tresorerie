@@ -454,13 +454,16 @@ function SettingsScreen() {
               de l'appareil, et la « mise à jour » installe un correctif OTA — sur un navigateur,
               recharger la page suffit. Les proposer là-bas revenait à afficher trois interrupteurs
               sans effet. */}
-          {/* E-mails — visible AUSSI sur le web, contrairement aux notifications mobiles : un
-              e-mail arrive dans une boîte, quel que soit l'appareil depuis lequel on règle ça. */}
-          <Text style={styles.sectionTitle}>E-mails</Text>
+          {/* ── NOTIFICATIONS : les deux canaux au MÊME endroit ─────────────────────────────────
+              E-mail et push répondent à la même question — « comment Relyka me joint ? ». Les
+              séparer obligeait à chercher dans deux sections pour un seul réglage mental.
+              Le push reste masqué sur le web (il n'y existe pas), l'e-mail est visible partout :
+              une boîte mail se règle depuis n'importe quel appareil. */}
+          <Text style={styles.sectionTitle}>Notifications</Text>
           <View style={styles.card}>
             <View style={[styles.row, { borderBottomWidth: 0 }]}>
               <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />
-              <Text style={styles.rowLabel}>Recevoir les e-mails d’information</Text>
+              <Text style={styles.rowLabel}>E-mails d’information</Text>
               <Switch
                 value={(profile as any)?.email_opt_in ?? true}
                 onValueChange={(v) => updateProfile.mutate({ email_opt_in: v })}
@@ -469,28 +472,32 @@ function SettingsScreen() {
               />
             </View>
             <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Les e-mails de sécurité (mot de passe, changement d’adresse) partent
-              toujours : sans eux, tu ne pourrais plus récupérer ton compte.
+              Nouveautés et conseils. Les e-mails de sécurité (mot de passe, changement d’adresse)
+              partent toujours : sans eux, tu ne pourrais plus récupérer ton compte.
             </Text>
+            {!IS_WEB && (
+              <>
+                <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+                <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                  <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
+                  <Text style={styles.rowLabel}>Notifications sur le téléphone</Text>
+                  <Switch
+                    value={(profile as any)?.notifications_enabled ?? true}
+                    onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
+                    trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+                <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+                  Réponses à l'assistance, rappels et annonces Relyka.
+                </Text>
+              </>
+            )}
           </View>
 
           {!IS_WEB && (<>
           <Text style={styles.sectionTitle}>Application</Text>
           <View style={styles.card}>
-            <View style={[styles.row, { borderBottomWidth: 0 }]}>
-              <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
-              <Text style={styles.rowLabel}>Activer les notifications</Text>
-              <Switch
-                value={(profile as any)?.notifications_enabled ?? true}
-                onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
-                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
-                thumbColor="#ffffff"
-              />
-            </View>
-            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
-              Concerne uniquement les notifications mobiles (réponses à l'assistance, annonces Relyka).
-            </Text>
-            <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
             {APP_LOCK_SUPPORTED && (
               <>
                 <View style={[styles.row, { borderBottomWidth: 0 }]}>

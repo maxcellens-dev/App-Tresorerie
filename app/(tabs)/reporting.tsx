@@ -487,7 +487,19 @@ function ReportingBody() {
   // Sans ça, les graphes débordaient à droite (colonnes collées au bord, marge invisible).
   // Bureau : la colonne fait 1180 px — on laisse les graphes respirer jusqu'à 620 px (sinon un
   // camembert de 460 px flotte, minuscule, au milieu d'une carte trois fois plus large).
-  const chartWidth = Math.min(screenW - 72, isDesktop ? 620 : 460);
+  /* Largeur des graphes — MESURÉE, plus estimée. Le plafond en dur (620 px) datait d'un temps où la
+     colonne bureau était étroite : depuis qu'elle fait 1180 px, il laissait un grand vide à droite
+     de chaque graphe. On mesure donc la carte réelle et on s'y ajuste ; la valeur calculée ne sert
+     plus que pour la toute première frame, avant que `onLayout` ne réponde. */
+  const [measuredCardW, setMeasuredCardW] = useState(0);
+  const CARD_PADDING = 32; // padding horizontal de `chartCard` (16 de chaque côté)
+  const chartWidth = measuredCardW > 0
+    ? measuredCardW - CARD_PADDING
+    : Math.min(screenW - 72, isDesktop ? 620 : 460);
+  const onChartCardLayout = (e: any) => {
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0 && Math.abs(w - measuredCardW) > 1) setMeasuredCardW(w);
+  };
 
   const { data: profile } = useProfile(user?.id);
   const { isPremium } = usePlan(user?.id);
@@ -798,6 +810,19 @@ function ReportingBody() {
                     </View>
                   );
                 })()}
+                {/* Les mois À VENIR, sous le total : le tableau montrait 6 mois quand le graphe juste
+                    en dessous en montrait 9, ce qui donnait deux lectures d'une même section. Ils
+                    restent SOUS le total — ce sont des prévisions, elles n'ont rien à faire dans une
+                    somme de ce qui s'est réellement passé — et sont atténués pour qu'on les
+                    distingue au premier coup d'œil. */}
+                {forecastFlux.map((row, i) => (
+                  <View key={`f${i}`} style={[s.tableRow, s.tableRowForecast]}>
+                    <Text style={[s.tableCell, { flex: 2, color: C.textSecondary }]}>{row.label} · prévu</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.income, opacity: 0.6 }]}>{fmtFull(row.income)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', color: C.expense, opacity: 0.6 }]}>{fmtFull(row.expense)}</Text>
+                    <Text style={[s.tableCell, { flex: 2, textAlign: 'right', opacity: 0.6, color: row.net >= 0 ? C.income : C.expense }]}>{fmtSigned(row.net)}</Text>
+                  </View>
+                ))}
               </View>
             </View>
           </FadeIn>
@@ -806,7 +831,7 @@ function ReportingBody() {
               <Text style={[s.sectionSub, { marginTop: 0 }]}>
                 {months.length} derniers mois + {forecastMonths.length} à venir · touche un mois pour le détail
               </Text>
-              <View style={s.chartCard}>
+              <View style={s.chartCard} onLayout={onChartCardLayout}>
                 <View style={s.legendRow}>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.income }]} /><Text style={s.legendSmall}>Revenus</Text></View>
                   <View style={s.legendInline}><View style={[s.legendDot, { backgroundColor: C.expense }]} /><Text style={s.legendSmall}>Dépenses</Text></View>
@@ -823,14 +848,14 @@ function ReportingBody() {
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="pie-chart-outline" size={20} color={C.cat[0]} /><Text style={s.sectionTitle}>Où part mon argent</Text></View>
               <Text style={s.sectionSub}>Répartition des dépenses du mois en cours</Text>
-              <View style={s.chartCard}><CategoryDonut data={categoryBreakdown} width={chartWidth} /></View>
+              <View style={s.chartCard} onLayout={onChartCardLayout}><CategoryDonut data={categoryBreakdown} width={chartWidth} /></View>
             </View>
           </FadeIn>
           <FadeIn delay={370}>
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="podium-outline" size={20} color={C.violet} /><Text style={s.sectionTitle}>Top postes de dépense</Text></View>
               <Text style={s.sectionSub}>Par grande catégorie · ce mois vs précédent</Text>
-              <View style={s.chartCard}><HBarCompare rows={topCategories} width={chartWidth} /></View>
+              <View style={s.chartCard} onLayout={onChartCardLayout}><HBarCompare rows={topCategories} width={chartWidth} /></View>
             </View>
           </FadeIn>
 
@@ -841,7 +866,7 @@ function ReportingBody() {
               <View style={s.section}>
                 <View style={s.sectionHeader}><Ionicons name="shield-checkmark-outline" size={20} color={C.income} /><Text style={s.sectionTitle}>Épargne de sécurité</Text></View>
                 <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
-                <View style={s.chartCard}>
+                <View style={s.chartCard} onLayout={onChartCardLayout}>
                   {/* « Mois de sécurité » : UNE seule définition dans toute l'app (lib/securityCushion) —
                       épargne ÷ revenu mensuel moyen. Partagée avec le Pouls, les recommandations et le
                       moteur de profils P1–P5. */}
@@ -863,7 +888,7 @@ function ReportingBody() {
             <View style={s.section}>
               <View style={s.sectionHeader}><Ionicons name="wallet-outline" size={20} color={ACCOUNT_COLORS.savings} /><Text style={s.sectionTitle}>Mis de côté chaque mois</Text></View>
               <Text style={s.sectionSub}>Virements vers l'épargne et l'investissement · {monthsBars.length} mois · touche un mois pour le détail</Text>
-              <View style={s.chartCard}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
+              <View style={s.chartCard} onLayout={onChartCardLayout}><SavingsBars data={savingsBarsSeries} width={chartWidth} /></View>
             </View>
           </FadeIn>
           {hasInvestAccounts && (
@@ -871,7 +896,7 @@ function ReportingBody() {
               <View style={s.section}>
                 <View style={s.sectionHeader}><Ionicons name="trending-up-outline" size={20} color={ACCOUNT_COLORS.investment} /><Text style={s.sectionTitle}>Tes investissements</Text></View>
                 <Text style={s.sectionSub}>Valeur du portefeuille sur {months.length} mois · touche un mois pour le détail</Text>
-                <View style={s.chartCard}>
+                <View style={s.chartCard} onLayout={onChartCardLayout}>
                   <Text style={{ fontSize: 26, fontWeight: '800', color: C.text, letterSpacing: -0.5 }} numberOfLines={1} adjustsFontSizeToFit>{fmtFull(investValue)}</Text>
                   <InvestmentValueChart points={investSeries} apports={investApports} width={chartWidth} />
                   {/* Ce que la Projection ne dit pas : ce qui, dans la hausse, vient de TES apports
@@ -987,6 +1012,8 @@ function makeStyles(C: any) {
     tableHeaderCell: { fontSize: 11, color: C.textSecondary, fontWeight: '700', textTransform: 'uppercase' },
     tableRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 14 },
     tableRowAlt: { backgroundColor: C.mode === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' },
+    // Ligne de PRÉVISION : atténuée et détachée du bloc réel par un liseré.
+    tableRowForecast: { borderTopWidth: 1, borderTopColor: C.cardBorder, borderStyle: 'dashed' },
     tableCell: { fontSize: 13, color: C.text },
   });
 }

@@ -11,9 +11,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useProfile } from './useProfile';
 import { useTransactions } from './useTransactions';
+import { recomputeBalances } from './useTransactions';
 import { useFeatureFlags } from './useFeatureFlags';
 
 export interface MonthClosure { id: string; profile_id: string; month_key: string; surplus: number; closed_at: string; status?: 'confirmed' | 'estimated'; }
+
+/**
+ * Libellés des régularisations créées PAR la clôture (et par elle seule) — ceux qu'une réouverture
+ * doit défaire. Ils sont écrits par components/MonthlyClosure : toute évolution de ces libellés
+ * doit être répercutée ICI, sinon la réouverture laisserait des ajustements orphelins.
+ * ⚠️ « Régularisation solde » n'en fait PAS partie : c'est la régul que l'utilisateur saisit
+ * lui-même en mettant son solde à jour. Elle ne doit jamais être supprimée par une réouverture.
+ */
+export const CLOSURE_REGUL_NOTES = [
+  'Régularisation (à jour)',
+  'Régularisation clôture (mois)',
+  'Régularisation clôture (mois courant)',
+];
 export interface ClosureBilan { month_key: string; surplus: number; seen?: boolean; }
 
 export function ym(d: Date): string {
@@ -138,20 +152,86 @@ export function useMonthlyClosure(userId: string | undefined) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['profile', userId] }); },
   });
 
+  /**
+   * Mois RÉOUVRABLE = uniquement la clôture confirmée la PLUS RÉCENTE.
+   *
+   * Rouvrir un mois ancien alors qu'un mois postérieur reste clos produirait un trou incohérent :
+   * les régularisations du mois rouvert disparaissent, mais celles des mois suivants — calculées
+   * PAR RAPPORT à ce solde — restent en place et deviennent fausses. On dépile donc dans l'ordre.
+   */
+  const reopenableMonth = useMemo(() => {
+    const confirmed = closures.filter((c) => (c.status ?? 'confirmed') === 'confirmed');
+    if (confirmed.length === 0) return null;
+    return confirmed.reduce((a, b) => (a.month_key > b.month_key ? a : b)).month_key;
+  }, [closures]);
+
   const reopenMonth = useMutation({
     mutationFn: async (monthKey: string) => {
       if (!supabase || !userId) return;
-      await supabase.from('month_closures').delete().eq('profile_id', userId).eq('month_key', monthKey);
+      if (reopenableMonth && monthKey !== reopenableMonth) {
+        throw new Error(`Rouvre d'abord ${monthLabel(reopenableMonth)} : on ne peut rouvrir que la dernière clôture.`);
+      }
+      /* ROUVRIR = DÉFAIRE. Les régularisations créées PAR la clôture n'ont plus lieu d'être : les
+         laisser, c'est garder un ajustement de solde qui ne correspond plus à aucune vérification —
+         et il serait recréé à la clôture suivante, en double. On ne touche QU'À CELLES-LÀ : les
+         régularisations saisies à la main par l'utilisateur (« Régularisation solde ») restent. */
+      const from = `${monthKey}-01`;
+      const to = lastDayOfMonthKey(monthKey);
+      const { error: delErr } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('profile_id', userId)
+        .is('category_id', null)
+        .in('note', CLOSURE_REGUL_NOTES)
+        .gte('date', from)
+        .lte('date', to);
+      if (delErr) throw new Error(delErr.message);
+      /* La part « mois courant » d'une clôture au prorata est datée APRÈS le mois clos : elle
+         appartient pourtant à la même opération, et doit partir avec. */
+      const { error: delErr2 } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('profile_id', userId)
+        .is('category_id', null)
+        .eq('note', 'Régularisation clôture (mois courant)')
+        .gt('date', to);
+      if (delErr2) throw new Error(delErr2.message);
+      /* Mode « solde réel » sur le mois le plus récent : la clôture écrit une « Régularisation
+         solde » — le MÊME libellé qu'une mise à jour manuelle. On ne peut donc pas les distinguer
+         par le texte : on ne supprime que celles datées EXACTEMENT du dernier jour du mois clos,
+         la date que la clôture leur donne toujours. */
+      const { error: delErr3 } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('profile_id', userId)
+        .is('category_id', null)
+        .eq('note', 'Régularisation solde')
+        .eq('date', to);
+      if (delErr3) throw new Error(delErr3.message);
+
+      const { error } = await supabase.from('month_closures').delete().eq('profile_id', userId).eq('month_key', monthKey);
+      if (error) throw new Error(error.message);
       // Recalcule le verrou = dernier jour du mois clôturé le plus récent restant (sinon null).
+      /* Les soldes ont bougé (régularisations supprimées) : on les RECALCULE depuis les faits, comme
+         partout ailleurs — sinon les comptes garderaient la valeur qu'ils avaient avec les réguls. */
+      const { data: accs } = await supabase.from('accounts').select('id').eq('profile_id', userId);
+      await recomputeBalances((accs ?? []).map((a: any) => a.id));
+
       const remaining = closures.filter((c) => c.month_key !== monthKey).map((c) => c.month_key);
       const newLock = remaining.length ? lastDayOfMonthKey(remaining.reduce((a, b) => (a > b ? a : b))) : null;
-      await supabase.from('profiles').update({ closure_lock_date: newLock }).eq('id', userId);
+      /* On efface AUSSI le bilan éphémère : rouvrir un mois puis se voir féliciter pour l'enveloppe
+         qu'il restait dessus n'a aucun sens — c'est précisément le mois qu'on vient d'annuler. */
+      await supabase.from('profiles').update({ closure_lock_date: newLock, last_closure_bilan: null }).eq('id', userId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['month_closures', userId] });
       qc.invalidateQueries({ queryKey: ['profile', userId] });
+      // Les soldes bougent (régularisations supprimées) → tout ce qui en dépend doit se relire.
+      qc.invalidateQueries({ queryKey: ['transactions', userId] });
+      qc.invalidateQueries({ queryKey: ['accounts', userId] });
+      qc.invalidateQueries({ queryKey: ['pilotage_data', userId] });
     },
   });
 
-  return { enabled, pendingMonths, lockDate, bilan, closures, closeMonths, markBilanSeen, reopenMonth };
+  return { enabled, pendingMonths, lockDate, bilan, closures, closeMonths, markBilanSeen, reopenMonth, reopenableMonth };
 }

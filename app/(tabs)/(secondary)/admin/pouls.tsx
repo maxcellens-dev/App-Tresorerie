@@ -167,17 +167,55 @@ export default function AdminPouls() {
             Un débutant n’est pas jugé sur l’investissement ; un profil confirmé n’a plus à prouver qu’il
             épargne. Choisis ce qui est montré à chacun — l’ordre de sélection est l’ordre d’affichage.
           </Text>
-          {/* Deux vues ont un ordre IMPOSÉ : le dire ici évite de chercher pourquoi le glisser-déposer
-              « ne marche pas » sur le bilan mensuel. */}
+          {/* Deux vues ont un ordre IMPOSÉ : le dire ici évite de chercher pourquoi réordonner les
+              signaux « ne change rien » sur ces deux-là. */}
           <View style={styles.infoBox}>
             <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
             <Text style={styles.infoTxt}>
-              Deux exceptions à cet ordre. L’<Text style={{ fontWeight: '700' }}>hebdo</Text> ne garde que
-              3 signaux (dépenses, fin de mois, + celui du mois du profil). Le{' '}
-              <Text style={{ fontWeight: '700' }}>bilan mensuel</Text> suit un ordre fixe — récap du mois
-              (dépenses variables, matelas, épargne, investissement), puis « Ton projet », puis « Fin de
-              mois », puis le reste de ta sélection : lu après la clôture, il raconte le mois écoulé avant
-              de parler d’aujourd’hui.
+              Ta sélection s’applique à l’<Text style={{ fontWeight: '700' }}>état des lieux à la demande</Text>
+              {' '}(la pastille du Pilotage). Les deux rendez-vous automatiques, eux, ont une composition
+              fixe décrite ci-dessous — ils répondent à une question précise, pas à un catalogue.
+            </Text>
+          </View>
+
+          {/* ── Ce que contient CHAQUE rendez-vous ────────────────────────────────────────────── */}
+          <Text style={styles.h2}>Ce que contient chaque rendez-vous</Text>
+
+          <View style={styles.card}>
+            <Text style={styles.blockLabel}>🗓️ Point de la semaine — inchangé</Text>
+            <Text style={styles.p}>
+              Volontairement léger : l’anneau (épargné + investi du mois vs capacité), puis 3 signaux au
+              maximum — <Text style={styles.strong}>Dépenses variables</Text>,{' '}
+              <Text style={styles.strong}>Fin de mois</Text>, et le signal « du mois » du profil
+              (épargne ou investissement). Il ne s’ouvre pas si un bilan mensuel est dû.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.blockLabel}>📊 État des lieux du mois — après la clôture</Text>
+            <Text style={styles.p}>
+              <Text style={styles.strong}>Exactement la forme du point de la semaine</Text> : l’anneau
+              et, à côté, les repères en lignes compactes — le tout dans UNE seule carte. Mais sur les
+              chiffres du <Text style={styles.strong}>mois écoulé</Text> et non « à date » : épargné,
+              investi et dépensé de CE mois-là.
+            </Text>
+            {[
+              ['1', 'Une carte unique', 'l’anneau, deux lignes (dépenses variables, matelas de sécurité), et la légende : mis de côté · placé · conservé'],
+              ['2', 'Le matelas y remplace « Fin de mois »', 'une fois le mois fini, ce qui compte n’est plus ce qu’il reste à tenir mais l’état de la réserve'],
+              ['3', 'Épargne et Investissement n’ont PAS de carte', 'l’anneau et la légende les disent déjà — une carte de plus répéterait les mêmes montants'],
+              ['4', 'Ton projet', 'sa carte habituelle, et seulement s’il y a un projet en cours'],
+              ['5', 'Fin de mois', 'sa carte habituelle, puis le reste de ta sélection ci-dessous'],
+            ].map(([n, t, d]) => (
+              <View key={n} style={styles.stepRow}>
+                <View style={styles.stepNum}><Text style={styles.stepNumTxt}>{n}</Text></View>
+                <Text style={styles.stepTxt}>
+                  <Text style={styles.strong}>{t}</Text> — {d}
+                </Text>
+              </View>
+            ))}
+            <Text style={styles.note}>
+              Il n’arrive PAS le 1er du mois : tant qu’un mois reste à clôturer, il attend. Sinon il
+              jugerait des chiffres que l’utilisateur n’a pas encore vérifiés.
             </Text>
           </View>
 
@@ -300,6 +338,14 @@ function makeStyles(c: AppColors) {
       borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, padding: 12,
     },
     infoTxt: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
+    strong: { fontWeight: '700', color: c.text },
+    stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 8 },
+    stepNum: {
+      width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.emerald + '22', marginTop: 1,
+    },
+    stepNumTxt: { fontSize: 11, fontWeight: '800', color: c.emerald },
+    stepTxt: { flex: 1, fontSize: 12.5, color: c.textSecondary, lineHeight: 18 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14 },
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     fieldLabel: { fontSize: 14, fontWeight: '700', color: c.text },

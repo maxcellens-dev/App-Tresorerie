@@ -105,8 +105,11 @@ export default function PulseHost() {
   })();
   const oldEnough = accountAgeDays >= 7;
 
-  const canShow = appReady && inTabs && !isImpersonating && !seenLoading
-    && !!config?.enabled && !!pulse && oldEnough;
+  /* Garde-fous COMMUNS aux deux rendez-vous. L'ancienneté du compte n'en fait pas partie : elle ne
+     concerne que le point hebdo (cf. monthlyWants / weeklyWants plus bas). */
+  const canShowBase = appReady && inTabs && !isImpersonating && !seenLoading
+    && !!config?.enabled && !!pulse;
+  const canShow = canShowBase && oldEnough;
 
   // `open` pose seulement la vue : l'animation d'entrée est pilotée par l'effet ci-dessous, qui
   // attend que les DONNÉES soient là (un tap sur la pastille pendant le chargement ne doit pas
@@ -155,9 +158,20 @@ export default function PulseHost() {
   const closedLastMonth = closures.some((c) => c.month_key === lastMonth && (c.status ?? 'confirmed') === 'confirmed');
   const livedLastMonth = pulse?.hadActivityLastMonth || closedLastMonth;
 
-  const monthlyWants = !!canShow && !!pulse && !!config?.monthly && livedLastMonth
-    && pulse.monthly.judgedCount > 0 && !monthSeen && closureSettled;
-  const weeklyWants = !!canShow && !!pulse && !!config?.weekly && pulse.weekly.judgedCount > 0 && !weekSeen;
+  /* DEUX VERROUS SE CUMULAIENT et rendaient le bilan mensuel inatteignable sur un compte récent :
+
+     1. `judgedCount > 0` — en confiance BASSE (le cas de tout compte neuf : aucune vérification de
+        solde derrière soi), le moteur passe TOUS les signaux en « estimé » et ne juge plus rien.
+        judgedCount tombait donc à 0, et le bilan n'arrivait jamais. Or un bilan « estimé » a du
+        sens : il récapitule le mois écoulé, il ne distribue pas des bons points. On exige donc
+        seulement qu'il y ait des signaux À MONTRER.
+     2. `oldEnough` (7 jours d'ancienneté) — cette règle protège le point HEBDO d'un compte créé le
+        matin même. Elle n'a rien à faire ici : avoir clôturé un mois, c'est par définition l'avoir
+        vécu. Le bilan mensuel se garde donc par `livedLastMonth`, pas par l'âge du compte. */
+  const monthlyWants = !!canShowBase && !!pulse && !!config?.monthly && livedLastMonth
+    && pulse.monthly.signals.length > 0 && !monthSeen && closureSettled;
+  const weeklyWants = !!canShowBase && oldEnough && !!pulse && !!config?.weekly
+    && pulse.weekly.judgedCount > 0 && !weekSeen;
 
   const monthlyTurn = useInterruptSlot('pulse_month', monthlyWants);
   // Le hebdo se tait tant qu'un mensuel est dû : deux bilans coup sur coup, c'est un de trop.
@@ -262,6 +276,11 @@ export default function PulseHost() {
     onLayout: (e: LayoutChangeEvent) => { viewportH.current = e.nativeEvent.layout.height; syncLock(); },
   }), [scrollLocked, syncLock]);
 
+  /* Le PanResponder est mémoïsé une fois pour toutes : il ne verrait pas un changement de `view`.
+     On lui donne donc une référence, toujours à jour. */
+  const viewRef = useRef<PulseView | null>(null);
+  viewRef.current = view;
+
   const panResponder = useMemo(
     () => PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_e, g) => {
@@ -278,7 +297,9 @@ export default function PulseHost() {
       onPanResponderTerminationRequest: () => false,
       onPanResponderMove: (_e, g) => { if (g.dy < 0) drag.setValue(g.dy); },
       onPanResponderRelease: (_e, g) => {
-        if (g.dy < -50) close();
+        // Même raison que le fond : le bilan mensuel ne part pas sur un geste réflexe. La feuille
+        // suit quand même le doigt, puis revient en place — le geste est compris, mais sans effet.
+        if (g.dy < -50 && viewRef.current !== 'month') close();
         else Animated.spring(drag, { toValue: 0, useNativeDriver: true, tension: 80, friction: 9 }).start();
       },
     }),
@@ -290,6 +311,22 @@ export default function PulseHost() {
   const result: PulseResult = view === 'week' ? pulse.weekly : view === 'month' ? pulse.monthly : pulse.result;
   const info = PROFILE_INFO[pulse.profileId];
   const title = view === 'week' ? '🧭 Point de la semaine' : '🧭 État des lieux';
+  /** Mois écoulé, en toutes lettres — celui que raconte le bilan mensuel. */
+  const periodLabelMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  /* BILAN MENSUEL — ce qui va dans la CARTE UNIQUE, et ce qui garde sa propre carte.
+     Les quatre repères du mois se lisent ensemble : les séparer en quatre cartes obligeait à
+     dérouler pour reconstituer un récapitulatif. « Ton projet » et « Fin de mois » restent des
+     cartes à part : ce sont des sujets, pas des chiffres du mois écoulé. */
+  const monthLeadSignals = view === 'month'
+    ? result.signals.filter((s) => MONTHLY_LEAD_IDS.includes(s.id))
+    : [];
+  const monthCardSignals = view === 'month'
+    ? result.signals.filter((s) => !MONTHLY_LEAD_IDS.includes(s.id) && !MONTHLY_HIDDEN_IDS.includes(s.id))
+    : result.signals;
+  // L'anneau n'a de sens que s'il y a eu de quoi le remplir (sinon un cercle vide occupe la moitié).
+  const monthRingShown = !!pulse && pulse.monthlyStats.capacity >= 20;
   // Les signaux décrivent TOUJOURS la situation d'aujourd'hui : le rendez-vous mensuel est un
   // point d'étape « au sortir du mois écoulé », pas une photo du mois passé — le libellé le dit.
   const period = view === 'week'
@@ -300,7 +337,17 @@ export default function PulseHost() {
 
   return (
     <View style={styles.root} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={close} accessibilityRole="button" accessibilityLabel="Fermer" />
+      {/* L'ÉTAT DES LIEUX DU MOIS ne se ferme QUE par la croix.
+          C'est le seul rendez-vous qu'on ne revoit pas : il arrive une fois, après la clôture. Le
+          refermer d'un tap à côté — le geste qu'on fait sans y penser en arrivant sur l'app — le
+          faisait disparaître pour de bon. Le hebdo, lui, revient la semaine suivante : il garde le
+          tap à côté et le balayage. */}
+      <Pressable
+        style={styles.backdrop}
+        onPress={view === 'month' ? undefined : close}
+        accessibilityRole={view === 'month' ? 'none' : 'button'}
+        accessibilityLabel={view === 'month' ? undefined : 'Fermer'}
+      />
       {/* Wrapper centré : sur web desktop, la feuille reste à largeur « mobile » au centre
           (les hosts sont montés HORS de la colonne d'app — cf. sheetWidth dans lib/appLayout). */}
       <View style={[styles.center, { top: insets.top + 48 }]} pointerEvents="box-none">
@@ -398,7 +445,51 @@ export default function PulseHost() {
               contentContainerStyle={{ paddingBottom: 8 }}
               showsVerticalScrollIndicator={false}
             >
-              {result.signals.map((signal, index) => (
+              {/* BILAN DU MOIS — MÊME FORME QUE LE POINT DE LA SEMAINE.
+                  Une SEULE carte : l'anneau (épargné + investi DU MOIS ÉCOULÉ) et, à côté, les
+                  repères du mois en lignes compactes — dépenses variables, matelas de sécurité,
+                  épargne, investissement. Quatre cartes séparées pour dire ce qui tient en un
+                  coup d'œil transformaient un récapitulatif en liste à dérouler.
+                  Seuls « Ton projet » et « Fin de mois » gardent leur carte : ce sont des sujets
+                  à part entière, pas des chiffres du mois. */}
+              {view === 'month' && monthLeadSignals.length > 0 && (
+                <View style={[styles.weekCard, { marginBottom: 12 }]}>
+                  <View style={styles.weekRow}>
+                    {monthRingShown && <WeeklyRing stats={pulse.monthlyStats} COLORS={COLORS} />}
+                    <View style={styles.weekStats}>
+                      {monthLeadSignals.map((signal) => {
+                        const color = pulseColor(COLORS, signal.status);
+                        return (
+                          <View key={signal.id} style={styles.weekStatRow}>
+                            <View style={styles.weekStatHead}>
+                              <View style={[styles.weekStatDot, { backgroundColor: color }]} />
+                              <Text style={styles.weekStatLabel} numberOfLines={1}>
+                                {signal.emoji} {MONTHLY_SHORT_LABELS[signal.id] ?? signal.label}
+                              </Text>
+                            </View>
+                            <Text style={styles.weekStatSub} numberOfLines={2}>{signal.headline}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                  {/* Les trois gestes du mois, ici et NULLE PART AILLEURS dans cette carte.
+                      « Conservé » est affiché même à 0 € : c'est une information — ne rien avoir
+                      mis de côté fait partie du bilan, l'omettre laisserait croire à un oubli. */}
+                  {/* La période EN TÊTE de la légende : accrochée en fin de ligne, elle se
+                      retrouvait rejetée à la ligne suivante et se lisait comme un quatrième poste. */}
+                  <Text style={styles.legendPeriod}>En {periodLabelMonth}</Text>
+                  <View style={[styles.weekLegend, { marginTop: 4 }]}>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
+                    <Text style={styles.legendTxt}>{eurFmt(pulse.monthlyStats.saved)} mis de côté</Text>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.violet }]} />
+                    <Text style={styles.legendTxt}>{eurFmt(pulse.monthlyStats.invested)} placés</Text>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.blue }]} />
+                    <Text style={styles.legendTxt}>{eurFmt(pulse.monthlyStats.kept)} conservés</Text>
+                  </View>
+                </View>
+              )}
+              {(view === 'month' ? monthCardSignals : result.signals).map((signal, index) => (
                 <PulseSignalCard key={`${view}-${signal.id}`} signal={signal} delay={120 + index * 90} />
               ))}
             </ScrollView>
@@ -418,6 +509,26 @@ const WEEKLY_SHORT_LABELS: Partial<Record<PulseSignalId, string>> = {
   end_of_month: 'Fin de mois',
   saving: 'Épargne',
   investing: 'Invest',
+};
+
+/**
+ * Les repères du mois écoulé, réunis dans UNE carte au format du point de la semaine.
+ * Le matelas de sécurité y prend la place que « Fin de mois » occupe dans l'hebdo : une fois le
+ * mois terminé, ce qui compte n'est plus ce qu'il reste à tenir, mais l'état de la réserve.
+ */
+/* Épargne et investissement N'Y FIGURENT PAS : l'anneau et sa légende les disent déjà, juste à
+   côté — deux bandeaux de plus ne faisaient que répéter les mêmes montants. */
+const MONTHLY_LEAD_IDS: PulseSignalId[] = ['spending', 'cushion'];
+
+/**
+ * Signaux ENTIÈREMENT couverts par l'anneau et sa légende : leur donner en plus une carte revenait
+ * à répéter les mêmes montants trois fois dans le même écran.
+ */
+const MONTHLY_HIDDEN_IDS: PulseSignalId[] = ['saving', 'investing'];
+
+const MONTHLY_SHORT_LABELS: Partial<Record<PulseSignalId, string>> = {
+  spending: 'Dépenses variables',
+  cushion: 'Matelas de sécurité',
 };
 
 /**
@@ -546,6 +657,8 @@ function makeStyles(c: AppColors) {
     weekLegend: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 12 },
     legendDot: { width: 8, height: 8, borderRadius: 999 },
     legendTxt: { fontSize: 11, fontWeight: '600', color: c.text, marginRight: 6 },
+    // Période du bilan : posée AU-DESSUS des trois montants, pas accrochée à leur suite.
+    legendPeriod: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'capitalize', marginTop: 10 },
     weekFooter: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       marginTop: 12, paddingHorizontal: 2,

@@ -19,7 +19,7 @@ export default function ClotureScreen() {
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
-  const { enabled, closures, pendingMonths, closeMonths, reopenMonth } = useMonthlyClosure(user?.id);
+  const { enabled, closures, pendingMonths, closeMonths, reopenMonth, reopenableMonth } = useMonthlyClosure(user?.id);
 
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void } | null>(null);
   const askConfirm = (opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) => setConfirmModal(opts);
@@ -72,19 +72,37 @@ export default function ClotureScreen() {
                 {closedSorted.length === 0 ? (
                   <Text style={styles.empty}>Aucun mois clôturé.</Text>
                 ) : (
-                  closedSorted.map((c) => (
+                  /* On ne peut rouvrir QUE la dernière clôture : rouvrir un mois plus ancien
+                     laisserait les régularisations des mois suivants — calculées par rapport au
+                     solde qu'on vient d'annuler — dans un état faux. On dépile dans l'ordre. */
+                  closedSorted.map((c) => {
+                    const canReopen = c.month_key === reopenableMonth;
+                    return (
                     <View key={c.month_key} style={styles.row}>
                       <Ionicons name="lock-closed" size={18} color={COLORS.textSecondary} />
                       <Text style={styles.rowLabel}>{monthLabel(c.month_key)}</Text>
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => askConfirm({ title: 'Rouvrir le mois', message: `Rouvrir ${monthLabel(c.month_key)} ? Tu pourras de nouveau modifier ses transactions.`, confirmLabel: 'Rouvrir', confirmColor: COLORS.blue, onConfirm: () => reopenMonth.mutate(c.month_key) })}
-                      >
-                        <Ionicons name="lock-open-outline" size={14} color={COLORS.blue} />
-                        <Text style={[styles.actionText, { color: COLORS.blue }]}>Rouvrir</Text>
-                      </TouchableOpacity>
+                      {canReopen ? (
+                        <TouchableOpacity
+                          style={styles.actionBtn}
+                          onPress={() => askConfirm({
+                            title: 'Rouvrir le mois',
+                            message: `Rouvrir ${monthLabel(c.month_key)} ?\n\nLes régularisations créées par cette clôture seront supprimées et tes soldes recalculés. Tes transactions, elles, ne bougent pas.`,
+                            confirmLabel: 'Rouvrir',
+                            confirmColor: COLORS.blue,
+                            onConfirm: () => reopenMonth.mutate(c.month_key),
+                          })}
+                        >
+                          <Ionicons name="lock-open-outline" size={14} color={COLORS.blue} />
+                          <Text style={[styles.actionText, { color: COLORS.blue }]}>Rouvrir</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={styles.lockedHint}>
+                          Rouvre d’abord {reopenableMonth ? monthLabel(reopenableMonth) : 'le mois le plus récent'}
+                        </Text>
+                      )}
                     </View>
-                  ))
+                    );
+                  })
                 )}
               </View>
               <Text style={styles.note}>Astuce : pour clôturer avec saisie de ton solde réel, utilise la bannière de clôture sur le Pilotage.</Text>
@@ -133,6 +151,7 @@ function makeStyles(c: any) {
     actionText: { fontSize: 12, fontWeight: '700' },
     empty: { fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
     note: { fontSize: 12, color: c.textSecondary, lineHeight: 17, fontStyle: 'italic' },
+    lockedHint: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', maxWidth: 170, textAlign: 'right' },
     confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
     confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
     confirmTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 10 },

@@ -4,8 +4,9 @@
  * Monté sur le Pilotage.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAddTransaction, useTransactions } from '../hooks/useTransactions';
@@ -16,6 +17,7 @@ import { todayISO, formatDateFrench, parseDateFromFrench } from '../lib/dateUtil
 import { sheetWidth } from '../lib/appLayout';
 import { useRecalibrateReliability } from '../hooks/useReliability';
 import { useInterruptSlot } from '../hooks/useInterruptSlot';
+import { openPulse } from './PulseHost';
 
 interface Props {
   /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
@@ -259,6 +261,16 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
         setMode('direct');
       } else {
         closeModal();
+        /* PLUS RIEN À CLÔTURER → on ENCHAÎNE sur l'état des lieux du mois.
+           C'était jusqu'ici laissé à l'ouverture automatique, qui dépend d'une pile de conditions
+           ambiantes (période déjà « vue » dans la session, signaux jugés, données rechargées…) :
+           il suffisait qu'une seule ne passe pas pour que le bilan n'arrive jamais, sans rien dire.
+           Ici on SAIT qu'il doit venir — l'utilisateur vient de valider le mois — donc on le
+           demande explicitement. L'ouverture automatique reste le chemin des lancements suivants.
+           Le petit délai laisse la modale se refermer et les données se rafraîchir. */
+        if (closeKey === addMonthKey(ym(new Date()), -1)) {
+          setTimeout(() => openPulse('month'), 450);
+        }
       }
     } catch (e) {
       /* ⚠️ NE PLUS AVALER L'ÉCHEC. C'est ce `console.warn` muet qui a rendu le bug de la policy
@@ -284,6 +296,11 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
       {/* Modale de clôture */}
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeModal}>
         <View style={styles.overlay}>
+          {/* SafeAreaView NATIF (edges bottom) : il mesure les insets de SA fenêtre — celle du Modal.
+              Sans lui, le bas de la feuille (le bouton « Clôturer ») passait sous la barre de
+              navigation du téléphone, exactement comme l'ancienne version du modal de profil.
+              `maxHeight` + défilement : sur un petit écran, la feuille ne déborde plus de l'écran. */}
+          <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
           <View style={styles.sheet}>
             <View style={styles.header}>
               <Text style={styles.title}>Clôture mensuelle</Text>
@@ -291,6 +308,10 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
+            {/* Contenu défilant : le mode « je ne sais pas » ajoute une date, un champ par compte
+                et un curseur — sur un petit écran, la feuille dépassait sans qu'on puisse atteindre
+                le bouton. */}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
 
             <View style={styles.monthRow}>
               <Text style={styles.sub}>{flash ? `Clôture de ${effectivePending.length} mois, jusqu'à` : 'Mois à clôturer :'}</Text>
@@ -505,10 +526,13 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
               </View>
             )}
 
+            </ScrollView>
+            {/* Le bouton reste HORS du défilement : il doit être atteignable sans dérouler. */}
             <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={() => { setError(null); confirm(); }} disabled={busy}>
               {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
             </TouchableOpacity>
           </View>
+          </SafeAreaView>
         </View>
       </Modal>
 
@@ -551,7 +575,10 @@ function makeStyles(c: any) {
     bannerTitle: { fontSize: 14, fontWeight: '800', color: c.text },
     bannerText: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { ...sheetWidth, backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 32, gap: 6 },
+    sheetSafe: { ...sheetWidth, maxHeight: '92%' },
+    // paddingBottom réduit : c'est le SafeAreaView qui ajoute désormais la hauteur réelle de la
+    // barre système. Cumuler les deux repoussait le bouton hors de l'écran sur les petits mobiles.
+    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 16, gap: 6 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     title: { fontSize: 19, fontWeight: '800', color: c.text },
     sub: { fontSize: 14, color: c.textSecondary },
