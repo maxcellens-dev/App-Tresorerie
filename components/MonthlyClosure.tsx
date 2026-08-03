@@ -15,6 +15,7 @@ import { prorateClosureGap, isRegul } from '../lib/regul';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../lib/dateUtils';
 import { sheetWidth } from '../lib/appLayout';
 import { useRecalibrateReliability } from '../hooks/useReliability';
+import { useInterruptSlot } from '../hooks/useInterruptSlot';
 
 interface Props {
   /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
@@ -98,15 +99,21 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   const openModal = () => { setClosedLocally([]); resetForm(); setOpen(true); };
   const closeModal = () => { setOpen(false); setClosedLocally([]); resetForm(); };
 
-  // Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage.
+  /* La clôture est la PREMIÈRE des sollicitations : tout ce qui suit (bilan mensuel, profil,
+     succès) s'appuie sur des chiffres qu'elle vient consolider. Elle prend donc la main en premier,
+     et ne la rend qu'une fois fermée (cf. lib/interruptQueue). */
+  const myTurn = useInterruptSlot('closure', enabled && pendingMonths.length > 0 && !isImpersonating);
+
+  // Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage, et seulement
+  // quand c'est notre tour.
   const autoOpened = React.useRef(false);
   React.useEffect(() => {
-    if (autoOpen && enabled && pendingMonths.length > 0 && !autoOpened.current) {
+    if (autoOpen && myTurn && !autoOpened.current) {
       autoOpened.current = true;
       openModal();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpen, enabled, pendingMonths.length]);
+  }, [autoOpen, myTurn]);
 
   // Ouverture à la demande depuis le bandeau « prochain geste » — sans passer par le routeur.
   React.useEffect(() => {

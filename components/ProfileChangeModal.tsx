@@ -8,6 +8,7 @@ import type { FinancialProfileId } from '../types/database';
 import { useAppColors } from '../hooks/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
 import { useGuide } from '../contexts/GuideContext';
+import { useInterruptSlot } from '../hooks/useInterruptSlot';
 import { sheetWidth } from '../lib/appLayout';
 
 
@@ -85,6 +86,10 @@ export default function ProfileChangeModal({ userId }: Props) {
      montrée (ProfileTourConclusion) : c'est elle qui présente le profil à la fin du tour, ce modal
      ne doit pas la doubler ni la précéder. */
   const duringGuide = guide.active || guide.booting || guide.tourJustFinished;
+  /* Le changement de profil vient APRÈS la clôture et le bilan du mois : il en est la conséquence.
+     L'annoncer avant, c'était livrer le verdict d'un calcul dont l'utilisateur n'a pas encore vu
+     les données (cf. lib/interruptQueue). */
+  const myTurn = useInterruptSlot('profile_change', !isImpersonating && !duringGuide && !!pendingChange);
   useEffect(() => {
     if (!duringGuide || isImpersonating || !pendingChange) return;
     markShown.mutate(pendingChange.id);
@@ -96,6 +101,8 @@ export default function ProfileChangeModal({ userId }: Props) {
   if (isImpersonating) return null;
   if (duringGuide) return null;
   if (!pendingChange) return null;
+  // Pas encore notre tour : la clôture et/ou le bilan du mois parlent d'abord.
+  if (!myTurn) return null;
 
   const key = getTransitionKey(
     pendingChange.previous_profile,

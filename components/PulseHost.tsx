@@ -32,6 +32,7 @@ import { usePulseConfig } from '../hooks/usePulseConfig';
 import { useGamification } from '../hooks/useGamification';
 import { usePulseSeen, useSavePulseSnapshot, type PulseSeenState } from '../hooks/usePulseState';
 import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
+import { useInterruptSlot } from '../hooks/useInterruptSlot';
 import { isAppReady, onAppReady } from '../lib/splashGate';
 import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import { monthKey, weekKey, weekRangeLabel, type PulseResult, type PulseSignalId } from '../lib/pulseEngine';
@@ -61,7 +62,7 @@ export default function PulseHost() {
   const pulse = usePulse();
   const { seen, isLoading: seenLoading, markSeen } = usePulseSeen(user?.id);
   // L'état des lieux attend que les clôtures soient faites (cf. l'effet d'auto-ouverture).
-  const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
+  const { enabled: closureEnabled, pendingMonths, closures } = useMonthlyClosure(user?.id);
   const saveSnapshot = useSavePulseSnapshot();
   // Série hebdo de suivi (la même que la flamme du header) — affichée en pied du Pouls hebdo.
   const { state: gamState } = useGamification(user?.id);
@@ -136,32 +137,38 @@ export default function PulseHost() {
     return () => { openManually = null; };
   }, [open]);
 
-  // Quel rendez-vous ouvrir tout seul ? Le mensuel prime — jamais les deux le même jour.
-  // On attend d'avoir des signaux réellement JUGÉS : pas de bilan pour dire qu'on ne sait rien.
+  /* QUI A DROIT DE PARLER ? Le bilan mensuel et le pouls hebdo sont deux des cinq sollicitations
+     possibles à l'ouverture (avec la clôture, le changement de profil et les succès). L'ordre est
+     arbitré une fois pour toutes par lib/interruptQueue : ici on se contente de dire qu'on attend.
+
+     L'ÉTAT DES LIEUX ARRIVE APRÈS LA CLÔTURE, pas le 1er du mois. Au 1er, l'utilisateur n'a encore
+     rien vérifié : ni régularisation, ni solde à jour. Le bilan tombait donc sur des chiffres qu'il
+     n'avait pas confirmés. On attend qu'il n'y ait PLUS AUCUN mois à clôturer.
+     (Clôture désactivée en admin → on retombe sur l'ancien déclencheur, l'activité du mois.) */
+  const monthSeen = seen.month === lastMonth || localSeen.current.month === lastMonth;
+  const weekSeen = seen.week === currentWeek || localSeen.current.week === currentWeek;
+  const closureSettled = !closureEnabled || pendingMonths.length === 0;
+  /* « A vécu le mois » : une activité dans le mois, OU une clôture confirmée pour ce mois-là.
+     Sans ce second cas, un compte créé en fin de mois précédent — trop peu de transactions pour
+     que la première condition passe — ne voyait JAMAIS son bilan, alors qu'il venait précisément
+     de clôturer ce mois : clôturer, c'est déjà l'avoir vécu. */
+  const closedLastMonth = closures.some((c) => c.month_key === lastMonth && (c.status ?? 'confirmed') === 'confirmed');
+  const livedLastMonth = pulse?.hadActivityLastMonth || closedLastMonth;
+
+  const monthlyWants = !!canShow && !!pulse && !!config?.monthly && livedLastMonth
+    && pulse.monthly.judgedCount > 0 && !monthSeen && closureSettled;
+  const weeklyWants = !!canShow && !!pulse && !!config?.weekly && pulse.weekly.judgedCount > 0 && !weekSeen;
+
+  const monthlyTurn = useInterruptSlot('pulse_month', monthlyWants);
+  // Le hebdo se tait tant qu'un mensuel est dû : deux bilans coup sur coup, c'est un de trop.
+  const weeklyTurn = useInterruptSlot('pulse_week', weeklyWants && !monthlyWants);
+
   useEffect(() => {
-    if (!canShow || view || !pulse) return;
-    const monthSeen = seen.month === lastMonth || localSeen.current.month === lastMonth;
-    const weekSeen = seen.week === currentWeek || localSeen.current.week === currentWeek;
-    /* L'ÉTAT DES LIEUX ARRIVE APRÈS LA CLÔTURE, pas le 1er du mois.
-       Au 1er, l'utilisateur n'a encore rien vérifié : ni régularisation, ni solde à jour. Le bilan
-       tombait donc sur des chiffres qu'il n'avait pas confirmés, et les seules cartes qui tenaient
-       debout étaient celles qui ne dépendent pas du mois écoulé. On attend qu'il n'y ait PLUS AUCUN
-       mois à clôturer : le bilan se lit alors sur des données qu'il vient lui-même de valider.
-       (Clôture désactivée en admin → on retombe sur l'ancien déclencheur, l'activité du mois.) */
-    const closureSettled = !closureEnabled || pendingMonths.length === 0;
-    if (config?.monthly && pulse.hadActivityLastMonth && pulse.monthly.judgedCount > 0 && !monthSeen && closureSettled) {
-      open('month');
-      return;
-    }
-    /* Pas de hebdo tant qu'un état des lieux mensuel est DÛ : deux bilans coup sur coup, c'est une
-       sollicitation de trop. En fermant le mensuel, la semaine est consommée avec lui (cf. consume)
-       → le prochain hebdo sera celui de la semaine suivante. */
-    const monthlyDue = !!config?.monthly && pulse.hadActivityLastMonth && pulse.monthly.judgedCount > 0 && !monthSeen;
-    if (config?.weekly && pulse.weekly.judgedCount > 0 && !weekSeen && !monthlyDue) {
-      open('week');
-    }
+    if (view || !pulse) return;
+    if (monthlyTurn) { open('month'); return; }
+    if (weeklyTurn) open('week');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canShow, view, pulse, seen.month, seen.week, config?.monthly, config?.weekly, currentWeek, lastMonth, open]);
+  }, [monthlyTurn, weeklyTurn, view, pulse, open]);
 
   /**
    * Consomme la période affichée : marquée vue + bilan archivé tel qu'il a été montré.

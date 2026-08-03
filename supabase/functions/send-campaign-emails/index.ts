@@ -14,6 +14,9 @@
 // ============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// Gabarit PARTAGÉ avec l'aperçu de l'écran admin : une seule définition du rendu, donc un aperçu
+// qui montre vraiment ce qui part.
+import { renderRelykaEmail } from '../_shared/emailTemplate.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -35,53 +38,8 @@ const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
 /** Brevo limite chaque appel `messageVersions` à 1000 destinataires. */
 const BATCH = 500;
 
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-/**
- * Gabarit Relyka — l'admin écrit du texte, jamais du HTML. Les sauts de ligne deviennent des
- * paragraphes, et le pied de page porte le lien de désinscription (obligatoire, un par destinataire).
- */
-function renderEmail(subject: string, body: string, unsubUrl: string): string {
-  const paragraphs = body
-    .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#2f3a37;">${esc(p).replace(/\n/g, '<br>')}</p>`)
-    .join('');
-  return `<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(subject)}</title></head>
-<body style="margin:0;padding:0;background:#F4EFE6;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4EFE6;padding:32px 16px;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 2px 12px rgba(13,46,42,.08);">
-        <tr><td style="background:#0D2E2A;padding:28px 32px;text-align:center;">
-          <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-.5px;">Relyka</div>
-          <div style="font-size:12px;color:#8FD8C4;margin-top:4px;">Ton argent, au clair</div>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <h1 style="margin:0 0 20px;font-size:20px;line-height:28px;color:#0D2E2A;font-weight:800;">${esc(subject)}</h1>
-          ${paragraphs}
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px;">
-            <tr><td style="background:#00B67A;border-radius:12px;">
-              <a href="${APP_URL}" style="display:inline-block;padding:14px 26px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">Ouvrir Relyka</a>
-            </td></tr>
-          </table>
-        </td></tr>
-        <tr><td style="padding:20px 32px 28px;border-top:1px solid #EAE4DA;">
-          <p style="margin:0 0 8px;font-size:12px;line-height:18px;color:#7A8783;">
-            Tu reçois cet e-mail parce que tu as un compte Relyka.
-          </p>
-          <p style="margin:0;font-size:12px;line-height:18px;color:#7A8783;">
-            <a href="${unsubUrl}" style="color:#7A8783;text-decoration:underline;">Ne plus recevoir ces e-mails</a>
-            &nbsp;·&nbsp;
-            <a href="${APP_URL}/confidentialite" style="color:#7A8783;text-decoration:underline;">Confidentialité</a>
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
-}
+const renderEmail = (subject: string, body: string, unsubUrl: string) =>
+  renderRelykaEmail({ subject, body, unsubUrl, appUrl: APP_URL });
 
 interface Recipient { email: string; name: string | null; token: string }
 

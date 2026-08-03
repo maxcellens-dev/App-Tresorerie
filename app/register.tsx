@@ -81,13 +81,21 @@ export default function RegisterScreen() {
           {/* Inscription sociale (mise en avant) */}
           <SocialAuthButtons mode="register" />
 
-          {/* Séparateur cliquable : révèle la partie e-mail */}
-          <TouchableOpacity style={styles.dividerRow} onPress={() => setShowEmail((v) => !v)} activeOpacity={0.7}>
+          {/* L'e-mail est un moyen d'inscription À PART ENTIÈRE, plus une petite ligne repliée sous
+              les boutons sociaux : depuis que le SMTP est branché, il donne accès à la vérification
+              d'adresse et à la récupération de mot de passe — c'est-à-dire au compte le plus
+              robuste des trois. Il a donc le même bouton que Google et Facebook. */}
+          <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou avec une adresse e-mail</Text>
-            <Ionicons name={showEmail ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textSecondary} />
+            <Text style={styles.dividerText}>ou</Text>
             <View style={styles.dividerLine} />
-          </TouchableOpacity>
+          </View>
+          {!showEmail && (
+            <TouchableOpacity style={styles.emailBtn} onPress={() => setShowEmail(true)} activeOpacity={0.85}>
+              <Ionicons name="mail-outline" size={20} color={COLORS.text} />
+              <Text style={styles.emailBtnLabel}>Continuer avec un e-mail</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.form}>
             {showEmail && (
@@ -129,8 +137,8 @@ export default function RegisterScreen() {
                   <Text style={styles.btnLabel}>{loading ? 'Inscription…' : 'S’inscrire par e-mail'}</Text>
                 </TouchableOpacity>
                 <Text style={styles.emailNote}>
-                  ℹ️ L'adresse e-mail n'est reliée à aucune messagerie : pas de récupération
-                  automatique du mot de passe. En cas d'oubli, contacte un administrateur.
+                  ℹ️ Tu recevras un e-mail pour confirmer ton adresse. C'est elle qui te permettra de
+                  réinitialiser ton mot de passe si tu l'oublies.
                 </Text>
               </>
             )}
@@ -182,6 +190,13 @@ function makeStyles(c: any) {
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 22 },
   dividerLine: { flex: 1, height: 1, backgroundColor: c.cardBorder },
   dividerText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  // Même gabarit que les boutons sociaux (SocialAuthButtons) : trois moyens, trois boutons.
+  emailBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+    borderRadius: 14, paddingVertical: 14, marginTop: 4,
+  },
+  emailBtnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
   link: { alignItems: 'center', marginTop: 20 },
   linkText: { fontSize: 14, color: c.emerald, fontWeight: '500' },
 });

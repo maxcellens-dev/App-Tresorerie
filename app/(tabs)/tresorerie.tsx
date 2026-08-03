@@ -110,6 +110,40 @@ const getOverrideKey = (transactionId: string, year: number, month: number): str
 
 /** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, le
  *  contenu (calculs 12 mois) arrive juste après. Cf. hooks/useDeferredMount. */
+/**
+ * Défilement horizontal OPTIONNEL.
+ *
+ * Mobile / web étroit : un vrai `ScrollView` horizontal, imbriqué dans le défilement vertical.
+ * Bureau : rien du tout — c'est le conteneur parent qui défile sur les deux axes, condition
+ * indispensable pour que `position: sticky` tienne (tout ancêtre qui défile ou qui rogne entre la
+ * cellule et le conteneur casse le collage).
+ */
+function MaybeHScroll({ enabled, innerRef, showBar, style, contentContainerStyle, onScrollX, children }: {
+  enabled: boolean;
+  innerRef: React.RefObject<ScrollView | null>;
+  showBar: boolean;
+  style?: any;
+  contentContainerStyle?: any;
+  onScrollX: (x: number) => void;
+  children: React.ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <ScrollView
+      ref={innerRef}
+      horizontal
+      showsHorizontalScrollIndicator={showBar}
+      style={style}
+      contentContainerStyle={contentContainerStyle}
+      nestedScrollEnabled
+      scrollEventThrottle={16}
+      onScroll={(e) => onScrollX(e.nativeEvent.contentOffset.x)}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
 export default function TreasuryPlanScreen() {
   return useDeferredMount() ? <TreasuryPlanBody /> : <ScreenSkeleton />;
 }
@@ -186,17 +220,27 @@ function TreasuryPlanBody() {
   const paddingH = 24 * 2;
   const labelWidth = Math.min(200, Math.max(140, width - paddingH - 3 * MONTH_COL_WIDTH));
 
-  /* 1ʳᵉ COLONNE FIGÉE — `position: sticky`, donc WEB uniquement (React Native ne connaît pas cette
-     valeur ; on ne la pose donc que là où elle a un sens). Sur mobile, seule l'entête est figée,
-     ce qui est exactement ce qui est demandé : figer aussi la colonne y coûterait un second
-     défilement synchronisé pour un écran où l'on voit déjà 3 colonnes.
+  /* 1ʳᵉ COLONNE FIGÉE — `position: sticky`, donc WEB, et seulement en BUREAU.
+     Sur un écran étroit (mobile natif, ou navigateur en fenêtre réduite), figer la colonne des
+     libellés n'apporte rien — on voit déjà 3 colonnes — et sur le web étroit c'était même nuisible :
+     « Poste » restait en place pendant que les autres libellés coulissaient dessous, donnant deux
+     textes superposés. D'où la condition sur `isDesktop`, et pas seulement sur la plateforme.
      ⚠️ AUCUN fond posé ici : chaque ligne a déjà le sien (recette, dépense, section, total…) et en
      plaquer un uniforme repeignait toute la colonne d'une couleur qui n'était pas la sienne. Le
      fond opaque nécessaire au défilement est celui de la LIGNE, hérité naturellement. */
-  const stickyLabel: any = Platform.OS === 'web' ? { position: 'sticky', left: 0, zIndex: 2 } : null;
-  const stickyCorner: any = Platform.OS === 'web' ? { zIndex: 3 } : null;
-  /** Entête (hors défilement vertical) tenu aligné sur le défilement horizontal du corps. */
+  /** Mode « tableau bureau » : un SEUL conteneur qui défile dans les deux axes (web large). */
+  const deskTable = Platform.OS === 'web' && isDesktop;
+  const stickyLabel: any = deskTable ? { position: 'sticky', left: 0, zIndex: 2 } : null;
+  const stickyCorner: any = deskTable ? { zIndex: 4 } : null;
+
+  /* MOBILE / web étroit : l'entête vit hors du défilement vertical, donc il faut le tenir aligné à
+     la main sur le défilement horizontal du corps. (En bureau, rien de tout ça : `position: sticky`
+     s'en charge et il n'y a qu'un seul conteneur.) */
   const headerScrollRef = React.useRef<ScrollView>(null);
+  const bodyScrollRef = React.useRef<ScrollView>(null);
+  const syncX = React.useCallback((x: number) => {
+    headerScrollRef.current?.scrollTo({ x, animated: false });
+  }, []);
 
   const [monthOffset, setMonthOffset] = useState(-1);
   const [editModalState, setEditModalState] = useState<{
@@ -759,6 +803,8 @@ function TreasuryPlanBody() {
 
     return { rows, months, txByMonthCategory, mouvEpargneTx, mouvInvestTx };
   }, [transactions, months, incomeGrouped, expenseGrouped, overrides, checkingBalance, pilotage, currentYear, currentMonth]);
+  /** Largeur totale du tableau (libellés + colonnes de mois) — entête et mode bureau. */
+  const tableWidth = labelWidth + planData.months.length * colWidth;
 
   const goToTransactions = (monthKey: string, categoryId: string | null) => {
     const url = categoryId
@@ -948,30 +994,33 @@ function TreasuryPlanBody() {
               • la 1ʳᵉ COLONNE est figée par `position: sticky` (web) — elle résout alors contre le
                 défilement horizontal, qui est bien son ancêtre scrollable direct. */
           <>
-          {/* Entête synchronisé — hors du défilement vertical. */}
-          <ScrollView
-            ref={headerScrollRef}
-            horizontal
-            scrollEnabled={false}
-            showsHorizontalScrollIndicator={false}
-            style={styles.headerScroll}
-          >
-            <View style={[styles.tableHeaderStandalone, { width: labelWidth + planData.months.length * colWidth }]}>
-              <View style={[styles.cell, styles.cellLabel, stickyLabel, stickyCorner, { width: labelWidth }]}>
-                <Text style={styles.headerLabel} numberOfLines={1}>Poste</Text>
-              </View>
-              {planData.months.map((m) => (
-                <View key={m.key} style={[styles.cell, styles.cellNum, styles.cellNumHeaderMonth, { width: colWidth }]}>
-                  <Text style={[styles.headerLabel, styles.headerLabelMonth, m.key === highlightMonthKey && styles.headerLabelCurrent]} numberOfLines={1}>
-                    {new Date(m.year, m.month - 1).toLocaleDateString('fr-FR', { month: 'short' })}
-                  </Text>
+          {/* Entête synchronisé — hors du défilement vertical. Inutile en BUREAU : là-bas c'est le
+              `position: sticky` du conteneur unique qui s'en charge. */}
+          {!deskTable && (
+            <ScrollView
+              ref={headerScrollRef}
+              horizontal
+              scrollEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              style={styles.headerScroll}
+            >
+              <View style={[styles.tableHeaderStandalone, { width: tableWidth }]}>
+                <View style={[styles.cell, styles.cellLabel, { width: labelWidth }]}>
+                  <Text style={styles.headerLabel} numberOfLines={1}>Poste</Text>
                 </View>
-              ))}
-            </View>
-          </ScrollView>
+                {planData.months.map((m) => (
+                  <View key={m.key} style={[styles.cell, styles.cellNum, styles.cellNumHeaderMonth, { width: colWidth }]}>
+                    <Text style={[styles.headerLabel, styles.headerLabelMonth, m.key === highlightMonthKey && styles.headerLabelCurrent]} numberOfLines={1}>
+                      {new Date(m.year, m.month - 1).toLocaleDateString('fr-FR', { month: 'short' })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          )}
           <ScrollView
             ref={scrollOuterRef}
-            style={[styles.scrollOuter, isDesktop && styles.scrollOuterDesktop]}
+            style={[styles.scrollOuter, isDesktop && styles.scrollOuterDesktop, deskTable && styles.deskScrollBox]}
             contentContainerStyle={styles.scrollOuterContent}
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
@@ -984,21 +1033,34 @@ function TreasuryPlanBody() {
               />
             }
           >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={true}
+          {/* BUREAU : plus de défilement horizontal imbriqué. Le conteneur ci-dessus fait les DEUX
+              axes (styles.deskScrollBox), ce qui est la seule configuration où `position: sticky`
+              fonctionne : un ancêtre qui défile ou qui rogne (overflow) entre la cellule et le
+              conteneur casse le collage — c'était le cas de `tableWrap` (overflow: hidden). */}
+          <MaybeHScroll
+            enabled={!deskTable}
+            innerRef={bodyScrollRef}
+            showBar={!isDesktop}
             style={styles.scrollInner}
             contentContainerStyle={styles.scrollInnerContent}
-            nestedScrollEnabled={true}
-            scrollEventThrottle={16}
-            onScroll={(e) => {
-              // L'entête suit le corps au pixel près : c'est ce qui remplace un `position: sticky`
-              // vertical impossible en React Native.
-              headerScrollRef.current?.scrollTo({ x: e.nativeEvent.contentOffset.x, animated: false });
-            }}
+            onScrollX={syncX}
           >
-            <View style={styles.tableWrap} ref={tableRef}>
+            <View style={[styles.tableWrap, deskTable && styles.tableWrapDesk, deskTable && { width: tableWidth }]} ref={tableRef}>
             <View style={styles.table}>
+              {deskTable && (
+                <View style={[styles.tableHeader, styles.deskStickyHeader]}>
+                  <View style={[styles.cell, styles.cellLabel, stickyLabel, stickyCorner, { width: labelWidth }]}>
+                    <Text style={styles.headerLabel} numberOfLines={1}>Poste</Text>
+                  </View>
+                  {planData.months.map((m) => (
+                    <View key={m.key} style={[styles.cell, styles.cellNum, styles.cellNumHeaderMonth, { width: colWidth }]}>
+                      <Text style={[styles.headerLabel, styles.headerLabelMonth, m.key === highlightMonthKey && styles.headerLabelCurrent]} numberOfLines={1}>
+                        {new Date(m.year, m.month - 1).toLocaleDateString('fr-FR', { month: 'short' })}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               {(() => {
                 const idx = planData.months.findIndex((m) => m.key === highlightMonthKey);
                 if (idx === -1) return null;
@@ -1157,7 +1219,7 @@ function TreasuryPlanBody() {
               ))}
             </View>
             </View>
-            </ScrollView>
+            </MaybeHScroll>
             </ScrollView>
             {/* Légende — hors des deux défilements : elle reste lisible pendant qu'on navigue dans
                 le tableau (c'est sa seule raison d'être). */}
@@ -1527,11 +1589,24 @@ function makeStyles(c: any) {
   /* BUREAU : la zone de lignes est bornée à la hauteur de la fenêtre. Sans borne, la barre de
      défilement horizontale se trouvait tout en bas du tableau — il fallait dérouler des dizaines de
      lignes pour changer de mois. Ici les deux ascenseurs restent à portée en permanence. */
-  scrollOuterDesktop: Platform.OS === 'web' ? ({ maxHeight: 'calc(100vh - 330px)', minHeight: 320 } as any) : {},
+  /* Le corps est borné à la fenêtre pour que le rail de défilement et la légende restent SOUS les
+     yeux, quelle que soit la longueur du tableau. La réserve couvre l'entête de page, la barre de
+     navigation des mois, l'entête du tableau, le rail et la légende. */
+  scrollOuterDesktop: Platform.OS === 'web' ? ({ maxHeight: 'calc(100vh - 370px)', minHeight: 280 } as any) : {},
   scrollInner: {},
   scrollInnerContent: {},
   // Entête sorti du défilement vertical : même fond que la carte, arrondis du haut.
   headerScroll: { flexGrow: 0, backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  /* BUREAU — UN SEUL conteneur, les deux axes. C'est la seule configuration où le figeage tient :
+     la barre horizontale se place au bas de CETTE boîte (donc toujours à l'écran, même en haut du
+     tableau), et il n'y a plus qu'un ancêtre scrollable, condition de `position: sticky`. */
+  deskScrollBox: Platform.OS === 'web' ? ({ overflow: 'auto', maxHeight: 'calc(100vh - 300px)', minHeight: 280 } as any) : {},
+  // Entête collé en haut DU conteneur ; fond opaque, sinon les lignes défilent visiblement dessous.
+  deskStickyHeader: Platform.OS === 'web'
+    ? ({ position: 'sticky', top: 0, zIndex: 3, backgroundColor: c.cardSolid ?? c.card } as any)
+    : {},
+  // `overflow: hidden` (arrondis) RENDAIT LE STICKY INOPÉRANT : on le retire en mode bureau.
+  tableWrapDesk: { overflow: 'visible', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: 0 },
   tableHeaderStandalone: {
     flexDirection: 'row',
     paddingVertical: 14,

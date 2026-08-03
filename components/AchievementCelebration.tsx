@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useGamification } from '../hooks/useGamification';
 import { useAppColors } from '../hooks/useAppColors';
 import { isAppReady, onAppReady } from '../lib/splashGate';
+import { useInterruptSlot } from '../hooks/useInterruptSlot';
 import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, formatCurrency, type BadgeDef } from '../lib/gamification';
 
 export default function AchievementCelebration() {
@@ -104,8 +105,15 @@ export default function AchievementCelebration() {
   // Affiche le suivant — seulement une fois l'app RÉELLEMENT révélée (splash effacé), avec un court
   // délai pour ne pas superposer la célébration à la transition d'arrivée. C'est ICI que le succès
   // est marqué célébré côté serveur : il est garanti vu (ou en cours d'affichage).
+  /* LA RÉCOMPENSE PASSE EN DERNIER. À l'ouverture après quelques jours, la clôture, le bilan du
+     mois et un changement de profil peuvent tous attendre leur tour : faire surgir des paillettes
+     par-dessus, c'est féliciter quelqu'un avant même de lui avoir dit où il en est. On attend donc
+     que toutes les sollicitations plus importantes soient traitées (cf. lib/interruptQueue) — le
+     succès n'est pas perdu pour autant : il n'est marqué « célébré » qu'à l'affichage. */
+  const myTurn = useInterruptSlot('achievement', !!current || queue.length > 0);
+
   useEffect(() => {
-    if (current || queue.length === 0 || !appReady) return;
+    if (current || queue.length === 0 || !appReady || !myTurn) return;
     const next = queue[0];
     const t = setTimeout(() => {
       setCurrent(next);
@@ -114,7 +122,7 @@ export default function AchievementCelebration() {
     }, 600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue, current, appReady]);
+  }, [queue, current, appReady, myTurn]);
 
   // Animation d'apparition + burst de paillettes.
   useEffect(() => {

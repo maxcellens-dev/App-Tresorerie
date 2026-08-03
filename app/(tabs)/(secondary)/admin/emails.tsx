@@ -11,7 +11,7 @@
  *    lien de désinscription) est appliquée par l'Edge Function, identique pour tous les envois.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, ScrollView, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +28,10 @@ import {
   useSendEmailCampaign, useDeleteEmailCampaign,
   type EmailAudience,
 } from '../../../../hooks/useEmailCampaigns';
+// Le MÊME rendu que celui de l'Edge Function : l'aperçu montre donc l'e-mail réel, pas une imitation.
+import {
+  renderRelykaEmail, looksLikeHtml, EMAIL_TEMPLATES,
+} from '../../../../supabase/functions/_shared/emailTemplate';
 
 const AUDIENCES: [EmailAudience, string][] = [
   ['all', 'Tous'], ['premium', 'Premium'], ['free', 'Gratuits'], ['group', 'Un groupe'],
@@ -49,6 +53,18 @@ export default function AdminEmails() {
   const [dateInput, setDateInput] = useState(formatDateFrench(todayISO()));
   const [timeInput, setTimeInput] = useState('09:00');
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(false);
+
+  /** Charge un gabarit — en écrasant, mais jamais sans prévenir si quelque chose est déjà écrit. */
+  const applyTemplate = (t: typeof EMAIL_TEMPLATES[number]) => {
+    const load = () => { setSubject(t.subject); setBody(t.body); };
+    if (!subject.trim() && !body.trim()) { load(); return; }
+    Alert.alert(
+      'Remplacer ce que tu as écrit ?',
+      `Le gabarit « ${t.label} » va prendre la place de l’objet et du message actuels.`,
+      [{ text: 'Annuler', style: 'cancel' }, { text: 'Remplacer', style: 'destructive', onPress: load }],
+    );
+  };
 
   const groups = useQuery({
     queryKey: ['user_groups_min'],
@@ -82,6 +98,17 @@ export default function AdminEmails() {
     d.setHours(h, Number.isNaN(m) ? 0 : m, 0, 0);
     return d.toISOString();
   };
+
+  const bodyIsHtml = looksLikeHtml(body);
+  /** L'e-mail COMPLET tel qu'il partira (lien de désinscription d'exemple). */
+  const previewHtml = useMemo(
+    () => renderRelykaEmail({
+      subject: subject.trim() || '(objet à écrire)',
+      body,
+      unsubUrl: 'https://relyka.app/desinscription?t=apercu',
+    }),
+    [subject, body],
+  );
 
   const canSubmit = subject.trim().length > 2 && body.trim().length > 5
     && (audience !== 'group' || !!groupId)
@@ -130,15 +157,45 @@ export default function AdminEmails() {
         <Text style={s.title}>E-mails</Text>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          {/* Points de départ — pas des carcans : tout reste modifiable ensuite. */}
+          <Text style={s.label}>Partir d’un gabarit</Text>
+          <View style={s.tplRow}>
+            {EMAIL_TEMPLATES.map((t) => (
+              <TouchableOpacity key={t.id} style={s.tplCard} onPress={() => applyTemplate(t)} activeOpacity={0.8}>
+                <Ionicons name="document-text-outline" size={16} color={COLORS.emerald} />
+                <Text style={s.tplName}>{t.label}</Text>
+                <Text style={s.tplHint}>{t.hint}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <Text style={s.label}>Objet</Text>
           <TextInput style={s.input} value={subject} onChangeText={setSubject} placeholder="Ex. Nouveautés de septembre" placeholderTextColor={COLORS.textSecondary} />
 
-          <Text style={s.label}>Message</Text>
+          <View style={s.labelRow}>
+            <Text style={[s.label, { marginTop: 12 }]}>Message</Text>
+            <View style={s.modeTag}>
+              <Ionicons name={bodyIsHtml ? 'code-slash-outline' : 'text-outline'} size={12} color={COLORS.textSecondary} />
+              <Text style={s.modeTagTxt}>{bodyIsHtml ? 'HTML' : 'Texte simple'}</Text>
+            </View>
+          </View>
           <TextInput
-            style={[s.input, s.textarea]} value={body} onChangeText={setBody} multiline
-            placeholder={'Écris ton message en texte simple.\n\nUne ligne vide crée un nouveau paragraphe. Le logo, le bouton et le lien de désinscription sont ajoutés automatiquement.'}
+            style={[s.input, s.textarea, bodyIsHtml && s.textareaMono]} value={body} onChangeText={setBody} multiline
+            placeholder={'Écris en texte simple (une ligne vide = un paragraphe), ou colle du HTML pour mettre en forme : titres, listes, gras, encadrés.\n\nLe logo, le bouton et le lien de désinscription sont ajoutés automatiquement autour.'}
             placeholderTextColor={COLORS.textSecondary}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
+          {/* Le rendu réel, pas une approximation : même fonction que celle qui envoie. */}
+          <TouchableOpacity
+            style={[s.previewBtn, !body.trim() && { opacity: 0.45 }]}
+            disabled={!body.trim()}
+            onPress={() => setPreview(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="eye-outline" size={16} color={COLORS.emerald} />
+            <Text style={s.previewTxt}>Aperçu de l’e-mail</Text>
+          </TouchableOpacity>
 
           <Text style={s.label}>Destinataires</Text>
           <View style={s.chipRow}>
@@ -214,6 +271,40 @@ export default function AdminEmails() {
           ))}
         </ScrollView>
       </SafeAreaView>
+
+      {/* APERÇU — rendu dans une iframe isolée sur le web : les styles de l'e-mail ne peuvent alors
+          ni fuir dans l'app, ni être écrasés par elle. Sur mobile natif il n'y a pas de moteur de
+          rendu HTML embarqué (pas de WebView dans le projet) : plutôt que de bricoler une
+          approximation qui mentirait sur le résultat, on l'annonce et on montre le HTML brut. */}
+      <Modal visible={preview} transparent animationType="fade" onRequestClose={() => setPreview(false)}>
+        <View style={s.pvOverlay}>
+          <View style={s.pvSheet}>
+            <View style={s.pvHead}>
+              <Text style={s.pvTitle}>Aperçu de l’e-mail</Text>
+              <TouchableOpacity onPress={() => setPreview(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            {Platform.OS === 'web' ? (
+              React.createElement('iframe', {
+                srcDoc: previewHtml,
+                title: 'Aperçu',
+                style: { flex: 1, width: '100%', border: 'none', borderRadius: 12, background: '#F4EFE6' },
+              })
+            ) : (
+              <ScrollView style={{ flex: 1 }}>
+                <Text style={s.pvNote}>
+                  L’aperçu visuel n’est disponible que depuis un navigateur. Voici le contenu qui sera envoyé :
+                </Text>
+                <Text style={s.pvCode} selectable>{previewHtml}</Text>
+              </ScrollView>
+            )}
+            <Text style={s.pvFoot}>
+              Rendu exact de l’envoi, lien de désinscription compris (ici d’exemple — chaque destinataire reçoit le sien).
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -233,6 +324,44 @@ function makeStyles(c: any) {
       ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
     },
     textarea: { minHeight: 150, textAlignVertical: 'top' },
+    // HTML : chasse fixe, plus petit — on lit du balisage, pas de la prose.
+    textareaMono: {
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : Platform.OS === 'android' ? 'monospace' : 'ui-monospace, SFMono-Regular, Menlo, monospace',
+      fontSize: 12.5, lineHeight: 18, minHeight: 220,
+    },
+    labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    modeTag: {
+      flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12,
+      paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+    },
+    modeTagTxt: { fontSize: 10.5, fontWeight: '700', color: c.textSecondary },
+
+    // Gabarits
+    tplRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+    tplCard: {
+      flexGrow: 1, flexBasis: 150, gap: 3, padding: 12, borderRadius: 12,
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+    },
+    tplName: { fontSize: 13, fontWeight: '800', color: c.text },
+    tplHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15 },
+
+    // Aperçu
+    previewBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10,
+      paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: c.emerald + '66', backgroundColor: c.emerald + '12',
+    },
+    previewTxt: { fontSize: 13.5, fontWeight: '700', color: c.emerald },
+    pvOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', padding: 16, justifyContent: 'center' },
+    pvSheet: {
+      flex: 1, maxWidth: 700, width: '100%', alignSelf: 'center',
+      backgroundColor: c.bg, borderRadius: 18, borderWidth: 1, borderColor: c.cardBorder, padding: 14, gap: 10,
+    },
+    pvHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    pvTitle: { fontSize: 17, fontWeight: '800', color: c.text },
+    pvNote: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 10 },
+    pvCode: { fontSize: 11, color: c.textSecondary, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+    pvFoot: { fontSize: 11, color: c.textSecondary, lineHeight: 16, textAlign: 'center' },
     chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 6 },
     chip: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },
     chipOn: { backgroundColor: c.emerald, borderColor: c.emerald },
