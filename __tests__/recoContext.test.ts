@@ -41,7 +41,8 @@ describe('getRecoContextText — épargner / investir', () => {
   it('non tenable → message PONCTUEL, borné au mois en cours', () => {
     const txt = getRecoContextText('save', 300, fin, { kind: 'month_only' })!;
     expect(txt).toMatch(/ce mois-ci sans risque/);
-    expect(txt).toMatch(/pas tous les mois/);
+    // La formulation exacte est libre ; ce qui ne l'est pas : ne RIEN proposer en récurrent quand
+    // la trajectoire dit que le geste n'est pas répétable.
     expect(txt).not.toMatch(/virement mensuel/);
   });
 

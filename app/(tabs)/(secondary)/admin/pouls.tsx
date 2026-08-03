@@ -139,7 +139,7 @@ export default function AdminPouls() {
             <ToggleRow
               styles={styles} COLORS={COLORS}
               label="État des lieux du mois"
-              help="Le bilan mensuel complet, une fois le mois précédent terminé. Prioritaire sur l’hebdo."
+              help="Le bilan du mois écoulé. Il n’arrive PAS le 1er : il attend que l’utilisateur ait clôturé tous ses mois en attente — sinon il porterait un jugement sur des chiffres qu’il n’a pas encore vérifiés. Tant qu’il est dû, l’hebdo se tait."
               value={draft.monthly}
               onChange={(v) => patch({ monthly: v })}
               last
@@ -167,6 +167,19 @@ export default function AdminPouls() {
             Un débutant n’est pas jugé sur l’investissement ; un profil confirmé n’a plus à prouver qu’il
             épargne. Choisis ce qui est montré à chacun — l’ordre de sélection est l’ordre d’affichage.
           </Text>
+          {/* Deux vues ont un ordre IMPOSÉ : le dire ici évite de chercher pourquoi le glisser-déposer
+              « ne marche pas » sur le bilan mensuel. */}
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
+            <Text style={styles.infoTxt}>
+              Deux exceptions à cet ordre. L’<Text style={{ fontWeight: '700' }}>hebdo</Text> ne garde que
+              3 signaux (dépenses, fin de mois, + celui du mois du profil). Le{' '}
+              <Text style={{ fontWeight: '700' }}>bilan mensuel</Text> suit un ordre fixe — récap du mois
+              (dépenses variables, matelas, épargne, investissement), puis « Ton projet », puis « Fin de
+              mois », puis le reste de ta sélection : lu après la clôture, il raconte le mois écoulé avant
+              de parler d’aujourd’hui.
+            </Text>
+          </View>
 
           <View style={styles.tabs}>
             {PROFILES.map((p) => {
@@ -282,6 +295,11 @@ function makeStyles(c: AppColors) {
     h2: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 24, marginBottom: 8 },
     p: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 10 },
     note: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic', marginTop: 8 },
+    infoBox: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12,
+      borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, padding: 12,
+    },
+    infoTxt: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14 },
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     fieldLabel: { fontSize: 14, fontWeight: '700', color: c.text },

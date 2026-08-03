@@ -89,6 +89,14 @@ export interface PilotageData {
   variable_envelope_spent: number;      // dépenses variables déjà engagées ce mois
   variable_envelope_remaining: number;  // = max(0, initial − spent) : reste à déduire du « Reste du mois »
   variable_envelope_source: 'history' | 'onboarding' | 'none';
+  /** Référence choisie par l'utilisateur (migration 164). */
+  variable_envelope_mode: 'auto' | 'estimate' | 'real';
+  /** Valeur de l'ESTIMATION déclarée (0 si rien de déclaré) — pour montrer l'autre mode. */
+  variable_estimate_value: number;
+  /** Valeur de la MOYENNE RÉELLE observée (0 si historique insuffisant). */
+  variable_real_value: number;
+  /** La moyenne réelle est-elle calculable (≥ 2 mois exploitables) ? */
+  variable_real_available: boolean;
   variable_envelope_months_used: number; // nb de mois d'historique utilisés (si source = history)
 
   // Step 3: Surplus & Recommendation
@@ -1034,20 +1042,34 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
   let variable_envelope_source: 'history' | 'onboarding' | 'none' = 'none';
   let variable_envelope_months_used = 0;
 
-  if (monthsWithData.length >= 2) {
-    const sum = monthsWithData.reduce((s, m) => s + variableByPastMonth[m.key], 0);
-    variable_envelope_initial = sum / monthsWithData.length;
+  /* RÉFÉRENCE CHOISIE PAR L'UTILISATEUR (migration 164). 'auto' = comportement historique : le réel
+     dès qu'il est calculable, sinon l'estimation déclarée. Les deux autres forcent, avec un
+     garde-fou : « réel » sans historique suffisant retombe sur l'estimation — on ne fabrique pas
+     une moyenne à partir d'un seul mois. Les DEUX valeurs sont calculées et exposées, pour que
+     l'écran puisse montrer « voilà ce que tu aurais dans l'autre mode ». */
+  const variableMode: 'auto' | 'estimate' | 'real' = ((profile as any)?.variable_envelope_mode ?? 'auto');
+  const declaredWeekly =
+    Number(profile?.weekly_variable_budget ?? 0) ||
+    weeklyVariableFromQ9(String(data.questionnaireAnswers?.q9 ?? ''));
+  const variable_estimate_value = declaredWeekly > 0 ? declaredWeekly * WEEKS_PER_MONTH : 0;
+  const variable_real_value = monthsWithData.length >= 2
+    ? monthsWithData.reduce((s, m) => s + variableByPastMonth[m.key], 0) / monthsWithData.length
+    : 0;
+  const realAvailable = monthsWithData.length >= 2;
+  const useReal = realAvailable && variableMode !== 'estimate';
+
+  if (useReal) {
+    variable_envelope_initial = variable_real_value;
     variable_envelope_source = 'history';
     variable_envelope_months_used = monthsWithData.length;
-  } else {
-    // Sans historique variable suffisant : question 4 du questionnaire (champ q9, hebdo → mensuel)
-    const weekly =
-      Number(profile?.weekly_variable_budget ?? 0) ||
-      weeklyVariableFromQ9(String(data.questionnaireAnswers?.q9 ?? ''));
-    if (weekly > 0) {
-      variable_envelope_initial = weekly * WEEKS_PER_MONTH;
-      variable_envelope_source = 'onboarding';
-    }
+  } else if (variable_estimate_value > 0) {
+    variable_envelope_initial = variable_estimate_value;
+    variable_envelope_source = 'onboarding';
+  } else if (realAvailable) {
+    // Mode « estimation » demandé mais rien de déclaré → le réel vaut mieux que rien.
+    variable_envelope_initial = variable_real_value;
+    variable_envelope_source = 'history';
+    variable_envelope_months_used = monthsWithData.length;
   }
 
   const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
@@ -1185,6 +1207,10 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     variable_envelope_spent,
     variable_envelope_remaining,
     variable_envelope_source,
+    variable_envelope_mode: variableMode,
+    variable_estimate_value,
+    variable_real_value,
+    variable_real_available: realAvailable,
     variable_envelope_months_used,
     projected_surplus,
     recommendation,

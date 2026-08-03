@@ -16,6 +16,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
 import { useCreditFlows } from '../../../hooks/useCreditFlows';
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
+import { buildOverrideMap, overrideKey as ovrKey } from '../../../lib/txOverrides';
 import { useCategories } from '../../../hooks/useCategories';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/useSharedAccounts';
@@ -303,13 +304,8 @@ function TransactionsListBody() {
   // Obtenir les mois consécutifs basé sur periodOffset (1 ou 3 selon singleMonth)
   const displayMonths = useMemo(() => getMonthsFromOffset(periodOffset, displayMonthCount), [periodOffset, displayMonthCount]);
 
-  const overrideMap = useMemo(() => {
-    const map: Record<string, { amount: number | null; date?: string | null }> = {};
-    overrides.forEach((o) => {
-      map[`${o.transaction_id}:${o.year}:${o.month}`] = { amount: o.override_amount, date: o.override_date };
-    });
-    return map;
-  }, [overrides]);
+  // Source unique de la lecture des overrides (montant, date, libellé, catégorie, compte).
+  const overrideMap = useMemo(() => buildOverrideMap(overrides), [overrides]);
 
   // Créer une liste de transactions affichées, incluant les transactions récurrentes instanciées
   const displayedTransactions = useMemo(() => {
@@ -329,18 +325,22 @@ function TransactionsListBody() {
         // Pour chaque mois affiché, calculer si cette récurrence s'applique
         for (const m of displayMonths) {
           const appliedAmount = addRecurrenceToMonth(m.year, m.month, Number(t.amount), t.date, t.recurrence_rule, t.recurrence_end_date ?? null, now);
-          const overrideKey = `${t.id}:${m.year}:${m.month}`;
-          const ovr = overrideMap[overrideKey];
+          const ovr = overrideMap[ovrKey(t.id, m.year, m.month)];
           const finalAmount = ovr && ovr.amount != null ? ovr.amount : appliedAmount;
           if (Math.abs(finalAmount) > 0) {
-            // Créer une instance de la transaction pour ce mois. #2 : si la date de CETTE échéance a
-            // été déplacée (override_date), l'occurrence s'affiche et se trie à la nouvelle date.
+            /* Instance de la transaction pour ce mois. Une échéance peut être modifiée POUR CE MOIS
+               SEULEMENT : montant, date (#2), et depuis la migration 163 libellé / catégorie /
+               compte. `category` et `account` (objets joints) sont vidés quand l'id change, sinon
+               la ligne afficherait l'ancien nom sous le nouvel identifiant. */
             result.push({
               ...t,
               displayDate: getMonthKey(m.year, m.month),
               amount: finalAmount,
               ...(ovr?.date ? { date: ovr.date } : {}),
-            });
+              ...(ovr?.note != null ? { note: ovr.note } : {}),
+              ...(ovr?.categoryId != null ? { category_id: ovr.categoryId, category: null } : {}),
+              ...(ovr?.accountId != null ? { account_id: ovr.accountId, account: null } : {}),
+            } as TransactionWithDetails & { displayDate?: string });
           }
         }
       } else {

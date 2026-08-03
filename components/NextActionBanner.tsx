@@ -11,6 +11,7 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAppState } from '../hooks/useAppState';
 import { useAppLockPrompt } from '../hooks/useAppLockPrompt';
 import type { AppAction, AppActionType } from '../lib/appStateEngine';
+import { openClosureModal } from './MonthlyClosure';
 
 // Dismiss de SESSION : réinitialisé au prochain lancement de l'app (module rechargé) → l'action
 // pertinente réapparaît. Ne pas persister (c'est voulu).
@@ -168,6 +169,10 @@ export default function NextActionBanner() {
       }).catch(() => {});
       return;
     }
+    /* Clôture : la modale vit sur le Pilotage, c'est-à-dire là où ce bandeau s'affiche. Naviguer
+       vers la même route ne la rouvre donc pas — on l'ouvre directement. Repli sur le deeplink si
+       elle n'est pas montée (bandeau affiché depuis un autre écran). */
+    if (action.type === 'soft_close' && openClosureModal()) return;
     if (action.deeplink) router.push(action.deeplink as any);
   };
   const onDismiss = () => {

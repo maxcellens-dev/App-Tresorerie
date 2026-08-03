@@ -34,6 +34,11 @@ export function useSetTransactionMonthOverride(profileId: string | undefined) {
       override_amount?: number | null;
       /** #2 — déplace l'occurrence de CE mois à une autre date (ISO), sans toucher la série. */
       override_date?: string | null;
+      /* Exceptions « cette échéance uniquement » (migration 163). `undefined` = on ne touche pas au
+         champ ; `null` = on RETIRE l'exception (retour à la valeur de la série). */
+      override_note?: string | null;
+      override_category_id?: string | null;
+      override_account_id?: string | null;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
       const { data, error } = await supabase
@@ -45,6 +50,9 @@ export function useSetTransactionMonthOverride(profileId: string | undefined) {
           month: input.month,
           ...(input.override_amount !== undefined ? { override_amount: input.override_amount } : {}),
           ...(input.override_date !== undefined ? { override_date: input.override_date } : {}),
+          ...(input.override_note !== undefined ? { override_note: input.override_note } : {}),
+          ...(input.override_category_id !== undefined ? { override_category_id: input.override_category_id } : {}),
+          ...(input.override_account_id !== undefined ? { override_account_id: input.override_account_id } : {}),
         }, {
           // La table est unique sur (transaction_id, year, month) — sans onConflict, l'upsert résout
           // sur la PK id et toute RE-modification d'une échéance déjà overridée partait en violation

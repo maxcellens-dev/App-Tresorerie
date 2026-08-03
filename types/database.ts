@@ -101,6 +101,8 @@ export interface Profile {
   safety_margin_amount?: number;
   /** Estimation hebdomadaire des dépenses variables (€/semaine). Saisi en Q9. Repli quand l'historique est insuffisant. */
   weekly_variable_budget?: number;
+  /** Référence des dépenses variables choisie par l'utilisateur (migration 164). */
+  variable_envelope_mode?: 'auto' | 'estimate' | 'real';
   financial_profile?: FinancialProfile;
   allocation_save_percent?: number;
   allocation_invest_percent?: number;
@@ -321,6 +323,11 @@ export interface TransactionMonthOverride {
   override_amount: number | null;
   /** #2 — déplace l'occurrence de ce mois à une autre date (ISO) sans toucher la série. */
   override_date?: string | null;
+  /* Exceptions « cette échéance uniquement » sur les autres champs (migration 163).
+     NULL = pas d'exception, le modèle fait foi. */
+  override_note?: string | null;
+  override_category_id?: string | null;
+  override_account_id?: string | null;
   created_at: string;
   updated_at: string;
 }

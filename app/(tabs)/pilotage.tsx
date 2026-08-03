@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 // ⚠️ Ne JAMAIS monter le <StatusBar> de react-native : react-native-keyboard-controller patche son
 // module natif, et le défaut `translucent: false` de RN écrase alors le `statusBarTranslucent` du
 // KeyboardProvider → barre blanche en haut + tout le contenu décalé. Utiliser expo-status-bar.
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalculatorButton from '../../components/CalculatorButton';
@@ -156,6 +156,10 @@ export default function PilotageScreen() {
   }, [categoriesList]);
   const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
   const showClosure = closureEnabled && pendingMonths.length > 0;
+  /* « Ouverture de l'app » = ce MONTAGE de l'écran (le Pilotage est la porte d'entrée). Un simple
+     changement d'onglet ne le remonte pas, donc la clôture ne se rouvre pas en boucle pendant la
+     session — elle revient à la prochaine ouverture, tant qu'un mois reste dû. */
+  const [appJustOpened] = useState(true);
   const { data: customTiers } = useRecommendationTiers();
   const { data: financialProfile } = useFinancialProfile(user?.id);
   const autoEval = useAutoProfileEvaluation(user?.id);
@@ -227,6 +231,14 @@ export default function PilotageScreen() {
   const [showVariableModal, setShowVariableModal] = useState(false);
   const [weeklyVariableInput, setWeeklyVariableInput] = useState('');
   const updateProfileVar = useUpdateProfile(user?.id);
+  /* ── Référence des dépenses variables : Auto / Estimation / Réel (migration 164) ────────────────
+     Le choix est LOCAL tant qu'il n'est pas enregistré (bouton dédié) : on ne veut pas qu'un tap
+     d'exploration réécrive le profil et fasse bouger le Relyka sous les yeux. À l'enregistrement,
+     on annonce le nouveau Relyka dans une pop-up — c'est la conséquence visible du choix, et elle
+     serait sinon noyée dans le tableau de bord derrière la modale. */
+  const [varModeDraft, setVarModeDraft] = useState<'auto' | 'estimate' | 'real' | null>(null);
+  const [savingVarMode, setSavingVarMode] = useState(false);
+  const [relykaShift, setRelykaShift] = useState<null | { before: number; after: number }>(null);
   // Modale d'édition de la marge de sécurité (comme dans Paramètres → profiles.safety_margin_amount)
   const [showMarginModal, setShowMarginModal] = useState(false);
   const [marginInput, setMarginInput] = useState('');
@@ -492,6 +504,39 @@ export default function PilotageScreen() {
     : null;
   /** Où le bouton de l'accueil emmène : là où l'étape se joue réellement. */
   const welcomeRoute = welcomeStep === 'recurring' ? '/(tabs)/transactions' : '/(tabs)/comptes';
+
+  /* Mode affiché = brouillon local s'il existe, sinon celui du profil. */
+  const varMode: 'auto' | 'estimate' | 'real' = varModeDraft ?? (pilotageData?.variable_envelope_mode ?? 'auto');
+  const setVarMode = (m: 'auto' | 'estimate' | 'real') => setVarModeDraft(m);
+  const varModeDirty = varModeDraft != null && varModeDraft !== (pilotageData?.variable_envelope_mode ?? 'auto');
+
+  async function saveVariableMode() {
+    if (!varModeDraft || savingVarMode) return;
+    setSavingVarMode(true);
+    const before = relykaAffiche;
+    try {
+      await updateProfileVar.mutateAsync({ variable_envelope_mode: varModeDraft });
+      // Le Relyka dépend de l'enveloppe : on attend la donnée RECALCULÉE pour l'annoncer, sinon on
+      // afficherait l'ancien chiffre comme s'il était le nouveau.
+      const fresh = await pilotageQuery.refetch();
+      const d: any = fresh.data;
+      if (d) {
+        const trough = d.cashflow_trough ?? d.current_checking_balance ?? 0;
+        const after = floorToTen(Math.max(0,
+          trough - (d.month_savings_future ?? 0) - (d.month_invest_future ?? 0)
+          - (d.monthly_reserve_planned ?? 0) - reservationsTotal - cumulsTotal
+          - (d.variable_envelope_remaining ?? 0) - (d.safety_margin_amount ?? 0)));
+        setRelykaShift({ before, after });
+      }
+      setVarModeDraft(null);
+    } catch (e) {
+      // Un échec silencieux laisserait l'utilisateur croire que son choix est enregistré alors que
+      // le Relyka ne bouge pas — exactement le symptôme « impossible d'enregistrer autre chose ».
+      Alert.alert('Un souci', e instanceof Error ? e.message : "Ton choix n'a pas pu être enregistré.");
+    } finally {
+      setSavingVarMode(false);
+    }
+  }
 
   /** Ouvre la SAISIE de l'estimation des dépenses variables (et non sa fiche de lecture). */
   const openVariableInput = () => {
@@ -902,7 +947,11 @@ export default function PilotageScreen() {
             <MonthlyClosure
               surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
               checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
-              autoOpen={routeParams.closure === '1'}
+              /* La clôture s'ouvre d'elle-même À CHAQUE OUVERTURE de l'app tant qu'un mois reste à
+                 clôturer : une bannière qu'on peut ignorer indéfiniment ne fait pas le travail, et
+                 chaque mois non clôturé dégrade les moyennes de tous les suivants. Elle reste
+                 refermable — c'est une invitation insistante, pas un mur. */
+              autoOpen={routeParams.closure === '1' || appJustOpened}
             />
           ) : tipsEnabled ? (
             <ConseilsBanner
@@ -1478,10 +1527,9 @@ export default function PilotageScreen() {
                             <Text style={[styles.detailRowValue, { color: semanticText(COLORS.orange, COLORS) }]}>{fmt(varLeft)}</Text>
                           </View>
 
-                          {/* D'où sort ce chiffre : enveloppe du mois, part déjà consommée, reste.
-                              Affiché même SANS enveloppe estimée (0 €) : c'est justement le cas où
-                              « 0 € » était incompréhensible — on montre alors ce qui a été dépensé
-                              en face de l'absence d'estimation. */}
+                          {/* D'où sort ce chiffre — version COMPACTE : une barre, et l'enveloppe /
+                              le dépensé / le reste sur UNE ligne au lieu de trois. Le modal tenait
+                              sur deux écrans de haut ; il tient maintenant d'un coup d'œil. */}
                           {(varEnvelope > 0 || varUsed > 0) && (
                             <View style={styles.envBlock}>
                               {varEnvelope > 0 && (
@@ -1489,40 +1537,99 @@ export default function PilotageScreen() {
                                   <View style={[styles.envBarFill, { width: `${Math.round(varRatio * 100)}%`, backgroundColor: barColor }]} />
                                 </View>
                               )}
-                              <View style={styles.envRow}>
-                                <Text style={styles.envLabel}>Enveloppe estimée du mois</Text>
-                                <Text style={[styles.envVal, { color: varEnvelope > 0 ? COLORS.text : COLORS.textSecondary }]}>
-                                  {varEnvelope > 0 ? fmt(varEnvelope) : 'non estimée'}
-                                </Text>
-                              </View>
-                              <View style={styles.envRow}>
-                                <Text style={styles.envLabel}>Déjà dépensé en variable</Text>
-                                <Text style={[styles.envVal, { color: barColor }]}>{fmt(varUsed)}</Text>
-                              </View>
-                              <View style={styles.envRow}>
-                                <Text style={styles.envLabel}>Reste estimé</Text>
-                                <Text style={[styles.envVal, { color: varLeft > 0 ? semanticText(COLORS.orange, COLORS) : COLORS.textSecondary }]}>{fmt(varLeft)}</Text>
+                              <View style={styles.envInline}>
+                                <View style={styles.envInlineItem}>
+                                  <Text style={styles.envInlineLabel}>Enveloppe</Text>
+                                  <Text style={[styles.envInlineVal, { color: varEnvelope > 0 ? COLORS.text : COLORS.textSecondary }]}>
+                                    {varEnvelope > 0 ? fmt(varEnvelope) : '—'}
+                                  </Text>
+                                </View>
+                                <View style={styles.envInlineItem}>
+                                  <Text style={styles.envInlineLabel}>Dépensé</Text>
+                                  <Text style={[styles.envInlineVal, { color: barColor }]}>{fmt(varUsed)}</Text>
+                                </View>
+                                <View style={styles.envInlineItem}>
+                                  <Text style={styles.envInlineLabel}>Reste</Text>
+                                  <Text style={[styles.envInlineVal, { color: varLeft > 0 ? semanticText(COLORS.orange, COLORS) : COLORS.textSecondary }]}>{fmt(varLeft)}</Text>
+                                </View>
                               </View>
                             </View>
                           )}
 
+                          {/* ── D'OÙ VIENT L'ENVELOPPE : le choix appartient à l'utilisateur ──────
+                              L'app décidait seule (réel dès 2 mois, sinon estimation). On expose les
+                              trois positions, avec la valeur de CHACUNE : on voit immédiatement ce
+                              qu'on gagnerait ou perdrait à basculer, au lieu de le deviner. */}
+                          <View style={styles.varModeRow}>
+                            {([
+                              ['auto', 'Auto', pilotageData.variable_real_available ? pilotageData.variable_real_value : pilotageData.variable_estimate_value],
+                              ['estimate', 'Estimation', pilotageData.variable_estimate_value],
+                              // « Calculé » et non « Réel » : c'est une MOYENNE de tes mois passés,
+                              // pas ce que tu as dépensé ce mois-ci. « Réel » laissait croire à un
+                              // relevé du mois en cours.
+                              ['real', 'Calculé', pilotageData.variable_real_value],
+                            ] as [ 'auto' | 'estimate' | 'real', string, number ][]).map(([key, label, value]) => {
+                              const on = varMode === key;
+                              const unavailable = key === 'real' && !pilotageData.variable_real_available;
+                              return (
+                                <TouchableOpacity
+                                  key={key}
+                                  style={[styles.varModeChip, on && styles.varModeChipOn, unavailable && { opacity: 0.45 }]}
+                                  onPress={() => !unavailable && setVarMode(key)}
+                                  disabled={unavailable}
+                                  activeOpacity={0.75}
+                                  accessibilityRole="button"
+                                >
+                                  <Text style={[styles.varModeLabel, on && styles.varModeLabelOn]}>{label}</Text>
+                                  <Text style={[styles.varModeValue, on && styles.varModeLabelOn]}>
+                                    {unavailable ? '2 mois requis' : value > 0 ? fmt(value) : '—'}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+
+                          {/* D'où sort le chiffre du mode ACTIF — la question qu'on se pose en
+                              voyant trois montants différents côte à côte. */}
+                          <Text style={styles.detailNote}>
+                            {varMode === 'auto'
+                              ? (pilotageData.variable_real_available
+                                  ? `Auto : dès que tu as 2 mois complets, Relyka bascule sur le calculé — ici la moyenne de tes ${pilotageData.variable_envelope_months_used} derniers mois (hors mois non clôturés).`
+                                  : 'Auto : tant que tu n’as pas 2 mois complets derrière toi, Relyka s’en tient à ton estimation. Il passera au calculé tout seul ensuite.')
+                              : varMode === 'real'
+                              ? `Calculé : moyenne de tes ${pilotageData.variable_envelope_months_used} derniers mois de dépenses variables (les mois non clôturés sont exclus).`
+                              : 'Estimation : le montant que tu as déclaré toi-même (ton budget hebdomadaire ramené au mois).'}
+                          </Text>
                           <Text style={styles.detailNote}>
                             {varEnvelope <= 0
-                              ? 'Aucun budget variable habituel n\'est encore estimé : tant qu\'il vaut 0 €, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation ci-dessous pour que le calcul démarre.'
+                              ? 'Aucun budget variable habituel n\'est encore estimé : tant qu\'il vaut 0 €, Relyka ne prévoit aucune dépense variable pour la fin du mois. Indique ton estimation pour que le calcul démarre.'
                               : varExhausted
-                              ? `Ton enveloppe variable du mois est déjà consommée (${fmt(varUsed)} sur ${fmt(varEnvelope)}) : c'est pour ça qu'il ne reste plus rien à prévoir de ce côté.`
-                              : pilotageData.variable_envelope_source === 'history'
-                              ? `Estimé d'après la moyenne de tes ${pilotageData.variable_envelope_months_used} derniers mois.`
-                              : 'Estimation que tu as indiquée — elle s\'ajustera à ton réel au fil des mois.'}
+                              ? `Enveloppe déjà consommée (${fmt(varUsed)} sur ${fmt(varEnvelope)}) : c'est pour ça qu'il ne reste rien à prévoir de ce côté.`
+                              : ''}
                           </Text>
-                          <TouchableOpacity
-                            style={styles.detailEditBtn}
-                            activeOpacity={0.7}
-                            onPress={() => { setDetailKey(null); openVariableInput(); }}
-                          >
-                            <Ionicons name="create-outline" size={15} color={COLORS.emerald} />
-                            <Text style={styles.detailEditBtnText}>Modifier l'estimation</Text>
-                          </TouchableOpacity>
+
+                          <View style={styles.varModeActions}>
+                            <TouchableOpacity
+                              style={styles.detailEditBtn}
+                              activeOpacity={0.7}
+                              onPress={() => { setDetailKey(null); openVariableInput(); }}
+                            >
+                              <Ionicons name="create-outline" size={15} color={COLORS.emerald} />
+                              <Text style={styles.detailEditBtnText}>Modifier l'estimation</Text>
+                            </TouchableOpacity>
+                            {varModeDirty && (
+                              <TouchableOpacity
+                                style={styles.varModeSave}
+                                activeOpacity={0.85}
+                                onPress={saveVariableMode}
+                                disabled={savingVarMode}
+                              >
+                                {savingVarMode
+                                  ? <ActivityIndicator size="small" color={COLORS.bg} />
+                                  : <><Ionicons name="checkmark" size={15} color={COLORS.bg} /><Text style={styles.varModeSaveText}>Enregistrer</Text></>}
+                              </TouchableOpacity>
+                            )}
+                          </View>
 
                           <View style={styles.suiviDivider} />
 
@@ -1916,6 +2023,31 @@ export default function PilotageScreen() {
         </Pressable>
       </Modal>
 
+      {/* Nouveau Relyka après changement de référence des variables — la conséquence du choix,
+          annoncée franchement plutôt que noyée derrière la modale de détail. */}
+      <Modal visible={!!relykaShift} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setRelykaShift(null)}>
+        <Pressable style={styles.detailOverlay} onPress={() => setRelykaShift(null)}>
+          <Pressable style={[styles.detailBox, { gap: 10 }]} onPress={() => {}}>
+            <Text style={styles.detailTitle}>Ton Relyka a été recalculé</Text>
+            <View style={styles.relykaShiftRow}>
+              <Text style={styles.relykaShiftOld}>{`${Math.round(relykaShift?.before ?? 0).toLocaleString("fr-FR")} ${CURRENCY_SYMBOL}`}</Text>
+              <Ionicons name="arrow-forward" size={18} color={COLORS.textSecondary} />
+              <Text style={styles.relykaShiftNew}>{`${Math.round(relykaShift?.after ?? 0).toLocaleString("fr-FR")} ${CURRENCY_SYMBOL}`}</Text>
+            </View>
+            <Text style={[styles.detailNote, { textAlign: 'center', marginTop: 8 }]}>
+              {(relykaShift && relykaShift.after === relykaShift.before)
+                ? 'Même montant : cette référence donnait déjà le même budget variable.'
+                : (relykaShift && relykaShift.after > relykaShift.before)
+                  ? 'Ta nouvelle référence prévoit moins de dépenses variables : il te reste donc plus à décider ce mois-ci.'
+                  : 'Ta nouvelle référence prévoit plus de dépenses variables : Relyka met davantage de côté pour elles.'}
+            </Text>
+            <TouchableOpacity style={styles.varModeSave} onPress={() => setRelykaShift(null)} activeOpacity={0.85}>
+              <Text style={styles.varModeSaveText}>Compris</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Modale : estimation hebdo des dépenses variables (alimente q9) */}
       <Modal
         visible={showVariableModal}
@@ -2179,6 +2311,30 @@ function makeStyles(c: AppColors) {
   envRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   envLabel: { fontSize: 12.5, color: c.textSecondary, fontWeight: '600', flexShrink: 1 },
   envVal: { fontSize: 13, fontWeight: '800' },
+  // Version compacte : enveloppe / dépensé / reste sur UNE ligne (au lieu de trois).
+  envInline: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  envInlineItem: { flex: 1, gap: 1 },
+  envInlineLabel: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600' },
+  envInlineVal: { fontSize: 13.5, fontWeight: '800' },
+  // Sélecteur de référence (Auto / Estimation / Réel)
+  varModeRow: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  varModeChip: {
+    flex: 1, alignItems: 'center', gap: 1, paddingVertical: 8, paddingHorizontal: 4,
+    borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+  },
+  varModeChipOn: { borderColor: c.emerald, backgroundColor: c.emerald + '18' },
+  varModeLabel: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary },
+  varModeValue: { fontSize: 12, fontWeight: '800', color: c.text },
+  varModeLabelOn: { color: c.emerald },
+  varModeActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  varModeSave: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14,
+  },
+  varModeSaveText: { fontSize: 13, fontWeight: '800', color: c.bg },
+  relykaShiftRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 6 },
+  relykaShiftOld: { fontSize: 15, color: c.textSecondary, textDecorationLine: 'line-through' },
+  relykaShiftNew: { fontSize: 26, fontWeight: '800', color: c.emerald },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.cardBorder },
   detailRowLabel: { fontSize: 14, color: c.text, fontWeight: '600' },
   detailRowSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },

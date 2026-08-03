@@ -655,7 +655,7 @@ const SEVERITY: Record<PulseStatus, number> = { good: 0, neutral: 0, estimated: 
  *    semaine à l'autre (dépenses, fin de mois, + l'épargne OU l'invest du mois selon le profil).
  *    Le patrimoine, le matelas ou les projets ne changent pas en 7 jours : ils restent au mensuel.
  */
-export type PulseKind = 'full' | 'week';
+export type PulseKind = 'full' | 'week' | 'month';
 
 /** Signaux qui ont du sens à l'échelle d'une semaine. */
 const WEEKLY_CANDIDATES: PulseSignalId[] = ['spending', 'end_of_month', 'saving', 'investing'];
@@ -669,6 +669,27 @@ function weeklyIds(profileIds: PulseSignalId[]): PulseSignalId[] {
   return ids.slice(0, 3);
 }
 
+/**
+ * ORDRE de l'ÉTAT DES LIEUX MENSUEL.
+ *
+ * Le bilan du mois se lit APRÈS la clôture, donc plusieurs jours (voire semaines) après la fin du
+ * mois concerné. Dans ce contexte, les signaux qui parlent de « maintenant » (patrimoine à date,
+ * jamais dans le rouge…) passent après ceux qui racontent le mois écoulé. On ouvre donc sur le
+ * MÊME TRIO que le point de la semaine — dépenses variables, épargne, investissement — puisque
+ * c'est le récapitulatif de ce qui s'est passé, en remplaçant « fin de mois » (qui n'a plus de
+ * sens une fois le mois fini) par le MATELAS DE SÉCURITÉ : le seul état qui compte à ce moment-là.
+ * Viennent ensuite « Ton projet » (s'il y en a), puis « Fin de mois », puis le reste du profil.
+ */
+const MONTHLY_LEAD: PulseSignalId[] = ['spending', 'cushion', 'saving', 'investing'];
+
+export function monthlyIds(profileIds: PulseSignalId[]): PulseSignalId[] {
+  const lead = MONTHLY_LEAD.filter((id) => id === 'spending' || id === 'cushion' || profileIds.includes(id));
+  const rest = profileIds.filter((id) => !lead.includes(id) && id !== 'projects' && id !== 'end_of_month');
+  const projects = profileIds.includes('projects') ? (['projects'] as PulseSignalId[]) : [];
+  const endOfMonth = profileIds.includes('end_of_month') ? (['end_of_month'] as PulseSignalId[]) : [];
+  return [...new Set<PulseSignalId>([...lead, ...projects, ...endOfMonth, ...rest])];
+}
+
 export function computePulse(
   inputs: PulseInputs,
   config: PulseConfig = DEFAULT_PULSE_CONFIG,
@@ -676,7 +697,9 @@ export function computePulse(
 ): PulseResult {
   const benchmark = config.benchmarks[inputs.profileId] ?? DEFAULT_PULSE_BENCHMARKS[inputs.profileId];
   const profileIds = config.signalsByProfile[inputs.profileId] ?? DEFAULT_PULSE_SIGNALS[inputs.profileId];
-  const ids = kind === 'week' ? weeklyIds(profileIds) : profileIds;
+  const ids = kind === 'week' ? weeklyIds(profileIds)
+    : kind === 'month' ? monthlyIds(profileIds)
+    : profileIds;
 
   const signals: PulseSignal[] = [];
   for (const id of ids) {

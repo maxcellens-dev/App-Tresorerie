@@ -118,9 +118,12 @@ export default function LoginScreen() {
             >
               <Text style={styles.btnLabel}>{loading ? 'Connexion…' : 'Se connecter par e-mail'}</Text>
             </TouchableOpacity>
+            {/* L'ancienne mention « pas de récupération automatique, contacte un administrateur »
+                était vraie tant qu'aucun SMTP n'était branché. Avec Brevo, le lien de
+                réinitialisation part vraiment : la laisser aurait dissuadé de s'en servir. */}
             <Text style={styles.emailNote}>
-              ℹ️ L'adresse e-mail n'est reliée à aucune messagerie : pas de récupération
-              automatique du mot de passe. En cas d'oubli, contacte un administrateur.
+              ℹ️ Tu recevras un e-mail pour confirmer ton adresse et pour réinitialiser ton mot de
+              passe si tu l'oublies.
             </Text>
             <TouchableOpacity style={styles.link} onPress={() => router.push('/reset-password')}>
               <Text style={[styles.linkText, { color: COLORS.textSecondary }]}>Mot de passe oublié ?</Text>

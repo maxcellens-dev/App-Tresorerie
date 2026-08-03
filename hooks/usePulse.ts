@@ -16,6 +16,7 @@ import { useReservations } from './useReservations';
 import { useFinancialProfile, useQuestionnaireAnswers } from './useFinancialProfile';
 import { usePulseConfig } from './usePulseConfig';
 import { useReliabilityConfig, deriveRelykaConfidence } from './useReliability';
+import { isRegul } from '../lib/regul';
 import { usePulseSnapshots } from './usePulseState';
 import { computePulse, monthKey, PULSE_SIGNAL_IDS, type PulseInputs, type PulseResult } from '../lib/pulseEngine';
 import { computeInvestmentGains } from '../lib/investment';
@@ -76,6 +77,9 @@ export interface PulseData {
   result: PulseResult;
   /** Le pouls HEBDO, léger (3 signaux max) — la carte de la semaine. */
   weekly: PulseResult;
+  /** L'état des lieux MENSUEL : mêmes signaux que `result`, réordonnés pour un bilan de fin de mois
+   *  (récap du mois d'abord, matelas à la place de « fin de mois », projets, puis le reste). */
+  monthly: PulseResult;
   /** TOUS les signaux calculés (au-delà de ceux affichés au profil) — pool de recherche du live :
    *  une saisie d'épargne doit pouvoir montrer la carte « Épargne » même si le profil ne l'affiche pas. */
   live: PulseResult;
@@ -348,6 +352,38 @@ function buildPulse(deps: PulseDeps): PulseData | null {
       (t) => !t.is_draft && String(t.date ?? '').slice(0, 7) === lastMonth,
     );
 
+    /* ── CHIFFRES DU MOIS ÉCOULÉ (pour l'état des lieux mensuel) ─────────────────────────────────
+       Recalculés depuis les transactions réelles du mois concerné, pas depuis les agrégats « du
+       mois en cours » du Pilotage. Mêmes définitions que celles du Suivi : les dépenses variables
+       sont les sorties non récurrentes hors virements/régul ; l'épargné / l'investi sont les
+       virements ARRIVÉS sur un compte d'épargne / d'investissement. */
+    const typeByAccount = new Map<string, string>((accounts as any[]).map((a) => [a.id, a.type]));
+    const inLastMonth = (t: any) => !t.is_draft && String(t.date ?? '').slice(0, 7) === lastMonth;
+    let lastMonthVariable = 0, lastMonthSaved = 0, lastMonthInvested = 0;
+    for (const t of transactions as any[]) {
+      if (!inLastMonth(t)) continue;
+      const amt = Number(t.amount) || 0;
+      if (t.linked_account_id) {
+        if (amt <= 0) continue;                                    // jambe ENTRANTE seulement
+        const destType = typeByAccount.get(t.account_id);
+        if (destType === 'savings') lastMonthSaved += amt;
+        else if (destType === 'investment') lastMonthInvested += amt;
+        continue;
+      }
+      if (isRegul(t)) continue;
+      // Dépense variable = sortie NON récurrente (une occurrence matérialisée porte materialized_from).
+      if (amt < 0 && !t.is_recurring && !t.materialized_from) lastMonthVariable += -amt;
+    }
+    const lastMonthInputs: PulseInputs = {
+      ...inputs,
+      spendingSoFar: lastMonthVariable,
+      savedThisMonth: lastMonthSaved,
+      investedThisMonth: lastMonthInvested,
+      // Le mois est FINI : plus rien n'est « prévu » dessus.
+      savingsPlannedThisMonth: 0,
+      investPlannedThisMonth: 0,
+    };
+
     // Pool LIVE : tous les signaux calculés (pas seulement ceux affichés au profil), pour que la
     // carte de saisie puisse montrer « Épargne » / « Investissement » quel que soit le profil.
     const allConfig = {
@@ -358,6 +394,12 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     return {
       result: computePulse(inputs, config, 'full'),
       weekly: computePulse(inputs, config, 'week'),
+      /* État des lieux MENSUEL : l'ordre du bilan de fin de mois, ET les chiffres DU MOIS ÉCOULÉ.
+         Le bilan se lit après la clôture — souvent à la mi-septembre pour août. Servi avec les
+         chiffres « à date », il aurait raconté septembre sous un titre parlant d'août : 3 jours de
+         dépenses variables au lieu du mois complet, et l'épargne du mois en cours à la place de
+         celle qu'on prétend récapituler. */
+      monthly: computePulse(lastMonthInputs, config, 'month'),
       live: computePulse(inputs, allConfig, 'full'),
       weeklyStats,
       profileId,

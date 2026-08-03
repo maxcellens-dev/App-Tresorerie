@@ -13,7 +13,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -28,10 +28,12 @@ import { pageColumn } from '../../../lib/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useAccounts } from '../../../hooks/useAccounts';
-import { useAddTransaction } from '../../../hooks/useTransactions';
+import { useAddTransaction, useTransactions } from '../../../hooks/useTransactions';
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
 import { currencySymbolFor } from '../../../lib/currency';
-import { todayISO } from '../../../lib/dateUtils';
+import { todayISO, formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
+import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import { sheetWidth } from '../../../lib/appLayout';
 
 export default function BalanceUpdateScreen() {
   const COLORS = useAppColors();
@@ -47,11 +49,33 @@ export default function BalanceUpdateScreen() {
   const goBack = useNavBack(params.origin || '/(tabs)/pilotage');
 
   const { data: accounts = [] } = useAccounts(user?.id);
+  const { data: transactions = [] } = useTransactions(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const recalibrate = useRecalibrateReliability(user?.id);
 
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  /* ── DATE DE RELEVÉ, obligatoire ───────────────────────────────────────────────────────────────
+     Cet écran datait TOUJOURS la régularisation d'aujourd'hui. Or le geste est le même que le
+     « Nouveau solde » d'une fiche de compte, qui lui demande la date : recopier un solde relevé
+     hier ou lundi dernier produisait ici une régularisation datée d'aujourd'hui, donc un écart
+     attribué aux mauvais jours (et une ancre de vérification fausse). On demande donc la date, et
+     on compare au solde REMONTÉ à cette date — exactement comme la fiche de compte. */
+  const [date, setDate] = useState(todayISO());
+  const [dateDisplay, setDateDisplay] = useState(formatDateFrench(todayISO()));
+  const [showCalendar, setShowCalendar] = useState(false);
+  const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayISO();
+
+  /** Solde d'un compte À LA DATE choisie = solde actuel − ce qui est passé depuis (hors brouillons/modèles). */
+  const balanceAtDate = React.useCallback((accountId: string, balance: number) => {
+    if (!dateValid) return balance;
+    const t0 = todayISO();
+    const after = (transactions as any[])
+      .filter((t) => t.account_id === accountId && !t.is_draft && !t.is_recurring && t.date > date && t.date <= t0)
+      .reduce((s, t) => s + Number(t.amount), 0);
+    return balance - after;
+  }, [transactions, date, dateValid]);
 
   /** Comptes courants actifs, dans l'ordre unique de l'app (principal → type → nom). */
   const checking = useMemo(
@@ -70,16 +94,19 @@ export default function BalanceUpdateScreen() {
       .map((a: any) => {
         const typed = num(inputs[a.id] ?? '');
         if (typed === null) return null;
-        return { account: a, target: typed, gap: typed - Number(a.balance) };
+        // Écart mesuré contre le solde À LA DATE du relevé, pas contre le solde d'aujourd'hui.
+        const known = balanceAtDate(a.id, Number(a.balance));
+        return { account: a, target: typed, gap: typed - known, known };
       })
-      .filter(Boolean) as { account: any; target: number; gap: number }[];
-  }, [checking, inputs]);
+      .filter(Boolean) as { account: any; target: number; gap: number; known: number }[];
+  }, [checking, inputs, balanceAtDate]);
 
   const totalGap = gaps.reduce((s, g) => s + g.gap, 0);
   const touched = gaps.length > 0;
 
   async function submit() {
     if (!user?.id || gaps.length === 0) return;
+    if (!dateValid) { Alert.alert('Date manquante', 'Indique la date à laquelle tu as relevé ce solde.'); return; }
     setSaving(true);
     try {
       for (const g of gaps) {
@@ -89,7 +116,7 @@ export default function BalanceUpdateScreen() {
           account_id: g.account.id,
           category_id: null,                 // une régul reste sans catégorie (le moteur de solde l'exige)
           amount: g.gap,
-          date: todayISO(),
+          date,
           note: 'Régularisation solde',
           is_recurring: false,
           regul_target: g.target,
@@ -123,6 +150,37 @@ export default function BalanceUpdateScreen() {
             <InfoDot term="maj_solde" size={14} />
           </Text>
 
+          {/* Date du relevé — obligatoire, comme sur la fiche d'un compte. */}
+          {checking.length > 0 && (
+            <View style={styles.dateCard}>
+              <Text style={styles.dateLabel}>Date du solde relevé</Text>
+              <View style={styles.dateRow}>
+                <TextInput
+                  style={[styles.dateInput, !dateValid && styles.dateInputError]}
+                  value={dateDisplay}
+                  onChangeText={(v) => {
+                    setDateDisplay(v);
+                    const iso = parseDateFromFrench(v);
+                    if (iso) setDate(iso);
+                  }}
+                  placeholder="jj-mm-aaaa"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <TouchableOpacity style={styles.dateBtn} onPress={() => setShowCalendar(true)} accessibilityRole="button">
+                  <Ionicons name="calendar-outline" size={18} color={COLORS.blue} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.dateHint}>
+                {dateValid
+                  ? (date === todayISO()
+                      ? 'Aujourd’hui. Les soldes ci-dessous sont ceux que Relyka connaît à cette date.'
+                      : 'Les soldes ci-dessous sont remontés à cette date : recopie le solde que ta banque affichait ce jour-là.')
+                  : 'Indique une date (jj-mm-aaaa), au plus tard aujourd’hui.'}
+              </Text>
+            </View>
+          )}
+
           {checking.length === 0 && (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
@@ -143,7 +201,7 @@ export default function BalanceUpdateScreen() {
                 </View>
 
                 <Text style={styles.known}>
-                  Connu par Relyka : {Number(a.balance).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {sym}
+                  Connu par Relyka {date !== todayISO() && dateValid ? `au ${dateDisplay}` : ''} : {balanceAtDate(a.id, Number(a.balance)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {sym}
                 </Text>
 
                 <View style={styles.inputRow}>
@@ -152,7 +210,7 @@ export default function BalanceUpdateScreen() {
                     value={inputs[a.id] ?? ''}
                     onChangeText={(v) => setInputs((p) => ({ ...p, [a.id]: v.replace(/[^0-9.,-]/g, '') }))}
                     keyboardType="decimal-pad"
-                    placeholder="Solde réel aujourd’hui"
+                    placeholder="Solde réel à cette date"
                     placeholderTextColor={COLORS.textSecondary}
                   />
                   <Text style={styles.unit}>{sym}</Text>
@@ -195,8 +253,8 @@ export default function BalanceUpdateScreen() {
 
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.cta, (!touched || saving) && { opacity: 0.45 }]}
-            disabled={!touched || saving}
+            style={[styles.cta, (!touched || !dateValid || saving) && { opacity: 0.45 }]}
+            disabled={!touched || !dateValid || saving}
             onPress={submit}
             activeOpacity={0.85}
           >
@@ -214,6 +272,28 @@ export default function BalanceUpdateScreen() {
           </Text>
         </View>
       </SafeAreaView>
+
+      {/* Calendrier — même composant et mêmes bornes que le « Nouveau solde » d'une fiche de compte. */}
+      <Modal visible={showCalendar} transparent animationType="fade" onRequestClose={() => setShowCalendar(false)}>
+        <Pressable style={styles.calOverlay} onPress={() => setShowCalendar(false)}>
+          <Pressable style={styles.calSheet} onPress={() => {}}>
+            <CalendarWithPicker
+              current={date}
+              maxDate={todayISO()}
+              onDayPress={(day: any) => {
+                setDate(day.dateString);
+                setDateDisplay(formatDateFrench(day.dateString));
+                setShowCalendar(false);
+              }}
+              markedDates={date ? { [date]: { selected: true, selectedColor: COLORS.blue, selectedTextColor: '#000' } } : {}}
+              accentColor={COLORS.blue}
+              bgColor={COLORS.card}
+              textColor={COLORS.text}
+              textSecondaryColor={COLORS.textSecondary}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -223,6 +303,28 @@ function makeStyles(c: any) {
     root: { flex: 1, backgroundColor: c.bg },
     content: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
     lede: { fontSize: 14.5, color: c.textSecondary, lineHeight: 21 },
+
+    // Date du relevé (obligatoire)
+    dateCard: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder,
+      borderRadius: 16, padding: 14, gap: 8,
+    },
+    dateLabel: { fontSize: 12.5, fontWeight: '700', color: c.text },
+    dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    dateInput: {
+      flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+      paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, color: c.text,
+      ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+    },
+    dateInputError: { borderColor: c.orange },
+    dateBtn: {
+      width: 46, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
+    },
+    dateHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
+    calOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+    calSheet: { ...sheetWidth, backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 10 },
+
 
     empty: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, padding: 18 },
     emptyText: { fontSize: 14, color: c.textSecondary, lineHeight: 20 },

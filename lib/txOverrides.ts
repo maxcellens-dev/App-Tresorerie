@@ -13,7 +13,16 @@ import type { TransactionMonthOverride } from '../types/database';
  * Après matérialisation, l'ancre du modèle est la prochaine occurrence NON échue : le mois de la
  * ligne brute EST donc le mois de l'occurrence à venir → la clé d'override se dérive de sa date.
  */
-export type OverrideMap = Record<string, { amount: number | null; date?: string | null }>;
+export interface OverrideEntry {
+  amount: number | null;
+  date?: string | null;
+  /* Exceptions « cette échéance uniquement » sur les autres champs (migration 163). */
+  note?: string | null;
+  categoryId?: string | null;
+  accountId?: string | null;
+}
+
+export type OverrideMap = Record<string, OverrideEntry>;
 
 export function overrideKey(transactionId: string, year: number, month: number): string {
   return `${transactionId}:${year}:${month}`;
@@ -22,7 +31,13 @@ export function overrideKey(transactionId: string, year: number, month: number):
 export function buildOverrideMap(overrides: TransactionMonthOverride[]): OverrideMap {
   const map: OverrideMap = {};
   for (const o of overrides) {
-    map[overrideKey(o.transaction_id, o.year, o.month)] = { amount: o.override_amount, date: o.override_date };
+    map[overrideKey(o.transaction_id, o.year, o.month)] = {
+      amount: o.override_amount,
+      date: o.override_date,
+      note: o.override_note,
+      categoryId: o.override_category_id,
+      accountId: o.override_account_id,
+    };
   }
   return map;
 }
@@ -52,6 +67,11 @@ export function applyMonthOverride<T extends { id: string; date: string; amount:
     instance_month: month,
     ...(ovr.amount != null ? { amount: Number(ovr.amount) } : {}),
     ...(ovr.date ? { date: ovr.date } : {}),
+    // Libellé / catégorie / compte de CETTE échéance (migration 163). On efface `category` (l'objet
+    // joint) quand la catégorie change : le laisser afficherait l'ancien nom sous le nouvel id.
+    ...(ovr.note != null ? { note: ovr.note } : {}),
+    ...(ovr.categoryId != null ? { category_id: ovr.categoryId, category: null } : {}),
+    ...(ovr.accountId != null ? { account_id: ovr.accountId, account: null } : {}),
   };
 }
 

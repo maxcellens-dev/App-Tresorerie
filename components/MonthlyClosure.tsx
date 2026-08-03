@@ -12,7 +12,7 @@ import { useAddTransaction, useTransactions } from '../hooks/useTransactions';
 import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../hooks/useMonthlyClosure';
 import { CURRENCY_SYMBOL } from '../lib/currency';
 import { prorateClosureGap, isRegul } from '../lib/regul';
-import { todayISO } from '../lib/dateUtils';
+import { todayISO, formatDateFrench, parseDateFromFrench } from '../lib/dateUtils';
 import { sheetWidth } from '../lib/appLayout';
 import { useRecalibrateReliability } from '../hooks/useReliability';
 
@@ -46,6 +46,22 @@ export function ClosureBannerCard({ pendingMonths, onPress }: { pendingMonths: s
   );
 }
 
+/**
+ * Ouverture IMPÉRATIVE de la modale (bandeau « prochain geste »).
+ *
+ * Le bandeau naviguait vers `/(tabs)/pilotage?closure=1`. Depuis le Pilotage — c'est-à-dire là où
+ * le bandeau s'affiche — cette navigation ne change rien : même route, même paramètre, aucun
+ * remontage. La modale, elle, ne se rouvre qu'au montage : après l'avoir fermée une fois, le
+ * bandeau devenait inerte jusqu'à un rechargement complet. Un appel direct règle ça sans dépendre
+ * du routeur (même schéma que `openPulse`).
+ */
+let openImperative: (() => void) | null = null;
+export function openClosureModal(): boolean {
+  if (!openImperative) return false;
+  openImperative();
+  return true;
+}
+
 export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [], autoOpen = false }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -55,10 +71,19 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   const { data: allTx = [] } = useTransactions(user?.id);
 
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<'direct' | 'balance'>('direct');
+  /* 'unknown' — « je ne sais pas ce que valait mon compte à la fin du mois ». L'utilisateur donne
+     le solde qu'il a AUJOURD'HUI (ou à une date de son choix, forcément postérieure à la fin du
+     mois) et dit lui-même comment il pense que l'écart se répartit entre le mois qu'on clôture et
+     le mois en cours. Sans ce mode, clôturer un mois ancien exigeait de reconstituer un solde
+     passé — ce que personne ne fait — ou de subir un prorata par jours qu'on ne lui demandait pas. */
+  const [mode, setMode] = useState<'direct' | 'balance' | 'unknown'>('direct');
+  /** Part de l'écart attribuée au mois CLÔTURÉ, en % (curseur). Défaut : le prorata par jours. */
+  const [unknownShare, setUnknownShare] = useState<number | null>(null);
+  const [unknownDate, setUnknownDate] = useState(todayISO());
   const [flash, setFlash] = useState(false);
   const [balances, setBalances] = useState<Record<string, string>>({}); // par compte courant
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Mois déjà clôturés dans cette session (avance immédiate au mois suivant, avant le refetch).
   const [closedLocally, setClosedLocally] = useState<string[]>([]);
 
@@ -69,10 +94,11 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   const hasChecking = checkingAccounts.length > 0;
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 
-  const openModal = () => { setClosedLocally([]); setMode('direct'); setFlash(false); setBalances({}); setOpen(true); };
-  const closeModal = () => { setOpen(false); setClosedLocally([]); setMode('direct'); setFlash(false); setBalances({}); };
+  const resetForm = () => { setMode('direct'); setFlash(false); setBalances({}); setUnknownShare(null); setUnknownDate(todayISO()); setError(null); };
+  const openModal = () => { setClosedLocally([]); resetForm(); setOpen(true); };
+  const closeModal = () => { setOpen(false); setClosedLocally([]); resetForm(); };
 
-  // Deeplink « Clôture ton mois » : ouvre la modale directement (une fois par montage).
+  // Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage.
   const autoOpened = React.useRef(false);
   React.useEffect(() => {
     if (autoOpen && enabled && pendingMonths.length > 0 && !autoOpened.current) {
@@ -81,6 +107,13 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpen, enabled, pendingMonths.length]);
+
+  // Ouverture à la demande depuis le bandeau « prochain geste » — sans passer par le routeur.
+  React.useEffect(() => {
+    openImperative = () => openModal();
+    return () => { openImperative = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const recalibrate = useRecalibrateReliability(user?.id);
 
@@ -109,6 +142,14 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
     return best ?? `${closeKey}-01`;
   };
 
+  /** Part (%) attribuée au mois clôturé : celle du curseur, sinon le prorata par jours suggéré. */
+  const unknownSharePct = (accId: string): number => {
+    if (unknownShare != null) return unknownShare;
+    if (!targetKey) return 50;
+    const pr = prorateClosureGap(100, lastVerifiedFor(accId, targetKey), unknownDate, targetKey);
+    return Math.round(Math.max(0, Math.min(100, pr.closingShare)));
+  };
+
   const confirm = async () => {
     if (!monthsToClose.length) return;
     setBusy(true);
@@ -130,6 +171,38 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             } as any);
             continue;
           }
+          if (mode === 'unknown') {
+            /* « Je ne sais pas » : le solde donné vaut à `unknownDate` (postérieure à la fin du
+               mois). L'écart est mesuré contre le solde REMONTÉ à cette date, puis réparti selon
+               le curseur — c'est l'utilisateur qui tranche, pas une règle qu'il n'a pas choisie. */
+            const raw = balances[acc.id];
+            if (raw == null || raw.trim() === '') continue;
+            const stated = parseFloat(raw.replace(',', '.'));
+            if (Number.isNaN(stated)) continue;
+            const afterDate = (allTx as any[])
+              .filter((t) => t.account_id === acc.id && !t.is_draft && !t.is_recurring && t.date > unknownDate && t.date <= t0)
+              .reduce((s, t) => s + Number(t.amount), 0);
+            const knownAtDate = acc.balance - afterDate;
+            const gap = stated - knownAtDate;
+            if (Math.abs(gap) <= 0.005) continue;
+            const pct = unknownSharePct(acc.id) / 100;
+            const closingPart = gap * pct;
+            const currentPart = gap - closingPart;
+            if (Math.abs(closingPart) > 0.005) {
+              await addTransaction.mutateAsync({
+                account_id: acc.id, category_id: null, amount: closingPart, date: monthEnd,
+                note: 'Régularisation clôture (mois)', is_recurring: false,
+              } as any);
+            }
+            if (Math.abs(currentPart) > 0.005) {
+              await addTransaction.mutateAsync({
+                account_id: acc.id, category_id: null, amount: currentPart, date: unknownDate,
+                note: 'Régularisation clôture (mois courant)', is_recurring: false,
+              } as any);
+            }
+            continue;
+          }
+
           // Mode « solde réel ».
           const raw = balances[acc.id];
           if (raw == null || raw.trim() === '') continue;
@@ -181,7 +254,11 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
         closeModal();
       }
     } catch (e) {
+      /* ⚠️ NE PLUS AVALER L'ÉCHEC. C'est ce `console.warn` muet qui a rendu le bug de la policy
+         UPDATE manquante (migration 162) invisible pendant des mois : les régularisations étaient
+         créées, la clôture échouait, et l'écran se contentait de ne pas avancer — sans rien dire. */
       console.warn('[closure] échec clôture:', e);
+      setError(e instanceof Error ? e.message : "La clôture n'a pas pu être enregistrée.");
     } finally {
       setBusy(false);
     }
@@ -231,11 +308,98 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                 <Text style={[styles.segText, mode === 'direct' && styles.segTextActive]}>Validation directe</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.seg, mode === 'balance' && styles.segActive]} onPress={() => setMode('balance')} disabled={!hasChecking}>
-                <Text style={[styles.segText, mode === 'balance' && styles.segTextActive]}>Ajuster le solde réel</Text>
+                <Text style={[styles.segText, mode === 'balance' && styles.segTextActive]}>Solde réel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.seg, mode === 'unknown' && styles.segActive]} onPress={() => setMode('unknown')} disabled={!hasChecking}>
+                <Text style={[styles.segText, mode === 'unknown' && styles.segTextActive]}>Je ne sais pas</Text>
               </TouchableOpacity>
             </View>
 
-            {mode === 'direct' ? (
+            {mode === 'unknown' ? (
+              <>
+                <Text style={styles.hint}>
+                  Tu ne sais plus ce que valait ton compte fin {targetKey ? monthLabel(targetKey) : ''} ? Donne simplement
+                  le solde que tu as sous les yeux : on le date, et tu dis toi-même quelle part de l'écart appartient
+                  à ce mois-là.
+                </Text>
+                <Text style={styles.label}>Date de ce solde</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formatDateFrench(unknownDate)}
+                  onChangeText={(v) => { const iso = parseDateFromFrench(v); if (iso) setUnknownDate(iso); }}
+                  placeholder="jj-mm-aaaa"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <Text style={styles.label}>
+                  {checkingAccounts.length > 1 ? 'Solde de chaque compte à cette date' : 'Solde de ton compte à cette date'}
+                </Text>
+                {checkingAccounts.map((acc) => (
+                  <View key={acc.id} style={styles.acctInputRow}>
+                    {checkingAccounts.length > 1 && <Text style={styles.acctName} numberOfLines={1}>{acc.name}</Text>}
+                    <TextInput
+                      style={[styles.input, checkingAccounts.length > 1 && { flex: 1, marginBottom: 0 }]}
+                      value={balances[acc.id] ?? ''}
+                      onChangeText={(v) => setBalances((p) => ({ ...p, [acc.id]: v.replace(/[^0-9.,-]/g, '') }))}
+                      keyboardType="decimal-pad"
+                      placeholder={`Ex. ${Math.round(acc.balance)}`}
+                      placeholderTextColor={COLORS.textSecondary}
+                    />
+                  </View>
+                ))}
+                {/* Curseur de répartition — la position de départ est le prorata par jours, mais
+                    c'est l'utilisateur qui tranche : lui seul sait si l'écart vient d'août ou de
+                    septembre. Pas de Slider natif dans l'app → 5 crans, tapables. */}
+                {(() => {
+                  const firstAcc = checkingAccounts[0];
+                  if (!firstAcc) return null;
+                  const pct = unknownSharePct(firstAcc.id);
+                  const gapOf = (acc: { id: string; balance: number }) => {
+                    const raw = balances[acc.id];
+                    if (raw == null || raw.trim() === '') return 0;
+                    const stated = parseFloat(raw.replace(',', '.'));
+                    if (Number.isNaN(stated)) return 0;
+                    const t0 = todayISO();
+                    const after = (allTx as any[])
+                      .filter((t) => t.account_id === acc.id && !t.is_draft && !t.is_recurring && t.date > unknownDate && t.date <= t0)
+                      .reduce((s, t) => s + Number(t.amount), 0);
+                    return stated - (acc.balance - after);
+                  };
+                  const totalGap = checkingAccounts.reduce((s, a) => s + gapOf(a), 0);
+                  if (Math.abs(totalGap) < 0.005) return null;
+                  return (
+                    <View style={styles.splitBox}>
+                      <Text style={styles.splitTitle}>
+                        Écart constaté : {fmt(totalGap)}. Quelle part vient de {targetKey ? monthLabel(targetKey) : 'ce mois'} ?
+                      </Text>
+                      <View style={styles.splitSteps}>
+                        {[0, 25, 50, 75, 100].map((v) => (
+                          <TouchableOpacity
+                            key={v}
+                            style={[styles.splitStep, Math.abs(pct - v) < 13 && styles.splitStepOn]}
+                            onPress={() => setUnknownShare(v)}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={[styles.splitStepText, Math.abs(pct - v) < 13 && styles.splitStepTextOn]}>{v} %</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <View style={styles.splitResult}>
+                        <Text style={styles.splitResultItem}>
+                          {targetKey ? monthLabel(targetKey) : ''} : <Text style={styles.splitResultVal}>{fmt(totalGap * (pct / 100))}</Text>
+                        </Text>
+                        <Text style={styles.splitResultItem}>
+                          Mois en cours : <Text style={styles.splitResultVal}>{fmt(totalGap * (1 - pct / 100))}</Text>
+                        </Text>
+                      </View>
+                      {unknownShare == null && (
+                        <Text style={styles.splitHint}>Proposition calculée au prorata des jours — corrige-la si tu sais mieux.</Text>
+                      )}
+                    </View>
+                  );
+                })()}
+              </>
+            ) : mode === 'direct' ? (
               <>
                 <Text style={styles.hint}>Tu as saisi toutes tes transactions ? Valide simplement la clôture.</Text>
                 {hasChecking && targetKey && (
@@ -327,7 +491,14 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
               <Text style={styles.lockNoteText}>La clôture enregistre une régularisation datée pour fiabiliser tes calculs. Rien n'est verrouillé : tu pourras toujours corriger plus tard.</Text>
             </View>
 
-            <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={confirm} disabled={busy}>
+            {!!error && (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle-outline" size={15} color={COLORS.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={() => { setError(null); confirm(); }} disabled={busy}>
               {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
             </TouchableOpacity>
           </View>
@@ -385,6 +556,25 @@ function makeStyles(c: any) {
     balanceValue: { fontSize: 17, fontWeight: '800', color: c.text },
     acctInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
     acctName: { fontSize: 13, fontWeight: '600', color: c.text, width: 110 },
+
+    // Mode « je ne sais pas » : répartition de l'écart entre le mois clôturé et le mois en cours.
+    splitBox: {
+      marginTop: 4, marginBottom: 10, gap: 8, padding: 12,
+      borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
+    },
+    splitTitle: { fontSize: 12.5, color: c.text, fontWeight: '700', lineHeight: 18 },
+    splitSteps: { flexDirection: 'row', gap: 6 },
+    splitStep: {
+      flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 10,
+      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg,
+    },
+    splitStepOn: { borderColor: c.emerald, backgroundColor: c.emerald + '20' },
+    splitStepText: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary },
+    splitStepTextOn: { color: c.emerald },
+    splitResult: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
+    splitResultItem: { fontSize: 12, color: c.textSecondary },
+    splitResultVal: { fontWeight: '800', color: c.text },
+    splitHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
     segRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     seg: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     segActive: { backgroundColor: c.emerald, borderColor: c.emerald },
@@ -402,6 +592,12 @@ function makeStyles(c: any) {
     previewBadgeText: { fontSize: 10, fontWeight: '800', color: c.emerald },
     lockNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.card, borderRadius: 10, padding: 10, marginTop: 16 },
     lockNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 16 },
+    errorBox: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 10,
+      borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12',
+      borderRadius: 12, padding: 11,
+    },
+    errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
     confirmText: { fontSize: 16, fontWeight: '700', color: c.bg },
     bilanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 28 },

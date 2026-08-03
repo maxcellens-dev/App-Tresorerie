@@ -186,6 +186,18 @@ function TreasuryPlanBody() {
   const paddingH = 24 * 2;
   const labelWidth = Math.min(200, Math.max(140, width - paddingH - 3 * MONTH_COL_WIDTH));
 
+  /* 1ʳᵉ COLONNE FIGÉE — `position: sticky`, donc WEB uniquement (React Native ne connaît pas cette
+     valeur ; on ne la pose donc que là où elle a un sens). Sur mobile, seule l'entête est figée,
+     ce qui est exactement ce qui est demandé : figer aussi la colonne y coûterait un second
+     défilement synchronisé pour un écran où l'on voit déjà 3 colonnes.
+     ⚠️ AUCUN fond posé ici : chaque ligne a déjà le sien (recette, dépense, section, total…) et en
+     plaquer un uniforme repeignait toute la colonne d'une couleur qui n'était pas la sienne. Le
+     fond opaque nécessaire au défilement est celui de la LIGNE, hérité naturellement. */
+  const stickyLabel: any = Platform.OS === 'web' ? { position: 'sticky', left: 0, zIndex: 2 } : null;
+  const stickyCorner: any = Platform.OS === 'web' ? { zIndex: 3 } : null;
+  /** Entête (hors défilement vertical) tenu aligné sur le défilement horizontal du corps. */
+  const headerScrollRef = React.useRef<ScrollView>(null);
+
   const [monthOffset, setMonthOffset] = useState(-1);
   const [editModalState, setEditModalState] = useState<{
     visible: boolean;
@@ -924,9 +936,42 @@ function TreasuryPlanBody() {
         {isLoading ? (
           <Text style={styles.hint}>Chargement…</Text>
         ) : (
+          /* ── LECTURE D'UN TABLEAU LARGE : entête et libellés doivent rester visibles ────────────
+             IMBRICATION D'ORIGINE (vertical > horizontal), et il faut s'y tenir : inverser les deux
+             plaçait un défilement vertical à l'intérieur d'un horizontal, dont la hauteur n'est
+             bornée par rien — sur mobile, le tableau ne défilait tout simplement plus.
+
+             On fige donc SANS toucher à la structure :
+              • l'ENTÊTE des mois est sorti du défilement vertical et posé au-dessus, dans son propre
+                défilement horizontal SYNCHRONISÉ sur celui du corps (pas d'imbrication, donc pas de
+                hauteur à deviner). Il reste visible sur les deux plateformes ;
+              • la 1ʳᵉ COLONNE est figée par `position: sticky` (web) — elle résout alors contre le
+                défilement horizontal, qui est bien son ancêtre scrollable direct. */
+          <>
+          {/* Entête synchronisé — hors du défilement vertical. */}
+          <ScrollView
+            ref={headerScrollRef}
+            horizontal
+            scrollEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            style={styles.headerScroll}
+          >
+            <View style={[styles.tableHeaderStandalone, { width: labelWidth + planData.months.length * colWidth }]}>
+              <View style={[styles.cell, styles.cellLabel, stickyLabel, stickyCorner, { width: labelWidth }]}>
+                <Text style={styles.headerLabel} numberOfLines={1}>Poste</Text>
+              </View>
+              {planData.months.map((m) => (
+                <View key={m.key} style={[styles.cell, styles.cellNum, styles.cellNumHeaderMonth, { width: colWidth }]}>
+                  <Text style={[styles.headerLabel, styles.headerLabelMonth, m.key === highlightMonthKey && styles.headerLabelCurrent]} numberOfLines={1}>
+                    {new Date(m.year, m.month - 1).toLocaleDateString('fr-FR', { month: 'short' })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
           <ScrollView
             ref={scrollOuterRef}
-            style={styles.scrollOuter}
+            style={[styles.scrollOuter, isDesktop && styles.scrollOuterDesktop]}
             contentContainerStyle={styles.scrollOuterContent}
             showsVerticalScrollIndicator={true}
             nestedScrollEnabled={true}
@@ -939,13 +984,19 @@ function TreasuryPlanBody() {
               />
             }
           >
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={true}
-              style={styles.scrollInner}
-              contentContainerStyle={styles.scrollInnerContent}
-              nestedScrollEnabled={true}
-            >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={true}
+            style={styles.scrollInner}
+            contentContainerStyle={styles.scrollInnerContent}
+            nestedScrollEnabled={true}
+            scrollEventThrottle={16}
+            onScroll={(e) => {
+              // L'entête suit le corps au pixel près : c'est ce qui remplace un `position: sticky`
+              // vertical impossible en React Native.
+              headerScrollRef.current?.scrollTo({ x: e.nativeEvent.contentOffset.x, animated: false });
+            }}
+          >
             <View style={styles.tableWrap} ref={tableRef}>
             <View style={styles.table}>
               {(() => {
@@ -965,26 +1016,6 @@ function TreasuryPlanBody() {
                   />
                 );
               })()}
-              <View style={styles.tableHeader}>
-                <View style={[styles.cell, styles.cellLabel, { width: labelWidth }]}>
-                  <Text style={styles.headerLabel} numberOfLines={1}>Poste</Text>
-                </View>
-                {planData.months.map((m) => (
-                  <View
-                    key={m.key}
-                    style={[
-                      styles.cell,
-                      styles.cellNum,
-                      styles.cellNumHeaderMonth,
-                      { width: colWidth },
-                    ]}
-                  >
-                    <Text style={[styles.headerLabel, styles.headerLabelMonth, m.key === highlightMonthKey && styles.headerLabelCurrent]} numberOfLines={1}>
-                      {new Date(m.year, m.month - 1).toLocaleDateString('fr-FR', { month: 'short' })}
-                    </Text>
-                  </View>
-                ))}
-              </View>
               {(simplified ? planData.rows.filter((r: any) => !r.isChild) : planData.rows).map((row, idx) => (
                 <React.Fragment key={row.label + String(row.categoryId) + idx}>
                   <View
@@ -1007,7 +1038,7 @@ function TreasuryPlanBody() {
                       row.isBlockStart && styles.tableRowBlockStart,
                     ]}
                   >
-                  <View style={[styles.cell, styles.cellLabel, { width: labelWidth }, row.isChild && styles.cellLabelIndent]}>
+                  <View style={[styles.cell, styles.cellLabel, stickyLabel, { width: labelWidth }, row.isChild && styles.cellLabelIndent]}>
                     <Text
                       style={[
                         styles.cellLabelText,
@@ -1127,7 +1158,9 @@ function TreasuryPlanBody() {
             </View>
             </View>
             </ScrollView>
-            {/* Légende — dans le scroll, sous le tableau */}
+            </ScrollView>
+            {/* Légende — hors des deux défilements : elle reste lisible pendant qu'on navigue dans
+                le tableau (c'est sa seule raison d'être). */}
             <View style={styles.legend}>
               <View style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
@@ -1150,7 +1183,7 @@ function TreasuryPlanBody() {
                 <Text style={styles.legendText}>Solde courant</Text>
               </View>
             </View>
-          </ScrollView>
+          </>
         )}
       </SafeAreaView>
 
@@ -1491,11 +1524,27 @@ function makeStyles(c: any) {
   hint: { color: c.textSecondary },
   scrollOuter: { flex: 1 },
   scrollOuterContent: { paddingBottom: 8 },
+  /* BUREAU : la zone de lignes est bornée à la hauteur de la fenêtre. Sans borne, la barre de
+     défilement horizontale se trouvait tout en bas du tableau — il fallait dérouler des dizaines de
+     lignes pour changer de mois. Ici les deux ascenseurs restent à portée en permanence. */
+  scrollOuterDesktop: Platform.OS === 'web' ? ({ maxHeight: 'calc(100vh - 330px)', minHeight: 320 } as any) : {},
   scrollInner: {},
   scrollInnerContent: {},
+  // Entête sorti du défilement vertical : même fond que la carte, arrondis du haut.
+  headerScroll: { flexGrow: 0, backgroundColor: c.card, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  tableHeaderStandalone: {
+    flexDirection: 'row',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148, 163, 184, 0.12)',
+  },
   scroll: { flex: 1 },
   tableWrap: {
-    borderRadius: 20,
+    // Les arrondis du HAUT appartiennent désormais à l'entête (qui vit au-dessus) : les répéter ici
+    // aurait dessiné une seconde coupure juste sous lui.
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
     overflow: 'hidden',
     backgroundColor: c.card,
     marginBottom: 24,

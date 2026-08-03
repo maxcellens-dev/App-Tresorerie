@@ -80,6 +80,8 @@ export function useUpdateProfile(profileId: string | undefined) {
       safety_margin_percent?: number;
       safety_margin_amount?: number;
       weekly_variable_budget?: number | null;
+      /** Référence des dépenses variables : auto | estimate | real (migration 164). */
+      variable_envelope_mode?: 'auto' | 'estimate' | 'real';
       financial_profile?: FinancialProfile;
       allocation_save_percent?: number;
       allocation_invest_percent?: number;
@@ -92,6 +94,8 @@ export function useUpdateProfile(profileId: string | undefined) {
       treso_simplified?: boolean;
       prudence_level?: number | null;
       notifications_enabled?: boolean;
+      /** Reçoit les e-mails NON essentiels (migration 165). */
+      email_opt_in?: boolean;
       equipped_cosmetics?: Record<string, string>;
     }) => {
       if (!supabase || !profileId) throw new Error('Non connecté');
@@ -110,10 +114,15 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.theme_mode !== undefined) updates.theme_mode = payload.theme_mode;
       if (payload.theme_preset !== undefined) updates.theme_preset = payload.theme_preset;
       if (payload.weekly_variable_budget !== undefined) updates.weekly_variable_budget = payload.weekly_variable_budget;
+      /* ⚠️ CETTE LISTE EST UNE LISTE BLANCHE : un champ absent d'ici est silencieusement IGNORÉ —
+         la mutation « réussit » sans rien écrire. Tout nouveau champ de profil doit être ajouté
+         à la fois au type ci-dessus ET ici. */
+      if (payload.variable_envelope_mode !== undefined) updates.variable_envelope_mode = payload.variable_envelope_mode;
       if (payload.currency_code !== undefined) updates.currency_code = payload.currency_code;
       if (payload.treso_simplified !== undefined) updates.treso_simplified = payload.treso_simplified;
       if (payload.prudence_level !== undefined) updates.prudence_level = payload.prudence_level;
       if (payload.notifications_enabled !== undefined) updates.notifications_enabled = payload.notifications_enabled;
+      if (payload.email_opt_in !== undefined) updates.email_opt_in = payload.email_opt_in;
       if (payload.equipped_cosmetics !== undefined) updates.equipped_cosmetics = payload.equipped_cosmetics;
 
       // Séparer safety_margin_amount pour éviter qu'un échec (colonne manquante avant

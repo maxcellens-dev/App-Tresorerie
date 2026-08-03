@@ -454,6 +454,26 @@ function SettingsScreen() {
               de l'appareil, et la « mise à jour » installe un correctif OTA — sur un navigateur,
               recharger la page suffit. Les proposer là-bas revenait à afficher trois interrupteurs
               sans effet. */}
+          {/* E-mails — visible AUSSI sur le web, contrairement aux notifications mobiles : un
+              e-mail arrive dans une boîte, quel que soit l'appareil depuis lequel on règle ça. */}
+          <Text style={styles.sectionTitle}>E-mails</Text>
+          <View style={styles.card}>
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Ionicons name="mail-outline" size={20} color={COLORS.textSecondary} />
+              <Text style={styles.rowLabel}>Recevoir les e-mails d’information</Text>
+              <Switch
+                value={(profile as any)?.email_opt_in ?? true}
+                onValueChange={(v) => updateProfile.mutate({ email_opt_in: v })}
+                trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
+                thumbColor="#ffffff"
+              />
+            </View>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
+              Les e-mails de sécurité (mot de passe, changement d’adresse) partent
+              toujours : sans eux, tu ne pourrais plus récupérer ton compte.
+            </Text>
+          </View>
+
           {!IS_WEB && (<>
           <Text style={styles.sectionTitle}>Application</Text>
           <View style={styles.card}>

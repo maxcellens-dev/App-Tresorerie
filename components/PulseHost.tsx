@@ -31,6 +31,7 @@ import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
 import { useGamification } from '../hooks/useGamification';
 import { usePulseSeen, useSavePulseSnapshot, type PulseSeenState } from '../hooks/usePulseState';
+import { useMonthlyClosure } from '../hooks/useMonthlyClosure';
 import { isAppReady, onAppReady } from '../lib/splashGate';
 import { PROFILE_INFO } from '../lib/financialProfileEngine';
 import { monthKey, weekKey, weekRangeLabel, type PulseResult, type PulseSignalId } from '../lib/pulseEngine';
@@ -59,6 +60,8 @@ export default function PulseHost() {
   const { data: profile } = useProfile(user?.id);
   const pulse = usePulse();
   const { seen, isLoading: seenLoading, markSeen } = usePulseSeen(user?.id);
+  // L'état des lieux attend que les clôtures soient faites (cf. l'effet d'auto-ouverture).
+  const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
   const saveSnapshot = useSavePulseSnapshot();
   // Série hebdo de suivi (la même que la flamme du header) — affichée en pied du Pouls hebdo.
   const { state: gamState } = useGamification(user?.id);
@@ -139,12 +142,22 @@ export default function PulseHost() {
     if (!canShow || view || !pulse) return;
     const monthSeen = seen.month === lastMonth || localSeen.current.month === lastMonth;
     const weekSeen = seen.week === currentWeek || localSeen.current.week === currentWeek;
-    // L'état des lieux du mois écoulé n'a de sens que si l'utilisateur l'a vécu dans l'app.
-    if (config?.monthly && pulse.hadActivityLastMonth && pulse.result.judgedCount > 0 && !monthSeen) {
+    /* L'ÉTAT DES LIEUX ARRIVE APRÈS LA CLÔTURE, pas le 1er du mois.
+       Au 1er, l'utilisateur n'a encore rien vérifié : ni régularisation, ni solde à jour. Le bilan
+       tombait donc sur des chiffres qu'il n'avait pas confirmés, et les seules cartes qui tenaient
+       debout étaient celles qui ne dépendent pas du mois écoulé. On attend qu'il n'y ait PLUS AUCUN
+       mois à clôturer : le bilan se lit alors sur des données qu'il vient lui-même de valider.
+       (Clôture désactivée en admin → on retombe sur l'ancien déclencheur, l'activité du mois.) */
+    const closureSettled = !closureEnabled || pendingMonths.length === 0;
+    if (config?.monthly && pulse.hadActivityLastMonth && pulse.monthly.judgedCount > 0 && !monthSeen && closureSettled) {
       open('month');
       return;
     }
-    if (config?.weekly && pulse.weekly.judgedCount > 0 && !weekSeen) {
+    /* Pas de hebdo tant qu'un état des lieux mensuel est DÛ : deux bilans coup sur coup, c'est une
+       sollicitation de trop. En fermant le mensuel, la semaine est consommée avec lui (cf. consume)
+       → le prochain hebdo sera celui de la semaine suivante. */
+    const monthlyDue = !!config?.monthly && pulse.hadActivityLastMonth && pulse.monthly.judgedCount > 0 && !monthSeen;
+    if (config?.weekly && pulse.weekly.judgedCount > 0 && !weekSeen && !monthlyDue) {
       open('week');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,8 +190,9 @@ export default function PulseHost() {
     localSeen.current = { week: currentWeek, month: lastMonth };
     markSeen.mutate({ month: lastMonth, week: currentWeek });
     saveSnapshot.mutate({
+      // On archive CE QUI A ÉTÉ MONTRÉ : la vue mensuelle réordonnée, pas l'état des lieux générique.
       periodKind: 'month', periodKey: lastMonth,
-      profileTier: pulse.profileId, result: pulse.result, wealth: pulse.wealth,
+      profileTier: pulse.profileId, result: pulse.monthly, wealth: pulse.wealth,
     });
     saveSnapshot.mutate({
       periodKind: 'week', periodKey: currentWeek,
@@ -266,7 +280,7 @@ export default function PulseHost() {
 
   if (!view || !pulse) return null;
 
-  const result: PulseResult = view === 'week' ? pulse.weekly : pulse.result;
+  const result: PulseResult = view === 'week' ? pulse.weekly : view === 'month' ? pulse.monthly : pulse.result;
   const info = PROFILE_INFO[pulse.profileId];
   const title = view === 'week' ? '🧭 Point de la semaine' : '🧭 État des lieux';
   // Les signaux décrivent TOUJOURS la situation d'aujourd'hui : le rendez-vous mensuel est un

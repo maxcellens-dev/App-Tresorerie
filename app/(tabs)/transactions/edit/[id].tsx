@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable, Keyboard } from 'react-native';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -125,9 +125,12 @@ export default function EditTransactionScreen() {
       setDate(occ);
       setDateDisplay(formatDateFrench(occ));
       initialDateRef.current = occ;
-      setNote(tx.note ?? '');
-      setAccountId(tx.account_id);
-      setCategoryId(tx.category_id ?? '');
+      /* Exceptions déjà posées sur CETTE échéance (migration 163) : sans ce pré-remplissage, rouvrir
+         l'échéance montrerait les valeurs de la série et un simple ré-enregistrement effacerait
+         silencieusement l'exception. */
+      setNote(currentInstanceOverride?.override_note ?? tx.note ?? '');
+      setAccountId(currentInstanceOverride?.override_account_id ?? tx.account_id);
+      setCategoryId(currentInstanceOverride?.override_category_id ?? tx.category_id ?? '');
       // Remboursement = montant positif sur une catégorie de dépense.
       const isRefundTx = tx.amount > 0 && (tx as any).category?.type === 'expense';
       setIsExpense(tx.amount < 0 || isRefundTx);
@@ -199,10 +202,43 @@ export default function EditTransactionScreen() {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }
 
+  /* ── PORTÉE D'UNE MODIFICATION SUR UNE RÉCURRENTE ──────────────────────────────────────────────
+     Changer le libellé, la catégorie ou le compte s'appliquait FORCÉMENT à toute la série : il n'y
+     avait aucun moyen de dire « ce mois-ci seulement ». On demande donc la portée, comme le font
+     les agendas — et on l'applique à TOUTES les modifications de cet enregistrement (montant
+     compris), pour ne pas écrire la moitié des changements sur l'échéance et l'autre sur la série.
+     La question n'est posée que si un champ AUTRE que le montant a bougé : une simple correction de
+     montant garde ses chemins existants (override d'échéance / « montant futur »). */
+  type EditScope = 'one' | 'future' | 'all';
+  const [scopeAsk, setScopeAsk] = useState<null | { isDraft: boolean }>(null);
+
+  const nonAmountChanged = React.useMemo(() => {
+    if (!tx) return false;
+    // Référence = les valeurs EFFECTIVES de l'échéance ouverte (exception si elle en a une, sinon
+    // la série). Comparer à la série seule aurait fait surgir la modale à l'ouverture d'une
+    // échéance déjà modifiée, sans que l'utilisateur ait rien touché.
+    const noteWas = ((currentInstanceOverride?.override_note ?? (tx as any).note) ?? '').trim();
+    const catWas = currentInstanceOverride?.override_category_id ?? tx.category_id ?? '';
+    const accWas = currentInstanceOverride?.override_account_id ?? tx.account_id;
+    return (note || '').trim() !== noteWas || categoryId !== catWas || accountId !== accWas;
+  }, [tx, note, categoryId, accountId, currentInstanceOverride]);
+
+  /** Mois de l'occurrence visée (celle ouverte, sinon l'ancre du modèle). */
+  const targetInstanceMonth = React.useMemo(() => {
+    if (instanceDate && /^\d{4}-\d{2}/.test(instanceDate)) return instanceDate.slice(0, 7);
+    return (tx?.date ?? '').slice(0, 7);
+  }, [instanceDate, tx?.date]);
+
   async function handleSubmitWithDraft(isDraft = false) {
     if (!id || !tx) return;
     setFormError(null);
     setErrorFields([]);
+
+    // Récurrente + un champ non-montant modifié → on demande d'abord la portée.
+    if (tx.is_recurring && tx.recurrence_rule && nonAmountChanged && !isDraft) {
+      setScopeAsk({ isDraft });
+      return;
+    }
 
     const num = parseFloat(amount.replace(',', '.'));
     if (Number.isNaN(num) || num === 0) {
@@ -399,6 +435,97 @@ export default function EditTransactionScreen() {
           is_draft: isDraft,
           is_recurring: isRecurring,
           recurrence_rule: isRecurring ? recurrenceRule : null,
+          recurrence_end_date: endDateISO,
+        });
+      }
+      closeEditor();
+    } catch (e: unknown) {
+      showError(e instanceof Error ? e.message : "Impossible d'enregistrer.");
+    }
+  }
+
+  /**
+   * Applique les modifications selon la PORTÉE choisie dans la modale.
+   *  • 'one'    — exceptions posées sur l'échéance du mois visé (migration 163). La série n'est pas
+   *               touchée : le mois suivant reprend ses valeurs d'origine.
+   *  • 'future' — la série est TRONQUÉE la veille de l'occurrence et une nouvelle série démarre à
+   *               cette date avec les nouvelles valeurs. Le passé garde ce qu'il valait.
+   *  • 'all'    — le modèle est modifié (comportement historique).
+   */
+  async function applyWithScope(scope: EditScope) {
+    if (!id || !tx) return;
+    setScopeAsk(null);
+    const num = parseFloat(amount.replace(',', '.'));
+    const finalAmount = isExpense ? (isRefund ? Math.abs(num) : -Math.abs(num)) : Math.abs(num);
+    const endDateISO = isRecurring && recurrenceEndDateInput.trim()
+      ? (parseDateFromFrench(recurrenceEndDateInput.trim()) || recurrenceEndDateInput.trim())
+      : null;
+    const [y, m] = targetInstanceMonth.split('-').map(Number);
+    const amountChanged = Math.abs(finalAmount - Number(tx.amount)) >= 0.01;
+
+    try {
+      if (scope === 'one') {
+        await setOverride.mutateAsync({
+          transaction_id: id, year: y, month: m,
+          override_note: (note || '').trim() || null,
+          override_category_id: categoryId ? categoryId : null,
+          override_account_id: accountId || null,
+          ...(amountChanged ? { override_amount: finalAmount } : {}),
+        });
+        closeEditor();
+        return;
+      }
+
+      if (scope === 'future') {
+        // Date d'effet = jour de l'occurrence visée (jour du modèle appliqué au mois visé).
+        const day = Math.min(Number((tx.date ?? '').slice(8, 10)) || 1, new Date(y, m, 0).getDate());
+        const effect = `${targetInstanceMonth}-${String(day).padStart(2, '0')}`;
+        const dayBeforeDate = new Date(`${effect}T00:00:00`);
+        dayBeforeDate.setDate(dayBeforeDate.getDate() - 1);
+        const dayBefore = toIsoDate(dayBeforeDate);
+        if (effect > (tx.date ?? '')) {
+          // La série d'origine s'arrête la veille ; une nouvelle prend le relais.
+          await updateTx.mutateAsync({ id, recurrence_end_date: dayBefore });
+          if (isVirement && pairedLeg) await updateTx.mutateAsync({ id: pairedLeg.id, recurrence_end_date: dayBefore });
+          const { error } = await supabase!.from('transactions').insert({
+            profile_id: user!.id,
+            account_id: accountId,
+            category_id: categoryId || null,
+            amount: finalAmount,
+            date: effect,
+            note: note || null,
+            is_forecast: false,
+            is_recurring: true,
+            recurrence_rule: recurrenceRule,
+            recurrence_end_date: endDateISO,
+            project_id: null,
+            linked_account_id: null,
+          });
+          if (error) throw error;
+          queryClient.invalidateQueries({ queryKey: ['transactions', user!.id] });
+          queryClient.invalidateQueries({ queryKey: ['pilotage_data', user!.id] });
+        } else {
+          // L'occurrence visée EST déjà le début de la série → « et les suivantes » = toute la série.
+          await updateTx.mutateAsync({
+            id, account_id: accountId, category_id: categoryId || null, amount: finalAmount,
+            note: note || undefined, is_recurring: true, recurrence_rule: recurrenceRule,
+            recurrence_end_date: endDateISO,
+          });
+        }
+        closeEditor();
+        return;
+      }
+
+      // 'all'
+      await updateTx.mutateAsync({
+        id, account_id: accountId, category_id: categoryId || null, amount: finalAmount,
+        date: tx.date, note: note || undefined, is_recurring: isRecurring,
+        recurrence_rule: isRecurring ? recurrenceRule : null, recurrence_end_date: endDateISO,
+      });
+      if (isVirement && pairedLeg) {
+        await updateTx.mutateAsync({
+          id: pairedLeg.id, amount: -finalAmount, note: note || undefined,
+          is_recurring: isRecurring, recurrence_rule: isRecurring ? recurrenceRule : null,
           recurrence_end_date: endDateISO,
         });
       }
@@ -904,6 +1031,47 @@ export default function EditTransactionScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
+
+        {/* PORTÉE d'une modification (libellé, catégorie, compte…) — mêmes trois choix que la
+            suppression, pour que le geste se lise pareil dans les deux sens. */}
+        <Modal visible={!!scopeAsk} transparent animationType="fade" onRequestClose={() => setScopeAsk(null)}>
+          <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setScopeAsk(null)}>
+            <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
+              <Text style={styles.confirmTitle}>Appliquer la modification à…</Text>
+              <Text style={styles.confirmMessage}>
+                Cette transaction se répète. Où veux-tu que ce changement s’applique ?
+              </Text>
+              <TouchableOpacity style={styles.recScopeBtn} onPress={() => applyWithScope('one')}>
+                <Ionicons name="remove-circle-outline" size={18} color={COLORS.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recScopeText}>Cette échéance uniquement</Text>
+                  <Text style={styles.recScopeHint}>
+                    {targetInstanceMonth
+                      ? `Seulement ${new Date(Number(targetInstanceMonth.slice(0, 4)), Number(targetInstanceMonth.slice(5, 7)) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}. Les autres mois ne bougent pas.`
+                      : 'Les autres mois ne bougent pas.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.recScopeBtn} onPress={() => applyWithScope('future')}>
+                <Ionicons name="arrow-forward-circle-outline" size={18} color={COLORS.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recScopeText}>Cette échéance et les suivantes</Text>
+                  <Text style={styles.recScopeHint}>Le passé garde ce qu’il valait.</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.recScopeBtn} onPress={() => applyWithScope('all')}>
+                <Ionicons name="repeat-outline" size={18} color={COLORS.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recScopeText}>Toute la série</Text>
+                  <Text style={styles.recScopeHint}>Y compris les échéances déjà passées à venir.</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.recScopeCancel} onPress={() => setScopeAsk(null)}>
+                <Text style={styles.confirmCancelText}>Annuler</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -1032,6 +1200,7 @@ function makeStyles(c: any) {
   confirmOkText: { fontWeight: '700', fontSize: 15 },
   recScopeBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, marginBottom: 10 },
   recScopeText: { fontSize: 14, fontWeight: '600', color: c.text, flex: 1 },
+  recScopeHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
   recScopeCancel: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
 });
 }
