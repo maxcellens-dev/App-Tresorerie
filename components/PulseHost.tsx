@@ -325,8 +325,11 @@ export default function PulseHost() {
   const monthCardSignals = view === 'month'
     ? result.signals.filter((s) => !MONTHLY_LEAD_IDS.includes(s.id) && !MONTHLY_HIDDEN_IDS.includes(s.id))
     : result.signals;
-  // L'anneau n'a de sens que s'il y a eu de quoi le remplir (sinon un cercle vide occupe la moitié).
-  const monthRingShown = !!pulse && pulse.monthlyStats.capacity >= 20;
+  /* L'anneau mensuel montre une RÉPARTITION : il n'a de sens que s'il y a quelque chose à répartir.
+     Le critère n'est donc plus la capacité du mois (celle de l'hebdo) mais la somme des trois
+     gestes — sans elle, on afficherait un cercle vide occupant la moitié de la carte. */
+  const monthRingShown = !!pulse
+    && (pulse.monthlyStats.saved + pulse.monthlyStats.invested + pulse.monthlyStats.kept) > 0;
   // Les signaux décrivent TOUJOURS la situation d'aujourd'hui : le rendez-vous mensuel est un
   // point d'étape « au sortir du mois écoulé », pas une photo du mois passé — le libellé le dit.
   const period = view === 'week'
@@ -455,7 +458,7 @@ export default function PulseHost() {
               {view === 'month' && monthLeadSignals.length > 0 && (
                 <View style={[styles.weekCard, { marginBottom: 12 }]}>
                   <View style={styles.weekRow}>
-                    {monthRingShown && <WeeklyRing stats={pulse.monthlyStats} COLORS={COLORS} />}
+                    {monthRingShown && <MonthlyRing stats={pulse.monthlyStats} COLORS={COLORS} />}
                     <View style={styles.weekStats}>
                       {monthLeadSignals.map((signal) => {
                         const color = pulseColor(COLORS, signal.status);
@@ -542,6 +545,64 @@ function weeklyRows(result: PulseResult, ringShown: boolean) {
 }
 
 /** L'anneau du Pouls hebdo : épargné (vert) + investi (violet) vs la capacité du mois. */
+/**
+ * L'anneau du BILAN MENSUEL — différent de celui de la semaine, et volontairement.
+ *
+ * L'hebdo mesure un REMPLISSAGE : « où en es-tu de ta capacité du mois ? », d'où un pourcentage et
+ * un anneau partiellement rempli. Le bilan mensuel, lui, regarde un mois TERMINÉ : il n'y a plus de
+ * capacité à atteindre, seulement une répartition à lire. L'anneau fait donc le tour complet et se
+ * partage entre les trois gestes — mis de côté, placé, conservé — chacun à sa part exacte.
+ * Au centre : le total, puisque c'est lui que les trois parts composent.
+ */
+function MonthlyRing({ stats, COLORS }: { stats: PulseData['monthlyStats']; COLORS: AppColors }) {
+  const size = 112;
+  const strokeWidth = 11;
+  const cx = size / 2;
+  const r = (size - strokeWidth) / 2;
+  const C = 2 * Math.PI * r;
+
+  const parts = [
+    { value: Math.max(0, stats.saved), color: COLORS.green },
+    { value: Math.max(0, stats.invested), color: COLORS.violet },
+    { value: Math.max(0, stats.kept), color: COLORS.blue },
+  ].filter((p) => p.value > 0);
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  // Un léger écart entre parts, seulement s'il y en a plusieurs (sinon on couperait un cercle plein).
+  const gap = parts.length > 1 ? 3 : 0;
+
+  let offset = 0;
+  const arcs = parts.map((p, i) => {
+    const len = Math.max(0, (C * p.value) / total - gap);
+    const arc = { len, offset, color: p.color, key: i };
+    offset += (C * p.value) / total;
+    return arc;
+  });
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={COLORS.cardBorder} strokeWidth={strokeWidth} />
+        {arcs.map((a) => (
+          <Circle
+            key={a.key}
+            cx={cx} cy={cx} r={r} fill="none"
+            stroke={a.color} strokeWidth={strokeWidth}
+            strokeDasharray={`${a.len} ${C - a.len}`}
+            strokeDashoffset={-a.offset}
+            transform={`rotate(-90 ${cx} ${cx})`}
+          />
+        ))}
+      </Svg>
+      <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
+        <Text style={{ fontSize: 19, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 }}>{eurFmt(total)}</Text>
+        <Text style={{ fontSize: 9, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 12, maxWidth: 78 }}>
+          non dépensés{'\n'}sur le mois
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function WeeklyRing({ stats, COLORS }: { stats: PulseData['weeklyStats']; COLORS: AppColors }) {
   const size = 112;
   const strokeWidth = 11;
