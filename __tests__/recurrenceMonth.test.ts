@@ -1,4 +1,4 @@
-import { buildMaterializedIndex, recurrenceForMonth, type RecurrenceTemplate } from '../lib/recurrenceMonth';
+import { buildMaterializedIndex, recurrenceForMonth, recurrenceOccurrencesInMonth, type RecurrenceTemplate } from '../lib/recurrenceMonth';
 
 // On se place le 15 juillet 2026 : une échéance au 5 est passée, une au 28 est à venir.
 const NOW = new Date(2026, 6, 15);
@@ -111,5 +111,42 @@ describe('buildMaterializedIndex', () => {
     ]);
     expect(i.get('loyer')).toEqual({ total: 900, count: 2, lastDate: '2026-07-20' });
     expect(i.size).toBe(1);
+  });
+});
+
+describe('recurrenceOccurrencesInMonth — projection pure (fiche de compte, « à venir »)', () => {
+  it('mensuelle en retard de matérialisation → occurrence du mois projetée', () => {
+    // Cas du COMPTE JOINT : le modèle d'un co-titulaire n'est avancé que quand LUI ouvre l'app.
+    expect(recurrenceOccurrencesInMonth(tpl({ date: '2026-04-28' }), 2026, 7)).toEqual(['2026-07-28']);
+  });
+
+  it('jour borné à la longueur du mois (le 31 → 28 en février)', () => {
+    expect(recurrenceOccurrencesInMonth(tpl({ date: '2026-01-31' }), 2026, 2)).toEqual(['2026-02-28']);
+  });
+
+  it('modèle qui démarre plus tard → rien ce mois', () => {
+    expect(recurrenceOccurrencesInMonth(tpl({ date: '2026-08-05' }), 2026, 7)).toEqual([]);
+  });
+
+  it('série terminée avant le mois (ou en cours de mois) → rien après la fin', () => {
+    expect(recurrenceOccurrencesInMonth(tpl({ date: '2026-01-05', recurrence_end_date: '2026-06-30' }), 2026, 7)).toEqual([]);
+    expect(recurrenceOccurrencesInMonth(tpl({ date: '2026-01-28', recurrence_end_date: '2026-07-10' }), 2026, 7)).toEqual([]);
+  });
+
+  it('trimestrielle : seulement les mois du cycle', () => {
+    const q = tpl({ date: '2026-01-15', recurrence_rule: 'quarterly' });
+    expect(recurrenceOccurrencesInMonth(q, 2026, 7)).toEqual(['2026-07-15']);
+    expect(recurrenceOccurrencesInMonth(q, 2026, 8)).toEqual([]);
+  });
+
+  it('annuelle : seulement le mois d’anniversaire', () => {
+    const y = tpl({ date: '2024-07-09', recurrence_rule: 'yearly' });
+    expect(recurrenceOccurrencesInMonth(y, 2026, 7)).toEqual(['2026-07-09']);
+    expect(recurrenceOccurrencesInMonth(y, 2026, 8)).toEqual([]);
+  });
+
+  it('hebdomadaire : toutes les occurrences du mois', () => {
+    const w = tpl({ date: '2026-07-03', recurrence_rule: 'weekly' });
+    expect(recurrenceOccurrencesInMonth(w, 2026, 7)).toEqual(['2026-07-03', '2026-07-10', '2026-07-17', '2026-07-24', '2026-07-31']);
   });
 });

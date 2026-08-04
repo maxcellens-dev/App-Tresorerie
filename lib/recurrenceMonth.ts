@@ -116,6 +116,52 @@ export function recurrenceForMonth(
 }
 
 /**
+ * DATES (ISO) des occurrences d'un modèle récurrent dans un mois donné — projection PURE, sans
+ * regarder les lignes réelles.
+ *
+ * Utile là où la matérialisation ne peut pas aider : `materialize_due_recurring` ne tourne que pour
+ * le PROPRIÉTAIRE du modèle. Sur un compte JOINT, le prélèvement récurrent d'un co-titulaire qui n'a
+ * pas ouvert l'app reste donc ancré dans le passé — son échéance du mois n'existe nulle part et
+ * n'apparaissait pas dans le « à venir » de la fiche du compte.
+ */
+export function recurrenceOccurrencesInMonth(t: RecurrenceTemplate, year: number, month: number): string[] {
+  const rule = t.recurrence_rule;
+  const anchor = String(t.date ?? '').slice(0, 10);
+  if (!rule || !/^\d{4}-\d{2}-\d{2}$/.test(anchor)) return [];
+  const mm = String(month).padStart(2, '0');
+  const dim = new Date(year, month, 0).getDate();
+  const monthStart = `${year}-${mm}-01`;
+  const monthEnd = `${year}-${mm}-${String(dim).padStart(2, '0')}`;
+  const end = t.recurrence_end_date ? String(t.recurrence_end_date).slice(0, 10) : null;
+  if (anchor > monthEnd || (end && end < monthStart)) return [];
+
+  if (rule === 'weekly') {
+    const out: string[] = [];
+    const d = new Date(anchor + 'T00:00:00');
+    for (let i = 0; i < 400; i++) {
+      const s = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (s > monthEnd) break;
+      if (s >= monthStart && (!end || s <= end)) out.push(s);
+      d.setDate(d.getDate() + 7);
+    }
+    return out;
+  }
+
+  const anchorIdx = Number(anchor.slice(0, 4)) * 12 + Number(anchor.slice(5, 7)) - 1;
+  const monthIdx = year * 12 + month - 1;
+  const occurs =
+    rule === 'monthly' ? true
+    : rule === 'quarterly' ? (monthIdx - anchorIdx) % 3 === 0
+    : rule === 'yearly' ? Number(anchor.slice(5, 7)) === month
+    : false;
+  if (!occurs) return [];
+  // Une récurrente du 31 tombe le 28/29 en février (jour borné à la longueur du mois).
+  const day = Math.min(Number(anchor.slice(8, 10)) || 1, dim);
+  const date = `${year}-${mm}-${String(day).padStart(2, '0')}`;
+  return end && date > end ? [] : [date];
+}
+
+/**
  * Montant SIGNÉ d'un modèle récurrent sur un mois DONNÉ (passé ou futur), échéance modifiée
  * comprise. C'est la projection « à plat » : contrairement à `recurrenceForMonth`, elle ne
  * s'appuie pas sur les lignes réelles — elle sert à PROJETER des mois où rien n'existe encore

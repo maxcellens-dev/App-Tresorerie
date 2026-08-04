@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
+import { useResponsive } from '../hooks/useResponsive';
 import { useAuth } from '../contexts/AuthContext';
 import { useCredits } from '../hooks/useCredits';
 import { useCreditInvitations, useRespondCreditInvitation, useSharedCreditsRealtime } from '../hooks/useSharedCredits';
@@ -37,11 +38,43 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   const [showType, setShowType] = useState(false);
   useEffect(() => { if (openCreateSignal) setShowType(true); }, [openCreateSignal]);
   const fmt = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  /** Récap : euros pleins (pas de centimes sur un cumul de crédits). */
+  const money = (v: number) => Math.round(v).toLocaleString('fr-FR') + ' €';
   const today = todayISO();
+  // ≥ 768 px (web bureau/tablette, tablette native) : le récap tient sur une seule ligne.
+  const oneLine = !useResponsive().isCompact;
 
   const own = credits.filter((c) => !c._role || c._role === 'owner');
   const shared = credits.filter((c) => c._role && c._role !== 'owner');
-  const totalCRD = useMemo(() => own.filter((c) => c.is_active && !c.is_simulation).reduce((s, c) => s + computeAmortization(c).crdAtDate(today), 0), [credits, today]);
+
+  /* Récap global des crédits perso actifs (hors simulation). Le seul « capital restant dû » ne
+     disait pas ce qu'il reste réellement à sortir du compte : on coupe donc chaque échéancier à
+     aujourd'hui. « Reste à payer » et « Déjà payé » sont des ÉCHÉANCES, assurance comprise (ce qui
+     quitte le compte) ; « Intérêts restants » est la part d'intérêts des échéances à venir. */
+  const recap = useMemo(() => {
+    let crd = 0, interestLeft = 0, leftToPay = 0, paid = 0;
+    for (const c of own) {
+      if (!c.is_active || c.is_simulation) continue;
+      const a = computeAmortization(c);
+      crd += a.crdAtDate(today);
+      for (const r of a.schedule) {
+        const due = r.payment + r.insurance;
+        if (r.date <= today) paid += due;
+        else { leftToPay += due; interestLeft += r.interest; }
+      }
+    }
+    return { crd, interestLeft, leftToPay, paid };
+  }, [credits, today]);
+
+  /* Les 4 chiffres du récap, dans l'ordre de lecture. Montants ARRONDIS à l'euro : sur un total de
+     crédits, les centimes n'apportent rien et rendaient la grille illisible (le détail d'un crédit,
+     lui, garde ses centimes). Couleurs : ce qui coûte en orange, ce qui est acquis en vert. */
+  const recapCells = [
+    { label: 'Capital restant', value: recap.crd, color: COLORS.text, lead: true },
+    { label: 'Intérêts restants', value: recap.interestLeft, color: COLORS.orange },
+    { label: 'Reste à payer', value: recap.leftToPay, color: COLORS.text, lead: true },
+    { label: 'Déjà payé', value: recap.paid, color: COLORS.emerald },
+  ];
 
   const row = (c: Credit, idx: number, isShared: boolean) => {
     const a = computeAmortization(c);
@@ -68,9 +101,30 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   return (
     <View style={styles.wrap}>
       {own.length > 0 && (
-        <View style={styles.summary}>
-          <Text style={styles.summaryLabel}>Capital restant dû</Text>
-          <Text style={styles.summaryValue}>{fmt(totalCRD)}</Text>
+        // Écran large (web bureau / tablette) : les 4 chiffres tiennent sur UNE ligne, séparés par
+        // des filets. Téléphone : la grille se replie en 2 × 2 sans changer de code (flexWrap).
+        <View style={[styles.summary, !oneLine && styles.summaryWrap]}>
+          {recapCells.map((cell, i) => (
+            <View
+              key={cell.label}
+              style={[
+                styles.summaryCell,
+                oneLine ? styles.summaryCellFlex : styles.summaryCellHalf,
+                (oneLine ? i > 0 : i % 2 === 1) && styles.summaryCellSepLeft,
+                !oneLine && i >= 2 && styles.summaryCellSepTop,
+              ]}
+            >
+              <Text style={styles.summaryLabel} numberOfLines={1}>{cell.label}</Text>
+              <Text
+                style={[styles.summaryValue, cell.lead && styles.summaryValueLead, { color: cell.color }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {money(cell.value)}
+              </Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -143,9 +197,18 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
 function makeStyles(c: any) {
   return StyleSheet.create({
     wrap: { paddingHorizontal: 16, paddingTop: 8 },
-    summary: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, marginBottom: 12 },
-    summaryLabel: { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
-    summaryValue: { fontSize: 18, fontWeight: '800', color: c.text },
+    summary: { flexDirection: 'row', paddingVertical: 4, paddingHorizontal: 4, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, marginBottom: 12 },
+    summaryWrap: { flexWrap: 'wrap' },
+    summaryCell: { paddingVertical: 7, paddingHorizontal: 11 },
+    summaryCellFlex: { flex: 1 },
+    summaryCellHalf: { width: '50%' },
+    summaryCellSepLeft: { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.cardBorder },
+    summaryCellSepTop: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.cardBorder },
+    summaryLabel: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600', letterSpacing: 0.2 },
+    // Montants alignés à DROITE : les ordres de grandeur se comparent d'un coup d'œil, colonne
+    // par colonne, sans lire les chiffres (les unités sont les unes sous/à côté des autres).
+    summaryValue: { fontSize: 13, fontWeight: '700', marginTop: 2, textAlign: 'right' },
+    summaryValueLead: { fontSize: 14, fontWeight: '800' },
     sectionLabel: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginTop: 16, marginBottom: 8, paddingHorizontal: 4 },
     list: { borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, overflow: 'hidden' },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },

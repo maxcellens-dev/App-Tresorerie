@@ -29,7 +29,9 @@ import { useAllAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
 import { useAccountParticipants, useAccountMembers } from '../../../hooks/useSharedAccounts';
 import { useAllTransactions, useAddTransaction } from '../../../hooks/useTransactions';
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
-import { buildOverrideMap, applyMonthOverrides } from '../../../lib/txOverrides';
+import { useCreditFlows } from '../../../hooks/useCreditFlows';
+import { buildOverrideMap, applyMonthOverrides, overrideKey } from '../../../lib/txOverrides';
+import { recurrenceOccurrencesInMonth } from '../../../lib/recurrenceMonth';
 import { computeContributed } from '../../../lib/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
 import { useAppColors } from '../../../hooks/useAppColors';
@@ -87,10 +89,15 @@ export default function AccountDetailScreen() {
   // la ligne : sans ça, la fiche du compte affichait l'ancien montant d'une transaction que la page
   // Transactions montrait déjà modifiée (même transaction, deux valeurs).
   const { data: overrides = [] } = useTransactionMonthOverrides(user?.id);
+  const overrideMap = useMemo(() => buildOverrideMap(overrides), [overrides]);
   const transactions = useMemo(
-    () => applyMonthOverrides(rawTransactions as TransactionWithDetails[], buildOverrideMap(overrides)),
-    [rawTransactions, overrides],
+    () => applyMonthOverrides(rawTransactions as TransactionWithDetails[], overrideMap),
+    [rawTransactions, overrideMap],
   );
+  // Échéances de crédit FUTURES : ce ne sont pas des lignes en base tant qu'elles ne sont pas échues
+  // (matérialisation, migration 143) → sans elles, un prélèvement de crédit du 28 n'apparaissait
+  // nulle part sur la fiche du compte. Vue COMPTE → montant RÉEL, non pondéré par le % d'impact.
+  const creditFlows = useCreditFlows(user?.id, false);
   const addTransaction = useAddTransaction(user?.id);
   const updateAccount = useUpdateAccount(user?.id);
   const recalibrate = useRecalibrateReliability(user?.id);
@@ -415,11 +422,43 @@ export default function AccountDetailScreen() {
   const upcomingThisMonth = useMemo(() => {
     const today = todayISO();
     const monthPrefix = today.slice(0, 7);
-    return ((transactions as TransactionWithDetails[]) ?? [])
-      .filter((t) => t.account_id === id && !(t as any).is_draft
-        && (t.date ?? '') > today && (t.date ?? '').startsWith(monthPrefix))
-      .sort((x, y) => (x.date ?? '').localeCompare(y.date ?? ''));
-  }, [id, transactions]);
+    const year = Number(monthPrefix.slice(0, 4));
+    const month = Number(monthPrefix.slice(5, 7));
+    const all = ((transactions as TransactionWithDetails[]) ?? []);
+    const inWindow = (d?: string | null) => !!d && d > today && d.startsWith(monthPrefix);
+
+    // 1) Lignes RÉELLES déjà datées après aujourd'hui. Un modèle récurrent à jour en fait partie :
+    //    la matérialisation l'ancre sur sa prochaine occurrence non échue.
+    const rows: any[] = all.filter((t) => t.account_id === id && !(t as any).is_draft && inWindow(t.date));
+
+    // 2) Récurrentes que la matérialisation n'a PAS avancées : `materialize_due_recurring` ne tourne
+    //    que pour le propriétaire du modèle. Sur un compte JOINT, le prélèvement d'un co-titulaire
+    //    qui n'a pas ouvert l'app reste ancré dans le passé → son échéance du mois n'apparaissait
+    //    nulle part. On la projette, sauf si une occurrence de ce mois est déjà matérialisée.
+    const materializedThisMonth = new Set(
+      all.filter((t) => (t as any).materialized_from && (t.date ?? '').startsWith(monthPrefix))
+        .map((t) => (t as any).materialized_from as string),
+    );
+    for (const t of all) {
+      if (t.account_id !== id || !(t as any).is_recurring || !(t as any).recurrence_rule) continue;
+      if (inWindow(t.date) || materializedThisMonth.has(t.id)) continue; // déjà couvert par une ligne réelle
+      const ovr = overrideMap[overrideKey(t.id, year, month)];
+      const amount = ovr?.amount != null ? Number(ovr.amount) : Number(t.amount);
+      if (!amount) continue;
+      for (const occ of recurrenceOccurrencesInMonth(t as any, year, month)) {
+        const date = ovr?.date || occ;
+        if (date <= today || !date.startsWith(monthPrefix)) continue;
+        rows.push({ ...(t as any), amount, date, _virtual: true, instance_month: monthPrefix });
+      }
+    }
+
+    // 3) Échéances de crédit à venir (virtuelles jusqu'à leur date, cf. useCreditFlows).
+    for (const f of creditFlows) {
+      if (f.account_id === id && inWindow(f.date)) rows.push({ ...f, _virtual: true });
+    }
+
+    return rows.sort((x, y) => (x.date ?? '').localeCompare(y.date ?? ''));
+  }, [id, transactions, creditFlows, overrideMap]);
   const upcomingTotal = useMemo(
     () => upcomingThisMonth.reduce((sum, t) => sum + Number(t.amount), 0),
     [upcomingThisMonth],
@@ -639,16 +678,22 @@ export default function AccountDetailScreen() {
         </Text>
         {txLoading ? (
           <ActivityIndicator size="small" color={COLORS.emerald} style={styles.loader} />
-        ) : accountTransactions.length === 0 ? (
+        ) : (showUpcoming ? upcomingThisMonth : accountTransactions).length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="document-text-outline" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>Aucune transaction sur ce compte.</Text>
+            <Text style={styles.emptyText}>
+              {showUpcoming ? 'Plus rien à venir ce mois sur ce compte.' : 'Aucune transaction sur ce compte.'}
+            </Text>
           </View>
         ) : (
           <View style={styles.listCard}>
             {(showUpcoming ? upcomingThisMonth : visibleTransactions).map((t, idx) => {
               const amount = Number(t.amount);
-              const isTransfer = t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transactions as TransactionWithDetails[], id));
+              // Ligne PROJETÉE (échéance de crédit ou récurrente pas encore matérialisée) : aucune
+              // ligne réelle derrière → pas d'appariement de virement, et le détail n'a rien à ouvrir.
+              const isVirtual = !!(t as any)._virtual;
+              const creditId = (t as any).credit_id as string | undefined;
+              const isTransfer = !isVirtual && t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transactions as TransactionWithDetails[], id));
               const pair = isTransfer
                 ? ((transactions as TransactionWithDetails[]).find(
                     (p) =>
@@ -672,14 +717,18 @@ export default function AccountDetailScreen() {
                 <TouchableOpacity
                   key={`${t.id}-${idx}`}
                   style={[styles.transferRow, idx === (showUpcoming ? upcomingThisMonth : visibleTransactions).length - 1 && styles.transferRowLast]}
-                  onPress={() => setSelectedTxId(t.id)}
+                  onPress={() => {
+                    if (creditId) { router.push(`/(tabs)/comptes/credit/${creditId}` as any); return; }
+                    if (!isVirtual) setSelectedTxId(t.id);
+                  }}
+                  disabled={isVirtual && !creditId}
                   activeOpacity={0.7}
                 >
                   <Ionicons name={(isTransfer ? VIREMENT_ICON : iconForCategory(t.category)) as any} size={16} color={COLORS.textSecondary} style={{ marginRight: 10 }} />
                   <View style={styles.transferLeft}>
                     <Text style={styles.transferDate}>
                       {new Date(t.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {isSharedView ? ` - par ${authorOf(t)}` : ''}
+                      {isSharedView && !creditId ? ` - par ${authorOf(t)}` : ''}
                     </Text>
                     <Text style={[styles.transferLabel, t.category?.name === 'Projets' && { color: COLORS.blue }]}>{label}</Text>
                     {isRegulRow(t) && (t as any).regul_target != null && (
@@ -704,7 +753,7 @@ export default function AccountDetailScreen() {
 
         {/* Pagination de l'historique — la période affichée est nommée, pour que l'utilisateur
             sache qu'il ne manque rien : c'est masqué, pas absent. */}
-        {!txLoading && accountTransactions.length > 0 && (
+        {!txLoading && !showUpcoming && accountTransactions.length > 0 && (
           <View style={styles.historyFooter}>
             <Text style={styles.historyRange}>
               {`${visibleTransactions.length} opération${visibleTransactions.length > 1 ? 's' : ''} depuis ${historySince}`}

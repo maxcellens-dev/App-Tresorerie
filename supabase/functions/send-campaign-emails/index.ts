@@ -3,8 +3,12 @@
 //
 // Deux façons de l'appeler :
 //   • ADMIN, avec { campaign_id } → envoie CETTE campagne (bouton « Envoyer maintenant ») ;
-//   • CRON, avec l'en-tête X-Cron-Secret → envoie toutes les campagnes `scheduled` dont l'heure
-//     est passée. C'est ce qui rend la programmation possible sans serveur dédié.
+//   • CRON, avec le secret partagé (`Authorization: Bearer <CRON_SECRET>` ou `X-Cron-Secret`) →
+//     envoie toutes les campagnes `scheduled` dont l'heure est passée. C'est ce qui rend la
+//     programmation possible sans serveur dédié.
+//
+// ⚠️ À DÉPLOYER SANS VÉRIF JWT (`--no-verify-jwt`, cf. README) : sinon la passerelle Supabase
+// renvoie 401 AVANT d'exécuter la fonction, puisque le secret du cron n'est pas un JWT valide.
 //
 // Sécurité : la clé Brevo ne quitte JAMAIS le serveur (secret Edge Function). L'appelant humain
 // doit être admin — re-vérifié ici, jamais sur la foi du client.
@@ -108,13 +112,19 @@ async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: s
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (req.method !== 'POST') return json({ error: 'method' }, 405);
   if (!BREVO_KEY) return json({ error: 'BREVO_API_KEY manquant côté serveur' }, 500);
 
   const admin = createClient(URL_, SERVICE);
-  const cronHeader = req.headers.get('x-cron-secret') ?? '';
+  // Le secret CRON est accepté sur les DEUX en-têtes : `X-Cron-Secret`, et `Authorization: Bearer`
+  // comme les autres crons du projet (send-scheduled-notifications, refresh-currency-rates) — c'est
+  // le seul en-tête que beaucoup d'ordonnanceurs savent envoyer. Un JWT utilisateur ne peut pas
+  // valoir CRON_SECRET, donc l'appel admin plus bas n'est pas affecté.
+  const cronHeader = req.headers.get('x-cron-secret')
+    ?? req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+    ?? '';
 
-  // ── Appel CRON : envoie tout ce qui est dû. ──
+  // ── Appel CRON : envoie tout ce qui est dû. Toute méthode acceptée (les ordonnanceurs
+  //    appellent souvent en GET) — le contrôle, c'est le secret. ──
   if (CRON_SECRET && cronHeader === CRON_SECRET) {
     const { data: due } = await admin.from('email_campaigns')
       .select('id').eq('status', 'scheduled').lte('scheduled_at', new Date().toISOString());
@@ -127,7 +137,8 @@ serve(async (req) => {
     return json({ ok: true, campaigns: (due ?? []).length, sent: total, errors });
   }
 
-  // ── Appel ADMIN. ──
+  // ── Appel ADMIN (bouton « Envoyer maintenant »). ──
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
   const asUser = createClient(URL_, ANON, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } });
   const { data: { user } } = await asUser.auth.getUser();
   if (!user) return json({ error: 'unauthenticated' }, 401);
