@@ -110,25 +110,72 @@ export interface CosmeticDef {
 }
 
 /** Mappe la clé d'article cosmétique → emplacement + effet. */
+/* ── PALETTE COMMUNE aux cadres d'avatar et aux flammes de série ────────────────────────────────
+   Une seule palette pour les deux emplacements COLORÉS : chaque teinte existe en cadre ET en flamme,
+   au même prix et au même niveau de rareté. Sans ça, on aboutissait à ce qu'on avait — une flamme
+   violette sans cadre assorti, un cadre argenté sans flamme, un doré à 80 en cadre et 90 en flamme —
+   c'est-à-dire une collection qu'on ne peut pas assortir et des prix qu'on ne peut pas expliquer.
+
+   Quatre niveaux de rareté, un prix par niveau, tous emplacements confondus. */
+export const COSMETIC_PALETTE = {
+  silver:  { hex: '#C0C0C0', label: 'argenté',  labelF: 'argentée' },
+  gold:    { hex: '#f59e0b', label: 'doré',     labelF: 'dorée'    },
+  blue:    { hex: '#3B82F6', label: 'bleu',     labelF: 'bleue'    },
+  emerald: { hex: '#10B981', label: 'émeraude', labelF: 'émeraude' },
+  neon:    { hex: '#D946EF', label: 'néon',     labelF: 'néon'     },
+  red:     { hex: '#F43F5E', label: 'rouge',    labelF: 'rouge'    },
+  /* « Prestige » = le VIOLET (et non plus le rouge). C'est la teinte la plus rare, celle qui n'a
+     pas de nom de couleur mais un nom de rang. Le rouge redevient une teinte comme une autre.
+     ⚠️ Les CLÉS d'inventaire ne suivent pas ce renommage — elles ne peuvent pas bouger sans changer
+     la couleur des articles déjà achetés. `cosmetic_*_violet` porte donc le nom « prestige », et
+     `cosmetic_*_prestige` porte le nom « rouge ». Se fier au `hex`, jamais au nom de la clé. */
+  prestige: { hex: '#8B5CF6', label: 'prestige', labelF: 'prestige' },
+} as const;
+
+/** Prix par niveau de rareté. Un cadre et une flamme de même teinte coûtent le MÊME prix. */
+export const COSMETIC_TIER_PRICE = { commun: 70, rare: 90, epique: 220, legendaire: 350 } as const;
+/** Prix par niveau pour les TITRES (pas de teinte : la rareté tient au mot lui-même). */
+export const TITLE_TIER_PRICE = { role: 120, maitrise: 150, premium: 300 } as const;
+
+const frame = (hex: string): CosmeticDef => ({ slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: hex });
+const flame = (hex: string): CosmeticDef => ({ slot: 'streak_flame', slotLabel: 'Flamme de série', value: hex });
+const title = (v: string): CosmeticDef => ({ slot: 'title', slotLabel: 'Titre de profil', value: v });
+
+/* ⚠️ Les CLÉS existantes ne changent JAMAIS : elles sont dans l'inventaire des utilisateurs, et en
+   changer une reviendrait à modifier la couleur d'un article déjà acheté.
+   Deux conséquences visibles ici :
+     • `cosmetic_avatar_frame` / `cosmetic_gold_flame` gardent leur nom historique, hors nomenclature ;
+     • `cosmetic_*_violet` porte désormais le NOM « prestige » et `cosmetic_*_prestige` le nom
+       « rouge » — les clés n'ont pas suivi le renommage, les couleurs (hex) sont la vérité. */
 export const COSMETIC_DEFS: Record<string, CosmeticDef> = {
   // ── Cadres d'avatar (value = couleur de la bordure) ──
-  cosmetic_avatar_frame:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#f59e0b' },
-  cosmetic_frame_silver:   { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#C0C0C0' },
-  cosmetic_frame_emerald:  { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#10B981' },
-  cosmetic_frame_neon:     { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#D946EF' },
-  cosmetic_frame_prestige: { slot: 'avatar_frame', slotLabel: "Cadre d'avatar", value: '#F43F5E' },
-  // ── Titres de profil (value = texte affiché) ──
-  cosmetic_title_legend:      { slot: 'title', slotLabel: 'Titre de profil', value: 'Légende' },
-  cosmetic_title_strategist:  { slot: 'title', slotLabel: 'Titre de profil', value: 'Stratège' },
-  cosmetic_title_builder:     { slot: 'title', slotLabel: 'Titre de profil', value: 'Bâtisseur' },
-  cosmetic_title_saver:       { slot: 'title', slotLabel: 'Titre de profil', value: "Maître de l'épargne" },
-  cosmetic_title_investor:    { slot: 'title', slotLabel: 'Titre de profil', value: 'Investisseur' },
-  cosmetic_title_visionnaire: { slot: 'title', slotLabel: 'Titre de profil', value: 'Visionnaire' },
-  cosmetic_title_elite:       { slot: 'title', slotLabel: 'Titre de profil', value: 'Élite' },
-  // ── Flammes de série (value = couleur de la flamme) ──
-  cosmetic_gold_flame:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#f59e0b' },
-  cosmetic_flame_blue:   { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#3B82F6' },
-  cosmetic_flame_violet: { slot: 'streak_flame', slotLabel: 'Flamme de série', value: '#8B5CF6' },
+  cosmetic_frame_silver:   frame(COSMETIC_PALETTE.silver.hex),
+  cosmetic_avatar_frame:   frame(COSMETIC_PALETTE.gold.hex),      // « Cadre doré » (clé historique)
+  cosmetic_frame_blue:     frame(COSMETIC_PALETTE.blue.hex),
+  cosmetic_frame_emerald:  frame(COSMETIC_PALETTE.emerald.hex),
+  cosmetic_frame_neon:     frame(COSMETIC_PALETTE.neon.hex),
+  cosmetic_frame_prestige: frame(COSMETIC_PALETTE.red.hex),       // « Cadre rouge »    (clé historique)
+  cosmetic_frame_violet:   frame(COSMETIC_PALETTE.prestige.hex),  // « Cadre prestige » (violet)
+  // ── Flammes de série (value = couleur de la flamme) — MÊME palette que les cadres ──
+  cosmetic_flame_silver:   flame(COSMETIC_PALETTE.silver.hex),
+  cosmetic_gold_flame:     flame(COSMETIC_PALETTE.gold.hex),      // « Flamme dorée » (clé historique)
+  cosmetic_flame_blue:     flame(COSMETIC_PALETTE.blue.hex),
+  cosmetic_flame_emerald:  flame(COSMETIC_PALETTE.emerald.hex),
+  cosmetic_flame_neon:     flame(COSMETIC_PALETTE.neon.hex),
+  cosmetic_flame_prestige: flame(COSMETIC_PALETTE.red.hex),       // « Flamme rouge »    (clé historique)
+  cosmetic_flame_violet:   flame(COSMETIC_PALETTE.prestige.hex),  // « Flamme prestige » (violette)
+  /* ── Titres de profil (value = texte affiché) ──
+     « Maître de l'épargne » puis « Maître de l'investissement » forment une PROGRESSION, et dans cet
+     ordre : mettre de côté vient avant faire fructifier — c'est la logique de l'app elle-même, et
+     investir est le geste le plus gratifiant des deux. Même construction pour les deux, sinon le
+     rapport entre les deux titres ne se lit pas. */
+  cosmetic_title_strategist:  title('Stratège'),
+  cosmetic_title_builder:     title('Bâtisseur'),
+  cosmetic_title_saver:       title("Maître de l'épargne"),
+  cosmetic_title_investor:    title("Maître de l'investissement"),
+  cosmetic_title_legend:      title('Légende'),
+  cosmetic_title_visionnaire: title('Visionnaire'),
+  cosmetic_title_elite:       title('Élite'),
 };
 
 export type EquippedCosmetics = Partial<Record<CosmeticSlot, string>>;
@@ -221,24 +268,51 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'streak_restore', type: 'streak_restore', category: 'series', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
     // ── Apparence ──
     { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent supplémentaires pour personnaliser ton espace.', price: 200, icon: 'color-palette' },
-    // ── Cosmétiques : cadres d'avatar & flammes de série ──
-    { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre doré', description: 'Un cadre doré autour de ton avatar.', price: 80, icon: 'person-circle' },
+    /* ── Cosmétiques : cadres d'avatar & flammes de série ─────────────────────────────────────
+       Rangés PAR TEINTE (cadre puis flamme assortie) et non par emplacement : c'est ainsi qu'on les
+       choisit — on veut « du violet », pas « un cadre ». Chaque paire partage son prix, fixé par le
+       niveau de rareté (COSMETIC_TIER_PRICE) et non à l'estime : c'est ce qui manquait quand le doré
+       coûtait 80 en cadre et 90 en flamme.
+       Aucun prix n'AUGMENTE par rapport à l'ancienne grille : harmoniser ne doit pénaliser personne
+       qui économisait déjà pour un article précis.
+       Icône = l'emplacement (person-circle / flame / ribbon), jamais la rareté — sinon deux articles
+       du même type n'ont pas le même pictogramme, et la liste devient illisible. */
+    // Commun (70)
     { key: 'cosmetic_frame_silver', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre argenté', description: 'Un cadre argenté élégant autour de ton avatar.', price: 70, icon: 'person-circle' },
-    { key: 'cosmetic_frame_emerald', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre émeraude', description: 'Un cadre vert émeraude autour de ton avatar.', price: 100, icon: 'person-circle' },
-    { key: 'cosmetic_gold_flame', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme dorée', description: 'Une flamme de série dorée affichée sur ton profil.', price: 90, icon: 'flame' },
-    { key: 'cosmetic_flame_blue', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme bleue', description: 'Une flamme de série bleu glacé.', price: 90, icon: 'flame' },
-    // ── Titres de profil ──
-    { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'titres', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
+    { key: 'cosmetic_flame_silver', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme argentée', description: 'La flamme de série assortie au cadre argenté.', price: 70, icon: 'flame' },
+    { key: 'cosmetic_avatar_frame', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre doré', description: 'Un cadre doré autour de ton avatar.', price: 70, icon: 'person-circle' },
+    { key: 'cosmetic_gold_flame', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme dorée', description: 'La flamme de série assortie au cadre doré.', price: 70, icon: 'flame' },
+    // Rare (90)
+    { key: 'cosmetic_frame_blue', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre bleu', description: 'Un cadre bleu glacé autour de ton avatar.', price: 90, icon: 'person-circle' },
+    { key: 'cosmetic_flame_blue', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme bleue', description: 'La flamme de série assortie au cadre bleu.', price: 90, icon: 'flame' },
+    { key: 'cosmetic_frame_emerald', type: 'cosmetic', category: 'cosmetiques', label: 'Cadre émeraude', description: 'Un cadre vert émeraude autour de ton avatar.', price: 90, icon: 'person-circle' },
+    { key: 'cosmetic_flame_emerald', type: 'cosmetic', category: 'cosmetiques', label: 'Flamme émeraude', description: 'La flamme de série assortie au cadre émeraude.', price: 90, icon: 'flame' },
+    /* ── Titres de profil ──
+       Deux niveaux : un RÔLE qu'on se donne (120), une MAÎTRISE qu'on revendique (150).
+       Les deux « Maître de… » se lisent comme une progression : on épargne d'abord, on investit
+       ensuite. C'est pour ça qu'ils ne sont pas au même niveau. */
     { key: 'cosmetic_title_strategist', type: 'cosmetic', category: 'titres', label: 'Titre « Stratège »', description: 'Affiche le titre « Stratège » sur ton profil.', price: 120, icon: 'ribbon' },
-    { key: 'cosmetic_title_builder', type: 'cosmetic', category: 'titres', label: 'Titre « Bâtisseur »', description: 'Affiche le titre « Bâtisseur » sur ton profil.', price: 160, icon: 'ribbon' },
-    { key: 'cosmetic_title_saver', type: 'cosmetic', category: 'titres', label: 'Titre « Maître de l’épargne »', description: 'Pour les épargnants accomplis.', price: 220, icon: 'ribbon' },
-    { key: 'cosmetic_title_investor', type: 'cosmetic', category: 'titres', label: 'Titre « Investisseur »', description: 'Affiche le titre « Investisseur » sur ton profil.', price: 200, icon: 'ribbon' },
-    // ── Exclusif Premium (visible mais verrouillé pour les non-Premium) ──
-    { key: 'cosmetic_frame_neon', type: 'cosmetic', category: 'premium', label: 'Cadre néon', description: 'Un cadre néon magenta exclusif.', price: 250, icon: 'person-circle', premiumOnly: true },
-    { key: 'cosmetic_frame_prestige', type: 'cosmetic', category: 'premium', label: 'Cadre prestige', description: 'Le cadre le plus rare, réservé aux Premium.', price: 350, icon: 'diamond', premiumOnly: true },
-    { key: 'cosmetic_flame_violet', type: 'cosmetic', category: 'premium', label: 'Flamme violette', description: 'Une flamme de série violette exclusive.', price: 220, icon: 'flame', premiumOnly: true },
+    { key: 'cosmetic_title_builder', type: 'cosmetic', category: 'titres', label: 'Titre « Bâtisseur »', description: 'Affiche le titre « Bâtisseur » sur ton profil.', price: 120, icon: 'ribbon' },
+    { key: 'cosmetic_title_saver', type: 'cosmetic', category: 'titres', label: 'Titre « Maître de l’épargne »', description: 'Pour ceux qui savent mettre de côté.', price: 120, icon: 'ribbon' },
+    { key: 'cosmetic_title_legend', type: 'cosmetic', category: 'titres', label: 'Titre « Légende »', description: 'Affiche le titre « Légende » sur ton profil.', price: 150, icon: 'ribbon' },
+    { key: 'cosmetic_title_investor', type: 'cosmetic', category: 'titres', label: 'Titre « Maître de l’investissement »', description: 'L’étape d’après : faire fructifier, pas seulement garder.', price: 150, icon: 'ribbon' },
+    /* ── Exclusif Premium (visible mais verrouillé pour les non-Premium) ──
+       Mêmes paires teinte par teinte que plus haut.
+       ⚠️ Les CLÉS ne correspondent plus aux NOMS depuis que « prestige » désigne le violet :
+       `cosmetic_*_prestige` = le ROUGE, `cosmetic_*_violet` = le PRESTIGE (violet). Renommer les
+       clés changerait la couleur des articles déjà achetés — on ne le fait pas. */
+    // Épique (220)
+    { key: 'cosmetic_frame_neon', type: 'cosmetic', category: 'premium', label: 'Cadre néon', description: 'Un cadre néon magenta exclusif.', price: 220, icon: 'person-circle', premiumOnly: true },
+    { key: 'cosmetic_flame_neon', type: 'cosmetic', category: 'premium', label: 'Flamme néon', description: 'La flamme de série assortie au cadre néon.', price: 220, icon: 'flame', premiumOnly: true },
+    { key: 'cosmetic_frame_prestige', type: 'cosmetic', category: 'premium', label: 'Cadre rouge', description: 'Un cadre rouge vif exclusif.', price: 220, icon: 'person-circle', premiumOnly: true },
+    { key: 'cosmetic_flame_prestige', type: 'cosmetic', category: 'premium', label: 'Flamme rouge', description: 'La flamme de série assortie au cadre rouge.', price: 220, icon: 'flame', premiumOnly: true },
+    // Légendaire (350) — le PRESTIGE : la teinte la plus rare, en cadre et en flamme
+    { key: 'cosmetic_frame_violet', type: 'cosmetic', category: 'premium', label: 'Cadre prestige', description: 'La teinte la plus rare, réservée aux Premium.', price: 350, icon: 'person-circle', premiumOnly: true },
+    { key: 'cosmetic_flame_violet', type: 'cosmetic', category: 'premium', label: 'Flamme prestige', description: 'La flamme de série assortie au cadre prestige.', price: 350, icon: 'flame', premiumOnly: true },
+    // Titres Premium (300) — même niveau : « le plus prestigieux » ne peut pas être deux articles
+    // à deux prix différents.
     { key: 'cosmetic_title_visionnaire', type: 'cosmetic', category: 'premium', label: 'Titre « Visionnaire »', description: 'Un titre exclusif réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
-    { key: 'cosmetic_title_elite', type: 'cosmetic', category: 'premium', label: 'Titre « Élite »', description: 'Le titre le plus prestigieux, réservé aux Premium.', price: 400, icon: 'sparkles', premiumOnly: true },
+    { key: 'cosmetic_title_elite', type: 'cosmetic', category: 'premium', label: 'Titre « Élite »', description: 'Le titre le plus prestigieux, réservé aux Premium.', price: 300, icon: 'ribbon', premiumOnly: true },
     // ── Recharger en gemmes (argent réel via le store) ──
     { key: 'gems_100', type: 'gems_iap', category: 'gems', label: '100 relyks', description: 'Recharge instantanée.', price: 0, icon: 'diamond', payload: { gems: 100, productId: '100_relyks' } },
     { key: 'gems_500', type: 'gems_iap', category: 'gems', label: '500 relyks', description: 'Le pack le plus populaire.', price: 0, icon: 'diamond', payload: { gems: 500, productId: '500_relyks' } },

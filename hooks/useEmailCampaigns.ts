@@ -8,7 +8,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export type EmailAudience = 'all' | 'premium' | 'free' | 'group';
-export type EmailCampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+/**
+ * `paused` (migration 168) : le quota d'envoi du jour est atteint, la campagne n'est PAS terminée et
+ * reprendra d'elle-même à `resume_at`. C'est un état d'attente, pas un échec — une campagne à 600
+ * personnes sur un compte plafonné à 300/jour passe forcément par là.
+ */
+export type EmailCampaignStatus = 'draft' | 'scheduled' | 'sending' | 'paused' | 'sent' | 'failed';
 
 export interface EmailCampaign {
   id: string;
@@ -19,7 +24,12 @@ export interface EmailCampaign {
   scheduled_at: string | null;
   status: EmailCampaignStatus;
   sent_at: string | null;
+  /** Destinataires DÉJÀ servis (et non « visés ») — c'est l'avancement réel. */
   recipients_count: number;
+  /** Destinataires visés au total. 0 sur les campagnes antérieures à la migration 168. */
+  total_recipients: number;
+  /** Campagne en pause : instant à partir duquel le cron la reprend. */
+  resume_at: string | null;
   error: string | null;
   created_at: string;
 }

@@ -36,6 +36,10 @@ export interface PushSendResult {
   configFailure: boolean;
   /** Résumé lisible (« 9 accepté(s) — 2 en échec — DeviceNotRegistered ×2 »). */
   summary: string;
+  /** Envoi de test : à qui il est parti (« ton compte », une adresse e-mail…). */
+  recipient?: string;
+  /** Envoi de test : le destinataire a coupé ses notifications → il ne verra rien, même accepté. */
+  notificationsOff?: boolean;
 }
 
 async function invokeAdminPush(payload: Record<string, unknown>): Promise<any> {
@@ -61,6 +65,8 @@ function toResult(d: any): PushSendResult {
     pruned: Number(d.pruned ?? 0),
     configFailure: Boolean(d.config_failure),
     summary: String(d.summary ?? ''),
+    recipient: d.recipient ? String(d.recipient) : undefined,
+    notificationsOff: Boolean(d.notifications_off),
   };
 }
 
@@ -73,12 +79,18 @@ export async function sendPushToTarget(target: NotifTarget, title: string, body:
   return toResult(await invokeAdminPush({ action: 'send', target, title, body }));
 }
 
-/** Push de TEST vers ses propres appareils — le premier geste de diagnostic. */
-export async function sendTestPush(title?: string, body?: string): Promise<PushSendResult> {
-  return toResult(await invokeAdminPush({ action: 'test', title, body }));
+/**
+ * Push de TEST vers les appareils d'UN utilisateur — soi-même par défaut (`profileId` omis).
+ * Se l'envoyer à soi teste la chaîne d'envoi ; l'envoyer à quelqu'un d'autre teste CE téléphone-là,
+ * seul moyen de distinguer « plus rien ne part » de « cet appareil précis ne reçoit pas ».
+ */
+export async function sendTestPush(opts?: { profileId?: string; title?: string; body?: string }): Promise<PushSendResult> {
+  return toResult(await invokeAdminPush({
+    action: 'test', profile_id: opts?.profileId, title: opts?.title, body: opts?.body,
+  }));
 }
 
-/** État de joignabilité de la base (panneau admin « Qui est joignable »). */
+/** État de joignabilité de la base (panneaux admin de diagnostic push et e-mail). */
 export async function fetchReachability(): Promise<any> {
   return invokeAdminPush({ action: 'diagnose' });
 }

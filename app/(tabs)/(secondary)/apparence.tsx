@@ -114,10 +114,13 @@ function AppearanceScreen() {
 
   // Cosmétiques regroupés par catégorie (emplacement) et triés par nom.
   const cosmeticGroups = useMemo(() => {
+    /* Les deux emplacements COLORÉS d'abord (cadre puis flamme), le texte ensuite : cadres et
+       flammes partagent la même palette et s'assortissent deux à deux (cf. COSMETIC_PALETTE), donc
+       on les regarde ensemble. Un titre ne s'assortit à rien — il ferme la liste. */
     const order: { slot: string; label: string }[] = [
       { slot: 'avatar_frame', label: "Cadres d'avatar" },
-      { slot: 'title', label: 'Titres de profil' },
       { slot: 'streak_flame', label: 'Flammes de série' },
+      { slot: 'title', label: 'Titres de profil' },
     ];
     return order
       .map((g) => ({

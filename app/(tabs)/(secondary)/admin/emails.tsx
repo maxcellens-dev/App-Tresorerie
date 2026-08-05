@@ -17,6 +17,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import ScreenGradient from '../../../../components/ScreenGradient';
+import EmailDiagnostics from '../../../../components/admin/EmailDiagnostics';
+import EmailTemplatePicker from '../../../../components/admin/EmailTemplatePicker';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
@@ -30,7 +32,7 @@ import {
 } from '../../../../hooks/useEmailCampaigns';
 // Le MÊME rendu que celui de l'Edge Function : l'aperçu montre donc l'e-mail réel, pas une imitation.
 import {
-  renderRelykaEmail, looksLikeHtml, EMAIL_TEMPLATES,
+  renderRelykaEmail, looksLikeHtml,
 } from '../../../../supabase/functions/_shared/emailTemplate';
 
 const AUDIENCES: [EmailAudience, string][] = [
@@ -55,13 +57,13 @@ export default function AdminEmails() {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
 
-  /** Charge un gabarit — en écrasant, mais jamais sans prévenir si quelque chose est déjà écrit. */
-  const applyTemplate = (t: typeof EMAIL_TEMPLATES[number]) => {
+  /** Charge un modèle — en écrasant, mais jamais sans prévenir si quelque chose est déjà écrit. */
+  const applyTemplate = (t: { subject: string; body: string }) => {
     const load = () => { setSubject(t.subject); setBody(t.body); };
     if (!subject.trim() && !body.trim()) { load(); return; }
     Alert.alert(
       'Remplacer ce que tu as écrit ?',
-      `Le gabarit « ${t.label} » va prendre la place de l’objet et du message actuels.`,
+      'Le modèle va prendre la place de l’objet et du message actuels.',
       [{ text: 'Annuler', style: 'cancel' }, { text: 'Remplacer', style: 'destructive', onPress: load }],
     );
   };
@@ -157,17 +159,17 @@ export default function AdminEmails() {
         <Text style={s.title}>E-mails</Text>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
-          {/* Points de départ — pas des carcans : tout reste modifiable ensuite. */}
-          <Text style={s.label}>Partir d’un gabarit</Text>
-          <View style={s.tplRow}>
-            {EMAIL_TEMPLATES.map((t) => (
-              <TouchableOpacity key={t.id} style={s.tplCard} onPress={() => applyTemplate(t)} activeOpacity={0.8}>
-                <Ionicons name="document-text-outline" size={16} color={COLORS.emerald} />
-                <Text style={s.tplName}>{t.label}</Text>
-                <Text style={s.tplHint}>{t.hint}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Diagnostic E-MAIL — placé avant la rédaction : savoir combien de personnes sont
+              joignables et combien d'envois il reste évite d'écrire une campagne qui s'arrêtera au
+              milieu. Le pendant push vit dans l'écran Notifications : deux canaux, deux pannes. */}
+          <Text style={s.label}>Diagnostic</Text>
+          <EmailDiagnostics />
+
+          {/* Points de départ — pas des carcans : tout reste modifiable ensuite, et les modèles
+              eux-mêmes sont éditables (migration 167). Liste déroulante plutôt que grille de cartes :
+              on choisit un modèle une fois, on ne relit pas trois descriptions à chaque campagne. */}
+          <Text style={s.label}>Partir d’un modèle</Text>
+          <EmailTemplatePicker onApply={applyTemplate} />
 
           <Text style={s.label}>Objet</Text>
           <TextInput style={s.input} value={subject} onChangeText={setSubject} placeholder="Ex. Nouveautés de septembre" placeholderTextColor={COLORS.textSecondary} />
@@ -255,14 +257,22 @@ export default function AdminEmails() {
             <View key={c.id} style={s.card}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={s.cardTitle} numberOfLines={1}>{c.subject}</Text>
-                <Text style={s.cardSub} numberOfLines={1}>
+                <Text style={s.cardSub} numberOfLines={2}>
                   {c.status === 'sent' ? `Envoyé · ${c.recipients_count} destinataire(s)`
                     : c.status === 'scheduled' ? `Programmé · ${c.scheduled_at ? new Date(c.scheduled_at).toLocaleString('fr-FR') : ''}`
                     : c.status === 'failed' ? `Échec · ${c.error ?? ''}`
+                    /* En pause = quota d'envoi atteint. Ce n'est PAS un échec : la campagne reprend
+                       seule. On affiche l'avancement et l'heure de reprise pour qu'on n'ait pas la
+                       tentation de la relancer à la main — ce qui réécrirait aux premiers servis. */
+                    : c.status === 'paused'
+                      ? `En pause · ${c.recipients_count}/${c.total_recipients || '?'} envoyés · reprise ${c.resume_at ? new Date(c.resume_at).toLocaleString('fr-FR') : 'bientôt'}`
                     : c.status === 'sending' ? 'Envoi en cours…' : 'Brouillon'}
                 </Text>
               </View>
-              {c.status !== 'sent' && c.status !== 'sending' && (
+              {c.status === 'paused' && (
+                <View style={s.pausedTag}><Ionicons name="hourglass-outline" size={14} color={COLORS.orange} /></View>
+              )}
+              {c.status !== 'sent' && c.status !== 'sending' && c.status !== 'paused' && (
                 <TouchableOpacity onPress={() => deleteCampaign.mutate(c.id)} style={{ padding: 6 }}>
                   <Ionicons name="trash-outline" size={17} color={COLORS.danger} />
                 </TouchableOpacity>
@@ -337,14 +347,7 @@ function makeStyles(c: any) {
     },
     modeTagTxt: { fontSize: 10.5, fontWeight: '700', color: c.textSecondary },
 
-    // Gabarits
-    tplRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-    tplCard: {
-      flexGrow: 1, flexBasis: 150, gap: 3, padding: 12, borderRadius: 12,
-      borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card,
-    },
-    tplName: { fontSize: 13, fontWeight: '800', color: c.text },
-    tplHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15 },
+    // (les styles de la grille de gabarits ont disparu avec elle : cf. EmailTemplatePicker)
 
     // Aperçu
     previewBtn: {
@@ -388,6 +391,9 @@ function makeStyles(c: any) {
       borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 13, marginTop: 8,
     },
     cardTitle: { fontSize: 14, fontWeight: '700', color: c.text },
-    cardSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    cardSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    // Campagne en pause : pas de corbeille (la supprimer perdrait le registre des envois déjà faits,
+    // donc la garantie anti-doublon) — juste un sablier qui dit « ça continue tout seul ».
+    pausedTag: { padding: 6 },
   });
 }

@@ -35,8 +35,10 @@ déployés ainsi — d'où le fait que la même clé y fonctionne.
 ## Réponse
 
 ```json
-{ "ok": true, "campaigns": 1, "sent": 342, "errors": [] }
+{ "ok": true, "campaigns": 1, "sent": 300, "paused": 1, "errors": [] }
 ```
+
+`paused` > 0 = une campagne a atteint le quota du jour et reprendra toute seule (voir plus bas).
 
 ## Plusieurs clés Brevo (bascule automatique)
 
@@ -89,9 +91,10 @@ supabase secrets set BREVO_API_KEYS='[{"key":"xkeysib-bbb","sender":"hello@relyk
 
 ### Vérifier que les deux clés sont bien prises en compte
 
-Le panneau **Admin → Notifications → Diagnostic** affiche « E-mails dispo aujourd'hui » : c'est la
-**somme des quotas** de toutes les clés reconnues. Si tu as deux comptes gratuits neufs et que la
-tuile affiche ~600 au lieu de ~300, la seconde clé est bien active.
+Le panneau **Admin → E-mails → Diagnostic** affiche « E-mails dispo aujourd'hui » : c'est la **somme
+des quotas** de toutes les clés reconnues. Si tu as deux comptes gratuits neufs et que la tuile
+affiche ~600 au lieu de ~300, la seconde clé est bien active. Le détail **clé par clé** y figure
+aussi — c'est ce qui distingue une clé *épuisée* d'une clé *refusée*.
 
 `supabase secrets list` ne montre que le nom et une empreinte, jamais la valeur — normal.
 
@@ -116,11 +119,45 @@ déjà épuisée à chaque lot.
 
 ### Si la campagne s'interrompt
 
-Le statut passe à `failed` et le message d'erreur indique **où** ça s'est arrêté :
+Deux cas, à ne pas confondre :
 
-```
-Interrompue après 300/742 destinataires. Les 3 clés Brevo ont échoué. clé #1 : HTTP 402 — ...
-```
+| Statut | Sens | Que faire |
+| --- | --- | --- |
+| `paused` | Toutes les clés sont à sec — **quota**. | Rien : elle reprend seule (section suivante). |
+| `failed` | Erreur qui n'a rien à voir avec le quota (contenu refusé, expéditeur non vérifié…). | Corriger, puis relancer. |
 
-Les 300 premiers ont reçu le message : relancer la campagne telle quelle leur écrirait une seconde
-fois. Attends le lendemain (les quotas se réinitialisent) ou ajoute une clé.
+Un `failed` porte le détail, y compris l'avancement s'il y en a un. Les destinataires déjà servis
+sont inscrits au registre : relancer après correction ne leur réécrira pas.
+
+## Campagne plus grosse que le quota : elle s'étale toute seule
+
+Une campagne à 600 personnes sur un compte plafonné à 300/jour ne peut pas partir d'un coup. Elle
+n'échoue plus pour autant (migration 168) :
+
+1. elle sert autant de destinataires que le quota le permet ;
+2. quand **toutes** les clés refusent un lot, elle passe en **`paused`** — pas en `failed` ;
+3. le cron la reprend automatiquement (`resume_at`, une heure plus tard) et continue **là où elle
+   s'est arrêtée** ;
+4. dès que le quota est revenu, elle finit et passe en `sent`.
+
+L'écran admin affiche l'avancement : *« En pause · 300/612 envoyés · reprise 06/08/2026 09:14 »*.
+
+### Pourquoi un registre et pas un compteur
+
+La reprise s'appuie sur la table **`email_campaign_sends`** (une ligne par destinataire servi), et non
+sur un indice de position. Entre deux jours, des comptes se créent et d'autres se désinscrivent :
+« repartir du 300ᵉ » sauterait des gens ou en servirait deux fois. Le registre répond exactement à la
+bonne question — *qui n'a pas encore reçu ?* — quoi qu'il arrive entre les deux passages.
+
+Le registre est écrit **après** l'acceptation du lot par Brevo. Dans l'autre sens, un plantage entre
+les deux ferait passer des destinataires pour servis alors qu'ils n'ont rien reçu, et ils seraient
+définitivement sautés. Le pire cas retenu est donc un doublon sur un lot, jamais un oubli.
+
+> ⚠️ Ne supprime pas une campagne en pause : la suppression emporte son registre (`ON DELETE
+> CASCADE`), donc la garantie anti-doublon. C'est pour ça que la corbeille est masquée sur cet état.
+
+### Reprendre plus vite
+
+Le délai de reprise est d'**une heure** (`RESUME_DELAY_MS`). On ne sait pas à quelle heure exacte
+Brevo remet les compteurs à zéro : un essai horaire coûte un appel d'API et se corrige tout seul,
+alors qu'un rendez-vous à minuit raté ferait perdre une journée entière.

@@ -1,10 +1,13 @@
 /**
- * Admin — « Qui est joignable » : l'état réel de la distribution, avant d'accuser l'envoi.
+ * Admin — « Qui est joignable en push » : l'état réel de la distribution, avant d'accuser l'envoi.
  *
  * Quand une notification n'arrive pas, trois causes se ressemblent beaucoup vues de l'écran admin :
  * personne n'était joignable, l'envoi n'est jamais parti, ou Expo l'a refusé. Ce panneau les sépare :
  *   • les compteurs disent QUI peut être atteint (et pourquoi les autres ne le sont pas) ;
- *   • le bouton de test envoie sur SES PROPRES appareils et affiche la réponse d'Expo telle quelle.
+ *   • l'envoi de test vise UN destinataire au choix et affiche la réponse d'Expo telle quelle.
+ *
+ * Le pendant e-mail est dans `EmailDiagnostics` (écran Admin → E-mails) : ce sont deux canaux, deux
+ * pannes différentes, et les mélanger obligeait à trier deux diagnostics dans un même bloc.
  *
  * Tout vient de l'Edge Function `admin-push` (rôle service) : le client n'a pas le droit de lire les
  * jetons des autres utilisateurs, et n'a aucun moyen de purger ceux qui sont morts.
@@ -16,7 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAppColors } from '../../hooks/useAppColors';
 import { fetchReachability, sendTestPush, type PushSendResult } from '../../lib/pushSend';
 
-type ListKey = 'push_reachable' | 'unreachable' | 'email_opted_out';
+type ListKey = 'push_reachable' | 'unreachable';
 
 interface Tile {
   key: string;
@@ -27,13 +30,18 @@ interface Tile {
   tone?: 'neutral' | 'good' | 'warn' | 'bad';
 }
 
+/** Destinataire du test : `null` = moi. */
+interface TestTarget { id: string; label: string }
+
 export default function PushDiagnostics() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [openList, setOpenList] = useState<ListKey | null>(null);
+  const [target, setTarget] = useState<TestTarget | null>(null);
   const [test, setTest] = useState<PushSendResult | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['push_reachability'],
@@ -44,23 +52,19 @@ export default function PushDiagnostics() {
 
   const runTest = async () => {
     setTesting(true); setTest(null); setTestError(null);
-    try { setTest(await sendTestPush()); }
+    try { setTest(await sendTestPush({ profileId: target?.id })); }
     catch (e: any) { setTestError(e?.message ?? 'Échec inconnu'); }
     finally { setTesting(false); }
   };
 
   if (isLoading) {
-    return (
-      <View style={styles.card}>
-        <ActivityIndicator color={COLORS.emerald} />
-      </View>
-    );
+    return <View style={styles.card}><ActivityIndicator color={COLORS.emerald} /></View>;
   }
 
   if (error) {
     return (
       <View style={styles.card}>
-        <Text style={styles.title}>Qui est joignable</Text>
+        <Text style={styles.title}>Qui est joignable en push</Text>
         <View style={styles.errBox}>
           <Ionicons name="alert-circle-outline" size={16} color={COLORS.danger} />
           <Text style={styles.errText}>
@@ -79,9 +83,7 @@ export default function PushDiagnostics() {
     { key: 'unreachable', value: d.unreachable ?? 0, label: 'Non joignables', list: 'unreachable', tone: (d.unreachable ?? 0) > 0 ? 'warn' : 'neutral' },
     { key: 'nodev', value: d.no_device ?? 0, label: 'Sans appareil' },
     { key: 'off', value: d.push_disabled ?? 0, label: 'Notifs coupées' },
-    { key: 'mail', value: d.email_reachable ?? 0, label: 'Joignables par e-mail' },
-    { key: 'unsub', value: d.email_opted_out ?? 0, label: 'Désinscrits', list: 'email_opted_out' },
-    { key: 'quota', value: d.brevo?.remaining_today ?? '—', label: "E-mails dispo aujourd'hui" },
+    { key: 'bad', value: d.malformed_tokens ?? 0, label: 'Jetons invalides', tone: (d.malformed_tokens ?? 0) > 0 ? 'warn' : 'neutral' },
   ];
 
   const toneColor = (t?: Tile['tone']) =>
@@ -89,12 +91,15 @@ export default function PushDiagnostics() {
 
   const list: Array<{ id: string; label: string; devices?: number; reason?: string }> =
     openList ? (d.lists?.[openList] ?? []) : [];
+  // On ne propose comme destinataire de test que quelqu'un qui a au moins un appareil : viser
+  // quelqu'un sans jeton ne teste rien et se lit comme un échec d'envoi.
+  const selectable = openList === 'push_reachable';
 
   return (
     <View style={styles.card}>
       <View style={styles.head}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Qui est joignable</Text>
+          <Text style={styles.title}>Qui est joignable en push</Text>
           <Text style={styles.subtitle}>Si un envoi ne touche personne, la réponse est ici avant d'être dans les réglages.</Text>
         </View>
         <TouchableOpacity onPress={() => refetch()} style={styles.refresh} disabled={isFetching}>
@@ -108,7 +113,7 @@ export default function PushDiagnostics() {
           return (
             <TouchableOpacity
               key={t.key}
-              style={[styles.tile, active && styles.tileActive, !t.list && { opacity: 0.95 }]}
+              style={[styles.tile, active && styles.tileActive]}
               activeOpacity={t.list ? 0.7 : 1}
               onPress={() => t.list && setOpenList(active ? null : t.list)}
             >
@@ -119,35 +124,71 @@ export default function PushDiagnostics() {
         })}
       </View>
 
-      {/* Détail dépliable du compteur cliqué. */}
+      {/* Détail dépliable du compteur cliqué. Dans « Joignables en push », chaque ligne est aussi le
+          moyen de CHOISIR à qui part le test — c'est là qu'on a la question en tête. */}
       {openList && (
         <View style={styles.listBox}>
           <View style={styles.listHead}>
             <Text style={styles.listTitle}>
-              {openList === 'push_reachable' ? 'Joignables en push' : openList === 'unreachable' ? 'Non joignables' : 'Désinscrits e-mail'}
+              {openList === 'push_reachable' ? 'Joignables en push' : 'Non joignables'}
               <Text style={styles.listCount}>  {list.length} utilisateur(s)</Text>
             </Text>
             <TouchableOpacity onPress={() => setOpenList(null)}><Ionicons name="close" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
           </View>
+          {selectable && <Text style={styles.listHint}>Touche quelqu'un pour lui envoyer le push de test.</Text>}
           <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
             {list.length === 0 ? (
               <Text style={styles.listEmpty}>Personne dans cette catégorie.</Text>
-            ) : list.map((u) => (
-              <View key={u.id} style={styles.listRow}>
-                <Text style={styles.listName} numberOfLines={1}>{u.label}</Text>
-                <Text style={styles.listMeta} numberOfLines={1}>
-                  {u.devices != null ? `${u.devices} appareil(s)` : u.reason ?? ''}
-                </Text>
-              </View>
-            ))}
+            ) : list.map((u) => {
+              const picked = target?.id === u.id;
+              return (
+                <TouchableOpacity
+                  key={u.id}
+                  style={[styles.listRow, picked && styles.listRowPicked]}
+                  activeOpacity={selectable ? 0.7 : 1}
+                  disabled={!selectable}
+                  onPress={() => { setTarget(picked ? null : { id: u.id, label: u.label }); setTest(null); setTestError(null); }}
+                >
+                  {selectable && (
+                    <Ionicons
+                      name={picked ? 'radio-button-on' : 'radio-button-off'}
+                      size={15}
+                      color={picked ? COLORS.blue : COLORS.textSecondary}
+                    />
+                  )}
+                  <Text style={styles.listName} numberOfLines={1}>{u.label}</Text>
+                  <Text style={styles.listMeta} numberOfLines={1}>
+                    {u.devices != null ? `${u.devices} appareil(s)` : u.reason ?? ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       )}
 
       {/* ── Test réel : le seul moyen de savoir si la chaîne fonctionne de bout en bout. ── */}
+      <View style={styles.targetRow}>
+        <Ionicons name="person-outline" size={14} color={COLORS.textSecondary} />
+        <Text style={styles.targetLabel} numberOfLines={1}>
+          Destinataire : <Text style={styles.targetName}>{target ? target.label : 'moi'}</Text>
+        </Text>
+        {target ? (
+          <TouchableOpacity onPress={() => { setTarget(null); setTest(null); }} style={styles.targetReset}>
+            <Text style={styles.targetResetTxt}>Revenir à moi</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => setOpenList('push_reachable')} style={styles.targetReset}>
+            <Text style={styles.targetResetTxt}>Choisir</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <TouchableOpacity style={styles.testBtn} onPress={runTest} disabled={testing} activeOpacity={0.85}>
         {testing ? <ActivityIndicator size="small" color={COLORS.bg} /> : <Ionicons name="flash-outline" size={16} color={COLORS.bg} />}
-        <Text style={styles.testBtnText}>M'envoyer un push de test</Text>
+        <Text style={styles.testBtnText} numberOfLines={1}>
+          {target ? `Envoyer un push de test à ${target.label}` : "M'envoyer un push de test"}
+        </Text>
       </TouchableOpacity>
 
       {testError && (
@@ -160,13 +201,20 @@ export default function PushDiagnostics() {
       {test && (
         <View style={[styles.resultBox, { borderColor: (test.accepted > 0 ? COLORS.emerald : COLORS.danger) + '66' }]}>
           <Text style={[styles.resultTitle, { color: test.accepted > 0 ? COLORS.emerald : COLORS.danger }]}>
-            {test.accepted > 0 ? '✓ Expo a accepté l\'envoi' : '✗ Aucun envoi accepté'}
+            {test.accepted > 0 ? "✓ Expo a accepté l'envoi" : '✗ Aucun envoi accepté'}
+            {test.recipient ? ` → ${test.recipient}` : ''}
           </Text>
           <Text style={styles.resultLine}>
             {test.targeted} appareil(s) ciblé(s) · {test.accepted} accepté(s) · {test.failed} en échec
             {test.pruned > 0 ? ` · ${test.pruned} jeton(s) mort(s) purgé(s)` : ''}
           </Text>
-          {test.accepted > 0 && (
+          {test.notificationsOff && (
+            <Text style={styles.resultBad}>
+              Cette personne a COUPÉ ses notifications dans l'app : même accepté par Expo, rien ne
+              s'affichera sur son téléphone. Ce n'est pas une panne d'envoi.
+            </Text>
+          )}
+          {test.accepted > 0 && !test.notificationsOff && (
             <Text style={styles.resultHint}>
               Expo a pris le message en charge. S'il n'arrive pas sur le téléphone, la suite se joue chez
               Apple/Google (APNs/FCM) — pas dans l'app.
@@ -188,13 +236,21 @@ export default function PushDiagnostics() {
         </View>
       )}
 
-      {/* Aide-mémoire des codes Expo qu'on peut réellement rencontrer. */}
+      {/* Aide-mémoire des codes Expo — REPLIÉ par défaut : on ne le lit que le jour où un code
+          apparaît, et déplié en permanence il faisait plus de hauteur que le diagnostic lui-même. */}
       <View style={styles.legend}>
-        <Text style={styles.legendTitle}>Décoder un échec</Text>
-        <Text style={styles.legendLine}><Text style={styles.mono}>DeviceNotRegistered</Text> — l'app a été désinstallée ou le jeton révoqué. Purgé automatiquement.</Text>
-        <Text style={styles.legendLine}><Text style={styles.mono}>MismatchSenderId</Text> — le jeton vient d'un build lié à un autre projet FCM. Les appareils doivent rouvrir l'app pour réenregistrer un jeton.</Text>
-        <Text style={styles.legendLine}><Text style={styles.mono}>InvalidCredentials</Text> — les identifiants FCM/APNs du projet Expo sont absents ou périmés.</Text>
-        <Text style={styles.legendLine}><Text style={styles.mono}>MessageTooBig</Text> — titre + message dépassent la taille admise.</Text>
+        <TouchableOpacity style={styles.legendHead} onPress={() => setShowLegend((v) => !v)} activeOpacity={0.7}>
+          <Text style={styles.legendTitle}>Décoder un échec</Text>
+          <Ionicons name={showLegend ? 'chevron-up' : 'chevron-down'} size={15} color={COLORS.textSecondary} />
+        </TouchableOpacity>
+        {showLegend && (
+          <>
+            <Text style={styles.legendLine}><Text style={styles.mono}>DeviceNotRegistered</Text> — l'app a été désinstallée ou le jeton révoqué. Purgé automatiquement.</Text>
+            <Text style={styles.legendLine}><Text style={styles.mono}>MismatchSenderId</Text> — le jeton vient d'un build lié à un autre projet FCM. Les appareils doivent rouvrir l'app pour réenregistrer un jeton.</Text>
+            <Text style={styles.legendLine}><Text style={styles.mono}>InvalidCredentials</Text> — les identifiants FCM/APNs du projet Expo sont absents ou périmés.</Text>
+            <Text style={styles.legendLine}><Text style={styles.mono}>MessageTooBig</Text> — titre + message dépassent la taille admise.</Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -217,12 +273,19 @@ function makeStyles(c: any) {
     listHead: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
     listTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: c.text },
     listCount: { fontSize: 11, fontWeight: '600', color: c.textSecondary },
-    listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
+    listHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic', paddingHorizontal: 10, paddingTop: 8 },
+    listRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder },
+    listRowPicked: { backgroundColor: c.blue + '14' },
     listName: { flex: 1, fontSize: 12.5, fontWeight: '700', color: c.text },
     listMeta: { fontSize: 11, color: c.textSecondary },
     listEmpty: { fontSize: 12, color: c.textSecondary, padding: 12, fontStyle: 'italic' },
-    testBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.blue, borderRadius: 12, paddingVertical: 12 },
-    testBtnText: { color: c.bg, fontWeight: '800', fontSize: 13.5 },
+    targetRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    targetLabel: { flex: 1, fontSize: 12, color: c.textSecondary },
+    targetName: { fontWeight: '800', color: c.text },
+    targetReset: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: c.cardBorder },
+    targetResetTxt: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
+    testBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.blue, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 10 },
+    testBtnText: { color: c.bg, fontWeight: '800', fontSize: 13.5, flexShrink: 1 },
     resultBox: { borderWidth: 1, borderRadius: 12, padding: 11, gap: 6, backgroundColor: c.bg },
     resultTitle: { fontSize: 13, fontWeight: '800' },
     resultLine: { fontSize: 12, color: c.text },
@@ -234,6 +297,7 @@ function makeStyles(c: any) {
     errBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 11 },
     errText: { flex: 1, fontSize: 12, color: c.danger, lineHeight: 17 },
     legend: { gap: 4, paddingTop: 4 },
+    legendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 },
     legendTitle: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     legendLine: { fontSize: 11, color: c.textSecondary, lineHeight: 16 },
     mono: { fontWeight: '800', color: c.text },

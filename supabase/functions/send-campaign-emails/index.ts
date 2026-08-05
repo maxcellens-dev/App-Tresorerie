@@ -70,7 +70,10 @@ const BATCH = 100;
 const renderEmail = (subject: string, body: string, unsubUrl: string) =>
   renderRelykaEmail({ subject, body, unsubUrl, appUrl: APP_URL });
 
-interface Recipient { email: string; name: string | null; token: string }
+interface Recipient { id: string; email: string; name: string | null; token: string }
+
+/** Signalé quand toutes les clés sont à sec : ce n'est pas un échec, c'est une PAUSE. */
+class QuotaExhausted extends Error {}
 
 /**
  * Curseur de clé COURANTE, partagé par tous les lots d'une même exécution : une fois qu'une clé est
@@ -120,17 +123,23 @@ async function sendBatch(subject: string, body: string, people: Recipient[]): Pr
     }
     console.warn(`[send-campaign] clé #${idx + 1} écartée (HTTP ${res.status}), bascule sur la suivante.`);
   }
-  throw new Error(
+  /* Toutes les clés ont refusé le lot. C'est presque toujours le quota journalier : on le remonte
+     comme une PAUSE et non comme un échec — la campagne reprendra d'elle-même. */
+  throw new QuotaExhausted(
     BREVO_KEYS.length > 1
-      ? `Les ${BREVO_KEYS.length} clés Brevo ont échoué. ${attempts.join(' | ')}`
+      ? `Les ${BREVO_KEYS.length} clés Brevo ont refusé le lot. ${attempts.join(' | ')}`
       : attempts[0] ?? 'Envoi Brevo impossible',
   );
 }
 
+/** Délai avant reprise d'une campagne mise en pause (quota épuisé). */
+const RESUME_DELAY_MS = 60 * 60 * 1000;
+
 async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: string) {
   const { data: c, error } = await admin.from('email_campaigns').select('*').eq('id', campaignId).single();
   if (error || !c) throw new Error('Campagne introuvable');
-  if (c.status === 'sending' || c.status === 'sent') return { skipped: true, sent: 0 };
+  // `paused` est repris ; `sending` (déjà en cours ailleurs) et `sent` (terminé) ne le sont pas.
+  if (c.status === 'sending' || c.status === 'sent') return { skipped: true, sent: 0, paused: false, remaining: 0 };
 
   await admin.from('email_campaigns').update({ status: 'sending', error: null }).eq('id', campaignId);
 
@@ -149,33 +158,64 @@ async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: s
       const ids = new Set((members ?? []).map((m: any) => m.profile_id));
       people = people.filter((p) => ids.has(p.id));
     }
-    const recipients: Recipient[] = people
+    const audience: Recipient[] = people
       .filter((p) => typeof p.email === 'string' && p.email.includes('@'))
-      .map((p) => ({ email: p.email, name: p.full_name ?? null, token: p.email_unsub_token }));
+      .map((p) => ({ id: p.id, email: p.email, name: p.full_name ?? null, token: p.email_unsub_token }));
 
-    /* `sent` compte les destinataires RÉELLEMENT servis. Si une campagne s'arrête en route (toutes
-       les clés à sec), il faut savoir combien de personnes ont déjà reçu le message : relancer sans
-       ce chiffre, c'est écrire deux fois aux premiers. */
+    /* REPRISE — on retire les destinataires DÉJÀ SERVIS (migration 168). C'est ce registre, et pas
+       un compteur de position, qui rend la reprise exacte : entre deux jours, des comptes se créent
+       et d'autres se désinscrivent, donc « repartir de l'indice 300 » sauterait ou dupliquerait des
+       gens. Ici on envoie à « tout le monde SAUF ceux qui ont déjà reçu ». */
+    const { data: already, error: sentErr } = await admin
+      .from('email_campaign_sends').select('profile_id').eq('campaign_id', campaignId);
+    if (sentErr) throw sentErr;
+    const servedIds = new Set((already ?? []).map((r: any) => r.profile_id));
+    const recipients = audience.filter((r) => !servedIds.has(r.id));
+
+    // Total visé = les déjà servis + ce qu'il reste. Affiché tel quel comme avancement.
+    const total = servedIds.size + recipients.length;
+    await admin.from('email_campaigns').update({ total_recipients: total }).eq('id', campaignId);
+
     let sent = 0;
-    try {
-      for (let i = 0; i < recipients.length; i += BATCH) {
-        const slice = recipients.slice(i, i + BATCH);
+    let quotaHit: string | null = null;
+    for (let i = 0; i < recipients.length; i += BATCH) {
+      const slice = recipients.slice(i, i + BATCH);
+      try {
         await sendBatch(c.subject, c.body, slice);
-        sent += slice.length;
+      } catch (e) {
+        // Quota épuisé : on s'arrête PROPREMENT ici, on ne perd rien, on reprendra plus tard.
+        if (e instanceof QuotaExhausted) { quotaHit = e.message; break; }
+        throw e;   // toute autre erreur reste un échec
       }
-    } catch (e) {
-      const detail = e instanceof Error ? e.message : String(e);
-      throw new Error(
-        sent > 0
-          ? `Interrompue après ${sent}/${recipients.length} destinataires. ${detail}`
-          : detail,
-      );
+      /* Le registre est écrit APRÈS l'acceptation du lot par Brevo. Dans l'autre sens, un plantage
+         entre les deux ferait passer des gens pour servis alors qu'ils n'ont rien reçu — et ils
+         seraient définitivement sautés. Ici, le pire cas est un doublon sur un lot, pas un oubli. */
+      const { error: ledgerErr } = await admin.from('email_campaign_sends')
+        .upsert(slice.map((r) => ({ campaign_id: campaignId, profile_id: r.id })), { onConflict: 'campaign_id,profile_id' });
+      if (ledgerErr) console.warn('[send-campaign] registre non écrit (risque de doublon à la reprise):', ledgerErr.message);
+      sent += slice.length;
+    }
+
+    const totalServed = servedIds.size + sent;
+
+    if (quotaHit) {
+      /* PAUSE, pas échec : la campagne reprendra toute seule. Une heure plus tard plutôt qu'à
+         minuit — on ne sait pas à quelle heure exacte Brevo remet les compteurs à zéro, et un essai
+         horaire coûte un appel d'API. Si le quota n'est toujours pas revenu, elle se remet en pause. */
+      const resumeAt = new Date(Date.now() + RESUME_DELAY_MS).toISOString();
+      await admin.from('email_campaigns').update({
+        status: 'paused', resume_at: resumeAt,
+        recipients_count: totalServed, total_recipients: total,
+        error: `Quota d'envoi atteint après ${totalServed}/${total} destinataires. Reprise automatique après ${new Date(resumeAt).toLocaleString('fr-FR')}. ${quotaHit}`,
+      }).eq('id', campaignId);
+      return { skipped: false, sent, paused: true, remaining: total - totalServed };
     }
 
     await admin.from('email_campaigns').update({
-      status: 'sent', sent_at: new Date().toISOString(), recipients_count: sent,
+      status: 'sent', sent_at: new Date().toISOString(),
+      recipients_count: totalServed, total_recipients: total, resume_at: null, error: null,
     }).eq('id', campaignId);
-    return { skipped: false, sent };
+    return { skipped: false, sent, paused: false, remaining: 0 };
   } catch (e) {
     // L'échec est ÉCRIT : une campagne qui n'est jamais partie doit se voir dans l'écran admin,
     // pas seulement dans les logs.
@@ -202,15 +242,27 @@ serve(async (req) => {
   // ── Appel CRON : envoie tout ce qui est dû. Toute méthode acceptée (les ordonnanceurs
   //    appellent souvent en GET) — le contrôle, c'est le secret. ──
   if (CRON_SECRET && cronHeader === CRON_SECRET) {
-    const { data: due } = await admin.from('email_campaigns')
-      .select('id').eq('status', 'scheduled').lte('scheduled_at', new Date().toISOString());
+    const now = new Date().toISOString();
+    // Campagnes PROGRAMMÉES dont l'heure est passée…
+    const { data: scheduled } = await admin.from('email_campaigns')
+      .select('id').eq('status', 'scheduled').lte('scheduled_at', now);
+    // …et campagnes EN PAUSE dont l'heure de reprise est atteinte (migration 168). Sans cette
+    // seconde lecture, une campagne étalée sur deux jours ne repartirait jamais toute seule.
+    const { data: resumable } = await admin.from('email_campaigns')
+      .select('id').eq('status', 'paused').lte('resume_at', now);
+
+    const due = [...(scheduled ?? []), ...(resumable ?? [])] as any[];
     let total = 0;
+    let paused = 0;
     const errors: string[] = [];
-    for (const c of (due ?? []) as any[]) {
-      try { total += (await runCampaign(admin, c.id)).sent; }
-      catch (e) { errors.push(`${c.id}: ${e instanceof Error ? e.message : e}`); }
+    for (const c of due) {
+      try {
+        const r = await runCampaign(admin, c.id);
+        total += r.sent;
+        if (r.paused) paused++;
+      } catch (e) { errors.push(`${c.id}: ${e instanceof Error ? e.message : e}`); }
     }
-    return json({ ok: true, campaigns: (due ?? []).length, sent: total, errors });
+    return json({ ok: true, campaigns: due.length, sent: total, paused, errors });
   }
 
   // ── Appel ADMIN (bouton « Envoyer maintenant »). ──

@@ -177,20 +177,44 @@ serve(async (req) => {
     const message = String(body.body ?? '').slice(0, 240);
     if (!title && !message) return json({ error: 'titre ou message requis' }, 400);
 
-    // ── Test : uniquement MES appareils. Le geste de diagnostic le plus simple — si ça n'arrive
-    //    pas sur son propre téléphone, inutile de chercher du côté de l'audience. ──
+    /* ── Test : les appareils d'UN utilisateur — soi-même par défaut, ou n'importe quel destinataire
+       choisi dans le panneau. Se l'envoyer à soi teste la chaîne ; l'envoyer à quelqu'un d'autre
+       teste CE téléphone-là, ce qui est le seul moyen de trancher entre « la chaîne est cassée » et
+       « c'est cet appareil qui ne reçoit pas ». On ne filtre volontairement PAS sur
+       `notifications_enabled` : le but est de savoir ce qu'Expo répond, et l'écran le signale à part
+       plutôt que de renvoyer un vide qu'on interpréterait de travers. ── */
     if (action === 'test') {
-      const { data } = await admin.from('push_tokens').select('token').eq('profile_id', user.id);
+      const targetId = typeof body.profile_id === 'string' && body.profile_id ? body.profile_id : user.id;
+      const isSelf = targetId === user.id;
+
+      const { data: prof } = await admin
+        .from('profiles').select('id, email, notifications_enabled').eq('id', targetId).maybeSingle();
+      if (!prof) return json({ error: 'Utilisateur introuvable' }, 404);
+      const who = isSelf ? 'ton compte' : (prof.email ?? targetId.slice(0, 8));
+
+      const { data } = await admin.from('push_tokens').select('token').eq('profile_id', targetId);
       const tokens = normalizeTokens((data ?? []).map((r: any) => r.token));
       if (!tokens.length) {
         return json({
-          ok: false, targeted: 0, accepted: 0, failed: 0, errors: [],
-          summary: "Aucun appareil enregistré pour ton compte : ouvre l'app mobile et autorise les notifications.",
+          ok: false, targeted: 0, accepted: 0, failed: 0, errors: [], recipient: who,
+          summary: isSelf
+            ? "Aucun appareil enregistré pour ton compte : ouvre l'app mobile et autorise les notifications."
+            : `Aucun appareil enregistré pour ${who} : cette personne n'a jamais ouvert l'app mobile, ou a révoqué ses jetons.`,
         });
       }
-      const r = await sendExpoPush(tokens, { title: title || 'Test Relyka', body: message || 'Si tu lis ceci, les pushs fonctionnent.' });
+      const r = await sendExpoPush(tokens, {
+        title: title || 'Test Relyka',
+        body: message || 'Si tu lis ceci, les pushs fonctionnent.',
+      });
       const pruned = await pruneDeadTokens(admin, r.deadTokens);
-      return json({ ok: r.accepted > 0, targeted: tokens.length, accepted: r.accepted, failed: r.failed, errors: r.errors, pruned, config_failure: r.configFailure, summary: summarizePush(r) });
+      return json({
+        ok: r.accepted > 0, targeted: tokens.length, accepted: r.accepted, failed: r.failed,
+        errors: r.errors, pruned, config_failure: r.configFailure, recipient: who,
+        // Un envoi accepté chez quelqu'un qui a coupé ses notifications n'arrivera pas : le dire ici
+        // évite de conclure à tort à une panne côté Expo.
+        notifications_off: prof.notifications_enabled === false,
+        summary: summarizePush(r),
+      });
     }
 
     // ── Envoi immédiat à une cible. ──

@@ -28,11 +28,11 @@ Corrigé par `supabase/functions/_shared/expoPush.ts`, utilisé désormais par l
 
 ```bash
 # Nouvelle fonction : envoi admin + diagnostic (vérif JWT ACTIVE, c'est voulu)
-supabase functions deploy admin-push
+npx supabase functions deploy admin-push
 
 # Fonctions mises à jour (elles lisent maintenant la réponse d'Expo)
-supabase functions deploy send-scheduled-notifications --no-verify-jwt
-supabase functions deploy notify-admins
+npx supabase functions deploy send-scheduled-notifications --no-verify-jwt
+npx supabase functions deploy notify-admins
 
 # Migration du drapeau « crédit partagé »
 supabase db push        # ou colle 166_credit_is_shared.sql dans le SQL Editor
@@ -54,10 +54,17 @@ App → **Admin → Notifications → onglet Manuelles → Diagnostic**.
 
 Clique un compteur pour voir **qui** est dedans.
 
-## 3. Le bouton « M'envoyer un push de test »
+> Le diagnostic **e-mail** est ailleurs : **Admin → E-mails → Diagnostic**. Deux canaux, deux pannes
+> sans rapport (jetons et credentials FCM/APNs d'un côté, quota Brevo et opt-out de l'autre).
 
-C'est le geste décisif : il envoie sur **tes propres appareils** et affiche la réponse d'Expo
-telle quelle.
+## 3. L'envoi de test
+
+C'est le geste décisif : il envoie sur les appareils d'**un destinataire au choix** et affiche la
+réponse d'Expo telle quelle.
+
+- par défaut, il part sur **tes** appareils → teste la chaîne d'envoi ;
+- ouvre « Joignables en push » et touche quelqu'un pour viser **son** téléphone → seul moyen de
+  distinguer « plus rien ne part » de « cet appareil-là ne reçoit pas ».
 
 | Résultat | Conclusion |
 | --- | --- |
@@ -66,7 +73,8 @@ telle quelle.
 | ✗ `InvalidCredentials` | **Panne globale.** Les identifiants FCM/APNs du projet Expo sont absents ou périmés → `eas credentials`. Voir étape 5. |
 | ✗ `MismatchSenderId` | Le jeton vient d'un build lié à un **autre** projet FCM. Les appareils doivent rouvrir l'app pour réenregistrer un jeton. Fréquent après un changement de `google-services.json`. |
 | ✗ `DeviceNotRegistered` | Jeton mort — purgé automatiquement. Rouvre l'app mobile pour en réenregistrer un. |
-| « Aucun appareil enregistré pour ton compte » | Tu n'as pas de jeton : ouvre l'app **mobile** et accepte les notifications. |
+| « Aucun appareil enregistré pour… » | Ce compte n'a pas de jeton : il faut ouvrir l'app **mobile** et accepter les notifications. |
+| ✓ accepté + « a COUPÉ ses notifications » | L'envoi est parti, mais ce destinataire a désactivé les notifications dans l'app : rien ne s'affichera. Ce n'est pas une panne. |
 
 ## 4. Vérifier que le cron tourne encore
 
