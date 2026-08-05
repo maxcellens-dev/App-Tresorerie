@@ -44,25 +44,56 @@ Un compte Brevo gratuit plafonne à **~300 e-mails par jour**. Au-delà, l'API r
 not_enough_credits` et la campagne s'arrête au milieu. Plusieurs clés permettent de reprendre
 l'envoi avec le compte suivant, sans intervention.
 
+### Ajouter un compte — ce qu'il ne faut PAS faire
+
+**Ne touche pas à `BREVO_API_KEY`.** Brevo ne réaffiche jamais une clé après sa création : si tu
+écrases ce secret, tu perds une valeur que tu ne peux plus relire, et il faudrait révoquer puis
+recréer la clé du premier compte pour rien.
+
+Les deux secrets **s'additionnent** (cf. `_shared/brevoKeys.ts`) :
+
+| Secret | Contenu | Quand y toucher |
+| --- | --- | --- |
+| `BREVO_API_KEY` | La clé historique, déjà en place | Jamais — on la laisse telle quelle |
+| `BREVO_API_KEYS` | Les clés **supplémentaires** | À chaque nouveau compte |
+
+Donc pour ajouter un 2ᵉ compte, tu ne copies **que la nouvelle clé** :
+
 ```bash
-# Écriture SIMPLE — plusieurs clés séparées par des virgules.
-supabase secrets set BREVO_API_KEYS="xkeysib-aaa...,xkeysib-bbb...,xkeysib-ccc..."
+# La clé du compte 1 reste dans BREVO_API_KEY et continue d'être utilisée en premier.
+supabase secrets set BREVO_API_KEYS="xkeysib-la-nouvelle-cle"
 ```
+
+Pour un 3ᵉ compte plus tard, `BREVO_API_KEYS` doit contenir la 2ᵉ **et** la 3ᵉ (ce secret-là, tu en
+connais le contenu puisque tu l'as écrit) :
+
+```bash
+supabase secrets set BREVO_API_KEYS="xkeysib-cle-2,xkeysib-cle-3"
+```
+
+Ordre d'essai : `BREVO_API_KEY` d'abord, puis `BREVO_API_KEYS` dans l'ordre écrit. Les doublons sont
+ignorés — inscrire deux fois la même clé ne crée pas deux tentatives.
 
 ```bash
 # Écriture DÉTAILLÉE — un expéditeur propre à chaque clé (JSON sur une ligne).
-supabase secrets set BREVO_API_KEYS='[{"key":"xkeysib-aaa","sender":"contact@relyka.app","name":"Relyka"},{"key":"xkeysib-bbb","sender":"hello@relyka.app"}]'
+# Utile seulement si les comptes n'ont pas le même expéditeur vérifié.
+supabase secrets set BREVO_API_KEYS='[{"key":"xkeysib-bbb","sender":"hello@relyka.app","name":"Relyka"}]'
 ```
 
 > ⚠️ **Chaque clé appartient à un compte Brevo différent, et un compte ne peut expédier que depuis
 > un expéditeur qu'il a lui-même vérifié.** Si la clé de secours n'a pas validé
 > `contact@relyka.app`, elle sera refusée pour une raison qui n'a rien à voir avec le quota. Vérifie
-> l'expéditeur dans **chaque** compte (Brevo → Expéditeurs & IP), ou donne à chaque clé le sien via
-> l'écriture détaillée. Pour préserver la délivrabilité, l'idéal est que le domaine `relyka.app` soit
-> authentifié (SPF/DKIM) dans chaque compte, pas seulement le premier.
+> l'expéditeur dans **chaque** compte (Brevo → Expéditeurs & IP). Pour préserver la délivrabilité,
+> l'idéal est que le domaine `relyka.app` soit authentifié (SPF/DKIM) dans chaque compte, pas
+> seulement le premier.
 
-`BREVO_API_KEY` (au singulier) reste accepté — c'est l'ancienne configuration, équivalente à une
-liste d'une seule clé.
+### Vérifier que les deux clés sont bien prises en compte
+
+Le panneau **Admin → Notifications → Diagnostic** affiche « E-mails dispo aujourd'hui » : c'est la
+**somme des quotas** de toutes les clés reconnues. Si tu as deux comptes gratuits neufs et que la
+tuile affiche ~600 au lieu de ~300, la seconde clé est bien active.
+
+`supabase secrets list` ne montre que le nom et une empreinte, jamais la valeur — normal.
 
 ### Comment la bascule se déclenche
 

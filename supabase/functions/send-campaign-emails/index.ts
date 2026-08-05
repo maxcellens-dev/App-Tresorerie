@@ -25,6 +25,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 // Gabarit PARTAGÉ avec l'aperçu de l'écran admin : une seule définition du rendu, donc un aperçu
 // qui montre vraiment ce qui part.
 import { renderRelykaEmail } from '../_shared/emailTemplate.ts';
+import { brevoKeys, type BrevoKey } from '../_shared/brevoKeys.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -47,39 +48,9 @@ const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
 // `not_enough_credits` et la campagne échoue au milieu. Empiler plusieurs clés permet de reprendre
 // l'envoi là où il s'est arrêté, avec le compte suivant, sans intervention.
 //
-// `BREVO_API_KEYS` accepte deux écritures :
-//   • simple    : "xkeysib-aaa, xkeysib-bbb"  (séparateurs : virgule, point-virgule, espace, retour ligne)
-//   • détaillée : [{"key":"xkeysib-aaa","sender":"contact@relyka.app","name":"Relyka"}, {"key":"xkeysib-bbb"}]
-// L'écriture détaillée existe parce que chaque clé appartient à un compte Brevo DIFFÉRENT, et qu'un
-// compte ne peut expédier que depuis un expéditeur qu'il a lui-même vérifié. Sans expéditeur propre,
-// la clé de secours serait refusée pour une raison qui n'a rien à voir avec le quota.
-// `BREVO_API_KEY` (au singulier) reste accepté : c'est l'ancienne configuration.
-interface BrevoKey { key: string; sender: string; name: string }
-
-function parseKeys(): BrevoKey[] {
-  const raw = (Deno.env.get('BREVO_API_KEYS') ?? Deno.env.get('BREVO_API_KEY') ?? '').trim();
-  if (!raw) return [];
-  if (raw.startsWith('[')) {
-    try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        return arr
-          .map((e: any) => ({
-            key: String(e?.key ?? e ?? '').trim(),
-            sender: String(e?.sender ?? SENDER_EMAIL).trim(),
-            name: String(e?.name ?? SENDER_NAME).trim(),
-          }))
-          .filter((e) => e.key);
-      }
-    } catch {
-      // JSON invalide → on retombe sur la lecture « simple » plutôt que de perdre toutes les clés.
-    }
-  }
-  return raw.split(/[\s,;]+/).map((k) => k.trim()).filter(Boolean)
-    .map((key) => ({ key, sender: SENDER_EMAIL, name: SENDER_NAME }));
-}
-
-const BREVO_KEYS = parseKeys();
+// `BREVO_API_KEY` (la clé historique) et `BREVO_API_KEYS` (les suivantes) s'ADDITIONNENT — voir
+// `_shared/brevoKeys.ts` pour le pourquoi (une clé Brevo n'est jamais réaffichée après création).
+const BREVO_KEYS = brevoKeys(SENDER_EMAIL, SENDER_NAME);
 
 /** Codes HTTP qui signifient « cette clé ne peut plus envoyer, essaie la suivante ». */
 function shouldRotate(status: number, bodyText: string): boolean {

@@ -22,6 +22,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { sendExpoPush, pruneDeadTokens, normalizeTokens, summarizePush } from '../_shared/expoPush.ts';
+import { brevoKeys } from '../_shared/brevoKeys.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,8 +35,9 @@ const json = (body: unknown, status = 200) =>
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const BREVO_KEYS = (Deno.env.get('BREVO_API_KEYS') ?? Deno.env.get('BREVO_API_KEY') ?? '')
-  .split(/[\s,;\n]+/).map((k) => k.trim()).filter(Boolean);
+// Mêmes clés que les campagnes (BREVO_API_KEY + BREVO_API_KEYS cumulés) — ici uniquement pour
+// afficher le quota restant dans le panneau de diagnostic.
+const BREVO_KEYS = brevoKeys('', '').map((k) => k.key);
 
 type TargetKind = 'all' | 'premium' | 'normal' | 'group';
 interface Target { kind: TargetKind; groupId?: string | null }

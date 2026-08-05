@@ -1,6 +1,15 @@
 /**
- * CreditsTab (#6 module Crédit) — onglet « Crédits ». Liste des crédits (CRD + mensualité), section
- * « Crédits partagés » (reçus d'autres users), invitations en attente, et création perso/partagé.
+ * CreditsTab (#6 module Crédit) — onglet « Crédits ».
+ *
+ * Deux groupes, séparés par la RESPONSABILITÉ de la dette (`credits.is_shared`, migration 166) —
+ * jamais par le droit d'accès (`credit_members`, consultation/écriture) :
+ *
+ *   « Mes crédits »      → les miens, non marqués partagés. Ce que je dois seul.
+ *   « Crédits partagés » → mes dettes portées à plusieurs, ET tout ce que d'autres m'ont partagé.
+ *
+ * Dans ce second groupe, un crédit REÇU que son propriétaire a marqué PERSO est sa dette à lui :
+ * il s'affiche (pastille rouge d'accès + « hors total ») mais n'entre dans AUCUN total. Un crédit
+ * reçu marqué PARTAGÉ, lui, est bien une dette commune et compte.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
@@ -44,13 +53,26 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   // ≥ 768 px (web bureau/tablette, tablette native) : le récap tient sur une seule ligne.
   const oneLine = !useResponsive().isCompact;
 
+  /** Crédit REÇU : il appartient à quelqu'un d'autre, je n'ai qu'un accès (consultation/écriture). */
+  const isReceived = (c: Credit) => !!c._role && c._role !== 'owner';
+
   /* Regroupement par RESPONSABILITÉ (`is_shared`, migration 166) et non par droit d'accès.
      Un crédit qu'on a simplement montré à quelqu'un en consultation reste une dette perso ; un
      crédit souscrit à deux reste partagé même si personne d'autre ne l'a ouvert dans l'app.
-     Le rôle (`_role`) continue d'exister — il décide qui peut modifier — mais il ne trie plus rien. */
-  const perso = credits.filter((c) => !c.is_shared);
-  const shared = credits.filter((c) => c.is_shared);
-  /* Tant qu'aucun crédit n'est marqué « partagé », il n'y a qu'UN récap et aucun intertitre :
+
+       • « Mes crédits »      = les MIENS, non marqués partagés → ce que je dois seul.
+       • « Crédits partagés » = mes dettes portées à plusieurs + TOUT ce que j'ai reçu d'autrui.
+                                Ce n'est pas « à moi », donc ça ne rejoint jamais « Mes crédits ». */
+  const perso = credits.filter((c) => !isReceived(c) && !c.is_shared);
+  const shared = credits.filter((c) => isReceived(c) || c.is_shared);
+
+  /* Ce qui COMPTE dans le total « partagés ». Un crédit reçu que son propriétaire a marqué PERSO est
+     sa dette à lui : je ne fais que la consulter, elle n'engage rien chez moi et ne doit peser dans
+     aucun de mes totaux. Un crédit reçu marqué PARTAGÉ, lui, est bien une dette qu'on porte à deux. */
+  const sharedCounted = shared.filter((c) => !(isReceived(c) && !c.is_shared));
+  const excludedCount = shared.length - sharedCounted.length;
+
+  /* Tant qu'aucun crédit ne rejoint le groupe « partagés », il n'y a qu'UN récap et aucun intertitre :
      l'écran reste exactement celui d'avant pour qui ne s'en sert pas. */
   const splitView = perso.length > 0 && shared.length > 0;
 
@@ -88,7 +110,18 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   ];
 
   const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS]);
-  const sharedCells = useMemo(() => cellsOf(recapOf(shared)), [credits, today, COLORS]);
+  const sharedCells = useMemo(() => cellsOf(recapOf(sharedCounted)), [credits, today, COLORS]);
+
+  /* Un total qui ne couvre pas toute la liste qu'il surplombe DOIT le dire, sinon il passe pour faux
+     (« pourquoi la somme des lignes ne tombe pas ? »). */
+  const ExcludedNote = () =>
+    excludedCount === 0 ? null : (
+      <Text style={styles.recapNote}>
+        {excludedCount === 1
+          ? "1 crédit appartient à un autre utilisateur : tu y as accès, il n'entre dans aucun total."
+          : `${excludedCount} crédits appartiennent à d'autres utilisateurs : tu y as accès, ils n'entrent dans aucun total.`}
+      </Text>
+    );
 
   /**
    * Grille des 4 totaux. `adjustsFontSizeToFit` N'EXISTE PAS sur react-native-web (la prop est
@@ -125,10 +158,13 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
     const a = computeAmortization(c);
     const meta = TYPE_META[c.type] ?? TYPE_META.autre;
     /* Deux étiquettes, deux sens :
-       - `received` = ACCÈS (le crédit appartient à quelqu'un d'autre, je le consulte ou l'édite) ;
-       - la pastille « Partagé » = RESPONSABILITÉ, affichée seulement quand rien d'autre ne la dit
-         (sans intertitre de section, la nature d'un crédit doit rester lisible sur sa ligne). */
-    const received = !!c._role && c._role !== 'owner';
+       - la pastille ROUGE = ACCÈS reçu : ce crédit est à quelqu'un d'autre, je ne fais que le
+         consulter ou l'éditer. Rouge parce qu'elle prévient d'un piège de lecture — la ligne
+         ressemble à mes autres crédits alors qu'elle n'engage pas mon argent ;
+       - la pastille bleue « Partagé » = RESPONSABILITÉ, affichée seulement quand aucun intertitre
+         de section ne le dit déjà. */
+    const received = isReceived(c);
+    const outOfTotal = received && !c.is_shared; // dette d'autrui : jamais dans mes totaux
     /* Dénominateur = le NOMBRE DE LIGNES de l'échéancier, pas `duration_months` : un différé ajoute
        des échéances en tête, que le compteur de gauche compte déjà. « 19/300 » avec 6 mois de
        différé annonçait donc un rapport entre deux choses différentes.
@@ -147,13 +183,31 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
       <TouchableOpacity key={c.id} style={[styles.row, idx > 0 && styles.rowBorder]} activeOpacity={0.7} onPress={() => router.push(`/(tabs)/comptes/credit/${c.id}` as any)}>
         <View style={[styles.icon, { backgroundColor: COLORS.blue + '1A' }]}><Ionicons name={meta.icon as any} size={18} color={COLORS.blue} /></View>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             <Text style={styles.name} numberOfLines={1}>{c.label}</Text>
             {c.is_simulation && <View style={styles.simTag}><Text style={styles.simTagText}>Simu</Text></View>}
-            {c.is_shared && !splitView && <View style={styles.shareTag}><Text style={styles.shareTagText}>Partagé</Text></View>}
-            {received && <View style={styles.roleTag}><Text style={styles.roleTagText}>{c._role === 'read' ? 'Consult.' : 'Écriture'}</Text></View>}
+            {/* Pastilles-ICÔNES et non libellés : « Partagé » + « Écriture » côte à côte prenaient plus
+                de place que le nom du crédit lui-même, qui se retrouvait tronqué à « PTZ… ». Le nom
+                est l'information qui permet de reconnaître la ligne — il passe en premier.
+                Le sens exact reste lisible : au toucher (libellé d'accessibilité) et sur la fiche. */}
+            {c.is_shared && !splitView && (
+              <View style={styles.dotTag} accessibilityLabel="Dette partagée">
+                <Ionicons name="people" size={11} color={COLORS.blue} />
+              </View>
+            )}
+            {received && (
+              <View
+                style={styles.dotTagDanger}
+                accessibilityLabel={c._role === 'read' ? "Crédit d'un autre utilisateur — consultation" : "Crédit d'un autre utilisateur — écriture"}
+              >
+                <Ionicons name={c._role === 'read' ? 'eye' : 'create'} size={11} color={COLORS.danger} />
+              </View>
+            )}
           </View>
-          <Text style={styles.sub}>{meta.label} · {a.paidCountAtDate(today)}/{total} échéances · {fmt(monthly)}/mois</Text>
+          <Text style={styles.sub}>
+            {meta.label} · {a.paidCountAtDate(today)}/{total} échéances · {fmt(monthly)}/mois
+            {outOfTotal ? ' · hors total' : ''}
+          </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={styles.crd}>{fmt(leftToPay)}</Text>
@@ -168,11 +222,19 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
       {/* Écran large (web bureau / tablette) : les 4 chiffres tiennent sur UNE ligne, séparés par
           des filets. Téléphone : la grille se replie en 2 × 2 sans changer de code (flexWrap).
           Un seul groupe → un seul récap, sans intertitre (cas de la très grande majorité). */}
-      {!splitView && credits.length > 0 && <SummaryGrid cells={perso.length > 0 ? persoCells : sharedCells} />}
-      {splitView && (
+      {splitView ? (
         <>
           <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Mes crédits</Text>
           <SummaryGrid cells={persoCells} />
+        </>
+      ) : credits.length === 0 ? null : perso.length > 0 ? (
+        <SummaryGrid cells={persoCells} />
+      ) : (
+        // Groupe « partagés » seul : le récap ne sort que s'il reste quelque chose à totaliser —
+        // n'avoir que des crédits d'autrui ne doit pas afficher une grille de zéros.
+        <>
+          {sharedCounted.length > 0 && <SummaryGrid cells={sharedCells} />}
+          <ExcludedNote />
         </>
       )}
 
@@ -213,7 +275,8 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
               {splitView && (
                 <>
                   <Text style={styles.sectionLabel}>Crédits partagés</Text>
-                  <SummaryGrid cells={sharedCells} />
+                  {sharedCounted.length > 0 && <SummaryGrid cells={sharedCells} />}
+                  <ExcludedNote />
                 </>
               )}
               <View style={styles.list}>{shared.map((c, i) => row(c, i))}</View>
@@ -273,14 +336,24 @@ function makeStyles(c: any) {
     sub: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
     crd: { fontSize: 15, fontWeight: '800', color: c.text },
     crdLabel: { fontSize: 10, color: c.textSecondary },
-    simTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.orange + '1A', borderWidth: 1, borderColor: c.orange + '44' },
+    simTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, flexShrink: 0, backgroundColor: c.orange + '1A', borderWidth: 1, borderColor: c.orange + '44' },
     simTagText: { fontSize: 9.5, fontWeight: '700', color: c.orange },
-    // Nature (dette portée à plusieurs) — bleu, comme le partage ailleurs dans l'app.
-    shareTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.blue + '1A', borderWidth: 1, borderColor: c.blue + '44' },
-    shareTagText: { fontSize: 9.5, fontWeight: '700', color: c.blue },
-    // Accès reçu (crédit de quelqu'un d'autre) — neutre : ce n'est pas une information d'argent.
-    roleTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.textSecondary + '18', borderWidth: 1, borderColor: c.textSecondary + '40' },
-    roleTagText: { fontSize: 9.5, fontWeight: '700', color: c.textSecondary },
+    /* Pastilles-icônes : 18 px au lieu des ~60 px d'un libellé. `flexShrink: 0` — elles ne doivent
+       jamais se comprimer, sinon l'icône se déforme quand le nom du crédit est long. */
+    dotTag: {
+      width: 18, height: 18, borderRadius: 9, flexShrink: 0,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.blue + '1A', borderWidth: 1, borderColor: c.blue + '44',
+    },
+    // Accès reçu (crédit de quelqu'un d'autre) — ROUGE : c'est un avertissement, pas une décoration.
+    // La ligne ressemble à mes autres crédits, alors qu'elle ne pèse sur aucun de mes totaux.
+    dotTagDanger: {
+      width: 18, height: 18, borderRadius: 9, flexShrink: 0,
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: c.danger + '1A', borderWidth: 1, borderColor: c.danger + '55',
+    },
+    // Mention sous un récap qui ne couvre pas toute la liste (crédits d'autrui exclus).
+    recapNote: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic', lineHeight: 15, marginTop: -6, marginBottom: 12, paddingHorizontal: 4 },
     inviteCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
     inviteIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     inviteName: { fontSize: 14.5, fontWeight: '700', color: c.text },
