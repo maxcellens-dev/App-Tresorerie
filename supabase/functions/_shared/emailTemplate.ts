@@ -19,6 +19,18 @@ export function looksLikeHtml(body: string): boolean {
   return /<\/?[a-z][\s\S]*>/i.test(body);
 }
 
+/**
+ * Le contenu est-il un e-mail COMPLET, qui porte déjà son propre en-tête et son pied de page ?
+ *
+ * Certains e-mails sont conçus de bout en bout (mise en page dédiée, couleurs propres, pied de page
+ * sur mesure). Les faire passer par le gabarit standard produirait un document imbriqué dans un
+ * autre : deux `<body>`, deux en-têtes Relyka, deux liens de désinscription — ce que Gmail et Outlook
+ * réécrivent n'importe comment. On les envoie donc TELS QUELS.
+ */
+export function isStandaloneHtmlEmail(body: string): boolean {
+  return /<!doctype\s+html|<html[\s>]|<\/head>|<body[\s>]/i.test(body);
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -49,6 +61,28 @@ export interface RenderOptions {
 /** E-mail complet : en-tête Relyka, corps, bouton, pied de page avec désinscription. */
 export function renderRelykaEmail(o: RenderOptions): string {
   const appUrl = (o.appUrl ?? RELYKA_APP_URL).replace(/\/$/, '');
+
+  /* ── Contenu déjà complet : on n'enveloppe PAS (cf. isStandaloneHtmlEmail). ──
+     Seule obligation à honorer coûte que coûte : le lien de désinscription. S'il figure déjà dans le
+     document (le cas normal, via {{LIEN_DESABO}}), on ne touche à rien. Sinon on ajoute un pied
+     minimal : envoyer une campagne sans moyen de se désinscrire n'est pas une option, et c'est
+     précisément ce qu'un document sur mesure peut oublier. */
+  if (isStandaloneHtmlEmail(o.body)) {
+    if (o.body.includes(o.unsubUrl)) return o.body;
+    const footer = `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F8F6;padding:18px 12px;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+    <tr><td align="center">
+      <p style="margin:0;font-size:12px;line-height:18px;color:#839992;">
+        <a href="${o.unsubUrl}" style="color:#839992;text-decoration:underline;">Ne plus recevoir ces e-mails</a>
+      </p>
+    </td></tr>
+  </table>`;
+    // Inséré juste avant la fermeture du corps, sinon les clients mail le placent hors du document.
+    return /<\/body>/i.test(o.body)
+      ? o.body.replace(/<\/body>/i, `${footer}\n</body>`)
+      : o.body + footer;
+  }
+
   const cta = o.showCta === false ? '' : `
         <tr><td style="padding:6px 32px 30px;" align="center">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>

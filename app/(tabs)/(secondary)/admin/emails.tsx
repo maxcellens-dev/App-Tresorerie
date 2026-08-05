@@ -37,6 +37,7 @@ import EmailSchedulesSection from '../../../../components/admin/EmailSchedulesSe
 import {
   renderRelykaEmail, looksLikeHtml,
 } from '../../../../supabase/functions/_shared/emailTemplate';
+import { applyEmailVars, EMAIL_VAR_NAMES } from '../../../../supabase/functions/_shared/emailVars';
 
 const AUDIENCES: [EmailAudience, string][] = [
   ['all', 'Tous'], ['premium', 'Premium'], ['free', 'Gratuits'], ['group', 'Un groupe'],
@@ -107,15 +108,21 @@ export default function AdminEmails() {
   };
 
   const bodyIsHtml = looksLikeHtml(body);
-  /** L'e-mail COMPLET tel qu'il partira (lien de désinscription d'exemple). */
-  const previewHtml = useMemo(
-    () => renderRelykaEmail({
-      subject: subject.trim() || '(objet à écrire)',
-      body,
-      unsubUrl: 'https://relyka.app/desinscription?t=apercu',
-    }),
-    [subject, body],
-  );
+  /**
+   * L'e-mail COMPLET tel qu'il partira — variables SUBSTITUÉES comprises. L'aperçu doit montrer
+   * « Bonjour Marie » et « Juillet 2026 », pas `{{PRENOM}}` et `{{MOIS_ANNEE}}` : sinon on relit un
+   * gabarit et non l'e-mail, et une variable mal orthographiée passe inaperçue jusqu'à l'envoi.
+   */
+  const previewHtml = useMemo(() => {
+    const unsubUrl = 'https://relyka.app/desinscription?t=apercu';
+    // Prénom d'exemple = le nom de l'admin qui prévisualise : on voit tout de suite si ça sonne juste.
+    const ctx = { fullName: (profile as any)?.full_name ?? 'Marie Dupont', unsubUrl, appUrl: 'https://relyka.app' };
+    return renderRelykaEmail({
+      subject: applyEmailVars(subject.trim() || '(objet à écrire)', ctx),
+      body: applyEmailVars(body, ctx),
+      unsubUrl,
+    });
+  }, [subject, body, profile]);
 
   const canSubmit = subject.trim().length > 2 && body.trim().length > 5
     && (audience !== 'group' || !!groupId)
@@ -219,6 +226,19 @@ export default function AdminEmails() {
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {/* Les variables disponibles, ÉCRITES. Une variable qu'il faut deviner n'est jamais
+              utilisée — ou l'est de travers, et part en clair aux destinataires. */}
+          <View style={s.varsBox}>
+            <Text style={s.varsTitle}>Variables</Text>
+            <Text style={s.varsText}>
+              {EMAIL_VAR_NAMES.map((v) => `{{${v}}}`).join('  ·  ')}
+            </Text>
+            <Text style={s.varsHint}>
+              Remplacées à l’envoi, destinataire par destinataire. Les mois désignent le mois qui vient
+              de s’achever. Une variable inconnue devient vide plutôt que de s’afficher telle quelle.
+            </Text>
+          </View>
+
           {/* Le rendu réel, pas une approximation : même fonction que celle qui envoie. */}
           <TouchableOpacity
             style={[s.previewBtn, !body.trim() && { opacity: 0.45 }]}
@@ -380,6 +400,10 @@ function makeStyles(c: any) {
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 8 },
     /** Carte qui REGROUPE la rédaction : un envoi = un bloc, au lieu de champs flottants. */
     panel: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14 },
+    varsBox: { marginTop: 10, padding: 11, borderRadius: 10, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, gap: 4 },
+    varsTitle: { fontSize: 10.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    varsText: { fontSize: 11, color: c.text, fontWeight: '700', lineHeight: 18 },
+    varsHint: { fontSize: 10.5, color: c.textSecondary, lineHeight: 15, fontStyle: 'italic' },
     clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: c.danger + '55' },
     clearTxt: { fontSize: 12, fontWeight: '700', color: c.danger },
     input: {

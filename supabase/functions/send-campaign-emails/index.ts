@@ -25,6 +25,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 // Gabarit PARTAGÉ avec l'aperçu de l'écran admin : une seule définition du rendu, donc un aperçu
 // qui montre vraiment ce qui part.
 import { renderRelykaEmail } from '../_shared/emailTemplate.ts';
+// Substitution des `{{VARIABLES}}` — sans elle, un `{{PRENOM}}` partait tel quel aux destinataires.
+import { applyEmailVars } from '../_shared/emailVars.ts';
 import { brevoKeys, type BrevoKey } from '../_shared/brevoKeys.ts';
 // « C'est dû maintenant ? » — MÊME code que les notifications planifiées (_shared/recurrence).
 import { isRecurringDue } from '../_shared/recurrence.ts';
@@ -87,17 +89,34 @@ let keyCursor = 0;
 
 async function sendBatch(subject: string, body: string, people: Recipient[]): Promise<void> {
   if (!BREVO_KEYS.length) throw new Error('Aucune clé Brevo configurée (BREVO_API_KEYS)');
-  const payloadFor = (k: BrevoKey) => JSON.stringify({
-    sender: { email: k.sender, name: k.name },
-    subject,
-    htmlContent: renderEmail(subject, body, `${APP_URL}/desinscription`),
-    // `messageVersions` : un seul appel API, mais un contenu PROPRE à chaque destinataire — c'est ce
-    // qui permet d'avoir un lien de désinscription individuel (et pas un lien générique inutilisable).
-    messageVersions: people.map((p) => ({
-      to: [{ email: p.email, name: p.name ?? undefined }],
-      htmlContent: renderEmail(subject, body, `${APP_URL}/desinscription?t=${p.token}`),
-    })),
-  });
+  /* Rendu d'UN destinataire : les variables `{{…}}` sont substituées AVANT la mise en page, dans
+     l'objet comme dans le corps. Par destinataire et non par lot : `{{PRENOM}}` et `{{LIEN_DESABO}}`
+     n'ont pas la même valeur pour deux personnes. */
+  const renderFor = (p: Recipient | null) => {
+    const unsubUrl = p ? `${APP_URL}/desinscription?t=${p.token}` : `${APP_URL}/desinscription`;
+    const ctx = { fullName: p?.name ?? null, unsubUrl, appUrl: APP_URL };
+    return {
+      subject: applyEmailVars(subject, ctx),
+      html: renderEmail(applyEmailVars(subject, ctx), applyEmailVars(body, ctx), unsubUrl),
+    };
+  };
+
+  const payloadFor = (k: BrevoKey) => {
+    // Version de repli (sans destinataire) : Brevo exige un `subject`/`htmlContent` de base.
+    const base = renderFor(null);
+    return JSON.stringify({
+      sender: { email: k.sender, name: k.name },
+      subject: base.subject,
+      htmlContent: base.html,
+      // `messageVersions` : un seul appel API, mais un contenu PROPRE à chaque destinataire — c'est ce
+      // qui permet un lien de désinscription individuel (et pas un lien générique inutilisable), et
+      // désormais un objet et un corps personnalisés.
+      messageVersions: people.map((p) => {
+        const r = renderFor(p);
+        return { to: [{ email: p.email, name: p.name ?? undefined }], subject: r.subject, htmlContent: r.html };
+      }),
+    });
+  };
 
   const attempts: string[] = [];
   // On essaie CHAQUE clé au plus une fois, en repartant de la dernière qui fonctionnait.
