@@ -81,8 +81,10 @@ export function applyEmailVars(content: string, ctx: EmailVarContext): string {
   const vars = emailVars(ctx);
   return content
     .replace(/\{\{\s*([A-Z0-9_]+)\s*\}\}/g, (_m, key: string) => vars[key] ?? '')
-    // Espace avant une virgule / un point / un point d'exclamation, laissé par une variable vide.
-    .replace(/ +([,.!?;:])/g, '$1')
-    // « Bonjour , » → « Bonjour, » couvert ci-dessus ; ici les doubles espaces résiduels.
+    /* Espace resté devant une virgule ou un point après une variable vide (« Bonjour , »).
+       ⚠️ UNIQUEMENT `,` et `.` : en typographie française, `?`, `!`, `;` et `:` prennent un espace
+       AVANT. Les inclure ici transformait « ça va ? » en « ça va? » dans tous les e-mails. */
+    .replace(/ +([,.])/g, '$1')
+    // Doubles espaces résiduels — c'est ce qui recolle « Bonjour  ! » en « Bonjour ! ».
     .replace(/[ \t]{2,}/g, ' ');
 }

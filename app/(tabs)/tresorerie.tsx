@@ -220,11 +220,47 @@ export default function TreasuryPlanScreen() {
 function TreasuryPlanBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  const { isDesktop } = useResponsive(); // web bureau : colonne large centrée pour le tableau
+  const { isDesktop, isCompact } = useResponsive(); // web bureau : colonne large centrée pour le tableau
   const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  /** Fiche « Comment lire ce tableau » : mode d'emploi + légende, à la demande. */
+  const [showHelp, setShowHelp] = useState(false);
+
+  /**
+   * Légende — définie UNE fois, affichée à deux endroits (sous le tableau sur grand écran, dans la
+   * fiche d'aide sur téléphone). La dupliquer aurait garanti qu'une des deux versions oublie une
+   * couleur le jour où l'on en ajoute une.
+   *
+   * Fonction qui RENVOIE du JSX, et non composant déclaré dans le corps : un composant redéfini à
+   * chaque rendu est une nouvelle référence de type, donc React démonte et remonte tout son
+   * sous-arbre à chaque passage — inutile ici, et c'est un écran déjà lourd.
+   */
+  const renderLegend = (inSheet = false) => (
+    <View style={[styles.legend, inSheet && styles.legendInSheet]}>
+      <View style={styles.legendItem}>
+        <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
+        <Text style={styles.legendText}>Recette / solde positif</Text>
+      </View>
+      <View style={styles.legendItem}>
+        <View style={[styles.legendDot, { backgroundColor: COLORS.danger }]} />
+        <Text style={styles.legendText}>Dépense / solde négatif</Text>
+      </View>
+      <View style={styles.legendItem}>
+        <Text style={styles.legendSampleOrange}>123</Text>
+        <Text style={styles.legendText}>Brouillon (manuel)</Text>
+      </View>
+      <View style={styles.legendItem}>
+        <Text style={styles.legendSampleGrey}>123</Text>
+        <Text style={styles.legendText}>Prévisionnel (projet)</Text>
+      </View>
+      <View style={styles.legendItem}>
+        <View style={[styles.legendDot, { backgroundColor: COLORS.balance }]} />
+        <Text style={styles.legendText}>Solde courant</Text>
+      </View>
+    </View>
+  );
 
   // ── Vue simplifiée (masque les sous-catégories) — préférence persistée ──
   const { data: tresoProfile } = useProfile(user?.id);
@@ -1071,8 +1107,21 @@ function TreasuryPlanBody() {
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
+        {/* En-tête ALLÉGÉ : sur un téléphone, la phrase d'explication occupait trois lignes au-dessus
+            du tableau — c'est-à-dire au-dessus de la seule chose qu'on vient voir. Elle rejoint la
+            fiche d'aide, atteignable d'un tap et relue quand on en a besoin, pas à chaque visite. */}
         <View style={styles.subtitleRow}>
-          <Text style={[styles.subtitle, { flex: 1, marginBottom: 0 }]}>Alimenté par tes transactions et récurrences. Appuie sur un montant pour voir le détail.</Text>
+          <TouchableOpacity
+            style={styles.helpBtn}
+            onPress={() => setShowHelp(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Comment lire ce tableau"
+          >
+            <Ionicons name="information-circle-outline" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.helpBtnText}>Comment lire</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }} />
           <TouchableOpacity style={[styles.simpleToggle, simplified && { backgroundColor: COLORS.emerald, borderColor: COLORS.emerald }]} onPress={toggleSimplified} activeOpacity={0.7} accessibilityRole="button">
             <Ionicons name={simplified ? 'contract-outline' : 'expand-outline'} size={14} color={simplified ? COLORS.bg : COLORS.emerald} />
             <Text style={[styles.simpleToggleText, simplified && { color: COLORS.bg }]}>{simplified ? 'Simplifié' : 'Détaillé'}</Text>
@@ -1346,32 +1395,55 @@ function TreasuryPlanBody() {
             </MaybeHScroll>
             </TableScrollHost>
             {/* Légende — hors des deux défilements : elle reste lisible pendant qu'on navigue dans
-                le tableau (c'est sa seule raison d'être). */}
-            <View style={styles.legend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.green }]} />
-                <Text style={styles.legendText}>Recette / solde positif</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.danger }]} />
-                <Text style={styles.legendText}>Dépense / solde négatif</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <Text style={styles.legendSampleOrange}>123</Text>
-                <Text style={styles.legendText}>Brouillon (manuel)</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <Text style={styles.legendSampleGrey}>123</Text>
-                <Text style={styles.legendText}>Prévisionnel (projet)</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: COLORS.balance }]} />
-                <Text style={styles.legendText}>Solde courant</Text>
-              </View>
-            </View>
+                le tableau (c'est sa seule raison d'être).
+                Sur TÉLÉPHONE elle est repliée dans la fiche « Comment lire » : cinq entrées sur deux
+                ou trois lignes mangeaient l'écran sous un tableau déjà à l'étroit. Sur un écran
+                large, la place existe — on la garde sous les yeux, comme prévu à l'origine. */}
+            {!isCompact && renderLegend()}
           </>
         )}
       </SafeAreaView>
+
+      {/* Fiche « Comment lire ce tableau » — le mode d'emploi et la légende, sortis de l'écran
+          principal pour rendre la place au tableau. */}
+      <Modal visible={showHelp} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowHelp(false)}>
+        {/* Carte CENTRÉE et fermable en cliquant à côté. En feuille collée en bas, elle se retrouvait
+            hors champ sur un écran d'ordinateur — et une aide qu'on ouvre par curiosité doit pouvoir
+            se refermer d'un clic n'importe où, sans viser la croix.
+            Le `TouchableOpacity` intérieur absorbe le clic : sans lui, toucher la carte elle-même
+            remonterait jusqu'au fond et refermerait la fiche qu'on est en train de lire. */}
+        <TouchableOpacity
+          style={styles.helpOverlay}
+          activeOpacity={1}
+          onPress={() => setShowHelp(false)}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer"
+        >
+          <TouchableOpacity style={styles.helpSheet} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.helpHead}>
+              <Text style={styles.helpTitle}>Comment lire ce tableau</Text>
+              <TouchableOpacity onPress={() => setShowHelp(false)} style={{ padding: 4 }} accessibilityRole="button">
+                <Ionicons name="close" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.helpScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.helpText}>
+                Le plan est alimenté par tes transactions et tes récurrences : tu n'as rien à y saisir.
+              </Text>
+              <Text style={styles.helpText}>
+                <Text style={styles.helpStrong}>Appuie sur un montant</Text> pour voir le détail des
+                opérations qui le composent.
+              </Text>
+              <Text style={styles.helpText}>
+                <Text style={styles.helpStrong}>Simplifié / Détaillé</Text> replie ou déplie les
+                sous-catégories.
+              </Text>
+              <Text style={styles.helpSection}>Couleurs et styles</Text>
+              {renderLegend(true)}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Menu Modal */}
       <Modal
@@ -1697,8 +1769,25 @@ function makeStyles(c: any) {
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, alignSelf: 'flex-start', ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   backText: { fontSize: 14, fontWeight: '600', color: c.text },
   title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 12 },
-  subtitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  // (plus de `subtitle` : la phrase d'explication vit désormais dans la fiche « Comment lire »)
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  helpBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.cardBorder },
+  helpBtnText: { fontSize: 12, fontWeight: '600', color: c.textSecondary },
+  helpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 22 },
+  /* Carte centrée. Le plafond de hauteur est porté par la carte ELLE-MÊME : une View a
+     `flexShrink: 0`, donc un parent plafonné ne la rétrécirait pas — elle déborderait de l'écran
+     en emportant la légende avec elle (le défaut corrigé sur la clôture mensuelle). */
+  helpSheet: {
+    width: '100%', maxWidth: 460, maxHeight: '82%',
+    backgroundColor: c.cardSolid ?? c.card, borderRadius: 22,
+    borderWidth: 1, borderColor: c.cardBorder, padding: 20,
+  },
+  helpScroll: { flexGrow: 0, flexShrink: 1 },
+  helpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  helpTitle: { fontSize: 18, fontWeight: '800', color: c.text },
+  helpText: { fontSize: 14, color: c.textSecondary, lineHeight: 21, marginBottom: 12 },
+  helpStrong: { fontWeight: '800', color: c.text },
+  helpSection: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 6, marginBottom: 2 },
   simpleToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
   simpleToggleText: { fontSize: 12, fontWeight: '700', color: c.emerald },
   controls: { marginBottom: 12 },
@@ -1855,6 +1944,8 @@ function makeStyles(c: any) {
   cellNumDraft: { color: '#FF9500', fontStyle: 'italic' },
   cellNumForecast: { color: '#8E949A', fontStyle: 'italic' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: c.cardBorder },
+  // Dans la fiche d'aide : une entrée par ligne (on la LIT, on ne la survole pas) et pas de filet.
+  legendInSheet: { flexDirection: 'column', gap: 12, paddingHorizontal: 0, borderTopWidth: 0 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 11, color: c.textSecondary },

@@ -46,8 +46,17 @@ describe('emailVars', () => {
     expect(out).toBe('Bonjour, ça va ?');
   });
 
+  it('respecte l’espace français avant les ponctuations doubles', () => {
+    // Le nettoyage ne doit jamais transformer « ça va ? » en « ça va? ».
+    expect(applyEmailVars('Prêt {{PRENOM}} ? Alors go !', CTX)).toBe('Prêt Marie ? Alors go !');
+    expect(applyEmailVars('Prêt {{PRENOM}} ? Alors go !', { ...CTX, fullName: null }))
+      .toBe('Prêt ? Alors go !');
+  });
+
   it('vide une variable inconnue au lieu de l’afficher', () => {
-    expect(applyEmailVars('Salut {{INEXISTANT}}!', CTX)).toBe('Salut!');
+    // L'espace devant « ! » est conservé : c'est la ponctuation française, pas une cicatrice.
+    expect(applyEmailVars('Salut {{INEXISTANT}}!', CTX)).toBe('Salut !');
+    expect(applyEmailVars('Coucou {{INEXISTANT}}, ça va', CTX)).toBe('Coucou, ça va');
   });
 });
 

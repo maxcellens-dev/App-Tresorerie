@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useResponsive } from '../../../hooks/useResponsive';
@@ -16,7 +16,6 @@ export default function ClotureScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
-  const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
   const { enabled, closures, pendingMonths, closeMonths, reopenMonth, reopenableMonth } = useMonthlyClosure(user?.id);
@@ -32,13 +31,11 @@ export default function ClotureScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'settings')]} edges={['left', 'right']}>
-        <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-            <Text style={{ color: COLORS.text, marginLeft: 4, fontSize: 14, fontWeight: '600' }}>Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Clôture mensuelle</Text>
-        </View>
+        {/* En-tête PARTAGÉ (ScreenHeader) : « ← Retour » sur sa ligne, puis le titre en dessous.
+            Cette page les mettait côte à côte sur une seule ligne, avec ses propres tailles — seul
+            écran secondaire à le faire, d'où l'impression de changer d'app en y arrivant. Recopier
+            les valeurs du composant aurait recréé la même dérive plus tard. */}
+        <ScreenHeader title="Clôture mensuelle" onBack={goBack} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           {!enabled ? (
             <Text style={styles.subtitle}>La clôture mensuelle n'est pas activée.</Text>
@@ -139,9 +136,7 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    pageHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, marginBottom: 4 },
-    backBtn: { padding: 4, marginRight: 12 },
-    title: { fontSize: 24, fontWeight: '700', color: c.text },
+    // (l'en-tête vient de ScreenHeader : ni pageHeader, ni backBtn, ni title à redéfinir ici)
     subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 20, lineHeight: 20 },
     sectionTitle: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder, paddingHorizontal: 16, marginBottom: 20 },
