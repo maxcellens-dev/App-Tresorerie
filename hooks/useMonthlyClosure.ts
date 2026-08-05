@@ -67,7 +67,7 @@ export function useMonthlyClosure(userId: string | undefined) {
   const enabled = Boolean(flags?.monthly_closure_enabled);
   const { data: profile } = useProfile(userId);
   const { data: transactions = [] } = useTransactions(userId);
-  const { data: closures = [] } = useMonthClosures(userId);
+  const { data: closures = [], isSuccess: closuresLoaded } = useMonthClosures(userId);
 
   // Verrou effectif : ignoré si la fonctionnalité Clôture est désactivée (tout reste éditable).
   // La valeur stockée (closure_lock_date) est conservée → réactiver la fonctionnalité re-fige.
@@ -77,7 +77,12 @@ export function useMonthlyClosure(userId: string | undefined) {
   const bilan = bilanRaw && !bilanRaw.seen ? bilanRaw : null;
 
   const pendingMonths = useMemo(() => {
-    if (!enabled || !transactions.length) return [];
+    /* ⚠️ Tant que les clôtures ne sont pas CHARGÉES, on ne conclut rien. `closures = []` se lit
+       « aucun mois n'a jamais été clôturé » et fait remonter tout l'historique comme en attente :
+       les transactions arrivent souvent en premier (cache persisté), et la modale s'ouvrait une
+       fraction de seconde au démarrage chez un utilisateur pourtant à jour, avant de se rétracter.
+       `isSuccess` et jamais `isFetched` : ce dernier est vrai aussi quand la lecture a ÉCHOUÉ. */
+    if (!enabled || !closuresLoaded || !transactions.length) return [];
     // Seuls les mois CONFIRMÉS sont réellement clos : un mois `estimated` reste proposé à la clôture
     // (le user peut toujours répondre plus tard) mais est déjà exclu des baselines.
     const confirmed = closures.filter((c) => (c.status ?? 'confirmed') === 'confirmed');
@@ -97,7 +102,7 @@ export function useMonthlyClosure(userId: string | undefined) {
       guard++;
     }
     return res; // du plus ancien au plus récent
-  }, [enabled, transactions, closures]);
+  }, [enabled, closuresLoaded, transactions, closures]);
 
   // ── Marquage AUTO `estimated` : un mois pendant ignoré au-delà du délai de grâce (8 jours dans
   // le mois suivant) est marqué estimated (jamais bloquant, silencieux, rétro-corrigeable). ──

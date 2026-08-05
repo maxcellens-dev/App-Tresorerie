@@ -28,6 +28,9 @@ const mapCredit = (r: any): Credit => ({
   schedule_overrides: r.schedule_overrides && typeof r.schedule_overrides === 'object' ? r.schedule_overrides : null,
   early_repayment_penalty_pct: r.early_repayment_penalty_pct != null ? Number(r.early_repayment_penalty_pct) : 0,
   deferral_months: r.deferral_months != null ? Number(r.deferral_months) : 0,
+  // Migration 166. `?? false` et pas `r.is_shared` nu : tant que la migration n'est pas appliquée,
+  // la colonne est absente et un `undefined` ferait basculer les tests booléens au hasard.
+  is_shared: r.is_shared ?? false,
 });
 
 export function useCredits(profileId: string | undefined) {

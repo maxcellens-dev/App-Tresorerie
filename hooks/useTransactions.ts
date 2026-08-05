@@ -253,6 +253,53 @@ export function useAllTransactions(profileId: string | undefined) {
   });
 }
 
+/**
+ * PERF (ressenti) — insère la transaction qui vient d'être créée DANS le cache, tout de suite.
+ *
+ * L'invalidation qui suit déclenche un refetch de 500 lignes jointes (comptes, catégories, compte
+ * lié) : tant qu'il n'est pas revenu, la liste montre l'état d'AVANT, et l'utilisateur voit son
+ * opération « manquer » pendant tout l'aller-retour. On la pose donc en tête du cache dès que la
+ * base a confirmé l'insert — le refetch, quand il arrive, ne fait plus que confirmer ce qui est
+ * déjà à l'écran.
+ *
+ * Les libellés joints (compte, catégorie) sont repris des caches correspondants : ce sont les mêmes
+ * données que celles que le serveur renverra. S'ils manquent, la ligne s'affiche sans eux et le
+ * refetch les complète — jamais d'écran vide, jamais d'invention.
+ */
+function seedTransactionCache(client: ReturnType<typeof useQueryClient>, profileId: string, row: any) {
+  if (!row?.id) return;
+  const accounts = client.getQueryData<any[]>(['accounts', profileId]) ?? [];
+  const categories = client.getQueryData<any[]>(['categories', profileId]) ?? [];
+  const acc = accounts.find((a) => a.id === row.account_id);
+  const cat = row.category_id ? categories.find((c) => c.id === row.category_id) : null;
+  const linked = row.linked_account_id ? accounts.find((a) => a.id === row.linked_account_id) : null;
+
+  const enriched: TransactionWithDetails = {
+    ...row,
+    amount: Number(row.amount),
+    account: acc ? { name: acc.name, type: acc.type, currency: acc.currency, profile_id: acc.profile_id, is_joint: acc.is_joint } : null,
+    category: cat ? { name: cat.name, type: cat.type } : null,
+    linked_account: linked ? { name: linked.name, type: linked.type, currency: linked.currency } : null,
+  } as TransactionWithDetails;
+
+  // La liste est triée par date décroissante : on réinsère à la bonne place plutôt qu'en tête,
+  // sinon une opération antidatée apparaîtrait au-dessus des plus récentes avant de sauter ailleurs.
+  const insertSorted = (list: TransactionWithDetails[] | undefined) => {
+    if (!list) return list;                       // requête jamais chargée : rien à devancer
+    if (list.some((t) => t.id === enriched.id)) return list;
+    const at = list.findIndex((t) => String(t.date) < String(enriched.date));
+    const next = list.slice();
+    next.splice(at === -1 ? next.length : at, 0, enriched);
+    return next;
+  };
+
+  client.setQueryData<TransactionWithDetails[]>([KEY, profileId, 'all'], insertSorted);
+  // Vue PERSO : mêmes conditions d'appartenance que la requête (mes comptes, non joints).
+  if (enriched.account && (enriched.account as any).profile_id === profileId && !(enriched.account as any).is_joint) {
+    client.setQueryData<TransactionWithDetails[]>([KEY, profileId], insertSorted);
+  }
+}
+
 export function useAddTransaction(profileId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
@@ -374,6 +421,9 @@ export function useAddTransaction(profileId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
+
+      // La ligne existe en base : elle doit exister à l'écran MAINTENANT, pas au retour du refetch.
+      seedTransactionCache(client, profileId, data);
 
       // POULS — émis DÈS l'insert réussi (la transaction existe : la confirmation peut apparaître),
       // sans attendre le recalcul des soldes ni les invalidations. On ignore : brouillons, réguls,

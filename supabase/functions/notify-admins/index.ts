@@ -14,6 +14,7 @@
 // Trace toujours l'événement dans admin_notifications (historique in-app), même push coupé.
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { sendExpoPush, pruneDeadTokens, normalizeTokens, summarizePush } from '../_shared/expoPush.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -93,22 +94,25 @@ serve(async (req) => {
     }
 
     // 4) Envoi push Expo aux appareils des admins ciblés (qui ont activé les notifications).
+    //    La réponse d'Expo est LUE (cf. _shared/expoPush) : `sent` compte désormais les envois
+    //    réellement acceptés, et non le nombre d'appareils auxquels on a bien voulu écrire.
     let sent = 0;
+    let targeted = 0;
+    let summary = 'Aucun admin ciblé.';
     if (targetIds.length) {
       const { data: toks } = await admin
         .from('push_tokens')
         .select('token, profiles!inner(notifications_enabled)')
         .eq('profiles.notifications_enabled', true)
         .in('profile_id', targetIds);
-      const tokens = [...new Set((toks ?? []).map((t: any) => t.token))]
-        .filter((t: any) => typeof t === 'string' && t.startsWith('ExponentPushToken'));
-      sent = tokens.length;
+      const tokens = normalizeTokens((toks ?? []).map((t: any) => t.token));
+      targeted = tokens.length;
       if (tokens.length) {
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(tokens.map((to) => ({ to, title: safeTitle, body: safeBody, sound: 'default' }))),
-        });
+        const r = await sendExpoPush(tokens, { title: safeTitle, body: safeBody });
+        await pruneDeadTokens(admin, r.deadTokens);
+        sent = r.accepted;
+        summary = summarizePush(r);
+        if (r.failed > 0) console.warn(`[notify-admins] ${kind} : ${summary}`);
       }
     }
 
@@ -117,7 +121,7 @@ serve(async (req) => {
       title: safeTitle, body: safeBody, sent_count: sent, source: kind, target_label: 'Admins',
     });
 
-    return json({ ok: true, sent });
+    return json({ ok: true, sent, targeted, summary });
   } catch (e) {
     console.error('[notify-admins]', e);
     return json({ error: String(e) }, 500);

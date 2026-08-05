@@ -44,16 +44,27 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
   // ≥ 768 px (web bureau/tablette, tablette native) : le récap tient sur une seule ligne.
   const oneLine = !useResponsive().isCompact;
 
-  const own = credits.filter((c) => !c._role || c._role === 'owner');
-  const shared = credits.filter((c) => c._role && c._role !== 'owner');
+  /* Regroupement par RESPONSABILITÉ (`is_shared`, migration 166) et non par droit d'accès.
+     Un crédit qu'on a simplement montré à quelqu'un en consultation reste une dette perso ; un
+     crédit souscrit à deux reste partagé même si personne d'autre ne l'a ouvert dans l'app.
+     Le rôle (`_role`) continue d'exister — il décide qui peut modifier — mais il ne trie plus rien. */
+  const perso = credits.filter((c) => !c.is_shared);
+  const shared = credits.filter((c) => c.is_shared);
+  /* Tant qu'aucun crédit n'est marqué « partagé », il n'y a qu'UN récap et aucun intertitre :
+     l'écran reste exactement celui d'avant pour qui ne s'en sert pas. */
+  const splitView = perso.length > 0 && shared.length > 0;
 
-  /* Récap global des crédits perso actifs (hors simulation). Le seul « capital restant dû » ne
+  /* Récap d'un ENSEMBLE de crédits actifs (hors simulation). Le seul « capital restant dû » ne
      disait pas ce qu'il reste réellement à sortir du compte : on coupe donc chaque échéancier à
      aujourd'hui. « Reste à payer » et « Déjà payé » sont des ÉCHÉANCES, assurance comprise (ce qui
-     quitte le compte) ; « Intérêts restants » est la part d'intérêts des échéances à venir. */
-  const recap = useMemo(() => {
+     quitte le compte) ; « Intérêts restants » est la part d'intérêts des échéances à venir.
+
+     ⚠️ Un récap ne décrit QUE la liste qu'il surplombe : perso et partagés ont chacun le leur.
+     Un total unique mélangeait des crédits dont l'utilisateur n'est pas le débiteur — et, quand il
+     n'avait QUE des crédits partagés, aucun total ne s'affichait du tout. */
+  const recapOf = (list: Credit[]) => {
     let crd = 0, interestLeft = 0, leftToPay = 0, paid = 0;
-    for (const c of own) {
+    for (const c of list) {
       if (!c.is_active || c.is_simulation) continue;
       const a = computeAmortization(c);
       crd += a.crdAtDate(today);
@@ -64,21 +75,74 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
       }
     }
     return { crd, interestLeft, leftToPay, paid };
-  }, [credits, today]);
+  };
 
   /* Les 4 chiffres du récap, dans l'ordre de lecture. Montants ARRONDIS à l'euro : sur un total de
      crédits, les centimes n'apportent rien et rendaient la grille illisible (le détail d'un crédit,
      lui, garde ses centimes). Couleurs : ce qui coûte en orange, ce qui est acquis en vert. */
-  const recapCells = [
-    { label: 'Capital restant', value: recap.crd, color: COLORS.text, lead: true },
-    { label: 'Intérêts restants', value: recap.interestLeft, color: COLORS.orange },
-    { label: 'Reste à payer', value: recap.leftToPay, color: COLORS.text, lead: true },
-    { label: 'Déjà payé', value: recap.paid, color: COLORS.emerald },
+  const cellsOf = (r: ReturnType<typeof recapOf>) => [
+    { label: 'Capital restant', value: r.crd, color: COLORS.text, lead: true },
+    { label: 'Intérêts restants', value: r.interestLeft, color: COLORS.orange },
+    { label: 'Reste à payer', value: r.leftToPay, color: COLORS.text, lead: true },
+    { label: 'Déjà payé', value: r.paid, color: COLORS.emerald },
   ];
 
-  const row = (c: Credit, idx: number, isShared: boolean) => {
+  const persoCells = useMemo(() => cellsOf(recapOf(perso)), [credits, today, COLORS]);
+  const sharedCells = useMemo(() => cellsOf(recapOf(shared)), [credits, today, COLORS]);
+
+  /**
+   * Grille des 4 totaux. `adjustsFontSizeToFit` N'EXISTE PAS sur react-native-web (la prop est
+   * simplement ignorée) et reste peu fiable sur Android : s'y fier, c'est laisser un montant long
+   * se faire tronquer par `numberOfLines={1}` sans que rien ne le rattrape. On dimensionne donc la
+   * police NOUS-MÊMES, à partir de la longueur réelle du texte — même rendu sur toutes les plateformes.
+   */
+  const SummaryGrid = ({ cells }: { cells: ReturnType<typeof cellsOf> }) => (
+    <View style={[styles.summary, !oneLine && styles.summaryWrap]}>
+      {cells.map((cell, i) => {
+        const text = money(cell.value);
+        const size = text.length > 13 ? 11 : text.length > 10 ? 12.5 : cell.lead ? 14 : 13;
+        return (
+          <View
+            key={cell.label}
+            style={[
+              styles.summaryCell,
+              oneLine ? styles.summaryCellFlex : styles.summaryCellHalf,
+              (oneLine ? i > 0 : i % 2 === 1) && styles.summaryCellSepLeft,
+              !oneLine && i >= 2 && styles.summaryCellSepTop,
+            ]}
+          >
+            <Text style={styles.summaryLabel} numberOfLines={1}>{cell.label}</Text>
+            <Text style={[styles.summaryValue, cell.lead && styles.summaryValueLead, { fontSize: size, color: cell.color }]} numberOfLines={1}>
+              {text}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+
+  const row = (c: Credit, idx: number) => {
     const a = computeAmortization(c);
     const meta = TYPE_META[c.type] ?? TYPE_META.autre;
+    /* Deux étiquettes, deux sens :
+       - `received` = ACCÈS (le crédit appartient à quelqu'un d'autre, je le consulte ou l'édite) ;
+       - la pastille « Partagé » = RESPONSABILITÉ, affichée seulement quand rien d'autre ne la dit
+         (sans intertitre de section, la nature d'un crédit doit rester lisible sur sa ligne). */
+    const received = !!c._role && c._role !== 'owner';
+    /* Dénominateur = le NOMBRE DE LIGNES de l'échéancier, pas `duration_months` : un différé ajoute
+       des échéances en tête, que le compteur de gauche compte déjà. « 19/300 » avec 6 mois de
+       différé annonçait donc un rapport entre deux choses différentes.
+       Mensualité = la PROCHAINE échéance réelle (différé, paliers, modulation…) et non la mensualité
+       nominale : c'est elle qui explique « déjà payé » et « reste à payer », et son écart avec le
+       montant nominal est exactement ce qui faisait douter des totaux. */
+    const total = a.schedule.length || c.duration_months;
+    const next = a.schedule.find((r) => r.date > today);
+    const monthly = next ? next.payment + next.insurance : a.monthlyWithInsurance;
+    /* Chiffre de droite = RESTE À PAYER (échéances à venir, assurance comprise) et non le capital
+       restant dû. C'est ce qui va réellement sortir du compte : le capital seul sous-estime toujours
+       la charge — il ignore les intérêts et l'assurance encore à verser. Le récap garde les deux. */
+    let leftToPay = 0;
+    for (const r of a.schedule) if (r.date > today) leftToPay += r.payment + r.insurance;
     return (
       <TouchableOpacity key={c.id} style={[styles.row, idx > 0 && styles.rowBorder]} activeOpacity={0.7} onPress={() => router.push(`/(tabs)/comptes/credit/${c.id}` as any)}>
         <View style={[styles.icon, { backgroundColor: COLORS.blue + '1A' }]}><Ionicons name={meta.icon as any} size={18} color={COLORS.blue} /></View>
@@ -86,13 +150,14 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={styles.name} numberOfLines={1}>{c.label}</Text>
             {c.is_simulation && <View style={styles.simTag}><Text style={styles.simTagText}>Simu</Text></View>}
-            {isShared && <View style={styles.shareTag}><Text style={styles.shareTagText}>{c._role === 'read' ? 'Consult.' : 'Partagé'}</Text></View>}
+            {c.is_shared && !splitView && <View style={styles.shareTag}><Text style={styles.shareTagText}>Partagé</Text></View>}
+            {received && <View style={styles.roleTag}><Text style={styles.roleTagText}>{c._role === 'read' ? 'Consult.' : 'Écriture'}</Text></View>}
           </View>
-          <Text style={styles.sub}>{meta.label} · {a.paidCountAtDate(today)}/{c.duration_months} échéances · {fmt(a.monthlyWithInsurance)}/mois</Text>
+          <Text style={styles.sub}>{meta.label} · {a.paidCountAtDate(today)}/{total} échéances · {fmt(monthly)}/mois</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.crd}>{fmt(a.crdAtDate(today))}</Text>
-          <Text style={styles.crdLabel}>restant dû</Text>
+          <Text style={styles.crd}>{fmt(leftToPay)}</Text>
+          <Text style={styles.crdLabel}>reste à payer</Text>
         </View>
       </TouchableOpacity>
     );
@@ -100,32 +165,15 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
 
   return (
     <View style={styles.wrap}>
-      {own.length > 0 && (
-        // Écran large (web bureau / tablette) : les 4 chiffres tiennent sur UNE ligne, séparés par
-        // des filets. Téléphone : la grille se replie en 2 × 2 sans changer de code (flexWrap).
-        <View style={[styles.summary, !oneLine && styles.summaryWrap]}>
-          {recapCells.map((cell, i) => (
-            <View
-              key={cell.label}
-              style={[
-                styles.summaryCell,
-                oneLine ? styles.summaryCellFlex : styles.summaryCellHalf,
-                (oneLine ? i > 0 : i % 2 === 1) && styles.summaryCellSepLeft,
-                !oneLine && i >= 2 && styles.summaryCellSepTop,
-              ]}
-            >
-              <Text style={styles.summaryLabel} numberOfLines={1}>{cell.label}</Text>
-              <Text
-                style={[styles.summaryValue, cell.lead && styles.summaryValueLead, { color: cell.color }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-              >
-                {money(cell.value)}
-              </Text>
-            </View>
-          ))}
-        </View>
+      {/* Écran large (web bureau / tablette) : les 4 chiffres tiennent sur UNE ligne, séparés par
+          des filets. Téléphone : la grille se replie en 2 × 2 sans changer de code (flexWrap).
+          Un seul groupe → un seul récap, sans intertitre (cas de la très grande majorité). */}
+      {!splitView && credits.length > 0 && <SummaryGrid cells={perso.length > 0 ? persoCells : sharedCells} />}
+      {splitView && (
+        <>
+          <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Mes crédits</Text>
+          <SummaryGrid cells={persoCells} />
+        </>
       )}
 
       {/* Invitations en attente — même forme que les invitations de comptes partagés/joints. */}
@@ -157,11 +205,18 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
         </View>
       ) : (
         <>
-          {own.length > 0 && <View style={styles.list}>{own.map((c, i) => row(c, i, false))}</View>}
+          {perso.length > 0 && <View style={styles.list}>{perso.map((c, i) => row(c, i))}</View>}
           {shared.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Crédits partagés</Text>
-              <View style={styles.list}>{shared.map((c, i) => row(c, i, true))}</View>
+              {/* Le récap des dettes portées à plusieurs est SÉPARÉ de celui des dettes perso :
+                  ce ne sont pas les mêmes engagements, les additionner ne veut rien dire. */}
+              {splitView && (
+                <>
+                  <Text style={styles.sectionLabel}>Crédits partagés</Text>
+                  <SummaryGrid cells={sharedCells} />
+                </>
+              )}
+              <View style={styles.list}>{shared.map((c, i) => row(c, i))}</View>
             </>
           )}
         </>
@@ -179,12 +234,12 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
             <Text style={styles.cardTitle}>Quel type de crédit ?</Text>
             <TouchableOpacity style={styles.opt} onPress={() => { setShowType(false); router.push('/(tabs)/comptes/credit-add' as any); }}>
               <View style={[styles.optIcon, { backgroundColor: COLORS.emerald + '22' }]}><Ionicons name="person" size={22} color={COLORS.emerald} /></View>
-              <View style={{ flex: 1 }}><Text style={styles.optTitle}>Personnel</Text><Text style={styles.optSub}>Un crédit à toi.</Text></View>
+              <View style={{ flex: 1 }}><Text style={styles.optTitle}>Personnel</Text><Text style={styles.optSub}>Une dette que tu portes seul.</Text></View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.opt} onPress={() => { setShowType(false); router.push('/(tabs)/comptes/credit-add?shared=1' as any); }}>
               <View style={[styles.optIcon, { backgroundColor: '#3b82f6' + '22' }]}><Ionicons name="people" size={22} color="#3b82f6" /></View>
-              <View style={{ flex: 1 }}><Text style={styles.optTitle}>Partagé</Text><Text style={styles.optSub}>Visible par d'autres users. Tu enverras les invitations après création.</Text></View>
+              <View style={{ flex: 1 }}><Text style={styles.optTitle}>Partagé</Text><Text style={styles.optSub}>Une dette portée à plusieurs. Totalisée à part ; tu donneras les accès après création.</Text></View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </TouchableOpacity>
@@ -220,8 +275,12 @@ function makeStyles(c: any) {
     crdLabel: { fontSize: 10, color: c.textSecondary },
     simTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.orange + '1A', borderWidth: 1, borderColor: c.orange + '44' },
     simTagText: { fontSize: 9.5, fontWeight: '700', color: c.orange },
+    // Nature (dette portée à plusieurs) — bleu, comme le partage ailleurs dans l'app.
     shareTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.blue + '1A', borderWidth: 1, borderColor: c.blue + '44' },
     shareTagText: { fontSize: 9.5, fontWeight: '700', color: c.blue },
+    // Accès reçu (crédit de quelqu'un d'autre) — neutre : ce n'est pas une information d'argent.
+    roleTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: c.textSecondary + '18', borderWidth: 1, borderColor: c.textSecondary + '40' },
+    roleTagText: { fontSize: 9.5, fontWeight: '700', color: c.textSecondary },
     inviteCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.emerald + '55', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
     inviteIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     inviteName: { fontSize: 14.5, fontWeight: '700', color: c.text },

@@ -43,3 +43,30 @@ Crée un cron job :
 - Les heures périodiques sont en **heure locale** du fuseau de la planif (`timezone`, défaut
   `Europe/Paris`). L'envoi se fait au 1ᵉ passage du cron **après** l'heure cible, **1×/jour** max.
 - Idempotent par jour grâce à `last_sent_at`. Pas de double envoi même si le cron tourne souvent.
+
+## Ce que la fonction fait d'un échec (depuis la correction des envois muets)
+
+La réponse d'Expo est désormais **lue** (`_shared/expoPush.ts`). Trois conséquences :
+
+- `sent_count` dans `admin_notifications` = les envois **acceptés par Expo**, plus le nombre
+  d'appareils qu'on espérait toucher. Une ligne à `0` signale une occurrence perdue.
+- **Échec total** (des appareils visés, aucun envoi accepté) → la planification n'est **pas** marquée
+  comme envoyée : `last_sent_at` reste tel quel et le cron **retentera** au passage suivant. C'est ce
+  qui manquait : une mensuelle « partait », échouait, et l'occurrence était perdue jusqu'au mois
+  suivant. La reprise est bornée — une périodique n'est due que le bon jour, un envoi ponctuel est
+  abandonné 24 h après son `trigger_at`.
+- Une seule ligne d'historique par jour et par planification en cas d'échec (sinon un cron à la
+  minute inonderait l'écran admin avec le même échec).
+
+La réponse HTTP contient un tableau `failures` — visible directement dans le **journal d'exécution
+de cron-job.org**, sans ouvrir Supabase :
+
+```json
+{ "ok": true, "processed": 4, "fired": 1,
+  "results": [{ "id": "...", "title": "Le Point", "targeted": 11, "accepted": 11, "failed": 0 }],
+  "failures": [] }
+```
+
+Un `failures` non vide, ou un `accepted` à 0 alors que `targeted` est élevé, désigne une panne
+d'envoi et non un problème d'audience. Le détail par code est dans les logs de la fonction
+(Supabase → Edge Functions → Logs) et dans le panneau admin « Qui est joignable ».

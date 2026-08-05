@@ -1,67 +1,93 @@
 /**
- * Envoi de notifications push via l'API Expo Push (https://exp.host/--/api/v2/push/send).
- * Fonctionne depuis n'importe quelle plateforme (l'admin envoie souvent depuis le web) :
- * on lit les jetons en base (push_tokens) puis on POSTe à l'API Expo par lots de 100.
- * Seuls les utilisateurs avec profiles.notifications_enabled = true sont ciblés.
+ * Envoi de notifications push — CÔTÉ CLIENT.
  *
- * Ciblage (`NotifTarget`) : Tous, Premium, Normal, ou un groupe custom (user_groups).
+ * ⚠️ Les envois ADMIN ne partent plus du navigateur. Ils passent par l'Edge Function `admin-push`
+ * (rôle service). Trois raisons, dans l'ordre d'importance :
+ *
+ *   1. On ne savait JAMAIS si un envoi était parti. L'ancien code faisait `try { await fetch(expo) }
+ *      catch {}` et renvoyait le nombre de jetons lus en base : l'écran admin annonçait « envoyé à
+ *      N appareils » même quand Expo avait tout refusé, ou quand la requête n'était jamais partie.
+ *      C'est précisément ce qui rendait une panne de push indétectable.
+ *   2. Les jetons morts (`DeviceNotRegistered`) ne peuvent pas être purgés depuis le client :
+ *      `push_tokens` n'a pas de policy DELETE pour les admins (migration 063).
+ *   3. Un POST vers exp.host depuis un navigateur dépend du CORS et du réseau du poste admin.
+ *
+ * Le ciblage (Tous / Premium / Normal / groupe) est refait côté serveur : le client ne fait que
+ * décrire la cible, il ne lit plus les jetons des autres.
  */
 import { supabase } from './supabase';
-
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const BATCH_SIZE = 100;
 
 export type NotifTargetKind = 'all' | 'premium' | 'normal' | 'group';
 export interface NotifTarget { kind: NotifTargetKind; groupId?: string | null }
 
-async function postBatches(tokens: string[], title: string, body: string): Promise<number> {
-  const unique = [...new Set(tokens)].filter((t) => t && t.startsWith('ExponentPushToken'));
-  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
-    const batch = unique.slice(i, i + BATCH_SIZE).map((to) => ({ to, title, body, sound: 'default' }));
-    try {
-      await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(batch),
-      });
-    } catch (e) {
-      console.warn('[pushSend] envoi Expo échoué (lot ignoré):', e);
-    }
-  }
-  return unique.length;
+/** Ce qu'un envoi a RÉELLEMENT produit — à afficher tel quel dans l'écran admin. */
+export interface PushSendResult {
+  /** Appareils visés (jetons valides trouvés pour la cible). */
+  targeted: number;
+  /** Envois acceptés par Expo. C'est LE chiffre à annoncer. */
+  accepted: number;
+  /** Envois refusés. */
+  failed: number;
+  /** Détail des refus, code Expo par code Expo. */
+  errors: Array<{ token: string; code: string; message: string }>;
+  /** Jetons morts supprimés au passage. */
+  pruned: number;
+  /** Expo a tout refusé pour une raison de configuration → panne globale, pas un appareil isolé. */
+  configFailure: boolean;
+  /** Résumé lisible (« 9 accepté(s) — 2 en échec — DeviceNotRegistered ×2 »). */
+  summary: string;
 }
 
-/** Les profile_ids correspondant à une cible, ou `null` = pas de filtre (Tous). */
-async function profileIdsForTarget(target: NotifTarget): Promise<string[] | null> {
-  if (!supabase || target.kind === 'all') return null;
-  if (target.kind === 'group') {
-    if (!target.groupId) return [];
-    const { data } = await supabase.from('user_group_members').select('profile_id').eq('group_id', target.groupId);
-    return (data ?? []).map((r: any) => r.profile_id);
+async function invokeAdminPush(payload: Record<string, unknown>): Promise<any> {
+  if (!supabase) throw new Error('Backend indisponible');
+  const { data, error } = await supabase.functions.invoke('admin-push', { body: payload });
+  if (error) {
+    /* Le corps d'erreur d'une Edge Function porte le vrai message (403 forbidden, 500…) ; sans lui
+       on n'aurait qu'un « FunctionsHttpError » qui n'aide personne. */
+    let detail = '';
+    try { detail = await (error as any).context?.text?.(); } catch { /* le message brut suffira */ }
+    throw new Error(detail ? `${error.message} — ${detail.slice(0, 300)}` : error.message);
   }
-  // premium / normal
-  const { data } = await supabase.from('profiles').select('id').eq('is_premium', target.kind === 'premium');
-  return (data ?? []).map((r: any) => r.id);
+  if (data?.error) throw new Error(String(data.error));
+  return data ?? {};
 }
 
-/** Push vers une CIBLE (Tous / Premium / Normal / groupe). Renvoie le nb d'appareils ciblés. */
-export async function sendPushToTarget(target: NotifTarget, title: string, body: string): Promise<number> {
-  if (!supabase) return 0;
-  const ids = await profileIdsForTarget(target);
-  let query = supabase
-    .from('push_tokens')
-    .select('token, profiles!inner(notifications_enabled)')
-    .eq('profiles.notifications_enabled', true);
-  if (ids !== null) {
-    if (ids.length === 0) return 0;
-    query = query.in('profile_id', ids);
-  }
-  const { data, error } = await query;
-  if (error || !data?.length) return 0;
-  return postBatches(data.map((r: any) => r.token), title, body);
+function toResult(d: any): PushSendResult {
+  return {
+    targeted: Number(d.targeted ?? 0),
+    accepted: Number(d.accepted ?? 0),
+    failed: Number(d.failed ?? 0),
+    errors: Array.isArray(d.errors) ? d.errors : [],
+    pruned: Number(d.pruned ?? 0),
+    configFailure: Boolean(d.config_failure),
+    summary: String(d.summary ?? ''),
+  };
 }
 
-/** Push vers un utilisateur précis (s'il a activé les notifications). */
+/**
+ * Push ADMIN vers une CIBLE (Tous / Premium / Normal / groupe).
+ * L'Edge Function inscrit elle-même la ligne d'historique (`admin_notifications`) avec le nombre
+ * d'envois ACCEPTÉS — l'appelant n'a plus à le faire, et ne peut plus y écrire un chiffre optimiste.
+ */
+export async function sendPushToTarget(target: NotifTarget, title: string, body: string): Promise<PushSendResult> {
+  return toResult(await invokeAdminPush({ action: 'send', target, title, body }));
+}
+
+/** Push de TEST vers ses propres appareils — le premier geste de diagnostic. */
+export async function sendTestPush(title?: string, body?: string): Promise<PushSendResult> {
+  return toResult(await invokeAdminPush({ action: 'test', title, body }));
+}
+
+/** État de joignabilité de la base (panneau admin « Qui est joignable »). */
+export async function fetchReachability(): Promise<any> {
+  return invokeAdminPush({ action: 'diagnose' });
+}
+
+/**
+ * Push vers un utilisateur précis (s'il a activé les notifications).
+ * Reste côté client : c'est l'app elle-même qui prévient un utilisateur de SA propre réponse IA,
+ * et la policy SELECT de `push_tokens` autorise déjà chacun à lire ses jetons. Best-effort.
+ */
 export async function sendPushToProfile(profileId: string, title: string, body: string): Promise<number> {
   if (!supabase) return 0;
   const { data, error } = await supabase
@@ -70,12 +96,24 @@ export async function sendPushToProfile(profileId: string, title: string, body: 
     .eq('profile_id', profileId)
     .eq('profiles.notifications_enabled', true);
   if (error || !data?.length) return 0;
-  return postBatches(data.map((r: any) => r.token), title, body);
-}
-
-/** Push vers TOUS les utilisateurs ayant activé les notifications. */
-export async function sendPushToAll(title: string, body: string): Promise<number> {
-  return sendPushToTarget({ kind: 'all' }, title, body);
+  const tokens = [...new Set(data.map((r: any) => r.token))]
+    .filter((t): t is string => typeof t === 'string' && t.startsWith('Expo'));
+  if (!tokens.length) return 0;
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: 'default' }))),
+    });
+    // Même ici on LIT la réponse : un échec silencieux est ce qu'on cherche à éliminer partout.
+    if (!res.ok) { console.warn('[pushSend] Expo a répondu', res.status, (await res.text()).slice(0, 200)); return 0; }
+    const payload = await res.json().catch(() => null);
+    const tickets: any[] = Array.isArray(payload?.data) ? payload.data : [];
+    return tickets.filter((t) => t?.status === 'ok').length;
+  } catch (e) {
+    console.warn('[pushSend] envoi Expo échoué:', e);
+    return 0;
+  }
 }
 
 export type AdminNotifKind = 'support' | 'suggestion' | 'ai_ticket';

@@ -37,3 +37,59 @@ déployés ainsi — d'où le fait que la même clé y fonctionne.
 ```json
 { "ok": true, "campaigns": 1, "sent": 342, "errors": [] }
 ```
+
+## Plusieurs clés Brevo (bascule automatique)
+
+Un compte Brevo gratuit plafonne à **~300 e-mails par jour**. Au-delà, l'API répond `402
+not_enough_credits` et la campagne s'arrête au milieu. Plusieurs clés permettent de reprendre
+l'envoi avec le compte suivant, sans intervention.
+
+```bash
+# Écriture SIMPLE — plusieurs clés séparées par des virgules.
+supabase secrets set BREVO_API_KEYS="xkeysib-aaa...,xkeysib-bbb...,xkeysib-ccc..."
+```
+
+```bash
+# Écriture DÉTAILLÉE — un expéditeur propre à chaque clé (JSON sur une ligne).
+supabase secrets set BREVO_API_KEYS='[{"key":"xkeysib-aaa","sender":"contact@relyka.app","name":"Relyka"},{"key":"xkeysib-bbb","sender":"hello@relyka.app"}]'
+```
+
+> ⚠️ **Chaque clé appartient à un compte Brevo différent, et un compte ne peut expédier que depuis
+> un expéditeur qu'il a lui-même vérifié.** Si la clé de secours n'a pas validé
+> `contact@relyka.app`, elle sera refusée pour une raison qui n'a rien à voir avec le quota. Vérifie
+> l'expéditeur dans **chaque** compte (Brevo → Expéditeurs & IP), ou donne à chaque clé le sien via
+> l'écriture détaillée. Pour préserver la délivrabilité, l'idéal est que le domaine `relyka.app` soit
+> authentifié (SPF/DKIM) dans chaque compte, pas seulement le premier.
+
+`BREVO_API_KEY` (au singulier) reste accepté — c'est l'ancienne configuration, équivalente à une
+liste d'une seule clé.
+
+### Comment la bascule se déclenche
+
+Une clé est **écartée** et la suivante prend le relais sur le **même lot** quand Brevo répond :
+
+| Réponse | Sens |
+| --- | --- |
+| `402` / `not_enough_credits` | Quota journalier épuisé |
+| `429` | Cadence dépassée |
+| `401` / `403` | Clé invalide ou révoquée |
+
+Toute autre erreur (contenu refusé, destinataire invalide…) **arrête** l'envoi sans rotation :
+changer de compte n'y changerait rien, et réessayer enverrait des doublons.
+
+Les lots font **100 destinataires** (et non 500) : un lot doit rester plus petit que le quota d'un
+compte, sinon toutes les clés le refuseraient en bloc et rien ne partirait.
+
+Une fois qu'une clé fonctionne, les lots suivants la réutilisent — on ne repasse pas par une clé
+déjà épuisée à chaque lot.
+
+### Si la campagne s'interrompt
+
+Le statut passe à `failed` et le message d'erreur indique **où** ça s'est arrêté :
+
+```
+Interrompue après 300/742 destinataires. Les 3 clés Brevo ont échoué. clé #1 : HTTP 402 — ...
+```
+
+Les 300 premiers ont reçu le message : relancer la campagne telle quelle leur écrirait une seconde
+fois. Attends le lendemain (les quotas se réinitialisent) ou ajoute une clé.

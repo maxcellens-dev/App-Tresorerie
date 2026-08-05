@@ -317,8 +317,10 @@ export default function CreditAddScreen() {
     try {
       if (editId) { await updateCredit.mutateAsync({ id: editId, ...payload }); router.back(); }
       else {
-        const created = await addCredit.mutateAsync({ ...payload, is_active: true });
-        // Crédit « partagé » → on ouvre son détail pour envoyer les invitations.
+        /* « Partagé » choisi à la création = la dette est portée à plusieurs (migration 166), ce qui
+           la place dans le récap « Crédits partagés ». Les invitations, elles, se donnent ensuite sur
+           la fiche : c'est un droit d'accès, une question distincte — d'où l'ouverture du détail. */
+        const created = await addCredit.mutateAsync({ ...payload, is_active: true, is_shared: params.shared === '1' });
         if (params.shared === '1' && created?.id) router.replace(`/(tabs)/comptes/credit/${created.id}` as any);
         else router.back();
       }

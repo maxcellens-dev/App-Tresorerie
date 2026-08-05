@@ -303,6 +303,13 @@ export interface Credit {
   deferral_interest_mode?: 'capitalized' | 'deferred' | null;
   is_simulation: boolean;
   is_active: boolean;
+  /**
+   * RESPONSABILITÉ partagée de la dette : le crédit est souscrit à plusieurs (migration 166).
+   * ⚠️ N'a RIEN à voir avec `_role` / `credit_members`, qui gouvernent le DROIT D'ACCÈS : on peut
+   * donner un accès en consultation sur un crédit strictement perso, et porter à deux un crédit que
+   * personne d'autre n'a ouvert dans l'app. C'est ce drapeau — et lui seul — qui sépare les récaps.
+   */
+  is_shared?: boolean;
   /** Borne de matérialisation (migration 143) : les échéances ≤ cette date ne sont jamais matérialisées. */
   materialized_until?: string;
   /** Empreinte du tableau publié dans credit_schedule (cache serveur) — republication si différente. */

@@ -20,7 +20,8 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
-import { sendPushToTarget, type NotifTarget } from '../../../../lib/pushSend';
+import { sendPushToTarget, type NotifTarget, type PushSendResult } from '../../../../lib/pushSend';
+import PushDiagnostics from '../../../../components/admin/PushDiagnostics';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
 import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
 import { sheetWidth } from '../../../../lib/appLayout';
@@ -252,20 +253,25 @@ export default function AdminNotifications() {
     enabled: isAdmin,
   });
 
+  /* L'envoi passe par l'Edge Function `admin-push`, qui écrit ELLE-MÊME la ligne d'historique avec
+     le nombre d'envois réellement acceptés par Expo. On n'insère donc plus rien ici : l'ancien code
+     enregistrait le nombre de jetons lus en base, un chiffre qui ne prouvait aucun envoi. */
   const sendMutation = useMutation({
-    mutationFn: async () => {
-      if (!supabase) throw new Error('Backend indisponible');
+    mutationFn: async (): Promise<PushSendResult> => {
       const t = title.trim(); const b = body.trim();
       if (!t || !b) throw new Error('Titre et message requis');
-      const sentCount = await sendPushToTarget(sendTarget, t, b);
-      const { error } = await supabase.from('admin_notifications').insert({ title: t, body: b, sent_count: sentCount, created_by: user?.id ?? null, source: 'manual', target_label: targetLabelOf(sendTarget, groups) });
-      if (error) throw error;
-      return sentCount;
+      return sendPushToTarget(sendTarget, t, b);
     },
-    onSuccess: (sentCount) => {
+    onSuccess: (r) => {
+      if (r.targeted === 0) { setMsg('Échec : aucun appareil joignable pour cette cible.'); return; }
+      if (r.accepted === 0) { setMsg(`Échec : aucun envoi accepté par Expo — ${r.summary}`); return; }
       setTitle(''); setBody('');
-      setMsg(`Notification envoyée à ${sentCount} appareil${sentCount > 1 ? 's' : ''}.`);
+      setMsg(
+        `Notification acceptée pour ${r.accepted} appareil${r.accepted > 1 ? 's' : ''}`
+        + (r.failed > 0 ? ` (${r.failed} en échec — ${r.summary})` : '.'),
+      );
       qc.invalidateQueries({ queryKey: ['admin_notifications'] });
+      qc.invalidateQueries({ queryKey: ['push_reachability'] });
     },
     onError: (e: any) => setMsg(`Échec : ${e?.message ?? 'erreur inconnue'}`),
   });
@@ -331,14 +337,24 @@ export default function AdminNotifications() {
 
   // Envoi immédiat d'une planification (test sans attendre le cron) — même envoi + historique.
   const sendNow = useMutation({
-    mutationFn: async (s: ScheduledNotif) => {
-      if (!supabase) throw new Error('Backend indisponible');
+    mutationFn: async (s: ScheduledNotif): Promise<PushSendResult> => {
       const target: NotifTarget = { kind: s.target_kind ?? 'all', groupId: s.target_group_id };
-      const count = await sendPushToTarget(target, s.title, s.body);
-      await supabase.from('admin_notifications').insert({ title: s.title, body: s.body, sent_count: count, created_by: user?.id ?? null, scheduled_id: s.id, source: s.kind, target_label: targetLabelOf(target, groups) });
-      return count;
+      return sendPushToTarget(target, s.title, s.body);
     },
-    onSuccess: (count) => { Alert.alert('Envoyée', `Notification envoyée à ${count} appareil${count > 1 ? 's' : ''}.`); qc.invalidateQueries({ queryKey: ['admin_notifications'] }); },
+    onSuccess: (r) => {
+      // On dit ce qui s'est passé, y compris quand rien n'est parti : un « Envoyée ✓ » alors que
+      // zéro appareil a reçu quoi que ce soit est exactement ce qui masquait la panne.
+      if (r.accepted > 0) {
+        Alert.alert('Envoyée', `Acceptée par Expo pour ${r.accepted} appareil${r.accepted > 1 ? 's' : ''}.`
+          + (r.failed > 0 ? `\n${r.failed} en échec — ${r.summary}` : ''));
+      } else if (r.targeted === 0) {
+        Alert.alert('Aucun destinataire', 'Aucun appareil joignable pour cette cible.');
+      } else {
+        Alert.alert('Échec', `Aucun envoi accepté par Expo.\n${r.summary}`);
+      }
+      qc.invalidateQueries({ queryKey: ['admin_notifications'] });
+      qc.invalidateQueries({ queryKey: ['push_reachability'] });
+    },
     onError: (e: any) => Alert.alert('Erreur', e?.message ?? 'Échec'),
   });
 
@@ -503,6 +519,11 @@ export default function AdminNotifications() {
           </View>
           ) : (
           <>
+          {/* ── Diagnostic : qui peut être atteint, et est-ce que la chaîne d'envoi fonctionne ? ──
+              Placé AVANT le formulaire : quand un envoi ne donne rien, c'est la première chose à lire. */}
+          <Text style={styles.sectionLabel}>Diagnostic</Text>
+          <PushDiagnostics />
+
           {/* ── Envoi immédiat ── */}
           <Text style={styles.sectionLabel}>Envoi immédiat</Text>
           <View style={styles.card}>

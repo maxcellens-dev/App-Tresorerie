@@ -14,7 +14,11 @@
 // doit être admin — re-vérifié ici, jamais sur la foi du client.
 //
 // Secrets attendus (Dashboard → Project Settings → Edge Functions → Secrets) :
-//   BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME, PUBLIC_APP_URL, CRON_SECRET
+//   BREVO_API_KEYS (ou BREVO_API_KEY), BREVO_SENDER_EMAIL, BREVO_SENDER_NAME, PUBLIC_APP_URL, CRON_SECRET
+//
+// Plusieurs clés Brevo : voir `parseKeys()` plus bas. Quand une clé atteint son quota journalier,
+// l'envoi BASCULE tout seul sur la suivante et le lot repart — la campagne ne s'arrête plus au
+// 300ᵉ e-mail.
 // ============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -33,37 +37,123 @@ const json = (body: unknown, status = 200) =>
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const ANON = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const BREVO_KEY = Deno.env.get('BREVO_API_KEY') ?? '';
 const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL') ?? 'contact@relyka.app';
 const SENDER_NAME = Deno.env.get('BREVO_SENDER_NAME') ?? 'Relyka';
 const APP_URL = (Deno.env.get('PUBLIC_APP_URL') ?? 'https://relyka.app').replace(/\/$/, '');
 const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? '';
 
-/** Brevo limite chaque appel `messageVersions` à 1000 destinataires. */
-const BATCH = 500;
+// ── Clés Brevo : PLUSIEURS, essayées à la suite ─────────────────────────────────────────────────
+// Un compte Brevo gratuit est plafonné à ~300 e-mails PAR JOUR. Au-delà, l'API répond 402
+// `not_enough_credits` et la campagne échoue au milieu. Empiler plusieurs clés permet de reprendre
+// l'envoi là où il s'est arrêté, avec le compte suivant, sans intervention.
+//
+// `BREVO_API_KEYS` accepte deux écritures :
+//   • simple    : "xkeysib-aaa, xkeysib-bbb"  (séparateurs : virgule, point-virgule, espace, retour ligne)
+//   • détaillée : [{"key":"xkeysib-aaa","sender":"contact@relyka.app","name":"Relyka"}, {"key":"xkeysib-bbb"}]
+// L'écriture détaillée existe parce que chaque clé appartient à un compte Brevo DIFFÉRENT, et qu'un
+// compte ne peut expédier que depuis un expéditeur qu'il a lui-même vérifié. Sans expéditeur propre,
+// la clé de secours serait refusée pour une raison qui n'a rien à voir avec le quota.
+// `BREVO_API_KEY` (au singulier) reste accepté : c'est l'ancienne configuration.
+interface BrevoKey { key: string; sender: string; name: string }
+
+function parseKeys(): BrevoKey[] {
+  const raw = (Deno.env.get('BREVO_API_KEYS') ?? Deno.env.get('BREVO_API_KEY') ?? '').trim();
+  if (!raw) return [];
+  if (raw.startsWith('[')) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return arr
+          .map((e: any) => ({
+            key: String(e?.key ?? e ?? '').trim(),
+            sender: String(e?.sender ?? SENDER_EMAIL).trim(),
+            name: String(e?.name ?? SENDER_NAME).trim(),
+          }))
+          .filter((e) => e.key);
+      }
+    } catch {
+      // JSON invalide → on retombe sur la lecture « simple » plutôt que de perdre toutes les clés.
+    }
+  }
+  return raw.split(/[\s,;]+/).map((k) => k.trim()).filter(Boolean)
+    .map((key) => ({ key, sender: SENDER_EMAIL, name: SENDER_NAME }));
+}
+
+const BREVO_KEYS = parseKeys();
+
+/** Codes HTTP qui signifient « cette clé ne peut plus envoyer, essaie la suivante ». */
+function shouldRotate(status: number, bodyText: string): boolean {
+  if (status === 402 || status === 429) return true;              // quota épuisé / cadence dépassée
+  if (status === 401 || status === 403) return true;              // clé invalide ou révoquée
+  return /not_enough_credits|quota|limit.?exceed/i.test(bodyText); // filet : Brevo varie sur les codes
+}
+
+/**
+ * Brevo limite chaque appel `messageVersions` à 1000 destinataires — mais la taille du lot est ici
+ * dictée par le QUOTA, pas par la limite d'API : un compte gratuit dispose d'environ 300 e-mails par
+ * jour. Un lot de 500 dépasserait à lui seul le quota d'un compte neuf, donc TOUTES les clés le
+ * refuseraient et rien ne partirait. À 100, chaque clé écoule ce qu'elle peut avant de passer la main.
+ */
+const BATCH = 100;
 
 const renderEmail = (subject: string, body: string, unsubUrl: string) =>
   renderRelykaEmail({ subject, body, unsubUrl, appUrl: APP_URL });
 
 interface Recipient { email: string; name: string | null; token: string }
 
+/**
+ * Curseur de clé COURANTE, partagé par tous les lots d'une même exécution : une fois qu'une clé est
+ * épuisée, les lots suivants ne repassent pas par elle pour se faire refuser à nouveau.
+ * (Il repart à 0 à chaque démarrage de l'instance — ce n'est pas un compteur de quota, juste un
+ * raccourci ; le quota réel, seul Brevo le connaît, et il se redit à chaque refus.)
+ */
+let keyCursor = 0;
+
 async function sendBatch(subject: string, body: string, people: Recipient[]): Promise<void> {
-  // `messageVersions` : un seul appel API, mais un contenu PROPRE à chaque destinataire — c'est ce
-  // qui permet d'avoir un lien de désinscription individuel (et pas un lien générique inutilisable).
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': BREVO_KEY, 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      sender: { email: SENDER_EMAIL, name: SENDER_NAME },
-      subject,
-      htmlContent: renderEmail(subject, body, `${APP_URL}/desinscription`),
-      messageVersions: people.map((p) => ({
-        to: [{ email: p.email, name: p.name ?? undefined }],
-        htmlContent: renderEmail(subject, body, `${APP_URL}/desinscription?t=${p.token}`),
-      })),
-    }),
+  if (!BREVO_KEYS.length) throw new Error('Aucune clé Brevo configurée (BREVO_API_KEYS)');
+  const payloadFor = (k: BrevoKey) => JSON.stringify({
+    sender: { email: k.sender, name: k.name },
+    subject,
+    htmlContent: renderEmail(subject, body, `${APP_URL}/desinscription`),
+    // `messageVersions` : un seul appel API, mais un contenu PROPRE à chaque destinataire — c'est ce
+    // qui permet d'avoir un lien de désinscription individuel (et pas un lien générique inutilisable).
+    messageVersions: people.map((p) => ({
+      to: [{ email: p.email, name: p.name ?? undefined }],
+      htmlContent: renderEmail(subject, body, `${APP_URL}/desinscription?t=${p.token}`),
+    })),
   });
-  if (!res.ok) throw new Error(`Brevo ${res.status} : ${(await res.text()).slice(0, 300)}`);
+
+  const attempts: string[] = [];
+  // On essaie CHAQUE clé au plus une fois, en repartant de la dernière qui fonctionnait.
+  for (let n = 0; n < BREVO_KEYS.length; n++) {
+    const idx = (keyCursor + n) % BREVO_KEYS.length;
+    const k = BREVO_KEYS[idx];
+    let res: Response;
+    try {
+      res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': k.key, 'content-type': 'application/json', accept: 'application/json' },
+        body: payloadFor(k),
+      });
+    } catch (e) {
+      attempts.push(`clé #${idx + 1} : réseau — ${String(e).slice(0, 120)}`);
+      continue;
+    }
+    if (res.ok) { keyCursor = idx; return; }          // cette clé marche : les lots suivants la garderont
+    const text = (await res.text()).slice(0, 300);
+    attempts.push(`clé #${idx + 1} : HTTP ${res.status} — ${text}`);
+    if (!shouldRotate(res.status, text)) {
+      // Erreur qui ne vient PAS de la clé (contenu refusé, destinataire invalide…) : changer de compte
+      // ne changerait rien, et réessayer enverrait des doublons à ceux que le lot a déjà servis.
+      throw new Error(`Brevo ${res.status} : ${text}`);
+    }
+    console.warn(`[send-campaign] clé #${idx + 1} écartée (HTTP ${res.status}), bascule sur la suivante.`);
+  }
+  throw new Error(
+    BREVO_KEYS.length > 1
+      ? `Les ${BREVO_KEYS.length} clés Brevo ont échoué. ${attempts.join(' | ')}`
+      : attempts[0] ?? 'Envoi Brevo impossible',
+  );
 }
 
 async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: string) {
@@ -92,14 +182,29 @@ async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: s
       .filter((p) => typeof p.email === 'string' && p.email.includes('@'))
       .map((p) => ({ email: p.email, name: p.full_name ?? null, token: p.email_unsub_token }));
 
-    for (let i = 0; i < recipients.length; i += BATCH) {
-      await sendBatch(c.subject, c.body, recipients.slice(i, i + BATCH));
+    /* `sent` compte les destinataires RÉELLEMENT servis. Si une campagne s'arrête en route (toutes
+       les clés à sec), il faut savoir combien de personnes ont déjà reçu le message : relancer sans
+       ce chiffre, c'est écrire deux fois aux premiers. */
+    let sent = 0;
+    try {
+      for (let i = 0; i < recipients.length; i += BATCH) {
+        const slice = recipients.slice(i, i + BATCH);
+        await sendBatch(c.subject, c.body, slice);
+        sent += slice.length;
+      }
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      throw new Error(
+        sent > 0
+          ? `Interrompue après ${sent}/${recipients.length} destinataires. ${detail}`
+          : detail,
+      );
     }
 
     await admin.from('email_campaigns').update({
-      status: 'sent', sent_at: new Date().toISOString(), recipients_count: recipients.length,
+      status: 'sent', sent_at: new Date().toISOString(), recipients_count: sent,
     }).eq('id', campaignId);
-    return { skipped: false, sent: recipients.length };
+    return { skipped: false, sent };
   } catch (e) {
     // L'échec est ÉCRIT : une campagne qui n'est jamais partie doit se voir dans l'écran admin,
     // pas seulement dans les logs.
@@ -112,7 +217,7 @@ async function runCampaign(admin: ReturnType<typeof createClient>, campaignId: s
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (!BREVO_KEY) return json({ error: 'BREVO_API_KEY manquant côté serveur' }, 500);
+  if (!BREVO_KEYS.length) return json({ error: 'Aucune clé Brevo côté serveur (BREVO_API_KEYS ou BREVO_API_KEY)' }, 500);
 
   const admin = createClient(URL_, SERVICE);
   // Le secret CRON est accepté sur les DEUX en-têtes : `X-Cron-Secret`, et `Authorization: Bearer`

@@ -296,11 +296,11 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
       {/* Modale de clôture */}
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeModal}>
         <View style={styles.overlay}>
-          {/* SafeAreaView NATIF (edges bottom) : il mesure les insets de SA fenêtre — celle du Modal.
-              Sans lui, le bas de la feuille (le bouton « Clôturer ») passait sous la barre de
-              navigation du téléphone, exactement comme l'ancienne version du modal de profil.
-              `maxHeight` + défilement : sur un petit écran, la feuille ne déborde plus de l'écran. */}
-          <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
+          {/* `maxHeight` porté par la FEUILLE elle-même (et non par un conteneur au-dessus) : une View
+              a `flexShrink: 0` par défaut, donc une feuille enveloppée dans un parent plafonné ne se
+              rétrécit PAS — elle débordait sous le bas de l'écran et emportait le bouton « Clôturer »
+              avec elle (constaté sur navigateur mobile / iPhone). Même schéma que ProfileChangeModal
+              et SupportThreadModal : plafond sur la feuille, SafeAreaView autour du seul pied. */}
           <View style={styles.sheet}>
             <View style={styles.header}>
               <Text style={styles.title}>Clôture mensuelle</Text>
@@ -311,7 +311,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             {/* Contenu défilant : le mode « je ne sais pas » ajoute une date, un champ par compte
                 et un curseur — sur un petit écran, la feuille dépassait sans qu'on puisse atteindre
                 le bouton. */}
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 6 }} keyboardShouldPersistTaps="handled">
 
             <View style={styles.monthRow}>
               <Text style={styles.sub}>{flash ? `Clôture de ${effectivePending.length} mois, jusqu'à` : 'Mois à clôturer :'}</Text>
@@ -527,12 +527,15 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             )}
 
             </ScrollView>
-            {/* Le bouton reste HORS du défilement : il doit être atteignable sans dérouler. */}
-            <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={() => { setError(null); confirm(); }} disabled={busy}>
-              {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
-            </TouchableOpacity>
+            {/* Le bouton reste HORS du défilement : il doit être atteignable sans dérouler.
+                SafeAreaView NATIF (edges bottom) : il mesure les insets de SA fenêtre — celle du
+                Modal — donc le bouton reste au-dessus de la barre de navigation du téléphone. */}
+            <SafeAreaView edges={['bottom']}>
+              <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={() => { setError(null); confirm(); }} disabled={busy}>
+                {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
+              </TouchableOpacity>
+            </SafeAreaView>
           </View>
-          </SafeAreaView>
         </View>
       </Modal>
 
@@ -575,10 +578,17 @@ function makeStyles(c: any) {
     bannerTitle: { fontSize: 14, fontWeight: '800', color: c.text },
     bannerText: { fontSize: 12, color: c.textSecondary, marginTop: 1 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheetSafe: { ...sheetWidth, maxHeight: '92%' },
-    // paddingBottom réduit : c'est le SafeAreaView qui ajoute désormais la hauteur réelle de la
-    // barre système. Cumuler les deux repoussait le bouton hors de l'écran sur les petits mobiles.
-    sheet: { backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 16, gap: 6 },
+    // paddingBottom réduit : c'est le SafeAreaView du pied qui ajoute désormais la hauteur réelle de
+    // la barre système. Cumuler les deux repoussait le bouton hors de l'écran sur les petits mobiles.
+    sheet: {
+      ...sheetWidth, maxHeight: '92%',
+      backgroundColor: c.cardSolid, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      borderTopWidth: 1, borderColor: c.cardBorder, padding: 22, paddingBottom: 16, gap: 6,
+    },
+    /* Le défilement absorbe TOUT le rétrécissement : `flexGrow: 0` (ne pousse pas le pied vers le bas
+       quand le contenu est court) + `flexShrink: 1` (cède la place au pied quand il est long). Sans
+       ça, la ScrollView web garde sa hauteur de contenu et chasse le bouton hors du cadre. */
+    scroll: { flexGrow: 0, flexShrink: 1 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
     title: { fontSize: 19, fontWeight: '800', color: c.text },
     sub: { fontSize: 14, color: c.textSecondary },
@@ -609,10 +619,12 @@ function makeStyles(c: any) {
     splitResultItem: { fontSize: 12, color: c.textSecondary },
     splitResultVal: { fontWeight: '800', color: c.text },
     splitHint: { fontSize: 11, color: c.textSecondary, fontStyle: 'italic' },
-    segRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-    seg: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
+    segRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+    // `justifyContent: center` + libellé centré : à trois segments sur un écran de téléphone, un
+    // libellé qui passe sur deux lignes reste lisible et tous les boutons gardent la même hauteur.
+    seg: { flex: 1, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center' },
     segActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-    segText: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+    segText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, textAlign: 'center' },
     segTextActive: { color: c.bg },
     label: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: c.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}) },

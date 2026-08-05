@@ -1,12 +1,23 @@
 /**
- * CreditShareSection — partage d'un crédit (propriétaire uniquement) : inviter des utilisateurs par
- * code public en consultation / écriture, lister / changer le rôle / retirer. Calqué sur AccountShareSection.
+ * CreditShareSection — partage d'un crédit (propriétaire uniquement).
+ *
+ * DEUX choses différentes vivent ici, et il faut les garder distinctes :
+ *
+ *   1. La NATURE du crédit — perso ou partagé — c'est-à-dire QUI PORTE LA DETTE. Un crédit souscrit
+ *      à deux reste partagé même si personne d'autre ne l'a ouvert dans l'app. C'est ce drapeau
+ *      (`credits.is_shared`, migration 166) qui sépare les récaps de l'onglet Crédits.
+ *   2. Les ACCÈS — qui peut voir ou modifier la fiche (`credit_members`, consultation / écriture).
+ *      Donner un accès en consultation à quelqu'un ne rend pas la dette commune.
+ *
+ * Les confondre, c'était compter dans « mes crédits partagés » tout ce qu'on avait simplement montré
+ * à quelqu'un, et rien de ce qu'on porte réellement à plusieurs.
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { useCreditMembers, useInviteToCredit, useSetCreditMemberRole, useRemoveCreditMember } from '../hooks/useSharedCredits';
+import { useUpdateCredit } from '../hooks/useCredits';
 import type { Credit } from '../types/database';
 
 export default function CreditShareSection({ credit }: { credit: Credit }) {
@@ -16,11 +27,14 @@ export default function CreditShareSection({ credit }: { credit: Credit }) {
   const invite = useInviteToCredit(credit.id);
   const setRole = useSetCreditMemberRole(credit.id);
   const removeMember = useRemoveCreditMember(credit.id);
+  const updateCredit = useUpdateCredit(credit.profile_id);
 
   const [code, setCode] = useState('');
   const [role, setRole_] = useState<'write' | 'read'>('read');
 
   if (credit._role && credit._role !== 'owner') return null; // seul le propriétaire partage
+
+  const isShared = credit.is_shared === true;
 
   const doInvite = async () => {
     const c = code.trim();
@@ -42,6 +56,37 @@ export default function CreditShareSection({ credit }: { credit: Credit }) {
         <Ionicons name="people-outline" size={18} color={COLORS.text} />
         <Text style={styles.title}>Partager ce crédit</Text>
       </View>
+      {/* ── 1. NATURE du crédit : qui porte la dette ? ── */}
+      <Text style={styles.blockLabel}>Ce crédit est</Text>
+      <View style={styles.natureRow}>
+        {([false, true] as const).map((v) => (
+          <TouchableOpacity
+            key={String(v)}
+            style={[styles.natureChip, isShared === v && styles.natureChipActive]}
+            onPress={() => updateCredit.mutate({ id: credit.id, is_shared: v })}
+            disabled={updateCredit.isPending}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={v ? 'people' : 'person'}
+              size={16}
+              color={isShared === v ? COLORS.emerald : COLORS.textSecondary}
+            />
+            <Text style={[styles.natureChipText, isShared === v && styles.natureChipTextActive]}>
+              {v ? 'Partagé' : 'Personnel'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={styles.hint}>
+        {isShared
+          ? 'Dette portée à plusieurs (couple, associés…). Elle est totalisée à part dans le récap de l\'onglet Crédits.'
+          : 'Dette que tu portes seul. Elle est totalisée dans « Mes crédits ».'}
+        {' '}C'est une question de responsabilité, pas d'accès : donner la consultation à quelqu'un ne rend pas la dette commune.
+      </Text>
+
+      {/* ── 2. ACCÈS : qui peut voir / modifier la fiche ? ── */}
+      <Text style={[styles.blockLabel, { marginTop: 14 }]}>Qui a accès à la fiche</Text>
       <Text style={styles.hint}>Les invités voient ce crédit (pour ne pas le recréer). Leur trésorerie n'est pas impactée s'ils n'ont pas accès au compte de prélèvement.</Text>
 
       {members.map((m) => (
@@ -85,6 +130,12 @@ function makeStyles(c: any) {
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     title: { fontSize: 15, fontWeight: '800', color: c.text },
     hint: { fontSize: 11.5, color: c.textSecondary, marginBottom: 10, lineHeight: 16 },
+    blockLabel: { fontSize: 11.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
+    natureRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+    natureChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.bg },
+    natureChipActive: { borderColor: c.emerald, backgroundColor: c.emerald + '18' },
+    natureChipText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    natureChipTextActive: { color: c.emerald },
     memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
     avatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     memberName: { fontSize: 14, fontWeight: '600', color: c.text },
