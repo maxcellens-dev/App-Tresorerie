@@ -22,6 +22,7 @@
 // ============================================================================
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
 /** Expo accepte 100 messages par requête. */
 const BATCH_SIZE = 100;
 
@@ -39,8 +40,14 @@ export interface PushTicketError {
 }
 
 export interface PushResult {
-  /** Jetons pour lesquels Expo a accepté le message (ticket `ok`). */
+  /**
+   * Jetons pour lesquels Expo a ACCEPTÉ le message (ticket `ok`).
+   * ⚠️ « Accepté » = mis en file chez Expo. Ce n'est PAS une livraison : c'est `fetchExpoReceipts`
+   * qui dit ce qu'Apple/Google en ont fait ensuite.
+   */
   accepted: number;
+  /** Identifiants de tickets acceptés → à repasser à `fetchExpoReceipts` pour le verdict réel. */
+  receiptIds: string[];
   /** Jetons refusés (ticket `error`) ou perdus (lot en échec HTTP). */
   failed: number;
   /** Détail des refus — c'est CE QUE l'admin doit pouvoir lire. */
@@ -67,13 +74,20 @@ export function normalizeTokens(raw: unknown[]): string[] {
  */
 export async function sendExpoPush(tokens: string[], msg: PushMessage): Promise<PushResult> {
   const unique = normalizeTokens(tokens);
-  const res: PushResult = { accepted: 0, failed: 0, errors: [], deadTokens: [], configFailure: false };
+  const res: PushResult = { accepted: 0, receiptIds: [], failed: 0, errors: [], deadTokens: [], configFailure: false };
   if (unique.length === 0) return res;
 
   for (let i = 0; i < unique.length; i += BATCH_SIZE) {
     const batch = unique.slice(i, i + BATCH_SIZE);
     const payload = batch.map((to) => ({
       to, title: msg.title, body: msg.body, sound: 'default',
+      /* `channelId` EXPLICITE : sans lui, Android range la notification dans un canal de repli créé
+         par expo-notifications, et non dans « default » — celui que l'app configure au démarrage
+         (nom, importance, son). Un canal de repli peut être muet ou masqué sans que rien ne le dise.
+         `priority: high` demande un affichage immédiat (bandeau) plutôt qu'une remise différée par
+         les optimisations de batterie. */
+      channelId: 'default',
+      priority: 'high',
       ...(msg.data ? { data: msg.data } : {}),
     }));
     try {
@@ -106,7 +120,11 @@ export async function sendExpoPush(tokens: string[], msg: PushMessage): Promise<
       const tickets: any[] = Array.isArray(parsed?.data) ? parsed.data : [];
       tickets.forEach((ticket, idx) => {
         const token = batch[idx] ?? '(inconnu)';
-        if (ticket?.status === 'ok') { res.accepted++; return; }
+        if (ticket?.status === 'ok') {
+          res.accepted++;
+          if (ticket.id) res.receiptIds.push(String(ticket.id));
+          return;
+        }
         res.failed++;
         const code = String(ticket?.details?.error ?? ticket?.details?.fault ?? 'Unknown');
         res.errors.push({ token, code, message: String(ticket?.message ?? '') });
@@ -123,6 +141,81 @@ export async function sendExpoPush(tokens: string[], msg: PushMessage): Promise<
 
   res.configFailure = res.accepted === 0 && res.errors.some((e) => CONFIG_ERROR_CODES.has(e.code));
   return res;
+}
+
+export interface ReceiptResult {
+  /** Livraisons confirmées par Apple/Google. */
+  delivered: number;
+  /** Livraisons refusées, avec le motif. */
+  errors: Array<{ id: string; code: string; message: string }>;
+  /** Receipts pas encore produits par Expo au moment de la lecture. */
+  pending: number;
+  /** Jetons morts détectés à la livraison (l'appareil a disparu entre-temps). */
+  deadTokens: string[];
+}
+
+/**
+ * LE verdict de livraison. Un ticket `ok` ne dit qu'une chose : « Expo a pris le message en file ».
+ * C'est ici, et seulement ici, qu'on apprend ce qu'Apple/Google en ont fait — et c'est le seul
+ * moyen de répondre à « l'envoi est accepté mais je ne reçois rien ».
+ *
+ * Les receipts ne sont pas instantanés : Expo les produit une fois le message remis au service du
+ * constructeur. On laisse donc quelques secondes, avec deux tentatives. `pending` non nul n'est pas
+ * une erreur — juste « reviens dans un instant ».
+ */
+export async function fetchExpoReceipts(ids: string[], attempts = 2, delayMs = 3000): Promise<ReceiptResult> {
+  const out: ReceiptResult = { delivered: 0, errors: [], pending: ids.length, deadTokens: [] };
+  if (ids.length === 0) return out;
+
+  for (let a = 0; a < attempts; a++) {
+    await new Promise((r) => setTimeout(r, delayMs));
+    try {
+      const r = await fetch(EXPO_RECEIPTS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ ids: ids.slice(0, 1000) }),
+      });
+      const text = await r.text();
+      if (!r.ok) {
+        out.errors.push({ id: '(requête)', code: `HTTP ${r.status}`, message: text.slice(0, 300) });
+        return out;
+      }
+      const parsed = JSON.parse(text);
+      const map: Record<string, any> = parsed?.data ?? {};
+      const seen = Object.keys(map);
+      if (seen.length === 0) continue;   // pas encore prêts → nouvelle tentative
+
+      out.delivered = 0; out.errors = [];
+      for (const id of seen) {
+        const rec = map[id];
+        if (rec?.status === 'ok') { out.delivered++; continue; }
+        const code = String(rec?.details?.error ?? 'Unknown');
+        out.errors.push({ id, code, message: String(rec?.message ?? '') });
+        if (code === 'DeviceNotRegistered') out.deadTokens.push(id);
+      }
+      out.pending = ids.length - seen.length;
+      if (out.pending === 0) return out;
+    } catch (e) {
+      out.errors.push({ id: '(réseau)', code: 'NetworkError', message: String(e).slice(0, 300) });
+      return out;
+    }
+  }
+  return out;
+}
+
+/** Résumé lisible d'un verdict de livraison. */
+export function summarizeReceipts(r: ReceiptResult): string {
+  if (r.delivered === 0 && r.errors.length === 0) {
+    return r.pending > 0 ? "Accusés de réception pas encore disponibles — réessaie dans un instant." : 'Aucun accusé de réception.';
+  }
+  const parts = [`${r.delivered} remise(s) confirmée(s)`];
+  if (r.errors.length) {
+    const byCode = new Map<string, number>();
+    for (const e of r.errors) byCode.set(e.code, (byCode.get(e.code) ?? 0) + 1);
+    parts.push([...byCode.entries()].map(([c, n]) => `${c} ×${n}`).join(', '));
+  }
+  if (r.pending > 0) parts.push(`${r.pending} en attente`);
+  return parts.join(' — ');
 }
 
 /**

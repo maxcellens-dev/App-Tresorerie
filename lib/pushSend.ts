@@ -40,6 +40,16 @@ export interface PushSendResult {
   recipient?: string;
   /** Envoi de test : le destinataire a coupé ses notifications → il ne verra rien, même accepté. */
   notificationsOff?: boolean;
+  /**
+   * Envoi de test : ACCUSÉS DE RÉCEPTION Expo. C'est le verdict de LIVRAISON — `accepted` ne dit que
+   * « mis en file ». Sans ça, un push qui n'arrive jamais s'affiche comme un succès.
+   */
+  receipts?: {
+    delivered: number;
+    pending: number;
+    errors: Array<{ id: string; code: string; message: string }>;
+    summary: string;
+  };
 }
 
 async function invokeAdminPush(payload: Record<string, unknown>): Promise<any> {
@@ -67,6 +77,14 @@ function toResult(d: any): PushSendResult {
     summary: String(d.summary ?? ''),
     recipient: d.recipient ? String(d.recipient) : undefined,
     notificationsOff: Boolean(d.notifications_off),
+    receipts: d.receipts
+      ? {
+          delivered: Number(d.receipts.delivered ?? 0),
+          pending: Number(d.receipts.pending ?? 0),
+          errors: Array.isArray(d.receipts.errors) ? d.receipts.errors : [],
+          summary: String(d.receipts.summary ?? ''),
+        }
+      : undefined,
   };
 }
 

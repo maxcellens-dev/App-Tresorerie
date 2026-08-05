@@ -33,9 +33,15 @@ export async function getDevicePushTokenAsync(): Promise<DevicePushToken | null>
     if (!Device.isDevice) return null; // pas de push sur simulateur
 
     if (Platform.OS === 'android') {
+      /* Importance HIGH et non DEFAULT : avec DEFAULT, Android range la notification dans le tiroir
+         SANS bandeau ni son — on ne la voit que si on déroule la barre d'état. C'est la version
+         « je n'ai rien reçu » alors que tout a fonctionné.
+         ⚠️ Android fige l'importance à la CRÉATION du canal : sur une installation existante, ce
+         changement n'a aucun effet tant que le canal « default » existe déjà. Pour ceux-là, c'est
+         Réglages → Notifications → Relyka qui fait foi. */
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Notifications Relyka',
-        importance: Notifications.AndroidImportance.DEFAULT,
+        importance: Notifications.AndroidImportance.HIGH,
       });
     }
 

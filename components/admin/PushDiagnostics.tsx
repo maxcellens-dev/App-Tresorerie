@@ -214,7 +214,42 @@ export default function PushDiagnostics() {
               s'affichera sur son téléphone. Ce n'est pas une panne d'envoi.
             </Text>
           )}
-          {test.accepted > 0 && !test.notificationsOff && (
+          {/* ── LE verdict : ce qu'Apple/Google ont fait du message. `accepted` ne disait que
+                « Expo l'a mis en file » — un push qui n'arrive jamais s'affichait en succès. ── */}
+          {test.accepted > 0 && test.receipts && (
+            <View style={styles.receiptBox}>
+              <Text style={styles.receiptTitle}>Livraison (accusés de réception)</Text>
+              {test.receipts.delivered > 0 && (
+                <Text style={[styles.resultLine, { color: COLORS.emerald, fontWeight: '700' }]}>
+                  ✓ {test.receipts.delivered} remise(s) confirmée(s) par Apple/Google.
+                  {'\n'}Si rien ne s'affiche malgré ça, le message EST arrivé : regarde le centre de
+                  notifications, le mode Concentration, et l'autorisation de Relyka dans les réglages du téléphone.
+                </Text>
+              )}
+              {test.receipts.errors.map((e, i) => (
+                <View key={i} style={styles.errRow}>
+                  <Text style={styles.errCode}>{e.code}</Text>
+                  <Text style={styles.errMsg} numberOfLines={4}>
+                    {e.code === 'DeviceNotRegistered'
+                      ? "L'appareil n'accepte plus ce jeton (app désinstallée, ou jeton d'un ancien build). Rouvre l'app mobile pour en réenregistrer un."
+                      : e.code === 'MismatchSenderId'
+                      ? "Le jeton vient d'un build lié à un AUTRE projet FCM que celui configuré. C'est la panne typique après un changement de google-services.json : les appareils doivent réinstaller ou rouvrir l'app."
+                      : e.code === 'InvalidCredentials'
+                      ? 'Les identifiants FCM/APNs du projet Expo sont absents ou périmés. Rien ne partira tant que ce ne sera pas réglé (eas credentials).'
+                      : e.message || 'Refus au moment de la livraison.'}
+                  </Text>
+                </View>
+              ))}
+              {test.receipts.delivered === 0 && test.receipts.errors.length === 0 && (
+                <Text style={styles.resultHint}>
+                  {test.receipts.pending > 0
+                    ? "Expo n'a pas encore produit l'accusé de réception. Relance le test dans une minute : c'est lui qui tranchera."
+                    : test.receipts.summary}
+                </Text>
+              )}
+            </View>
+          )}
+          {test.accepted > 0 && !test.receipts && !test.notificationsOff && (
             <Text style={styles.resultHint}>
               Expo a pris le message en charge. S'il n'arrive pas sur le téléphone, la suite se joue chez
               Apple/Google (APNs/FCM) — pas dans l'app.
@@ -291,6 +326,8 @@ function makeStyles(c: any) {
     resultLine: { fontSize: 12, color: c.text },
     resultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16 },
     resultBad: { fontSize: 11.5, color: c.danger, lineHeight: 16, fontWeight: '600' },
+    receiptBox: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder, paddingTop: 8, gap: 5 },
+    receiptTitle: { fontSize: 11, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
     errRow: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.cardBorder, paddingTop: 6, gap: 2 },
     errCode: { fontSize: 11.5, fontWeight: '800', color: c.orange },
     errMsg: { fontSize: 11, color: c.textSecondary, lineHeight: 15 },

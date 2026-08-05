@@ -69,12 +69,43 @@ réponse d'Expo telle quelle.
 | Résultat | Conclusion |
 | --- | --- |
 | ✓ accepté **et** le téléphone sonne | La chaîne fonctionne. Si un envoi ciblé ne part pas, c'est le ciblage (groupe vide, `notifications_enabled` à false). |
-| ✓ accepté mais **rien n'arrive** | Expo a pris le message ; la suite se joue chez Apple/Google. Vérifie les réglages de notification du téléphone, le mode Concentration, et que le build installé est bien celui du projet Expo courant. |
+| ✓ accepté mais **rien n'arrive** | Lis le bloc **« Livraison (accusés de réception) »** juste en dessous : c'est lui qui tranche (voir 3 bis). |
 | ✗ `InvalidCredentials` | **Panne globale.** Les identifiants FCM/APNs du projet Expo sont absents ou périmés → `eas credentials`. Voir étape 5. |
 | ✗ `MismatchSenderId` | Le jeton vient d'un build lié à un **autre** projet FCM. Les appareils doivent rouvrir l'app pour réenregistrer un jeton. Fréquent après un changement de `google-services.json`. |
 | ✗ `DeviceNotRegistered` | Jeton mort — purgé automatiquement. Rouvre l'app mobile pour en réenregistrer un. |
 | « Aucun appareil enregistré pour… » | Ce compte n'a pas de jeton : il faut ouvrir l'app **mobile** et accepter les notifications. |
 | ✓ accepté + « a COUPÉ ses notifications » | L'envoi est parti, mais ce destinataire a désactivé les notifications dans l'app : rien ne s'affichera. Ce n'est pas une panne. |
+
+## 3 bis. « Expo a accepté » ≠ « c'est arrivé »
+
+C'est le piège central de l'API Expo, et la raison pour laquelle un push peut sembler fonctionner
+alors que rien n'arrive :
+
+| Étape | Ce que ça prouve |
+| --- | --- |
+| **Ticket** (`status: ok`, à l'envoi) | Expo a **mis en file**. Rien de plus. |
+| **Receipt** (accusé, quelques secondes après) | Ce qu'Apple/Google en ont **réellement fait**. |
+
+Le panneau lit désormais les deux. Le bloc « Livraison (accusés de réception) » donne le verdict :
+
+| Receipt | Conclusion |
+| --- | --- |
+| ✓ remise confirmée | **Le message EST arrivé.** S'il ne s'affiche pas : centre de notifications, mode Concentration, autorisation de Relyka dans les réglages du téléphone, ou canal Android en importance basse. |
+| `DeviceNotRegistered` | Le jeton ne vaut plus rien (app désinstallée, ou jeton d'un ancien build). Rouvrir l'app mobile pour en réenregistrer un. |
+| `MismatchSenderId` | Le jeton vient d'un build lié à un **autre** projet FCM. Panne typique après un changement de `google-services.json`. |
+| `InvalidCredentials` | Identifiants FCM/APNs absents ou périmés → `eas credentials`. Rien ne partira tant que ce n'est pas réglé. |
+| « pas encore disponible » | Expo n'a pas fini. Relancer le test une minute plus tard. |
+
+### Deux réglages corrigés au passage
+
+- **`channelId: 'default'` explicite** dans le message. Sans lui, Android rangeait la notification
+  dans un canal de repli créé par `expo-notifications` — pas celui que l'app configure. Un canal de
+  repli peut être muet ou masqué sans que rien ne le signale.
+- **Canal Android en importance `HIGH`** (au lieu de `DEFAULT`). En `DEFAULT`, Android dépose la
+  notification dans le tiroir **sans bandeau ni son** : on ne la voit qu'en déroulant la barre
+  d'état. ⚠️ Android fige l'importance à la **création** du canal : sur un téléphone où Relyka est
+  déjà installée, ce changement n'a **aucun effet**. Pour ceux-là, il faut passer par
+  *Réglages → Notifications → Relyka*, ou réinstaller.
 
 ## 4. Vérifier que le cron tourne encore
 

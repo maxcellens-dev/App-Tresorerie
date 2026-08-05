@@ -21,7 +21,10 @@
 // ============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { sendExpoPush, pruneDeadTokens, normalizeTokens, summarizePush } from '../_shared/expoPush.ts';
+import {
+  sendExpoPush, pruneDeadTokens, normalizeTokens, summarizePush,
+  fetchExpoReceipts, summarizeReceipts,
+} from '../_shared/expoPush.ts';
 import { brevoKeys } from '../_shared/brevoKeys.ts';
 
 const CORS = {
@@ -209,6 +212,13 @@ serve(async (req) => {
         body: message || 'Si tu lis ceci, les pushs fonctionnent.',
       });
       const pruned = await pruneDeadTokens(admin, r.deadTokens);
+
+      /* ACCUSÉS DE RÉCEPTION — c'est ici que le diagnostic devient concluant. Un ticket « ok » ne
+         signifie que « Expo a mis en file » ; tant qu'on s'arrêtait là, un envoi qui n'arrivait
+         jamais s'affichait comme un succès. Le receipt dit ce qu'Apple/Google en ont fait. */
+      const receipts = await fetchExpoReceipts(r.receiptIds);
+      if (receipts.errors.length) console.warn('[admin-push] receipts :', summarizeReceipts(receipts));
+
       return json({
         ok: r.accepted > 0, targeted: tokens.length, accepted: r.accepted, failed: r.failed,
         errors: r.errors, pruned, config_failure: r.configFailure, recipient: who,
@@ -216,6 +226,12 @@ serve(async (req) => {
         // évite de conclure à tort à une panne côté Expo.
         notifications_off: prof.notifications_enabled === false,
         summary: summarizePush(r),
+        receipts: {
+          delivered: receipts.delivered,
+          pending: receipts.pending,
+          errors: receipts.errors.slice(0, 6),
+          summary: summarizeReceipts(receipts),
+        },
       });
     }
 
