@@ -78,7 +78,7 @@ export async function diagnosePushRegistration(): Promise<string> {
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'Notifications Relyka', importance: Notifications.AndroidImportance.DEFAULT,
+        name: 'Notifications Relyka', importance: Notifications.AndroidImportance.HIGH,
       });
     }
 
@@ -101,7 +101,12 @@ export async function diagnosePushRegistration(): Promise<string> {
     try {
       const tokenRes = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined as any);
       lines.push(`Jeton : ${String(tokenRes.data).slice(0, 28)}…`);
-      lines.push('OK — le jeton devrait s\'enregistrer au prochain lancement.');
+      lines.push("OK — le jeton devrait s'enregistrer au prochain lancement.");
+      /* Un jeton obtenu ici alors que rien n'arrive = le jeton est valide côté Expo mais REFUSÉ à la
+         livraison (DeviceNotRegistered). Cas typique : l'app tourne sur un build natif dont les
+         identifiants FCM/APNs ne sont plus ceux du projet. Une mise à jour OTA ne le corrige PAS —
+         seule une nouvelle version installée depuis le store le peut. */
+      lines.push('Si le jeton existe mais qu\'aucune notification n\'arrive, c\'est la version installée de l\'app qui est en cause : installe la dernière depuis le store.');
     } catch (e: any) {
       lines.push(`getExpoPushTokenAsync a ECHOUE : ${e?.message ?? String(e)}`);
       lines.push('→ Souvent : credentials FCM (Android) / APNs (iOS) non configurés dans EAS, ou build sans push.');

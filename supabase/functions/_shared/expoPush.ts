@@ -48,6 +48,9 @@ export interface PushResult {
   accepted: number;
   /** Identifiants de tickets acceptés → à repasser à `fetchExpoReceipts` pour le verdict réel. */
   receiptIds: string[];
+  /** receiptId → jeton. Indispensable pour PURGER un jeton déclaré mort à la LIVRAISON : le receipt
+   *  ne contient que son propre identifiant, jamais le jeton auquel il se rapporte. */
+  tokenByReceiptId: Record<string, string>;
   /** Jetons refusés (ticket `error`) ou perdus (lot en échec HTTP). */
   failed: number;
   /** Détail des refus — c'est CE QUE l'admin doit pouvoir lire. */
@@ -74,7 +77,7 @@ export function normalizeTokens(raw: unknown[]): string[] {
  */
 export async function sendExpoPush(tokens: string[], msg: PushMessage): Promise<PushResult> {
   const unique = normalizeTokens(tokens);
-  const res: PushResult = { accepted: 0, receiptIds: [], failed: 0, errors: [], deadTokens: [], configFailure: false };
+  const res: PushResult = { accepted: 0, receiptIds: [], tokenByReceiptId: {}, failed: 0, errors: [], deadTokens: [], configFailure: false };
   if (unique.length === 0) return res;
 
   for (let i = 0; i < unique.length; i += BATCH_SIZE) {
@@ -122,7 +125,11 @@ export async function sendExpoPush(tokens: string[], msg: PushMessage): Promise<
         const token = batch[idx] ?? '(inconnu)';
         if (ticket?.status === 'ok') {
           res.accepted++;
-          if (ticket.id) res.receiptIds.push(String(ticket.id));
+          if (ticket.id) {
+            const rid = String(ticket.id);
+            res.receiptIds.push(rid);
+            res.tokenByReceiptId[rid] = token;
+          }
           return;
         }
         res.failed++;
@@ -163,7 +170,12 @@ export interface ReceiptResult {
  * constructeur. On laisse donc quelques secondes, avec deux tentatives. `pending` non nul n'est pas
  * une erreur — juste « reviens dans un instant ».
  */
-export async function fetchExpoReceipts(ids: string[], attempts = 2, delayMs = 3000): Promise<ReceiptResult> {
+export async function fetchExpoReceipts(
+  ids: string[],
+  tokenByReceiptId: Record<string, string> = {},
+  attempts = 2,
+  delayMs = 3000,
+): Promise<ReceiptResult> {
   const out: ReceiptResult = { delivered: 0, errors: [], pending: ids.length, deadTokens: [] };
   if (ids.length === 0) return out;
 
@@ -191,7 +203,11 @@ export async function fetchExpoReceipts(ids: string[], attempts = 2, delayMs = 3
         if (rec?.status === 'ok') { out.delivered++; continue; }
         const code = String(rec?.details?.error ?? 'Unknown');
         out.errors.push({ id, code, message: String(rec?.message ?? '') });
-        if (code === 'DeviceNotRegistered') out.deadTokens.push(id);
+        /* On purge le JETON, pas l'identifiant du receipt. C'est ce qui rend la chaîne
+           AUTO-RÉPARANTE : un jeton mort disparaît au premier envoi qui le révèle, sans que
+           l'utilisateur ait quoi que ce soit à faire — surtout pas réinstaller l'app. */
+        const tok = tokenByReceiptId[id];
+        if (code === 'DeviceNotRegistered' && tok) out.deadTokens.push(tok);
       }
       out.pending = ids.length - seen.length;
       if (out.pending === 0) return out;

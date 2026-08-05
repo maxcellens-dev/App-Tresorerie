@@ -211,13 +211,15 @@ serve(async (req) => {
         title: title || 'Test Relyka',
         body: message || 'Si tu lis ceci, les pushs fonctionnent.',
       });
-      const pruned = await pruneDeadTokens(admin, r.deadTokens);
-
       /* ACCUSÉS DE RÉCEPTION — c'est ici que le diagnostic devient concluant. Un ticket « ok » ne
          signifie que « Expo a mis en file » ; tant qu'on s'arrêtait là, un envoi qui n'arrivait
          jamais s'affichait comme un succès. Le receipt dit ce qu'Apple/Google en ont fait. */
-      const receipts = await fetchExpoReceipts(r.receiptIds);
+      const receipts = await fetchExpoReceipts(r.receiptIds, r.tokenByReceiptId);
       if (receipts.errors.length) console.warn('[admin-push] receipts :', summarizeReceipts(receipts));
+      /* Purge des jetons morts détectés aux DEUX étapes. Un `DeviceNotRegistered` n'apparaît le plus
+         souvent qu'à la livraison : sans cette seconde purge, le jeton mort restait en base pour
+         toujours et l'utilisateur n'avait d'autre recours que de réinstaller l'app. */
+      const pruned = await pruneDeadTokens(admin, [...r.deadTokens, ...receipts.deadTokens]);
 
       return json({
         ok: r.accepted > 0, targeted: tokens.length, accepted: r.accepted, failed: r.failed,
@@ -242,7 +244,10 @@ serve(async (req) => {
     const target: Target = body.target ?? { kind: 'all' };
     const tokens = await tokensForTarget(admin, target);
     const r = await sendExpoPush(tokens, { title, body: message });
-    const pruned = await pruneDeadTokens(admin, r.deadTokens);
+    /* Purge aux deux étapes, comme pour le test : c'est ce passage-là qui nettoie réellement le parc,
+       puisqu'un envoi de masse révèle d'un coup tous les jetons morts. */
+    const receipts = await fetchExpoReceipts(r.receiptIds, r.tokenByReceiptId);
+    const pruned = await pruneDeadTokens(admin, [...r.deadTokens, ...receipts.deadTokens]);
 
     let targetLabel = 'Tous';
     if (target.kind === 'premium') targetLabel = 'Premium';

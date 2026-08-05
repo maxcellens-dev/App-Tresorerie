@@ -96,6 +96,31 @@ Le panneau lit désormais les deux. Le bloc « Livraison (accusés de réception
 | `InvalidCredentials` | Identifiants FCM/APNs absents ou périmés → `eas credentials`. Rien ne partira tant que ce n'est pas réglé. |
 | « pas encore disponible » | Expo n'a pas fini. Relancer le test une minute plus tard. |
 
+### `DeviceNotRegistered` : personne ne doit réinstaller l'app
+
+C'est le point important à l'échelle du parc — **jamais** on ne peut demander à des utilisateurs de
+désinstaller/réinstaller. La chaîne se répare donc toute seule :
+
+1. **Le serveur purge** le jeton mort dès l'envoi qui le révèle (aux deux étapes : ticket ET
+   receipt). Un jeton `DeviceNotRegistered` disparaît de `push_tokens` sans intervention.
+2. **Le client réenregistre** à chaque lancement (`PushRegistrar` dans `app/_layout.tsx`) et fait un
+   `upsert` : un jeton frais réapparaît à la prochaine ouverture de l'app.
+
+Le cycle se referme sans que l'utilisateur fasse quoi que ce soit. Un compte peut rester une journée
+sans jeton — pas plus.
+
+**Si le jeton reste mort après réouverture**, c'est que le client n'en produit pas de nouveau. Deux
+causes, que le bouton **Paramètres → « Je ne reçois aucune notification »** distingue :
+
+| Ce que dit le diagnostic | Cause | Correction |
+| --- | --- | --- |
+| `getExpoPushTokenAsync a ECHOUE` | Permission OS refusée, Google Play Services, ou credentials absents du build | Réglages du téléphone, ou `eas credentials` |
+| Un jeton s'affiche, mais rien n'arrive quand même | Le **build natif installé** n'a plus les identifiants FCM/APNs du projet | **Installer la dernière version depuis le store.** Une mise à jour OTA ne peut PAS corriger ça : elle ne remplace que le JavaScript, jamais la couche native qui porte l'enregistrement push. |
+
+Le second cas est le piège classique après une migration de SDK ou un changement de
+`google-services.json` : les téléphones restés sur l'ancien build gardent un jeton qu'Expo accepte
+mais que Google refuse.
+
 ### Deux réglages corrigés au passage
 
 - **`channelId: 'default'` explicite** dans le message. Sans lui, Android rangeait la notification

@@ -27,6 +27,7 @@ import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COL
 import type { FinancialProfileId } from '../../../types/database';
 import { APP_VERSION } from '../../../lib/appVersion';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/appLock';
+import { diagnosePushRegistration } from '../../../lib/pushNotifications';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -66,6 +67,8 @@ function SettingsScreen() {
   const { position: quickAddPos, setPosition: setQuickAddPos } = useQuickAddPref(user?.id);
   const { resetDismissals } = useRecoDismissals(user?.id);
   const [recosReset, setRecosReset] = useState(false);
+  /** Résultat du diagnostic « je ne reçois aucune notification » (natif uniquement). */
+  const [pushDiag, setPushDiag] = useState<string | null>(null);
   const { data: recoThresholds } = useRecoThresholds();
   const { data: financialProfile } = useFinancialProfile(user?.id);
 
@@ -491,6 +494,29 @@ function SettingsScreen() {
                 <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
                   Réponses à l'assistance, rappels et annonces Relyka.
                 </Text>
+                {/* Le bouton « je n'en reçois aucune ». L'enregistrement du jeton push peut échouer
+                    silencieusement (permission refusée au niveau de l'OS, credentials du build,
+                    Google Play Services…) : sans ce diagnostic, l'utilisateur voit un interrupteur
+                    allumé et n'a AUCUN moyen de savoir pourquoi rien n'arrive. Il peut relire le
+                    résultat à l'assistance, qui saura quoi en faire. */}
+                <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+                <TouchableOpacity
+                  style={[styles.row, { borderBottomWidth: 0 }]}
+                  onPress={async () => {
+                    setPushDiag('Analyse en cours…');
+                    try { setPushDiag(await diagnosePushRegistration()); }
+                    catch (e: any) { setPushDiag(`Diagnostic impossible : ${e?.message ?? String(e)}`); }
+                  }}
+                >
+                  <Ionicons name="pulse-outline" size={20} color={COLORS.textSecondary} />
+                  <Text style={styles.rowLabel}>Je ne reçois aucune notification</Text>
+                  <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+                {!!pushDiag && (
+                  <View style={{ marginHorizontal: 16, marginBottom: 14, padding: 11, borderRadius: 10, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder }}>
+                    <Text style={{ color: COLORS.text, fontSize: 11.5, lineHeight: 17 }} selectable>{pushDiag}</Text>
+                  </View>
+                )}
               </>
             )}
           </View>
