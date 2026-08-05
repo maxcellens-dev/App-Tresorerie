@@ -9,7 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCIES, currencySymbolFor } from '../lib/currency';
-import { sheetWidth } from '../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../lib/appLayout';
 
 interface Props {
   value: string;                       // code ISO sélectionné
@@ -20,6 +20,8 @@ interface Props {
 export default function CurrencyPicker({ value, onChange, label }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(20);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -48,7 +50,7 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
 
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: sheetPad }]}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Choisir une devise</Text>
               <TouchableOpacity onPress={() => setOpen(false)} style={styles.closeBtn}>

@@ -18,7 +18,7 @@ import ScreenHeader from '../../../components/ScreenHeader';
 import CalendarWithPicker from '../../../components/CalendarWithPicker';
 import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
-import { sheetWidth } from '../../../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
 import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/txOrder';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -79,6 +79,8 @@ export default function AccountDetailScreen() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const modalStyles = makeModalStyles(COLORS);
   const txDetailStyles = makeTxDetailStyles(COLORS);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(36);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; verify?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -1304,7 +1306,7 @@ export default function AccountDetailScreen() {
       {/* Transaction detail (read-only) */}
       <Modal visible={!!selectedTx} transparent animationType="slide" onRequestClose={() => setSelectedTxId(null)}>
         <TouchableOpacity style={txDetailStyles.overlay} activeOpacity={1} onPress={() => setSelectedTxId(null)}>
-          <TouchableOpacity style={txDetailStyles.sheet} activeOpacity={1} onPress={() => {}}>
+          <TouchableOpacity style={[txDetailStyles.sheet, { paddingBottom: sheetPad }]} activeOpacity={1} onPress={() => {}}>
             {selectedTx && (() => {
               const amt = Number(selectedTx.amount);
               const isIncoming = amt >= 0;

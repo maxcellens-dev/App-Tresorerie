@@ -13,7 +13,7 @@ import { useNavBack } from '../../../hooks/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useProfile } from '../../../hooks/useProfile';
 import { useMySupportRequests, useCreateSupportRequest, type SupportRequest } from '../../../hooks/useSupport';
-import { sheetWidth } from '../../../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
 import SupportThreadModal from '../../../components/SupportThreadModal';
 
 
@@ -24,6 +24,8 @@ function formatDate(iso: string) {
 export default function AssistanceScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(32);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
@@ -141,7 +143,7 @@ export default function AssistanceScreen() {
       {/* Nouvelle demande */}
       <Modal visible={showNew} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowNew(false)}>
         <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <View style={[styles.modalBox, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Contacter l'assistance</Text>
               <TouchableOpacity onPress={() => setShowNew(false)} style={{ padding: 4 }}>

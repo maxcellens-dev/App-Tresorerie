@@ -29,7 +29,7 @@ import CalculatorButton from '../../../components/CalculatorButton';
 import RecurringTransactionsModal from '../../../components/RecurringTransactionsModal';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
-import { sheetWidth } from '../../../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { hoverRow } from '../../../lib/webLayout';
 import { iconForTransaction } from '../../../lib/categoryIcons';
@@ -122,6 +122,8 @@ export default function TransactionsListScreen() {
 function TransactionsListBody() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(28);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée + survol des lignes
   const onbRecurring = useOnbHighlight('recurring_tx');
   const router = useRouter();
@@ -1035,7 +1037,7 @@ function TransactionsListBody() {
             « Modifier ». S'ouvre par le bas comme depuis la page du compte. */}
         <Modal visible={!!detailTx} transparent animationType="slide" onRequestClose={() => setDetailTx(null)}>
           <TouchableOpacity style={styles.detailOverlay} activeOpacity={1} onPress={() => setDetailTx(null)}>
-            <TouchableOpacity style={styles.detailSheet} activeOpacity={1} onPress={() => {}}>
+            <TouchableOpacity style={[styles.detailSheet, { paddingBottom: sheetPad }]} activeOpacity={1} onPress={() => {}}>
               {detailTx && (() => {
                 const amt = Number(detailTx.amount);
                 const inc = amt >= 0;

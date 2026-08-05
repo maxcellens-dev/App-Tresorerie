@@ -125,38 +125,43 @@ export function useUpdateProfile(profileId: string | undefined) {
       if (payload.email_opt_in !== undefined) updates.email_opt_in = payload.email_opt_in;
       if (payload.equipped_cosmetics !== undefined) updates.equipped_cosmetics = payload.equipped_cosmetics;
 
-      // Séparer safety_margin_amount pour éviter qu'un échec (colonne manquante avant
-      // migration 031) ne bloque les autres mises à jour.
       const safetyAmount = payload.safety_margin_amount;
-      const otherUpdates = { ...updates };
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(otherUpdates)
-        .eq('id', profileId);
+      /* PERF — enregistrer la marge de sécurité coûtait TROIS écritures EN SÉRIE : un PATCH profiles
+         qui ne portait que `updated_at` (la marge en était retirée), puis un second PATCH profiles
+         pour la marge seule, puis la synchro du questionnaire. Le découpage datait d'une époque où
+         la colonne `safety_margin_amount` pouvait ne pas exister (avant migration 031) et où un
+         échec aurait fait tomber le reste — un cas qui ne peut plus se produire, mais dont le coût,
+         lui, se payait à chaque enregistrement. On écrit donc TOUT en une fois, et on ne retombe sur
+         l'écriture séparée que si la base refuse réellement le champ. */
+      if (safetyAmount !== undefined) updates.safety_margin_amount = safetyAmount;
+
+      const { error } = await supabase.from('profiles').update(updates).eq('id', profileId);
       if (error) {
-        console.error('[useUpdateProfile] PATCH profiles échoué:', { error, updates: otherUpdates });
-        throw error;
+        // Repli historique : la marge est peut-être le seul champ refusé → on réessaie sans elle,
+        // pour que le reste du réglage soit tout de même enregistré.
+        if (safetyAmount === undefined) {
+          console.error('[useUpdateProfile] PATCH profiles échoué:', { error, updates });
+          throw error;
+        }
+        console.warn('[useUpdateProfile] safety_margin_amount refusé (migration 031 requise ?), réessai sans:', error);
+        const { safety_margin_amount: _drop, ...withoutSafety } = updates;
+        const { error: retryErr } = await supabase.from('profiles').update(withoutSafety).eq('id', profileId);
+        if (retryErr) {
+          console.error('[useUpdateProfile] PATCH profiles échoué:', { error: retryErr, updates: withoutSafety });
+          throw retryErr;
+        }
       }
 
+      // Synchro du questionnaire (q8 = la marge en chaîne) : copie DÉNORMALISÉE, elle ne conditionne
+      // rien à l'écran. On ne fait donc plus attendre l'utilisateur dessus — un aller-retour de moins
+      // sur le chemin critique. En cas d'échec, la valeur qui fait foi (profiles) reste juste.
       if (safetyAmount !== undefined) {
-        // 1. Mettre à jour profiles.safety_margin_amount
-        const { error: safetyErr } = await supabase
-          .from('profiles')
-          .update({ safety_margin_amount: safetyAmount })
-          .eq('id', profileId);
-        if (safetyErr) {
-          console.warn('[useUpdateProfile] safety_margin_amount échoué (migration 031 requise ?):', safetyErr);
-        }
-
-        // 2. Synchroniser user_questionnaire_answers.q8 (la valeur numérique en chaîne)
-        const { error: q8Err } = await supabase
+        void supabase
           .from('user_questionnaire_answers')
           .update({ q8: String(safetyAmount), updated_at: new Date().toISOString() })
-          .eq('user_id', profileId);
-        if (q8Err) {
-          console.warn('[useUpdateProfile] sync q8 échoué:', q8Err);
-        }
+          .eq('user_id', profileId)
+          .then(({ error: q8Err }) => { if (q8Err) console.warn('[useUpdateProfile] sync q8 échoué:', q8Err); });
       }
     },
     // Mise à jour OPTIMISTE : on applique le changement dans le cache `profile` AVANT le réseau,

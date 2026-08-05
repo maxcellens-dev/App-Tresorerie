@@ -16,7 +16,7 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
 import { useNavBack } from '../../../../hooks/useNavBack';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
-import { sheetWidth } from '../../../../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../../../../lib/appLayout';
 import { todayISO } from '../../../../lib/dateUtils';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
@@ -31,6 +31,8 @@ const fmt = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits:
 export default function RelykaWorldDetail() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(36);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const router = useRouter();
   const goBack = useNavBack();
@@ -308,7 +310,7 @@ export default function RelykaWorldDetail() {
       {/* Modal inviter */}
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Participants</Text>
               <TouchableOpacity onPress={() => setShowInvite(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -357,7 +359,7 @@ export default function RelykaWorldDetail() {
       {/* Modal édition d'un participant non inscrit (renommer / inviter par ID) */}
       <Modal visible={!!editPart} transparent animationType="slide" onRequestClose={() => setEditPart(null)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Participant non inscrit</Text>
               <TouchableOpacity onPress={() => setEditPart(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -388,7 +390,7 @@ export default function RelykaWorldDetail() {
       {/* Modal édition projet */}
       <Modal visible={showEdit} transparent animationType="slide" onRequestClose={() => setShowEdit(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Modifier le projet</Text>
               <TouchableOpacity onPress={() => setShowEdit(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

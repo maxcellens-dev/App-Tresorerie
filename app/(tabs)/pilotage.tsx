@@ -61,7 +61,7 @@ import { useAppColors } from '../../hooks/useAppColors';
 import type { AppColors } from '../../theme/palette';
 import { semanticText } from '../../theme/palette';
 import { CURRENCY_SYMBOL, floorToTen, convertAmount } from '../../lib/currency';
-import { sheetWidth } from '../../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../../lib/appLayout';
 import { useResponsive } from '../../hooks/useResponsive';
 import { contentWidth, hoverRow } from '../../lib/webLayout';
 import { useCurrencyRates } from '../../hooks/useCurrencyRates';
@@ -98,6 +98,8 @@ export default function PilotageScreen() {
   const { user } = useAuth();
   const COLORS = useAppColors();
   const styles = React.useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(28);
   // Web bureau : le tableau de bord se lit dans une colonne large centrée (pas la colonne
   // « téléphone » de 840 px), avec des gouttières de site. Faux sur natif → aucun impact.
   const { isDesktop, height: winHeight } = useResponsive();
@@ -1922,7 +1924,7 @@ export default function PilotageScreen() {
           comme au clic d'une transaction dans un compte. */}
       <Modal visible={!!suiviTx} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setSuiviTx(null)}>
         <Pressable style={styles.txSheetOverlay} onPress={() => setSuiviTx(null)}>
-          <Pressable style={styles.txSheet} onPress={() => {}}>
+          <Pressable style={[styles.txSheet, { paddingBottom: sheetPad }]} onPress={() => {}}>
             {suiviTx && (() => {
               const t = suiviTx;
               const refCode = profile?.currency_code ?? 'EUR';
@@ -2160,12 +2162,15 @@ export default function PilotageScreen() {
               )}
               <TouchableOpacity
                 style={styles.varModalSave}
-                onPress={async () => {
+                onPress={() => {
                   const val = Math.max(0, parseFloat(marginInput.replace(',', '.')) || 0);
-                  try {
-                    await updateProfileVar.mutateAsync({ safety_margin_amount: val });
-                    await pilotageQuery.refetch?.();
-                  } catch (e) { console.warn('[pilotage] maj marge de sécurité échouée:', e); }
+                  /* La modale se ferme TOUT DE SUITE : la mise à jour du profil est optimiste
+                     (useUpdateProfile.onMutate écrit la nouvelle marge dans le cache avant le
+                     réseau) et son succès invalide déjà `pilotage_data`. On attendait ici, en plus,
+                     un rechargement COMPLET du tableau de bord dont on ne lisait même pas le
+                     résultat : l'utilisateur restait bloqué sur « Enregistrer » le temps du fetch le
+                     plus lourd de l'app, après trois écritures en série. */
+                  updateProfileVar.mutate({ safety_margin_amount: val });
                   setShowMarginModal(false);
                   if (requireMargin) userGuide.done('g2_margin');
                 }}

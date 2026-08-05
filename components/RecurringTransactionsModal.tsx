@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAppColors } from '../hooks/useAppColors';
 import { CURRENCY_SYMBOL } from '../lib/currency';
-import { sheetWidth } from '../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../lib/appLayout';
 import { RootPortal } from '../lib/rootPortal';
 import { useRecurringTransactions, ruleBadge, type RecurringItem, type RecurKind } from '../hooks/useRecurringTransactions';
 
@@ -31,6 +31,8 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
 }) {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(26);
   const router = useRouter();
   const { data: items = [], isLoading, refetch } = useRecurringTransactions(userId);
   // À l'ouverture : on relit → une récurrence créée à l'instant apparaît sans rafraîchir la page.
@@ -44,7 +46,7 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
 
   const body = (
       <Pressable style={s.overlay} onPress={onClose}>
-        <Pressable style={s.sheet} onPress={() => {}}>
+        <Pressable style={[s.sheet, { paddingBottom: sheetPad }]} onPress={() => {}}>
           {/* Anneau tracé par la feuille elle-même : le guide peut la désigner en même temps que
               le bouton qui l'ouvre, sans aucune position à mesurer. */}
           <View style={s.grabber} />

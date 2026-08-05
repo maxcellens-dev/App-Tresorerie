@@ -19,7 +19,7 @@ import { pageColumn } from '../../lib/webLayout';
 import { useNavBack } from '../../hooks/useNavBack';
 import { useUsageGuard } from '../../hooks/useUsageLimits';
 import { parseUsageLimitError } from '../../lib/usageLimits';
-import { sheetWidth } from '../../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../../lib/appLayout';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { usePlan } from '../../hooks/usePlan';
@@ -38,6 +38,8 @@ export default withDeferredMount(ConseilsIaScreen);
 function ConseilsIaScreen() {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(32);
   const { isDesktop } = useResponsive(); // web bureau : conversation dans une colonne lisible
   const { user, isImpersonating } = useAuth();
   const uid = user?.id;
@@ -504,7 +506,7 @@ function ConseilsIaScreen() {
       <Modal visible={showPaywall} transparent animationType="fade" onRequestClose={() => setShowPaywall(false)}>
         {/* Fond tapable → ferme ; la feuille stoppe la propagation du tap. */}
         <Pressable style={s.payOverlay} onPress={() => setShowPaywall(false)}>
-          <Pressable style={s.paySheet} onPress={() => {}}>
+          <Pressable style={[s.paySheet, { paddingBottom: sheetPad }]} onPress={() => {}}>
             <View style={{ alignItems: 'center', marginBottom: 6 }}>
               <View style={s.iconBadge}><Ionicons name="flash" size={22} color={c.emerald} /></View>
             </View>

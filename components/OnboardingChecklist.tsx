@@ -12,11 +12,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
 import { useOnboarding, type OnboardingStep } from '../hooks/useOnboarding';
 import { subscribeChecklistOpen, openOnboardingChecklist, closeOnboardingChecklist } from '../lib/onboardingChecklist';
-import { sheetWidth } from '../lib/appLayout';
+import { sheetWidth, useSheetBottomPadding } from '../lib/appLayout';
 
 export default function OnboardingChecklist() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
+  const sheetPad = useSheetBottomPadding(32);
   const router = useRouter();
   const { user, isImpersonating } = useAuth();
   const ob = useOnboarding(user?.id);
@@ -65,7 +67,7 @@ export default function OnboardingChecklist() {
 
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeOnboardingChecklist}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { paddingBottom: sheetPad }]}>
             <View style={styles.header}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>Pour bien démarrer</Text>
