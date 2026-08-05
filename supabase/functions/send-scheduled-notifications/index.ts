@@ -19,48 +19,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendExpoPush, pruneDeadTokens, normalizeTokens, summarizePush } from '../_shared/expoPush.ts';
+// Logique « c'est dû maintenant ? » PARTAGÉE avec les campagnes e-mail récurrentes (_shared/recurrence).
+import { isRecurringDue } from '../_shared/recurrence.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-}
-
-// Parties d'une date dans un fuseau horaire donné.
-function localParts(date: Date, tz: string) {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
-  });
-  const parts: Record<string, string> = {};
-  for (const p of fmt.formatToParts(date)) parts[p.type] = p.value;
-  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  return {
-    ymd: `${parts.year}-${parts.month}-${parts.day}`,
-    year: Number(parts.year), month: Number(parts.month), day: Number(parts.day),
-    hour: Number(parts.hour), minute: Number(parts.minute),
-    weekday: weekdayMap[parts.weekday] ?? 0,
-  };
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate(); // month 1-12 → jour 0 du mois suivant = dernier jour
-}
-
-function isRecurringDue(s: any, now: Date): boolean {
-  const tz = s.timezone || 'Europe/Paris';
-  const p = localParts(now, tz);
-  const [th, tm] = String(s.time_of_day || '00:00').split(':').map(Number);
-  const targetMin = (th || 0) * 60 + (tm || 0);
-  if (p.hour * 60 + p.minute < targetMin) return false;          // heure cible pas encore atteinte
-  if (s.recurrence === 'weekly' && p.weekday !== s.day_of_week) return false;
-  if (s.recurrence === 'monthly') {
-    // day_of_month = 0 → « dernier jour du mois » (résolu au dernier jour réel).
-    const dom = s.day_of_month === 0 ? daysInMonth(p.year, p.month) : Math.min(s.day_of_month || 1, daysInMonth(p.year, p.month));
-    if (p.day !== dom) return false;
-  }
-  if (s.last_sent_at) {                                           // déjà envoyé aujourd'hui ?
-    if (localParts(new Date(s.last_sent_at), tz).ymd === p.ymd) return false;
-  }
-  return true;
 }
 
 // profile_ids correspondant à la cible d'une planif, ou null = pas de filtre (Tous).

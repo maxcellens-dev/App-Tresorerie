@@ -53,6 +53,7 @@ import { useSetPremium, usePlan } from '../hooks/usePlan';
 import { handleUsageLimitError, setCachedIsPremium, getCachedIsPremium } from '../lib/usageLimits';
 import { PURCHASES_SUPPORTED, configurePurchases, logInPurchases, isProActive, addProListener } from '../lib/purchases';
 import { PUSH_SUPPORTED, getDevicePushTokenAsync } from '../lib/pushNotifications';
+import PushPermissionPrompt from '../components/PushPermissionPrompt';
 import { maybeApplyUpdateOnLaunch } from '../lib/otaUpdate';
 import './global.css';
 
@@ -469,6 +470,9 @@ export default function RootLayout() {
               <GamificationSync />
               <PurchasesSync />
               <PushRegistrar />
+              {/* Pose la question système au PREMIER lancement, connecté ou non — `PushRegistrar`,
+                  lui, attend un utilisateur connecté et son profil. */}
+              <PushPermissionPrompt />
               <AppChrome />
               {!splashDone && (
                 <AnimatedSplash

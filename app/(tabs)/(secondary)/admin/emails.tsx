@@ -23,13 +23,16 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { supabase } from '../../../../lib/supabase';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../../lib/dateUtils';
 import {
   useEmailCampaigns, useEmailAudienceCount, useSaveEmailCampaign,
-  useSendEmailCampaign, useDeleteEmailCampaign,
+  useSendEmailCampaign, useDeleteEmailCampaign, useClearEmailHistory,
   type EmailAudience,
 } from '../../../../hooks/useEmailCampaigns';
+import EmailSchedulesSection from '../../../../components/admin/EmailSchedulesSection';
 // Le MÊME rendu que celui de l'Edge Function : l'aperçu montre donc l'e-mail réel, pas une imitation.
 import {
   renderRelykaEmail, looksLikeHtml,
@@ -43,6 +46,7 @@ export default function AdminEmails() {
   const COLORS = useAppColors();
   const s = useMemo(() => makeStyles(COLORS), [COLORS]);
   const goBack = useNavBack();
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée, comme les autres pages admin
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
@@ -84,9 +88,10 @@ export default function AdminEmails() {
   const saveCampaign = useSaveEmailCampaign();
   const sendCampaign = useSendEmailCampaign();
   const deleteCampaign = useDeleteEmailCampaign();
+  const clearHistory = useClearEmailHistory();
 
   if (!isAdmin) {
-    return <View style={s.root}><SafeAreaView style={s.safe} edges={['top']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
+    return <View style={s.root}><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
   }
 
   /** Date/heure d'envoi en ISO, ou null pour un envoi immédiat. */
@@ -140,6 +145,26 @@ export default function AdminEmails() {
     }
   }
 
+  /* Vider l'historique = effacer ce qui est TERMINÉ. Les campagnes vivantes (programmées, en cours,
+     en pause) sont épargnées : supprimer une campagne en pause emporterait son registre d'envois
+     (CASCADE, migration 168), donc la garantie de ne pas réécrire aux destinataires déjà servis. */
+  const confirmClearHistory = () => {
+    Alert.alert(
+      'Vider l’historique',
+      'Les campagnes terminées, en échec et les brouillons seront supprimés. Les envois programmés et ceux en pause sont conservés.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Vider',
+          style: 'destructive',
+          onPress: () => clearHistory.mutate(undefined, {
+            onError: (e: any) => Alert.alert('Échec', e?.message ?? 'Erreur'),
+          }),
+        },
+      ],
+    );
+  };
+
   const confirmSendNow = () => {
     Alert.alert(
       `Envoyer à ${audienceCount} personne(s) ?`,
@@ -152,7 +177,7 @@ export default function AdminEmails() {
     <View style={s.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['top']}>
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
         <TouchableOpacity style={s.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={s.backText}>Retour</Text>
         </TouchableOpacity>
@@ -162,13 +187,19 @@ export default function AdminEmails() {
           {/* Diagnostic E-MAIL — placé avant la rédaction : savoir combien de personnes sont
               joignables et combien d'envois il reste évite d'écrire une campagne qui s'arrêtera au
               milieu. Le pendant push vit dans l'écran Notifications : deux canaux, deux pannes. */}
-          <Text style={s.label}>Diagnostic</Text>
+          <Text style={s.sectionLabel}>Diagnostic</Text>
           <EmailDiagnostics />
 
+          {/* ── SECTION : rédaction ──
+              Tout ce qui compose UN envoi tient dans une seule carte : modèle, objet, message,
+              destinataires, moment. Auparavant, ces champs flottaient les uns sous les autres sur
+              toute la page et rien ne disait où commençait l'envoi et où finissait le réglage. */}
+          <Text style={s.sectionLabel}>Rédiger un e-mail</Text>
+          <View style={s.panel}>
           {/* Points de départ — pas des carcans : tout reste modifiable ensuite, et les modèles
               eux-mêmes sont éditables (migration 167). Liste déroulante plutôt que grille de cartes :
               on choisit un modèle une fois, on ne relit pas trois descriptions à chaque campagne. */}
-          <Text style={s.label}>Partir d’un modèle</Text>
+          <Text style={[s.label, { marginTop: 0 }]}>Partir d’un modèle</Text>
           <EmailTemplatePicker onApply={applyTemplate} />
 
           <Text style={s.label}>Objet</Text>
@@ -249,9 +280,23 @@ export default function AdminEmails() {
               </TouchableOpacity>
             )}
           </View>
+          </View>
 
-          {/* Historique — c'est là qu'on voit qu'un envoi programmé est bien parti, ou a échoué. */}
-          <Text style={[s.label, { marginTop: 26 }]}>Historique</Text>
+          {/* ── SECTION : envois récurrents (migration 169) ── */}
+          <EmailSchedulesSection groups={groups.data ?? []} />
+
+          {/* ── SECTION : historique ──
+              C'est là qu'on voit qu'un envoi programmé est bien parti, ou a échoué. */}
+          <View style={s.sectionRow}>
+            {/* marges neutralisées : c'est la RANGÉE qui porte l'espacement, sinon il double. */}
+            <Text style={[s.sectionLabel, { marginTop: 0, marginBottom: 0 }]}>Historique</Text>
+            {campaigns.length > 0 && (
+              <TouchableOpacity style={s.clearBtn} onPress={confirmClearHistory} activeOpacity={0.8}>
+                <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
+                <Text style={s.clearTxt}>Vider</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {campaigns.length === 0 && <Text style={s.hint}>Aucune campagne pour l’instant.</Text>}
           {campaigns.map((c) => (
             <View key={c.id} style={s.card}>
@@ -328,6 +373,15 @@ function makeStyles(c: any) {
     title: { fontSize: 22, fontWeight: '800', color: c.text, marginBottom: 12 },
     text: { color: c.text, padding: 20 },
     label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6, marginTop: 12 },
+    /* Intertitre de SECTION — en capitales, comme dans l'écran Notifications. Il fallait un niveau
+       au-dessus de `label` : sans lui, « Objet » et « Historique » avaient le même poids visuel,
+       et rien ne séparait un champ de formulaire d'une partie entière de la page. */
+    sectionLabel: { fontSize: 13, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 22, marginBottom: 8 },
+    sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 22, marginBottom: 8 },
+    /** Carte qui REGROUPE la rédaction : un envoi = un bloc, au lieu de champs flottants. */
+    panel: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 16, padding: 14 },
+    clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: c.danger + '55' },
+    clearTxt: { fontSize: 12, fontWeight: '700', color: c.danger },
     input: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
       paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.text, marginBottom: 4,

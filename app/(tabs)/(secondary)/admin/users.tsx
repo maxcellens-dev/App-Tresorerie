@@ -19,6 +19,8 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { supabase } from '../../../../lib/supabase';
 import { sheetWidth } from '../../../../lib/appLayout';
 import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, type InactiveUser } from '../../../../hooks/useInactiveUsers';
@@ -29,20 +31,21 @@ export default function AdminUsers() {
   const COLORS = useAppColors();
   const s = useMemo(() => makeStyles(COLORS), [COLORS]);
   const goBack = useNavBack();
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée, comme les autres pages admin
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
   const [tab, setTab] = useState<Tab>('users');
 
   if (!isAdmin) {
-    return <View style={s.root}><SafeAreaView style={s.safe} edges={['top']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
+    return <View style={s.root}><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
   }
 
   return (
     <View style={s.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={s.safe} edges={['top']}>
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
         <TouchableOpacity style={s.backRow} onPress={goBack}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={s.backText}>Retour</Text>
         </TouchableOpacity>

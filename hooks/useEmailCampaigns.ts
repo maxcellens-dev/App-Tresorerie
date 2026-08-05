@@ -30,6 +30,8 @@ export interface EmailCampaign {
   total_recipients: number;
   /** Campagne en pause : instant à partir duquel le cron la reprend. */
   resume_at: string | null;
+  /** Occurrence engendrée par une planification récurrente (NULL = campagne ponctuelle). */
+  schedule_id: string | null;
   error: string | null;
   created_at: string;
 }
@@ -134,4 +136,129 @@ export function useDeleteEmailCampaign() {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); },
   });
+}
+
+/**
+ * Vide l'historique des campagnes — pendant du bouton des notifications.
+ *
+ * Ne touche PAS aux campagnes encore vivantes (`scheduled`, `sending`, `paused`) : supprimer une
+ * campagne en pause emporterait son registre d'envois (CASCADE, migration 168), donc la garantie
+ * qu'on ne réécrira pas aux destinataires déjà servis. « Vider l'historique » veut dire effacer ce
+ * qui est terminé, pas annuler ce qui est en cours.
+ */
+export function useClearEmailHistory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<number> => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data, error } = await supabase
+        .from('email_campaigns').delete().in('status', ['sent', 'failed', 'draft']).select('id');
+      if (error) throw new Error(error.message);
+      return (data ?? []).length;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); },
+  });
+}
+
+/* ───────────────────────── Campagnes RÉCURRENTES (migration 169) ─────────────────────────
+   Une planification n'envoie jamais elle-même : à chaque échéance, le cron ENGENDRE une campagne
+   neuve. C'est ce qui donne à chaque occurrence son propre registre d'envois — sans quoi, dès la
+   deuxième, tout le monde passerait pour « déjà servi » et plus personne ne recevrait rien. */
+
+export type EmailRecurrence = 'daily' | 'weekly' | 'monthly';
+
+export interface EmailSchedule {
+  id: string;
+  subject: string;
+  body: string;
+  audience: EmailAudience;
+  group_id: string | null;
+  recurrence: EmailRecurrence;
+  time_of_day: string;
+  day_of_week: number | null;
+  /** 0 = dernier jour du mois. */
+  day_of_month: number | null;
+  timezone: string;
+  active: boolean;
+  last_sent_at: string | null;
+  created_at: string;
+}
+
+const SCHEDULES_KEY = ['email_schedules'];
+
+export function useEmailSchedules() {
+  return useQuery({
+    queryKey: SCHEDULES_KEY,
+    queryFn: async (): Promise<EmailSchedule[]> => {
+      if (!supabase) return [];
+      const { data, error } = await supabase
+        .from('email_schedules').select('*').order('created_at', { ascending: false });
+      // Migration 169 pas encore appliquée → écran utilisable sans planifications, plutôt qu'en erreur.
+      if (error && !/does not exist|schema cache/i.test(error.message)) throw new Error(error.message);
+      return (data ?? []) as EmailSchedule[];
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSaveEmailSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<EmailSchedule> & { subject: string; body: string }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data: auth } = await supabase.auth.getUser();
+      const row: Record<string, any> = {
+        ...(input.id ? { id: input.id } : { created_by: auth?.user?.id ?? null }),
+        subject: input.subject.trim(),
+        body: input.body.trim(),
+        audience: input.audience ?? 'all',
+        group_id: input.audience === 'group' ? input.group_id ?? null : null,
+        recurrence: input.recurrence ?? 'monthly',
+        time_of_day: input.time_of_day ?? '09:00',
+        day_of_week: input.recurrence === 'weekly' ? input.day_of_week ?? 1 : null,
+        day_of_month: input.recurrence === 'monthly' ? input.day_of_month ?? 1 : null,
+        timezone: input.timezone ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris'),
+        active: input.active ?? true,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('email_schedules').upsert(row);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: SCHEDULES_KEY }); },
+  });
+}
+
+export function useDeleteEmailSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('email_schedules').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: SCHEDULES_KEY }); },
+  });
+}
+
+export function useToggleEmailSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (s: EmailSchedule) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.from('email_schedules').update({ active: !s.active }).eq('id', s.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: SCHEDULES_KEY }); },
+  });
+}
+
+/** Résumé lisible d'une récurrence (« Le 1 de chaque mois à 09:00 »). */
+export function describeEmailRecurrence(s: Pick<EmailSchedule, 'recurrence' | 'time_of_day' | 'day_of_week' | 'day_of_month'>): string {
+  const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const at = s.time_of_day ?? '09:00';
+  if (s.recurrence === 'weekly') return `Chaque ${days[s.day_of_week ?? 1]} à ${at}`;
+  if (s.recurrence === 'monthly') {
+    return s.day_of_month === 0 ? `Le dernier jour du mois à ${at}` : `Le ${s.day_of_month ?? 1} de chaque mois à ${at}`;
+  }
+  return `Chaque jour à ${at}`;
 }

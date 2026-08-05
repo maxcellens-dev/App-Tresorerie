@@ -26,6 +26,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 // qui montre vraiment ce qui part.
 import { renderRelykaEmail } from '../_shared/emailTemplate.ts';
 import { brevoKeys, type BrevoKey } from '../_shared/brevoKeys.ts';
+// « C'est dû maintenant ? » — MÊME code que les notifications planifiées (_shared/recurrence).
+import { isRecurringDue } from '../_shared/recurrence.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -242,7 +244,37 @@ serve(async (req) => {
   // ── Appel CRON : envoie tout ce qui est dû. Toute méthode acceptée (les ordonnanceurs
   //    appellent souvent en GET) — le contrôle, c'est le secret. ──
   if (CRON_SECRET && cronHeader === CRON_SECRET) {
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
+
+    /* ── Campagnes RÉCURRENTES : chaque échéance engendre une occurrence NEUVE ──
+       Une planification n'envoie jamais elle-même. Elle crée une ligne `email_campaigns` — donc un
+       registre d'envois vierge, une reprise sur quota propre et une ligne d'historique par
+       occurrence. Réutiliser la même campagne mois après mois reviendrait à considérer tout le monde
+       comme « déjà servi » dès la deuxième fois (cf. migration 169). */
+    let spawned = 0;
+    const { data: schedules } = await admin.from('email_schedules').select('*').eq('active', true);
+    for (const sc of (schedules ?? []) as any[]) {
+      if (!isRecurringDue(sc, nowDate)) continue;
+      try {
+        const { data: created, error: insErr } = await admin.from('email_campaigns').insert({
+          created_by: sc.created_by, subject: sc.subject, body: sc.body,
+          audience: sc.audience, group_id: sc.group_id,
+          schedule_id: sc.id, status: 'draft', scheduled_at: null,
+        }).select('id').single();
+        if (insErr) throw insErr;
+        /* `last_sent_at` est posé AVANT l'envoi : si l'envoi échoue, l'occurrence existe déjà et
+           part en `failed` ou `paused` — elle sera reprise par les mécanismes de la migration 168.
+           Le poser après risquerait, en cas de plantage, de recréer une occurrence à la minute
+           suivante et d'écrire deux fois à tout le monde. */
+        await admin.from('email_schedules').update({ last_sent_at: now }).eq('id', sc.id);
+        spawned++;
+        await runCampaign(admin, created!.id);
+      } catch (e) {
+        console.error('[send-campaign] planification', sc.id, ':', e instanceof Error ? e.message : e);
+      }
+    }
+
     // Campagnes PROGRAMMÉES dont l'heure est passée…
     const { data: scheduled } = await admin.from('email_campaigns')
       .select('id').eq('status', 'scheduled').lte('scheduled_at', now);
@@ -262,7 +294,7 @@ serve(async (req) => {
         if (r.paused) paused++;
       } catch (e) { errors.push(`${c.id}: ${e instanceof Error ? e.message : e}`); }
     }
-    return json({ ok: true, campaigns: due.length, sent: total, paused, errors });
+    return json({ ok: true, campaigns: due.length, spawned, sent: total, paused, errors });
   }
 
   // ── Appel ADMIN (bouton « Envoyer maintenant »). ──

@@ -3,8 +3,10 @@
 Envoie les campagnes e-mail (écran admin → Campagnes) via Brevo. Deux appelants :
 
 - **Admin** : `POST { campaign_id }` avec le JWT de l'admin → envoi immédiat.
-- **Cron** : secret partagé `CRON_SECRET` → envoie toutes les campagnes `scheduled` dont
-  `scheduled_at` est passée.
+- **Cron** : secret partagé `CRON_SECRET` → à chaque passage :
+  1. engendre une occurrence pour chaque **envoi récurrent** dû (migration 169) ;
+  2. envoie les campagnes `scheduled` dont `scheduled_at` est passée ;
+  3. reprend les campagnes `paused` dont `resume_at` est atteint (migration 168).
 
 ## Déploiement
 
@@ -161,3 +163,33 @@ définitivement sautés. Le pire cas retenu est donc un doublon sur un lot, jama
 Le délai de reprise est d'**une heure** (`RESUME_DELAY_MS`). On ne sait pas à quelle heure exacte
 Brevo remet les compteurs à zéro : un essai horaire coûte un appel d'API et se corrige tout seul,
 alors qu'un rendez-vous à minuit raté ferait perdre une journée entière.
+
+## Envois RÉCURRENTS (migration 169)
+
+Une newsletter mensuelle, un conseil hebdomadaire : `email_schedules` reprend le vocabulaire des
+notifications planifiées (quotidien / hebdomadaire / mensuel, heure locale, fuseau,
+`day_of_month = 0` = dernier jour du mois). La logique « c'est dû maintenant ? » est **partagée**
+avec `send-scheduled-notifications` (`_shared/recurrence.ts`) plutôt que recopiée.
+
+### Une planification n'envoie jamais elle-même
+
+À chaque échéance, le cron **crée une campagne neuve** (`email_campaigns.schedule_id` pointe vers la
+planification), puis l'envoie comme n'importe quelle campagne.
+
+C'est ce détour qui rend la chose correcte : une campagne porte son **registre d'envois**
+(`email_campaign_sends`), qui empêche d'écrire deux fois au même destinataire. Rendre une campagne
+récurrente rendrait ce registre absurde — dès la 2ᵉ occurrence, tout le monde y figurerait déjà et
+**plus personne ne recevrait rien**. Une occurrence neuve = un registre vierge, une reprise sur quota
+propre, une ligne d'historique par envoi.
+
+`last_sent_at` est posé **avant** l'envoi : si celui-ci échoue, l'occurrence existe déjà et sera
+reprise par les mécanismes de la migration 168. L'inverse risquerait de recréer une occurrence à la
+minute suivante et d'écrire deux fois à tout le monde.
+
+### Réponse du cron
+
+```json
+{ "ok": true, "campaigns": 1, "spawned": 1, "sent": 300, "paused": 1, "errors": [] }
+```
+
+`spawned` = occurrences créées par des planifications récurrentes lors de ce passage.

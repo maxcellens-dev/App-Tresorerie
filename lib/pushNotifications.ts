@@ -23,3 +23,15 @@ export async function getDevicePushTokenAsync(): Promise<DevicePushToken | null>
 export async function diagnosePushRegistration(): Promise<string> {
   return 'Web : notifications push non supportées (uniquement sur l\'app mobile).';
 }
+
+export type PushPermission = 'granted' | 'denied' | 'undetermined' | 'unsupported';
+
+/** État de l'autorisation SYSTÈME. Sur le web, il n'y a pas de push : rien à autoriser. */
+export async function getPushPermissionAsync(): Promise<PushPermission> {
+  return 'unsupported';
+}
+
+/** Demande l'autorisation système. No-op sur web. */
+export async function requestPushPermissionAsync(): Promise<PushPermission> {
+  return 'unsupported';
+}

@@ -27,6 +27,45 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export type PushPermission = 'granted' | 'denied' | 'undetermined' | 'unsupported';
+
+/**
+ * État de l'autorisation SYSTÈME, sans jamais rien demander.
+ *
+ * C'est la source de vérité de l'interrupteur « Notifications sur le téléphone ». Le drapeau
+ * `profiles.notifications_enabled` ne dit que ce que l'utilisateur SOUHAITE ; si le téléphone
+ * refuse, aucune notification n'arrivera — et un interrupteur allumé dans ce cas est un mensonge.
+ */
+export async function getPushPermissionAsync(): Promise<PushPermission> {
+  try {
+    if (!Device.isDevice) return 'unsupported';
+    const p = await Notifications.getPermissionsAsync();
+    if (p.status === 'granted') return 'granted';
+    if (p.status === 'undetermined') return 'undetermined';
+    return 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/**
+ * Demande l'autorisation système. Renvoie l'état APRÈS la demande.
+ * Si le système ne permet plus de demander (`canAskAgain: false` — l'utilisateur a déjà refusé),
+ * on ne tente rien : seuls les réglages de l'OS peuvent débloquer, et l'appelant doit y renvoyer.
+ */
+export async function requestPushPermissionAsync(): Promise<PushPermission> {
+  try {
+    if (!Device.isDevice) return 'unsupported';
+    const p = await Notifications.getPermissionsAsync();
+    if (p.status === 'granted') return 'granted';
+    if (!p.canAskAgain) return 'denied';
+    const r = await Notifications.requestPermissionsAsync();
+    return r.status === 'granted' ? 'granted' : 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
 /** Demande la permission et renvoie le jeton Expo Push de l'appareil (null si refusé/simulateur). */
 export async function getDevicePushTokenAsync(): Promise<DevicePushToken | null> {
   try {

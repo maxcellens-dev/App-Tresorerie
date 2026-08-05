@@ -28,6 +28,7 @@ import type { FinancialProfileId } from '../../../types/database';
 import { APP_VERSION } from '../../../lib/appVersion';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/appLock';
 import { diagnosePushRegistration } from '../../../lib/pushNotifications';
+import { usePushPermission } from '../../../hooks/usePushPermission';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -67,8 +68,10 @@ function SettingsScreen() {
   const { position: quickAddPos, setPosition: setQuickAddPos } = useQuickAddPref(user?.id);
   const { resetDismissals } = useRecoDismissals(user?.id);
   const [recosReset, setRecosReset] = useState(false);
-  /** Résultat du diagnostic « je ne reçois aucune notification » (natif uniquement). */
+  /** Résultat du diagnostic push (admin uniquement, natif). */
   const [pushDiag, setPushDiag] = useState<string | null>(null);
+  /** Autorisation SYSTÈME de notifier — relue au retour des réglages de l'OS. */
+  const pushPerm = usePushPermission();
   const { data: recoThresholds } = useRecoThresholds();
   const { data: financialProfile } = useFinancialProfile(user?.id);
 
@@ -108,6 +111,8 @@ function SettingsScreen() {
   const currentMode = (profile?.theme_mode ?? 'dark') as ThemeMode;
   const currentPreset = (profile?.theme_preset ?? 'emerald') as ThemePreset;
   const isAdmin = profile?.is_admin ?? false;
+  /** Ce que l'utilisateur SOUHAITE (base) — à croiser avec l'autorisation système avant affichage. */
+  const wantsNotifs = (profile as any)?.notifications_enabled ?? true;
   const { data: featureFlags } = useFeatureFlags();
   const closureEnabled = Boolean(featureFlags?.monthly_closure_enabled);
   // Bouton « Mise à jour » : compare la version installée à la dernière publiée (config admin).
@@ -480,13 +485,36 @@ function SettingsScreen() {
             </Text>
             {!IS_WEB && (
               <>
+                {/* ── L'interrupteur reflète le TÉLÉPHONE, pas seulement le souhait enregistré ──
+                    `notifications_enabled` ne dit que ce que l'utilisateur VEUT. Si Android/iOS
+                    refuse, rien n'arrivera jamais : afficher « activé » dans ce cas, c'est mentir.
+                    L'état visible est donc la CONJONCTION des deux, et allumer l'interrupteur
+                    déclenche ce qui manque réellement — la demande système, ou l'ouverture des
+                    réglages quand l'OS ne permet plus de demander. */}
                 <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
                 <View style={[styles.row, { borderBottomWidth: 0 }]}>
                   <Ionicons name="notifications-outline" size={20} color={COLORS.textSecondary} />
                   <Text style={styles.rowLabel}>Notifications sur le téléphone</Text>
                   <Switch
-                    value={(profile as any)?.notifications_enabled ?? true}
-                    onValueChange={(v) => updateProfile.mutate({ notifications_enabled: v })}
+                    value={wantsNotifs && pushPerm.granted}
+                    onValueChange={async (v) => {
+                      if (!v) { updateProfile.mutate({ notifications_enabled: false }); return; }
+                      // Activer = obtenir l'autorisation système AVANT d'enregistrer le souhait.
+                      if (pushPerm.granted) { updateProfile.mutate({ notifications_enabled: true }); return; }
+                      const res = await pushPerm.request();
+                      if (res === 'granted') { updateProfile.mutate({ notifications_enabled: true }); return; }
+                      /* Refus définitif : l'app ne peut plus rien demander, seul l'OS décide. On
+                         n'enregistre PAS le souhait — sinon l'interrupteur se rallumerait sans que
+                         la moindre notification puisse passer, et on retomberait sur le mensonge. */
+                      Alert.alert(
+                        'Autorisation refusée',
+                        "Les notifications de Relyka sont bloquées dans les réglages de ton téléphone. Ouvre-les pour les autoriser.",
+                        [
+                          { text: 'Plus tard', style: 'cancel' },
+                          { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings().catch(() => {}) },
+                        ],
+                      );
+                    }}
                     trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
                     thumbColor="#ffffff"
                   />
@@ -494,28 +522,44 @@ function SettingsScreen() {
                 <Text style={{ color: COLORS.textSecondary, fontSize: 11, paddingHorizontal: 16, paddingBottom: 14, marginTop: -4, lineHeight: 15 }}>
                   Réponses à l'assistance, rappels et annonces Relyka.
                 </Text>
-                {/* Le bouton « je n'en reçois aucune ». L'enregistrement du jeton push peut échouer
-                    silencieusement (permission refusée au niveau de l'OS, credentials du build,
-                    Google Play Services…) : sans ce diagnostic, l'utilisateur voit un interrupteur
-                    allumé et n'a AUCUN moyen de savoir pourquoi rien n'arrive. Il peut relire le
-                    résultat à l'assistance, qui saura quoi en faire. */}
-                <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
-                <TouchableOpacity
-                  style={[styles.row, { borderBottomWidth: 0 }]}
-                  onPress={async () => {
-                    setPushDiag('Analyse en cours…');
-                    try { setPushDiag(await diagnosePushRegistration()); }
-                    catch (e: any) { setPushDiag(`Diagnostic impossible : ${e?.message ?? String(e)}`); }
-                  }}
-                >
-                  <Ionicons name="pulse-outline" size={20} color={COLORS.textSecondary} />
-                  <Text style={styles.rowLabel}>Je ne reçois aucune notification</Text>
-                  <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-                {!!pushDiag && (
-                  <View style={{ marginHorizontal: 16, marginBottom: 14, padding: 11, borderRadius: 10, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder }}>
-                    <Text style={{ color: COLORS.text, fontSize: 11.5, lineHeight: 17 }} selectable>{pushDiag}</Text>
-                  </View>
+                {/* Le cas qui piégeait : souhait enregistré, mais téléphone bloqué. On le DIT, avec
+                    le seul geste qui débloque. */}
+                {pushPerm.blocked && wantsNotifs && (
+                  <TouchableOpacity
+                    style={{ marginHorizontal: 16, marginBottom: 14, marginTop: -4, padding: 11, borderRadius: 10, backgroundColor: COLORS.orange + '14', borderWidth: 1, borderColor: COLORS.orange + '55', flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                    onPress={() => Linking.openSettings().catch(() => {})}
+                  >
+                    <Ionicons name="warning-outline" size={16} color={COLORS.orange} />
+                    <Text style={{ flex: 1, color: COLORS.orange, fontSize: 11.5, lineHeight: 16, fontWeight: '600' }}>
+                      Ton téléphone bloque les notifications de Relyka. Touche ici pour les autoriser dans les réglages.
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {/* Diagnostic technique — ADMIN uniquement. Pour un utilisateur, l'interrupteur
+                    ci-dessus doit suffire : s'il est fiable, ce bouton n'a plus de raison d'être, et
+                    proposer une trace technique à quelqu'un qui n'en fera rien crée de l'inquiétude
+                    plus qu'il n'aide. */}
+                {isAdmin && (
+                  <>
+                    <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
+                    <TouchableOpacity
+                      style={[styles.row, { borderBottomWidth: 0 }]}
+                      onPress={async () => {
+                        setPushDiag('Analyse en cours…');
+                        try { setPushDiag(await diagnosePushRegistration()); }
+                        catch (e: any) { setPushDiag(`Diagnostic impossible : ${e?.message ?? String(e)}`); }
+                      }}
+                    >
+                      <Ionicons name="pulse-outline" size={20} color={COLORS.textSecondary} />
+                      <Text style={styles.rowLabel}>Diagnostic push (admin)</Text>
+                      <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                    {!!pushDiag && (
+                      <View style={{ marginHorizontal: 16, marginBottom: 14, padding: 11, borderRadius: 10, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.cardBorder }}>
+                        <Text style={{ color: COLORS.text, fontSize: 11.5, lineHeight: 17 }} selectable>{pushDiag}</Text>
+                      </View>
+                    )}
+                  </>
                 )}
               </>
             )}

@@ -151,6 +151,40 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
     return best ?? `${closeKey}-01`;
   };
 
+  /**
+   * Écart constaté en mode « je ne sais pas », pour un compte.
+   *
+   * Le solde annoncé vaut à `unknownDate` : on le compare donc au solde CONNU à cette date-là
+   * (solde actuel moins ce qui s'est passé depuis), et surtout pas au solde de fin de mois.
+   *
+   * ⚠️ Cette fonction est la SEULE définition de l'écart. Elle était auparavant recopiée dans le
+   * curseur de répartition, tandis que l'aperçu « Si tu valides » calculait, lui, un écart contre le
+   * solde de FIN DE MOIS : les deux blocs de la même modale annonçaient donc des montants
+   * différents, parfois de signes opposés.
+   */
+  const unknownGapOf = (acc: { id: string; balance: number }): number => {
+    const raw = balances[acc.id];
+    if (raw == null || raw.trim() === '') return 0;
+    const stated = parseFloat(raw.replace(',', '.'));
+    if (Number.isNaN(stated)) return 0;
+    const t0 = todayISO();
+    const after = (allTx as any[])
+      .filter((t) => t.account_id === acc.id && !t.is_draft && !t.is_recurring && t.date > unknownDate && t.date <= t0)
+      .reduce((s, t) => s + Number(t.amount), 0);
+    return stated - (acc.balance - after);
+  };
+
+  /** Somme des écarts « je ne sais pas », tous comptes renseignés confondus. */
+  const unknownTotalGap = (): number => checkingAccounts.reduce((s, a) => s + unknownGapOf(a), 0);
+
+  /** Au moins un solde a-t-il été saisi ? (modes qui en réclament un). */
+  const hasAnyAmount = checkingAccounts.some((a) => {
+    const raw = balances[a.id];
+    return raw != null && raw.trim() !== '' && !Number.isNaN(parseFloat(raw.replace(',', '.')));
+  });
+  /** Les modes « solde réel » et « je ne sais pas » ne veulent rien dire sans montant saisi. */
+  const needsAmount = mode === 'balance' || mode === 'unknown';
+
   /** Part (%) attribuée au mois clôturé : celle du curseur, sinon le prorata par jours suggéré. */
   const unknownSharePct = (accId: string): number => {
     if (unknownShare != null) return unknownShare;
@@ -182,17 +216,12 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
           }
           if (mode === 'unknown') {
             /* « Je ne sais pas » : le solde donné vaut à `unknownDate` (postérieure à la fin du
-               mois). L'écart est mesuré contre le solde REMONTÉ à cette date, puis réparti selon
-               le curseur — c'est l'utilisateur qui tranche, pas une règle qu'il n'a pas choisie. */
+               mois). L'écart est mesuré contre le solde REMONTÉ à cette date (cf. `unknownGapOf`,
+               définition unique partagée avec le curseur et l'aperçu), puis réparti selon le
+               curseur — c'est l'utilisateur qui tranche, pas une règle qu'il n'a pas choisie. */
             const raw = balances[acc.id];
             if (raw == null || raw.trim() === '') continue;
-            const stated = parseFloat(raw.replace(',', '.'));
-            if (Number.isNaN(stated)) continue;
-            const afterDate = (allTx as any[])
-              .filter((t) => t.account_id === acc.id && !t.is_draft && !t.is_recurring && t.date > unknownDate && t.date <= t0)
-              .reduce((s, t) => s + Number(t.amount), 0);
-            const knownAtDate = acc.balance - afterDate;
-            const gap = stated - knownAtDate;
+            const gap = unknownGapOf(acc);
             if (Math.abs(gap) <= 0.005) continue;
             const pct = unknownSharePct(acc.id) / 100;
             const closingPart = gap * pct;
@@ -345,12 +374,24 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
 
             {mode === 'unknown' ? (
               <>
+                {/* Le parcours est annoncé AVANT d'être parcouru. Sans ça, l'écran s'ouvrait sur
+                    deux champs et un bouton « Clôturer » : rien ne laissait deviner qu'une étape de
+                    répartition allait surgir une fois les montants saisis, et on validait sans
+                    l'avoir vue. Trois étapes numérotées, visibles d'emblée, dont la dernière
+                    s'affiche en attente tant qu'elle ne peut pas être calculée. */}
                 <Text style={styles.hint}>
-                  Tu ne sais plus ce que valait ton compte fin {targetKey ? monthLabel(targetKey) : ''} ? Donne simplement
-                  le solde que tu as sous les yeux : on le date, et tu dis toi-même quelle part de l'écart appartient
-                  à ce mois-là.
+                  Tu ne sais plus ce que valait ton compte fin {targetKey ? monthLabel(targetKey) : ''} ? Pas besoin de
+                  le retrouver : donne le solde que tu as sous les yeux, et on remonte le temps ensemble.
                 </Text>
-                <Text style={styles.label}>Date de ce solde</Text>
+                <View style={styles.stepsPreview}>
+                  <Text style={styles.stepsPreviewText}>
+                    <Text style={styles.stepsPreviewNum}>1.</Text> La date de ce solde{'  '}
+                    <Text style={styles.stepsPreviewNum}>2.</Text> Le montant{'  '}
+                    <Text style={styles.stepsPreviewNum}>3.</Text> À quel mois l'écart appartient
+                  </Text>
+                </View>
+
+                <Text style={styles.stepLabel}>1 · Date de ce solde</Text>
                 <TextInput
                   style={styles.input}
                   value={formatDateFrench(unknownDate)}
@@ -359,8 +400,8 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="numbers-and-punctuation"
                 />
-                <Text style={styles.label}>
-                  {checkingAccounts.length > 1 ? 'Solde de chaque compte à cette date' : 'Solde de ton compte à cette date'}
+                <Text style={styles.stepLabel}>
+                  {checkingAccounts.length > 1 ? '2 · Solde de chaque compte à cette date' : '2 · Solde de ton compte à cette date'}
                 </Text>
                 {checkingAccounts.map((acc) => (
                   <View key={acc.id} style={styles.acctInputRow}>
@@ -375,26 +416,42 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                     />
                   </View>
                 ))}
-                {/* Curseur de répartition — la position de départ est le prorata par jours, mais
-                    c'est l'utilisateur qui tranche : lui seul sait si l'écart vient d'août ou de
-                    septembre. Pas de Slider natif dans l'app → 5 crans, tapables. */}
+
+                <Text style={styles.stepLabel}>3 · À quel mois appartient l'écart ?</Text>
+                {/* Répartition — la position de départ est le prorata par jours, mais c'est
+                    l'utilisateur qui tranche : lui seul sait si l'écart vient de juillet ou d'août.
+                    Pas de Slider natif dans l'app → 5 crans, tapables.
+                    L'étape reste AFFICHÉE en attente tant qu'on ne peut pas la calculer : c'est ce
+                    qui la rend prévisible au lieu de la faire surgir après coup. */}
                 {(() => {
                   const firstAcc = checkingAccounts[0];
                   if (!firstAcc) return null;
+                  const totalGap = unknownTotalGap();
+
+                  if (!hasAnyAmount) {
+                    return (
+                      <View style={styles.splitPending}>
+                        <Ionicons name="hourglass-outline" size={15} color={COLORS.textSecondary} />
+                        <Text style={styles.splitPendingText}>
+                          Saisis un solde ci-dessus : on calcule l'écart, et tu diras ici ce qui revient
+                          à {targetKey ? monthLabel(targetKey) : 'ce mois'} et ce qui revient au mois en cours.
+                        </Text>
+                      </View>
+                    );
+                  }
+                  if (Math.abs(totalGap) < 0.005) {
+                    return (
+                      <View style={styles.splitPending}>
+                        <Ionicons name="checkmark-circle-outline" size={15} color={COLORS.emerald} />
+                        <Text style={[styles.splitPendingText, { color: COLORS.emerald }]}>
+                          Aucun écart : ce que tu as saisi correspond exactement à ce que Relyka avait
+                          calculé. Rien à répartir.
+                        </Text>
+                      </View>
+                    );
+                  }
+
                   const pct = unknownSharePct(firstAcc.id);
-                  const gapOf = (acc: { id: string; balance: number }) => {
-                    const raw = balances[acc.id];
-                    if (raw == null || raw.trim() === '') return 0;
-                    const stated = parseFloat(raw.replace(',', '.'));
-                    if (Number.isNaN(stated)) return 0;
-                    const t0 = todayISO();
-                    const after = (allTx as any[])
-                      .filter((t) => t.account_id === acc.id && !t.is_draft && !t.is_recurring && t.date > unknownDate && t.date <= t0)
-                      .reduce((s, t) => s + Number(t.amount), 0);
-                    return stated - (acc.balance - after);
-                  };
-                  const totalGap = checkingAccounts.reduce((s, a) => s + gapOf(a), 0);
-                  if (Math.abs(totalGap) < 0.005) return null;
                   return (
                     <View style={styles.splitBox}>
                       <Text style={styles.splitTitle}>
@@ -473,6 +530,28 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
               const rows: Row[] = [];
               if (mode === 'direct') {
                 rows.push({ label: monthLabel(targetKey), regul: 0, closed: true });
+              } else if (mode === 'unknown') {
+                /* ⚠️ Le mode « je ne sais pas » a sa PROPRE arithmétique : l'écart se mesure contre
+                   le solde à `unknownDate`, et se répartit selon le curseur choisi plus haut.
+                   L'aperçu appliquait ici la formule du mode « solde réel » (écart contre la FIN DU
+                   MOIS, réparti au prorata des jours) : il annonçait donc un montant différent de
+                   celui affiché quelques lignes plus haut — parfois de signe opposé. Deux réponses
+                   contradictoires à la même question, dans la même fenêtre. */
+                if (!hasAnyAmount) return null;
+                /* Réparti COMPTE PAR COMPTE, comme le fera `confirm()`. Tant que le curseur n'a pas
+                   été touché, chaque compte reçoit son propre prorata (il dépend de sa dernière
+                   vérification) : appliquer le pourcentage du premier compte à la somme donnerait un
+                   aperçu faux dès qu'il y a deux comptes aux historiques différents. */
+                let closingTotal = 0, currentTotal = 0;
+                for (const acc of checkingAccounts) {
+                  const gap = unknownGapOf(acc);
+                  if (Math.abs(gap) <= 0.005) continue;
+                  const part = gap * (unknownSharePct(acc.id) / 100);
+                  closingTotal += part;
+                  currentTotal += gap - part;
+                }
+                rows.push({ label: monthLabel(targetKey), regul: closingTotal, closed: true });
+                if (Math.abs(currentTotal) > 0.005) rows.push({ label: monthLabel(ym(new Date())), regul: currentTotal });
               } else {
                 let closingTotal = 0, currentTotal = 0, any = false;
                 for (const acc of checkingAccounts) {
@@ -531,7 +610,20 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                 SafeAreaView NATIF (edges bottom) : il mesure les insets de SA fenêtre — celle du
                 Modal — donc le bouton reste au-dessus de la barre de navigation du téléphone. */}
             <SafeAreaView edges={['bottom']}>
-              <TouchableOpacity style={[styles.confirmBtn, busy && { opacity: 0.6 }]} onPress={() => { setError(null); confirm(); }} disabled={busy}>
+              {/* Un mode qui réclame un montant et n'en a pas ne clôture RIEN : `confirm()` saute
+                  chaque compte vide et se contente de fermer le mois, sans la moindre vérification.
+                  L'utilisateur croyait avoir donné son solde. On bloque donc le bouton, et on dit
+                  ce qui manque plutôt que de laisser valider un geste creux. */}
+              {needsAmount && !hasAnyAmount && (
+                <Text style={styles.confirmHint}>
+                  Saisis d'abord {checkingAccounts.length > 1 ? 'au moins un solde' : 'ton solde'} ci-dessus.
+                </Text>
+              )}
+              <TouchableOpacity
+                style={[styles.confirmBtn, (busy || (needsAmount && !hasAnyAmount)) && { opacity: 0.45 }]}
+                onPress={() => { setError(null); confirm(); }}
+                disabled={busy || (needsAmount && !hasAnyAmount)}
+              >
                 {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
               </TouchableOpacity>
             </SafeAreaView>
@@ -601,6 +693,22 @@ function makeStyles(c: any) {
     acctInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
     acctName: { fontSize: 13, fontWeight: '600', color: c.text, width: 110 },
 
+    /* Mode « je ne sais pas » — le parcours annoncé d'avance, puis chaque étape numérotée. */
+    stepsPreview: {
+      marginTop: 10, marginBottom: 2, paddingVertical: 8, paddingHorizontal: 11,
+      borderRadius: 10, backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '33',
+    },
+    stepsPreviewText: { fontSize: 11.5, color: c.textSecondary, lineHeight: 18 },
+    stepsPreviewNum: { fontWeight: '800', color: c.emerald },
+    stepLabel: { fontSize: 13, fontWeight: '800', color: c.text, marginTop: 16, marginBottom: 6 },
+    /* L'étape 3 en attente : visible mais inactive, pour qu'on sache qu'elle vient. */
+    splitPending: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+      padding: 12, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed',
+      borderColor: c.cardBorder, backgroundColor: c.card, marginBottom: 10,
+    },
+    splitPendingText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+
     // Mode « je ne sais pas » : répartition de l'écart entre le mois clôturé et le mois en cours.
     splitBox: {
       marginTop: 4, marginBottom: 10, gap: 8, padding: 12,
@@ -644,6 +752,7 @@ function makeStyles(c: any) {
       borderRadius: 12, padding: 11,
     },
     errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
+    confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
     confirmText: { fontSize: 16, fontWeight: '700', color: c.bg },
     bilanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 28 },

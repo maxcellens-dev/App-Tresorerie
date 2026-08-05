@@ -12,6 +12,8 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import {
   useAiConfig, useUpdateAiConfig, useAiPrompts, useUpdateAiPrompt, useAiTickets,
   useResolveAiTicket, useAdminReplyAi, useAdminRelaunchAi, useCheckAiModels, useGrantExtraCredits,
@@ -28,6 +30,7 @@ export default function AdminAi() {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);
   const goBack = useNavBack();
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée, comme les autres pages admin
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
@@ -44,13 +47,13 @@ export default function AdminAi() {
   const [tab, setTab] = useState<Tab>('settings');
 
   if (!isAdmin) {
-    return <View style={s.root}><SafeAreaView style={s.safe}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
+    return <View style={s.root}><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
   }
 
   return (
     <View style={s.root}>
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={s.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={c.text} /><Text style={s.backLabel}>Retour</Text>
         </TouchableOpacity>

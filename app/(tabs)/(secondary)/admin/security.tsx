@@ -13,6 +13,8 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useNavBack } from '../../../../hooks/useNavBack';
+import { useResponsive } from '../../../../hooks/useResponsive';
+import { pageColumn } from '../../../../lib/webLayout';
 import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
 import { useClientErrors, useResolveClientError, useResolveAllClientErrors, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/useSecurity';
 import PasswordStrength from '../../../../components/PasswordStrength';
@@ -22,6 +24,7 @@ export default function AdminSecurity() {
   const COLORS = useAppColors();
   const s = useMemo(() => makeStyles(COLORS), [COLORS]);
   const goBack = useNavBack();
+  const { isDesktop } = useResponsive(); // web bureau : colonne centrée, comme les autres pages admin
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const isAdmin = profile?.is_admin === true;
@@ -30,7 +33,7 @@ export default function AdminSecurity() {
   if (!isAdmin) {
     return (
       <View style={s.root}><StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
+        <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
   }
@@ -38,7 +41,7 @@ export default function AdminSecurity() {
   return (
     <View style={s.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-      <SafeAreaView style={s.safe} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <TouchableOpacity style={s.backBtn} onPress={goBack}>
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           <Text style={s.backLabel}>Retour</Text>
