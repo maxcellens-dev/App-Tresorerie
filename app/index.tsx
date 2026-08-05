@@ -20,25 +20,24 @@ import AppLoading from '../components/AppLoading';
  */
 export default function Index() {
   const { user, loading } = useAuth();
-  const profileQuery = useProfile(user?.id);
+  // PERF (démarrage) : on MONTE la lecture du profil pour chauffer son cache (le Pilotage et
+  // l'en-tête le liront sans nouvel aller-retour), mais on n'ATTEND PLUS son résultat pour
+  // rediriger. Cette porte ne tranche plus qu'entre « connecté » et « pas connecté » : depuis la
+  // suppression du questionnaire d'accueil, aucune donnée du profil n'entre dans la décision. On
+  // attendait donc un aller-retour réseau complet, écran de chargement à l'appui, pour rien —
+  // exactement sur le chemin critique de l'ouverture, avant même que le Pilotage ne soit monté.
+  useProfile(user?.id);
 
-  // FILET GLOBAL : quoi qu'il arrive (hors-ligne, requêtes en pause, lenteur), on OUVRE l'app au bout
-  // de 5 s max au lieu de rester bloqué sur le logo. Indispensable : sans ça, une requête « en pause »
-  // (onlineManager, hors-ligne) laisse l'app figée sur AppLoading indéfiniment.
+  // FILET GLOBAL : quoi qu'il arrive (hors-ligne, lenteur), on OUVRE l'app au bout de 5 s max au
+  // lieu de rester bloqué sur le logo, même si la session initiale ne se résout jamais.
   const [forceOpen, setForceOpen] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setForceOpen(true), 5000);
     return () => clearTimeout(t);
   }, []);
 
-  // Hors-ligne, onlineManager met les requêtes EN PAUSE (`fetchStatus === 'paused'`) : elles restent
-  // « pending » sans jamais aboutir. On ne doit donc PAS attendre `isPending` dans ce cas.
-  const paused = profileQuery.fetchStatus === 'paused';
-  const dataPending = !!user && (profileQuery.isPending || profileQuery.isFetching);
-
-  // On n'attend (écran de chargement) que si l'auth ou les données sont réellement EN COURS — pas si
-  // elles sont en pause (hors-ligne) et pas au-delà du filet de 5 s.
-  if ((loading || dataPending) && !paused && !forceOpen) {
+  // Seule attente légitime : la session locale (lecture de stockage, pas de réseau).
+  if (loading && !forceOpen) {
     return <AppLoading />;
   }
 

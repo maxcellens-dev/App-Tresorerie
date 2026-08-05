@@ -32,23 +32,15 @@ function balanceContribution(opts: { amount: number; date: string; is_draft?: bo
   return Number(opts.amount);
 }
 
-/**
- * §P12 — Impact RÉEL sur le solde d'une transaction, en tenant compte de la dernière
- * « régularisation de solde » du compte : une transaction datée AVANT cette régularisation
- * n'impacte pas le solde (la régul a déjà capturé l'état à sa date). La régularisation
- * elle-même compte toujours. (Le « Dépensé ce mois » du Pilotage n'est PAS affecté.)
+/*
+ * §P12 — L'impact « effectif » d'une transaction sur le solde (neutralisé si elle est antérieure à
+ * la dernière régularisation du compte) était calculé ICI, par une requête réseau par montant, pour
+ * alimenter des ajustements INCRÉMENTAUX du solde. Ces ajustements ont été remplacés par
+ * `recomputeBalances()` (recalcul serveur depuis les faits, source de vérité unique) : la règle §P12
+ * est appliquée par la fonction SQL. Les requêtes restantes ne servaient donc plus qu'à alimenter
+ * des fonctions vides — 2 à 3 allers-retours réseau bloquants sur CHAQUE modification de
+ * transaction, pour rien. Supprimées.
  */
-async function effectiveBalanceDelta(accountId: string, txDate: string, note: string | null | undefined, rawContribution: number): Promise<number> {
-  if (rawContribution === 0 || !supabase) return rawContribution;
-  const noteLc = (note ?? '').toLowerCase();
-  if (noteLc.includes('gul') || note === 'Ajustement de solde') return rawContribution; // la régul compte
-  const { data } = await supabase.from('transactions').select('date')
-    .eq('account_id', accountId).is('category_id', null)
-    .or('note.ilike.%gul%,note.eq.Ajustement de solde')
-    .order('date', { ascending: false }).limit(1).maybeSingle();
-  const baselineDate = (data as any)?.date as string | undefined;
-  return (baselineDate && txDate < baselineDate) ? 0 : rawContribution;
-}
 
 /**
  * §P12bis — Détecte une régularisation de solde datée EXACTEMENT du même jour qu'une transaction
@@ -268,36 +260,83 @@ export function useAllTransactions(profileId: string | undefined) {
  */
 function seedTransactionCache(client: ReturnType<typeof useQueryClient>, profileId: string, row: any) {
   if (!row?.id) return;
+  writeTransactionCache(client, profileId, row.id, enrichTransactionRow(client, profileId, row));
+}
+
+/** Reconstitue les libellés joints (compte, catégorie, compte lié) depuis les caches correspondants. */
+function enrichTransactionRow(client: ReturnType<typeof useQueryClient>, profileId: string, row: any): TransactionWithDetails {
   const accounts = client.getQueryData<any[]>(['accounts', profileId]) ?? [];
   const categories = client.getQueryData<any[]>(['categories', profileId]) ?? [];
   const acc = accounts.find((a) => a.id === row.account_id);
   const cat = row.category_id ? categories.find((c) => c.id === row.category_id) : null;
   const linked = row.linked_account_id ? accounts.find((a) => a.id === row.linked_account_id) : null;
-
-  const enriched: TransactionWithDetails = {
+  return {
     ...row,
     amount: Number(row.amount),
     account: acc ? { name: acc.name, type: acc.type, currency: acc.currency, profile_id: acc.profile_id, is_joint: acc.is_joint } : null,
     category: cat ? { name: cat.name, type: cat.type } : null,
     linked_account: linked ? { name: linked.name, type: linked.type, currency: linked.currency } : null,
   } as TransactionWithDetails;
+}
 
-  // La liste est triée par date décroissante : on réinsère à la bonne place plutôt qu'en tête,
-  // sinon une opération antidatée apparaîtrait au-dessus des plus récentes avant de sauter ailleurs.
-  const insertSorted = (list: TransactionWithDetails[] | undefined) => {
+/**
+ * Écrit une ligne dans les DEUX listes de transactions déjà en cache (« toutes » et « perso »).
+ * `next === null` → suppression. Sinon insertion OU remplacement, en gardant le tri par date
+ * décroissante (une opération antidatée ne doit pas apparaître en tête avant de sauter ailleurs).
+ *
+ * Sert de mise à jour IMMÉDIATE : l'invalidation qui suit déclenche un refetch de 500 lignes
+ * jointes, et tant qu'il n'est pas revenu la liste montrerait l'état d'AVANT (montant/date/ligne
+ * supprimée encore visibles). Le refetch ne fait plus que confirmer ce qui est déjà à l'écran.
+ */
+function writeTransactionCache(
+  client: ReturnType<typeof useQueryClient>,
+  profileId: string,
+  id: string,
+  next: TransactionWithDetails | null,
+) {
+  const apply = (list: TransactionWithDetails[] | undefined) => {
     if (!list) return list;                       // requête jamais chargée : rien à devancer
-    if (list.some((t) => t.id === enriched.id)) return list;
-    const at = list.findIndex((t) => String(t.date) < String(enriched.date));
-    const next = list.slice();
-    next.splice(at === -1 ? next.length : at, 0, enriched);
-    return next;
+    const without = list.filter((t) => t.id !== id);
+    if (!next) return without.length === list.length ? list : without;
+    const at = without.findIndex((t) => String(t.date) < String(next.date));
+    const out = without.slice();
+    out.splice(at === -1 ? out.length : at, 0, next);
+    return out;
+  };
+  const remove = (list: TransactionWithDetails[] | undefined) => {
+    if (!list) return list;
+    const without = list.filter((t) => t.id !== id);
+    return without.length === list.length ? list : without;
   };
 
-  client.setQueryData<TransactionWithDetails[]>([KEY, profileId, 'all'], insertSorted);
+  client.setQueryData<TransactionWithDetails[]>([KEY, profileId, 'all'], apply);
+
   // Vue PERSO : mêmes conditions d'appartenance que la requête (mes comptes, non joints).
-  if (enriched.account && (enriched.account as any).profile_id === profileId && !(enriched.account as any).is_joint) {
-    client.setQueryData<TransactionWithDetails[]>([KEY, profileId], insertSorted);
-  }
+  if (!next) { client.setQueryData<TransactionWithDetails[]>([KEY, profileId], remove); return; }
+  const acc = next.account as any;
+  // Compte INCONNU du cache (comptes pas encore chargés) : on ne conclut rien. Retirer la ligne
+  // « par défaut » la ferait disparaître de la liste perso jusqu'au refetch, alors qu'elle y est
+  // parfaitement à sa place — le refetch tranchera. Ne jamais déduire d'une absence d'information.
+  if (!acc) return;
+  client.setQueryData<TransactionWithDetails[]>(
+    [KEY, profileId],
+    // Déplacée sur un compte joint/partagé → elle sort de la vue perso.
+    acc.profile_id === profileId && !acc.is_joint ? apply : remove,
+  );
+}
+
+/** Applique un jeu de champs modifiés à une ligne DÉJÀ en cache (jambe appariée d'un virement). */
+function patchCachedTransaction(
+  client: ReturnType<typeof useQueryClient>,
+  profileId: string,
+  id: string,
+  updates: Record<string, unknown>,
+) {
+  const current = (client.getQueryData<TransactionWithDetails[]>([KEY, profileId, 'all']) ?? [])
+    .find((t) => t.id === id)
+    ?? (client.getQueryData<TransactionWithDetails[]>([KEY, profileId]) ?? []).find((t) => t.id === id);
+  if (!current) return;
+  writeTransactionCache(client, profileId, id, enrichTransactionRow(client, profileId, { ...current, ...updates }));
 }
 
 export function useAddTransaction(profileId: string | undefined) {
@@ -668,25 +707,16 @@ export function useUpdateTransaction(profileId: string | undefined) {
       const oldContribution = balanceContribution({ amount: oldAmount, date: oldDate ?? '', is_draft: wasInDraft, is_recurring: wasRecurring });
       const newContribution = balanceContribution({ amount: newAmount, date: newDate, is_draft: isNowDraft, is_recurring: newRecurring });
       updates.posted = newContribution !== 0;
-      // §P12 : neutralise l'impact solde des transactions pré-régularisation (sans dérive).
       const oldNote = (existing as any).note as string | null;
       const newNote = input.note !== undefined ? input.note : oldNote;
-      const oldDelta = await effectiveBalanceDelta(oldAccId, oldDate ?? '', oldNote, oldContribution);
-      const newDelta = await effectiveBalanceDelta(newAccId, newDate, newNote, newContribution);
 
       const { data, error } = await supabase.from('transactions').update(updates).eq('id', input.id).select().single();
       if (error) throw error;
 
-      // No-op : le solde est recalculé par recomputeBalances() plus bas (source de vérité unique,
-      // SECURITY DEFINER). L'ancien update incrémental est retiré car redondant ET bloqué par la RLS
-      // pour un membre écrivant sur un compte joint/partagé qu'il ne possède pas (accounts UPDATE = owner).
-      const adjustBalance = async (_accId: string, _delta: number) => {};
-      if (newAccId === oldAccId) {
-        await adjustBalance(oldAccId, newDelta - oldDelta);
-      } else {
-        await adjustBalance(oldAccId, -oldDelta);
-        await adjustBalance(newAccId, newDelta);
-      }
+      // La ligne est modifiée en base : elle doit s'afficher modifiée MAINTENANT, pas au retour du
+      // refetch (500 lignes jointes). Sans ça, l'utilisateur revenait sur la liste et y voyait
+      // encore l'ancien montant / l'ancienne date pendant tout l'aller-retour.
+      seedTransactionCache(client, profileId, data);
 
       // ── Synchronisation de l'autre jambe d'un virement ──
       // Un virement est composé de deux transactions reliées par linked_account_id.
@@ -736,7 +766,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
           // échue. Si le virement est validé à une date future, posted=false → le solde de
           // destination n'est PAS impacté maintenant ; reconcile_posted() l'y portera le jour venu.
           const creditRaw = balanceContribution({ amount: creditAmt, date: newDate, is_draft: false, is_recurring: false });
-          await supabase.from('transactions').insert({
+          const { data: creditRow } = await supabase.from('transactions').insert({
             profile_id: profileId,
             account_id: oldLinkedAccId,
             category_id: null,
@@ -750,9 +780,10 @@ export function useUpdateTransaction(profileId: string | undefined) {
             project_id: oldProjectId,
             linked_account_id: oldAccId,
             posted: creditRaw !== 0,
-          });
-          const creditDelta = await effectiveBalanceDelta(oldLinkedAccId, newDate, newNote, creditRaw);
-          await adjustBalance(oldLinkedAccId, creditDelta);
+          }).select().single();
+          // La jambe de crédit vient d'exister : elle s'affiche tout de suite (RETURNING, pas de
+          // requête supplémentaire). Le solde, lui, est recalculé par recomputeBalances() en fin de mutation.
+          if (creditRow) seedTransactionCache(client, profileId, creditRow);
         } else if (paired) {
           const pairedOldAmt = Number((paired as any).amount);
           const pairedWasDraft = Boolean((paired as any).is_draft);
@@ -804,6 +835,8 @@ export function useUpdateTransaction(profileId: string | undefined) {
           pairedUpdates.posted = pairedNewContribution !== 0;
           if (Object.keys(pairedUpdates).length > 0) {
             await supabase.from('transactions').update(pairedUpdates).eq('id', (paired as any).id);
+            // L'autre jambe change aussi à l'écran (mêmes raisons) : on l'y reporte immédiatement.
+            patchCachedTransaction(client, profileId, (paired as any).id, pairedUpdates);
           }
           // Solde du compte opposé : recalculé par recomputeBalances() plus bas (l'update incrémental
           // est retiré — redondant et bloqué par la RLS pour un membre non-propriétaire).
@@ -819,6 +852,9 @@ export function useUpdateTransaction(profileId: string | undefined) {
       client.invalidateQueries({ queryKey: ['pilotage_data', profileId] });
       client.invalidateQueries({ queryKey: ['projects', profileId] });
     },
+    // Échec en cours de route (jambe appariée, réseau) : le cache a pu être écrit en avance sur la
+    // base → on redemande la vérité au serveur plutôt que de laisser un écran optimiste faux.
+    onError: () => { client.invalidateQueries({ queryKey: [KEY, profileId] }); },
   });
 }
 
@@ -888,6 +924,12 @@ export function useDeleteTransaction(profileId: string | undefined) {
       // Supprimer la transaction principale (RLS : ma ligne OU compte où je suis owner/write).
       const { error: delErr } = await supabase.from('transactions').delete().eq('id', id);
       if (delErr) throw delErr;
+
+      // La ligne n'existe plus : elle disparaît de la liste MAINTENANT, sans attendre le refetch de
+      // 500 lignes jointes (sinon la transaction supprimée reste visible pendant tout l'aller-retour).
+      // Idem pour la jambe appariée d'un virement, supprimée juste après.
+      writeTransactionCache(client, profileId, id, null);
+      if (pairedId) writeTransactionCache(client, profileId, pairedId, null);
 
       // On ne retire du solde que ce qui y avait effectivement été ajouté
       // (contribution « à date » : ni brouillon, ni dépense future non récurrente ;
@@ -1009,6 +1051,8 @@ export function useDeleteTransaction(profileId: string | undefined) {
       client.invalidateQueries({ queryKey: ['projects', profileId] });
       client.invalidateQueries({ queryKey: ['profile', profileId] });
     },
+    // Idem : un échec après le retrait optimiste doit rendre la main au serveur.
+    onError: () => { client.invalidateQueries({ queryKey: [KEY, profileId] }); },
   });
 }
 
