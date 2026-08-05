@@ -175,7 +175,9 @@ serve(async (req) => {
 
     const title = String(body.title ?? '').slice(0, 120);
     const message = String(body.body ?? '').slice(0, 240);
-    if (!title && !message) return json({ error: 'titre ou message requis' }, 400);
+    /* ⚠️ Le contrôle « titre ou message requis » ne vaut QUE pour l'envoi réel — il est donc plus
+       bas, dans sa branche. Ici, il rejetait le push de TEST, qui s'appelle sans texte justement
+       parce qu'il a ses propres valeurs par défaut : le bouton de diagnostic était inutilisable. */
 
     /* ── Test : les appareils d'UN utilisateur — soi-même par défaut, ou n'importe quel destinataire
        choisi dans le panneau. Se l'envoyer à soi teste la chaîne ; l'envoyer à quelqu'un d'autre
@@ -218,6 +220,9 @@ serve(async (req) => {
     }
 
     // ── Envoi immédiat à une cible. ──
+    // Ici, et seulement ici, un texte est obligatoire : personne ne veut expédier « Test Relyka »
+    // à tout le parc parce qu'un champ était vide.
+    if (!title && !message) return json({ error: 'titre ou message requis' }, 400);
     const target: Target = body.target ?? { kind: 'all' };
     const tokens = await tokensForTarget(admin, target);
     const r = await sendExpoPush(tokens, { title, body: message });
