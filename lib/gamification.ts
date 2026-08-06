@@ -19,10 +19,11 @@ export const WELCOME_BADGE_KEY = 'premiere_connexion';
  * gamification lu dans `evaluate`) — sinon les badges qui s'en servent ne se débloquent jamais.
  * `variable_savings_pct` (badges « sniper ») a été RETIRÉ pour cette raison : l'enveloppe variable
  * n'est pas historisée par mois, la métrique n'était donc calculable qu'au prix d'une approximation.
+ * `pulse_green_months` a été retiré avec le système de couleurs de l'état des lieux : ce dernier ne
+ * juge plus rien (ni vert, ni rouge), il n'y a donc plus de « mois validé au vert » à récompenser.
  */
 export type BadgeMetric =
   | 'streak_weeks'           // série hebdo (record)
-  | 'pulse_green_months'     // nb de MOIS (total) validés au vert à l'état des lieux (vert ou bleu)
   | 'gems_earned'            // cumul de gemmes gagnées
   | 'closures_count'         // nb de clôtures mensuelles effectuées
   | 'consecutive_closures'   // plus longue série de mois consécutifs clôturés (fiabilité)
@@ -36,7 +37,7 @@ export type BadgeMetric =
 
 /** Métriques encore supportées (garde-fou runtime : une config admin en base peut être obsolète). */
 const SUPPORTED_METRICS: ReadonlySet<string> = new Set<BadgeMetric>([
-  'streak_weeks', 'pulse_green_months', 'gems_earned', 'closures_count', 'consecutive_closures',
+  'streak_weeks', 'gems_earned', 'closures_count', 'consecutive_closures',
   'surplus_months_streak', 'invest_followed', 'account_age_days', 'login_streak_days',
   'onboarding_done', 'profile_photo', 'manual',
 ]);
@@ -232,10 +233,6 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'serie_4', category: 'Régularité', metric: 'streak_weeks', label: 'Un mois de suivi', description: '4 semaines de suivi d’affilée.', icon: 'pulse', threshold: 4, gems: 30 },
     { key: 'serie_12', category: 'Régularité', metric: 'streak_weeks', label: 'Trimestre suivi', description: '12 semaines de suivi d’affilée.', icon: 'pulse', threshold: 12, gems: 80 },
     { key: 'serie_52', category: 'Régularité', metric: 'streak_weeks', label: 'Année complète', description: '52 semaines de suivi d’affilée.', icon: 'medal', threshold: 52, gems: 300 },
-    // ── Santé financière (Le Point) : mois validés au vert à l'état des lieux (vert ou bleu) ──
-    { key: 'point_vert_1', category: 'Santé financière', metric: 'pulse_green_months', label: 'Premier mois au vert', description: 'Termine un mois avec tout ton état des lieux au vert.', icon: 'compass', threshold: 1, gems: 60 },
-    { key: 'point_vert_3', category: 'Santé financière', metric: 'pulse_green_months', label: 'Trois mois au vert', description: '3 mois validés au vert (pas forcément de suite).', icon: 'compass', threshold: 3, gems: 160 },
-    { key: 'point_vert_12', category: 'Santé financière', metric: 'pulse_green_months', label: 'Une année au vert', description: '12 mois validés au vert (pas forcément de suite).', icon: 'trophy', threshold: 12, gems: 450 },
     // ── Économie (mois en excédent) ──
     { key: 'econome_1', category: 'Économie', metric: 'surplus_months_streak', label: 'Premier excédent', description: 'Termine un mois avec un excédent positif.', icon: 'leaf', threshold: 1, gems: 30 },
     { key: 'econome_3', category: 'Économie', metric: 'surplus_months_streak', label: 'Économe régulier', description: '3 mois consécutifs en excédent.', icon: 'leaf', threshold: 3, gems: 80 },

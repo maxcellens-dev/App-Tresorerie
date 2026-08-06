@@ -19,14 +19,14 @@ import { useNavBack } from '../../../../hooks/useNavBack';
 import { useSeoConfig, useSaveSeoConfig } from '../../../../hooks/useSeo';
 import { SEO_DEFAULTS, resolveSeoConfig, seoTitleFor, seoDescriptionFor, type SeoConfig } from '../../../../lib/seo';
 
-type TextField = { kind: 'text'; path: string; label: string; placeholder?: string; multiline?: boolean };
+type TextField = { kind: 'text'; path: string; label: string; placeholder?: string; multiline?: boolean; help?: string };
 type SwitchField = { kind: 'switch'; path: string; label: string; help?: string };
 type Field = TextField | SwitchField;
 type Section = { key: string; title: string; icon: string; fields: Field[] };
 
 const SECTIONS: Section[] = [
   { key: 'general', title: 'Général', icon: 'globe-outline', fields: [
-    { kind: 'text', path: 'siteName', label: 'Nom du site' },
+    { kind: 'text', path: 'siteName', label: 'Nom du site', help: 'La ligne affichée AU-DESSUS de l’URL dans Google (à la place de « relyka.app »). Google la lit dans les données structurées WebSite de la page d’accueil — servies en dur dans public/index.html et réappliquées ici au runtime. Compter plusieurs jours à plusieurs semaines avant que Google la reprenne.' },
     { kind: 'text', path: 'titleDefault', label: 'Titre par défaut' },
     { kind: 'text', path: 'titleTemplate', label: 'Gabarit de titre', placeholder: '%s · Relyka' },
     { kind: 'text', path: 'description', label: 'Description', multiline: true },
@@ -165,6 +165,7 @@ export default function AdminSeoCenter() {
                     ) : (
                       <View key={f.path} style={styles.fieldGroup}>
                         <Text style={styles.label}>{f.label}</Text>
+                        {!!f.help && <Text style={styles.help}>{f.help}</Text>}
                         <TextInput
                           style={[styles.input, f.multiline && styles.inputMultiline]}
                           value={String(getPath(draft, f.path) ?? '')}

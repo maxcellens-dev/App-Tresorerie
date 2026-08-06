@@ -38,6 +38,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="og:title" content="Relyka — Pilote ta trésorerie personnelle" />
         <meta property="og:description" content="Pilote ta trésorerie au quotidien : reste à vivre, projections, épargne et investissement." />
         <meta name="twitter:card" content="summary_large_image" />
+        {/* Nom du site dans Google (la ligne au-dessus de l'URL) : il vient des données
+            structurées `WebSite` de la page d'accueil. MIROIR de public/index.html — c'est ce
+            dernier qui s'applique réellement tant que web.output vaut "single". */}
+        <meta name="application-name" content="Relyka" />
+        <script type="application/ld+json" data-seo="1" dangerouslySetInnerHTML={{ __html: SITE_JSON_LD }} />
 
         <ScrollViewStyleReset />
         {/* AVANT toute peinture : applique le dernier thème admin connu (localStorage) au loader
@@ -64,6 +69,18 @@ export default function Root({ children }: PropsWithChildren) {
 
 // Verrouille la fenêtre : pas de rebond iOS, pas de scroll global, pas de
 // sélection/menu tactile intempestif. Le scroll se fait dans les ScrollView internes.
+/** Données structurées de la page d'accueil — source du NOM DU SITE affiché par Google. */
+const SITE_JSON_LD = JSON.stringify([
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Relyka',
+    url: 'https://relyka.app',
+    logo: 'https://relyka.app/icon-512.png',
+  },
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Relyka', url: 'https://relyka.app' },
+]);
+
 const LOCK_VIEWPORT_CSS = `
 html, body, #root {
   height: 100%;

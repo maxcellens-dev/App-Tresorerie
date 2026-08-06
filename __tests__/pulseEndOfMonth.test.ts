@@ -85,7 +85,7 @@ describe('computeOpFeedback — fin de mois', () => {
   const op = { kind: 'expense' as const, amount: 100, accountType: 'checking', date: past, hitsVariableEnvelope: true };
 
   it('sans données fraîches : estimation arithmétique, marquée non exacte', () => {
-    const f = computeOpFeedback(op, null, null, null, null, {
+    const f = computeOpFeedback(op, null, null, {
       before: 1000, margin: 0, variableEnvelopeRemaining: 0, today,
     });
     expect(f.endOfMonth).toMatchObject({ amount: 900, delta: -100, exact: false, concerns: true });
@@ -93,19 +93,19 @@ describe('computeOpFeedback — fin de mois', () => {
 
   it('avec le solde RECALCULÉ : c\'est lui qui fait foi, l\'écart s\'en déduit', () => {
     // L'estimation dirait 1000 (dépense absorbée) ; le recalcul dit 940 → on affiche 940 et −60.
-    const f = computeOpFeedback(op, null, null, null, null, {
+    const f = computeOpFeedback(op, null, null, {
       before: 1000, after: 940, margin: 0, variableEnvelopeRemaining: 300, today,
     });
     expect(f.endOfMonth).toMatchObject({ amount: 940, delta: -60, exact: true });
   });
 
   it('marge de sécurité et découvert restent jugés sur le chiffre retenu', () => {
-    const f = computeOpFeedback(op, null, null, null, null, { before: 1000, after: -20, margin: 300, today });
+    const f = computeOpFeedback(op, null, null, { before: 1000, after: -20, margin: 300, today });
     expect(f.endOfMonth).toMatchObject({ negative: true, belowMargin: true });
   });
 
   it('solde projeté d\'avant inconnu → pas de ligne (plutôt qu\'un tiret)', () => {
-    const f = computeOpFeedback(op, null, null, null, null, { before: null, margin: 0, today });
+    const f = computeOpFeedback(op, null, null, { before: null, margin: 0, today });
     expect(f.endOfMonth).toBeNull();
   });
 });

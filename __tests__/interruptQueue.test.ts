@@ -24,7 +24,7 @@ describe('file d’attente des sollicitations', () => {
   });
 
   it('l’ordre complet : clôture → bilan du mois → hebdo → profil → succès', () => {
-    expect(INTERRUPT_ORDER).toEqual(['closure', 'pulse_month', 'pulse_week', 'profile_change', 'achievement']);
+    expect(INTERRUPT_ORDER).toEqual(['closure', 'pulse_month', 'profile_change', 'achievement']);
   });
 
   it('la suivante ne prend la main qu’une fois la précédente TRAITÉE', () => {

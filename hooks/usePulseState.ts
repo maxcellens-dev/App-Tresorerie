@@ -1,8 +1,8 @@
 /**
- * LE POULS — état & historique.
- *  • `pulse_state` (profiles) : dernière semaine / dernier mois VUS → la carte ne revient pas en boucle.
- *  • `pulse_snapshots` : le constat tel qu'il a été affiché (évolution du patrimoine, série « tout au
- *    vert », statistiques admin). On stocke ce qui a été MONTRÉ, on ne le recalcule jamais après coup.
+ * L'ÉTAT DES LIEUX — état & historique.
+ *  • `pulse_state` (profiles) : dernier mois VU → le bilan ne revient pas en boucle.
+ *  • `pulse_snapshots` : le constat tel qu'il a été affiché (évolution du patrimoine, statistiques
+ *    admin). On stocke ce qui a été MONTRÉ, on ne le recalcule jamais après coup.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -12,26 +12,25 @@ import type { PulseResult } from '../lib/pulseEngine';
 export interface PulseSnapshot {
   id: string;
   profile_id: string;
-  period_kind: 'week' | 'month';
+  /** Toujours 'month' : le rendez-vous hebdomadaire n'existe plus (les anciennes lignes 'week'
+   *  ont été supprimées par la migration 171). */
+  period_kind: 'month';
+  /** « 2026-07 ». */
   period_key: string;
   profile_tier: string | null;
-  signals: { id: string; label: string; status: string; headline: string }[];
-  green_count: number;
-  judged_count: number;
-  all_green: boolean;
+  signals: { id: string; label: string; headline: string }[];
   estimated: boolean;
   wealth: number;
   created_at: string;
 }
 
 export interface PulseSeenState {
-  week?: string;
   month?: string;
 }
 
 const SNAP_KEY = 'pulse_snapshots';
 
-/** Bilans passés (12 derniers, toutes périodes) — évolution + séries. */
+/** Bilans passés (les plus récents) — évolution du patrimoine à 3 mois. */
 export function usePulseSnapshots(userId: string | undefined) {
   return useQuery({
     queryKey: [SNAP_KEY, userId],
@@ -42,7 +41,7 @@ export function usePulseSnapshots(userId: string | undefined) {
         .select('*')
         .eq('profile_id', userId)          // RLS ≠ filtre de liste : on filtre TOUJOURS explicitement
         .order('period_key', { ascending: false })
-        .limit(40);
+        .limit(24);
       if (error) throw error;
       return (data ?? []) as PulseSnapshot[];
     },
@@ -51,7 +50,7 @@ export function usePulseSnapshots(userId: string | undefined) {
   });
 }
 
-/** Périodes déjà vues (la carte hebdo / l'état des lieux ne se rouvrent pas tout seuls). */
+/** Mois déjà vus (l'état des lieux ne se rouvre pas tout seul). */
 export function usePulseSeen(userId: string | undefined) {
   const qc = useQueryClient();
 
@@ -88,14 +87,13 @@ export function usePulseSeen(userId: string | undefined) {
   return { seen: query.data ?? {}, isLoading: query.isLoading, markSeen };
 }
 
-/** Enregistre le bilan affiché (idempotent : un seul par période, ré-enregistré si le mois évolue). */
+/** Enregistre le bilan affiché (idempotent : un seul par mois, ré-enregistré si le mois évolue). */
 export function useSavePulseSnapshot() {
   const { user, isImpersonating } = useAuth();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (input: {
-      periodKind: 'week' | 'month';
       periodKey: string;
       profileTier: string;
       result: PulseResult;
@@ -106,15 +104,12 @@ export function useSavePulseSnapshot() {
       const { error } = await supabase.from('pulse_snapshots').upsert(
         {
           profile_id: user.id,
-          period_kind: input.periodKind,
+          period_kind: 'month',
           period_key: input.periodKey,
           profile_tier: input.profileTier,
           signals: input.result.signals.map((s) => ({
-            id: s.id, label: s.label, status: s.status, headline: s.headline,
+            id: s.id, label: s.label, headline: s.headline,
           })),
-          green_count: input.result.greenCount,
-          judged_count: input.result.judgedCount,
-          all_green: input.result.allGreen,
           estimated: input.result.estimated,
           wealth: Math.round(input.wealth),
         },
@@ -124,17 +119,4 @@ export function useSavePulseSnapshot() {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [SNAP_KEY, user?.id] }); },
   });
-}
-
-/**
- * Nombre de MOIS « validés au vert » (TOTAL, pas forcément consécutifs) — alimente les succès
- * état des lieux (lib/gamification). Un mois est validé quand, à son bilan MENSUEL, aucun signal
- * n'est orange ni rouge : tout est vert ou bleu (neutre). On compare donc les signaux JUGÉS (hors
- * neutres) tous au vert : `green_count === judged_count` (vrai aussi quand tout est neutre → 0 = 0).
- * Les bilans ESTIMÉS (chiffres douteux) ne comptent pas. Chaque bilan reflète déjà le profil du mois.
- */
-export function computeGreenMonthCount(snapshots: PulseSnapshot[]): number {
-  return snapshots.filter(
-    (s) => s.period_kind === 'month' && !s.estimated && s.green_count === s.judged_count,
-  ).length;
 }

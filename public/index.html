@@ -41,6 +41,37 @@
     <meta property="og:image:alt" data-seo="1" content="Relyka — pilote ta trésorerie" />
     <meta name="twitter:card" data-seo="1" content="summary_large_image" />
 
+    <!--
+      NOM DU SITE dans Google (la ligne « Relyka » au-dessus de l'URL, à la place de « relyka.app »).
+
+      Google le choisit à partir de la page d'ACCUEIL uniquement, et privilégie les données
+      structurées `WebSite` ; `og:site_name`, `<title>` et `application-name` ne sont que des
+      signaux secondaires. Ce bloc doit donc être SERVI DANS LE HTML : le SEO Center l'injecte déjà
+      au runtime (lib/seo.ts → buildJsonLd), mais après le passage des robots qui n'exécutent pas
+      de JS. `data-seo="1"` permet à l'injection runtime de le REMPLACER au lieu d'en créer un second.
+
+      ⚠️ Google met plusieurs jours à plusieurs semaines à reprendre un nom de site.
+      Les valeurs recopient SEO_DEFAULTS (lib/seo.ts) : les garder synchronisées.
+    -->
+    <meta name="application-name" content="Relyka" />
+    <script type="application/ld+json" data-seo="1">
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "Relyka",
+          "url": "https://relyka.app",
+          "logo": "https://relyka.app/icon-512.png"
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "Relyka",
+          "url": "https://relyka.app"
+        }
+      ]
+    </script>
+
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
       /* These styles make the body full-height */

@@ -2,17 +2,16 @@ import { monthlyIds } from '../lib/pulseEngine';
 import type { PulseSignalId } from '../lib/pulseEngine';
 
 /**
- * L'état des lieux mensuel se lit APRÈS la clôture, donc bien après la fin du mois concerné : il
- * doit s'ouvrir sur le récapitulatif de CE MOIS (dépenses variables, épargné, investi), avec le
- * matelas de sécurité à la place de « fin de mois » — qui n'a plus de sens une fois le mois fini —
- * puis « Ton projet », puis « Fin de mois ».
+ * L'état des lieux se lit APRÈS la clôture, donc bien après la fin du mois concerné : il doit
+ * s'ouvrir sur les deux repères du mois (dépenses variables, matelas de sécurité — les lignes de
+ * la carte de récapitulatif), puis « Ton projet », puis « Fin de mois », puis le reste du profil.
  */
-const full: PulseSignalId[] = ['end_of_month', 'spending', 'cushion', 'saving', 'investing', 'no_overdraft', 'wealth', 'projects'];
+const full: PulseSignalId[] = ['end_of_month', 'spending', 'cushion', 'no_overdraft', 'wealth', 'projects'];
 
 describe('monthlyIds — ordre du bilan de fin de mois', () => {
-  it('ouvre sur le récap du mois, matelas compris, et non sur « fin de mois »', () => {
+  it('ouvre sur les deux repères du mois, et non sur « fin de mois »', () => {
     const ids = monthlyIds(full);
-    expect(ids.slice(0, 4)).toEqual(['spending', 'cushion', 'saving', 'investing']);
+    expect(ids.slice(0, 2)).toEqual(['spending', 'cushion']);
     expect(ids.indexOf('end_of_month')).toBeGreaterThan(ids.indexOf('cushion'));
   });
 
@@ -27,7 +26,7 @@ describe('monthlyIds — ordre du bilan de fin de mois', () => {
   });
 
   it('le matelas et les dépenses sont là même s’ils ne sont pas dans le profil', () => {
-    // Ce sont les deux repères du bilan mensuel : ils ne dépendent pas du profil choisi.
+    // Ce sont les deux repères du bilan : ils ne dépendent pas du profil choisi.
     const ids = monthlyIds(['end_of_month', 'wealth']);
     expect(ids).toContain('spending');
     expect(ids).toContain('cushion');

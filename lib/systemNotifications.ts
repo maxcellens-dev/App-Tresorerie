@@ -15,9 +15,10 @@ export interface SystemNotificationDef {
   defaultEnabled: boolean;
 }
 
-// NB : le push hebdo du Point (`pulse_weekly`) n'est PLUS une notification système : il est géré
-// comme une NOTIFICATION PLANIFIÉE récurrente « Hebdo » (admin Notifications → Planifier, envoyée
-// par send-scheduled-notifications). Une seule commande — l'ancien toggle d'ici ne pilotait rien.
+// NB : le push hebdo du Point (`pulse_weekly`) N'EXISTE PLUS — le point de la semaine a été
+// supprimé (rendez-vous unique : l'état des lieux du mois). Si une notification PLANIFIÉE
+// récurrente « Hebdo » avait été créée à la main dans l'admin, il faut la désactiver là-bas :
+// rien ici ne la pilote.
 export const SYSTEM_NOTIFICATIONS: SystemNotificationDef[] = [
   {
     id: 'soft_close_reminder',

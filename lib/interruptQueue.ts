@@ -12,19 +12,18 @@
  * L'ordre suit la logique de lecture :
  *   1. la CLÔTURE — sans elle, tout ce qui suit s'appuie sur des chiffres non vérifiés ;
  *   2. l'ÉTAT DES LIEUX du mois — le bilan de ce qu'on vient de clôturer ;
- *   3. le POULS HEBDO — le point léger, quand il n'y a pas de mensuel ;
- *   4. le CHANGEMENT DE PROFIL — conséquence des chiffres consolidés ;
- *   5. les SUCCÈS — la récompense arrive en dernier, jamais avant l'information.
+ *   3. le CHANGEMENT DE PROFIL — conséquence des chiffres consolidés ;
+ *   4. les SUCCÈS — la récompense arrive en dernier, jamais avant l'information.
  *
  * Volontairement hors React (module simple + abonnement) : ces écrans vivent dans des composants
  * différents montés à la racine, sans parent commun où poser un état partagé.
  */
 
-export type InterruptId = 'closure' | 'pulse_month' | 'pulse_week' | 'profile_change' | 'achievement';
+export type InterruptId = 'closure' | 'pulse_month' | 'profile_change' | 'achievement';
 
 /** Du plus prioritaire au moins prioritaire. */
 export const INTERRUPT_ORDER: InterruptId[] = [
-  'closure', 'pulse_month', 'pulse_week', 'profile_change', 'achievement',
+  'closure', 'pulse_month', 'profile_change', 'achievement',
 ];
 
 const waiting = new Set<InterruptId>();

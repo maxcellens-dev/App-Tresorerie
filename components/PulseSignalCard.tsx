@@ -1,20 +1,17 @@
 /**
- * POULS — une carte de signal (l'unité de base du Pouls hebdo ET de l'état des lieux).
- * Présentation PURE : elle affiche ce que le moteur a jugé, rien d'autre.
- * Le Pouls est un ÉTAT — aucune action, aucun bouton : le reste de l'app sert à agir.
+ * ÉTAT DES LIEUX — une carte de signal (l'unité de base du bilan).
+ * Présentation PURE : elle affiche le constat, rien d'autre.
  *
- * Couleurs : uniquement des clés SÉMANTIQUES du thème (green / orange / danger / blue / grey) —
- * elles suivent donc le Style Editor, comme le reste de l'app.
+ * ⚠️ AUCUNE COULEUR D'ÉTAT. Il n'y a plus ni statut, ni pastille « Bien parti / Trop juste », ni
+ * vert/orange/rouge : le bilan donne une vision d'un mois, il ne distribue pas de bons points.
+ * La seule couleur est l'accent de l'app, sur la barre de progression — un remplissage, pas un
+ * jugement. C'est un ÉTAT : aucune action, aucun bouton, le reste de l'app sert à agir.
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
-import { PULSE_STATUS_COLOR_KEY, type PulseSignal } from '../lib/pulseEngine';
-
-export function pulseColor(COLORS: AppColors, status: PulseSignal['status']): string {
-  return COLORS[PULSE_STATUS_COLOR_KEY[status]] ?? COLORS.textSecondary;
-}
+import type { PulseSignal } from '../lib/pulseEngine';
 
 interface Props {
   signal: PulseSignal;
@@ -25,16 +22,11 @@ interface Props {
 export default function PulseSignalCard({ signal, delay = 0 }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
-  // EN ATTENTE : gabarit définitif, valeurs en tirets, aucune couleur de jugement (les chiffres
-  // recalculés ne sont pas encore confirmés). La carte se remplit sur place à leur arrivée.
-  const pending = !!signal.pending;
-  const color = pending ? COLORS.textSecondary : pulseColor(COLORS, signal.status);
 
-  // Entrée : fondu + léger glissement, puis remplissage de la barre (c'est ce mouvement qui donne
-  // envie de « tout faire passer au vert »).
+  // Entrée : fondu + léger glissement, puis remplissage de la barre.
   const enter = useRef(new Animated.Value(0)).current;
   const fill = useRef(new Animated.Value(0)).current;
-  const target = Math.max(0, Math.min(1, signal.progress?.value ?? 0));
+  const target = Math.max(0, Math.min(1, signal.progress ?? 0));
 
   // Entrée : UNE SEULE FOIS, au montage. (Avant, cet effet dépendait aussi de `target` : chaque
   // arrivée de données REJOUAIT l'animation d'entrée → clignotement de la carte.)
@@ -46,8 +38,7 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Remplissage de la barre : glisse vers la nouvelle cible à chaque changement (0 en attente →
-  // valeur réelle), au lieu de sauter d'un coup.
+  // Remplissage de la barre : glisse vers la nouvelle cible à chaque changement, au lieu de sauter.
   useEffect(() => {
     Animated.timing(fill, { toValue: target, duration: 650, useNativeDriver: false, easing: Easing.out(Easing.cubic) }).start();
   }, [target, fill]);
@@ -62,64 +53,28 @@ export default function PulseSignalCard({ signal, delay = 0 }: Props) {
         },
       ]}
     >
-      <View style={styles.head}>
-        <Text style={styles.label} numberOfLines={1}>
-          {signal.emoji}  {signal.label}
-        </Text>
-        <View style={[styles.chip, { backgroundColor: color + '1F', borderColor: color + '55' }]}>
-          <Text style={[styles.chipText, { color }]} numberOfLines={1}>{signal.chip}</Text>
-        </View>
-      </View>
+      <Text style={styles.label} numberOfLines={1}>
+        {signal.emoji}  {signal.label}
+      </Text>
 
-      <Text style={[styles.headline, pending && styles.pendingValue]}>{signal.headline}</Text>
+      <Text style={styles.headline}>{signal.headline}</Text>
       {!!signal.detail && <Text style={styles.detail}>{signal.detail}</Text>}
 
-      {signal.progress && (() => {
-        // Trait de seuil (ex. « bon rythme » = X % de la capacité) : affiché avec son % en dessous,
-        // pour que le repère soit lisible sans deviner ce qu'il marque.
-        const tickPct = signal.progress.target != null && signal.progress.target < 1 ? signal.progress.target : null;
-        // Segment « prévu » (virements à venir ce mois) : plus clair, posé APRÈS la part faite.
-        const plannedPct = Math.max(0, Math.min(1 - target, signal.progress.planned ?? 0));
-        return (
-          <>
-            <View style={[styles.track, tickPct != null && styles.trackWithTickLabel]}>
-              <Animated.View
-                style={[
-                  styles.fill,
-                  {
-                    backgroundColor: color,
-                    width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                  },
-                ]}
-              />
-              {plannedPct > 0 && (
-                <View
-                  style={[
-                    styles.plannedFill,
-                    { backgroundColor: color + '55', left: `${target * 100}%`, width: `${plannedPct * 100}%` },
-                  ]}
-                />
-              )}
-              {tickPct != null && (
-                <>
-                  <View style={[styles.tick, { left: `${tickPct * 100}%` }]} />
-                  <Text style={[styles.tickLabel, { left: `${tickPct * 100}%` }]}>{Math.round(tickPct * 100)} %</Text>
-                </>
-              )}
-            </View>
-            {plannedPct > 0 && (
-              <View style={styles.legendRow}>
-                <View style={[styles.legendDot, { backgroundColor: color }]} />
-                <Text style={styles.legendTxt}>fait</Text>
-                <View style={[styles.legendDot, { backgroundColor: color + '55' }]} />
-                <Text style={styles.legendTxt}>prévu ce mois-ci</Text>
-              </View>
-            )}
-          </>
-        );
-      })()}
+      {signal.progress != null && (
+        <View style={styles.track}>
+          <Animated.View
+            style={[
+              styles.fill,
+              {
+                backgroundColor: COLORS.accent,
+                width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+              },
+            ]}
+          />
+        </View>
+      )}
 
-      {!!signal.amountLine && <Text style={[styles.amount, pending && styles.pendingValue]}>{signal.amountLine}</Text>}
+      {!!signal.amountLine && <Text style={styles.amount}>{signal.amountLine}</Text>}
     </Animated.View>
   );
 }
@@ -134,29 +89,11 @@ function makeStyles(c: AppColors) {
       padding: 16,
       marginBottom: 10,
     },
-    head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
-    label: { flex: 1, fontSize: 13, fontWeight: '700', color: c.text },
-    chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, maxWidth: 150 },
-    chipText: { fontSize: 10.5, fontWeight: '800' },
+    label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 8 },
     headline: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2, lineHeight: 22 },
-    // Valeur non encore confirmée : même gabarit, teinte discrète (rien de faux, rien qui saute).
-    pendingValue: { color: c.textSecondary, opacity: 0.6 },
     detail: { fontSize: 12, color: c.textSecondary, lineHeight: 18, marginTop: 6 },
-    track: {
-      height: 6, borderRadius: 999, backgroundColor: c.cardBorder,
-      marginTop: 12, overflow: 'visible', position: 'relative',
-    },
+    track: { height: 6, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 12, overflow: 'hidden' },
     fill: { height: 6, borderRadius: 999 },
-    // Segment « prévu » (à venir ce mois) — même piste, teinte plus claire, posé après le fait.
-    plannedFill: { position: 'absolute', top: 0, height: 6, borderRadius: 999 },
-    legendRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-    legendDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 6 },
-    legendTxt: { fontSize: 10.5, fontWeight: '600', color: c.textSecondary },
-    tick: { position: 'absolute', top: -3, width: 2, height: 12, borderRadius: 2, backgroundColor: c.textSecondary },
-    // Le % du seuil, centré sous son trait. La piste réserve la place en dessous (marge) pour que
-    // le label ne chevauche pas la ligne de total qui suit.
-    trackWithTickLabel: { marginBottom: 16 },
-    tickLabel: { position: 'absolute', top: 11, width: 44, marginLeft: -22, textAlign: 'center', fontSize: 10, fontWeight: '700', color: c.textSecondary },
     amount: { fontSize: 11.5, color: c.textSecondary, marginTop: 10, fontWeight: '600' },
   });
 }

@@ -16,45 +16,46 @@ const STEP_COLORS = ['#60a5fa', '#f59e0b', '#a78bfa', '#22d3ee', '#fb7185', '#34
 
 const STEPS = [
   {
-    label: 'Point de départ — Solde courant à date',
-    formula: 'Σ accounts(checking).balance',
-    explanation: 'Le solde réel de tous les comptes courants, aujourd\'hui. Il reflète déjà tout ce qui est passé (recettes encaissées, dépenses payées, virements exécutés). On ne redéduit donc jamais le passé.',
+    label: 'Point de départ — POINT BAS de trésorerie du mois',
+    formula: 'min des soldes de FIN DE JOURNÉE du compte courant simulé, d\'ici la fin du mois',
+    explanation: 'Pas le solde d\'aujourd\'hui : le plus bas où le compte descendra d\'ici la fin du mois, charges récurrentes déjà dedans. On raisonne en solde de fin de JOURNÉE (l\'ordre des opérations d\'une même journée n\'est ni connu ni stable : un prélèvement tombant le jour de la paie ne doit pas creuser un creux qui n\'existe pas). Le passé est déjà dans le solde de départ : il n\'est jamais redéduit.',
   },
   {
     label: '− Épargne à venir',
-    formula: 'virements épargne planifiés ce mois − déjà exécutés (+ projets non exécutés)',
-    explanation: 'Seule la part d\'épargne pas encore sortie du compte est déduite (le passé est déjà dans le solde).',
+    formula: 'virements épargne du mois encore à venir (non exécutés)',
+    explanation: 'Seule la part d\'épargne pas encore sortie du compte est déduite.',
   },
   {
     label: '− Investissement à venir',
-    formula: 'virements vers comptes d\'investissement planifiés ce mois − déjà exécutés',
+    formula: 'virements vers comptes d\'investissement du mois encore à venir',
     explanation: 'Idem : uniquement les virements d\'investissement encore à venir.',
   },
   {
-    label: '− Réservé',
-    formula: 'projets même-compte + montant conservé du mois (recos)',
-    explanation: 'Argent qui reste sur le compte courant mais déjà mis de côté mentalement.',
+    label: '− Réserve prévue + réservations + cumuls',
+    formula: 'réserve du mois (brouillons « conserver ») + réservations manuelles du mois + cumuls de pré-épargne / pré-investissement',
+    explanation: 'Argent qui reste PHYSIQUEMENT sur le compte courant mais qui est déjà fléché. C\'est ce qui explique l\'écart entre « il devrait te rester 724 € le 1er » (état des lieux) et « ton Relyka : 560 € » : le second retire ce qui est déjà promis.',
   },
   {
-    label: '− Dépenses prévues à venir + variables estimées',
-    formula: 'dépenses datées après aujourd\'hui + max(0, estimation − variable déjà dépensé du mois)',
-    explanation: 'Les dépenses futures déjà saisies + l\'estimation de ce qui sera encore dépensé en variable ce mois. Quand une dépense variable réelle a lieu, le solde baisse mais l\'estimation restante baisse d\'autant : le budget libre ne bouge pas.',
+    label: '− Enveloppe variable restante',
+    formula: 'max(0, budget variable habituel − variable déjà dépensé ce mois)',
+    explanation: 'Ce qui sera encore dépensé au quotidien d\'ici la fin du mois. Quand une dépense variable réelle a lieu, le solde baisse mais l\'enveloppe restante baisse d\'autant : le Relyka ne bouge pas. C\'est voulu — la dépense était déjà provisionnée.',
   },
   {
     label: '− Marge de sécurité (montant fixe)',
     formula: 'max(0, … − marge_de_sécurité_€)',
-    explanation: 'Montant minimum conservé sur les comptes courants quoi qu\'il arrive. Saisi en Q8 du questionnaire. Si solde courant < marge → seule la reco "Conserver" est active.',
+    explanation: 'Montant minimum conservé sur les comptes courants quoi qu\'il arrive. Saisi en Q8 du questionnaire. Si le solde courant passe sous la marge → seule la reco « Conserver » est active. Résultat final borné à 0 : le Relyka n\'est jamais négatif.',
   },
 ];
 
 const VARIABLES = [
-  ['solde_courant', 'Σ accounts(checking).balance (à date, futur exclu)'],
-  ['épargne_à_venir', 'virements épargne du mois non encore exécutés + projets'],
-  ['invest_à_venir', 'virements investissement du mois non encore exécutés'],
-  ['réservé', 'projets même-compte + conservé du mois (recos)'],
-  ['dépenses_à_venir', 'transactions dépenses datées après aujourd\'hui'],
-  ['variable_restant', 'max(0, estimation_mensuelle − variable dépensé du mois)'],
-  ['marge_sécurité', 'profiles.safety_margin_amount (Q8, défaut 0 €)'],
+  ['cashflow_trough', 'point bas du solde courant simulé sur le mois (usePilotageData)'],
+  ['savingsFuture', 'virements épargne du mois non encore exécutés'],
+  ['investFuture', 'virements investissement du mois non encore exécutés'],
+  ['reservePlanned', 'réserve du mois (projets même-compte + brouillons « conserver »)'],
+  ['reservationsTotal', 'réservations manuelles créées ce mois-ci'],
+  ['cumulsTotal', 'cumuls de pré-épargne + pré-investissement'],
+  ['variableEnvelopeRemaining', 'max(0, budget variable habituel − variable dépensé du mois)'],
+  ['safetyMargin', 'profiles.safety_margin_amount (Q8, défaut 0 €)'],
 ];
 
 export default function SafeToSpendAdmin() {
@@ -70,26 +71,39 @@ export default function SafeToSpendAdmin() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <ScreenHeader title="Budget libre" onBack={goBack} />
+        <ScreenHeader title="Formule du Relyka" onBack={goBack} />
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.subtitle}>
-            Explication complète du « Tu peux dépenser ce mois » affiché sur le Tableau de bord.
-            Principe : on part du solde réel à date et on ne déduit QUE ce qui n'est pas encore
-            sorti du compte (le passé est déjà dans le solde → jamais redéduit).
+            Explication complète du « Ton Relyka » affiché sur le Pilotage — LE montant réellement
+            disponible ce mois-ci. Une seule formule (lib/relyka), partagée par la carte du Pilotage,
+            le bandeau « prochain geste », le moteur de recommandations et l'état des lieux.
+            Principe : on part du POINT BAS de trésorerie du mois (et non du solde d'aujourd'hui),
+            puis on retire tout ce qui est déjà engagé.
           </Text>
 
           {/* ── Formule résumée ── */}
           <View style={styles.formulaCard}>
-            <Text style={styles.formulaLine}>  Solde courant (à date)</Text>
+            <Text style={styles.formulaLine}>  Point bas de trésorerie du mois</Text>
             <Text style={styles.formulaLine}>− Épargne à venir</Text>
             <Text style={styles.formulaLine}>− Investissement à venir</Text>
-            <Text style={styles.formulaLine}>− Réservé (projets + conservé du mois)</Text>
-            <Text style={styles.formulaLine}>− Dépenses prévues à venir</Text>
-            <Text style={styles.formulaLine}>− Dépenses variables estimées restantes</Text>
+            <Text style={styles.formulaLine}>− Réserve prévue du mois</Text>
+            <Text style={styles.formulaLine}>− Réservations manuelles du mois</Text>
+            <Text style={styles.formulaLine}>− Cumuls pré-épargne / pré-investissement</Text>
+            <Text style={styles.formulaLine}>− Enveloppe variable restante</Text>
             <Text style={styles.formulaLine}>− Marge de sécurité (montant fixe €)</Text>
             <Text style={styles.formulaDivider}>─────────────────────────────────</Text>
-            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Budget libre</Text>
+            <Text style={[styles.formulaLine, { color: '#34d399', fontWeight: '700' }]}>= Ton Relyka (borné à 0)</Text>
+          </View>
+
+          {/* Le piège classique : deux chiffres justes qui ont l'air de se contredire. */}
+          <View style={[styles.linkCard, { marginBottom: 24 }]}>
+            <Text style={styles.linkText}>
+              À ne pas confondre avec le « il devrait te rester X le 1er » de l'état des lieux :
+              celui-là est le solde qui restera SUR LE COMPTE, réservations comprises (elles y sont
+              physiquement). Le Relyka, lui, retire tout ce qui est déjà promis. Les deux sont justes,
+              et le second est toujours le plus petit.
+            </Text>
           </View>
 
           {/* ── Étapes ── */}
@@ -115,7 +129,8 @@ export default function SafeToSpendAdmin() {
           <View style={[styles.linkCard, { marginTop: 24 }]}>
             <Text style={styles.linkText}>
               Ce montant est le budget total que le moteur de recommandation répartit entre
-              épargner, investir, se faire plaisir et conserver.
+              épargner, investir, se faire plaisir et conserver : la somme des recommandations
+              affichées vaut exactement le Relyka.
             </Text>
             <TouchableOpacity
               style={styles.linkBtn}

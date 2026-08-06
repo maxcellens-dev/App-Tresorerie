@@ -153,6 +153,8 @@ export function applySeoHead(cfg: SeoConfig, page?: string): void {
   upsertMeta('meta[name="description"][data-seo="1"]', { name: 'description', content: description });
   upsertMeta('meta[name="keywords"][data-seo="1"]', { name: 'keywords', content: cfg.keywords });
   upsertMeta('meta[name="author"][data-seo="1"]', { name: 'author', content: cfg.author });
+  // « Nom du site » : signal secondaire pour Google (le principal est le JSON-LD WebSite ci-dessous).
+  upsertMeta('meta[name="application-name"][data-seo="1"]', { name: 'application-name', content: cfg.siteName });
   upsertMeta('meta[name="theme-color"][data-seo="1"]', { name: 'theme-color', content: cfg.themeColor });
   upsertMeta('meta[name="robots"][data-seo="1"]', { name: 'robots', content: robots });
   upsertLink('canonical', url);

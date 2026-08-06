@@ -39,7 +39,7 @@ const RECO_DESC: Record<RecoType, string> = {
   save: 'Transférer vers l\'épargne de sécurité.',
   invest: 'Alimenter un compte d\'investissement.',
   enjoy: 'Marge de confort : ce qu\'il reste en plus une fois les dépenses variables habituelles couvertes. Grignotée en premier en cas de dépassement.',
-  keep: 'Conserver sur le compte courant.',
+  keep: 'Conserver sur le compte courant. Récupère aussi ce que les garde-fous retirent à Épargner / Investir, et le Confort en fin de période (report sur la période suivante).',
 };
 
 const CONSUMPTION_MODES: ConsumptionMode[] = ['prudent', 'equilibre', 'dynamique'];
@@ -71,10 +71,27 @@ const TIER_CONDITIONS: Record<SavingsTier, string> = {
 
 const TYPES: RecoType[] = ['save', 'invest', 'enjoy', 'keep'];
 
+/**
+ * Les modificateurs appliqués aux % d'allocation, dans l'ORDRE réel du moteur
+ * (lib/recommendationEngine → deriveRecoAllocations), avant normalisation à 100 %.
+ */
 const MODIFIERS = [
-  { icon: 'analytics-outline', name: 'Tendance variables', desc: 'Si > 120 % → moins de plaisir, plus de réserve. Si < 80 % → un peu plus de plaisir.' },
-  { icon: 'wallet-outline', name: 'Santé courant', desc: 'Si solde < 2× engagements mensuels → +10 pp sur Conserver.' },
-  { icon: 'swap-horizontal-outline', name: 'Ratio invest/épargne', desc: 'Si investi < 15 % de l\'épargne → +8 pp sur Investir.' },
+  { icon: 'analytics-outline', name: '1. Tendance variables', desc: 'Rythme de dépenses > 120 % des habitudes → jusqu\'à −15 pp sur Confort, autant sur Conserver. < 80 % → jusqu\'à +5 pp sur Confort.' },
+  { icon: 'wallet-outline', name: '2. Santé du compte courant', desc: 'Solde courant < 2× engagements mensuels (allocations engagées + charges fixes restantes) → +10 pp sur Conserver, −5 pp sur Épargner et sur Investir.' },
+  { icon: 'swap-horizontal-outline', name: '3. Ratio invest / épargne', desc: 'Investi < 15 % de l\'épargne → +8 pp sur Investir, pris sur le plus gros de Épargner / Confort.' },
+  { icon: 'hourglass-outline', name: '4. Fin de période', desc: 'À moins de 7 jours de la PROCHAINE RENTRÉE D\'ARGENT (pas du 31 du mois), Confort bascule progressivement vers Conserver — jusqu\'à 100 % le dernier jour. Épargne et investissement ne bougent pas, pour que la capacité annoncée ailleurs reste la même. Période inconnue → aucune bascule.' },
+];
+
+/**
+ * Garde-fous et bornes appliqués APRÈS la répartition en %, sur les MONTANTS.
+ * Ils ne sont pas éditables : ce sont des règles de sécurité, pas des réglages.
+ */
+const GUARDS = [
+  { icon: 'shield-outline', name: 'Solde sous la marge', desc: 'Solde courant < marge de sécurité → une seule reco : Conserver (tout ce qui reste).' },
+  { icon: 'trending-down-outline', name: 'Projection en danger', desc: 'Trajectoire déjà signalée en danger → tout Conserver, idem.' },
+  { icon: 'git-branch-outline', name: 'Garde-fou marge × projection (6 mois)', desc: 'Si le point bas des 6 prochains mois est déjà sous la marge → tout Conserver, avec le message qui l\'explique. Sinon, Épargner et Investir sont plafonnés au « headroom » (point bas − marge) pour qu\'exécuter les recos ne fasse pas plonger la trajectoire : Investir est réduit EN PREMIER (illiquide), puis Épargner ; l\'excédent file vers Conserver.' },
+  { icon: 'repeat-outline', name: 'Tenue en virement récurrent', desc: 'Chaque montant est testé sur 12 mois : tenable en récurrent, plafonné à X €/mois, ou ponctuel seulement. Deux conditions — ne pas passer sous la marge pendant l\'horizon, ET ne pas dépasser le surplus mensuel structurel (sinon le solde décline).' },
+  { icon: 'help-circle-outline', name: 'Doute DIRECTIONNEL', desc: 'En confiance moyenne/basse, les montants s\'affichent en fourchette. Les gestes qui SORTENT l\'argent (Épargner, Investir — irréversibles) prennent la borne BASSE ; Conserver ne sort rien du compte, donc en cas de doute il en faut PLUS : montant plein, jamais de fourchette.' },
 ];
 
 export default function RecommendationsAdmin() {
@@ -461,8 +478,26 @@ export default function RecommendationsAdmin() {
           {/* ── Modificateurs (onglet Infos) ── */}
           {tab === 'infos' && (<>
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Modificateurs contextuels</Text>
-          <Text style={styles.modNote}>Ces ajustements s'appliquent après les paliers et ne sont pas éditables ici.</Text>
+          <Text style={styles.modNote}>
+            Appliqués aux POURCENTAGES, dans cet ordre, après les paliers — puis normalisation à
+            100 %. Non éditables ici.
+          </Text>
           {MODIFIERS.map(m => (
+            <View key={m.name} style={styles.modCard}>
+              <Ionicons name={m.icon as any} size={18} color={COLORS.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modName}>{m.name}</Text>
+                <Text style={styles.modDesc}>{m.desc}</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* ── Garde-fous (sur les montants, après la répartition) ── */}
+          <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Garde-fous</Text>
+          <Text style={styles.modNote}>
+            Appliqués ensuite aux MONTANTS. Ce sont des règles de sécurité, pas des réglages.
+          </Text>
+          {GUARDS.map(m => (
             <View key={m.name} style={styles.modCard}>
               <Ionicons name={m.icon as any} size={18} color={COLORS.textSecondary} />
               <View style={{ flex: 1 }}>
@@ -475,11 +510,15 @@ export default function RecommendationsAdmin() {
           {/* ── Règles ── */}
           <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Règles</Text>
           <View style={styles.rulesCard}>
-            <Text style={styles.ruleItem}>• Recommandations &lt; 5 % → masquées et redistribuées</Text>
-            <Text style={styles.ruleItem}>• Total = toujours 100 % du « À dépenser »</Text>
+            <Text style={styles.ruleItem}>• Budget de référence = <Text style={{ fontWeight: '700' }}>Ton Relyka</Text> (cf. « Formule du Relyka »), diminué de ce qui est DÉJÀ alloué (virements exécutés ou prévus, cumuls, réservations)</Text>
+            <Text style={styles.ruleItem}>• La somme des recommandations affichées = exactement le Relyka</Text>
+            <Text style={styles.ruleItem}>• Une part &lt; 5 % → masquée et redistribuée</Text>
+            <Text style={styles.ruleItem}>• Un poste sous son seuil d'affichage (onglet « Seuils ») est reversé aux autres</Text>
+            <Text style={styles.ruleItem}>• Si AUCUN poste n'atteint son seuil → une seule reco de repli, et rien du tout en dessous de 10 €</Text>
             <Text style={styles.ruleItem}>• 2 à 4 recommandations affichées</Text>
             <Text style={styles.ruleItem}>• Les préférences utilisateur écrasent les paliers</Text>
             <Text style={styles.ruleItem}>• En cas de dépassement des dépenses variables, les recos sont grignotées dans l'ordre de déduction (voir onglet « Ordre »)</Text>
+            <Text style={styles.ruleItem}>• Les mêmes % servent au calcul de la capacité d'investissement ailleurs dans l'app (source unique : deriveRecoAllocations) — deux écrans ne peuvent pas annoncer deux montants plaçables différents</Text>
           </View>
           </>)}
         </KeyboardAwareScrollView>

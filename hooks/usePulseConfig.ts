@@ -1,4 +1,4 @@
-// Réglages ADMIN du Pouls (app_config.pulse) : signaux par profil, repères, notification hebdo.
+// Réglages ADMIN de l'état des lieux (app_config.pulse) : activation, temps affichés, signaux par profil.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { resolvePulseConfig, type PulseConfig } from '../lib/pulseEngine';

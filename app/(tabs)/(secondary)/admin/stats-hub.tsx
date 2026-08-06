@@ -22,47 +22,38 @@ import { useNavBack } from '../../../../hooks/useNavBack';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
 
-/** Bilan du Pouls archivé (pulse_snapshots) — sert à mesurer la santé financière du parc. */
+/** Bilan archivé (pulse_snapshots) — sert à mesurer la diffusion de l'état des lieux.
+ *  Plus de `all_green` / `green_count` : l'état des lieux ne juge plus rien (aucun statut de
+ *  signal, aucune couleur) — il n'y a donc plus de « taux de vert » à agréger. */
 interface RawPulse {
   profile_id: string;
-  period_kind: string;
-  all_green: boolean;
   estimated: boolean;
-  green_count: number;
-  judged_count: number;
-  signals: { id: string; label: string; status: string }[];
+  signals: { id: string; label: string }[];
   created_at: string;
 }
 
-/** Agrégat du Pouls : qui va bien, et surtout QUEL signal bloque le plus de monde. */
+/** Agrégat : combien de bilans, pour combien de monde, et QUELS signaux sont réellement servis. */
 function computePulseStats(rows: RawPulse[]) {
-  const real = rows.filter((r) => !r.estimated);
-  const users = new Set(real.map((r) => r.profile_id));
-  const allGreen = real.filter((r) => r.all_green).length;
-  const estimated = rows.length - real.length;
+  const users = new Set(rows.map((r) => r.profile_id));
+  const estimated = rows.filter((r) => r.estimated).length;
 
-  // Par signal : combien de fois il est au vert, sur combien de fois il est jugé.
-  const bySignal = new Map<string, { label: string; green: number; judged: number }>();
-  for (const row of real) {
+  // Par signal : combien de bilans le contiennent (ce que les utilisateurs voient vraiment).
+  const bySignal = new Map<string, { label: string; count: number }>();
+  for (const row of rows) {
     for (const s of row.signals ?? []) {
-      if (s.status === 'neutral' || s.status === 'estimated') continue;
-      const entry = bySignal.get(s.id) ?? { label: s.label, green: 0, judged: 0 };
-      entry.judged += 1;
-      if (s.status === 'good') entry.green += 1;
+      const entry = bySignal.get(s.id) ?? { label: s.label, count: 0 };
+      entry.count += 1;
       bySignal.set(s.id, entry);
     }
   }
-  const signals = [...bySignal.values()]
-    .map((s) => ({ ...s, pct: s.judged > 0 ? Math.round((s.green / s.judged) * 100) : 0 }))
-    .sort((a, b) => a.pct - b.pct); // le plus problématique en premier : c'est lui qu'on veut voir
+  const signals = [...bySignal.values()].sort((a, b) => b.count - a.count);
 
   return {
     bilans: rows.length,
     users: users.size,
-    allGreenPct: real.length > 0 ? Math.round((allGreen / real.length) * 100) : 0,
     estimatedPct: rows.length > 0 ? Math.round((estimated / rows.length) * 100) : 0,
     signals,
-    maxJudged: Math.max(1, ...signals.map((s) => s.judged)),
+    maxCount: Math.max(1, ...signals.map((s) => s.count)),
   };
 }
 
@@ -152,10 +143,10 @@ export default function StatsHub() {
         .limit(50000);
       if (!mErr) setMonthly(computeMonthly((mdata ?? []) as RawEvent[]));
 
-      // Le Pouls : bilans archivés sur la période (table absente = migration 140 non appliquée → on ignore).
+      // État des lieux : bilans archivés sur la période (table absente = migration 140 non appliquée → on ignore).
       const { data: pdata, error: pErr } = await supabase
         .from('pulse_snapshots')
-        .select('profile_id, period_kind, all_green, estimated, green_count, judged_count, signals, created_at')
+        .select('profile_id, estimated, signals, created_at')
         .gte('created_at', since)
         .limit(20000);
       setPulse(pErr ? [] : ((pdata ?? []) as RawPulse[]));
@@ -243,27 +234,25 @@ export default function StatsHub() {
                 <RefRow label="Évènements / jour (moy.)" value={agg.avgDailyViews} styles={styles} />
               </Section>
 
-              {/* Le Pouls — santé financière du parc. Le tableau des signaux dit CE QUI bloque
-                  le plus de monde : c'est la donnée qui doit guider les prochains conseils. */}
-              <Section title="Le Point (santé financière)" hint={`Bilans archivés sur ${days} jours`} styles={styles}>
+              {/* L'état des lieux — diffusion du bilan mensuel : combien de monde le reçoit
+                  vraiment, et avec quels signaux. */}
+              <Section title="État des lieux" hint={`Bilans archivés sur ${days} jours`} styles={styles}>
                 <View style={styles.adKpiRow}>
                   <AdKpi value={pulseAgg.bilans} label="Bilans" color={COLORS.emerald} styles={styles} />
                   <AdKpi value={pulseAgg.users} label="Utilisateurs" color="#60a5fa" styles={styles} />
-                  <AdKpi value={`${pulseAgg.allGreenPct}%`} label="Tout au vert" color="#22c55e" styles={styles} />
                   <AdKpi value={`${pulseAgg.estimatedPct}%`} label="Chiffres douteux" color="#f59e0b" styles={styles} />
                 </View>
                 {pulseAgg.signals.length > 0 ? (
                   <View style={{ marginTop: 6 }}>
-                    <Text style={styles.sectionHint}>Taux de « au vert » par signal (le plus bas en premier)</Text>
+                    <Text style={styles.sectionHint}>Signaux servis (nombre de bilans qui les contiennent)</Text>
                     <View style={{ marginTop: 8 }}>
                       {pulseAgg.signals.map((s) => (
                         <HBar
                           key={s.label}
                           label={s.label}
-                          value={s.judged}
-                          sub={`${s.pct}% au vert`}
-                          max={pulseAgg.maxJudged}
-                          color={s.pct >= 60 ? COLORS.green : s.pct >= 30 ? COLORS.orange : COLORS.danger}
+                          value={s.count}
+                          max={pulseAgg.maxCount}
+                          color={COLORS.emerald}
                           styles={styles}
                           c={COLORS}
                         />
@@ -271,7 +260,7 @@ export default function StatsHub() {
                     </View>
                   </View>
                 ) : (
-                  <Text style={styles.empty}>Aucun bilan sur cette période (les bilans s'archivent quand l'utilisateur consulte son Point).</Text>
+                  <Text style={styles.empty}>Aucun bilan sur cette période (les bilans s'archivent à la fermeture de l'état des lieux).</Text>
                 )}
               </Section>
 

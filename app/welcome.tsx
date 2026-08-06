@@ -13,6 +13,7 @@ import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
 import { signalAppReady } from '../lib/splashGate';
 import LandingPage from '../components/LandingPage';
 import PlayStoreBadge from '../components/PlayStoreBadge';
+import SocialLinks from '../components/SocialLinks';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,10 @@ export default function WelcomeScreen() {
   const { width: winWidth } = useWindowDimensions();
   const { data: landing } = useLandingConfig();
   const L = landing ?? DEFAULT_LANDING; // config admin (avec défauts) → rien en dur sur l'accueil mobile
+  // Bas de page : badge store (web seulement) et réseaux sociaux — on ne pose la rangée que s'il
+  // y a réellement quelque chose dedans.
+  const showStoreBadge = Platform.OS === 'web' && !!L.androidStoreUrl;
+  const hasSocials = !!L.socials?.enabled && (L.socials.items ?? []).some((s) => (s.url ?? '').trim().length > 0);
   const featColors = [COLORS.emerald, COLORS.accent, COLORS.text, COLORS.emerald];
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -166,10 +171,13 @@ export default function WelcomeScreen() {
             ))}
           </Animated.View>
 
-          {/* Badge Play Store — en bas de la page ; web uniquement (redondant dans l'app native). */}
-          {Platform.OS === 'web' && !!L.androidStoreUrl && (
+          {/* Bas de page : le badge Play Store (web uniquement — redondant dans l'app native) et
+              les réseaux sociaux. En web mobile ils cohabitent sur la même rangée ; dans l'app
+              native, les réseaux sont seuls. Rien à montrer → pas de rangée vide. */}
+          {(showStoreBadge || hasSocials) && (
             <View style={styles.storeBadgeRow}>
-              <PlayStoreBadge url={L.androidStoreUrl} size="sm" />
+              {showStoreBadge && <PlayStoreBadge url={L.androidStoreUrl} size="sm" />}
+              <SocialLinks config={L.socials} color={COLORS.textSecondary} align="center" />
             </View>
           )}
 
@@ -293,7 +301,8 @@ function makeStyles(c: any) {
     width: '100%',
     gap: 12,
   },
-  storeBadgeRow: { marginTop: 28, alignItems: 'center' },
+  // Badge Play Store + réseaux : côte à côte s'il y a la place, l'un sous l'autre sinon.
+  storeBadgeRow: { marginTop: 28, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 14 },
   primaryBtn: {
     backgroundColor: c.emerald,
     paddingVertical: 16,

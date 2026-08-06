@@ -1,19 +1,22 @@
 /**
- * POULS — le « live » : ce qui bouge quand l'utilisateur enregistre une opération.
+ * LE « LIVE » — ce qui bouge quand l'utilisateur enregistre une opération.
  * ──────────────────────────────────────────────────────────────────────────────
  * Après chaque saisie (dépense, recette, virement), on lui montre :
  *   1. l'EFFET DIRECT de son geste (« Épargne : +200 € ») — affiché immédiatement, sans attendre ;
  *   2. l'impact sur son RELYKA (la métrique n°1 de l'app) ;
- *   3. le SIGNAL du Pouls que ce geste vient de faire bouger — avec sa barre, son nouveau constat
- *      et son état. Une dépense montre l'enveloppe du mois, un virement d'épargne montre le matelas…
- *      Un seul signal : celui que l'opération concerne, jamais la liste complète.
+ *   3. son solde de FIN DE MOIS recalculé.
  *
  * Rien ne disparaît tout seul : l'utilisateur ferme au tap ou en balayant vers le haut.
  */
 
-import type { PulseResult, PulseStatus, PulseSignal, PulseSignalId } from './pulseEngine';
-
 export type PulseAccountType = 'checking' | 'savings' | 'investment' | string;
+
+/**
+ * Teinte d'une pastille de confirmation. Elle décrit le GESTE qu'on vient d'enregistrer
+ * (de l'argent entre, de l'argent sort, le compte passerait dans le rouge) — ce n'est PAS un
+ * jugement de l'état des lieux, qui lui n'a plus ni statut ni couleur.
+ */
+export type PulseTone = 'positive' | 'neutral' | 'caution' | 'negative';
 
 export interface PulseOp {
   kind: 'expense' | 'income' | 'transfer';
@@ -45,13 +48,11 @@ export interface PulseOp {
 export interface PulseDeltaChip {
   key: string;
   text: string;
-  tone: PulseStatus;
+  tone: PulseTone;
 }
 
 export interface PulseFeedback {
   chips: PulseDeltaChip[];
-  /** Le signal que cette opération vient de faire bouger (null = rien de pertinent à montrer). */
-  signal: PulseSignal | null;
   /** Solde projeté au 1er du mois suivant, recalculé PAR ARITHMÉTIQUE (cf. computeEndOfMonth). */
   endOfMonth: EndOfMonthPreview | null;
 }
@@ -161,17 +162,16 @@ function directChip(op: PulseOp): PulseDeltaChip {
     return {
       key: 'direct',
       text: op.isFuture ? `Recette prévue : +${eur(amount)}` : `${accountLabel} : +${eur(amount)}`,
-      tone: 'good',
+      tone: 'positive',
     };
   }
 
   if (op.kind === 'expense') {
     // Sortie directe sur l'épargne ou l'invest (moins-value, retrait) : on nomme le compte.
     if (op.accountType === 'savings' || op.accountType === 'investment') {
-      return { key: 'direct', text: `${accountLabel} : −${eur(amount)}`, tone: 'watch' };
+      return { key: 'direct', text: `${accountLabel} : −${eur(amount)}`, tone: 'caution' };
     }
-    // Constat, pas jugement : une dépense normale n'a pas à s'afficher en orange.
-    // C'est le signal « Dépenses du mois » en dessous qui dit si ça dérape.
+    // Constat : une dépense normale n'a pas à s'afficher en orange.
     return {
       key: 'direct',
       text: op.isFuture ? `Dépense prévue : −${eur(amount)}` : `Dépense : −${eur(amount)}`,
@@ -180,13 +180,13 @@ function directChip(op: PulseOp): PulseDeltaChip {
   }
 
   // Virement : ce qui compte, c'est OÙ va l'argent.
-  if (op.toType === 'savings') return { key: 'direct', text: `Épargne : +${eur(amount)}`, tone: 'good' };
-  if (op.toType === 'investment') return { key: 'direct', text: `Investi : +${eur(amount)}`, tone: 'good' };
+  if (op.toType === 'savings') return { key: 'direct', text: `Épargne : +${eur(amount)}`, tone: 'positive' };
+  if (op.toType === 'investment') return { key: 'direct', text: `Investi : +${eur(amount)}`, tone: 'positive' };
   if (op.fromType === 'savings' || op.fromType === 'investment') {
     return {
       key: 'direct',
       text: `${eur(amount)} repris sur ton ${op.fromType === 'savings' ? 'épargne' : 'investissement'}`,
-      tone: 'watch',
+      tone: 'caution',
     };
   }
   // Courant → courant : l'argent ne quitte pas le budget du quotidien.
@@ -207,97 +207,23 @@ function relykaChip(before: number | null, after: number | null): PulseDeltaChip
   return {
     key: 'relyka',
     text: `Ton Relyka : ${eur(after)}`,
-    tone: after <= 0 ? 'alert' : diff < 0 ? 'watch' : 'good',
+    tone: after <= 0 ? 'negative' : diff < 0 ? 'caution' : 'positive',
   };
-}
-
-/**
- * Quel signal cette opération fait-elle bouger ? (par ordre de préférence — on prend le premier que
- * le profil de l'utilisateur affiche réellement : inutile de parler d'investissement à un débutant).
- */
-function impactedSignalIds(op: PulseOp): PulseSignalId[] {
-  // Opération DATÉE PLUS TARD : rien n'a encore bougé aujourd'hui (montrer « Investissement du
-  // mois : rien de placé » juste après avoir planifié un virement serait contradictoire).
-  // Seule la projection de fin de mois est déjà impactée.
-  if (op.isFuture) return ['end_of_month'];
-
-  if (op.kind === 'income') return ['end_of_month', 'spending'];
-  if (op.kind === 'expense') {
-    // Sortie directe sur l'épargne (retrait) → c'est le MATELAS qui bouge, pas l'enveloppe
-    // variable ; sur l'invest (moins-value/retrait) → la carte investissement (total investi).
-    if (op.accountType === 'savings') return ['cushion', 'end_of_month'];
-    if (op.accountType === 'investment') return ['investing', 'end_of_month'];
-    return ['spending', 'end_of_month'];
-  }
-
-  // Virement : la carte reflète OÙ va l'argent — épargne → « Épargne du mois », invest →
-  // « Investissement du mois ». Courant → courant : rien ne bouge côté épargne/invest, on garde
-  // « Fin de mois » (le seul repère pertinent d'un déplacement dans le budget du quotidien).
-  if (op.toType === 'savings') return ['saving', 'cushion', 'end_of_month'];
-  if (op.toType === 'investment') return ['investing', 'end_of_month'];
-  if (op.fromType === 'savings' || op.fromType === 'investment') return ['cushion', 'end_of_month'];
-  return ['end_of_month']; // courant → courant
-}
-
-/**
- * Signaux dont un CHANGEMENT D'ÉTAT mérite une pastille pour CE geste : uniquement ceux que le
- * geste affecte par nature. Sans ce filtre, les effets DÉRIVÉS de la capacité théorique remontent —
- * ex. une dépense réduit le budget libre → la capacité d'investissement baisse → « Investissement
- * du mois : Bon rythme » s'affiche après une DÉPENSE (dépenser « améliorerait » l'invest, absurde).
- */
-function relevantFlipIds(op: PulseOp): Set<PulseSignalId> {
-  if (op.kind === 'expense') {
-    return new Set<PulseSignalId>(
-      op.accountType === 'savings' ? ['cushion', 'end_of_month']
-      : op.accountType === 'investment' ? ['investing', 'end_of_month']
-      : ['spending', 'end_of_month', 'no_overdraft'],
-    );
-  }
-  if (op.kind === 'income') return new Set<PulseSignalId>(['end_of_month', 'no_overdraft']);
-  // Virement : épargne/invest/matelas + fin de mois, selon les jambes.
-  return new Set<PulseSignalId>(['saving', 'investing', 'cushion', 'end_of_month']);
 }
 
 const MAX_CHIPS = 3;
 
 /**
- * Carte EN ATTENTE : même signal, même gabarit (libellé, emoji, lignes, barre), mais valeurs en
- * tirets tant que les chiffres recalculés ne sont pas sûrs. Elle apparaît donc INSTANTANÉMENT avec
- * la saisie, puis se remplit sur place — jamais de valeur fausse, jamais de saut de mise en page.
- */
-function pendingSignal(before: PulseResult | null, op: PulseOp): PulseSignal | null {
-  if (!before) return null;
-  for (const id of impactedSignalIds(op)) {
-    const s = before.signals.find((x) => x.id === id);
-    if (!s) continue;
-    return {
-      id: s.id,
-      label: s.label,
-      emoji: s.emoji,
-      status: 'neutral',                       // aucun jugement sur des chiffres non confirmés
-      headline: '—',
-      detail: s.detail ? '—' : undefined,      // on garde les MÊMES lignes que la carte finale
-      amountLine: s.amountLine ? '—' : undefined,
-      chip: '…',
-      progress: s.progress ? { value: 0 } : undefined, // barre vide (aucun remplissage trompeur)
-      pending: true,
-    };
-  }
-  return null;
-}
-
-/**
- * Retour à afficher pour une opération. `before`/`after` = le Pouls avant et après la saisie.
- * `after` null = chiffres recalculés pas encore sûrs → la carte s'affiche quand même, dans son
- * gabarit définitif avec des tirets (cf. pendingSignal), et se remplit dès que `after` arrive.
+ * Retour à afficher pour une opération : l'effet direct (toujours exact, affiché sans attendre),
+ * le Relyka recalculé, et le solde de fin de mois.
+ * `relykaAfter` null = chiffres recalculés pas encore sûrs → la pastille garde un tiret et se
+ * remplit dès qu'ils arrivent (la carte a sa forme définitive dès l'ouverture).
  */
 export function computeOpFeedback(
   op: PulseOp,
-  before: PulseResult | null,
-  after: PulseResult | null,
   relykaBefore: number | null,
   relykaAfter: number | null,
-  /** Solde projeté au 1er du mois suivant : AVANT la saisie, APRÈS recalcul (`after`, null tant que
+  /** Solde projeté au 1er du mois suivant : AVANT la saisie, APRÈS recalcul (null tant que
    *  les données ne sont pas fraîches), marge de sécurité et enveloppe variable restante d'avant. */
   endOfMonth?: {
     before: number | null;
@@ -311,31 +237,6 @@ export function computeOpFeedback(
 
   const relyka = relykaChip(relykaBefore, relykaAfter);
   if (relyka) chips.push(relyka);
-
-  let signal: PulseSignal | null = pendingSignal(before, op); // gabarit immédiat (tirets)
-  if (after) {
-    for (const id of impactedSignalIds(op)) {
-      const found = after.signals.find((s) => s.id === id);
-      if (found) { signal = found; break; }
-    }
-    // Le geste a fait basculer un AUTRE signal (ex. une grosse dépense fait passer la fin de mois
-    // dans le rouge) → on le dit aussi, en pastille : c'est exactement l'info qui doit alerter.
-    // Filtré aux signaux que CE geste affecte par nature (relevantFlipIds) : les bascules dérivées
-    // de la capacité théorique (invest/épargne après une dépense…) sont du bruit, pas une info.
-    if (before) {
-      const relevant = relevantFlipIds(op);
-      const beforeById = new Map(before.signals.map((s) => [s.id, s]));
-      for (const s of after.signals) {
-        if (chips.length >= MAX_CHIPS) break;
-        if (s.id === signal?.id) continue;
-        if (!relevant.has(s.id)) continue;
-        const prev = beforeById.get(s.id);
-        if (!prev || prev.status === s.status) continue;
-        if (s.status === 'estimated' || s.status === 'neutral') continue;
-        chips.push({ key: `signal:${s.id}`, text: `${s.emoji} ${s.label} : ${s.chip}`, tone: s.status });
-      }
-    }
-  }
 
   // Fin de mois : estimée sur place (jamais attendue), puis REMPLACÉE par le solde recalculé dès
   // qu'il est frais — c'est lui qui fait foi, quelle que soit la situation de saisie (régularisation
@@ -358,5 +259,5 @@ export function computeOpFeedback(
     };
   }
 
-  return { chips: chips.slice(0, MAX_CHIPS), signal, endOfMonth: endOfMonthPreview };
+  return { chips: chips.slice(0, MAX_CHIPS), endOfMonth: endOfMonthPreview };
 }

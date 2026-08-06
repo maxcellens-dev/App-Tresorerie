@@ -298,7 +298,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
            demande explicitement. L'ouverture automatique reste le chemin des lancements suivants.
            Le petit délai laisse la modale se refermer et les données se rafraîchir. */
         if (closeKey === addMonthKey(ym(new Date()), -1)) {
-          setTimeout(() => openPulse('month'), 450);
+          setTimeout(() => openPulse(), 450);
         }
       }
     } catch (e) {

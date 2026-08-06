@@ -13,6 +13,36 @@ export interface LandingFeature { icon: string; title: string; text: string }
 export interface LandingStat { value: string; label: string }
 export interface LandingLink { label: string; anchor?: string; url?: string }
 
+/**
+ * RÉSEAU SOCIAL — un lien du pied de page (web bureau) et du bas de l'écran d'accueil (mobile).
+ * L'ordre du tableau EST l'ordre d'affichage.
+ */
+export interface LandingSocial {
+  /** Libellé accessible (« Instagram ») — lu par les lecteurs d'écran, jamais affiché. */
+  label: string;
+  /** URL complète (https://…) ou mailto:. Vide = l'entrée est ignorée. */
+  url: string;
+  /** Nom d'icône Ionicons (ex. `logo-instagram`). Ignoré si une image est téléversée. */
+  icon: string;
+  /** Image téléversée (URL publique). Prioritaire sur `icon` — pour les réseaux sans logo Ionicons. */
+  image?: string;
+}
+
+/** Réglages d'affichage de la rangée de réseaux (communs bureau + mobile). */
+export interface LandingSocials {
+  /** Masque toute la rangée sans perdre la configuration. */
+  enabled: boolean;
+  /** Taille de l'icône, en points (16 → 40). */
+  size: number;
+  /** Alignement horizontal dans le pied de page bureau (le mobile est toujours centré). */
+  align: 'left' | 'center' | 'right';
+  /** Avant ou après les liens du pied de page (bureau). */
+  position: 'above' | 'below';
+  /** Habillage de l'icône. */
+  shape: 'plain' | 'circle' | 'square';
+  items: LandingSocial[];
+}
+
 export interface LandingConfig {
   /** Activer la landing desktop (sinon écran d'accueil classique partout). */
   enabled: boolean;
@@ -41,6 +71,8 @@ export interface LandingConfig {
   finalSubtitle: string;
   footerText: string;
   footerLinks: LandingLink[];
+  /** Réseaux sociaux — pied de page bureau ET bas de l'écran d'accueil mobile. */
+  socials: LandingSocials;
   // ── Écran d'accueil MOBILE (app native + web étroit) — textes propres, éditables en admin. ──
   mobileTagline: string;
   mobileSubtag: string;
@@ -94,6 +126,8 @@ export const DEFAULT_LANDING: LandingConfig = {
     { label: 'Confidentialité', anchor: 'confidentialite' },
     { label: 'Mentions légales', anchor: 'legal' },
   ],
+  // Aucun réseau par défaut : la rangée n'apparaît que si l'admin en ajoute au moins un.
+  socials: { enabled: true, size: 22, align: 'center', position: 'below', shape: 'circle', items: [] },
   // ── Défauts de l'accueil mobile (reprennent les textes actuels de l'écran welcome). ──
   mobileTagline: 'Sache toujours combien tu peux dépenser — sans tableur, sans stress.',
   mobileSubtag: 'Ton budget · Ta projection · Ta sérénité',
@@ -121,6 +155,8 @@ export function mergeLanding(stored: Partial<LandingConfig> | undefined): Landin
     features: stored.features && stored.features.length > 0 ? stored.features : DEFAULT_LANDING.features,
     stats: stored.stats ?? DEFAULT_LANDING.stats,
     footerLinks: stored.footerLinks ?? DEFAULT_LANDING.footerLinks,
+    // Champ par champ : une config enregistrée avant l'ajout des réseaux reste valide.
+    socials: { ...DEFAULT_LANDING.socials, ...(stored.socials ?? {}), items: stored.socials?.items ?? [] },
     mobileFeatures: stored.mobileFeatures && stored.mobileFeatures.length > 0 ? stored.mobileFeatures : DEFAULT_LANDING.mobileFeatures,
   };
 }

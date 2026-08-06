@@ -1,16 +1,20 @@
 /**
- * Admin — LE POULS.
- *  • Activation globale + les trois temps (live / hebdo / mensuel).
- *  • Signaux retenus PAR PROFIL P1–P5 (l'ordre d'affichage est celui de la sélection).
- *  • Repères par profil (matelas visé, taux d'épargne, part de la capacité d'investissement).
- *  • Notification hebdo : rien ici — c'est une notification PLANIFIÉE récurrente « Hebdo »
- *    (Admin → Notifications → Planifier), envoyée par send-scheduled-notifications via le cron.
- *  • Aperçu du rendu réel (ouvre le vrai Pouls, sans consommer la période de l'utilisateur).
+ * Admin — L'ÉTAT DES LIEUX.
+ *  • Activation globale + les deux temps (live / mensuel).
+ *  • Signaux retenus PAR PROFIL P1–P5 (l'ordre de sélection est l'ordre d'affichage).
+ *  • Aperçu du rendu réel (ouvre le vrai bilan, sans consommer le mois de l'utilisateur).
  *
- * Stocké dans app_config.pulse (migration 140).
+ * ⚠️ PLUS AUCUN JUGEMENT. Il n'y a plus ni « repères » par profil (matelas visé, taux d'épargne,
+ * part de la capacité d'investissement), ni couleurs d'état (vert / orange / rouge) : le bilan
+ * donne une VISION d'un mois donné, il ne distribue pas de bons points. Les succès « mois au
+ * vert » ont été retirés en conséquence.
+ *
+ * Le « point de la semaine » a été supprimé (rendez-vous unique : le mensuel).
+ *
+ * Stocké dans app_config.pulse (migrations 140 → 171).
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,18 +29,15 @@ import { usePulseConfig, useSavePulseConfig } from '../../../../hooks/usePulseCo
 import { openPulse } from '../../../../components/PulseHost';
 import {
   PULSE_SIGNAL_IDS, PULSE_SIGNAL_LABELS, DEFAULT_PULSE_CONFIG,
-  type PulseConfig, type PulseSignalId, type PulseBenchmark,
+  type PulseConfig, type PulseSignalId,
 } from '../../../../lib/pulseEngine';
 import { PROFILE_INFO } from '../../../../lib/financialProfileEngine';
 import type { FinancialProfileId } from '../../../../types/database';
 
 const PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
 
-const BENCHMARK_FIELDS: { key: keyof PulseBenchmark; label: string; help: string }[] = [
-  { key: 'cushionMonths', label: 'Matelas visé (mois)', help: 'Nombre de mois de revenus que l’épargne doit couvrir pour être « au vert ».' },
-  { key: 'savingRatePct', label: 'Épargne du mois (% des revenus)', help: 'Part des revenus à mettre de côté chaque mois. 0 = le signal n’est plus jugé (profil qui n’a plus à épargner).' },
-  { key: 'investOfCapacityPct', label: 'Investissement (% de la capacité)', help: 'Part de la capacité d’investissement du mois à utiliser pour être « au vert ». 0 = signal non jugé.' },
-];
+/** Signaux TOUJOURS présents en tête du bilan (ils composent la carte de récapitulatif). */
+const ALWAYS_ON: PulseSignalId[] = ['spending', 'cushion'];
 
 export default function AdminPouls() {
   const COLORS = useAppColors();
@@ -65,20 +66,8 @@ export default function AdminPouls() {
     const next = current.includes(signal)
       ? current.filter((s) => s !== signal)
       : [...current, signal];                       // ajouté à la fin → l'ordre de sélection = l'ordre d'affichage
-    if (next.length === 0) return;                  // un profil sans aucun signal n'aurait pas de Pouls
+    if (next.length === 0) return;                  // un profil sans aucun signal n'aurait pas de bilan
     patch({ signalsByProfile: { ...draft.signalsByProfile, [profile]: next } });
-  };
-
-  const setBenchmark = (profile: FinancialProfileId, key: keyof PulseBenchmark, raw: string) => {
-    if (!draft) return;
-    const value = parseFloat(raw.replace(',', '.'));
-    if (Number.isNaN(value) || value < 0) return;
-    patch({
-      benchmarks: {
-        ...draft.benchmarks,
-        [profile]: { ...draft.benchmarks[profile], [key]: value },
-      },
-    });
   };
 
   const save = () => {
@@ -93,7 +82,7 @@ export default function AdminPouls() {
       <View style={styles.root}>
         <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-          <ScreenHeader title="Le Point" onBack={goBack} />
+          <ScreenHeader title="État des lieux" onBack={goBack} />
           <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />
         </SafeAreaView>
       </View>
@@ -105,107 +94,62 @@ export default function AdminPouls() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <ScreenHeader title="Le Point" onBack={goBack} />
+        <ScreenHeader title="État des lieux" onBack={goBack} />
 
         <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
           <Text style={styles.p}>
-            L’état des lieux de la santé financière : des constats jugés par des repères liés au profil
-            P1–P5. Aucun objectif n’est demandé à l’utilisateur — tout vient d’ici.
+            Le bilan du mois écoulé : des constats chiffrés, posés côte à côte. Aucun objectif n’est
+            demandé à l’utilisateur, et rien n’est jugé — pas de vert, pas de rouge, pas de note.
           </Text>
 
-          {/* ── Les trois temps ── */}
+          {/* ── Les deux temps ── */}
           <Text style={styles.h2}>Quand ça apparaît</Text>
           <View style={styles.card}>
             <ToggleRow
               styles={styles} COLORS={COLORS}
-              label="Le Point est actif"
-              help="Désactivé : plus aucun Point nulle part (pastille, cartes, pastilles de saisie)."
+              label="L’état des lieux est actif"
+              help="Désactivé : plus aucun bilan nulle part (rendez-vous mensuel, carte de confirmation de saisie)."
               value={draft.enabled}
               onChange={(v) => patch({ enabled: v })}
             />
             <ToggleRow
               styles={styles} COLORS={COLORS}
               label="À chaque saisie"
-              help="Les pastilles « ce qui vient de bouger » après une dépense, une recette ou un virement."
+              help="La carte « C’est enregistré » après une dépense, une recette ou un virement : l’effet direct, le Relyka et le solde de fin de mois."
               value={draft.live}
               onChange={(v) => patch({ live: v })}
             />
             <ToggleRow
               styles={styles} COLORS={COLORS}
-              label="Point de la semaine"
-              help="Carte LÉGÈRE (3 signaux max : dépenses, fin de mois + le signal du mois du profil), à la 1ʳᵉ ouverture de la semaine."
-              value={draft.weekly}
-              onChange={(v) => patch({ weekly: v })}
-            />
-            <ToggleRow
-              styles={styles} COLORS={COLORS}
               label="État des lieux du mois"
-              help="Le bilan du mois écoulé. Il n’arrive PAS le 1er : il attend que l’utilisateur ait clôturé tous ses mois en attente — sinon il porterait un jugement sur des chiffres qu’il n’a pas encore vérifiés. Tant qu’il est dû, l’hebdo se tait."
+              help="Le bilan du mois écoulé. Il n’arrive PAS le 1er : il attend que l’utilisateur ait clôturé tous ses mois en attente — sinon il porterait sur des chiffres qu’il n’a pas encore vérifiés."
               value={draft.monthly}
               onChange={(v) => patch({ monthly: v })}
               last
             />
           </View>
 
-          <View style={styles.previewRow}>
-            <TouchableOpacity style={styles.previewBtn} onPress={() => openPulse('week', false)}>
-              <Ionicons name="eye-outline" size={15} color={COLORS.emerald} />
-              <Text style={styles.previewTxt}>Voir le Point hebdo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.previewBtn} onPress={() => openPulse('month', false)}>
-              <Ionicons name="eye-outline" size={15} color={COLORS.emerald} />
-              <Text style={styles.previewTxt}>Voir l’état des lieux</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.previewBtn} onPress={() => openPulse(false)}>
+            <Ionicons name="eye-outline" size={15} color={COLORS.emerald} />
+            <Text style={styles.previewTxt}>Voir l’état des lieux</Text>
+          </TouchableOpacity>
           <Text style={styles.note}>
-            L’aperçu ouvre le VRAI Point sur ton propre compte, sans consommer la période (le rendez-vous
+            L’aperçu ouvre le VRAI bilan sur ton propre compte, sans consommer le mois (le rendez-vous
             de l’utilisateur arrivera quand même).
           </Text>
 
-          {/* ── Signaux & repères par profil ── */}
-          <Text style={styles.h2}>Signaux & repères, par profil</Text>
-          <Text style={styles.p}>
-            Un débutant n’est pas jugé sur l’investissement ; un profil confirmé n’a plus à prouver qu’il
-            épargne. Choisis ce qui est montré à chacun — l’ordre de sélection est l’ordre d’affichage.
-          </Text>
-          {/* Deux vues ont un ordre IMPOSÉ : le dire ici évite de chercher pourquoi réordonner les
-              signaux « ne change rien » sur ces deux-là. */}
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
-            <Text style={styles.infoTxt}>
-              Ta sélection s’applique à l’<Text style={{ fontWeight: '700' }}>état des lieux à la demande</Text>
-              {' '}(la pastille du Pilotage). Les deux rendez-vous automatiques, eux, ont une composition
-              fixe décrite ci-dessous — ils répondent à une question précise, pas à un catalogue.
-            </Text>
-          </View>
-
-          {/* ── Ce que contient CHAQUE rendez-vous ────────────────────────────────────────────── */}
-          <Text style={styles.h2}>Ce que contient chaque rendez-vous</Text>
-
+          {/* ── Ce que contient le rendez-vous ────────────────────────────────────────────────── */}
+          <Text style={styles.h2}>Ce que contient le bilan</Text>
           <View style={styles.card}>
-            <Text style={styles.blockLabel}>🗓️ Point de la semaine — inchangé</Text>
             <Text style={styles.p}>
-              Volontairement léger : l’anneau (épargné + investi du mois vs capacité), puis 3 signaux au
-              maximum — <Text style={styles.strong}>Dépenses variables</Text>,{' '}
-              <Text style={styles.strong}>Fin de mois</Text>, et le signal « du mois » du profil
-              (épargne ou investissement). Il ne s’ouvre pas si un bilan mensuel est dû.
-            </Text>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.blockLabel}>📊 État des lieux du mois — après la clôture</Text>
-            <Text style={styles.p}>
-              <Text style={styles.strong}>Exactement la forme du point de la semaine</Text> : l’anneau
-              et, à côté, les repères en lignes compactes — le tout dans UNE seule carte. Mais sur les
-              chiffres du <Text style={styles.strong}>mois écoulé</Text> et non « à date » : épargné,
-              investi et dépensé de CE mois-là.
+              Les chiffres portent sur le <Text style={styles.strong}>mois écoulé</Text> (et non « à
+              date ») : dépensé, mis de côté, placé et conservé de CE mois-là. Les signaux qui
+              décrivent un état — matelas, patrimoine, fin de mois — restent, eux, à date.
             </Text>
             {[
-              ['1', 'Une carte unique', 'l’anneau, deux lignes (dépenses variables, matelas de sécurité), et la légende : mis de côté · placé · conservé'],
-              ['2', 'Le matelas y remplace « Fin de mois »', 'une fois le mois fini, ce qui compte n’est plus ce qu’il reste à tenir mais l’état de la réserve'],
-              ['3', 'Épargne et Investissement n’ont PAS de carte', 'l’anneau et la légende les disent déjà — une carte de plus répéterait les mêmes montants'],
-              ['4', 'Ton projet', 'sa carte habituelle, et seulement s’il y a un projet en cours'],
-              ['5', 'Fin de mois', 'sa carte habituelle, puis le reste de ta sélection ci-dessous'],
+              ['1', 'Une carte de récapitulatif', 'l’anneau (mis de côté · placé · conservé), et à côté deux lignes : dépenses variables, matelas de sécurité'],
+              ['2', 'Ton projet', 'sa carte habituelle, et seulement s’il y a un projet en cours'],
+              ['3', 'Fin de mois', 'sa carte habituelle, puis le reste de ta sélection ci-dessous'],
             ].map(([n, t, d]) => (
               <View key={n} style={styles.stepRow}>
                 <View style={styles.stepNum}><Text style={styles.stepNumTxt}>{n}</Text></View>
@@ -215,10 +159,18 @@ export default function AdminPouls() {
               </View>
             ))}
             <Text style={styles.note}>
-              Il n’arrive PAS le 1er du mois : tant qu’un mois reste à clôturer, il attend. Sinon il
-              jugerait des chiffres que l’utilisateur n’a pas encore vérifiés.
+              « Dépenses variables » et « Matelas de sécurité » ouvrent toujours le bilan, quel que
+              soit le profil : ce sont les deux lignes de la carte de récapitulatif.
             </Text>
           </View>
+
+          {/* ── Signaux par profil ── */}
+          <Text style={styles.h2}>Signaux, par profil</Text>
+          <Text style={styles.p}>
+            Le patrimoine ne parle qu’à ceux qui en ont un ; un débutant a plus besoin de savoir où il
+            finira le mois. Choisis ce qui est montré à chacun — l’ordre de sélection est l’ordre
+            d’affichage, après la carte de récapitulatif.
+          </Text>
 
           <View style={styles.tabs}>
             {PROFILES.map((p) => {
@@ -245,6 +197,7 @@ export default function AdminPouls() {
                 const list = draft.signalsByProfile[openProfile] ?? [];
                 const index = list.indexOf(id);
                 const on = index >= 0;
+                const always = ALWAYS_ON.includes(id);
                 return (
                   <TouchableOpacity
                     key={id}
@@ -255,32 +208,12 @@ export default function AdminPouls() {
                     <Text style={[styles.signalTxt, on && { color: COLORS.text, fontWeight: '700' }]}>
                       {PULSE_SIGNAL_LABELS[id]}
                     </Text>
+                    {always && <Text style={styles.alwaysTxt}>toujours affiché</Text>}
                   </TouchableOpacity>
                 );
               })}
             </View>
-
-            <Text style={styles.blockLabel}>Repères</Text>
-            {BENCHMARK_FIELDS.map((field) => (
-              <View key={field.key} style={styles.field}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>{field.label}</Text>
-                  <Text style={styles.fieldHelp}>{field.help}</Text>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  value={String(draft.benchmarks[openProfile][field.key])}
-                  onChangeText={(v) => setBenchmark(openProfile, field.key, v)}
-                  keyboardType="decimal-pad"
-                  selectTextOnFocus
-                />
-              </View>
-            ))}
           </View>
-
-          {/* NB : plus de section « Notification hebdomadaire » ici — le push hebdo du Point est une
-              notification PLANIFIÉE récurrente (admin Notifications → Planifier), envoyée par le
-              cron serveur comme la mensuelle. Une seule commande, pas de double config. */}
 
           {/* ── Enregistrement ── */}
           <View style={styles.actions}>
@@ -331,11 +264,6 @@ function makeStyles(c: AppColors) {
     h2: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 24, marginBottom: 8 },
     p: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 10 },
     note: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic', marginTop: 8 },
-    infoBox: {
-      flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12,
-      borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card, padding: 12,
-    },
-    infoTxt: { flex: 1, fontSize: 11.5, color: c.textSecondary, lineHeight: 17 },
     strong: { fontWeight: '700', color: c.text },
     stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, marginTop: 8 },
     stepNum: {
@@ -348,9 +276,8 @@ function makeStyles(c: AppColors) {
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
     fieldLabel: { fontSize: 14, fontWeight: '700', color: c.text },
     fieldHelp: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
-    previewRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
     previewBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10,
       borderWidth: 1, borderColor: c.emerald, borderRadius: 12, paddingVertical: 11,
     },
     previewTxt: { fontSize: 12.5, fontWeight: '800', color: c.emerald },
@@ -368,11 +295,7 @@ function makeStyles(c: AppColors) {
     orderBadge: { width: 19, height: 19, borderRadius: 999, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
     orderTxt: { fontSize: 10.5, fontWeight: '800', color: c.bg },
     signalTxt: { flex: 1, fontSize: 13, color: c.textSecondary },
-    field: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.cardBorder },
-    input: {
-      width: 76, backgroundColor: c.cardSolid, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
-      paddingHorizontal: 10, paddingVertical: 9, fontSize: 15, fontWeight: '700', color: c.text, textAlign: 'center',
-    },
+    alwaysTxt: { fontSize: 10, fontWeight: '700', color: c.textSecondary, fontStyle: 'italic' },
     actions: { flexDirection: 'row', gap: 10, marginTop: 26 },
     resetBtn: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder },
     resetTxt: { fontSize: 14, fontWeight: '700', color: c.textSecondary },

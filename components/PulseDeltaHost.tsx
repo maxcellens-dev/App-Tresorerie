@@ -1,13 +1,12 @@
 /**
- * POULS — le « live ». Monté UNE fois au niveau racine : la réponse apparaît dès qu'une opération
+ * LE « LIVE ». Monté UNE fois au niveau racine : la réponse apparaît dès qu'une opération
  * est enregistrée, quel que soit l'écran d'où l'utilisateur a validé.
  *
  * Apparition IMMÉDIATE, remplissage sur place : la carte se montre à l'instant de la saisie avec
- * l'EFFET DIRECT (toujours exact : « Dépense : −100 € ») ET le gabarit définitif du signal impacté
- * — libellé, lignes et barre présents, valeurs en TIRETS tant que les chiffres recalculés ne sont
- * pas sûrs (cf. pendingSignal). Ils se remplissent dès que les refetchs aboutissent : jamais de
- * valeur PÉRIMÉE affichée, et aucun saut de mise en page.
- * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 600 ms.
+ * l'EFFET DIRECT (toujours exact : « Dépense : −100 € »), le Relyka en TIRET tant que les chiffres
+ * recalculés ne sont pas sûrs, puis le solde de fin de mois. Tout se remplit dès que les refetchs
+ * aboutissent : jamais de valeur PÉRIMÉE affichée, et aucun saut de mise en page.
+ * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 180 ms.
  *
  * Fermeture : au tap (n'importe où), en balayant vers le haut, ou TOUTE SEULE au bout de 5 s —
  * la carte confirme une saisie, elle n'a rien à faire attendre : la laisser en place obligeait à
@@ -25,9 +24,20 @@ import { useCategories } from '../hooks/useCategories';
 import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../lib/pulseBus';
-import { computeOpFeedback, type PulseFeedback, type PulseOp } from '../lib/pulseDelta';
-import { pulseColor } from './PulseSignalCard';
-import type { PulseStatus } from '../lib/pulseEngine';
+import { computeOpFeedback, type PulseFeedback, type PulseOp, type PulseTone } from '../lib/pulseDelta';
+
+/**
+ * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
+ * passerait dans le rouge) — ce n'est PAS un jugement de l'état des lieux, qui lui n'a plus ni
+ * statut ni couleur. Clés SÉMANTIQUES du thème uniquement → suit le Style Editor.
+ */
+function toneColor(COLORS: AppColors, tone: PulseTone): string {
+  const key = tone === 'positive' ? 'green'
+    : tone === 'caution' ? 'orange'
+    : tone === 'negative' ? 'danger'
+    : 'blue';
+  return COLORS[key] ?? COLORS.textSecondary;
+}
 
 /** Instantané du Pouls juste avant la saisie (pour mesurer ce qui a bougé). */
 interface Pending {
@@ -73,9 +83,7 @@ function eurSigned(n: number, withSign: boolean): string {
   return v < 0 ? `−${body}` : `+${body}`;
 }
 
-/** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé.
- *  Le signal n'y figure pas : il n'est plus rendu ici (voir le commentaire dans le JSX), donc ses
- *  variations ne doivent déclencher ni re-rendu ni animation de mise en page. */
+/** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé. */
 function feedbackSignature(f: PulseFeedback): string {
   const eom = f.endOfMonth ? `eom:${f.endOfMonth.amount}:${f.endOfMonth.delta}` : '';
   return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|') + '#' + eom;
@@ -162,8 +170,6 @@ export default function PulseDeltaHost() {
     const settled = p.sawRefetch && fetchingRef.current === 0 ? pulseRef.current : null;
     const next = computeOpFeedback(
       toOp(p.event),
-      p.before?.live ?? null,
-      fresh?.live ?? null,
       p.before?.relyka ?? null,
       fresh?.relyka ?? null,
       // Fin de mois : ESTIMÉE par arithmétique depuis l'instantané d'AVANT (donc affichée tout de
@@ -289,7 +295,7 @@ export default function PulseDeltaHost() {
 
         <View style={styles.chips}>
           {feedback.chips.map((chip) => {
-            const color = pulseColor(COLORS, chip.tone);
+            const color = toneColor(COLORS, chip.tone);
             return (
               <View key={chip.key} style={[styles.chip, { backgroundColor: color + '1F', borderColor: color + '55' }]}>
                 <Text style={[styles.chipText, { color }]}>{chip.text}</Text>
@@ -298,18 +304,16 @@ export default function PulseDeltaHost() {
           })}
         </View>
 
-        {/* FIN DE MOIS — la seule info du Pouls affichée ici, parce qu'elle s'affiche SANS attendre :
-            estimation arithmétique immédiate, puis solde recalculé (cf. lib/pulseDelta). La carte de
-            signal complète, elle, s'affichait en tirets puis se remplissait en changeant de hauteur —
-            ce qui paraissait lent juste après une saisie. Le reste du Pouls est à un tap.
+        {/* FIN DE MOIS — affichée SANS attendre : estimation arithmétique immédiate, puis solde
+            recalculé (cf. lib/pulseDelta).
             Ligne affichée dès que l'opération CONCERNE ce solde (mois courant, compte courant), même
             si l'écart est nul : c'est le cas d'une dépense variable déjà provisionnée ou d'une
             opération comprise dans la régularisation du jour — le solde reste l'info attendue, seul
             le « (−X €) » disparaît, parce que rien n'a bougé. */}
         {!!feedback.endOfMonth && feedback.endOfMonth.concerns && (() => {
           const eom = feedback.endOfMonth;
-          const tone: PulseStatus = eom.negative ? 'alert' : eom.belowMargin ? 'watch' : 'good';
-          const color = pulseColor(COLORS, tone);
+          const tone: PulseTone = eom.negative ? 'negative' : eom.belowMargin ? 'caution' : 'positive';
+          const color = toneColor(COLORS, tone);
           const moved = Math.round(eom.delta) !== 0;
           return (
             <View style={[styles.eom, { borderColor: color + '55', backgroundColor: color + '14' }]}>

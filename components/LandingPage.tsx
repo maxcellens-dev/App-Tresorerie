@@ -15,6 +15,7 @@ import { useLandingConfig } from '../hooks/useLandingConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import PlayStoreBadge from './PlayStoreBadge';
+import SocialLinks from './SocialLinks';
 
 export default function LandingPage() {
   // Le mode (clair/sombre) suit app_config.landing.theme via useBrandColors.
@@ -197,6 +198,10 @@ export default function LandingPage() {
         <View style={styles.footer}>
           <Text {...APP_NAME_TEXT_PROPS} style={[styles.footerBrand, appNameFontStyle]}>{cfg.brandName}</Text>
           <Text style={styles.footerText}>{cfg.footerText}</Text>
+          {/* Réseaux sociaux — avant ou après les liens, selon le réglage admin. */}
+          {cfg.socials?.position === 'above' && (
+            <SocialLinks config={cfg.socials} color={COLORS.textSecondary} style={{ marginTop: 6 }} />
+          )}
           <View style={styles.footerLinks}>
             {cfg.footerLinks.map((l) => (
               <TouchableOpacity key={l.label} onPress={() => goAnchor(l)} activeOpacity={0.7}>
@@ -204,6 +209,9 @@ export default function LandingPage() {
               </TouchableOpacity>
             ))}
           </View>
+          {cfg.socials?.position !== 'above' && (
+            <SocialLinks config={cfg.socials} color={COLORS.textSecondary} style={{ marginTop: 6 }} />
+          )}
           <Text style={styles.footerCopy}>© {new Date().getFullYear()} {cfg.brandName}. Tous droits réservés.</Text>
         </View>
       </ScrollView>
