@@ -50,19 +50,19 @@ function TabsHeader({ desktop = false }: { desktop?: boolean }) {
     '(tabs)/(secondary)/categories': 'Catégories',
     '(tabs)/(secondary)/about': 'À propos',
     '(tabs)/(secondary)/admin': 'Admin',
-    '(tabs)/(secondary)/admin/style-editor': 'Style Editor',
-    '(tabs)/(secondary)/admin/seo-center': 'SEO Center',
-    '(tabs)/(secondary)/admin/stats-hub': 'Stats Hub',
-    '(tabs)/(secondary)/admin/suggestions': 'Suggestions',
   };
 
   const customHeaderPages = ['parametres', 'categories', 'about', 'admin'];
-  const displayTitle = titleMap[fullPath] || 'Relyka';
+  // Toute page admin porte « Admin » dans la barre du haut : son propre nom est déjà le grand
+  // titre de la page (ScreenHeader). Sans ce repli, les sous-pages non listées ci-dessus
+  // affichaient « Relyka » — un libellé sans rapport avec la page consultée.
+  const isAdminPath = fullPath.includes('admin');
+  const displayTitle = titleMap[fullPath] || (isAdminPath ? 'Admin' : 'Relyka');
   // La route `home` a été supprimée : c'était un alias du même composant que `pilotage` (deux
   // routes, deux montages, une seule page). Le Pilotage est donc l'écran d'accueil et porte le
   // titre « Tableau de bord » — plus aucune route n'utilise l'entête « Bonjour, <prénom> », qui
   // reste le repli de HeaderWithProfile quand aucun titre n'est fourni.
-  const showCustomHeader = customHeaderPages.includes(routeName) || fullPath.includes('admin');
+  const showCustomHeader = customHeaderPages.includes(routeName) || isAdminPath;
   const isReporting = fullPath === '(tabs)/reporting';
   return (
     <HeaderWithProfile
@@ -74,7 +74,7 @@ function TabsHeader({ desktop = false }: { desktop?: boolean }) {
       title={showCustomHeader ? undefined : displayTitle}
       titleBadge={isReporting && isPremium ? <PremiumStar /> : undefined}
       leftContent={
-        (showCustomHeader || fullPath.includes('admin')) ? (
+        showCustomHeader ? (
           <Text style={{ fontSize: desktop ? 22 : 20, fontWeight: desktop ? '800' : '700', color: COLORS.text, letterSpacing: desktop ? -0.6 : 0 }}>
             {displayTitle}
           </Text>

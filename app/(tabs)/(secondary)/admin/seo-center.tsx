@@ -10,6 +10,8 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
@@ -122,10 +124,10 @@ export default function AdminSeoCenter() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.back} onPress={goBack}><Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backTxt}>Retour</Text></TouchableOpacity>
+        <ScreenHeader title="SEO Center" onBack={goBack} />
         <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <Text style={styles.h1}>SEO Center</Text>
           <Text style={styles.p}>Configuration du référencement, appliquée au site web. Sur mobile, ces réglages n'ont aucun effet.</Text>
 
           {/* Aperçu résultat Google */}
@@ -199,10 +201,7 @@ export default function AdminSeoCenter() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1, paddingHorizontal: 18, paddingTop: 8 },
-    back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backTxt: { fontSize: 14, fontWeight: '600', color: c.text },
-    h1: { fontSize: 22, fontWeight: '800', color: c.text, marginTop: 4 },
+    safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19, marginBottom: 12 },
     previewCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, padding: 14, marginBottom: 16 },
     previewTag: { fontSize: 10.5, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },

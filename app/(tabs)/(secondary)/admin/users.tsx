@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -38,18 +39,15 @@ export default function AdminUsers() {
   const [tab, setTab] = useState<Tab>('users');
 
   if (!isAdmin) {
-    return <View style={s.root}><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
+    return <View style={s.root}><ScreenGradient /><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Utilisateurs" onBack={goBack} /><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
   }
 
   return (
     <View style={s.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <TouchableOpacity style={s.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={s.backText}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Utilisateurs</Text>
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Utilisateurs" onBack={goBack} />
 
         <View style={s.tabs}>
           {([['users', 'Utilisateurs'], ['groups', 'Groupes'], ['inactive', 'Inactifs']] as [Tab, string][]).map(([k, lbl]) => (
@@ -399,9 +397,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 22, fontWeight: '800', color: c.text, marginBottom: 12 },
     text: { color: c.text, padding: 20 },
 
     tabs: { flexDirection: 'row', gap: 6, marginBottom: 14 },

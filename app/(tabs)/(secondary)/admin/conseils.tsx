@@ -9,6 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
@@ -67,13 +69,9 @@ export default function AdminConseils() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={goBack} style={{ padding: 4 }}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Conseils</Text>
-        </View>
+        <ScreenHeader title="Conseils" onBack={goBack} />
         <Text style={styles.subtitle}>Gérez les conseils du jour affichés dans le Pilotage.</Text>
 
         {/* Vitesse de défilement du bandeau (secondes entre 2 conseils) */}
@@ -181,9 +179,7 @@ export default function AdminConseils() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-    pageHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-    title: { fontSize: 20, fontWeight: '800', color: c.text },
+    safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     subtitle: { fontSize: 12.5, color: c.textSecondary, marginBottom: 14, lineHeight: 17 },
     speedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
     speedLabel: { flex: 1, fontSize: 13.5, fontWeight: '600', color: c.text },

@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../components/ScreenHeader';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAppColors } from '../../../hooks/useAppColors';
 import { useResponsive } from '../../../hooks/useResponsive';
@@ -16,7 +16,6 @@ export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
-  const router = useRouter();
   const goBack = useNavBack();
   const { user } = useAuth();
   const { data: rates = [], isLoading } = useFiscalEnvelopeRates();
@@ -50,14 +49,11 @@ export default function FiscalRatesAdmin() {
 
   return (
     <View style={styles.root}>
-      <StatusBar style={COLORS.bg === '#020617' ? 'light' : 'dark'} />
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={22} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Fiscalité" onBack={goBack} />
 
-        <Text style={styles.title}>Fiscalité des investissements</Text>
         <Text style={styles.subtitle}>
           Taux par défaut dans la page Projection. Convention : taux « long terme » (PEA après 5 ans, AV après 8 ans = 17,2 % de prélèvements sociaux). L'utilisateur peut ajuster le % pour une projection courte.
         </Text>
@@ -112,9 +108,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
-    backLabel: { fontSize: 16, color: c.text },
-    title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16, lineHeight: 18 },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 100 },

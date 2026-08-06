@@ -15,6 +15,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import { useQuery } from '@tanstack/react-query';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import EmailDiagnostics from '../../../../components/admin/EmailDiagnostics';
@@ -92,7 +93,7 @@ export default function AdminEmails() {
   const clearHistory = useClearEmailHistory();
 
   if (!isAdmin) {
-    return <View style={s.root}><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
+    return <View style={s.root}><ScreenGradient /><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="E-mails" onBack={goBack} /><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
   }
 
   /** Date/heure d'envoi en ISO, ou null pour un envoi immédiat. */
@@ -184,11 +185,8 @@ export default function AdminEmails() {
     <View style={s.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <TouchableOpacity style={s.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={s.backText}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>E-mails</Text>
+      <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="E-mails" onBack={goBack} />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {/* Diagnostic E-MAIL — placé avant la rédaction : savoir combien de personnes sont
@@ -388,9 +386,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 22, fontWeight: '800', color: c.text, marginBottom: 12 },
     text: { color: c.text, padding: 20 },
     label: { fontSize: 13, fontWeight: '700', color: c.textSecondary, marginBottom: 6, marginTop: 12 },
     /* Intertitre de SECTION — en capitales, comme dans l'écran Notifications. Il fallait un niveau

@@ -9,6 +9,8 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
@@ -67,10 +69,10 @@ export default function AdminReliability() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.back} onPress={goBack}><Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backTxt}>Retour</Text></TouchableOpacity>
+        <ScreenHeader title="Fiabilité & confiance" onBack={goBack} />
         <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-          <Text style={styles.h1}>Fiabilité & confiance</Text>
           <TouchableOpacity style={styles.helpToggle} onPress={() => setShowHelp((v) => !v)}>
             <Ionicons name={showHelp ? 'chevron-down' : 'chevron-forward'} size={16} color={COLORS.emerald} />
             <Text style={styles.helpToggleTxt}>Comment ça marche ?</Text>
@@ -179,10 +181,7 @@ export default function AdminReliability() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1, paddingHorizontal: 18, paddingTop: 8 },
-    back: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backTxt: { fontSize: 14, fontWeight: '600', color: c.text },
-    h1: { fontSize: 22, fontWeight: '800', color: c.text, marginTop: 4 },
+    safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     p: { fontSize: 13, color: c.textSecondary, marginTop: 6, lineHeight: 19 },
     helpToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, alignSelf: 'flex-start' },
     helpToggleTxt: { fontSize: 13.5, fontWeight: '700', color: c.emerald },

@@ -14,6 +14,8 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
@@ -89,7 +91,9 @@ export default function AdminPouls() {
   if (!draft) {
     return (
       <View style={styles.root}>
+        <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Le Point" onBack={goBack} />
           <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />
         </SafeAreaView>
       </View>
@@ -99,14 +103,11 @@ export default function AdminPouls() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.back} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backTxt}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Le Point" onBack={goBack} />
 
         <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-          <Text style={styles.h1}>🧭 Le Point</Text>
           <Text style={styles.p}>
             L’état des lieux de la santé financière : des constats jugés par des repères liés au profil
             P1–P5. Aucun objectif n’est demandé à l’utilisateur — tout vient d’ici.
@@ -327,9 +328,6 @@ function makeStyles(c: AppColors) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    back: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-    backTxt: { fontSize: 15, color: c.text, marginLeft: 4, fontWeight: '600' },
-    h1: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 6 },
     h2: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 24, marginBottom: 8 },
     p: { fontSize: 13, color: c.textSecondary, lineHeight: 19, marginBottom: 10 },
     note: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, fontStyle: 'italic', marginTop: 8 },

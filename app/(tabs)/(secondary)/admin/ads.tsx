@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
@@ -86,7 +87,7 @@ export default function AdminAds() {
   }, [loaded]);
 
   if (banners === null) {
-    return <View style={styles.root}><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
+    return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Publicités" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
   }
 
   const update = (i: number, patch: Partial<AdBanner>) => setBanners(banners.map((b, idx) => idx === i ? { ...b, ...patch } : b));
@@ -128,11 +129,8 @@ export default function AdminAds() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Publicités (bannières maison)</Text>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Publicités" onBack={goBack} />
         <Text style={styles.sub}>Affichées dans les zones de pub si le flag « Publicités » est activé (et masquées pour les Premium). Plusieurs bannières au même emplacement défilent en fondu enchaîné.</Text>
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
@@ -338,9 +336,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 22, fontWeight: '800', color: c.text },
     sub: { fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
     card: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 12 },
     cardHidden: { opacity: 0.55 },

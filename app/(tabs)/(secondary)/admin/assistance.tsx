@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
@@ -62,7 +64,9 @@ export default function AdminAssistance() {
     return (
       <View style={styles.root}>
         <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+        <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Assistance" onBack={goBack} />
           <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
         </SafeAreaView>
       </View>
@@ -72,13 +76,10 @@ export default function AdminAssistance() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Assistance" onBack={goBack} />
 
-        <Text style={styles.title}>Assistance</Text>
         <Text style={styles.subtitle}>
           {openCount} demande{openCount > 1 ? 's' : ''} en cours{unreadCount > 0 ? ` · ${unreadCount} non lue${unreadCount > 1 ? 's' : ''}` : ''}.
         </Text>
@@ -156,9 +157,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
-    title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 6 },
     subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
     filterRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     bulkDeleteBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', marginBottom: 14 },

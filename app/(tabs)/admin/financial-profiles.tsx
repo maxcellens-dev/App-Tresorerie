@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../components/ScreenHeader';
+import ScreenGradient from '../../../components/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   useProfileMatrixConfig,
@@ -604,14 +606,11 @@ export default function FinancialProfilesAdmin() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
 
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={22} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Profils financiers" onBack={goBack} />
 
-        <Text style={styles.title}>Profils financiers</Text>
         <Text style={styles.subtitle}>Configuration des profils P1-P5, seuils et messages.</Text>
 
         {/* Tabs */}
@@ -645,9 +644,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
-  backLabel: { fontSize: 16, color: c.text },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 4 },
   subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
 
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },

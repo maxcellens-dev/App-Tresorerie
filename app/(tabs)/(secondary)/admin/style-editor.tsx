@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../../../hooks/useProfile';
@@ -415,7 +416,7 @@ export default function StyleEditor() {
     return (
       <View style={styles.root}>
         <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]}><Text style={styles.body}>Accès réservé aux administrateurs.</Text></SafeAreaView>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Design System" onBack={goBack} /><Text style={styles.body}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
   }
@@ -438,14 +439,8 @@ export default function StyleEditor() {
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-            <Text style={styles.backLabel}>Retour</Text>
-          </TouchableOpacity>
-          <View>
-            <Text style={styles.headerTitle}>Design System</Text>
-            <Text style={styles.headerSub}>Identité visuelle de l'app</Text>
-          </View>
+          <ScreenHeader title="Design System" onBack={goBack} />
+          <Text style={styles.headerSub}>Identité visuelle de l'app</Text>
         </View>
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -1009,13 +1004,10 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 14 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: c.text, letterSpacing: -0.4 },
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
   headerSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 100 },
 
   preview: { borderRadius: 20, overflow: 'hidden', height: 170, padding: 14, marginBottom: 20, justifyContent: 'space-between', borderWidth: 1, borderColor: c.cardBorder },
   previewHeaderBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: -14, marginTop: -14, paddingHorizontal: 14, paddingVertical: 10 },

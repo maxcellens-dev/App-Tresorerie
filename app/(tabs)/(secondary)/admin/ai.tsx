@@ -8,6 +8,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
@@ -47,17 +49,15 @@ export default function AdminAi() {
   const [tab, setTab] = useState<Tab>('settings');
 
   if (!isAdmin) {
-    return <View style={s.root}><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]}><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
+    return <View style={s.root}><ScreenGradient /><SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Conseils IA" onBack={goBack} /><Text style={s.text}>Accès réservé aux administrateurs.</Text></SafeAreaView></View>;
   }
 
   return (
     <View style={s.root}>
       <StatusBar style={c.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={s.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={24} color={c.text} /><Text style={s.backLabel}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Conseils IA</Text>
+        <ScreenHeader title="Conseils IA" onBack={goBack} />
 
         {/* Onglets */}
         <View style={s.tabs}>
@@ -459,9 +459,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
-    title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 12 },
     tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
     tab: { flexGrow: 1, minWidth: 88, paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },
     tabOn: { backgroundColor: c.emerald + '18', borderColor: c.emerald },

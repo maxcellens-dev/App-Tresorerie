@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
@@ -35,7 +36,7 @@ export default function AdminLanding() {
   useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
 
   if (!cfg) {
-    return <View style={styles.root}><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
+    return <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Page d'accueil" onBack={goBack} /><ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} /></SafeAreaView></View>;
   }
 
   const set = (patch: Partial<LandingConfig>) => setCfg({ ...cfg, ...patch });
@@ -77,11 +78,8 @@ export default function AdminLanding() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} /><Text style={styles.backText}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Page d'accueil</Text>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Page d'accueil" onBack={goBack} />
         <Text style={styles.sub}>Deux présentations : « Bureau » (web grand écran) et « Mobile » (écran d'accueil de l'app). Les boutons mènent aux pages de connexion / inscription.</Text>
 
         {/* Onglets Bureau / Mobile → évite une page interminable. */}
@@ -265,9 +263,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 22, fontWeight: '800', color: c.text },
     sub: { fontSize: 12, color: c.textSecondary, marginBottom: 12, lineHeight: 16 },
     tabsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.card },

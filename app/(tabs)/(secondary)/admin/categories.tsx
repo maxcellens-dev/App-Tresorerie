@@ -8,11 +8,11 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Activi
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
+import { useNavBack } from '../../../../hooks/useNavBack';
 import { pageColumn } from '../../../../lib/webLayout';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
@@ -22,7 +22,7 @@ export default function AdminCategoriesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
-  const router = useRouter();
+  const goBack = useNavBack();
   const { user } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { data: cats = [], isLoading } = useBaseCategories();
@@ -40,8 +40,8 @@ export default function AdminCategoriesScreen() {
 
   if (!profile?.is_admin) {
     return (
-      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <ScreenHeader title="Catégories de base" onBack={() => router.back()} />
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Catégories de base" onBack={goBack} />
         <Text style={styles.denied}>Réservé aux administrateurs.</Text>
       </SafeAreaView></View>
     );
@@ -92,10 +92,10 @@ export default function AdminCategoriesScreen() {
 
   return (
     <View style={styles.root}>
+      <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <StatusBar style="dark" />
-      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <ScreenHeader title="Catégories de base" onBack={() => router.back()} />
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Catégories de base" onBack={goBack} />
         <View style={styles.typeRow}>
           {([['expense', 'Dépenses'], ['income', 'Recettes']] as const).map(([t, lbl]) => (
             <TouchableOpacity key={t} style={[styles.typeChip, type === t && styles.typeChipActive]} onPress={() => setType(t)}>
@@ -143,7 +143,7 @@ export default function AdminCategoriesScreen() {
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
-    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+    safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
     denied: { textAlign: 'center', color: c.textSecondary, marginTop: 40 },
     typeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
     typeChip: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },

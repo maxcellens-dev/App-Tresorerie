@@ -10,6 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { supabase } from '../../../../lib/supabase';
@@ -173,6 +175,7 @@ export default function StatsHub() {
     return (
       <View style={styles.root}><StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Stats Hub" onBack={goBack} />
           <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
         </SafeAreaView>
       </View>
@@ -182,16 +185,13 @@ export default function StatsHub() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Stats Hub" onBack={goBack} />
 
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Stats Hub</Text>
               <Text style={styles.subtitle}>Usage de l'app sur {days} jours{updatedAt ? ` · maj ${updatedAt}` : ''}.</Text>
             </View>
             <TouchableOpacity style={styles.refreshIcon} onPress={() => loadStats(days)}>
@@ -585,12 +585,9 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 100 },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-    title: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 4 },
     subtitle: { fontSize: 12, color: c.textSecondary, marginBottom: 14, lineHeight: 16 },
     refreshIcon: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card },
     periodRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },

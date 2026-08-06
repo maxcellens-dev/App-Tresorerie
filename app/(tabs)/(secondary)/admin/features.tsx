@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/useProfile';
 import { useAppColors } from '../../../../hooks/useAppColors';
@@ -31,7 +33,7 @@ export default function AdminFeatures() {
   if (!isAdmin) {
     return (
       <View style={styles.root}><StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
-        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><Text style={styles.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
+        <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}><ScreenHeader title="Fonctionnalités" onBack={goBack} /><Text style={styles.text}>Accès réservé aux administrateurs.</Text></SafeAreaView>
       </View>
     );
   }
@@ -63,12 +65,9 @@ export default function AdminFeatures() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Fonctionnalités</Text>
+        <ScreenHeader title="Fonctionnalités" onBack={goBack} />
         <Text style={styles.subtitle}>Activez/désactivez des fonctionnalités expérimentales pour tous les utilisateurs.</Text>
 
         <View style={styles.tabs}>
@@ -181,9 +180,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
-    title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 6 },
     subtitle: { fontSize: 13, color: c.textSecondary, marginBottom: 16 },
     tabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     tab: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: c.cardBorder, alignItems: 'center' },

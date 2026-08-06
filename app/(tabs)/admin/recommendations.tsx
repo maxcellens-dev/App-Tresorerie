@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../components/ScreenHeader';
+import ScreenGradient from '../../../components/ScreenGradient';
 import {
   RECO_COLORS,
   RECO_TYPE_LABELS,
@@ -217,13 +219,12 @@ export default function RecommendationsAdmin() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-            <Text style={styles.backLabel}>Retour</Text>
-          </TouchableOpacity>
-          {tab === 'paliers' && (!editMode ? (
+        <ScreenHeader
+          title="Recommandations"
+          onBack={goBack}
+          right={tab === 'paliers' ? (!editMode ? (
             <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>
               <Ionicons name="pencil-outline" size={18} color={COLORS.emerald} />
               <Text style={styles.editBtnLabel}>Modifier</Text>
@@ -244,11 +245,10 @@ export default function RecommendationsAdmin() {
                 }
               </TouchableOpacity>
             </View>
-          ))}
-        </View>
+          )) : undefined}
+        />
 
         <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Recommandations</Text>
           <Text style={styles.subtitle}>
             Le moteur propose 2 à 4 actions dont la somme fait 100 % du « À dépenser ».
             {tab === 'paliers' && editMode ? ' Chaque palier doit totaliser exactement 100 %.' : ''}
@@ -501,9 +501,6 @@ function makeStyles(c: any) {
   seuilSuffix: { color: c.textSecondary, fontSize: 14, fontWeight: '600' },
   seuilSaveBtn: { backgroundColor: c.emerald, borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
   seuilSaveLabel: { color: c.bg, fontWeight: '700', fontSize: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
-  backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   editBtnLabel: { fontSize: 14, fontWeight: '600', color: c.emerald },
   headerActions: { flexDirection: 'row', gap: 10, alignItems: 'center' },
@@ -513,7 +510,6 @@ function makeStyles(c: any) {
   saveBtnLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
-  title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 8 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 16, lineHeight: 20 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 },
 

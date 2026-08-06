@@ -12,6 +12,8 @@ import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollV
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/ScreenGradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/supabase';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -409,7 +411,9 @@ export default function AdminNotifications() {
     return (
       <View style={styles.root}>
         <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+        <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+          <ScreenHeader title="Notifications" onBack={goBack} />
           <Text style={styles.text}>Accès réservé aux administrateurs.</Text>
         </SafeAreaView>
       </View>
@@ -421,14 +425,11 @@ export default function AdminNotifications() {
   return (
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
+      <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBack}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-          <Text style={styles.backLabel}>Retour</Text>
-        </TouchableOpacity>
+        <ScreenHeader title="Notifications" onBack={goBack} />
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-          <Text style={styles.title}>Notifications</Text>
 
           {/* ── Onglets : Automatiques (système) / Manuelles / Admin-Support ── */}
           <View style={styles.tabBar}>
@@ -711,8 +712,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-    backLabel: { fontSize: 16, color: c.text, marginLeft: 4 },
     title: { fontSize: 24, fontWeight: '700', color: c.text, marginBottom: 16 },
     sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, marginTop: 8 },
     sectionLabel: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },

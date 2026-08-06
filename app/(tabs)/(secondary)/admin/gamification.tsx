@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import ScreenHeader from '../../../../components/ScreenHeader';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
@@ -52,7 +53,8 @@ export default function AdminGamification() {
 
   if (!cfg) {
     return (
-      <View style={styles.root}><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
+      <View style={styles.root}><ScreenGradient /><SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Gamification" onBack={goBack} />
         <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 40 }} />
       </SafeAreaView></View>
     );
@@ -104,12 +106,8 @@ export default function AdminGamification() {
     <View style={styles.root}>
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
-      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['top']}>
-        <TouchableOpacity style={styles.backRow} onPress={goBack}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
-          <Text style={styles.backText}>Admin</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Gamification & Identité</Text>
+      <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
+        <ScreenHeader title="Gamification" onBack={goBack} />
 
         {/* Onglets par catégorie de réglages */}
         <View style={styles.tabsRow}>
@@ -291,9 +289,6 @@ function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
     safe: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-    backText: { fontSize: 14, fontWeight: '600', color: c.text },
-    title: { fontSize: 22, fontWeight: '800', color: c.text, marginBottom: 12 },
     tabsRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
     tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10, paddingVertical: 9, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     tabBtnActive: { borderColor: c.emerald, backgroundColor: c.emerald + '14' },
