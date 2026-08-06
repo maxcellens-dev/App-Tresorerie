@@ -77,7 +77,8 @@ function SuccesScreen() {
       if (run > bestRun) bestRun = run;
     }
     return {
-      streak_weeks: state?.best_streak ?? 0,
+      // La série ne redescend plus : sa valeur courante EST son maximum (cf. useGamification).
+      streak_weeks: state?.streak ?? 0,
       gems_earned: state?.gems_earned_total ?? 0,
       login_streak_days: state?.login_streak ?? 0,
       closures_count: confirmed.length,
@@ -150,10 +151,11 @@ function SuccesScreen() {
             <View style={styles.summaryItem}>
               <Text style={styles.summaryEmoji}>{config?.identity.streakIcon || '🔥'}</Text>
               <Text style={styles.summaryValue}>{state?.streak ?? 0}</Text>
-              {/* La série compte les semaines où l'utilisateur est VENU (une visite entre lundi et
-                  dimanche suffit) — le libellé doit le dire, sinon la perte de série est incomprise. */}
-              <Text style={styles.summaryLabel}>{(state?.streak ?? 0) > 1 ? 'semaines' : 'semaine'} de suite{'\n'}(record {state?.best_streak ?? 0})</Text>
-              <Text style={styles.summaryHint}>Viens au moins une fois par semaine</Text>
+              {/* La flamme compte les semaines où l'utilisateur est VENU (une visite entre lundi et
+                  dimanche suffit). Elle ne redescend jamais : les semaines sans visite ne comptent
+                  pas, elles n'effacent rien. Donc plus de « record » (il vaudrait toujours la
+                  valeur affichée) ni de rappel à venir — il n'y a plus rien à perdre. */}
+              <Text style={styles.summaryLabel}>{(state?.streak ?? 0) > 1 ? 'semaines' : 'semaine'}{'\n'}connectée{(state?.streak ?? 0) > 1 ? 's' : ''}</Text>
             </View>
             <View style={styles.summaryDivider} />
             {/* Toucher ses Relyks → boutique (onglet « Recharger en relyks »). */}
@@ -263,7 +265,6 @@ function makeStyles(c: any) {
     summaryEmoji: { fontSize: 22 },
     summaryValue: { fontSize: 20, fontWeight: '800', color: c.text },
     summaryLabel: { fontSize: 10, color: c.textSecondary, textAlign: 'center', paddingHorizontal: 4 },
-    summaryHint: { fontSize: 9, color: c.textSecondary, textAlign: 'center', paddingHorizontal: 4, marginTop: 3, opacity: 0.75, fontStyle: 'italic' },
     actions: { flexDirection: 'row', gap: 10, marginBottom: 16 },
     actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 12 },
     actionText: { fontSize: 13, fontWeight: '700', color: c.text },

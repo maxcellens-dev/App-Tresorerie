@@ -23,7 +23,7 @@ export const WELCOME_BADGE_KEY = 'premiere_connexion';
  * juge plus rien (ni vert, ni rouge), il n'y a donc plus de « mois validé au vert » à récompenser.
  */
 export type BadgeMetric =
-  | 'streak_weeks'           // série hebdo (record)
+  | 'streak_weeks'           // nb de semaines où l'utilisateur est venu (cumul, ne redescend jamais)
   | 'gems_earned'            // cumul de gemmes gagnées
   | 'closures_count'         // nb de clôtures mensuelles effectuées
   | 'consecutive_closures'   // plus longue série de mois consécutifs clôturés (fiabilité)
@@ -64,16 +64,20 @@ export interface GamificationIdentity {
   streakLabel: string;    // ex. « Série »
 }
 
+/**
+ * LA SÉRIE NE FAIT QUE MONTER. On compte les semaines où l'utilisateur est venu, et on ignore
+ * simplement celles où il n'est pas venu : elle ne retombe jamais à zéro. Il n'y a donc plus ni
+ * gel, ni rachat, ni alerte « ta série est en danger » — venir reste récompensé, ne pas venir
+ * n'est plus puni.
+ */
 export interface StreakConfig {
   weeklyGems: number;     // gemmes gagnées par semaine validée
-  freezeCost: number;     // coût d'un gel de série (gemmes)
 }
 
-export type ShopCategory = 'gratuit' | 'series' | 'apparence' | 'cosmetiques' | 'titres' | 'premium' | 'gems';
+export type ShopCategory = 'gratuit' | 'apparence' | 'cosmetiques' | 'titres' | 'premium' | 'gems';
 
 export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   gratuit: 'Gratuit',
-  series: 'Séries',
   apparence: 'Apparence',
   cosmetiques: 'Cosmétiques',
   titres: 'Titres de profil',
@@ -81,12 +85,11 @@ export const SHOP_CATEGORY_LABELS: Record<ShopCategory, string> = {
   gems: 'Recharger en relyks',
 };
 /** Ordre d'affichage des catégories dans la boutique. */
-export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'series', 'apparence', 'cosmetiques', 'titres', 'premium', 'gems'];
+export const SHOP_CATEGORY_ORDER: ShopCategory[] = ['gratuit', 'apparence', 'cosmetiques', 'titres', 'premium', 'gems'];
 
 /** Icône représentative par catégorie (pour les filtres de la boutique). */
 export const SHOP_CATEGORY_ICONS: Record<ShopCategory, string> = {
   gratuit: 'gift-outline',
-  series: 'snow-outline',
   apparence: 'color-palette-outline',
   cosmetiques: 'sparkles-outline',
   titres: 'ribbon-outline',
@@ -183,10 +186,12 @@ export type EquippedCosmetics = Partial<Record<CosmeticSlot, string>>;
 
 export interface ShopItem {
   key: string;
-  // freeze : +1 (ou payload.qty) gel · streak_restore : restaure la série · daily_gems : 5 gemmes/jour gratuit
-  // accent_pack : débloque les couleurs premium · gems_iap : achat de gemmes en argent réel (RevenueCat)
+  // daily_gems : 5 gemmes/jour gratuit · accent_pack : débloque les couleurs premium
+  // gems_iap : achat de gemmes en argent réel (RevenueCat)
   // cosmetic/theme/external : ajoutés à l'inventaire (effet cosmétique / hors-app)
-  type: 'freeze' | 'streak_restore' | 'daily_gems' | 'accent_pack' | 'gems_iap' | 'theme' | 'cosmetic' | 'external';
+  // (`freeze` et `streak_restore` ont disparu avec les gels et le rachat de série : la série ne
+  //  redescend plus, il n'y a donc plus rien à protéger ni à racheter.)
+  type: 'daily_gems' | 'accent_pack' | 'gems_iap' | 'theme' | 'cosmetic' | 'external';
   category?: ShopCategory;
   label: string;
   description?: string;
@@ -215,7 +220,7 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     streakIcon: '🔥',
     streakLabel: 'Série',
   },
-  streak: { weeklyGems: 20, freezeCost: 50 },
+  streak: { weeklyGems: 20 },
   premium_discount_pct: 20,
   relyka_tab_enabled: true,
   // Succès DISSOCIÉS : chacun est un palier distinct (1 seuil, 1 récompense), pas de niveaux.
@@ -230,9 +235,10 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
     { key: 'assidu_30', category: 'Assiduité', metric: 'login_streak_days', label: 'Routine en or', description: '30 jours de connexion consécutifs.', icon: 'flame', threshold: 30, gems: 120 },
     { key: 'assidu_100', category: 'Assiduité', metric: 'login_streak_days', label: 'Increvable', description: '100 jours de connexion consécutifs.', icon: 'flash', threshold: 100, gems: 400 },
     // ── Régularité (série hebdo de suivi) ──
-    { key: 'serie_4', category: 'Régularité', metric: 'streak_weeks', label: 'Un mois de suivi', description: '4 semaines de suivi d’affilée.', icon: 'pulse', threshold: 4, gems: 30 },
-    { key: 'serie_12', category: 'Régularité', metric: 'streak_weeks', label: 'Trimestre suivi', description: '12 semaines de suivi d’affilée.', icon: 'pulse', threshold: 12, gems: 80 },
-    { key: 'serie_52', category: 'Régularité', metric: 'streak_weeks', label: 'Année complète', description: '52 semaines de suivi d’affilée.', icon: 'medal', threshold: 52, gems: 300 },
+    // « Semaines connectées » : le cumul, pas une suite ininterrompue — la flamme ne redescend plus.
+    { key: 'serie_4', category: 'Régularité', metric: 'streak_weeks', label: 'Un mois de suivi', description: '4 semaines où tu es venu sur Relyka.', icon: 'pulse', threshold: 4, gems: 30 },
+    { key: 'serie_12', category: 'Régularité', metric: 'streak_weeks', label: 'Trimestre suivi', description: '12 semaines où tu es venu sur Relyka.', icon: 'pulse', threshold: 12, gems: 80 },
+    { key: 'serie_52', category: 'Régularité', metric: 'streak_weeks', label: 'Année complète', description: '52 semaines où tu es venu sur Relyka.', icon: 'medal', threshold: 52, gems: 300 },
     // ── Économie (mois en excédent) ──
     { key: 'econome_1', category: 'Économie', metric: 'surplus_months_streak', label: 'Premier excédent', description: 'Termine un mois avec un excédent positif.', icon: 'leaf', threshold: 1, gems: 30 },
     { key: 'econome_3', category: 'Économie', metric: 'surplus_months_streak', label: 'Économe régulier', description: '3 mois consécutifs en excédent.', icon: 'leaf', threshold: 3, gems: 80 },
@@ -259,10 +265,7 @@ export const DEFAULT_GAMIFICATION: GamificationConfig = {
   shop: [
     // ── Gratuit ──
     { key: 'daily_free', type: 'daily_gems', category: 'gratuit', label: 'Cadeau du jour', description: '5 relyks offerts, une fois par jour.', price: 0, icon: 'gift', payload: { gems: 5 } },
-    // ── Séries ──
-    { key: 'freeze', type: 'freeze', category: 'series', label: 'Gel de série', description: 'Protège ta série une semaine sans suivi (cumulable).', price: 50, icon: 'snow' },
-    { key: 'freeze_pack3', type: 'freeze', category: 'series', label: 'Pack de 3 gels', description: 'Ajoute 3 gels de série d’un coup (plus avantageux).', price: 130, icon: 'snow', payload: { qty: 3 } },
-    { key: 'streak_restore', type: 'streak_restore', category: 'series', label: 'Récupération de série', description: 'Restaure ta série perdue à son meilleur niveau.', price: 120, icon: 'flame' },
+    // (Plus de catégorie « Séries » : gels et récupération de série n'ont plus d'objet.)
     // ── Apparence ──
     { key: 'accent_pack', type: 'accent_pack', category: 'apparence', label: 'Pack couleurs', description: '7 couleurs d\'accent supplémentaires pour personnaliser ton espace.', price: 200, icon: 'color-palette' },
     /* ── Cosmétiques : cadres d'avatar & flammes de série ─────────────────────────────────────
@@ -332,7 +335,10 @@ export function mergeGamificationConfig(stored: Partial<GamificationConfig> | un
 
 /** Clés d'articles retirés du catalogue : toujours filtrées, même si une ancienne
  *  config stockée en base les contient encore (ex. pack renommé gems_1200 → gems_1000). */
-const DEPRECATED_SHOP_KEYS = new Set<string>(['gems_1200']);
+const DEPRECATED_SHOP_KEYS = new Set<string>(['gems_1200', 'freeze', 'freeze_pack3', 'streak_restore']);
+
+/** Types d'articles retirés du code : un article personnalisé qui en porte un ne ferait plus rien. */
+const DEPRECATED_SHOP_TYPES = new Set<string>(['freeze', 'streak_restore']);
 
 /** Conserve les articles boutique stockés (édités en admin) et ajoute les articles
  *  par défaut dont la clé n'est pas encore présente (ex. nouveaux articles d'une mise à jour). */
@@ -352,7 +358,8 @@ function mergeShop(stored: ShopItem[] | undefined): ShopItem[] {
   });
   // Articles 100 % personnalisés (clés absentes du défaut) → conservés tels quels.
   const extra = stored.filter((s) => !DEFAULT_GAMIFICATION.shop.some((d) => d.key === s.key));
-  return [...merged, ...extra].filter((s) => !DEPRECATED_SHOP_KEYS.has(s.key));
+  return [...merged, ...extra]
+    .filter((s) => !DEPRECATED_SHOP_KEYS.has(s.key) && !DEPRECATED_SHOP_TYPES.has(s.type));
 }
 
 /**
@@ -424,12 +431,8 @@ export function mondayOf(d: Date): string {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 }
 
-/** Nombre de semaines entières entre deux lundis (YYYY-MM-DD). */
-export function weeksBetween(mondayA: string, mondayB: string): number {
-  const a = new Date(mondayA + 'T00:00:00');
-  const b = new Date(mondayB + 'T00:00:00');
-  return Math.round((b.getTime() - a.getTime()) / (7 * 86400000));
-}
+/* `weeksBetween` a disparu avec les gels : on n'a plus besoin de mesurer l'écart entre deux
+   visites. Une semaine visitée = +1, une semaine sans visite = rien. */
 
 // ── Évaluation des badges ───────────────────────────────────────────────────
 

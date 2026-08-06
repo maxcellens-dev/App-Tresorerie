@@ -9,16 +9,18 @@ import { supabase } from '../lib/supabase';
 import { useGamificationConfig } from './useGamificationConfig';
 import { usePlan } from './usePlan';
 import {
-  mondayOf, weeksBetween, isUnlocked, isUniqueItem, shopFinalPrice,
+  mondayOf, isUnlocked, isUniqueItem, shopFinalPrice,
   type BadgeContext, type GamificationConfig,
 } from '../lib/gamification';
+import { emitStreakBump } from '../lib/streakBump';
 
 export interface GamificationState {
   profile_id: string;
+  /** Nombre de semaines où l'utilisateur est venu. NE REDESCEND JAMAIS (cf. validateWeek). */
   streak: number;
+  /** Conservé pour l'historique : depuis que la série ne redescend plus, il vaut toujours `streak`. */
   best_streak: number;
   last_validated_week: string | null;
-  freezes: number;
   gems: number;
   gems_earned_total: number;
   tier: string;
@@ -39,7 +41,7 @@ export interface InventoryItem { item_key: string; qty: number }
 async function fetchOrCreateState(userId: string): Promise<GamificationState> {
   const { data } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
   if (data) return data as GamificationState;
-  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, freezes: 0, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
+  const seed = { profile_id: userId, streak: 0, best_streak: 0, last_validated_week: null, gems: 0, gems_earned_total: 0, tier: 'bronze', last_login_day: null, login_streak: 0, best_login_streak: 0, last_free_gems_day: null };
   // Idempotent : évite un conflit de clé si deux composants initialisent en même temps.
   await supabase!.from('user_gamification').upsert(seed, { onConflict: 'profile_id', ignoreDuplicates: true });
   const { data: after } = await supabase!.from('user_gamification').select('*').eq('profile_id', userId).maybeSingle();
@@ -94,7 +96,8 @@ export function useGamification(userId: string | undefined) {
     const unlocked = new Set<string>((badgeRows ?? []).map((b: any) => b.badge_key));
 
     const fullCtx: BadgeContext = {
-      streak_weeks: state.best_streak,
+      // La série ne redescend plus : sa valeur COURANTE est aussi son maximum.
+      streak_weeks: state.streak,
       gems_earned: state.gems_earned_total,
       login_streak_days: state.login_streak ?? 0,
       ...ctx,
@@ -144,10 +147,14 @@ export function useGamification(userId: string | undefined) {
   }
 
   /**
-   * Valide la semaine en cours (incrémente la série) — appelée à chaque OUVERTURE de l'app :
-   * la série hebdo compte les semaines où l'utilisateur est venu (lundi → dimanche).
-   * Ne jamais l'appeler tant qu'une perte de série est en attente de décision (`streakLoss`) :
-   * elle remettrait silencieusement la série à 1 avant que l'utilisateur ait pu la racheter.
+   * Valide la semaine en cours — appelée à chaque OUVERTURE de l'app.
+   *
+   * LA SÉRIE NE FAIT QUE MONTER. On compte les semaines où l'utilisateur EST VENU (une visite entre
+   * lundi et dimanche suffit) et on ignore purement et simplement celles où il n'est pas venu :
+   * qu'il ait manqué une semaine ou six mois ne change rien, sa prochaine visite fait +1. Plus de
+   * remise à zéro, donc plus de gels, plus de rachat, plus d'alerte « ta série est en danger ».
+   *
+   * L'incrément est ANNONCÉ (lib/streakBump) pour que la pastille de l'en-tête le mette en scène.
    */
   async function validateWeek(extraCtx: BadgeContext = {}, opts?: { closureEnabled?: boolean }) {
     if (!userId || !supabase || !config) return;
@@ -158,28 +165,18 @@ export function useGamification(userId: string | undefined) {
       await evaluate(extraCtx, opts);
       return;
     }
-    let streak = state.streak;
-    let freezes = state.freezes;
-    if (!state.last_validated_week) {
-      streak = 1;
-    } else {
-      const gap = weeksBetween(state.last_validated_week, currentMonday);
-      if (gap <= 0) { await evaluate(extraCtx, opts); return; }
-      if (gap === 1) streak += 1;
-      else {
-        const missed = gap - 1;
-        if (freezes >= missed) { freezes -= missed; streak += 1; }
-        else streak = 1;
-      }
-    }
+    const streak = state.streak + 1;
     const weeklyGems = config.streak.weeklyGems;
-    const best = Math.max(state.best_streak, streak);
     await supabase.from('user_gamification').update({
-      streak, best_streak: best, freezes, last_validated_week: currentMonday,
+      // `best_streak` suit la série : elle ne redescend plus, les deux sont désormais confondus.
+      streak, best_streak: streak, last_validated_week: currentMonday,
       gems: state.gems + weeklyGems, gems_earned_total: state.gems_earned_total + weeklyGems,
       updated_at: new Date().toISOString(),
     }).eq('profile_id', userId);
     invalidate();
+    // En consultation admin, on ne fête pas la semaine de quelqu'un d'autre (validateWeek n'est de
+    // toute façon pas appelée dans ce mode — garde-fou de lisibilité).
+    emitStreakBump({ userId, from: state.streak, to: streak });
     await evaluate(extraCtx, opts);
   }
 
@@ -221,20 +218,15 @@ export function useGamification(userId: string | undefined) {
     const price = shopFinalPrice(item.price, { isPremium, premiumPct: config.premium_discount_pct });
     if (state.gems < price) return { ok: false, reason: 'relyks insuffisants' };
 
-    const patch: Record<string, unknown> = { gems: state.gems - price, updated_at: new Date().toISOString() };
-    if (item.type === 'freeze') patch.freezes = state.freezes + (Number((item.payload as any)?.qty) || 1);
-    if (item.type === 'streak_restore') patch.streak = Math.max(state.streak, state.best_streak);
-    await supabase.from('user_gamification').update(patch).eq('profile_id', userId);
+    await supabase.from('user_gamification')
+      .update({ gems: state.gems - price, updated_at: new Date().toISOString() })
+      .eq('profile_id', userId);
 
-    // Les consommables (gel, récupération de série) ne sont pas stockés en inventaire.
-    const consumable = item.type === 'freeze' || item.type === 'streak_restore';
-    if (!consumable) {
-      const { data: existing } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
-      await supabase.from('user_inventory').upsert(
-        { profile_id: userId, item_key: itemKey, qty: (existing?.qty ?? 0) + 1 },
-        { onConflict: 'profile_id,item_key' },
-      );
-    }
+    const { data: existing } = await supabase.from('user_inventory').select('qty').eq('profile_id', userId).eq('item_key', itemKey).maybeSingle();
+    await supabase.from('user_inventory').upsert(
+      { profile_id: userId, item_key: itemKey, qty: (existing?.qty ?? 0) + 1 },
+      { onConflict: 'profile_id,item_key' },
+    );
     invalidate();
     return { ok: true };
   }
@@ -267,72 +259,6 @@ export function useGamification(userId: string | undefined) {
   /** true si le cadeau du jour est encore réclamable aujourd'hui. */
   const canClaimDailyGems = (stateQuery.data?.last_free_gems_day ?? null) !== dayKey(new Date());
 
-  /**
-   * Série en danger : l'utilisateur n'est pas venu pendant une ou plusieurs semaines ENTIÈRES
-   * (au-delà de ses gels) → proposition de rachat avant que la série ne retombe à 1.
-   * null si aucune semaine manquée (ou tout couvert par les gels).
-   *
-   * `newStreak` = ce que vaudra la série une fois les semaines rachetées ET la semaine en cours
-   * validée (l'utilisateur est là aujourd'hui) : série actuelle + semaines manquées + 1.
-   */
-  const streakLoss = (() => {
-    const st = stateQuery.data;
-    if (!st || !st.last_validated_week || !config) return null;
-    const gap = weeksBetween(st.last_validated_week, mondayOf(new Date()));
-    const missed = gap - 1;
-    if (missed < 1 || st.streak < 1) return null;
-    const freezesUsed = Math.min(st.freezes, missed);
-    const weeksMissed = missed - freezesUsed;
-    if (weeksMissed < 1) return null; // entièrement couvert par les gels
-    const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
-    return { weeksMissed, missed, freezesUsed, previousStreak: st.streak, newStreak: st.streak + missed + 1, price: perWeek * weeksMissed };
-  })();
-
-  /**
-   * Rachète les semaines manquées (gemmes + gels consommés). On date la dernière semaine rachetée
-   * à la semaine PRÉCÉDENTE : la semaine en cours reste à valider normalement par la visite du jour
-   * (validateWeek), qui l'incrémentera et créditera ses relyks — d'où `newStreak` = +missed +1.
-   */
-  async function restoreLostStreak(): Promise<{ ok: boolean; reason?: string }> {
-    if (!userId || !supabase || !config) return { ok: false, reason: 'indisponible' };
-    const st = await fetchOrCreateState(userId);
-    if (!st.last_validated_week) return { ok: false, reason: 'rien à restaurer' };
-    const gap = weeksBetween(st.last_validated_week, mondayOf(new Date()));
-    const missed = gap - 1;
-    if (missed < 1) return { ok: false, reason: 'rien à restaurer' };
-    const freezesUsed = Math.min(st.freezes, missed);
-    const weeksMissed = missed - freezesUsed;
-    const perWeek = config.shop.find((s) => s.type === 'streak_restore')?.price ?? 120;
-    const cost = perWeek * weeksMissed;
-    if (st.gems < cost) return { ok: false, reason: 'relyks insuffisants' };
-    const lastCoveredWeek = mondayOf(new Date(Date.now() - 7 * 86400000)); // lundi de la semaine passée
-    await supabase.from('user_gamification').update({
-      gems: st.gems - cost,
-      freezes: st.freezes - freezesUsed,
-      streak: st.streak + missed,
-      best_streak: Math.max(st.best_streak, st.streak + missed),
-      last_validated_week: lastCoveredWeek,
-      updated_at: new Date().toISOString(),
-    }).eq('profile_id', userId);
-    invalidate();
-    return { ok: true };
-  }
-
-  /**
-   * L'utilisateur refuse de racheter : la perte est APPLIQUÉE TOUT DE SUITE (série à 0). Sans ça,
-   * l'état restait inchangé → la modale revenait à chaque ouverture et la série continuait de
-   * s'afficher comme si de rien n'était. `best_streak` (record) est conservé.
-   * La semaine en cours sera ensuite validée normalement → la série repart à 1.
-   */
-  async function declineLostStreak(): Promise<{ ok: boolean }> {
-    if (!userId || !supabase) return { ok: false };
-    await supabase.from('user_gamification')
-      .update({ streak: 0, updated_at: new Date().toISOString() })
-      .eq('profile_id', userId);
-    invalidate();
-    return { ok: true };
-  }
-
   return {
     state: stateQuery.data,
     badges: badgesQuery.data ?? [],
@@ -346,8 +272,5 @@ export function useGamification(userId: string | undefined) {
     creditGems,
     markBadgesCelebrated,
     canClaimDailyGems,
-    streakLoss,
-    restoreLostStreak,
-    declineLostStreak,
   };
 }

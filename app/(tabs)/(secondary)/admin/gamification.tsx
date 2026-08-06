@@ -22,7 +22,7 @@ import { useGamificationConfig, useSaveGamificationConfig } from '../../../../ho
 import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../../lib/gamification';
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
-  { value: 'streak_weeks', label: 'Série (semaines)' },
+  { value: 'streak_weeks', label: 'Semaines connectées (cumul)' },
   { value: 'login_streak_days', label: 'Jours consécutifs connecté' },
   { value: 'account_age_days', label: 'Ancienneté (jours)' },
   { value: 'gems_earned', label: 'Relyks gagnés (cumul)' },
@@ -167,7 +167,7 @@ export default function AdminGamification() {
                 return (
                   <View key={item.key} style={styles.shopPriceRow}>
                     <Text style={styles.shopPriceLabel} numberOfLines={1}>
-                      {item.label}{item.type === 'streak_restore' ? ' (/sem.)' : ''}
+                      {item.label}
                     </Text>
                     <Text style={styles.shopPriceUnit}>{isQty ? 'Qté' : cur}</Text>
                     <TextInput

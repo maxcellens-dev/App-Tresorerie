@@ -219,7 +219,7 @@ function MesDonneesScreen() {
     rows.push({ type: 'colhead', cells: ['Champ', 'Valeur'] });
     rows.push({ type: 'data', cells: ['Relyks', String(d.gami?.gems ?? 0)] });
     rows.push({ type: 'data', cells: ['Relyks gagnés au total', String(d.gami?.gems_earned_total ?? 0)] });
-    rows.push({ type: 'data', cells: ['Série (semaines)', `${d.gami?.streak ?? 0} (record : ${d.gami?.best_streak ?? 0})`] });
+    rows.push({ type: 'data', cells: ['Semaines connectées', String(d.gami?.streak ?? 0)] });
     d.badges.forEach((b: any) => {
       rows.push({ type: 'data', cells: [`Succès : ${b.badge_key}`, `débloqué le ${String(b.unlocked_at ?? '').slice(0, 10)}`] });
     });

@@ -1,5 +1,5 @@
 /**
- * Boutique — dépense les gemmes gagnées (gels de série, thèmes, et plus tard bons hors-app).
+ * Boutique — dépense les relyks gagnés (couleurs, cosmétiques, titres, thèmes, bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
 import React, { useMemo, useState, useRef, useEffect } from 'react';
@@ -54,7 +54,6 @@ function BoutiqueScreen() {
   const filterScrollRef = useRef<ScrollView>(null);
 
   const gems = state?.gems ?? 0;
-  const freezes = state?.freezes ?? 0;
   const discountPct = config?.premium_discount_pct ?? 0;
   /* Prix final : la remise Premium, et rien d'autre. La « Sélection du mois » (2 articles tournants
      à −30 %) a été retirée — elle encombrait la page et faisait cohabiter deux prix par article. */
@@ -71,11 +70,11 @@ function BoutiqueScreen() {
   const relykaTabEnabled = config?.relyka_tab_enabled ?? true;
   const activeTab: ShopTab = relykaTabEnabled ? tab : 'app';
 
-  // Articles regroupés par catégorie (dans l'ordre défini).
-  // « Récupération de série » (streak_restore) n'est PAS en boutique : proposé à la connexion si la série est perdue.
-  const shopItems = (config?.shop ?? []).filter((s) => s.type !== 'streak_restore');
+  // Articles regroupés par catégorie (dans l'ordre défini). Un article sans catégorie retombe sur
+  // « Apparence » — la catégorie « Séries » n'existe plus (gels et rachat de série ont disparu
+  // avec la remise à zéro : la flamme ne redescend plus).
   const shopByCategory = SHOP_CATEGORY_ORDER
-    .map((cat) => ({ cat, items: shopItems.filter((s) => (s.category ?? 'series') === cat) }))
+    .map((cat) => ({ cat, items: (config?.shop ?? []).filter((s) => (s.category ?? 'apparence') === cat) }))
     .filter((g) => g.items.length > 0);
 
   // Défile la barre de filtres jusqu'à « Recharger en relyks » (dernier, tout à droite) dès qu'il
@@ -264,7 +263,7 @@ function BoutiqueScreen() {
               )}
 
               {(catFilter === 'all' ? shopByCategory : shopByCategory.filter((g) => g.cat === catFilter)).map(({ cat, items }) => {
-                const compact = cat === 'gems' || cat === 'series';
+                const compact = cat === 'gems';
                 return (
                   <View key={cat}>
                     <View style={styles.catHeaderRow}>
@@ -294,12 +293,8 @@ function BoutiqueScreen() {
                             <View key={item.key} style={[styles.compactCard, cat === 'gems' ? styles.compactThird : styles.compactHalf]}>
                               <View style={[styles.itemIcon, { backgroundColor: accentColor + '22' }]}>
                                 {isImageIcon(item.icon) ? <Image source={{ uri: item.icon! }} style={styles.itemImg} /> : <Ionicons name={(item.icon || 'pricetag') as any} size={20} color={accentColor} />}
-                                {item.type === 'freeze' && freezes > 0 && (
-                                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{freezes}</Text></View>
-                                )}
                               </View>
                               <Text style={styles.compactLabel} numberOfLines={2}>{itemLabel(item)}</Text>
-                              {item.type === 'freeze' && <Text style={styles.ownedText}>{freezes} en stock</Text>}
                               {renderBuyButton(item)}
                             </View>
                           );

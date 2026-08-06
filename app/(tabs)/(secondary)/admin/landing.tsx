@@ -53,6 +53,10 @@ export default function AdminLanding() {
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [tab, setTab] = useState<'bureau' | 'mobile'>('bureau');
+  // Réseaux sociaux : section repliée par défaut, et un seul réseau ouvert à la fois — sinon le
+  // bloc occupe toute la page alors qu'on n'y touche qu'une fois.
+  const [socialsOpen, setSocialsOpen] = useState(false);
+  const [openSocial, setOpenSocial] = useState<number | null>(null);
 
   useEffect(() => { if (loaded && !cfg) setCfg(loaded); }, [loaded]);
 
@@ -107,8 +111,10 @@ export default function AdminLanding() {
     [next[i], next[j]] = [next[j], next[i]];
     setSocials({ items: next });
   };
-  const addSocial = (preset?: { label: string; icon: string }) =>
+  const addSocial = (preset?: { label: string; icon: string }) => {
     setSocials({ items: [...socials.items, { label: preset?.label ?? '', url: '', icon: preset?.icon ?? 'globe-outline' }] });
+    setOpenSocial(socials.items.length); // le nouveau réseau s'ouvre : il ne manque que son lien
+  };
 
   async function persist() {
     setMsg(null);
@@ -146,10 +152,20 @@ export default function AdminLanding() {
               Pied de page de la landing bureau, et bas de l'écran d'accueil mobile (à côté du
               badge Google Play en web mobile, seuls dans l'app native). */}
           <View style={styles.card}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.section}>Réseaux sociaux</Text>
+            {/* Section REPLIÉE par défaut : ouverte en permanence, elle occupait la moitié de la
+                page alors qu'on n'y touche qu'une fois. Le résumé (nombre de réseaux) suffit. */}
+            <TouchableOpacity style={styles.rowBetween} onPress={() => setSocialsOpen((v) => !v)} activeOpacity={0.7}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name={socialsOpen ? 'chevron-down' : 'chevron-forward'} size={17} color={COLORS.textSecondary} />
+                <Text style={styles.section}>Réseaux sociaux</Text>
+                <Text style={styles.countTag}>
+                  {socials.items.length === 0 ? 'aucun' : `${socials.items.length} réseau${socials.items.length > 1 ? 'x' : ''}`}
+                </Text>
+              </View>
               <Switch value={socials.enabled} onValueChange={(v) => setSocials({ enabled: v })} />
-            </View>
+            </TouchableOpacity>
+
+            {socialsOpen && (<>
             <Text style={styles.hint}>
               S'affichent dans le pied de page (web bureau) et en bas de l'écran d'accueil mobile.
               L'ordre de la liste est l'ordre d'affichage. Une entrée sans lien n'est pas affichée.
@@ -248,15 +264,30 @@ export default function AdminLanding() {
               </TouchableOpacity>
             </View>
 
-            {socials.items.map((s, i) => (
+            {/* Chaque réseau est REPLIÉ : déplié, cinq champs × N réseaux remplissaient la page.
+                La ligne fermée montre l'essentiel (icône, nom, lien) et garde ordre + suppression
+                accessibles sans avoir à ouvrir. */}
+            {socials.items.map((s, i) => {
+              const isOpen = openSocial === i;
+              return (
               <View key={i} style={styles.subCard}>
                 <View style={styles.rowBetween}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 }}
+                    onPress={() => setOpenSocial(isOpen ? null : i)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={isOpen ? 'chevron-down' : 'chevron-forward'} size={15} color={COLORS.textSecondary} />
                     {s.image
                       ? <Image source={{ uri: s.image }} style={{ width: 18, height: 18 }} resizeMode="contain" />
                       : <Ionicons name={(s.icon || 'globe-outline') as any} size={18} color={COLORS.text} />}
-                    <Text style={styles.cardTitle}>{s.label || `Réseau ${i + 1}`}</Text>
-                  </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>{s.label || `Réseau ${i + 1}`}</Text>
+                      {!isOpen && (
+                        <Text style={styles.itemSub} numberOfLines={1}>{s.url?.trim() || 'lien manquant'}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <TouchableOpacity onPress={() => moveSocial(i, -1)} disabled={i === 0}>
                       <Ionicons name="arrow-up" size={17} color={i === 0 ? COLORS.cardBorder : COLORS.textSecondary} />
@@ -269,35 +300,39 @@ export default function AdminLanding() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <Field label="Nom (lu par les lecteurs d'écran)" value={s.label} onChange={(v) => setSocial(i, { label: v })} styles={styles} c={COLORS} />
-                <Field label="Lien (https://… ou mailto:…)" value={s.url} onChange={(v) => setSocial(i, { url: v })} styles={styles} c={COLORS} />
-                <Field label="Icône (nom Ionicons)" value={s.icon} onChange={(v) => setSocial(i, { icon: v })} styles={styles} c={COLORS} />
-                <Text style={styles.fieldLabel}>Ou téléverser une image (prioritaire sur l'icône)</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    value={s.image ?? ''}
-                    onChangeText={(v) => setSocial(i, { image: v })}
-                    placeholder="URL image (PNG/SVG)"
-                    placeholderTextColor={COLORS.textSecondary}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity style={styles.uploadBtn} onPress={() => pickAndUpload((url) => setSocial(i, { image: url }))} disabled={uploading}>
-                    {uploading ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
-                  </TouchableOpacity>
-                  {!!s.image && (
-                    <TouchableOpacity style={styles.uploadBtn} onPress={() => setSocial(i, { image: '' })}>
-                      <Ionicons name="close" size={18} color={COLORS.danger} />
+                {isOpen && (<>
+                  <Field label="Nom (lu par les lecteurs d'écran)" value={s.label} onChange={(v) => setSocial(i, { label: v })} styles={styles} c={COLORS} />
+                  <Field label="Lien (https://… ou mailto:…)" value={s.url} onChange={(v) => setSocial(i, { url: v })} styles={styles} c={COLORS} />
+                  <Field label="Icône (nom Ionicons)" value={s.icon} onChange={(v) => setSocial(i, { icon: v })} styles={styles} c={COLORS} />
+                  <Text style={styles.fieldLabel}>Ou téléverser une image (prioritaire sur l'icône)</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      value={s.image ?? ''}
+                      onChangeText={(v) => setSocial(i, { image: v })}
+                      placeholder="URL image (PNG/SVG)"
+                      placeholderTextColor={COLORS.textSecondary}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity style={styles.uploadBtn} onPress={() => pickAndUpload((url) => setSocial(i, { image: url }))} disabled={uploading}>
+                      {uploading ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
                     </TouchableOpacity>
-                  )}
-                </View>
+                    {!!s.image && (
+                      <TouchableOpacity style={styles.uploadBtn} onPress={() => setSocial(i, { image: '' })}>
+                        <Ionicons name="close" size={18} color={COLORS.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>)}
               </View>
-            ))}
+              );
+            })}
             <Text style={styles.hint}>
               X, Threads, Mastodon, BlueSky… n'ont pas de logo dans Ionicons : téléverse une image
               (fond transparent) pour ceux-là.
             </Text>
+            </>)}
           </View>
 
           {tab === 'bureau' && (<>
@@ -485,6 +520,8 @@ function makeStyles(c: any) {
     themeBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
     themeBtnText: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
     preview: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center' },
+    countTag: { fontSize: 11, fontWeight: '700', color: c.textSecondary, backgroundColor: c.bg, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 8, overflow: 'hidden' },
+    itemSub: { fontSize: 11, color: c.textSecondary, marginTop: 1 },
     presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4 },
     presetChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10 },
     presetTxt: { fontSize: 12, fontWeight: '600', color: c.text },

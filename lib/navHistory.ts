@@ -36,3 +36,32 @@ export function consumePreviousRoute(): string | null {
   stack.pop();
   return stack[stack.length - 1] ?? null;
 }
+
+/**
+ * Repart de zéro sur `path`. À utiliser quand on REMONTE d'un cran faute d'historique (cf.
+ * useNavBack) : sans ça, la page qu'on vient de quitter deviendrait la « précédente » de sa propre
+ * page parente — et « Retour » y redescendrait aussitôt, en boucle.
+ */
+export function resetRouteTo(path: string): void {
+  stack = [path];
+}
+
+/**
+ * Segments qui ne sont QUE des dossiers de rangement, sans page à eux : on les saute en remontant.
+ * Ex. /comptes/edit/42 → /comptes (et non /comptes/edit, qui n'existe pas).
+ */
+const PASSTHROUGH_SEGMENTS = new Set(['edit', 'credit']);
+
+/**
+ * Chemin parent réellement navigable, ou null si on est déjà à la racine.
+ * Sert de repli à « Retour » quand l'historique est vide (ouverture directe par URL, rechargement
+ * de la page web, arrivée sur la page juste après la connexion) : remonter d'un cran vaut mieux que
+ * de renvoyer sur le tableau de bord. Vérifié : dans cette app, toute route à plusieurs segments a
+ * un parent qui est lui-même une route — aux dossiers ci-dessus près.
+ */
+export function parentRoute(path: string | null | undefined): string | null {
+  const parts = (path ?? '').split('/').filter(Boolean);
+  parts.pop();
+  while (parts.length > 0 && PASSTHROUGH_SEGMENTS.has(parts[parts.length - 1])) parts.pop();
+  return parts.length > 0 ? '/' + parts.join('/') : null;
+}

@@ -31,11 +31,10 @@ import { legalPresentation } from '../components/LegalLayout';
 import { DESKTOP_MIN_WIDTH } from '../hooks/useResponsive';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { setAnalyticsUser, logEvent, trackScreen } from '../lib/analytics';
-import { recordRoute, consumePreviousRoute } from '../lib/navHistory';
+import { recordRoute, consumePreviousRoute, parentRoute, resetRouteTo } from '../lib/navHistory';
 import ProfileChangeModal from '../components/ProfileChangeModal';
 import ProfileTourConclusion from '../components/ProfileTourConclusion';
 import LiveProfileSync from '../components/LiveProfileSync';
-import StreakRecoveryModal from '../components/StreakRecoveryModal';
 import FontApplier from '../components/FontApplier';
 import GamificationSync from '../components/GamificationSync';
 import AppDialogHost from '../components/AppDialogHost';
@@ -364,7 +363,12 @@ function AppChrome() {
       if (isAuthPageRef.current) return false;
       const prev = consumePreviousRoute();
       if (prev) { router.navigate(prev as any); return true; }
-      return false; // aucune page précédente (racine) → défaut (quitter l'app)
+      // Pas d'historique (reprise de session, lien profond) : on remonte d'un cran plutôt que de
+      // laisser la pile imbriquée dépiler n'importe où — même règle que le bouton « Retour »
+      // in-app (cf. useNavBack).
+      const parent = parentRoute(backPathname);
+      if (parent) { resetRouteTo(parent); router.navigate(parent as any); return true; }
+      return false; // déjà à la racine → défaut (quitter l'app)
     };
     // Ré-abonnement à chaque navigation : notre handler reste le dernier enregistré (donc appelé
     // en premier), prioritaire sur le retour par défaut de la pile imbriquée.
@@ -411,8 +415,6 @@ function AppChrome() {
       {isTabs && user && <ProfileTourConclusion />}
       {/* Le profil financier suit les comptes et les transactions, où qu'ils changent. */}
       {isTabs && user && <LiveProfileSync />}
-      {/* Récupération de série perdue — proposée à l'arrivée sur l'app */}
-      {isTabs && user && <StreakRecoveryModal />}
       <AnalyticsTracker />
       <RouteHistoryTracker />
       {/* Calculatrice flottante globale — visible quand ouverte, par-dessus tout */}

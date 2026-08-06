@@ -23,8 +23,20 @@ describe('file d’attente des sollicitations', () => {
     expect(canShowInterrupt('achievement')).toBe(false);
   });
 
-  it('l’ordre complet : clôture → bilan du mois → hebdo → profil → succès', () => {
-    expect(INTERRUPT_ORDER).toEqual(['closure', 'pulse_month', 'profile_change', 'achievement']);
+  it('l’ordre complet : clôture → bilan du mois → profil → succès → « +1 » de la série', () => {
+    expect(INTERRUPT_ORDER).toEqual(['closure', 'pulse_month', 'profile_change', 'achievement', 'streak_bump']);
+  });
+
+  it('le « +1 » de la flamme passe toujours EN DERNIER', () => {
+    // C'est une animation, pas une information : elle attend que toutes les fenêtres soient closes.
+    setInterruptPending('streak_bump', true);
+    setInterruptPending('achievement', true);
+    setInterruptPending('closure', true);
+    expect(canShowInterrupt('streak_bump')).toBe(false);
+    setInterruptPending('closure', false);
+    expect(canShowInterrupt('streak_bump')).toBe(false);   // les succès parlent encore
+    setInterruptPending('achievement', false);
+    expect(currentInterrupt()).toBe('streak_bump');        // à elle, enfin
   });
 
   it('la suivante ne prend la main qu’une fois la précédente TRAITÉE', () => {

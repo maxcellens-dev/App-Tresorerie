@@ -49,7 +49,7 @@ export default function GamificationSync() {
   const { enabled: closureEnabled, closures } = useMonthlyClosure(user?.id);
   const { data: profile } = useProfile(user?.id);
   const { allDone: onboardingDone } = useOnboarding(user?.id);
-  const { state, validateWeek, evaluate, recordLogin, streakLoss } = useGamification(user?.id);
+  const { state, validateWeek, recordLogin } = useGamification(user?.id);
   const ranFor = useRef<string | null>(null);
 
   /**
@@ -91,12 +91,10 @@ export default function GamificationSync() {
     // dès qu'une valeur bouge — même sans changer le nombre de transactions (ex. une transaction
     // éditée qui devient un virement d'investissement) — l'évaluation est relancée. On y ajoute les
     // métriques de l'état (relyks cumulés, séries) : un achat de relyks doit débloquer aussitôt.
-    // `streak` / `last_validated_week` en font partie : après un rachat ou un refus de série, la
-    // semaine en cours doit être validée dans la foulée (sinon il faudrait relancer l'app).
     const sig = [
       user.id, JSON.stringify(ctx),
-      state?.gems_earned_total ?? -1, state?.login_streak ?? -1, state?.best_streak ?? -1,
-      state?.streak ?? -1, state?.last_validated_week ?? '', streakLoss ? 1 : 0,
+      state?.gems_earned_total ?? -1, state?.login_streak ?? -1,
+      state?.streak ?? -1, state?.last_validated_week ?? '',
     ].join('|');
     if (ranFor.current === sig) return;
     ranFor.current = sig;
@@ -105,15 +103,13 @@ export default function GamificationSync() {
     (async () => {
       try {
         await recordLogin(); // série quotidienne (avant l'évaluation des badges)
-        // Série hebdo : la VISITE de la semaine suffit à la valider. Exception : tant qu'une perte
-        // de série attend une décision (modale de rachat), on ne valide pas — valider remettrait la
-        // série à 1 dans le dos de l'utilisateur, avant qu'il ait pu la racheter.
-        if (streakLoss) await evaluate(ctx, opts);
-        else await validateWeek(ctx, opts);
+        // Série hebdo : la VISITE de la semaine suffit à la valider (+1, sans condition — elle ne
+        // redescend jamais). `validateWeek` enchaîne sur l'évaluation des succès.
+        await validateWeek(ctx, opts);
       } catch { ranFor.current = null; }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx, streakLoss, state, user?.id, config?.identity.enabled, closureEnabled, isImpersonating]);
+  }, [ctx, state, user?.id, config?.identity.enabled, closureEnabled, isImpersonating]);
 
   return null;
 }
