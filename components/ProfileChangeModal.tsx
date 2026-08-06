@@ -89,18 +89,25 @@ export default function ProfileChangeModal({ userId }: Props) {
   /* Le changement de profil vient APRÈS la clôture et le bilan du mois : il en est la conséquence.
      L'annoncer avant, c'était livrer le verdict d'un calcul dont l'utilisateur n'a pas encore vu
      les données (cf. lib/interruptQueue). */
-  const myTurn = useInterruptSlot('profile_change', !isImpersonating && !duringGuide && !!pendingChange);
+  const myTurn = useInterruptSlot(
+    'profile_change',
+    !isImpersonating && !duringGuide && !!pendingChange?.display,
+  );
+  /* Consommation SILENCIEUSE : pendant le parcours de démarrage (voir ci-dessus), et quand les
+     changements en attente s'annulent entre eux (`display: false`) — il n'y a alors rien à
+     annoncer, mais laisser les lignes en attente les ferait ressortir au prochain lancement. */
+  const consumeSilently = !!pendingChange && !isImpersonating && (duringGuide || !pendingChange.display);
   useEffect(() => {
-    if (!duringGuide || isImpersonating || !pendingChange) return;
-    markShown.mutate(pendingChange.id);
+    if (!consumeSilently || !pendingChange) return;
+    markShown.mutate(pendingChange.ids);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [duringGuide, isImpersonating, pendingChange?.id]);
+  }, [consumeSilently, pendingChange?.ids.join(',')]);
 
   // En consultation admin : ne pas afficher le message de bilan/changement de profil du compte
   // cible (ni le marquer comme « vu »). C'est une notification destinée à l'utilisateur lui-même.
   if (isImpersonating) return null;
   if (duringGuide) return null;
-  if (!pendingChange) return null;
+  if (!pendingChange || !pendingChange.display) return null;
   // Pas encore notre tour : la clôture et/ou le bilan du mois parlent d'abord.
   if (!myTurn) return null;
 
@@ -154,7 +161,9 @@ export default function ProfileChangeModal({ userId }: Props) {
   ];
 
   function handleClose() {
-    markShown.mutate(pendingChange!.id);
+    // TOUTES les lignes en attente, pas seulement celle annoncée : c'est ce qui évite l'enchaînement
+    // de modaux (« j'ai compris » → un autre changement s'ouvre → un troisième…).
+    markShown.mutate(pendingChange!.ids);
   }
 
   return (

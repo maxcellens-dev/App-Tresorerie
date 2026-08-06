@@ -19,6 +19,7 @@ import type {
   ProfileMatrixConfig,
   ProfileNotificationMessage,
   FinancialProfileId,
+  ChangeReason,
 } from '../types/database';
 import type { QuestionnaireAnswers } from '../lib/financialProfileEngine';
 
@@ -75,10 +76,38 @@ export function useQuestionnaireAnswers(userId: string | undefined) {
 
 // ── Notification en attente ───────────────────────────────────
 
+/**
+ * Le changement de profil NET, tel qu'il doit être annoncé — pas la liste des étapes.
+ *
+ * ⚠️ Plusieurs lignes peuvent être en attente en même temps : le profil vivant en journalise une à
+ * CHAQUE saut (l'utilisateur ajoute son épargne → P1→P2, puis ses récurrences → P2→P3…), et le
+ * bilan mensuel en ajoute encore une. En n'en lisant qu'une à la fois, le modal s'enchaînait : on
+ * fermait « ton profil a changé », l'invalidation faisait remonter la ligne précédente, et un
+ * deuxième — puis un troisième — modal s'ouvrait. L'utilisateur se voyait raconter, une fenêtre à
+ * la fois, des transitions intermédiaires qu'il n'a jamais vécues à l'écran.
+ *
+ * On ne garde donc que le RÉSULTAT : profil d'arrivée = celui de la ligne la plus récente, profil de
+ * départ = celui de la plus ancienne non lue (le dernier que l'utilisateur ait vu annoncé). Toutes
+ * les lignes sont consommées d'un coup à la fermeture (`ids`).
+ */
+export interface PendingProfileChange {
+  /** Toutes les lignes non lues à marquer « vues » d'un seul geste. */
+  ids: string[];
+  previous_profile: string | null;
+  new_profile: string;
+  change_reason: ChangeReason;
+  triggered_at: string;
+  /**
+   * `false` = les changements se sont annulés entre eux (P3 → P4 → P3) : il n'y a rien à annoncer,
+   * mais il faut quand même consommer les lignes, sinon elles ressortiraient au prochain lancement.
+   */
+  display: boolean;
+}
+
 export function usePendingProfileChange(userId: string | undefined) {
   return useQuery({
     queryKey: [CHANGE_LOG_KEY, 'pending', userId],
-    queryFn: async (): Promise<ProfileChangeLog | null> => {
+    queryFn: async (): Promise<PendingProfileChange | null> => {
       if (!supabase || !userId) return null;
       const { data, error } = await supabase
         .from('profile_change_log')
@@ -86,10 +115,46 @@ export function usePendingProfileChange(userId: string | undefined) {
         .eq('user_id', userId)
         .eq('notification_shown', false)
         .order('triggered_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        // Garde-fou : au-delà, ce sont de toute façon de vieilles étapes intermédiaires.
+        .limit(50);
       if (error) throw error;
-      return data ?? null;
+
+      const rows = (data ?? []) as ProfileChangeLog[];
+      if (rows.length === 0) return null;
+
+      const latest = rows[0];                 // la plus récente = l'état actuel
+      const oldest = rows[rows.length - 1];   // la plus ancienne = le dernier état connu de l'utilisateur
+      const ids = rows.map(r => r.id);
+
+      const newProfile = latest.new_profile;
+      const previousProfile = oldest.previous_profile;
+      const isNetChange = !!previousProfile && previousProfile !== newProfile;
+
+      if (isNetChange) {
+        // Motif : celui du dernier vrai changement (la ligne la plus récente peut être un simple
+        // bilan « maintien » posé après coup — il ne doit pas masquer la transition réelle).
+        const lastRealChange = rows.find(r => r.previous_profile !== r.new_profile) ?? latest;
+        return {
+          ids,
+          previous_profile: previousProfile,
+          new_profile: newProfile,
+          change_reason: lastRealChange.change_reason,
+          triggered_at: latest.triggered_at,
+          display: true,
+        };
+      }
+
+      // Aucun changement net. Le bilan mensuel, lui, reste dû : c'est un rendez-vous, pas la
+      // conséquence d'un mouvement. Sinon : rien à dire, on consomme en silence.
+      const recap = rows.find(r => r.change_reason === 'monthly_recap');
+      return {
+        ids,
+        previous_profile: newProfile,
+        new_profile: newProfile,
+        change_reason: (recap?.change_reason ?? latest.change_reason) as ChangeReason,
+        triggered_at: (recap ?? latest).triggered_at,
+        display: !!recap,
+      };
     },
     enabled: !!userId,
   });
@@ -269,15 +334,22 @@ export function useSaveQuestionnaire(userId: string | undefined) {
 
 // ── Marquer la notification comme vue ────────────────────────
 
+/**
+ * Marque une OU PLUSIEURS lignes comme vues. Le pluriel est essentiel : le modal annonce le
+ * changement net de plusieurs lignes à la fois, il doit donc toutes les consommer d'un coup —
+ * sinon les étapes intermédiaires ressortent une à une à la fermeture (cf. usePendingProfileChange).
+ */
 export function useMarkNotificationShown(userId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (changeLogId: string) => {
+    mutationFn: async (changeLogIds: string | string[]) => {
       if (!supabase || !userId) throw new Error('Non connecté');
+      const ids = Array.isArray(changeLogIds) ? changeLogIds : [changeLogIds];
+      if (ids.length === 0) return;
       const { error } = await supabase
         .from('profile_change_log')
         .update({ notification_shown: true })
-        .eq('id', changeLogId)
+        .in('id', ids)
         .eq('user_id', userId);
       if (error) throw error;
     },
