@@ -26,7 +26,7 @@ import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type Them
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 import ColorPickerModal from '../../../components/ColorPickerModal';
 
-export default withDeferredMount(AppearanceScreen, 'form');
+export default withDeferredMount(AppearanceScreen);
 function AppearanceScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);

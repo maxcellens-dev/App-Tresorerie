@@ -29,7 +29,7 @@ const RELYKA_SERVICES = [
   { icon: 'videocam', title: 'Conseiller en visio (1-on-1)', desc: 'Un échange en direct avec un conseiller pour t’aider sur ta gestion.', soon: true },
 ] as const;
 
-export default withDeferredMount(BoutiqueScreen, 'list');
+export default withDeferredMount(BoutiqueScreen);
 function BoutiqueScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);

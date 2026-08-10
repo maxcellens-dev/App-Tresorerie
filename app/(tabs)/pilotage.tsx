@@ -5,6 +5,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, RefreshControl, Modal, TextInput, findNodeHandle, Pressable, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import ScreenGradient from '../../components/ScreenGradient';
+import PageLoader from '../../components/PageLoader';
 import CalculatorButton from '../../components/CalculatorButton';
 import RecurringTransactionsModal from '../../components/RecurringTransactionsModal';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
@@ -28,7 +29,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
 import { usePilotageData } from '../../hooks/usePilotageData';
 import { signalAppReady } from '../../lib/splashGate';
-import { useFeatureFlags } from '../../hooks/useFeatureFlags';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useSharedContribution } from '../../hooks/useSharedContribution';
 import { useCreditPilotTemplates } from '../../hooks/useCreditFlows';
@@ -390,8 +390,6 @@ function PilotageScreen() {
     const t = setTimeout(signalAppReady, 900);
     return () => clearTimeout(t);
   }, [pilotageData, baseDataReady, pilotageError, isOffline]);
-
-  const { data: featureFlags } = useFeatureFlags();
 
   // ── Reste disponible = Courant − tout ce qui est affiché ──
   // Formule directe depuis les valeurs affichées pour cohérence avec l'UI.
@@ -867,14 +865,7 @@ function PilotageScreen() {
   // faut afficher le tableau de bord ou l'accueil. On attend plutôt que de montrer l'un puis
   // l'autre (borné à 4 s, cf. bootTimedOut).
   if (((isLoading && !pilotageData) || stillBooting) && !isOffline) {
-    return (
-      <View style={styles.root}>
-        <StatusBar style="light" />
-        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-          <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
-        </SafeAreaView>
-      </View>
-    );
+    return <PageLoader />;
   }
 
   // Écran d'erreur UNIQUEMENT s'il n'y a AUCUNE donnée (cache compris). Si des données existent —

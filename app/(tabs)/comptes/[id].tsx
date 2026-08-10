@@ -1,5 +1,4 @@
 ﻿import { useMemo, useState, useEffect } from 'react';
-import { SkeletonRows } from '../../../components/Skeleton';
 import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
   View,
@@ -45,7 +44,7 @@ import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } 
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
 import BalanceChart from '../../../components/BalanceChart';
 import AccountSettingsForm from '../../../components/AccountSettingsForm';
-import ScreenSkeleton from '../../../components/ScreenSkeleton';
+import PageLoader from '../../../components/PageLoader';
 import { buildBalanceHistory } from '../../../lib/balanceHistory';
 
 
@@ -556,7 +555,7 @@ function AccountDetailScreen() {
      l'absence que si la requête a RÉELLEMENT abouti : une lecture en erreur rend elle aussi une
      liste vide, en déduire « ce compte n'existe pas » serait faux. */
   if (!user || !account) {
-    if (!accountsQuery.isSuccess) return <ScreenSkeleton variant="detail" />;
+    if (!accountsQuery.isSuccess) return <PageLoader />;
     return (
       <View style={styles.root}>
         <ScreenGradient />
@@ -794,7 +793,7 @@ function AccountDetailScreen() {
           {showUpcoming ? 'À venir ce mois' : 'Historique des transactions'}
         </Text>
         {txLoading ? (
-          <SkeletonRows rows={5} />
+          <ActivityIndicator size="small" color={COLORS.emerald} style={styles.loader} />
         ) : (showUpcoming ? upcomingThisMonth : accountTransactions).length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="document-text-outline" size={32} color={COLORS.textSecondary} />
@@ -1778,4 +1777,4 @@ function makeTxDetailStyles(c: any) {
 /* OUVERTURE INSTANTANÉE : la page s'affiche en silhouette le temps que son corps (hooks,
    calculs, listes) se monte — sinon le tap reste sans effet visible pendant tout le montage.
    Cf. hooks/useDeferredMount. */
-export default withDeferredMount(AccountDetailScreen, 'detail');
+export default withDeferredMount(AccountDetailScreen);

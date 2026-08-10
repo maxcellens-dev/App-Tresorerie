@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
 import CalculatorButton from '../../components/CalculatorButton';
-import ScreenSkeleton from '../../components/ScreenSkeleton';
+import PageLoader from '../../components/PageLoader';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -471,7 +471,7 @@ function GroupHeader({ icon, title, color }: { icon: string; title: string; colo
 /** Montage différé (écran LOURD) : squelette 1 frame → la page s'ouvre instantanément, le
  *  contenu (graphes + tableaux) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function ReportingScreen() {
-  return useDeferredMount() ? <ReportingBody /> : <ScreenSkeleton variant="chart" />;
+  return useDeferredMount() ? <ReportingBody /> : <PageLoader />;
 }
 
 function ReportingBody() {
@@ -692,6 +692,10 @@ function ReportingBody() {
       </SafeAreaView>
     </View>
   );
+
+  /* Données pas encore là → cercle, pas une page de graphes vides et de « 0 € » qui sauteront aux
+     vraies valeurs. On teste l'ABSENCE de données, jamais `isFetching` (cf. components/PageLoader). */
+  if (!pilotage || !rawTxPerso || !rawAccPerso) return <PageLoader label="Analyse de tes données…" />;
 
   return (
     <View style={s.root}>

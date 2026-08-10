@@ -1023,4 +1023,4 @@ function makeStyles(c: any) {
 }
 
 /* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
-export default withDeferredMount(AddTransactionScreen, 'form');
+export default withDeferredMount(AddTransactionScreen);

@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl, TextInput } from 'react-native';
 import ScreenGradient from '../../components/ScreenGradient';
-import ScreenSkeleton from '../../components/ScreenSkeleton';
+import PageLoader from '../../components/PageLoader';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -214,7 +214,7 @@ function MaybeHScroll({ enabled, innerRef, showBar, style, contentContainerStyle
 }
 
 export default function TreasuryPlanScreen() {
-  return useDeferredMount() ? <TreasuryPlanBody /> : <ScreenSkeleton variant="chart" />;
+  return useDeferredMount() ? <TreasuryPlanBody /> : <PageLoader />;
 }
 
 function TreasuryPlanBody() {
@@ -1092,6 +1092,11 @@ function TreasuryPlanBody() {
       </View>
     );
   }
+
+  /* Cercle tant qu'il n'y a rien à montrer — au lieu d'un plan dont l'entête et les totaux
+     s'affichaient à zéro pendant que le tableau annonçait « Chargement… » juste en dessous.
+     ⚠️ L'absence de données, jamais `isFetching` (cf. components/PageLoader). */
+  if (!pilotage || isLoading || categoriesLoading) return <PageLoader label="Construction de ton plan…" />;
 
   return (
     <View style={styles.root}>

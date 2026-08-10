@@ -27,7 +27,7 @@ import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 import { useKeyboardAwareScroll } from '../../../../hooks/useKeyboardAwareScroll';
 import { notePlaceholder } from '../../../../lib/txPlaceholders';
 import { appAlert } from '../../../../lib/appDialog';
-import ScreenSkeleton from '../../../../components/ScreenSkeleton';
+import PageLoader from '../../../../components/PageLoader';
 
 
 function EditTransactionScreen() {
@@ -623,7 +623,7 @@ function EditTransactionScreen() {
      que lorsque la requête a RÉELLEMENT abouti (`isSuccess`) : une lecture en ERREUR rend elle
      aussi une liste vide, et en conclure « elle n'existe pas » serait faux. */
   if (!user || !tx) {
-    if (!txQuery.isSuccess) return <ScreenSkeleton variant="form" />;
+    if (!txQuery.isSuccess) return <PageLoader />;
     return (
       <View style={styles.root}>
         <ScreenGradient />
@@ -1221,4 +1221,4 @@ function makeStyles(c: any) {
 }
 
 /* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
-export default withDeferredMount(EditTransactionScreen, 'form');
+export default withDeferredMount(EditTransactionScreen);

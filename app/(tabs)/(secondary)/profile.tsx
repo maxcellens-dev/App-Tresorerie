@@ -571,4 +571,4 @@ function makeStyles(c: any) {
 }
 
 /* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
-export default withDeferredMount(ProfileScreen, 'form');
+export default withDeferredMount(ProfileScreen);

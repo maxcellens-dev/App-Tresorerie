@@ -17,7 +17,7 @@ import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
 import AccountSettingsForm from '../../../../components/AccountSettingsForm';
-import ScreenSkeleton from '../../../../components/ScreenSkeleton';
+import PageLoader from '../../../../components/PageLoader';
 
 export default function EditAccountScreen() {
   const COLORS = useAppColors();
@@ -35,7 +35,7 @@ export default function EditAccountScreen() {
   // Pas encore chargé ≠ introuvable (cf. la fiche du compte) : coquille tant que la requête est en
   // vol, message d'absence uniquement quand elle a réellement abouti.
   if (!user || !account) {
-    if (!accountsQuery.isSuccess) return <ScreenSkeleton variant="form" />;
+    if (!accountsQuery.isSuccess) return <PageLoader />;
     return (
       <View style={styles.root}>
         <ScreenGradient />

@@ -40,7 +40,7 @@ import { pageColumn } from '../../../lib/webLayout';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCurrencySymbol } from '../../../hooks/useCurrency';
 
-export default withDeferredMount(ProfilFinancierScreen, 'dashboard');
+export default withDeferredMount(ProfilFinancierScreen);
 
 function ProfilFinancierScreen() {
   const COLORS = useAppColors();

@@ -1,5 +1,4 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { SkeletonRows } from '../../../components/Skeleton';
 import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
   View,
@@ -487,7 +486,9 @@ function ProjectsScreen() {
           </TouchableOpacity>
         </View>
         {isLoading ? (
-          <SkeletonRows rows={5} />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color={COLORS.primary} size="large" />
+          </View>
         ) : (
           <FlatList
             data={showArchived
@@ -1274,4 +1275,4 @@ function makeStyles(c: any) {
 /* OUVERTURE INSTANTANÉE : la page s'affiche en silhouette le temps que son corps (hooks,
    calculs, listes) se monte — sinon le tap reste sans effet visible pendant tout le montage.
    Cf. hooks/useDeferredMount. */
-export default withDeferredMount(ProjectsScreen, 'list');
+export default withDeferredMount(ProjectsScreen);

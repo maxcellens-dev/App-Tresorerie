@@ -1,8 +1,7 @@
 ﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { SkeletonRows } from '../../../components/Skeleton';
+import PageLoader from '../../../components/PageLoader';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
-import ScreenSkeleton from '../../../components/ScreenSkeleton';
 import { useDeferredMount } from '../../../hooks/useDeferredMount';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
 import AdSlot from '../../../components/AdSlot';
@@ -117,7 +116,7 @@ type TxListItem =
 /** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, la liste
  *  (3 mois projetés + récurrences) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function TransactionsListScreen() {
-  return useDeferredMount() ? <TransactionsListBody /> : <ScreenSkeleton variant="list" />;
+  return useDeferredMount() ? <TransactionsListBody /> : <PageLoader />;
 }
 
 function TransactionsListBody() {
@@ -972,8 +971,7 @@ function TransactionsListBody() {
         )}
         <View style={{ flex: 1 }} {...periodPan.panHandlers}>
         {isLoading ? (
-          /* Silhouette des lignes, pas un rond : la liste est « là », elle se remplit. */
-          <View style={styles.scrollContent}><SkeletonRows rows={8} /></View>
+          <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
         ) : (
           <FlatList
             style={styles.scroll}

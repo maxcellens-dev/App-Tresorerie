@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenGradient from '../../components/ScreenGradient';
-import ScreenSkeleton from '../../components/ScreenSkeleton';
+import PageLoader from '../../components/PageLoader';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import CalculatorButton from '../../components/CalculatorButton';
 import OnboardingHintBanner from '../../components/OnboardingHintBanner';
@@ -78,7 +78,7 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
 /** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, le
  *  contenu (projections + graphes) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function ProjectionScreen() {
-  return useDeferredMount() ? <ProjectionBody /> : <ScreenSkeleton variant="chart" />;
+  return useDeferredMount() ? <ProjectionBody /> : <PageLoader />;
 }
 
 function ProjectionBody() {
@@ -519,6 +519,13 @@ function ProjectionBody() {
     }
     return rows;
   }, [allAccounts, investAccounts, transactions, currentYear]);
+
+  /* RIEN À MONTRER ≠ TOUT À ZÉRO. Sans ce garde, la page se dessinait entièrement pendant que les
+     données arrivaient : chaque montant repliait sur `?? 0`, on lisait donc des cartes vides et des
+     « 0 € » présentés comme des vrais chiffres, avant de les voir sauter aux bonnes valeurs.
+     ⚠️ On teste l'ABSENCE de données, pas `isFetching` : le cache rend la quasi-totalité des
+     retours instantanés, et remplacer une page déjà remplie par un cercle la ferait clignoter. */
+  if (!pilotage) return <PageLoader label="Calcul de ta projection…" />;
 
   return (
     <View style={styles.root}>

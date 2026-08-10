@@ -26,7 +26,7 @@ function nextMonthKey(key: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export default withDeferredMount(SuccesScreen, 'list');
+export default withDeferredMount(SuccesScreen);
 function SuccesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
