@@ -1,17 +1,19 @@
 /**
- * QuickAddButton — gros bouton « + » rond et SURÉLEVÉ dans la barre d'onglets (son centre est posé
- * sur le bord haut de la barre). Au tap, il déploie en arc, juste au-dessus, 4 actions de saisie
- * (Solde, Virement, Dépense, Recette) avec une animation d'apparition/disparition. Un tap ailleurs
- * referme.
+ * QuickAddButton — la BULLE « + », flottante en bas à droite. Au tap, elle déploie juste au-dessus
+ * 4 actions de saisie (Solde, Virement, Dépense, Recette) ; un tap ailleurs referme.
  *
  * « Mettre à jour mon solde » est la 4ᵉ action, et un APPUI LONG sur le « + » y va directement.
  * Ce n'est pas un ajout cosmétique : c'est le seul geste qui VÉRIFIE les données (régularisation +
  * recalibrage de la confiance), donc celui qui remet tous les chiffres d'aplomb. Il n'était
  * atteignable que par Comptes → un compte → « Nouveau Solde », ce qui le rendait invisible.
  *
- * Position réglable (Paramètres) : 'right' (défaut, entre Pilotage et Projets), 'left' (entre Pilotage
- * et Transactions). Il n'est plus masquable par l'utilisateur : seul l'admin peut le désactiver
- * globalement. Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre.
+ * UN SEUL MODE. Il en a existé un second — un gros bouton surélevé DANS la barre d'onglets, avec
+ * une position gauche/droite réglable par l'utilisateur — jamais retenu en production. Le garder
+ * imposait deux placements à faire cohabiter, une préférence utilisateur sans effet et un
+ * interrupteur d'admin de plus : retiré.
+ *
+ * Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre. Le bouton fait partie de
+ * l'app au même titre que la barre d'onglets : ni l'utilisateur ni l'admin ne peuvent le masquer.
  */
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable, useWindowDimensions, Platform } from 'react-native';
@@ -20,9 +22,6 @@ import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppColors } from '../hooks/useAppColors';
-import { useAuth } from '../contexts/AuthContext';
-import { useQuickAddPref } from '../hooks/useUiPrefs';
-import { useFeatureFlags } from '../hooks/useFeatureFlags';
 import { APP_MAX_WIDTH } from '../lib/appLayout';
 
 const FAB_SIZE = 56;          // plus GROS et repérable (était 42 : passait inaperçu)
@@ -53,9 +52,6 @@ export default function QuickAddButton() {
   const width = Platform.OS === 'web' ? Math.min(winWidth, APP_MAX_WIDTH) : winWidth;
   const router = useRouter();
   const pathname = usePathname();
-  const { user } = useAuth();
-  const { position } = useQuickAddPref(user?.id);
-  const { data: flags } = useFeatureFlags();
 
   const [open, setOpen] = useState(false);
   // `mounted` garde les boutons d'action dans l'arbre PENDANT l'animation, puis les démonte à la
@@ -110,19 +106,13 @@ export default function QuickAddButton() {
 
   const go = (route: string) => { close(); setTimeout(() => router.push(route as any), 60); };
 
-  const enabled = flags?.quick_add_enabled !== false;      // admin : défaut activé
-  const isBubble = (flags?.quick_add_mode ?? 'tabbar') === 'bubble';
-  // Plus de masquage par l'utilisateur : le bouton porte la mise à jour du solde (le geste qui
-  // vérifie les données). Seul l'admin peut encore le désactiver globalement.
-  if (!enabled) return null;
-  // Mode bulle : visible sur le Pilotage (l'écran d'accueil sur lequel on atterrit au démarrage),
-  // sur les écrans « Comptes » (liste + détail d'un compte) et
-  // sur la liste des « Transactions » (où il remplace les 3 boutons du haut). Jamais sur un écran de
-  // SAISIE (add / edit) : y proposer une saisie n'aurait aucun sens.
+  // Visible sur le Pilotage (l'écran d'accueil sur lequel on atterrit au démarrage), sur les écrans
+  // « Comptes » (liste + détail d'un compte) et sur la liste des « Transactions » (où il remplace
+  // les 3 boutons du haut). Jamais sur un écran de SAISIE (add / edit / solde) — y proposer une
+  // saisie n'aurait aucun sens, et la mise à jour de solde EST une saisie.
   const path = pathname ?? '';
-  // Jamais sur un écran de SAISIE — y compris la mise à jour de solde, qui EST une saisie.
   if (/\/(add|edit|solde)(\/|$)/.test(path)) return null;
-  if (isBubble && !/(pilotage|comptes|transactions)/.test(path)) return null;
+  if (!/(pilotage|comptes|transactions)/.test(path)) return null;
 
   // Sur le détail d'un compte (/comptes/<uuid>), on pré-sélectionne ce compte comme source de la saisie.
   const acctMatch = (pathname ?? '').match(/\/comptes\/([0-9a-fA-F-]{36})/);
@@ -131,10 +121,10 @@ export default function QuickAddButton() {
   // remonterait la pile Transactions au lieu de l'écran d'origine. On transmet donc l'origine.
   const originParam = pathname ? `&origin=${encodeURIComponent(pathname)}` : '';
 
+  // La bulle se pose au-dessus de la barre d'onglets, calée à droite.
   const barHeight = BAR_CONTENT + Math.max(insets.bottom, 8);
-  // Placement de l'ancre selon le mode.
-  const anchorBottom = isBubble ? barHeight + 12 : barHeight - FAB_SIZE / 2; // bulle au-dessus du menu ; barre = centre sur le bord
-  const anchorLeft = isBubble ? width - 16 - FAB_SIZE : width * (position === 'left' ? 0.4 : 0.6) - FAB_SIZE / 2;
+  const anchorBottom = barHeight + 12;
+  const anchorLeft = width - 16 - FAB_SIZE;
 
   // Actions EMPILÉES verticalement au-dessus du bouton (et non plus en arc) : à trois actions
   // l'arc restait lisible, à quatre les pastilles se chevauchaient et la cible devenait imprécise.
@@ -174,11 +164,9 @@ export default function QuickAddButton() {
           const fromBottom = ACTIONS.length - i;
           // Position FINALE statique (cible tactile fiable sur Android) : on n'anime que scale + opacity.
           const top = -(fromBottom * ROW_H) + (FAB_SIZE - ACTION_SIZE) / 2;
-          // Le menu s'ouvre vers la GAUCHE en mode bulle (le FAB colle au bord droit), et centré
-          // sur le bouton en mode barre — dans les deux cas la colonne reste dans l'écran.
-          const left = isBubble
-            ? FAB_SIZE - ACTION_W
-            : FAB_SIZE / 2 - ACTION_SIZE / 2 - (ACTION_W - ACTION_SIZE);
+          // Le menu s'ouvre vers la GAUCHE : la bulle colle au bord droit, la colonne d'actions
+          // se déploie donc vers l'intérieur de l'écran.
+          const left = FAB_SIZE - ACTION_W;
           const scale = anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1], extrapolate: 'clamp' });
           return (
             <Animated.View

@@ -1,5 +1,15 @@
 /**
  * Drapeaux de fonctionnalités globaux (admin) — stockés dans app_config.features.
+ *
+ * ⚠️ UN DRAPEAU EST UN INTERRUPTEUR EN ATTENTE DE DÉCISION, pas un réglage permanent. Une fois la
+ * fonctionnalité en place et gardée, il ne sert plus qu'à entretenir un chemin de code mort — et,
+ * pire, à laisser dériver les valeurs par défaut : `reporting_enabled` était lu « faux par défaut »
+ * dans le menu de profil et « vrai par défaut » dans la navigation web, si bien que la page
+ * Reporting pouvait être visible d'un côté et masquée de l'autre pour le même utilisateur.
+ *
+ * Retirés parce qu'acquis : `ads_enabled`, `reporting_enabled`, `reco_context_enabled`,
+ * `quick_add_enabled`, `quick_add_mode`. Les clés correspondantes peuvent rester dans
+ * `app_config.features` : plus personne ne les lit.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -8,14 +18,8 @@ export interface FeatureFlags {
   monthly_closure_enabled?: boolean;
   /** Offre Premium active (sinon : tout le monde gratuit, pas d'UI premium). */
   premium_enabled?: boolean;
-  /** Zone de publicités active (sinon : aucune pub affichée). */
-  ads_enabled?: boolean;
-  /** Page Reporting accessible aux utilisateurs (sinon : masquée du menu). */
-  reporting_enabled?: boolean;
   /** Page Conseils IA accessible (gate Premium + flag ai_open_to_all dans ai_config). */
   ai_advice_enabled?: boolean;
-  /** Messages contextuels sous les recommandations (projection invest, économie…). Défaut : activé. */
-  reco_context_enabled?: boolean;
   /** Dernière version publiée sur le store (ex. "1.0.2"). Si > version installée → bandeau « mise à jour ». */
   latest_version?: string;
   /** Version minimale requise (ex. "1.0.1"). Si > version installée → mise à jour OBLIGATOIRE (bandeau non fermable). */
@@ -30,14 +34,6 @@ export interface FeatureFlags {
    * un compte perso ; les partages déjà créés continuent de fonctionner. Aucune donnée touchée.
    */
   perso_account_sharing_enabled?: boolean;
-  /** Bouton de saisie rapide (« + ») actif. Défaut : activé. */
-  quick_add_enabled?: boolean;
-  /**
-   * Mode d'affichage du bouton de saisie rapide :
-   * - 'tabbar' (défaut) : gros bouton surélevé dans la barre d'onglets (position réglable par user) ;
-   * - 'bubble' : bulle volante sur le seul écran Pilotage, en bas à droite (l'user peut juste l'afficher/masquer).
-   */
-  quick_add_mode?: 'tabbar' | 'bubble';
   /** Vitesse de défilement du bandeau « Conseils » sur le Pilotage (secondes entre 2 conseils). Défaut 8. */
   conseils_rotation_seconds?: number;
   /**

@@ -70,8 +70,6 @@ export default function WebSideNav() {
   useSharedCreditsRealtime(user?.id);
   const acctInviteCount = acctInvitations.length + creditInvitations.length;
 
-  const reportingVisible = flags?.reporting_enabled !== false;
-
   const main: NavItem[] = [
     { key: 'pilotage', label: 'Tableau de bord', icon: 'grid-outline', route: '/(tabs)/pilotage' },
     { key: 'transactions', label: 'Transactions', icon: 'swap-vertical-outline', route: '/(tabs)/transactions' },
@@ -82,9 +80,7 @@ export default function WebSideNav() {
 
   const analyse: NavItem[] = [
     { key: 'tresorerie', label: 'Plan de trésorerie', icon: 'calendar-outline', route: '/(tabs)/tresorerie' },
-    ...(reportingVisible
-      ? [{ key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting', premium: !isPremium } as NavItem]
-      : []),
+    { key: 'reporting', label: 'Reporting', icon: 'bar-chart-outline', route: '/(tabs)/reporting', premium: !isPremium },
     { key: 'conseils-ia', label: 'Conseils Intelligents', icon: 'sparkles-outline', route: '/(tabs)/conseils-ia', premium: !isPremium },
   ];
 
@@ -180,36 +176,34 @@ export default function WebSideNav() {
       </Pressable>
 
       {/* ── Action principale (remplace le « + » flottant) ── */}
-      {flags?.quick_add_enabled !== false && (
-        <View style={styles.quickWrap}>
-          <View>
-            <Pressable
-              onPress={() => setQuickOpen((v) => !v)}
-              accessibilityRole="button"
-              style={({ hovered }: any) => [styles.quickBtn, hovered && styles.quickBtnHover]}
-            >
-              <Ionicons name={quickOpen ? 'close' : 'add'} size={18} color={COLORS.bg} />
-              <Text style={styles.quickBtnText}>Nouvelle opération</Text>
-            </Pressable>
-          </View>
-          {quickOpen && (
-            <View style={styles.quickMenu}>
-              {QUICK_ACTIONS.map((a) => (
-                <Pressable
-                  key={a.key}
-                  onPress={() => go(a.route, 'push')}
-                  style={({ hovered }: any) => [styles.quickItem, hovered && styles.itemHover]}
-                >
-                  <View style={[styles.quickIcon, { backgroundColor: tone(a.tone) + '1F' }]}>
-                    <Ionicons name={a.icon as any} size={15} color={tone(a.tone)} />
-                  </View>
-                  <Text style={styles.quickItemLabel} numberOfLines={1}>{a.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+      <View style={styles.quickWrap}>
+        <View>
+          <Pressable
+            onPress={() => setQuickOpen((v) => !v)}
+            accessibilityRole="button"
+            style={({ hovered }: any) => [styles.quickBtn, hovered && styles.quickBtnHover]}
+          >
+            <Ionicons name={quickOpen ? 'close' : 'add'} size={18} color={COLORS.bg} />
+            <Text style={styles.quickBtnText}>Nouvelle opération</Text>
+          </Pressable>
         </View>
-      )}
+        {quickOpen && (
+          <View style={styles.quickMenu}>
+            {QUICK_ACTIONS.map((a) => (
+              <Pressable
+                key={a.key}
+                onPress={() => go(a.route, 'push')}
+                style={({ hovered }: any) => [styles.quickItem, hovered && styles.itemHover]}
+              >
+                <View style={[styles.quickIcon, { backgroundColor: tone(a.tone) + '1F' }]}>
+                  <Ionicons name={a.icon as any} size={15} color={tone(a.tone)} />
+                </View>
+                <Text style={styles.quickItemLabel} numberOfLines={1}>{a.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
 
       {/* ── Navigation ── */}
       <ScrollView style={styles.nav} contentContainerStyle={styles.navContent} showsVerticalScrollIndicator={false}>

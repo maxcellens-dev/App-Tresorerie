@@ -391,9 +391,7 @@ function PilotageScreen() {
     return () => clearTimeout(t);
   }, [pilotageData, baseDataReady, pilotageError, isOffline]);
 
-  // Messages contextuels des recos (projection invest, économie…) — activables en admin (défaut : oui).
   const { data: featureFlags } = useFeatureFlags();
-  const recoContextEnabled = featureFlags?.reco_context_enabled !== false;
 
   // ── Reste disponible = Courant − tout ce qui est affiché ──
   // Formule directe depuis les valeurs affichées pour cohérence avec l'UI.
@@ -653,7 +651,7 @@ function PilotageScreen() {
   }, [relykaAffiche, relykaAlloueVolontairement, misDeCoteTotal, variableEnvelopeRemaining, relConf]);
 
   /** Données de projection alimentant l'encadré contextuel des recos (les deux vues). */
-  const recoFinancials = recoContextEnabled && pilotageData
+  const recoFinancials = pilotageData
     ? { currentChecking: pilotageData.current_checking_balance, projectedEndChecking: pilotageData.projection_balances_6m?.[0] }
     : undefined;
 
@@ -663,7 +661,7 @@ function PilotageScreen() {
     recommendations: recoList,
     financials: recoFinancials,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [recoList, recoContextEnabled, pilotageData]);
+  }), [recoList, pilotageData]);
 
   /* Les messages du CHIFFRE PRINCIPAL, déroulés sous le montant : garde-fou marge × projection,
      consigne « solde non vérifié » (que portait le bandeau ambre), point bas de trésorerie, revenu

@@ -139,8 +139,6 @@ export interface UiPrefs {
   calculator_enabled?: boolean;
   /** Pages où le bouton calculatrice est affiché (défaut : transactions uniquement). */
   calculator_pages?: string[];
-  /** Position du bouton « + » de saisie rapide dans la barre d'onglets (défaut : 'right'). */
-  quick_add_position?: 'right' | 'left' | 'hidden';
   /** #2 — Filtre des totaux de la page Comptes : tout / perso / partagés. */
   accounts_totals_filter?: 'all' | 'perso' | 'shared';
   /** Recommandations ignorées / complétées du mois courant. */

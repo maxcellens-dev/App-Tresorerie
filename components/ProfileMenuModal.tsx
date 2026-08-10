@@ -40,15 +40,13 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
   // signOut() se charge de tout (voile, navigation, purge) — cf. AuthContext.
   const logout = () => { onClose(); signOut(); };
 
-  // Reporting masqué aux utilisateurs tant que le flag n'est pas activé (les admins y accèdent toujours).
-  const reportingVisible = Boolean(featureFlags?.reporting_enabled) || isAdmin;
   // Conseils IA : bouton TOUJOURS visible (comme une vitrine). C'est l'ACCÈS au clic qui change selon
   // les réglages admin (Premium requis, ou « Ouvrir à tous ») — géré dans la page elle-même.
 
   const items: ({ icon: string; label: string; route: string; color?: string; premium?: boolean } | false)[] = [
     { icon: 'person-circle-outline', label: 'Mon Profil', route: '/(tabs)/(secondary)/profile' },
     { icon: 'color-palette-outline', label: 'Apparence', route: '/(tabs)/(secondary)/apparence', color: '#0ea5a8' },
-    reportingVisible && { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: true },
+    { icon: 'bar-chart-outline', label: 'Reporting', route: '/(tabs)/reporting', color: '#f59e0b', premium: true },
     { icon: 'sparkles-outline', label: 'Conseils Intelligents', route: '/(tabs)/conseils-ia', color: '#10b981', premium: true },
     { icon: 'bag-handle-outline', label: 'Boutique', route: '/(tabs)/(secondary)/boutique', color: '#22d3ee' },
     { icon: 'star-outline', label: 'Plan', route: '/(tabs)/(secondary)/premium', color: '#fbbf24' },

@@ -20,7 +20,7 @@ import { useFeatureFlags } from '../../../hooks/useFeatureFlags';
 import CurrencyPicker from '../../../components/CurrencyPicker';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
-import { usePilotageTips, useRecoDismissals, useQuickAddPref, CALCULATOR_PAGES } from '../../../hooks/useUiPrefs';
+import { usePilotageTips, useRecoDismissals, CALCULATOR_PAGES } from '../../../hooks/useUiPrefs';
 import { useRecoThresholds } from '../../../hooks/useRecoThresholds';
 import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
 import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
@@ -32,9 +32,6 @@ import { usePushPermission } from '../../../hooks/usePushPermission';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
-// Réglage « Bouton de saisie rapide » (position / masquage) : masqué de l'écran, code conservé.
-// Le bouton « + » est désormais un élément fixe de l'app (Pilotage, Comptes, Transactions).
-const SHOW_QUICK_ADD_SETTING = false;
 
 // Réglage « Marge de sécurité » : masqué ici — il se règle dans le Pilotage, et un même réglage à
 // deux endroits prête à confusion. Code conservé (passer à `true` pour le rétablir).
@@ -65,7 +62,6 @@ function SettingsScreen() {
   const { isDesktop } = useResponsive(); // web bureau : colonne de réglages centrée
   const { enabled: calculatorEnabled, setEnabled: setCalculatorEnabled, pages: calculatorPages, setPages: setCalculatorPages } = useCalculator();
   const { enabled: tipsEnabled, setEnabled: setTipsEnabled } = usePilotageTips(user?.id);
-  const { position: quickAddPos, setPosition: setQuickAddPos } = useQuickAddPref(user?.id);
   const { resetDismissals } = useRecoDismissals(user?.id);
   const [recosReset, setRecosReset] = useState(false);
   /** Résultat du diagnostic push (admin uniquement, natif). */
@@ -412,48 +408,6 @@ function SettingsScreen() {
                 )}
               </View>
             )}
-            {SHOW_QUICK_ADD_SETTING && featureFlags?.quick_add_enabled !== false && (() => {
-              const bubbleMode = (featureFlags?.quick_add_mode ?? 'tabbar') === 'bubble';
-              // Plus d'option « Masquer » : le bouton + porte désormais la mise à jour du solde,
-              // le seul geste qui VÉRIFIE les données. Le masquer privait l'utilisateur de
-              // l'action la plus utile de l'app, sans autre chemin mis en avant. Seule la
-              // POSITION reste réglable (et rien en mode bulle, où elle est imposée).
-              const opts = bubbleMode
-                ? ([] as const)
-                : ([['right', 'Droite'], ['left', 'Gauche']] as const);
-              if (opts.length === 0) return null;
-              return (
-                <>
-                  <View style={{ height: 1, backgroundColor: COLORS.cardBorder }} />
-                  <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 8, borderBottomWidth: 0 }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <Ionicons name="add-circle-outline" size={20} color={COLORS.textSecondary} />
-                      <Text style={styles.rowLabel}>Position du bouton de saisie rapide</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {opts.map(([val, lbl]) => {
-                        const active = quickAddPos === val;
-                        return (
-                          <TouchableOpacity
-                            key={val}
-                            style={[{ flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.cardBorder, alignItems: 'center' }, active && { backgroundColor: COLORS.emerald + '18', borderColor: COLORS.emerald }]}
-                            onPress={() => setQuickAddPos(val)}
-                            activeOpacity={0.8}
-                          >
-                            <Text style={{ fontSize: 13, fontWeight: active ? '700' : '600', color: active ? COLORS.emerald : COLORS.textSecondary }}>{lbl}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                    <Text style={{ color: COLORS.textSecondary, fontSize: 11, lineHeight: 15 }}>
-                      {bubbleMode
-                        ? 'Bouton « + » volant en bas à droite, sur l\'écran Pilotage uniquement, pour saisir vite un virement, une dépense ou une recette.'
-                        : 'Gros bouton « + » surélevé dans la barre du bas pour saisir vite un virement, une dépense ou une recette.'}
-                    </Text>
-                  </View>
-                </>
-              );
-            })()}
           </View>
 
           {/* ── Application ─────────────────────────────────────────────────────────────────

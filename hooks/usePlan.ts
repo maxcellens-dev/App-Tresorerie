@@ -27,15 +27,15 @@ export function usePlan(userId: string | undefined) {
   const { data: flags } = useFeatureFlags();
   const { data: profile } = useProfile(userId);
   const premiumEnabled = !!flags?.premium_enabled;
-  const adsEnabled = !!flags?.ads_enabled;
   const hasEntitlement = !!(profile as any)?.is_premium;
   const isPremium = premiumEnabled && hasEntitlement;
   return {
     premiumEnabled,
-    adsEnabled,
     isPremium,
     plan: isPremium ? ('premium' as const) : ('free' as const),
-    /** Pubs visibles : activées globalement ET utilisateur non-premium. */
-    showAds: adsEnabled && !isPremium,
+    /* Les publicités font partie de l'offre gratuite : elles s'affichent pour tout utilisateur
+       non-premium. Le CONTENU (bannières maison) se gère dans l'admin « Publicités » — n'en
+       publier aucune suffit à n'en montrer aucune, sans interrupteur supplémentaire. */
+    showAds: !isPremium,
   };
 }
