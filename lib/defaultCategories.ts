@@ -25,8 +25,11 @@ export const DEFAULT_CATEGORIES: DefaultCategoryItem[] = [
 
   // DÉPENSES — ordre imposé par l'utilisateur
   // Mouvements : virements internes + régularisations (sort_order -10 = en premier)
-  { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements', 'Régularisation solde'] },
-  { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Restaurants', 'Loisirs', 'Autres frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Projets', 'Animaux', 'Vêtements', 'Vacances'] },
+  // « Mouvements » = les écritures NEUTRES (l'argent change de poche sans quitter le patrimoine).
+  // La régularisation n'en fait plus partie : corriger un solde à la baisse, c'est constater de
+  // l'argent réellement parti — sa place est dans les frais variables (cf. migration 175).
+  { name: 'Mouvements', type: 'expense', is_variable: false, sort_order: -10, children: ['Épargne', 'Investissements'] },
+  { name: 'Frais variables', type: 'expense', is_variable: true, sort_order: 0, children: ['Courses', 'Restaurants', 'Loisirs', 'Autres frais personnels', 'Transports en commun', 'Véhicule, Carburant', 'Projets', 'Animaux', 'Vêtements', 'Vacances', 'Régularisation Solde'] },
   { name: 'Santé, assurance', type: 'expense', is_variable: false, sort_order: 10, children: ['Mutuelle', 'Assurance Santé'] },
   { name: 'Logement', type: 'expense', is_variable: false, sort_order: 20, children: ['Loyer', 'Copropriété', "Taxe d'habitation", 'Taxe foncière', 'Assurance habitation', 'Electricité, Eau, Gaz'] },
   { name: 'Abonnements, Forfaits', type: 'expense', is_variable: false, sort_order: 30, children: ['Autres abonnements', 'Internet mobile', 'Plateformes Streaming', 'Box internet', 'Sport'] },

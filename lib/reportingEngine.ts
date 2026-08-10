@@ -98,7 +98,11 @@ export function isRecurringTemplate(t: ReportTx): boolean {
 export function isRealFlux(t: ReportTx): boolean {
   if (t.is_draft) return false;
   if (t.linked_account_id) return false; // virement interne (neutre)
-  if (isRegul(t)) return false;
+  /* La RÉGULARISATION compte, désormais rangée dans sa sous-catégorie (migration 175) : c'est de
+     l'argent réellement parti ou arrivé. L'écarter ici revenait à créer une catégorie qui
+     n'apparaît dans aucun graphe — et à faire mentir le total des dépenses du mois.
+     ⚠️ Elle reste exclue du REVENU DE RÉFÉRENCE (lib/incomeAverage) : une correction de solde à la
+     hausse n'est pas un salaire, et la compter fausserait le matelas de sécurité et le profil. */
   return true;
 }
 

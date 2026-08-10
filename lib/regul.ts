@@ -44,6 +44,40 @@ export function isRegul(t: RegulLike | null | undefined): boolean {
   return /r[ée]gularisation/i.test(catName);
 }
 
+// ── La CATÉGORIE d'une régularisation ──────────────────────────────────────────────────────────
+//
+// Une régul n'était rangée nulle part : elle apparaissait « sans catégorie » dans le reporting et
+// le plan de trésorerie, alors qu'elle correspond à de l'argent réellement en moins ou en plus. On
+// la classe donc, selon son sens :
+//   • à la BAISSE  → « Frais variables › Régularisation Solde »  (une dépense qu'on n'avait pas vue)
+//   • à la HAUSSE  → « Autres recettes › Régularisation Solde »  (une rentrée qu'on n'avait pas vue)
+//
+// ⚠️ Poser une catégorie était IMPOSSIBLE jusqu'à la migration 175 : le moteur de solde SQL
+// reconnaissait une régularisation à l'absence de catégorie. Il s'appuie désormais sur
+// `regul_target`, comme `isRegul` ci-dessus — une seule définition des deux côtés du réseau.
+
+/** Nom de la sous-catégorie, identique des deux côtés (la casse a divergé selon les référentiels). */
+export const REGUL_CATEGORY_NAME = 'Régularisation Solde';
+
+interface CategoryLike { id: string; name: string; type: string }
+
+/**
+ * Sous-catégorie de régularisation à poser sur une écriture, d'après son SENS.
+ * `null` si le référentiel de l'utilisateur ne la contient pas (compte ancien, catégorie
+ * supprimée) : on écrit alors la régul sans catégorie — exactement le comportement d'avant, jamais
+ * un échec de saisie pour une question de rangement.
+ */
+export function findRegulCategoryId(
+  categories: CategoryLike[] | null | undefined,
+  amount: number,
+): string | null {
+  const wanted = amount < 0 ? 'expense' : 'income';
+  const match = (categories ?? []).find(
+    (c) => c.type === wanted && c.name.trim().toLowerCase() === REGUL_CATEGORY_NAME.toLowerCase(),
+  );
+  return match?.id ?? null;
+}
+
 // ── Prorata de clôture (option C : « je connais mon solde d'aujourd'hui ») ──────────────────
 // Un écart constaté APRÈS la fin d'un mois (ex. réconciliation le 8 du mois suivant) doit être
 // réparti au prorata des JOURS entre le mois qui se ferme et le mois courant — au lieu d'écraser

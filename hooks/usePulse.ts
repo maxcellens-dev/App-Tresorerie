@@ -275,7 +275,9 @@ function buildPulse(deps: PulseDeps): PulseData | null {
       else if (destType === 'investment') lastMonthInvested += amt;
       continue;
     }
-    if (isRegul(t)) continue;
+    /* La régularisation N'EST PLUS écartée : elle compte comme dépense variable, exactement
+       comme dans le Pilotage (isBudgetExpense). L'exclure ici donnait deux totaux différents pour
+       le même mois selon l'écran ouvert. */
     // Dépense variable = sortie NON récurrente (une occurrence matérialisée porte materialized_from).
     if (amt < 0 && !t.is_recurring && !t.materialized_from) lastMonthVariable += -amt;
   }

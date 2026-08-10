@@ -21,7 +21,7 @@ import { usePlan } from '../../../hooks/usePlan';
 import { useCosmetics } from '../../../hooks/useCosmetics';
 import { useNavBack } from '../../../hooks/useNavBack';
 import { useLocalSearchParams } from 'expo-router';
-import { COSMETIC_DEFS } from '../../../lib/gamification';
+import { COSMETIC_DEFS, SHOP_CATEGORY_LABELS } from '../../../lib/gamification';
 import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../../theme/palette';
 import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
 import ColorPickerModal from '../../../components/ColorPickerModal';
@@ -112,25 +112,20 @@ function AppearanceScreen() {
     });
   }, [cosmetics.ownedKeys, cosmetics.equipped, gamiConfig]);
 
-  // Cosmétiques regroupés par catégorie (emplacement) et triés par nom.
-  const cosmeticGroups = useMemo(() => {
-    /* Les deux emplacements COLORÉS d'abord (cadre puis flamme), le texte ensuite : cadres et
-       flammes partagent la même palette et s'assortissent deux à deux (cf. COSMETIC_PALETTE), donc
-       on les regarde ensemble. Un titre ne s'assortit à rien — il ferme la liste. */
-    const order: { slot: string; label: string }[] = [
-      { slot: 'avatar_frame', label: "Cadres d'avatar" },
-      { slot: 'streak_flame', label: 'Flammes de série' },
-      { slot: 'title', label: 'Titres de profil' },
-    ];
-    return order
-      .map((g) => ({
-        ...g,
-        items: ownedCosmetics
-          .filter((c) => c.slot === g.slot)
-          .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
-      }))
-      .filter((g) => g.items.length > 0);
-  }, [ownedCosmetics]);
+  /* DEUX FAMILLES, comme en boutique. Cadres et flammes se portent ensemble : ils partagent la même
+     palette et s'assortissent deux à deux (cf. COSMETIC_PALETTE). Un titre, lui, ne s'assortit à
+     rien — c'est du texte sous un pseudo, et la boutique le vend dans son propre rayon
+     (SHOP_CATEGORY_LABELS.titres). Les mélanger ici obligeait à retrouver, dans une seule liste,
+     l'objet qu'on venait d'acheter dans un rayon distinct. */
+  const bySlot = (slot: string) =>
+    ownedCosmetics.filter((c) => c.slot === slot).sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+
+  const cosmeticGroups = useMemo(() => ([
+    { slot: 'avatar_frame', label: "Cadres d'avatar", items: bySlot('avatar_frame') },
+    { slot: 'streak_flame', label: 'Flammes de série', items: bySlot('streak_flame') },
+  ].filter((g) => g.items.length > 0)), [ownedCosmetics]);
+
+  const titleItems = useMemo(() => bySlot('title'), [ownedCosmetics]);
   // Les presets natifs (7 couleurs de base) sont gratuits pour tous.
   // Les presets supplémentaires créés dans le Style Editor forment le "Pack couleurs".
   const nativePresets = allPresets.filter((p) => NATIVE_PRESET_IDS.includes(p.id));
@@ -144,6 +139,15 @@ function AppearanceScreen() {
         <ScreenHeader title="Apparence" onBack={goBack} />
 
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          {/* ── LES MÊMES RAYONS QU'EN BOUTIQUE ────────────────────────────────────────────────
+              Tout tenait dans une seule carte : mode d'affichage, couleurs, cadres, flammes et
+              titres empilés sans hiérarchie. Or la boutique, elle, vend ça en trois rayons
+              distincts — on achetait un titre au rayon « Titres de profil » et on devait ensuite
+              le chercher au milieu des couleurs. Les libellés sont IMPORTÉS de la boutique
+              (SHOP_CATEGORY_LABELS) : les deux écrans ne peuvent plus se contredire. */}
+          <Text style={styles.sectionTitle}>{SHOP_CATEGORY_LABELS.apparence}</Text>
+          <Text style={styles.sectionIntro}>Le mode d'affichage et la couleur de l'application.</Text>
+
           <View style={styles.card}>
             {/* Mode d'affichage clair / sombre — accessible à tous les utilisateurs. */}
             <View style={[styles.block, { borderBottomWidth: 1, borderBottomColor: COLORS.cardBorder, paddingBottom: 16, marginBottom: 16 }]}>
@@ -262,49 +266,54 @@ function AppearanceScreen() {
               )}
             </View>
 
-            {/* ── Cosmétique : équiper les cosmétiques débloqués en boutique ── */}
-            <View style={[styles.block, { borderTopWidth: 1, borderTopColor: COLORS.cardBorder, paddingTop: 16, marginTop: 16 }]}>
-              <Text style={styles.label}>Cosmétique</Text>
-              {ownedCosmetics.length === 0 ? (
-                <>
-                  <Text style={styles.hint}>Aucun cosmétique débloqué pour le moment. Procure-t'en en boutique pour personnaliser ton profil.</Text>
-                  <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
-                    <Ionicons name="bag-handle-outline" size={16} color={COLORS.bg} />
-                    <Text style={styles.unlockBtnText}>Voir la boutique</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.hint}>Coche un cosmétique pour l'équiper. Il s'affichera sur ton profil et dans l'app.</Text>
-                  {cosmeticGroups.map((group) => (
-                    <View key={group.slot}>
-                      <Text style={styles.cosmeticGroupTitle}>{group.label}</Text>
-                      {/* Une ligne par type, défilable à l'horizontale (galerie / carrousel). */}
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cosmeticRow}>
-                        {group.items.map((cos) => (
-                          <TouchableOpacity
-                            key={cos.key}
-                            style={[styles.cosmeticCard, cos.equipped && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '14' }]}
-                            onPress={() => cosmetics.toggle(cos.key)}
-                            activeOpacity={0.8}
-                          >
-                            <View style={[styles.cosmeticCardIcon, { backgroundColor: cos.color + '22' }]}>
-                              <Ionicons name={cos.icon as any} size={22} color={cos.color} />
-                            </View>
-                            <Text style={styles.cosmeticCardLabel} numberOfLines={2}>{cos.label}</Text>
-                            {cos.equipped && (
-                              <View style={styles.cosmeticCheck}>
-                                <Ionicons name="checkmark" size={12} color="#fff" />
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
+          </View>
+
+          {/* ── COSMÉTIQUES : ce qui se porte (cadres d'avatar, flammes de série) ── */}
+          <Text style={styles.sectionTitle}>{SHOP_CATEGORY_LABELS.cosmetiques}</Text>
+          <Text style={styles.sectionIntro}>Le cadre autour de ton avatar et la flamme de ta série.</Text>
+          <View style={styles.card}>
+            {cosmeticGroups.length === 0 ? (
+              <EmptyShelf
+                styles={styles} COLORS={COLORS} router={router}
+                text="Aucun cadre ni flamme débloqué pour le moment."
+              />
+            ) : (
+              <>
+                <Text style={styles.hint}>Touche un élément pour l'équiper ; touche-le à nouveau pour le retirer.</Text>
+                {cosmeticGroups.map((group) => (
+                  <View key={group.slot}>
+                    <Text style={styles.cosmeticGroupTitle}>{group.label}</Text>
+                    {/* Une ligne par type, défilable à l'horizontale (galerie / carrousel). */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cosmeticRow}>
+                      {group.items.map((cos) => (
+                        <CosmeticCard key={cos.key} cos={cos} styles={styles} COLORS={COLORS} onToggle={() => cosmetics.toggle(cos.key)} />
+                      ))}
+                    </ScrollView>
+                  </View>
+                ))}
+              </>
+            )}
+          </View>
+
+          {/* ── TITRES DE PROFIL : du texte sous ton pseudo, vendu à part en boutique ── */}
+          <Text style={styles.sectionTitle}>{SHOP_CATEGORY_LABELS.titres}</Text>
+          <Text style={styles.sectionIntro}>La mention affichée sous ton nom, sur ton profil.</Text>
+          <View style={[styles.card, { marginBottom: 8 }]}>
+            {titleItems.length === 0 ? (
+              <EmptyShelf
+                styles={styles} COLORS={COLORS} router={router}
+                text="Aucun titre débloqué pour le moment."
+              />
+            ) : (
+              <>
+                <Text style={styles.hint}>Un seul titre à la fois : en équiper un remplace le précédent.</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cosmeticRow}>
+                  {titleItems.map((cos) => (
+                    <CosmeticCard key={cos.key} cos={cos} styles={styles} COLORS={COLORS} onToggle={() => cosmetics.toggle(cos.key)} />
                   ))}
-                </>
-              )}
-            </View>
+                </ScrollView>
+              </>
+            )}
           </View>
         </KeyboardAwareScrollView>
       </SafeAreaView>
@@ -321,6 +330,42 @@ function AppearanceScreen() {
   );
 }
 
+/** Rayon vide : on dit ce qui manque, et on ouvre la boutique — même geste dans les deux sections. */
+function EmptyShelf({ styles, COLORS, router, text }: { styles: any; COLORS: any; router: any; text: string }) {
+  return (
+    <>
+      <Text style={styles.hint}>{text}</Text>
+      <TouchableOpacity style={styles.unlockBtn} onPress={() => router.push('/(tabs)/(secondary)/boutique' as any)} activeOpacity={0.85}>
+        <Ionicons name="bag-handle-outline" size={16} color={COLORS.bg} />
+        <Text style={styles.unlockBtnText}>Voir la boutique</Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+/** Vignette d'un cosmétique possédé — identique dans les deux rayons (une seule écriture). */
+function CosmeticCard({ cos, styles, COLORS, onToggle }: { cos: any; styles: any; COLORS: any; onToggle: () => void }) {
+  return (
+    <TouchableOpacity
+      style={[styles.cosmeticCard, cos.equipped && { borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '14' }]}
+      onPress={onToggle}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityState={{ selected: cos.equipped }}
+    >
+      <View style={[styles.cosmeticCardIcon, { backgroundColor: cos.color + '22' }]}>
+        <Ionicons name={cos.icon as any} size={22} color={cos.color} />
+      </View>
+      <Text style={styles.cosmeticCardLabel} numberOfLines={2}>{cos.label}</Text>
+      {cos.equipped && (
+        <View style={styles.cosmeticCheck}>
+          <Ionicons name="checkmark" size={12} color="#fff" />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 function makeStyles(c: any) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.bg },
@@ -328,7 +373,10 @@ function makeStyles(c: any) {
     backRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
     backText: { fontSize: 14, fontWeight: '600', color: c.text },
     title: { fontSize: 24, fontWeight: '800', color: c.text, marginBottom: 16 },
-    card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16 },
+    card: { backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.cardBorder, padding: 16, marginBottom: 22 },
+    // Titres de RAYON, hors des cartes : ils découpent la page comme la boutique découpe la sienne.
+    sectionTitle: { fontSize: 17, fontWeight: "800", color: c.text, marginTop: 4 },
+    sectionIntro: { fontSize: 12.5, color: c.textSecondary, lineHeight: 17, marginTop: 3, marginBottom: 10 },
     block: { gap: 10 },
     label: { fontSize: 15, fontWeight: '500', color: c.text },
     segmentRow: { flexDirection: 'row', gap: 8 },

@@ -674,7 +674,11 @@ function computePilotageData(data: Awaited<ReturnType<typeof fetchPilotageData>>
     if (t.project_id && !isProjectSpendTx(t)) return false;
     const cat = t.category;
     if (cat && cat.type !== 'expense') return false;
-    if (cat?.name && /r[ée]gularisation/i.test(cat.name)) return false;
+    /* La RÉGULARISATION compte désormais comme une dépense variable, et porte sa propre
+       sous-catégorie « Frais variables › Régularisation Solde » (migration 175). Un filtre par nom
+       la rejetait ici : elle se serait rangée dans une catégorie qui ne totalise rien. Constater
+       après coup qu'il manque 80 € sur le compte, c'est 80 € dépensés — la seule différence avec
+       les courses, c'est qu'on ne sait pas en quoi. */
     return true;
   };
 

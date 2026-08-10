@@ -11,6 +11,8 @@
  * il remplit ceux qu'il veut, et on n'écrit une régularisation que pour ceux réellement modifiés.
  */
 import React, { useMemo, useState } from 'react';
+import { findRegulCategoryId } from '../../../lib/regul';
+import { useCategories } from '../../../hooks/useCategories';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, Platform, Modal, Pressable,
@@ -42,6 +44,8 @@ export default function BalanceUpdateScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ origin?: string }>();
   const { user } = useAuth();
+  // Catégories du profil : sert à ranger la régularisation selon son sens (cf. lib/regul).
+  const { data: categories = [] } = useCategories(user?.id);
   /* Retour EXPLICITE. `router.back()` (le défaut de ScreenHeader) ne faisait RIEN ici : l'écran est
      poussé depuis un AUTRE onglet (bouton « + » du Pilotage, des Transactions…), donc la pile
      « comptes » ne contient que lui — il n'y a rien à dépiler. On revient sur la route réellement
@@ -114,7 +118,9 @@ export default function BalanceUpdateScreen() {
         // écart 0) : elle calibre sa dérive vers zéro et fait remonter la confiance. On l'écrit.
         await addTransaction.mutateAsync({
           account_id: g.account.id,
-          category_id: null,                 // une régul reste sans catégorie (le moteur de solde l'exige)
+          // Rangée selon son sens (cf. lib/regul). Le moteur de solde ne s'appuie plus sur
+          // l'absence de catégorie mais sur `regul_target` — migration 175.
+          category_id: findRegulCategoryId(categories, g.gap),
           amount: g.gap,
           date,
           note: 'Régularisation solde',

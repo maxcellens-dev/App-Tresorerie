@@ -22,6 +22,8 @@ import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
 import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/txOrder';
+import { findRegulCategoryId } from '../../../lib/regul';
+import { useCategories } from '../../../hooks/useCategories';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -131,6 +133,8 @@ function AccountDetailScreen() {
   const params = useLocalSearchParams<{ id: string; verify?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
+  // Catégories du profil : sert à ranger la régularisation selon son sens (cf. lib/regul).
+  const { data: categories = [] } = useCategories(user?.id);
   const accountsQuery = useAllAccounts(user?.id);
   const accounts = accountsQuery.data ?? [];
   const { data: rawTransactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
@@ -260,7 +264,9 @@ function AccountDetailScreen() {
     try {
       await addTransaction.mutateAsync({
         account_id: id,
-        category_id: null,
+        // Rangée selon son sens : « Frais variables › Régularisation Solde » si le solde baisse,
+        // « Autres recettes › Régularisation Solde » s'il monte (cf. lib/regul).
+        category_id: findRegulCategoryId(categories, diff),
         amount: diff,
         date: balanceDate,
         note: balanceNote.trim() || 'Ajustement de solde',

@@ -12,7 +12,8 @@ import { useAppColors } from '../hooks/useAppColors';
 import { useAddTransaction, useTransactions } from '../hooks/useTransactions';
 import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../hooks/useMonthlyClosure';
 import { CURRENCY_SYMBOL } from '../lib/currency';
-import { prorateClosureGap, isRegul } from '../lib/regul';
+import { prorateClosureGap, isRegul, findRegulCategoryId } from '../lib/regul';
+import { useCategories } from '../hooks/useCategories';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../lib/dateUtils';
 import { sheetWidth } from '../lib/appLayout';
 import { useRecalibrateReliability } from '../hooks/useReliability';
@@ -69,6 +70,8 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user, isImpersonating } = useAuth();
+  // Catégories du profil : la régularisation de clôture est rangée selon son sens (cf. lib/regul).
+  const { data: categories = [] } = useCategories(user?.id);
   const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
   const addTransaction = useAddTransaction(user?.id);
   const { data: allTx = [] } = useTransactions(user?.id);
@@ -228,13 +231,13 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             const currentPart = gap - closingPart;
             if (Math.abs(closingPart) > 0.005) {
               await addTransaction.mutateAsync({
-                account_id: acc.id, category_id: null, amount: closingPart, date: monthEnd,
+                account_id: acc.id, category_id: findRegulCategoryId(categories, closingPart), amount: closingPart, date: monthEnd,
                 note: 'Régularisation clôture (mois)', is_recurring: false,
               } as any);
             }
             if (Math.abs(currentPart) > 0.005) {
               await addTransaction.mutateAsync({
-                account_id: acc.id, category_id: null, amount: currentPart, date: unknownDate,
+                account_id: acc.id, category_id: findRegulCategoryId(categories, currentPart), amount: currentPart, date: unknownDate,
                 note: 'Régularisation clôture (mois courant)', is_recurring: false,
               } as any);
             }
@@ -257,7 +260,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
           if (isLatest) {
             // Option B — solde réel constaté = solde ACTUEL → régul ancre datée de la fin du mois.
             await addTransaction.mutateAsync({
-              account_id: acc.id, category_id: null, amount: diff, date: monthEnd,
+              account_id: acc.id, category_id: findRegulCategoryId(categories, diff), amount: diff, date: monthEnd,
               note: 'Régularisation solde', regul_target: newBalance, is_recurring: false,
             } as any);
           } else {
@@ -266,13 +269,13 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             const pr = prorateClosureGap(diff, lastVerifiedFor(acc.id, closeKey), t0, closeKey);
             if (Math.abs(pr.closingShare) > 0.005) {
               await addTransaction.mutateAsync({
-                account_id: acc.id, category_id: null, amount: pr.closingShare, date: pr.closingDate,
+                account_id: acc.id, category_id: findRegulCategoryId(categories, pr.closingShare), amount: pr.closingShare, date: pr.closingDate,
                 note: 'Régularisation clôture (mois)', is_recurring: false,
               } as any);
             }
             if (Math.abs(pr.currentShare) > 0.005) {
               await addTransaction.mutateAsync({
-                account_id: acc.id, category_id: null, amount: pr.currentShare, date: t0,
+                account_id: acc.id, category_id: findRegulCategoryId(categories, pr.currentShare), amount: pr.currentShare, date: t0,
                 note: 'Régularisation clôture (mois courant)', is_recurring: false,
               } as any);
             }
