@@ -1,4 +1,4 @@
-import { computeEndOfMonthDelta, computeOpFeedback, touchesEndOfMonth } from '../lib/pulseDelta';
+import { computeEndOfMonthDelta, computeOpFeedback, consumesVariableEnvelope, touchesEndOfMonth } from '../lib/pulseDelta';
 const today = new Date(2026, 6, 15); // 15 juillet 2026
 const inMonth = '2026-07-20', nextMonth = '2026-08-03';
 const past = '2026-07-15'; // aujourd'hui (opération échue)
@@ -134,5 +134,38 @@ describe('computeOpFeedback — budget du quotidien', () => {
     expect(computeOpFeedback({ ...courses, isFuture: true }, 800, 800, { ...eom, variableEnvelopeRemaining: 300 }).envelope).toBeNull();
     expect(computeOpFeedback({ ...courses, hitsVariableEnvelope: false }, 800, 800, { ...eom, variableEnvelopeRemaining: 300 }).envelope).toBeNull();
     expect(computeOpFeedback({ kind: 'income', amount: 100, accountType: 'checking', date: past }, 800, 800, { ...eom, variableEnvelopeRemaining: 300 }).envelope).toBeNull();
+  });
+});
+
+/**
+ * LA RÈGLE PARTAGÉE « cette dépense entame-t-elle le budget du quotidien ? ».
+ *
+ * Elle est lue par la carte de confirmation ET par le patch optimiste du tableau de bord : les deux
+ * doivent répondre pareil, sans quoi la carte contredit l'écran derrière elle. Le piège est qu'une
+ * jambe de virement n'a PAS de catégorie — exactement comme une dépense sans catégorie — et passait
+ * donc pour une dépense du quotidien : virer 500 € vers l'épargne amputait l'enveloppe variable
+ * d'autant. Même exclusion que `isBudgetExpense` (usePilotageData) : sur `linked_account_id`.
+ */
+describe('consumesVariableEnvelope', () => {
+  const courses = { kind: 'expense' as const, accountType: 'checking' };
+
+  it('une dépense du quotidien sans catégorie compte', () => {
+    expect(consumesVariableEnvelope(courses)).toBe(true);
+  });
+
+  it('une JAMBE DE VIREMENT ne compte pas, même vue comme une sortie sans catégorie', () => {
+    expect(consumesVariableEnvelope({ ...courses, linkedAccountId: 'compte-epargne' })).toBe(false);
+    expect(consumesVariableEnvelope({ ...courses, kind: 'transfer' })).toBe(false);
+  });
+
+  it('ni une récurrente, ni une dépense de projet, ni un autre type de compte', () => {
+    expect(consumesVariableEnvelope({ ...courses, isRecurring: true })).toBe(false);
+    expect(consumesVariableEnvelope({ ...courses, projectId: 'p1' })).toBe(false);
+    expect(consumesVariableEnvelope({ ...courses, accountType: 'savings' })).toBe(false);
+  });
+
+  it('une catégorie de RECETTE (remboursement) ne compte pas ; une catégorie de dépense oui', () => {
+    expect(consumesVariableEnvelope({ ...courses, categoryId: 'c1', categoryType: 'income' })).toBe(false);
+    expect(consumesVariableEnvelope({ ...courses, categoryId: 'c1', categoryType: 'expense' })).toBe(true);
   });
 });

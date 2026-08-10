@@ -13,6 +13,13 @@ import { recomputeReliabilityCalibration } from '../lib/reliabilityCalib';
 
 const KEY = 'transactions';
 
+/**
+ * Plafond des listes de transactions. Exporté parce qu'un consommateur doit pouvoir savoir si son
+ * jeu de données est TRONQUÉ : au-delà de cette limite, l'absence d'une opération ancienne ne veut
+ * pas dire qu'elle n'existe pas (cf. la courbe de solde, qui refuse de remonter au-delà du connu).
+ */
+export const TX_FETCH_LIMIT = 500;
+
 /** Date du jour (locale) au format YYYY-MM-DD. */
 function localTodayISO(): string {
   const n = new Date();
@@ -217,7 +224,7 @@ export function useTransactions(profileId: string | undefined) {
         `)
         .eq('profile_id', profileId)
         .order('date', { ascending: false })
-        .limit(500);
+        .limit(TX_FETCH_LIMIT);
       if (error) throw error;
       // Vue PERSO : uniquement mes transactions sur MES comptes non joints (mon argent). On exclut donc
       // mes écritures sur un compte partagé reçu (account.profile_id ≠ moi) et sur mes comptes joints.
@@ -274,7 +281,7 @@ export function useAllTransactions(profileId: string | undefined) {
         `)
         .in('account_id', accountIds)
         .order('date', { ascending: false })
-        .limit(500);
+        .limit(TX_FETCH_LIMIT);
       if (error) throw error;
       return (data ?? []).map((r: any) => ({
         ...r,
@@ -393,6 +400,8 @@ function patchPilotageCache(
     isRecurring?: boolean | null;
     projectId?: string | null;
     regulCovered?: boolean;
+    /** Compte d'en face si c'est une JAMBE DE VIREMENT — elle n'entame pas l'enveloppe variable. */
+    linkedAccountId?: string | null;
   },
 ): void {
   const accounts = client.getQueryData<Account[]>(['accounts', profileId])
@@ -408,12 +417,13 @@ function patchPilotageCache(
   // supprimer une dépense applique `+100` au compte, ce qui la ferait passer pour une recette —
   // et l'enveloppe variable ne serait alors jamais recréditée.
   const hitsVariableEnvelope = consumesVariableEnvelope({
-    kind: op.amount < 0 ? 'expense' : 'income',
+    kind: op.linkedAccountId ? 'transfer' : op.amount < 0 ? 'expense' : 'income',
     accountType,
     isRecurring: op.isRecurring,
     projectId: op.projectId,
     categoryId: op.categoryId,
     categoryType,
+    linkedAccountId: op.linkedAccountId,
   });
 
   client.setQueryData<PilotageBalances>(['pilotage_data', profileId], (data) =>
@@ -577,6 +587,7 @@ export function useAddTransaction(profileId: string | undefined) {
           isRecurring: input.is_recurring ?? false,
           projectId: input.project_id ?? null,
           regulCovered,
+          linkedAccountId: input.linked_account_id ?? input.transfer_group_id ?? null,
         });
       }
 
@@ -1060,6 +1071,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
           categoryId: txCategoryId,
           isRecurring: isRecurringRow,
           projectId,
+          linkedAccountId: linkedAccountId ?? txGroupId ?? null,
         });
       }
 

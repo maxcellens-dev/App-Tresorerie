@@ -29,7 +29,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useAllAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
 import { useAccountParticipants, useAccountMembers } from '../../../hooks/useSharedAccounts';
-import { useAllTransactions, useAddTransaction } from '../../../hooks/useTransactions';
+import { useAllTransactions, useAddTransaction, TX_FETCH_LIMIT } from '../../../hooks/useTransactions';
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
 import { useCreditFlows } from '../../../hooks/useCreditFlows';
 import { buildOverrideMap, applyMonthOverrides, overrideKey } from '../../../lib/txOverrides';
@@ -517,13 +517,23 @@ function AccountDetailScreen() {
 
   /* ÉVOLUTION DU SOLDE — remontée à rebours depuis le solde du jour (cf. lib/balanceHistory) : la
      courbe finit donc EXACTEMENT sur le chiffre affiché juste au-dessus d'elle. */
+  /* Jusqu'où l'historique chargé est-il COMPLET ? La liste des opérations est bornée à 500 lignes
+     (useAllTransactions) : si on en a exactement autant, il en manque avant la plus ancienne, et
+     remonter au-delà donnerait des soldes passés faux — mais crédibles. On borne donc la courbe. */
+  const completeSince = useMemo(() => {
+    const all = transactions as TransactionWithDetails[];
+    if (all.length < TX_FETCH_LIMIT) return null;                 // rien n'a été tronqué
+    return all.reduce((min, t) => (t.date < min ? t.date : min), all[0].date);
+  }, [transactions]);
+
   const balanceHistory = useMemo(
     () => (account && id
       ? buildBalanceHistory(
-          id, Number(account.balance), transactions as any, todayISO(), (account as any).init_date ?? null,
+          id, Number(account.balance), transactions as any, todayISO(),
+          (account as any).init_date ?? null, completeSince,
         )
       : []),
-    [id, account, transactions],
+    [id, account, transactions, completeSince],
   );
   /* Index des jambes de virement, construit UNE fois par jeu de transactions (cf. buildTransferIndex) :
      l'appariement se faisait ligne par ligne sur TOUTE la liste, deux fois — quadratique. */
@@ -625,7 +635,10 @@ function AccountDetailScreen() {
                 width={chartWidth}
                 color={account.type === 'investment' ? COLORS.violet : account.type === 'savings' ? COLORS.green : COLORS.blue}
               />
-              <Text style={styles.chartCaption}>Évolution du solde depuis l’ouverture du compte</Text>
+              {/* La légende ne promet PAS « depuis l'ouverture » : sur un compte fourni, la courbe
+                  démarre au plus ancien mouvement connu (cf. completeSince). Les mois sont lisibles
+                  sous l'axe — inutile d'y ajouter une affirmation qu'on ne peut pas toujours tenir. */}
+              <Text style={styles.chartCaption}>Évolution du solde</Text>
             </View>
           )}
         </View>

@@ -52,6 +52,13 @@ export function buildBalanceHistory(
   todayStr: string,
   /** Date d'ouverture déclarée du compte (`init_date`) — début de la courbe si elle est antérieure. */
   initDate?: string | null,
+  /**
+   * Date à partir de laquelle `transactions` est COMPLET. Les listes de l'app sont bornées (500
+   * lignes) : au-delà, il manque des opérations, et « solde du jour − ce qui est tombé depuis »
+   * renverrait un solde passé trop élevé — une courbe fausse, mais parfaitement crédible. On refuse
+   * donc de remonter plus loin que ce que l'on sait complet. `null` = historique intégral.
+   */
+  completeSince?: string | null,
 ): BalancePoint[] {
   const posted = transactions.filter(
     (t) => t.account_id === accountId && !t.is_draft && !t.is_recurring && t.date <= todayStr,
@@ -59,7 +66,10 @@ export function buildBalanceHistory(
   if (posted.length === 0) return [];
 
   const first = posted.reduce((min, t) => (t.date < min ? t.date : min), posted[0].date);
-  const start = initDate && initDate < first ? initDate : first;
+  // L'ouverture déclarée ne fait reculer le départ que si l'on dispose vraiment des opérations de
+  // cette période (cf. completeSince). Sinon on démarre au plus ancien mouvement CONNU.
+  const wanted = initDate && initDate < first ? initDate : first;
+  const start = completeSince && wanted < completeSince ? completeSince : wanted;
 
   // Bornes de mois à représenter : fin de chaque mois depuis `start`, puis aujourd'hui.
   const startD = new Date(start + 'T00:00:00');

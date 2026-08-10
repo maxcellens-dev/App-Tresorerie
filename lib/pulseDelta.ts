@@ -120,8 +120,16 @@ export function consumesVariableEnvelope(o: {
   categoryId?: string | null;
   /** Type de la catégorie ('expense' | 'income'), résolu par l'appelant. */
   categoryType?: string | null;
+  /**
+   * Compte d'en face d'une JAMBE DE VIREMENT. Décisif : une jambe de virement n'a pas de catégorie,
+   * donc `!categoryId` la faisait passer pour une dépense du quotidien — un virement vers l'épargne
+   * amputait l'enveloppe variable. `isBudgetExpense` (usePilotageData) l'écarte sur ce champ ; on
+   * applique la même règle ici, où l'appelant le connaît.
+   */
+  linkedAccountId?: string | null;
 }): boolean {
   return o.kind === 'expense'
+    && !o.linkedAccountId
     && o.accountType === 'checking'
     && !o.isRecurring
     && !o.projectId

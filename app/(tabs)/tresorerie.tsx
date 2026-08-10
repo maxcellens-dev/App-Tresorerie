@@ -1148,9 +1148,10 @@ function TreasuryPlanBody() {
           </View>
         </View>
 
-        {isLoading ? (
-          <Text style={styles.hint}>Chargement…</Text>
-        ) : (
+        {/* Plus de branche « Chargement… » ici : l'écran entier attend en amont (cercle unique,
+            cf. le garde en tête de ce composant). Y laisser un second état de chargement, c'était
+            afficher l'entête et les totaux à zéro au-dessus d'un mot « Chargement ». */}
+        {(
           /* ── LECTURE D'UN TABLEAU LARGE : entête et libellés doivent rester visibles ────────────
              IMBRICATION D'ORIGINE (vertical > horizontal), et il faut s'y tenir : inverser les deux
              plaçait un défilement vertical à l'intérieur d'un horizontal, dont la hauteur n'est

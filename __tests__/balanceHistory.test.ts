@@ -56,6 +56,22 @@ describe('buildBalanceHistory', () => {
     expect(pts).toHaveLength(3); // janvier, février, aujourd'hui
   });
 
+  it('ne remonte pas au-delà de ce qu’on sait complet (liste tronquée à 500 lignes)', () => {
+    // On ne connaît les opérations que depuis le 2026-02-01 : remonter à l'ouverture déclarée
+    // donnerait un solde de janvier calculé sans les lignes manquantes — faux, mais crédible.
+    const pts = buildBalanceHistory('a1', 1000, [
+      tx('2026-02-10', 400),
+      tx('2026-03-05', 600),
+    ], '2026-03-20', '2025-06-01', '2026-02-01');
+    expect(pts[0].date).toBe('2026-02-28');
+    expect(pts[0].value).toBe(400);   // 1000 − 600
+  });
+
+  it('… mais garde l’ouverture déclarée quand l’historique est intégral', () => {
+    const pts = buildBalanceHistory('a1', 1000, [tx('2026-03-05', 1000)], '2026-03-20', '2026-01-15', null);
+    expect(pts[0].date).toBe('2026-01-31');
+  });
+
   it('borne le nombre de points sur un très long historique', () => {
     const pts = buildBalanceHistory('a1', 100, [tx('2015-01-05', 100)], '2026-03-20');
     expect(pts.length).toBeLessThanOrEqual(36);
