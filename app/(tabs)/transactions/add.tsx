@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, BackHandler, Keyboard } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -77,7 +78,7 @@ function AccountChipRow({ accounts, activeId, disabledId, onSelect, styles, COLO
   );
 }
 
-export default function AddTransactionScreen() {
+function AddTransactionScreen() {
   const COLORS = useAppColors();
   // Couleurs inversées : uniquement pour la consigne du guide (« coche Récurrent »), qui doit
   // trancher sur le formulaire comme les autres messages de démarrage.
@@ -1020,3 +1021,6 @@ function makeStyles(c: any) {
   },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
+export default withDeferredMount(AddTransactionScreen, 'form');

@@ -51,7 +51,7 @@ function isNewerVersion(a: string, b: string): boolean {
   return false;
 }
 
-export default withDeferredMount(SettingsScreen);
+export default withDeferredMount(SettingsScreen, 'list');
 function SettingsScreen() {
   const router = useRouter();
   const goBack = useNavBack();

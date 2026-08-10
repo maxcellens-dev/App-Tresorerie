@@ -55,7 +55,7 @@ function fmtAmount(n: number): string {
   return n.toFixed(2).replace('.', ',');
 }
 
-export default withDeferredMount(MesDonneesScreen);
+export default withDeferredMount(MesDonneesScreen, 'form');
 function MesDonneesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);

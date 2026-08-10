@@ -4,6 +4,7 @@
  * (assurance + mensualité qui peuvent évoluer chaque année). Prévisualise l'amortissement.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -50,7 +51,7 @@ const EXTRA_FEES: { key: string; label: string }[] = [
   { key: 'other_fees', label: 'Autres frais' },
 ];
 
-export default function CreditAddScreen() {
+function CreditAddScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
@@ -857,3 +858,6 @@ function makeStyles(c: any) {
     calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6, paddingBottom: 8 },
   });
 }
+
+/* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
+export default withDeferredMount(CreditAddScreen, 'form');

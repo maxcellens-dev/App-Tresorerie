@@ -5,14 +5,17 @@
  * fige l'UI le temps du rendu : la navigation paraît lente. Pattern : l'écran rend d'abord un
  * SQUELETTE ultraléger (1 frame → la transition est instantanée), puis son vrai contenu dès que les
  * interactions en cours sont terminées. L'utilisateur voit la page s'ouvrir tout de suite et le
- * contenu arriver — exactement le comportement voulu (« pas grave s'il voit charger »).
+ * contenu arriver.
  *
- * Usage : `export default function Screen() { return useDeferredMount() ? <Body /> : <ScreenSkeleton /> }`
+ * Le squelette dessine la SILHOUETTE de la page qu'il annonce (`variant`), pas un rond de
+ * chargement : à délai identique, l'un se lit « la page est ouverte », l'autre « l'app rame ».
+ *
+ * Usage : `export default withDeferredMount(Body, 'list')`
  * (les hooks/calculs lourds vivent dans Body → RIEN ne tourne pendant la frame de transition).
  */
 import React, { useEffect, useState } from 'react';
 import { InteractionManager, Platform } from 'react-native';
-import ScreenSkeleton from '../components/ScreenSkeleton';
+import ScreenSkeleton, { type SkeletonVariant } from '../components/ScreenSkeleton';
 
 export function useDeferredMount(): boolean {
   // WEB : pas de différé — runAfterInteractions n'y est pas fiable (callback jamais déclenché →
@@ -36,9 +39,13 @@ export function useDeferredMount(): boolean {
  * direct sur web). `export default withDeferredMount(Body)`. Le composant `Body` porte TOUS les
  * hooks/calculs → rien ne tourne pendant la frame de transition (tap d'onglet/lien instantané).
  */
-export function withDeferredMount<P extends object>(Body: React.ComponentType<P>): React.FC<P> {
+export function withDeferredMount<P extends object>(
+  Body: React.ComponentType<P>,
+  /** Silhouette affichée pendant la transition — celle de la page annoncée. */
+  variant: SkeletonVariant = 'list',
+): React.FC<P> {
   const Wrapped: React.FC<P> = (props) =>
-    useDeferredMount() ? React.createElement(Body, props) : React.createElement(ScreenSkeleton);
+    useDeferredMount() ? React.createElement(Body, props) : React.createElement(ScreenSkeleton, { variant });
   Wrapped.displayName = `withDeferredMount(${Body.displayName || Body.name || 'Screen'})`;
   return Wrapped;
 }

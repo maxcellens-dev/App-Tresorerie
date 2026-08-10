@@ -1,4 +1,5 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
   View,
   Text,
@@ -38,7 +39,7 @@ import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
 import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
 
 
-export default function TransferScreen() {
+function TransferScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
@@ -662,3 +663,6 @@ function makeStyles(c: any) {
   },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
+export default withDeferredMount(TransferScreen, 'form');

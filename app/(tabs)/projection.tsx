@@ -78,7 +78,7 @@ function NumField({ label, value, onChange, suffix, colors, flex = 1 }: {
 /** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, le
  *  contenu (projections + graphes) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function ProjectionScreen() {
-  return useDeferredMount() ? <ProjectionBody /> : <ScreenSkeleton />;
+  return useDeferredMount() ? <ProjectionBody /> : <ScreenSkeleton variant="chart" />;
 }
 
 function ProjectionBody() {

@@ -35,7 +35,7 @@ export default function EditAccountScreen() {
   // Pas encore chargé ≠ introuvable (cf. la fiche du compte) : coquille tant que la requête est en
   // vol, message d'absence uniquement quand elle a réellement abouti.
   if (!user || !account) {
-    if (!accountsQuery.isSuccess) return <ScreenSkeleton />;
+    if (!accountsQuery.isSuccess) return <ScreenSkeleton variant="form" />;
     return (
       <View style={styles.root}>
         <ScreenGradient />

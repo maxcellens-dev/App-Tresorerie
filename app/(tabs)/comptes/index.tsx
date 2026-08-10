@@ -1,4 +1,6 @@
 ﻿import { useState, useMemo, useRef, useEffect } from 'react';
+import { SkeletonRows } from '../../../components/Skeleton';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, DeviceEventEmitter, Dimensions } from 'react-native';
 import { COMPTES_TAB_PRESSED } from '../../../components/CustomTabBar';
 import ScreenGradient from '../../../components/ScreenGradient';
@@ -38,7 +40,7 @@ const TYPE_LABELS: Record<string, string> = {
   other: 'Autre',
 };
 
-export default function AccountsListScreen() {
+function AccountsListScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de lecture centrée + survol souris
@@ -312,7 +314,7 @@ export default function AccountsListScreen() {
           )}
 
           {isLoading ? (
-            <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
+            <SkeletonRows rows={5} />
           ) : accounts.length === 0 ? (
             <Text style={styles.empty}>Aucun compte. Appuyez sur « Compte » pour commencer.</Text>
           ) : (
@@ -730,3 +732,8 @@ function makeStyles(c: any) {
   welcomeBannerBtnLabel: { fontSize: 14, fontWeight: '700', color: c.bg },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : la page s'affiche en silhouette le temps que son corps (hooks,
+   calculs, listes) se monte — sinon le tap reste sans effet visible pendant tout le montage.
+   Cf. hooks/useDeferredMount. */
+export default withDeferredMount(AccountsListScreen, 'list');

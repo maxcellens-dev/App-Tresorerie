@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { withDeferredMount } from '../../../../hooks/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable, Keyboard } from 'react-native';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +30,7 @@ import { appAlert } from '../../../../lib/appDialog';
 import ScreenSkeleton from '../../../../components/ScreenSkeleton';
 
 
-export default function EditTransactionScreen() {
+function EditTransactionScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
@@ -622,7 +623,7 @@ export default function EditTransactionScreen() {
      que lorsque la requête a RÉELLEMENT abouti (`isSuccess`) : une lecture en ERREUR rend elle
      aussi une liste vide, et en conclure « elle n'existe pas » serait faux. */
   if (!user || !tx) {
-    if (!txQuery.isSuccess) return <ScreenSkeleton />;
+    if (!txQuery.isSuccess) return <ScreenSkeleton variant="form" />;
     return (
       <View style={styles.root}>
         <ScreenGradient />
@@ -1218,3 +1219,6 @@ function makeStyles(c: any) {
   recScopeCancel: { alignItems: 'center', paddingVertical: 10, marginTop: 2 },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
+export default withDeferredMount(EditTransactionScreen, 'form');

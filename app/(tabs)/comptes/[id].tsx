@@ -1,4 +1,6 @@
 ﻿import { useMemo, useState, useEffect } from 'react';
+import { SkeletonRows } from '../../../components/Skeleton';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
   View,
   Text,
@@ -115,7 +117,7 @@ function findSymmetricTx(
   return oppositeLegs(t, index, currentAccountId).find((p) => p.note === t.note) ?? null;
 }
 
-export default function AccountDetailScreen() {
+function AccountDetailScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
@@ -554,7 +556,7 @@ export default function AccountDetailScreen() {
      l'absence que si la requête a RÉELLEMENT abouti : une lecture en erreur rend elle aussi une
      liste vide, en déduire « ce compte n'existe pas » serait faux. */
   if (!user || !account) {
-    if (!accountsQuery.isSuccess) return <ScreenSkeleton />;
+    if (!accountsQuery.isSuccess) return <ScreenSkeleton variant="detail" />;
     return (
       <View style={styles.root}>
         <ScreenGradient />
@@ -792,7 +794,7 @@ export default function AccountDetailScreen() {
           {showUpcoming ? 'À venir ce mois' : 'Historique des transactions'}
         </Text>
         {txLoading ? (
-          <ActivityIndicator size="small" color={COLORS.emerald} style={styles.loader} />
+          <SkeletonRows rows={5} />
         ) : (showUpcoming ? upcomingThisMonth : accountTransactions).length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="document-text-outline" size={32} color={COLORS.textSecondary} />
@@ -1772,3 +1774,8 @@ function makeTxDetailStyles(c: any) {
     editBtnText: { fontSize: 15, fontWeight: '600' as const, color: c.green },
   };
 }
+
+/* OUVERTURE INSTANTANÉE : la page s'affiche en silhouette le temps que son corps (hooks,
+   calculs, listes) se monte — sinon le tap reste sans effet visible pendant tout le montage.
+   Cf. hooks/useDeferredMount. */
+export default withDeferredMount(AccountDetailScreen, 'detail');

@@ -92,7 +92,17 @@ function shortDay(iso: string | null | undefined): string {
 /** Montant arrondi en devise — usage hors des blocs de rendu qui définissent leur propre `fmt`. */
 function eur(n: number): string { return Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL; }
 
-export default function PilotageScreen() {
+/**
+ * ⚠️ SEUL ÉCRAN LOURD VOLONTAIREMENT NON DIFFÉRÉ (pas de `withDeferredMount`), pour deux raisons :
+ *
+ *  1. C'est LUI qui lève le rideau. `signalAppReady()` est appelé depuis son corps : le différer
+ *     retarderait d'autant la disparition du splash — on aurait allongé le démarrage en croyant
+ *     accélérer la navigation.
+ *  2. Il n'y a rien à accélérer. C'est la route initiale : elle se monte UNE fois, sous le splash,
+ *     et `freezeOnBlur` la garde montée ensuite. Revenir sur l'onglet Pilotage ne la remonte jamais,
+ *     donc aucun tap d'onglet ne paie son coût de montage.
+ */
+function PilotageScreen() {
   const router = useRouter();
   const routeParams = useLocalSearchParams<{ closure?: string }>();
   const { user } = useAuth();
@@ -2419,3 +2429,5 @@ function makeStyles(c: AppColors) {
 
   });
 }
+
+export default PilotageScreen;

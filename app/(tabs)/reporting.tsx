@@ -471,7 +471,7 @@ function GroupHeader({ icon, title, color }: { icon: string; title: string; colo
 /** Montage différé (écran LOURD) : squelette 1 frame → la page s'ouvre instantanément, le
  *  contenu (graphes + tableaux) arrive juste après. Cf. hooks/useDeferredMount. */
 export default function ReportingScreen() {
-  return useDeferredMount() ? <ReportingBody /> : <ScreenSkeleton />;
+  return useDeferredMount() ? <ReportingBody /> : <ScreenSkeleton variant="chart" />;
 }
 
 function ReportingBody() {

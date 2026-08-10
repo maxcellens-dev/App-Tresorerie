@@ -214,7 +214,7 @@ function MaybeHScroll({ enabled, innerRef, showBar, style, contentContainerStyle
 }
 
 export default function TreasuryPlanScreen() {
-  return useDeferredMount() ? <TreasuryPlanBody /> : <ScreenSkeleton />;
+  return useDeferredMount() ? <TreasuryPlanBody /> : <ScreenSkeleton variant="chart" />;
 }
 
 function TreasuryPlanBody() {

@@ -1,4 +1,5 @@
 ﻿import { useMemo, useEffect, useState, useRef } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   View,
@@ -52,7 +53,7 @@ function groupCategories(categories: Category[]) {
   return { parents, byParent };
 }
 
-export default function CategoriesScreen() {
+function CategoriesScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
 
@@ -621,3 +622,6 @@ function makeStyles(c: any) {
   modalBtnLabelPrimary: { color: c.bg, fontWeight: '600' },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
+export default withDeferredMount(CategoriesScreen, 'list');

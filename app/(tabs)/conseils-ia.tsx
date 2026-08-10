@@ -34,7 +34,7 @@ import AiReport from '../../components/AiReport';
 import { parseAiReport } from '../../lib/aiReport';
 import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
 
-export default withDeferredMount(ConseilsIaScreen);
+export default withDeferredMount(ConseilsIaScreen, 'list');
 function ConseilsIaScreen() {
   const c = useAppColors();
   const s = useMemo(() => makeStyles(c), [c]);

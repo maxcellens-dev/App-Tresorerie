@@ -1,4 +1,6 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { SkeletonRows } from '../../../components/Skeleton';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import {
   View,
   Text,
@@ -51,7 +53,7 @@ const MODE_CARD: Record<ProjectMode, { badge: string; icon: string; target: stri
 };
 
 
-export default function ProjectsScreen() {
+function ProjectsScreen() {
   const COLORS = useAppColors();
   const onbProject = useOnbHighlight('project');
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
@@ -485,9 +487,7 @@ export default function ProjectsScreen() {
           </TouchableOpacity>
         </View>
         {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color={COLORS.primary} size="large" />
-          </View>
+          <SkeletonRows rows={5} />
         ) : (
           <FlatList
             data={showArchived
@@ -1270,3 +1270,8 @@ function makeStyles(c: any) {
   },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : la page s'affiche en silhouette le temps que son corps (hooks,
+   calculs, listes) se monte — sinon le tap reste sans effet visible pendant tout le montage.
+   Cf. hooks/useDeferredMount. */
+export default withDeferredMount(ProjectsScreen, 'list');

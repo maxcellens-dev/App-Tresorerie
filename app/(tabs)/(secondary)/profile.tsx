@@ -1,4 +1,5 @@
 ﻿import { useMemo, useRef } from 'react';
+import { withDeferredMount } from '../../../hooks/useDeferredMount';
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
@@ -22,7 +23,7 @@ import { useCosmetics } from '../../../hooks/useCosmetics';
 import { useNavBack } from '../../../hooks/useNavBack';
 
 
-export default function ProfileScreen() {
+function ProfileScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
@@ -568,3 +569,6 @@ function makeStyles(c: any) {
   modalDeleteLabel: { fontSize: 15, fontWeight: '700', color: '#ffffff' },
 });
 }
+
+/* OUVERTURE INSTANTANÉE : silhouette de page pendant le montage du corps (cf. useDeferredMount). */
+export default withDeferredMount(ProfileScreen, 'form');
