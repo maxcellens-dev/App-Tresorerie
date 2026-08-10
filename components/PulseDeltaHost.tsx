@@ -8,13 +8,21 @@
  * aboutissent : jamais de valeur PÉRIMÉE affichée, et aucun saut de mise en page.
  * Filet : si aucun refetch n'arrive (déjà frais / hors ligne), on complète avec le cache à 180 ms.
  *
- * Fermeture : au tap (n'importe où), en balayant vers le haut, ou TOUTE SEULE au bout de 5 s —
- * la carte confirme une saisie, elle n'a rien à faire attendre : la laisser en place obligeait à
- * un geste supplémentaire après chaque opération.
+ * FERMETURE : par la croix, en tapant la carte, en balayant vers le haut, ou en CHANGEANT DE PAGE.
+ * Jamais toute seule. Elle disparaissait au bout de 5 s : le temps de lire les pastilles, puis la
+ * ligne « fin de mois », puis le budget du quotidien, elle s'était volatilisée — et les chiffres
+ * qu'elle attend (le Relyka recalculé) peuvent justement arriver APRÈS. On ne fait donc plus courser
+ * l'utilisateur : c'est lui qui décide quand il a fini de lire.
+ *
+ * En contrepartie elle ne BLOQUE plus l'écran : plus d'attrape-taps plein écran (tolérable quand la
+ * carte partait au bout de 5 s, inacceptable si elle reste). L'app dessous reste utilisable, et le
+ * moindre changement de page emporte la carte.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Pressable, PanResponder, Platform, LayoutAnimation, type LayoutAnimationConfig } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePathname } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useIsFetching } from '@tanstack/react-query';
 import { useAppColors } from '../hooks/useAppColors';
 import type { AppColors } from '../theme/palette';
@@ -24,7 +32,7 @@ import { useCategories } from '../hooks/useCategories';
 import { usePulse, type PulseData } from '../hooks/usePulse';
 import { usePulseConfig } from '../hooks/usePulseConfig';
 import { subscribePulseOp, type PulseOpEvent } from '../lib/pulseBus';
-import { computeOpFeedback, type PulseFeedback, type PulseOp, type PulseTone } from '../lib/pulseDelta';
+import { computeOpFeedback, consumesVariableEnvelope, type PulseFeedback, type PulseOp, type PulseTone } from '../lib/pulseDelta';
 
 /**
  * Teinte d'une pastille de confirmation. Elle décrit le GESTE (de l'argent entre / sort, le compte
@@ -58,9 +66,6 @@ const WATCHED_QUERIES = new Set(['pilotage_data', 'transactions', 'accounts']);
  */
 const FILL_FALLBACK_MS = 180;
 
-/** Durée d'affichage avant disparition automatique. Assez pour lire les deux pastilles, pas plus. */
-const AUTO_DISMISS_MS = 5000;
-
 /** Transition douce quand la carte change de contenu/hauteur (tirets → valeurs). */
 const SEAMLESS_LAYOUT: LayoutAnimationConfig = {
   duration: 260,
@@ -86,7 +91,8 @@ function eurSigned(n: number, withSign: boolean): string {
 /** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé. */
 function feedbackSignature(f: PulseFeedback): string {
   const eom = f.endOfMonth ? `eom:${f.endOfMonth.amount}:${f.endOfMonth.delta}` : '';
-  return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|') + '#' + eom;
+  const env = f.envelope ? `env:${f.envelope.remaining}:${f.envelope.initial}:${f.envelope.used}` : '';
+  return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|') + '#' + eom + '#' + env;
 }
 
 export default function PulseDeltaHost() {
@@ -98,6 +104,7 @@ export default function PulseDeltaHost() {
   const { data: accounts = [] } = useAllAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
   const pulse = usePulse();
+  const pathname = usePathname();
   const fetching = useIsFetching({ predicate: (q) => WATCHED_QUERIES.has(String(q.queryKey[0])) });
 
   const [feedback, setFeedback] = useState<PulseFeedback | null>(null);
@@ -105,7 +112,8 @@ export default function PulseDeltaHost() {
   // à chaque arrivée de données fraîches (le refetch peut aboutir juste après le 1er affichage).
   const active = useRef<Pending | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Page sur laquelle la carte est apparue : en changer, c'est passer à autre chose. */
+  const pathAtOpen = useRef<string | null>(null);
 
   // Valeurs vivantes, lues sans re-souscrire (l'abonnement au bus reste monté une fois).
   const pulseRef = useRef<PulseData | null>(null);
@@ -116,6 +124,8 @@ export default function PulseDeltaHost() {
   accountsRef.current = accounts;
   const categoriesRef = useRef<any[]>(categories);
   categoriesRef.current = categories;
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
   const anim = useRef(new Animated.Value(0)).current;
   const drag = useRef(new Animated.Value(0)).current;
@@ -124,7 +134,6 @@ export default function PulseDeltaHost() {
 
   const clearTimers = useCallback(() => {
     if (fallbackTimer.current) { clearTimeout(fallbackTimer.current); fallbackTimer.current = null; }
-    if (autoDismissTimer.current) { clearTimeout(autoDismissTimer.current); autoDismissTimer.current = null; }
   }, []);
 
   /** Événement → opération jugeable : c'est ici qu'on résout les TYPES de comptes et de catégories
@@ -133,18 +142,18 @@ export default function PulseDeltaHost() {
     const typeOf = (id?: string) =>
       id ? (accountsRef.current.find((a: any) => a.id === id)?.type as string | undefined) : undefined;
     const accountType = typeOf(event.accountId);
-    // Consomme l'enveloppe variable ? MÊME règle que le « dépensé variable » du Pilotage
-    // (usePilotageData.isBudgetExpense + isRecurringTx) : dépense du quotidien sur un compte
-    // courant, non récurrente, hors projet, sur une catégorie de dépense (ou sans catégorie).
+    // Consomme l'enveloppe variable ? Règle PARTAGÉE avec le patch optimiste (cf. lib/pulseDelta).
     const category = event.categoryId
       ? categoriesRef.current.find((c: any) => c.id === event.categoryId)
       : null;
-    const hitsVariableEnvelope =
-      event.kind === 'expense'
-      && accountType === 'checking'
-      && !event.isRecurring
-      && !event.projectId
-      && (!event.categoryId || category?.type === 'expense');
+    const hitsVariableEnvelope = consumesVariableEnvelope({
+      kind: event.kind,
+      accountType,
+      isRecurring: event.isRecurring,
+      projectId: event.projectId,
+      categoryId: event.categoryId,
+      categoryType: category?.type ?? null,
+    });
     return {
       kind: event.kind,
       amount: event.amount,
@@ -180,7 +189,10 @@ export default function PulseDeltaHost() {
             before: p.before.endOfMonthBalance,
             after: settled?.endOfMonthBalance ?? null,
             margin: settled?.safetyMargin ?? p.before.safetyMargin,
+            // Enveloppe d'AVANT la saisie : la carte montre elle-même ce que l'opération vient d'y
+            // prendre. Reprendre le restant recalculé ferait disparaître la soustraction sous les yeux.
             variableEnvelopeRemaining: p.before.variableEnvelopeRemaining,
+            variableEnvelopeInitial: p.before.variableEnvelopeInitial,
           }
         : undefined,
     );
@@ -203,6 +215,9 @@ export default function PulseDeltaHost() {
       clearTimers();
       const p: Pending = { event, before: pulseRef.current, sawRefetch: false, forceFull: false };
       active.current = p;
+      // La page d'ARRIVÉE fait référence : les écrans de saisie rendent la main (router.back) AVANT
+      // que l'insert n'aboutisse, donc au moment où la carte s'ouvre on est déjà sur l'écran final.
+      pathAtOpen.current = pathnameRef.current;
       renderFor(p);
       drag.setValue(0);
       anim.setValue(0);
@@ -233,29 +248,28 @@ export default function PulseDeltaHost() {
   // Nettoyage à la dépose (déconnexion, etc.).
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  // Disparition automatique. Armée sur l'APPARITION de la carte (pas à chaque recalcul de contenu),
-  // sinon chaque vague de refetch repousserait l'échéance.
-  useEffect(() => {
-    if (!feedback) return;
-    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
-    autoDismissTimer.current = setTimeout(() => dismissRef.current(), AUTO_DISMISS_MS);
-    return () => { if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!feedback]);
-
   const dismiss = useCallback(() => {
     Animated.timing(anim, { toValue: 0, duration: 180, useNativeDriver: true, easing: Easing.in(Easing.cubic) })
       .start(() => {
         setFeedback(null);
         active.current = null;
+        pathAtOpen.current = null;
         clearTimers();
         drag.setValue(0);
       });
   }, [anim, drag, clearTimers]);
-  // Référence vivante : le minuteur d'auto-fermeture est armé AVANT que `dismiss` ne soit défini,
-  // et ne doit pas capturer une version périmée de la fonction.
+  // Référence vivante : `dismiss` est appelé depuis des effets montés avant sa définition.
   const dismissRef = useRef(dismiss);
   dismissRef.current = dismiss;
+
+  /* CHANGER DE PAGE, C'EST PASSER À AUTRE CHOSE. La carte ne part plus toute seule : sans ce
+     garde-fou, elle suivrait l'utilisateur d'écran en écran en parlant d'une opération qu'il a
+     déjà oubliée. On compare à la page d'ARRIVÉE mémorisée à l'ouverture (cf. pathAtOpen), pas à
+     celle de la saisie — l'écran de saisie a déjà rendu la main quand la carte apparaît. */
+  useEffect(() => {
+    if (!feedback || pathAtOpen.current == null) return;
+    if (pathname !== pathAtOpen.current) dismissRef.current();
+  }, [pathname, feedback]);
 
   // Balayage vers le HAUT → on referme (la carte repart par où elle est venue).
   const panResponder = useMemo(
@@ -274,9 +288,9 @@ export default function PulseDeltaHost() {
 
   return (
     <View style={styles.root} pointerEvents="box-none">
-      {/* Tap n'importe où → on referme. Non bloquant : rien n'est modal. */}
-      <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fermer" />
-      {/* Wrapper centré : sur web desktop, la carte reste à largeur « mobile » au centre
+      {/* AUCUN attrape-taps plein écran : la carte reste tant qu'on ne la ferme pas, elle ne doit
+          donc pas geler l'app derrière elle. Seule la carte elle-même reçoit les gestes.
+          Wrapper centré : sur web desktop, la carte reste à largeur « mobile » au centre
           (le host est monté HORS de la colonne d'app — cf. sheetWidth dans lib/appLayout). */}
       <View style={[styles.center, { top: insets.top + 58 }]} pointerEvents="box-none">
       <Animated.View
@@ -291,7 +305,12 @@ export default function PulseDeltaHost() {
           },
         ]}
       >
-        <Text style={styles.title}>C’est enregistré 🧭</Text>
+        <View style={styles.header}>
+          <Text style={styles.title}>C’est enregistré 🧭</Text>
+          <Pressable onPress={dismiss} hitSlop={14} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Fermer">
+            <Ionicons name="close" size={19} color={COLORS.textSecondary} />
+          </Pressable>
+        </View>
 
         <View style={styles.chips}>
           {feedback.chips.map((chip) => {
@@ -303,6 +322,33 @@ export default function PulseDeltaHost() {
             );
           })}
         </View>
+
+        {/* BUDGET DU QUOTIDIEN — CE QUI A BOUGÉ.
+            Une dépense du quotidien ne déplace ni le Relyka ni la fin de mois : elle était déjà
+            provisionnée dans l'enveloppe variable. Juste, mais déroutant — on saisit, et rien ne
+            change à l'écran. On montre donc l'enveloppe : elle, elle a bougé, et le Relyka stable
+            devient la conséquence lisible d'un budget respecté plutôt qu'un doute sur la saisie. */}
+        {!!feedback.envelope && (() => {
+          const env = feedback.envelope;
+          const pct = Math.max(0, Math.min(1, env.remaining / Math.max(1, env.initial)));
+          const color = env.overflow > 0 ? toneColor(COLORS, 'caution') : toneColor(COLORS, 'positive');
+          return (
+            <View style={[styles.env, { borderColor: color + '55', backgroundColor: color + '14' }]}>
+              <Text style={styles.envText}>
+                🛒 Budget du quotidien : <Text style={[styles.envValue, { color }]}>{eurSigned(env.remaining, false)}</Text>
+                {' '}restants ce mois sur {eurSigned(env.initial, false)}
+              </Text>
+              <View style={styles.envTrack}>
+                <View style={[styles.envFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
+              </View>
+              <Text style={styles.envHint}>
+                {env.absorbed
+                  ? `Ces ${eurSigned(env.used, false)} y étaient déjà prévus : ton Relyka ne bouge pas.`
+                  : `Ces ${eurSigned(env.used, false)} dépassent de ${eurSigned(env.overflow, false)} ce qu’il te restait — c’est cette part qui creuse ta fin de mois.`}
+              </Text>
+            </View>
+          );
+        })()}
 
         {/* FIN DE MOIS — affichée SANS attendre : estimation arithmétique immédiate, puis solde
             recalculé (cf. lib/pulseDelta).
@@ -331,8 +377,10 @@ export default function PulseDeltaHost() {
           );
         })()}
 
-        <Text style={styles.hint}>Swipe vers le haut pour fermer</Text>
-        <View style={styles.grabber} />
+        <Pressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Fermer">
+          <Text style={styles.hint}>Balaie vers le haut ou tape ici pour fermer</Text>
+          <View style={styles.grabber} />
+        </Pressable>
       </Animated.View>
       </View>
     </View>
@@ -353,7 +401,9 @@ function makeStyles(c: AppColors) {
         default: { boxShadow: '0 8px 24px rgba(0,0,0,0.22)' } as any,
       }),
     },
-    title: { fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 12 },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+    title: { flex: 1, fontSize: 15, fontWeight: '800', color: c.text },
+    closeBtn: { padding: 2, ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}) },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     chipText: { fontSize: 12.5, fontWeight: '800' },
@@ -363,6 +413,14 @@ function makeStyles(c: AppColors) {
     eom: {
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10,
     },
+    // Ligne « Budget du quotidien » : le chiffre qu'une dépense variable déplace RÉELLEMENT.
+    env: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10 },
+    envText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, lineHeight: 18 },
+    envValue: { fontSize: 14, fontWeight: '800' },
+    envTrack: { height: 5, borderRadius: 999, backgroundColor: c.cardBorder, marginTop: 8, overflow: 'hidden' },
+    envFill: { height: '100%', borderRadius: 999 },
+    envHint: { fontSize: 11, color: c.textSecondary, lineHeight: 15, marginTop: 6 },
+
     eomText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary, lineHeight: 18 },
     eomValue: { fontSize: 14, fontWeight: '800' },
     eomDelta: { fontSize: 12, fontWeight: '600', color: c.textSecondary },

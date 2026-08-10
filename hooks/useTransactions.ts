@@ -1,12 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import type { Transaction, TransactionWithDetails, RecurrenceRule } from '../types/database';
+import type { Account, Transaction, TransactionWithDetails, RecurrenceRule } from '../types/database';
 import { appChoice, appPrompt } from '../lib/appDialog';
 import { convertAmount } from '../lib/currency';
 import { formatDateFrench } from '../lib/dateUtils';
 import { buildProjectTransactions, projectMode } from '../lib/projectTx';
 import { isRegul } from '../lib/regul';
 import { emitPulseOp } from '../lib/pulseBus';
+import { consumesVariableEnvelope } from '../lib/pulseDelta';
+import { applyOpToPilotage, type PilotageBalances } from '../lib/pilotagePatch';
 import { recomputeReliabilityCalibration } from '../lib/reliabilityCalib';
 
 const KEY = 'transactions';
@@ -88,13 +90,53 @@ async function regulOnSameDay(
  * Source de vérité unique du solde → à appeler après TOUTE mutation qui modifie des transactions.
  * Élimine toute dérive : le solde ne dépend plus d'additions/réversions incrémentales.
  */
-export async function recomputeBalances(accountIds: Array<string | null | undefined>): Promise<void> {
+export async function recomputeBalances(
+  accountIds: Array<string | null | undefined>,
+  /** Client react-query : les soldes renvoyés par le serveur sont posés dans le cache `accounts`
+   *  TOUT DE SUITE (cf. applyBalances). Absent → simple recalcul, comme avant. */
+  client?: ReturnType<typeof useQueryClient>,
+  profileId?: string,
+): Promise<void> {
   if (!supabase) return;
   const today = localTodayISO();
   const ids = [...new Set(accountIds.filter((id): id is string => !!id))];
   // EN PARALLÈLE : chaque recalcul est indépendant (une fonction SQL par compte) — sur un virement,
   // les deux comptes se recalculent dans le même aller-retour au lieu de deux séquentiels.
-  await Promise.all(ids.map((id) => supabase!.rpc('recompute_account_balance', { p_account: id, p_today: today })));
+  const results = await Promise.all(
+    ids.map((id) => supabase!.rpc('recompute_account_balance', { p_account: id, p_today: today })),
+  );
+  // Le serveur vient de CALCULER le solde : il le renvoie (migration 173). L'attendre du refetch de
+  // `accounts` était un aller-retour de plus, pendant lequel l'écran affichait l'ANCIEN solde comme
+  // s'il était définitif. `data` vaut null tant que la migration 173 n'est pas déployée : on ignore
+  // alors le patch, et le refetch reprend son rôle — aucun risque d'écrire n'importe quoi.
+  if (!client || !profileId) return;
+  const next: Record<string, number> = {};
+  results.forEach((r, i) => {
+    const v = Number((r as any)?.data);
+    if (Number.isFinite(v)) next[ids[i]] = v;
+  });
+  if (Object.keys(next).length > 0) applyBalances(client, profileId, next);
+}
+
+/** Pose les soldes fraîchement recalculés dans les DEUX listes de comptes en cache (perso + toutes). */
+function applyBalances(
+  client: ReturnType<typeof useQueryClient>,
+  profileId: string,
+  balances: Record<string, number>,
+): void {
+  const patch = (list: Account[] | undefined) => {
+    if (!list) return list;                          // requête jamais chargée : rien à devancer
+    let touched = false;
+    const out = list.map((a) => {
+      const v = balances[a.id];
+      if (v === undefined || Number(a.balance) === v) return a;
+      touched = true;
+      return { ...a, balance: v };
+    });
+    return touched ? out : list;                     // référence stable si rien ne change
+  };
+  client.setQueryData<Account[]>(['accounts', profileId], patch);
+  client.setQueryData<Account[]>(['accounts', profileId, 'all'], patch);
 }
 
 /** Colonnes nécessaires pour réverser proprement l'impact solde avant suppression. */
@@ -325,6 +367,66 @@ function writeTransactionCache(
   );
 }
 
+/**
+ * PERF (ressenti) — le TABLEAU DE BORD suit la saisie, sans attendre son refetch.
+ *
+ * Même intention que `seedTransactionCache` pour la liste, appliquée aux agrégats : `pilotage_data`
+ * est le fetch le plus lourd de l'app (onze requêtes + le moteur), et c'est LUI qui porte le Relyka,
+ * les soldes et le budget du quotidien. Tant qu'il n'était pas revenu, l'écran affichait les anciens
+ * chiffres comme s'ils étaient définitifs, puis ils sautaient. On applique donc l'effet de
+ * l'opération au cache tout de suite, par la même arithmétique que la carte de confirmation
+ * (cf. lib/pilotagePatch) ; l'invalidation qui suit ne fait plus que confirmer.
+ *
+ * `signedAmount` est le montant porté sur le compte — négatif pour une suppression de recette, etc.
+ */
+function patchPilotageCache(
+  client: ReturnType<typeof useQueryClient>,
+  profileId: string,
+  op: {
+    accountId: string;
+    /** Montant SIGNÉ de la transaction elle-même (négatif = dépense). */
+    amount: number;
+    /** `1` à la création, `-1` à la suppression (on applique alors l'effet inverse). */
+    direction: 1 | -1;
+    date: string;
+    categoryId?: string | null;
+    isRecurring?: boolean | null;
+    projectId?: string | null;
+    regulCovered?: boolean;
+  },
+): void {
+  const accounts = client.getQueryData<Account[]>(['accounts', profileId])
+    ?? client.getQueryData<Account[]>(['accounts', profileId, 'all']);
+  const accountType = accounts?.find((a) => a.id === op.accountId)?.type;
+  // Compte INCONNU du cache : on ne devine pas sur quel total imputer le montant (cf. §
+  // writeTransactionCache — ne jamais déduire d'une absence d'information). Le refetch tranchera.
+  if (!accountType) return;
+  const categories = client.getQueryData<Array<{ id: string; type: string }>>(['categories', profileId]);
+  const categoryType = op.categoryId ? categories?.find((c) => c.id === op.categoryId)?.type ?? null : null;
+
+  // ⚠️ La NATURE de l'opération se lit sur son propre montant, jamais sur le sens du patch :
+  // supprimer une dépense applique `+100` au compte, ce qui la ferait passer pour une recette —
+  // et l'enveloppe variable ne serait alors jamais recréditée.
+  const hitsVariableEnvelope = consumesVariableEnvelope({
+    kind: op.amount < 0 ? 'expense' : 'income',
+    accountType,
+    isRecurring: op.isRecurring,
+    projectId: op.projectId,
+    categoryId: op.categoryId,
+    categoryType,
+  });
+
+  client.setQueryData<PilotageBalances>(['pilotage_data', profileId], (data) =>
+    applyOpToPilotage(data, {
+      amount: op.amount * op.direction,
+      accountType,
+      date: op.date,
+      regulCovered: op.regulCovered,
+      hitsVariableEnvelope,
+    }, localTodayISO()),
+  );
+}
+
 /** Applique un jeu de champs modifiés à une ligne DÉJÀ en cache (jambe appariée d'un virement). */
 function patchCachedTransaction(
   client: ReturnType<typeof useQueryClient>,
@@ -463,6 +565,20 @@ export function useAddTransaction(profileId: string | undefined) {
 
       // La ligne existe en base : elle doit exister à l'écran MAINTENANT, pas au retour du refetch.
       seedTransactionCache(client, profileId, data);
+      // …et le tableau de bord avec elle (Relyka, soldes, budget du quotidien). Un brouillon n'entre
+      // dans aucun agrégat : il n'a rien à devancer.
+      if (!input.is_draft) {
+        patchPilotageCache(client, profileId, {
+          accountId: input.account_id,
+          amount: Number(input.amount),
+          direction: 1,
+          date: input.date,
+          categoryId: input.category_id || null,
+          isRecurring: input.is_recurring ?? false,
+          projectId: input.project_id ?? null,
+          regulCovered,
+        });
+      }
 
       // POULS — émis DÈS l'insert réussi (la transaction existe : la confirmation peut apparaître),
       // sans attendre le recalcul des soldes ni les invalidations. On ignore : brouillons, réguls,
@@ -493,14 +609,14 @@ export function useAddTransaction(profileId: string | undefined) {
 
       // Solde = recalcul depuis les faits (source de vérité, anti-dérive) — sauf si l'appelant
       // regroupe le recalcul (virement : un seul recompute pour les deux jambes, sur la 2ᵉ).
-      if (!input.skipBalanceRecompute) await recomputeBalances(input.recomputeAccounts ?? [input.account_id]);
+      if (!input.skipBalanceRecompute) await recomputeBalances(input.recomputeAccounts ?? [input.account_id], client, profileId);
       // §P30 — Récurrente dont la 1ʳᵉ échéance est PASSÉE : on matérialise tout de suite les occurrences
       // dues (mars→aujourd'hui) au lieu d'attendre le prochain démarrage. Sinon une seule échéance est
       // déduite et l'historique/le solde/le « total dépensé » ignorent les suivantes jusqu'à déco/reco.
       if ((input.is_recurring ?? false) && input.recurrence_rule && input.date <= localTodayISO()) {
         try {
           await supabase.rpc('materialize_due_recurring', { p_profile: profileId, p_today: localTodayISO() });
-          await recomputeBalances([input.account_id]);
+          await recomputeBalances([input.account_id], client, profileId);
         } catch { /* best effort : le démarrage suivant rattrapera */ }
       }
 
@@ -843,7 +959,7 @@ export function useUpdateTransaction(profileId: string | undefined) {
         }
       }
       // Solde = recalcul depuis les faits sur tous les comptes touchés (ancien/nouveau + jambe paire).
-      await recomputeBalances([oldAccId, newAccId, oldLinkedAccId]);
+      await recomputeBalances([oldAccId, newAccId, oldLinkedAccId], client, profileId);
       return data;
     },
     onSuccess: () => {
@@ -931,11 +1047,27 @@ export function useDeleteTransaction(profileId: string | undefined) {
       writeTransactionCache(client, profileId, id, null);
       if (pairedId) writeTransactionCache(client, profileId, pairedId, null);
 
+      // Le tableau de bord aussi : supprimer, c'est appliquer l'effet INVERSE de la ligne. Sans ça,
+      // on revenait sur un Relyka et des soldes d'avant la suppression, définitifs en apparence,
+      // qui sautaient une ou deux secondes plus tard. (Une régul n'entre dans aucun agrégat de la
+      // même façon — son effet passe par le recalcul serveur, pas par ce raccourci.)
+      if (!isDraft && !isRegul(row as any)) {
+        patchPilotageCache(client, profileId, {
+          accountId: txAccountId,
+          amount: txAmount,
+          direction: -1,
+          date: txDate,
+          categoryId: txCategoryId,
+          isRecurring: isRecurringRow,
+          projectId,
+        });
+      }
+
       // On ne retire du solde que ce qui y avait effectivement été ajouté
       // (contribution « à date » : ni brouillon, ni dépense future non récurrente ;
       //  §P12 : ni une transaction pré-régularisation, qui n'avait pas impacté le solde).
       // Solde = recalcul depuis les faits (anti-dérive).
-      await recomputeBalances([txAccountId]);
+      await recomputeBalances([txAccountId], client, profileId);
 
       // Supprimer le côté symétrique si trouvé
       if (pairedId) {
@@ -946,7 +1078,7 @@ export function useDeleteTransaction(profileId: string | undefined) {
           .maybeSingle();
         if (pairedRow) {
           await supabase.from('transactions').delete().eq('id', pairedId);
-          await recomputeBalances([(pairedRow as any).account_id as string]);
+          await recomputeBalances([(pairedRow as any).account_id as string], client, profileId);
         }
       }
 
@@ -1111,7 +1243,7 @@ export function useValidateProjectDraft(profileId: string | undefined) {
       });
 
       // Solde = recalcul depuis les faits sur les deux comptes du virement (anti-dérive, SECURITY DEFINER).
-      await recomputeBalances([sourceId, linkedId]);
+      await recomputeBalances([sourceId, linkedId], client, profileId);
     },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: [KEY, profileId] });

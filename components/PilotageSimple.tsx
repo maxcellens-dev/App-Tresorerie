@@ -27,6 +27,7 @@ import { CURRENCY_SYMBOL } from '../lib/currency';
 import { verifiedAgoPhrase } from '../lib/confidenceEngine';
 import { onbGlow } from '../lib/onbHighlight';
 import InfoDot from './InfoDot';
+import LiveAmount from './LiveAmount';
 import RecoMessagesCarousel from './RecoMessagesCarousel';
 import type { SmartRecommendation, RecoType } from '../lib/recommendationEngine';
 import type { RecoMessage } from '../lib/recoMessages';
@@ -181,9 +182,13 @@ export default function PilotageSimple(p: PilotageSimpleProps) {
           accessibilityRole="button"
           accessibilityLabel="Voir le détail du calcul"
         >
-          <Text style={[styles.heroAmount, { color: p.relykaColor }]} numberOfLines={1} adjustsFontSizeToFit>
-            {bigLabel}
-          </Text>
+          {/* Le chiffre RESPIRE tant que le tableau de bord se recalcule : une valeur sur le point
+              de changer ne doit pas s'afficher avec l'aplomb d'une valeur définitive (cf. LiveAmount). */}
+          <LiveAmount style={styles.heroAmountWrap}>
+            <Text style={[styles.heroAmount, { color: p.relykaColor }]} numberOfLines={1} adjustsFontSizeToFit>
+              {bigLabel}
+            </Text>
+          </LiveAmount>
           <View style={[styles.heroInfo, { borderColor: p.relykaColor }]}>
             <Text style={[styles.heroInfoText, { color: p.relykaColor }]}>i</Text>
           </View>
@@ -453,6 +458,9 @@ function makeStyles(c: any) {
     badgeText: { fontSize: 10.5, fontWeight: '800' },
     badgeSep: { width: 1, height: 10, opacity: 0.6, marginHorizontal: 1 },
     heroAmountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 2 },
+    // `flexShrink` : le montant garde le droit de se réduire (adjustsFontSizeToFit) malgré le
+    // conteneur animé introduit par LiveAmount.
+    heroAmountWrap: { flexShrink: 1, minWidth: 0 },
     heroAmount: { fontSize: 40, fontWeight: '800', letterSpacing: -1 },
     heroInfo: {
       width: 16, height: 16, borderRadius: 8, borderWidth: 1,

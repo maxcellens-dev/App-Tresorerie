@@ -25,6 +25,8 @@ import { pageColumn } from '../../../../lib/webLayout';
 import { CURRENCY_SYMBOL } from '../../../../lib/currency';
 import { useKeyboardAwareScroll } from '../../../../hooks/useKeyboardAwareScroll';
 import { notePlaceholder } from '../../../../lib/txPlaceholders';
+import { appAlert } from '../../../../lib/appDialog';
+import ScreenSkeleton from '../../../../components/ScreenSkeleton';
 
 
 export default function EditTransactionScreen() {
@@ -38,7 +40,8 @@ export default function EditTransactionScreen() {
   const origin = Array.isArray(params.origin) ? params.origin[0] : params.origin;
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { data: transactions = [] } = useAllTransactions(user?.id);
+  const txQuery = useAllTransactions(user?.id);
+  const transactions = txQuery.data ?? [];
   const { data: accounts = [] } = useAllAccounts(user?.id);
   const { data: categories = [] } = useCategories(user?.id);
   // Verrou de clôture gaté par le flag (null si Clôture désactivée → édition libre).
@@ -554,14 +557,23 @@ export default function EditTransactionScreen() {
       message,
       confirmLabel: 'Supprimer',
       confirmColor: '#f87171',
-      onConfirm: async () => {
-        try {
-          await deleteTx.mutateAsync(id);
-          router.back();
-        } catch (e: unknown) {
-          showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
-        }
-      },
+      /* SUPPRESSION OPTIMISTE — on rend la main D'ABORD (même principe que la saisie).
+         Attendre la mutation, c'était rester plusieurs secondes sur cet écran… qui n'avait plus
+         rien à afficher : la ligne est retirée du cache dès qu'elle est supprimée en base, donc
+         `tx` devenait `undefined` et l'écran tombait sur son « Chargement… ». L'utilisateur
+         regardait un écran vide pendant que le travail continuait derrière. */
+      onConfirm: () => { closeEditor(); runDeletion(() => deleteTx.mutateAsync(id)); },
+    });
+  }
+
+  /** Lance une suppression EN ARRIÈRE-PLAN, l'écran étant déjà quitté : l'erreur éventuelle passe
+   *  donc par le dialogue GLOBAL (l'état local de cet écran n'existe plus). */
+  function runDeletion(work: () => Promise<unknown>) {
+    work().catch((e: unknown) => {
+      void appAlert({
+        title: 'Suppression impossible',
+        message: e instanceof Error ? e.message : 'La transaction n’a pas pu être supprimée.',
+      });
     });
   }
 
@@ -582,42 +594,44 @@ export default function EditTransactionScreen() {
   }
 
   // ── Suppression d'une récurrence : 3 périmètres possibles ──
-  async function deleteRecurringScope(scope: 'one' | 'future' | 'all') {
+  function deleteRecurringScope(scope: 'one' | 'future' | 'all') {
     if (!id || !tx) return;
     setShowRecDelete(false);
     const occDate = instanceDate ?? tx.date;
-    try {
-      if (scope === 'all') {
-        await deleteTx.mutateAsync(id);
-      } else if (scope === 'future') {
+    const txDate = tx.date;
+    // Mêmes raisons que la suppression simple : on quitte l'écran AVANT, le travail suit derrière.
+    closeEditor();
+    runDeletion(() => {
+      if (scope === 'all') return deleteTx.mutateAsync(id);
+      if (scope === 'future') {
         // Celle-ci et les suivantes : on tronque la série à la veille de l'échéance.
-        if (occDate <= tx.date) {
-          await deleteTx.mutateAsync(id); // pas d'échéance antérieure → on supprime tout
-        } else {
-          const d = new Date(occDate + 'T00:00:00');
-          d.setDate(d.getDate() - 1);
-          await updateTx.mutateAsync({ id, recurrence_end_date: toIsoDate(d) });
-        }
-      } else {
-        // Cette échéance uniquement : on neutralise l'occurrence du mois (montant 0).
-        const [year, month] = occDate.split('-').map(Number);
-        await setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: 0 });
+        if (occDate <= txDate) return deleteTx.mutateAsync(id); // pas d'échéance antérieure → tout
+        const d = new Date(occDate + 'T00:00:00');
+        d.setDate(d.getDate() - 1);
+        return updateTx.mutateAsync({ id, recurrence_end_date: toIsoDate(d) });
       }
-      closeEditor();
-    } catch (e: unknown) {
-      showConfirm({ title: 'Erreur', message: e instanceof Error ? e.message : 'Impossible de supprimer.', confirmLabel: 'OK', confirmColor: '#94a3b8', onConfirm: () => {} });
-    }
+      // Cette échéance uniquement : on neutralise l'occurrence du mois (montant 0).
+      const [year, month] = occDate.split('-').map(Number);
+      return setOverride.mutateAsync({ transaction_id: id, year, month, override_amount: 0 });
+    });
   }
 
+  /* PAS ENCORE CHARGÉ ≠ INTROUVABLE. Tant que la liste des transactions est en vol (démarrage à
+     froid), on montre la coquille de chargement — pas un mot « Chargement… » posé sur un écran nu,
+     et surtout pas « Transaction introuvable », qui accuserait à tort. On ne conclut à l'absence
+     que lorsque la requête a RÉELLEMENT abouti (`isSuccess`) : une lecture en ERREUR rend elle
+     aussi une liste vide, et en conclure « elle n'existe pas » serait faux. */
   if (!user || !tx) {
+    if (!txQuery.isSuccess) return <ScreenSkeleton />;
     return (
       <View style={styles.root}>
+        <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]}>
-          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.back} onPress={closeEditor}>
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <Text style={styles.text}>{tx ? 'Transaction introuvable.' : 'Chargement…'}</Text>
+          <Text style={styles.text}>Cette transaction n’existe plus.</Text>
         </SafeAreaView>
       </View>
     );

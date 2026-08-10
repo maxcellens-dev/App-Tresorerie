@@ -190,6 +190,16 @@ async function fetchPilotageData(profileId: string): Promise<{
   const nowD = new Date();
   const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
 
+  // PERF (latence) — la contribution des comptes PARTAGÉS ne dépend que du `profileId` : elle était
+  // pourtant attendue APRÈS la vague ci-dessous, ce qui ajoutait une vague réseau complète (et elle
+  // en enchaîne elle-même trois). Sur mobile, c'est ~300 ms de latence pure à CHAQUE refetch du
+  // Pilotage — donc après chaque saisie. On la lance ICI, en parallèle, et on l'attend plus bas.
+  const sharedPromise = fetchSharedContribution(profileId);
+  // Si la vague ci-dessous échoue AVANT qu'on n'attende celle-ci, son rejet serait « non géré »
+  // (avertissement bruyant, voire fatal). Ce catch ne fait que le marquer comme observé : l'`await`
+  // plus bas rejette toujours, la requête garde donc exactement le même comportement d'erreur.
+  sharedPromise.catch(() => {});
+
   const [profileRes, accountsRes, transactionsRes, projectsRes, qaRes, ratesRes, overridesRes, creditsRes, creditEvtRes, closuresRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profileId).single(),
     supabase.from('accounts').select('*').eq('profile_id', profileId),
@@ -219,7 +229,7 @@ async function fetchPilotageData(profileId: string): Promise<{
   // PERSO (hors comptes partagés) + la contribution des comptes partagés (toutes les tx de tous les
   // participants), soldes & montants ×facteur. Plus de doublon : on retire les comptes partagés du perso.
   const allAccounts = (accountsRes.data ?? []) as Account[];
-  const shared = await fetchSharedContribution(profileId);
+  const shared = await sharedPromise;   // déjà en vol depuis le début (cf. plus haut)
   const sharedIdSet = new Set(Object.keys(shared.factorByAccount));
   const persoAccounts = allAccounts.filter((a) => !sharedIdSet.has(a.id) && !(a as any).is_joint);
   // Échéances de crédit MATÉRIALISÉES (credit_kind, migration 143) : exclues du Pilotage — la charge

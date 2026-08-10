@@ -96,6 +96,12 @@ export interface PulseData {
    * de confirmation annonçait une fin de mois amputée à chaque course (cf. lib/pulseDelta).
    */
   variableEnvelopeRemaining: number;
+  /**
+   * Enveloppe variable TOTALE du mois. Le restant seul ne veut rien dire (« 340 € » : sur combien ?) :
+   * la carte de confirmation montre les deux, c'est ce qui rend visible l'effet d'une dépense du
+   * quotidien qui, par construction, ne déplace ni le Relyka ni la fin de mois.
+   */
+  variableEnvelopeInitial: number;
 }
 
 /**
@@ -313,5 +319,6 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     endOfMonthBalance: endOfMonthLeft,
     safetyMargin,
     variableEnvelopeRemaining: relykaInputs.variableEnvelopeRemaining,
+    variableEnvelopeInitial: pilotage.variable_envelope_initial ?? 0,
   };
 }

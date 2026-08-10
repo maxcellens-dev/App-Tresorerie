@@ -109,3 +109,30 @@ describe('computeOpFeedback — fin de mois', () => {
     expect(f.endOfMonth).toBeNull();
   });
 });
+
+/**
+ * LE CHIFFRE QUI BOUGE VRAIMENT. Une dépense du quotidien ne déplace ni le Relyka ni la fin de mois
+ * (elle était déjà provisionnée) : la carte de confirmation semblait alors ne rien enregistrer.
+ * L'enveloppe variable, elle, a bougé — c'est elle qu'on montre.
+ */
+describe('computeOpFeedback — budget du quotidien', () => {
+  const courses = { kind: 'expense' as const, amount: 100, accountType: 'checking', date: past, hitsVariableEnvelope: true };
+  const eom = { before: 1000, margin: 0, variableEnvelopeInitial: 600, today };
+
+  it('dépense absorbée : ce qui reste, sur combien, et pourquoi le Relyka ne bouge pas', () => {
+    const f = computeOpFeedback(courses, 800, 800, { ...eom, variableEnvelopeRemaining: 300 });
+    expect(f.envelope).toEqual({ initial: 600, remaining: 200, used: 100, absorbed: true, overflow: 0 });
+  });
+
+  it('dépassement : la part hors enveloppe est isolée (c’est elle qui creuse la fin de mois)', () => {
+    const f = computeOpFeedback(courses, 800, 800, { ...eom, variableEnvelopeRemaining: 40 });
+    expect(f.envelope).toMatchObject({ remaining: 0, used: 100, absorbed: false, overflow: 60 });
+  });
+
+  it('rien à montrer sans enveloppe estimée, ni pour une dépense à venir, ni hors quotidien', () => {
+    expect(computeOpFeedback(courses, 800, 800, { before: 1000, margin: 0, today }).envelope).toBeNull();
+    expect(computeOpFeedback({ ...courses, isFuture: true }, 800, 800, { ...eom, variableEnvelopeRemaining: 300 }).envelope).toBeNull();
+    expect(computeOpFeedback({ ...courses, hitsVariableEnvelope: false }, 800, 800, { ...eom, variableEnvelopeRemaining: 300 }).envelope).toBeNull();
+    expect(computeOpFeedback({ kind: 'income', amount: 100, accountType: 'checking', date: past }, 800, 800, { ...eom, variableEnvelopeRemaining: 300 }).envelope).toBeNull();
+  });
+});

@@ -73,9 +73,48 @@ function hasFullMonthOfHistory(profileCreatedAt: string | null | undefined, toda
   return todayStr >= firstSettledDay;
 }
 
+/** Médiane d'une liste NON VIDE (copie triée — l'appelant garde son ordre). */
+function median(values: number[]): number {
+  const s = [...values].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+/**
+ * Un mois est EXCEPTIONNEL au-delà de ce multiple de la médiane des AUTRES mois. Volontairement
+ * haut : une augmentation de salaire, un 13ᵉ mois ou un second revenu qui arrive sur le compte
+ * doivent passer (ce sont de vrais changements de revenu) ; seul un mois sans commune mesure avec
+ * les autres — vente d'une voiture, héritage, remboursement d'assurance — est écarté.
+ */
+const EXCEPTIONAL_MONTH_FACTOR = 3;
+
+/**
+ * LES MOIS RETENUS POUR LA MOYENNE — sans les rentrées EXCEPTIONNELLES.
+ *
+ * Le revenu de référence répond à « combien gagne-t-il par mois, d'habitude ? ». Il sert de
+ * DIVISEUR au matelas de sécurité (épargne ÷ revenu) et donc au profil financier. Une rentrée
+ * ponctuelle très élevée le faisait bondir, et le matelas — donc le profil — CHUTAIT : encaisser
+ * 20 000 € faisait passer de P5 à P3, et supprimer la ligne le remettait en P5. Recevoir de
+ * l'argent doit améliorer la situation, jamais la dégrader.
+ *
+ * On écarte donc les mois qui n'ont aucune commune mesure avec les autres, en comparant chaque mois
+ * à la MÉDIANE DES AUTRES (robuste : une seule valeur aberrante ne peut pas se protéger elle-même).
+ * Garde-fous : il faut au moins deux mois pour pouvoir comparer, et on ne renvoie jamais une liste
+ * vide (sinon un revenu réellement irrégulier finirait par n'avoir plus aucun mois).
+ */
+function withoutExceptionalMonths(sums: number[]): number[] {
+  if (sums.length < 2) return sums;
+  const kept = sums.filter((v, i) => {
+    const others = median(sums.filter((_, j) => j !== i));
+    return !(others > 0) || v <= others * EXCEPTIONAL_MONTH_FACTOR;
+  });
+  return kept.length > 0 ? kept : sums;
+}
+
 /**
  * Revenu mensuel « de référence » pour les mois de sécurité : moyenne des SOMMES de recettes par
- * mois sur les 6 derniers mois (toutes recettes confondues, hors virements/brouillons/régul).
+ * mois sur les 6 derniers mois (toutes recettes confondues, hors virements/brouillons/régul), les
+ * mois EXCEPTIONNELS écartés (cf. withoutExceptionalMonths).
  * On EXCLUT le tout 1ᵉʳ mois de l'utilisateur (arrivée sur l'app → données souvent incomplètes,
  * salaire pas forcément saisi) SAUF s'il contient déjà une vraie recette (> 1000 €, pas un simple
  * remboursement). Renvoie 0 si rien d'exploitable (mention « mois de sécurité » alors masquée).
@@ -114,8 +153,12 @@ export function computeAvgMonthlyIncome(
     months = months.slice(1);
   }
   if (months.length === 0) return 0;
-  const total = months.reduce((s, mk) => s + byMonth[mk].sum, 0);
-  return total / months.length;
+  // Les mois SANS COMMUNE MESURE avec les autres (rentrée exceptionnelle) ne disent rien du revenu
+  // habituel : les garder faisait chuter le matelas de sécurité — et le profil — au moment précis
+  // où l'utilisateur venait d'encaisser de l'argent.
+  const sums = withoutExceptionalMonths(months.map((mk) => byMonth[mk].sum));
+  const total = sums.reduce((s, v) => s + v, 0);
+  return total / sums.length;
 }
 
 /**

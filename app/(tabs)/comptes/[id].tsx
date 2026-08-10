@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
@@ -40,7 +41,20 @@ import { pageColumn } from '../../../lib/webLayout';
 import { currencySymbolFor } from '../../../lib/currency';
 import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } from '../../../lib/investment';
 import { useRecalibrateReliability } from '../../../hooks/useReliability';
+import BalanceChart from '../../../components/BalanceChart';
+import AccountSettingsForm from '../../../components/AccountSettingsForm';
+import ScreenSkeleton from '../../../components/ScreenSkeleton';
+import { buildBalanceHistory } from '../../../lib/balanceHistory';
 
+
+/** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
+type AccountTab = 'solde' | 'transactions' | 'parametres';
+
+const TABS: Array<{ id: AccountTab; label: string; icon: string }> = [
+  { id: 'solde', label: 'Solde', icon: 'stats-chart-outline' },
+  { id: 'transactions', label: 'Transactions', icon: 'list-outline' },
+  { id: 'parametres', label: 'Paramètres', icon: 'settings-outline' },
+];
 
 const TYPE_LABELS: Record<string, string> = {
   checking: 'Courant',
@@ -55,37 +69,69 @@ function isTransferNote(note: string | null): boolean {
   return note === VIREMENT_NOTE || (note != null && note.trim().toLowerCase().startsWith('virement'));
 }
 
-/** Cherche la transaction symétrique (même note + date + montant opposé sur un autre compte, sans catégorie). */
+/**
+ * INDEX DES JAMBES DE VIREMENT — construit UNE fois, interrogé en temps constant.
+ *
+ * Retrouver la jambe symétrique (même note + date + montant opposé, sur un autre compte, sans
+ * catégorie) se faisait par un balayage de TOUTES les transactions, et deux fois par ligne affichée
+ * (une pour savoir si c'en est un, une pour retrouver le compte d'en face). Sur un compte fourni,
+ * c'est quadratique : l'écran ramait à l'ouverture et à chaque « charger 3 mois de plus ».
+ *
+ * La clé de recherche est exactement le critère d'appariement — date, note, et montant ARRONDI au
+ * centime (la tolérance de 0,01 € d'origine ; les montants viennent d'une colonne numeric, pas de
+ * dérive flottante à absorber au-delà). On indexe donc par `date|note|montant`, et une jambe se
+ * cherche à la clé du montant OPPOSÉ.
+ */
+type TransferIndex = Map<string, TransactionWithDetails[]>;
+
+const legKey = (date: string, cents: number) => `${date}|${cents}`;
+const centsOf = (amount: number | string) => Math.round(Number(amount) * 100);
+
+/** Regroupe les lignes SANS catégorie (seules candidates) par date + montant au centime. */
+function buildTransferIndex(allTx: TransactionWithDetails[]): TransferIndex {
+  const index: TransferIndex = new Map();
+  for (const t of allTx) {
+    if (t.category_id != null) continue;
+    const key = legKey(t.date, centsOf(t.amount));
+    const bucket = index.get(key);
+    if (bucket) bucket.push(t); else index.set(key, [t]);
+  }
+  return index;
+}
+
+/** Lignes du montant OPPOSÉ, même date, sur un AUTRE compte — le vivier d'une jambe symétrique. */
+function oppositeLegs(t: TransactionWithDetails, index: TransferIndex, currentAccountId: string) {
+  return (index.get(legKey(t.date, -centsOf(t.amount))) ?? [])
+    .filter((p) => p.id !== t.id && p.account_id !== currentAccountId);
+}
+
+/** Jambe symétrique STRICTE (même libellé) : sert à reconnaître un virement non nommé « Virement ». */
 function findSymmetricTx(
   t: TransactionWithDetails,
-  allTx: TransactionWithDetails[],
+  index: TransferIndex,
   currentAccountId: string,
 ): TransactionWithDetails | null {
   if (!t.note || t.category_id != null) return null;
-  return allTx.find(
-    (p) =>
-      p.id !== t.id &&
-      p.account_id !== currentAccountId &&
-      p.category_id == null &&
-      p.date === t.date &&
-      Math.abs(Number(p.amount) + Number(t.amount)) < 0.01 &&
-      p.note === t.note
-  ) ?? null;
+  return oppositeLegs(t, index, currentAccountId).find((p) => p.note === t.note) ?? null;
 }
 
 export default function AccountDetailScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
+  const { width: screenWidth } = useWindowDimensions();
   const modalStyles = makeModalStyles(COLORS);
   const txDetailStyles = makeTxDetailStyles(COLORS);
+  /** Onglet courant. « Solde » d'abord : c'est la question qu'on se pose en ouvrant un compte. */
+  const [tab, setTab] = useState<AccountTab>('solde');
   // Feuilles du bas : marge basse incluant la barre de navigation Android (cf. useSheetBottomPadding).
   const sheetPad = useSheetBottomPadding(36);
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; verify?: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
-  const { data: accounts = [] } = useAllAccounts(user?.id);
+  const accountsQuery = useAllAccounts(user?.id);
+  const accounts = accountsQuery.data ?? [];
   const { data: rawTransactions = [], isLoading: txLoading } = useAllTransactions(user?.id);
   // Une échéance modifiée « pour ce mois seulement » vit dans transaction_month_overrides, pas dans
   // la ligne : sans ça, la fiche du compte affichait l'ancien montant d'une transaction que la page
@@ -468,6 +514,26 @@ export default function AccountDetailScreen() {
   /** Bascule « à venir » : la liste montre alors ce qui reste à passer, au lieu de l'historique. */
   const [showUpcoming, setShowUpcoming] = useState(false);
 
+  /* ÉVOLUTION DU SOLDE — remontée à rebours depuis le solde du jour (cf. lib/balanceHistory) : la
+     courbe finit donc EXACTEMENT sur le chiffre affiché juste au-dessus d'elle. */
+  const balanceHistory = useMemo(
+    () => (account && id
+      ? buildBalanceHistory(
+          id, Number(account.balance), transactions as any, todayISO(), (account as any).init_date ?? null,
+        )
+      : []),
+    [id, account, transactions],
+  );
+  /* Index des jambes de virement, construit UNE fois par jeu de transactions (cf. buildTransferIndex) :
+     l'appariement se faisait ligne par ligne sur TOUTE la liste, deux fois — quadratique. */
+  const transferIndex = useMemo(
+    () => buildTransferIndex(transactions as TransactionWithDetails[]),
+    [transactions],
+  );
+
+  /** Largeur utile de la courbe : la colonne d'écran moins ses marges (20 de chaque côté + carte). */
+  const chartWidth = Math.max(220, Math.min(isDesktop ? 640 : screenWidth, 640) - 40 - 28);
+
   // Fenêtre affichée : les `monthsShown` derniers MOIS CALENDAIRES (mois courant inclus).
   // On borne par mois plutôt que par nombre de lignes pour que « charger plus » ait un sens lisible
   // (« depuis avril 2026 ») quel que soit le rythme de saisie de l'utilisateur.
@@ -483,12 +549,18 @@ export default function AccountDetailScreen() {
     };
   }, [accountTransactions, monthsShown]);
 
+  /* PAS ENCORE CHARGÉ ≠ INTROUVABLE. Tant que la liste des comptes est en vol, on montre la
+     coquille de chargement plutôt qu'un « Chargement… » posé sur un écran nu. Et on ne conclut à
+     l'absence que si la requête a RÉELLEMENT abouti : une lecture en erreur rend elle aussi une
+     liste vide, en déduire « ce compte n'existe pas » serait faux. */
   if (!user || !account) {
+    if (!accountsQuery.isSuccess) return <ScreenSkeleton />;
     return (
       <View style={styles.root}>
+        <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]}>
           <ScreenHeader title="Compte" onBack={() => router.back()} />
-          <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
+          <Text style={styles.text}>Ce compte n’existe plus.</Text>
         </SafeAreaView>
       </View>
     );
@@ -503,109 +575,148 @@ export default function AccountDetailScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={[]}>
-        <ScreenHeader
-          title={account.name}
-          onBack={() => router.back()}
-          right={
-            // En consultation seule : pas de bouton « Modifier » (le membre ne peut rien éditer).
-            account._role === 'read' ? undefined : (
+        <ScreenHeader title={account.name} onBack={() => router.back()} />
+
+        {/* TROIS FAÇONS DE REGARDER UN COMPTE, une seule à la fois. La fiche empilait tout —
+            actions, solde, historique — et envoyait sur un AUTRE écran pour le moindre réglage.
+            Les réglages sont donc devenus un onglet : plus de bouton « Modifier » en en-tête. */}
+        <View style={styles.tabBar}>
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            return (
               <TouchableOpacity
-                style={styles.editBtn}
-                onPress={() => router.push(`/(tabs)/comptes/edit/${id}`)}
+                key={t.id}
+                style={[styles.tabBtn, active && styles.tabBtnActive]}
+                onPress={() => setTab(t.id)}
                 activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Modifier le compte"
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
               >
-                <Ionicons name="pencil" size={20} color={COLORS.text} />
-                <Text style={styles.editBtnLabel}>Modifier</Text>
+                <Ionicons name={t.icon as any} size={15} color={active ? COLORS.bg : COLORS.textSecondary} />
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]} numberOfLines={1}>{t.label}</Text>
               </TouchableOpacity>
-            )
-          }
-        />
+            );
+          })}
+        </View>
+
         <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}>
 
-          {/* Actions d'écriture masquées pour un membre en consultation (rôle read). */}
+        {tab === 'solde' && (<>
+        {/* LE SOLDE, EN UNE LIGNE. Le libellé « Solde » au-dessus et le type en dessous encadraient
+            le chiffre de deux lignes de texte pour ne rien apprendre : l'onglet dit déjà « Solde »,
+            et le type tient dans une pastille à côté du montant. */}
+        <View style={styles.balanceCard}>
+          <View style={styles.balanceRow}>
+            <Text style={styles.balanceAmount} numberOfLines={1} adjustsFontSizeToFit>
+              {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
+            </Text>
+            <View style={styles.typePill}>
+              <Text style={styles.typePillText}>{TYPE_LABELS[account.type] ?? account.type}</Text>
+            </View>
+          </View>
+
+          {/* L'ÉVOLUTION depuis l'ouverture, sous le chiffre auquel elle aboutit. Un compte sans
+              mouvement échu n'a pas d'histoire : on ne trace pas une ligne plate pour faire joli. */}
+          {balanceHistory.length >= 2 && (
+            <View style={styles.chartWrap}>
+              <BalanceChart
+                points={balanceHistory}
+                width={chartWidth}
+                color={account.type === 'investment' ? COLORS.violet : account.type === 'savings' ? COLORS.green : COLORS.blue}
+              />
+              <Text style={styles.chartCaption}>Évolution du solde depuis l’ouverture du compte</Text>
+            </View>
+          )}
+        </View>
+
+          {/* Actions d'écriture masquées pour un membre en consultation (rôle read).
+              Tuiles de LARGEUR ÉGALE : la rangée de boutons-pilules de largeurs différentes se
+              cassait en deux lignes bancales dès qu'il y en avait trois. */}
           {account._role !== 'read' && (
-          <View style={styles.buttonRow}>
+          <View style={styles.actionRow}>
             {account.type === 'checking' ? (
               <TouchableOpacity
-                style={styles.editBtn}
+                style={styles.actionTile}
                 onPress={() => { setShowBalance(true); setBalanceInput(''); setBalanceNote('Régularisation solde'); const today = todayISO(); setBalanceDate(today); setBalanceDateDisplay(formatDateFrench(today)); }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Nouveau Solde"
+                accessibilityLabel="Nouveau solde"
               >
-                <Ionicons name="wallet-outline" size={20} color={COLORS.blue} />
-                <Text style={[styles.editBtnLabel, { color: COLORS.blue }]}>Nouveau Solde</Text>
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.blue + '1F' }]}>
+                  <Ionicons name="wallet-outline" size={19} color={COLORS.blue} />
+                </View>
+                <Text style={styles.actionLabel} numberOfLines={1}>Nouveau solde</Text>
               </TouchableOpacity>
             ) : null}
             {account.type === 'investment' ? (
               <TouchableOpacity
-                style={styles.editBtn}
+                style={styles.actionTile}
                 onPress={() => { setShowGainLoss(true); setShowMethodPicker(false); }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Plus / moins value"
               >
-                <Ionicons name="trending-up-outline" size={20} color={COLORS.violet} />
-                <Text style={[styles.editBtnLabel, { color: COLORS.violet }]}>+/- value</Text>
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.violet + '1F' }]}>
+                  <Ionicons name="trending-up-outline" size={19} color={COLORS.violet} />
+                </View>
+                <Text style={styles.actionLabel} numberOfLines={1}>+/− value</Text>
               </TouchableOpacity>
             ) : null}
             {account.type === 'savings' ? (
               <TouchableOpacity
-                style={styles.editBtn}
+                style={styles.actionTile}
                 onPress={() => { setShowInterest(true); setShowInterestMethodPicker(false); const today = todayISO(); setInterestDate(today); setInterestDateDisplay(formatDateFrench(today)); }}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Intérêts"
               >
-                <Ionicons name="cash-outline" size={20} color={COLORS.green} />
-                <Text style={[styles.editBtnLabel, { color: COLORS.green }]}>Intérêts</Text>
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.green + '1F' }]}>
+                  <Ionicons name="cash-outline" size={19} color={COLORS.green} />
+                </View>
+                <Text style={styles.actionLabel} numberOfLines={1}>Intérêts</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
-              style={styles.editBtn}
+              style={styles.actionTile}
               onPress={() => setShowApport(true)}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Apport"
             >
-              <Ionicons name="add-circle-outline" size={20} color={COLORS.orange} />
-              <Text style={[styles.editBtnLabel, { color: COLORS.orange }]}>Apport</Text>
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.orange + '1F' }]}>
+                <Ionicons name="add-circle-outline" size={19} color={COLORS.orange} />
+              </View>
+              <Text style={styles.actionLabel} numberOfLines={1}>Apport</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.editBtn}
+              style={styles.actionTile}
               onPress={() => router.push(`/(tabs)/comptes/transfer?from=${id}`)}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel="Virement"
             >
-              <Ionicons name="swap-horizontal" size={20} color={COLORS.emerald} />
-              <Text style={[styles.editBtnLabel, { color: COLORS.emerald }]}>Virement</Text>
+              <View style={[styles.actionIcon, { backgroundColor: COLORS.emerald + '1F' }]}>
+                <Ionicons name="swap-horizontal" size={19} color={COLORS.emerald} />
+              </View>
+              <Text style={styles.actionLabel} numberOfLines={1}>Virement</Text>
             </TouchableOpacity>
             {/* #4bis — compte joint : saisir une opération « au nom de » un membre non-user (simuler sa participation). */}
             {!!(account as any).is_joint && acctMembers.some((m) => !m.user_id) && (
               <TouchableOpacity
-                style={styles.editBtn}
+                style={styles.actionTile}
                 onPress={() => setShowOnBehalf(true)}
                 activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel="Au nom d'un membre"
               >
-                <Ionicons name="people-circle-outline" size={20} color={COLORS.blue} />
-                <Text style={[styles.editBtnLabel, { color: COLORS.blue }]}>Au nom de…</Text>
+                <View style={[styles.actionIcon, { backgroundColor: COLORS.blue + '1F' }]}>
+                  <Ionicons name="people-circle-outline" size={19} color={COLORS.blue} />
+                </View>
+                <Text style={styles.actionLabel} numberOfLines={1}>Au nom de…</Text>
               </TouchableOpacity>
             )}
           </View>
           )}
-
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Solde</Text>
-          <Text style={styles.balanceAmount}>
-            {account.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {CURRENCY_SYMBOL}
-          </Text>
-          <Text style={styles.accountType}>{TYPE_LABELS[account.type] ?? account.type}</Text>
-        </View>
 
         {/* Première ouverture d'un compte courant vierge → inviter à renseigner le solde à date */}
         {account.type === 'checking' && Number(account.balance) === 0 && accountTransactions.length === 0 && (
@@ -654,7 +765,9 @@ export default function AccountDetailScreen() {
             <Text style={styles.apportHint}>L'apport actuel (repris dans la Projection) est calculé automatiquement : apport de création + apports/virements entrants − part de capital retirée au prorata lors des retraits.</Text>
           </View>
         )}
+        </>)}
 
+        {tab === 'transactions' && (<>
         {/* À VENIR CE MOIS — même geste que sur la liste des transactions : un bouton qui bascule
             la liste sur ce qui n'est pas encore passé. Posé AU-DESSUS de l'historique, puisqu'il
             parle du futur proche et que l'historique, lui, remonte le temps. */}
@@ -695,16 +808,12 @@ export default function AccountDetailScreen() {
               // ligne réelle derrière → pas d'appariement de virement, et le détail n'a rien à ouvrir.
               const isVirtual = !!(t as any)._virtual;
               const creditId = (t as any).credit_id as string | undefined;
-              const isTransfer = !isVirtual && t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transactions as TransactionWithDetails[], id));
+              const isTransfer = !isVirtual && t.category_id == null && (isTransferNote(t.note ?? null) || !!findSymmetricTx(t, transferIndex, id));
+              // Compte d'en face : critère plus LARGE que l'appariement strict (le libellé des deux
+              // jambes peut différer dès lors que l'une s'annonce comme un virement).
               const pair = isTransfer
-                ? ((transactions as TransactionWithDetails[]).find(
-                    (p) =>
-                      p.account_id !== id &&
-                      p.category_id == null &&
-                      (isTransferNote(p.note ?? null) || p.note === t.note) &&
-                      p.date === t.date &&
-                      Number(p.amount) === -amount
-                  ) ?? null)
+                ? (oppositeLegs(t, transferIndex, id)
+                    .find((p) => isTransferNote(p.note ?? null) || p.note === t.note) ?? null)
                 : null;
               // Confidentialité : si le compte d'en face n'est pas accessible (compte perso d'un autre
               // membre), on n'affiche PAS son nom → libellé générique « compte de {auteur} ».
@@ -774,7 +883,11 @@ export default function AccountDetailScreen() {
           </View>
         )}
 
-        <Text style={styles.hint}>Les écritures de ce compte apparaissent ici.</Text>
+        </>)}
+
+        {/* PARAMÈTRES — le même formulaire que la route « Modifier le compte », posé ici : renommer
+            un compte ne fait plus changer d'écran, et seul le bouton « Enregistrer » subsiste. */}
+        {tab === 'parametres' && <AccountSettingsForm account={account} />}
         </KeyboardAwareScrollView>
       </SafeAreaView>
 
@@ -1310,13 +1423,10 @@ export default function AccountDetailScreen() {
             {selectedTx && (() => {
               const amt = Number(selectedTx.amount);
               const isIncoming = amt >= 0;
-              const isTransfer = selectedTx.category_id == null && (isTransferNote(selectedTx.note ?? null) || !!findSymmetricTx(selectedTx, transactions as TransactionWithDetails[], id!));
+              const isTransfer = selectedTx.category_id == null && (isTransferNote(selectedTx.note ?? null) || !!findSymmetricTx(selectedTx, transferIndex, id!));
               const pairTx = isTransfer
-                ? (transactions as TransactionWithDetails[]).find(
-                    (p) => p.account_id !== id && p.category_id == null &&
-                      (isTransferNote(p.note ?? null) || p.note === selectedTx.note) &&
-                      p.date === selectedTx.date && Number(p.amount) === -amt
-                  )
+                ? oppositeLegs(selectedTx, transferIndex, id!)
+                    .find((p) => isTransferNote(p.note ?? null) || p.note === selectedTx.note)
                 : null;
               const otherAccName = pairTx ? (accounts.find((a) => a.id === pairTx.account_id)?.name ?? null) : null;
               // Compte d'en face inaccessible (compte perso d'un autre membre) → libellé générique.
@@ -1415,35 +1525,51 @@ function makeStyles(c: any) {
   root: { flex: 1, backgroundColor: c.bg },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   scrollContent: { paddingTop: 4 },
-  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, flex: 1, minWidth: 0 },
-  buttonRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', width: '100%', marginBottom: 20 },
-  modifyRow: { flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
-  editBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: c.card,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+
+  // ── Onglets de la fiche (Solde / Transactions / Paramètres) ──
+  tabBar: {
+    flexDirection: 'row', gap: 6, padding: 4, marginBottom: 16,
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
   },
-  editBtnLabel: { fontSize: 14, fontWeight: '600', color: c.text },
+  tabBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 9, paddingHorizontal: 6, borderRadius: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+  },
+  tabBtnActive: { backgroundColor: c.emerald },
+  tabLabel: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary, flexShrink: 1 },
+  tabLabelActive: { color: c.bg },
+
   balanceCard: {
     backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
-    padding: 20,
-    marginBottom: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 16,
   },
-  balanceLabel: { fontSize: 13, color: c.textSecondary, marginBottom: 4 },
-  balanceAmount: { fontSize: 26, fontWeight: '800', color: c.text },
-  accountType: { fontSize: 12, color: c.textSecondary, marginTop: 6 },
+  // Montant et type sur UNE ligne : plus de libellé au-dessus ni de type en dessous.
+  balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  balanceAmount: { flex: 1, minWidth: 0, fontSize: 27, fontWeight: '800', color: c.text, letterSpacing: -0.5 },
+  typePill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    borderWidth: 1, borderColor: c.cardBorder, backgroundColor: c.cardSolid,
+  },
+  typePillText: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
+  chartWrap: { alignItems: 'center', marginTop: 10 },
+  chartCaption: { fontSize: 10.5, color: c.textSecondary, marginTop: 2, textAlign: 'center' },
+
+  // ── Actions du compte : tuiles de largeur ÉGALE (icône + libellé), au lieu de pilules qui
+  //    se cassaient en lignes bancales selon la longueur des mots. ──
+  actionRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  actionTile: {
+    flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 4,
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.cardBorder,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
+  },
+  actionIcon: { width: 36, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { fontSize: 11, fontWeight: '600', color: c.text, textAlign: 'center' },
   setupBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.blue + '14', borderWidth: 1, borderColor: c.blue + '55', borderRadius: 14, padding: 14, marginBottom: 24, marginTop: -8 },
   setupBannerTitle: { fontSize: 14, fontWeight: '700', color: c.text },
   setupBannerText: { fontSize: 12, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
@@ -1503,7 +1629,6 @@ function makeStyles(c: any) {
   transferAmount: { fontSize: 15, fontWeight: '700' },
   transferAmountIn: { color: c.green },
   transferAmountOut: { color: c.text },
-  hint: { fontSize: 13, color: c.textSecondary, textAlign: 'center' },
   // Pied de l'historique : période affichée + « Charger 3 mois de plus ».
   historyFooter: { alignItems: 'center', gap: 10, marginTop: -4, marginBottom: 16 },
   historyRange: { fontSize: 12, color: c.textSecondary, textAlign: 'center' },

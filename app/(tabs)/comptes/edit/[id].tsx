@@ -1,28 +1,23 @@
-﻿import { useMemo, useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert } from 'react-native';
+/**
+ * Route « Modifier le compte ». Le FORMULAIRE lui-même vit dans components/AccountSettingsForm :
+ * il est partagé avec l'onglet « Paramètres » de la fiche du compte, d'où l'on modifie désormais un
+ * compte sans changer d'écran. Cette route reste le chemin emprunté juste après la CRÉATION d'un
+ * compte (`/comptes/add` y enchaîne pour proposer le partage).
+ */
+import { useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import ScreenGradient from '../../../../components/ScreenGradient';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useAllAccounts, useUpdateAccount, useCloseAccount, useSetDefaultAccount } from '../../../../hooks/useAccounts';
+import { useAllAccounts } from '../../../../hooks/useAccounts';
 import { useAppColors } from '../../../../hooks/useAppColors';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
-import { useFiscalEnvelopeRates } from '../../../../hooks/useFiscalEnvelopes';
-import AccountShareSection from '../../../../components/AccountShareSection';
-import AccountImpactSection from '../../../../components/AccountImpactSection';
-import AccountModeSection from '../../../../components/AccountModeSection';
-
-
-const TYPES = [
-  { value: 'checking', label: 'Courant' },
-  { value: 'savings', label: 'Épargne' },
-  { value: 'investment', label: 'Investissement' },
-  { value: 'other', label: 'Autre' },
-];
+import AccountSettingsForm from '../../../../components/AccountSettingsForm';
+import ScreenSkeleton from '../../../../components/ScreenSkeleton';
 
 export default function EditAccountScreen() {
   const COLORS = useAppColors();
@@ -32,98 +27,21 @@ export default function EditAccountScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { user } = useAuth();
-  const { data: accounts = [] } = useAllAccounts(user?.id);
-  const updateAccount = useUpdateAccount(user?.id);
-  const closeAccount = useCloseAccount(user?.id);
-  const setDefaultAccount = useSetDefaultAccount(user?.id);
-  const { data: fiscalRates = [] } = useFiscalEnvelopeRates();
-
-  const account = accounts.find((a) => a.id === id);
-
-  const [name, setName] = useState('');
-  const [type, setType] = useState('checking');
-  const [currency, setCurrency] = useState('EUR');
-  const [fiscalEnvelope, setFiscalEnvelope] = useState<string>('pea');
-  const [formError, setFormError] = useState<string | null>(null);
-  const [errorFields, setErrorFields] = useState<string[]>([]);
+  const accountsQuery = useAllAccounts(user?.id);
   const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    if (account) {
-      setName(account.name);
-      setType(account.type);
-      setCurrency(account.currency);
-      setFiscalEnvelope((account as any).fiscal_envelope ?? 'pea');
-    }
-  }, [account]);
+  const account = (accountsQuery.data ?? []).find((a) => a.id === id);
 
-  async function handleSubmit() {
-    if (!id) return;
-    setFormError(null);
-    setErrorFields([]);
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setFormError('Le nom du compte est obligatoire.');
-      setErrorFields(['name']);
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
-      return;
-    }
-    try {
-      await updateAccount.mutateAsync({
-        id,
-        name: trimmed,
-        type,
-        currency: currency || 'EUR',
-        fiscal_envelope: type === 'investment' ? fiscalEnvelope : null,
-      });
-      router.back();
-    } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : "Impossible d'enregistrer.");
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
-    }
-  }
-
-  const doClose = () => {
-    if (!id) return;
-    closeAccount.mutateAsync(id).then(() => {
-      // Le compte vient d'être supprimé/archivé : ne PAS revenir sur sa page de détail (qui
-      // bouclerait sur « Chargement… »). On vide la pile Comptes jusqu'à la liste.
-      const r = router as any;
-      if (typeof r.dismissAll === 'function') r.dismissAll();
-      else router.replace('/(tabs)/comptes');
-    }).catch((e: unknown) => {
-      setFormError(e instanceof Error ? e.message : 'Impossible de fermer le compte.');
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
-    });
-  };
-
-  function handleClose() {
-    if (!id) return;
-    const closeMessage =
-      "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Tu ne pourras plus l\u2019utiliser pour des virements ou nouvelles transactions. Confirmer ?";
-    const isJoint = !!(account as any)?.is_joint;
-    Alert.alert(
-      isJoint ? 'Fermer le compte joint' : 'Fermer le compte',
-      isJoint
-        ? "Ce compte joint sera fermé pour TOUS les membres. S'il contient des écritures, il sera archivé (plus utilisable) ; vide, il sera supprimé. Pour le supprimer définitivement, supprimez d'abord toutes ses transactions. Confirmer ?"
-        : "Un compte avec des écritures sera archivé (visible en bas de la liste). Un compte sans écriture sera supprimé. Tu ne pourras plus l'utiliser pour des virements ou nouvelles transactions. Confirmer ?",
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Fermer le compte',
-          style: 'destructive',
-          onPress: doClose,
-        },
-      ]
-    );
-  }
-
+  // Pas encore chargé ≠ introuvable (cf. la fiche du compte) : coquille tant que la requête est en
+  // vol, message d'absence uniquement quand elle a réellement abouti.
   if (!user || !account) {
+    if (!accountsQuery.isSuccess) return <ScreenSkeleton />;
     return (
       <View style={styles.root}>
+        <ScreenGradient />
         <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]}>
           <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
-          <Text style={styles.text}>{account ? 'Compte introuvable.' : 'Chargement…'}</Text>
+          <Text style={styles.text}>Ce compte n’existe plus.</Text>
         </SafeAreaView>
       </View>
     );
@@ -137,108 +55,11 @@ export default function EditAccountScreen() {
         <ScreenHeader title="Modifier le compte" onBack={() => router.back()} />
 
         <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {formError && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorBannerText}>{formError}</Text>
-            </View>
-          )}
-          <Text style={styles.label}>Nom du compte *</Text>
-          <TextInput
-            style={[styles.input, errorFields.includes('name') && styles.inputError]}
-            value={name}
-            onChangeText={(v) => { setName(v); setErrorFields((p) => p.filter((f) => f !== 'name')); setFormError(null); }}
-            placeholder="Ex. Compte courant"
-            placeholderTextColor={COLORS.textSecondary}
+          <AccountSettingsForm
+            account={account}
+            onSaved={() => router.back()}
+            onError={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
           />
-
-          <Text style={styles.label}>Type</Text>
-          <View style={styles.chipRow}>
-            {TYPES.map((t) => (
-              <TouchableOpacity key={t.value} style={[styles.chip, type === t.value && styles.chipActive]} onPress={() => setType(t.value)}>
-                <Text style={[styles.chipText, type === t.value && styles.chipTextActive]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {type === 'investment' && (
-            <>
-              <Text style={styles.label}>Enveloppe fiscale</Text>
-              <View style={styles.chipRow}>
-                {fiscalRates.map((r) => (
-                  <TouchableOpacity
-                    key={r.envelope}
-                    style={[styles.chip, fiscalEnvelope === r.envelope && styles.chipActive]}
-                    onPress={() => setFiscalEnvelope(r.envelope)}
-                  >
-                    <Text style={[styles.chipText, fiscalEnvelope === r.envelope && styles.chipTextActive]}>
-                      {r.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
-
-          <View style={styles.balanceInfo}>
-            <Ionicons name="information-circle-outline" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.balanceInfoText}>Le solde ne peut être modifié que via des transactions.</Text>
-          </View>
-
-          {/* Compte courant PAR DÉFAUT (migration 146) — discret, réservé à un compte courant perso :
-              pré-sélectionné à la saisie d'une transaction et affiché en tête des listes. */}
-          {type === 'checking' && account._role === 'owner' && !account.is_joint && (
-            <TouchableOpacity
-              style={styles.defaultRow}
-              onPress={() => setDefaultAccount.mutate(account.is_default ? null : account.id)}
-              disabled={setDefaultAccount.isPending}
-              activeOpacity={0.7}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: !!account.is_default }}
-            >
-              <Ionicons
-                name={account.is_default ? 'checkbox' : 'square-outline'}
-                size={20}
-                color={account.is_default ? COLORS.emerald : COLORS.textSecondary}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.defaultLabel}>Compte principal</Text>
-                <Text style={styles.defaultHint}>
-                  Pré-sélectionné quand tu saisis une transaction, et affiché en premier dans les listes.
-                </Text>
-              </View>
-            </TouchableOpacity>
-          )}
-
-          {/* Partage / membres (owner uniquement ; gate flag pour les comptes perso) */}
-          <AccountShareSection account={account} />
-
-          {/* #5 — % d'impact de chaque participant (visible par tout participant) */}
-          <AccountImpactSection account={account} />
-
-          {/* Périmètre quotidien : mode d'usage du compte (par participant) */}
-          <AccountModeSection account={account} />
-
-          {account._role === 'owner' ? (
-            <>
-              <TouchableOpacity style={[styles.submitBtn, updateAccount.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={updateAccount.isPending} accessibilityRole="button">
-                {updateAccount.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.submitLabel}>Enregistrer</Text>}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.closeBtn, closeAccount.isPending && styles.submitBtnDisabled]}
-                onPress={handleClose}
-                disabled={closeAccount.isPending}
-                accessibilityRole="button"
-              >
-                {closeAccount.isPending ? <ActivityIndicator color={COLORS.danger} /> : <Text style={styles.closeBtnLabel}>Fermer le compte</Text>}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={[styles.balanceInfo, { marginTop: 8 }]}>
-              <Ionicons name="lock-closed-outline" size={16} color={COLORS.textSecondary} />
-              <Text style={styles.balanceInfoText}>Compte partagé : seul son propriétaire peut le renommer ou le fermer. Tu peux saisir/éditer des transactions selon ton rôle.</Text>
-            </View>
-          )}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -247,62 +68,10 @@ export default function EditAccountScreen() {
 
 function makeStyles(c: any) {
   return StyleSheet.create({
-  root: { flex: 1, backgroundColor: c.bg },
-  safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
-  back: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: c.text, marginBottom: 24 },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
-  label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
-  input: {
-    backgroundColor: c.card,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: c.text,
-    marginBottom: 20,
-  },
-  inputError: { borderColor: c.danger },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: c.danger + '1F',
-    borderWidth: 1,
-    borderColor: c.danger + '66',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 20,
-  },
-  errorBannerText: { flex: 1, fontSize: 13, color: c.danger, lineHeight: 18 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  hintSmall: { fontSize: 11, color: c.textSecondary, marginTop: -12, marginBottom: 20 },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder },
-  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  chipText: { fontSize: 14, color: c.text },
-  chipTextActive: { color: c.bg, fontWeight: '600' },
-  text: { color: c.text },
-  submitBtn: { backgroundColor: c.emerald, paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
-  submitBtnDisabled: { opacity: 0.6 },
-  submitLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
-  closeBtn: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 20, borderWidth: 1, borderColor: c.danger },
-  closeBtnLabel: { fontSize: 16, fontWeight: '600', color: c.danger },
-  balanceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: c.card,
-    padding: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    marginBottom: 20,
-  },
-  balanceInfoText: { fontSize: 13, color: c.textSecondary, flex: 1 },
-  defaultRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 12, marginTop: 4 },
-  defaultLabel: { fontSize: 14, fontWeight: '600', color: c.text },
-  defaultHint: { fontSize: 11.5, color: c.textSecondary, lineHeight: 16, marginTop: 2 },
-});
+    root: { flex: 1, backgroundColor: c.bg },
+    safe: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingBottom: 40 },
+    text: { color: c.text },
+  });
 }

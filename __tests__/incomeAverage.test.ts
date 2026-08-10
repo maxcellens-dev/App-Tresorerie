@@ -237,3 +237,58 @@ describe('le profil suit enfin les données du compte neuf', () => {
     })).toBe('P1');
   });
 });
+
+/**
+ * RECEVOIR DE L'ARGENT NE PEUT PAS DÉGRADER LA SITUATION.
+ *
+ * Le revenu de référence est le DIVISEUR du matelas de sécurité (épargne ÷ revenu), donc du profil.
+ * Une rentrée ponctuelle très élevée le faisait bondir : le matelas s'effondrait et le profil
+ * tombait de P5 à P3 — pour se relever dès qu'on supprimait la ligne. Les mois sans commune mesure
+ * avec les autres sont donc écartés de la moyenne : ils ne disent rien du revenu habituel.
+ */
+describe('une rentrée exceptionnelle ne fait pas chuter le revenu de référence', () => {
+  const today = iso(new Date());
+  const etabli = dayOfMonthsAgo(8, 1); // compte installé : le passé fait foi
+
+  /** Cinq mois de salaire + le mois courant, dont le montant est paramétrable. */
+  const sixMonths = (thisMonthAmount: number) => [
+    ...[5, 4, 3, 2, 1].map((n) => salary(dayOfMonthsAgo(n, 5), 2000)),
+    salary(dayOfThisMonth(1), thisMonthAmount),
+  ];
+
+  it('écarte le mois hors norme au lieu de le moyenner', () => {
+    expect(computeReferenceMonthlyIncome(sixMonths(2000), CHECKING, today, etabli)).toBe(2000);
+    // Avant : (2 000 × 5 + 22 000) ÷ 6 = 5 333 € — un « revenu habituel » que personne n'a jamais eu.
+    expect(computeReferenceMonthlyIncome(sixMonths(22000), CHECKING, today, etabli)).toBe(2000);
+  });
+
+  it('le profil ne redescend plus après avoir encaissé une grosse somme', () => {
+    const profileFor = (thisMonthAmount: number) => computeProfileFromData({
+      availableSavings: 15000,
+      avgMonthlyIncome: computeReferenceMonthlyIncome(sixMonths(thisMonthAmount), CHECKING, today, etabli),
+      monthlySetAside: 500,
+      totalInvested: 3000,
+    });
+    expect(profileFor(2000)).toBe('P5');    // 7,5 mois de sécurité + il investit
+    expect(profileFor(22000)).toBe('P5');   // encaisser 20 000 € de plus ne peut pas faire redescendre
+  });
+
+  it('une vraie hausse de revenu passe (elle n’est pas « hors norme »)', () => {
+    // Second salaire qui arrive sur le compte : 2 000 → 4 000 €. La moyenne doit le refléter.
+    const txs = [
+      ...[5, 4, 3].map((n) => salary(dayOfMonthsAgo(n, 5), 2000)),
+      ...[2, 1].map((n) => salary(dayOfMonthsAgo(n, 5), 4000)),
+      salary(dayOfThisMonth(1), 4000),
+    ];
+    expect(computeReferenceMonthlyIncome(txs, CHECKING, today, etabli)).toBe(3000);
+  });
+
+  it('un revenu irrégulier garde tous ses mois (jamais de moyenne vide)', () => {
+    const txs = [
+      salary(dayOfMonthsAgo(2, 5), 1000),
+      salary(dayOfMonthsAgo(1, 5), 2000),
+      salary(dayOfThisMonth(1), 3000),
+    ];
+    expect(computeReferenceMonthlyIncome(txs, CHECKING, today, etabli)).toBe(2000);
+  });
+});

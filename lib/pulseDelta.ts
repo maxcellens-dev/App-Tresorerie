@@ -55,6 +55,32 @@ export interface PulseFeedback {
   chips: PulseDeltaChip[];
   /** Solde projeté au 1er du mois suivant, recalculé PAR ARITHMÉTIQUE (cf. computeEndOfMonth). */
   endOfMonth: EndOfMonthPreview | null;
+  /** Budget du quotidien : le SEUL chiffre qu'une dépense variable déplace (cf. EnvelopePreview). */
+  envelope: EnvelopePreview | null;
+}
+
+/**
+ * LE BUDGET DU QUOTIDIEN, APRÈS LA DÉPENSE.
+ *
+ * Une dépense du quotidien ne bouge NI le Relyka NI la fin de mois : le solde projeté déduisait déjà
+ * l'enveloppe variable restante, la réaliser ne fait que la consommer. C'est juste — et parfaitement
+ * déroutant : on saisit 40 € de courses, tout reste identique, et on se demande si l'app a compris.
+ *
+ * On montre donc CE QUI A BOUGÉ, c'est-à-dire l'enveloppe : ce qu'il en reste, sur combien, et ce
+ * que cette opération vient d'y prendre. Le Relyka stable cesse alors d'être une anomalie : il est
+ * stable PARCE QUE la dépense était déjà budgétée.
+ */
+export interface EnvelopePreview {
+  /** Enveloppe variable du mois (0 → pas d'estimation disponible : on n'affiche rien). */
+  initial: number;
+  /** Ce qu'il en reste APRÈS l'opération (jamais négatif : au-delà, on parle de dépassement). */
+  remaining: number;
+  /** Ce que cette opération vient d'y prendre (positif). */
+  used: number;
+  /** Elle tenait ENTIÈREMENT dans ce qui restait → le Relyka ne bouge pas, et on le dit. */
+  absorbed: boolean;
+  /** Ce qui dépasse l'enveloppe (0 si elle tenait dedans) — ça, ça creuse vraiment la fin de mois. */
+  overflow: number;
 }
 
 export interface EndOfMonthPreview {
@@ -75,6 +101,31 @@ export interface EndOfMonthPreview {
   concerns: boolean;
   /** Le chiffre est-il le solde RECALCULÉ (exact) plutôt que l'estimation arithmétique immédiate ? */
   exact: boolean;
+}
+
+/**
+ * L'opération CONSOMME-t-elle l'enveloppe variable du mois ?
+ *
+ * MÊME règle que le « dépensé variable » du Pilotage (usePilotageData.isBudgetExpense) : dépense du
+ * quotidien sur un compte courant, non récurrente, hors projet, sur une catégorie de dépense (ou
+ * sans catégorie). Vit ICI parce que DEUX mécanismes en dépendent — la carte de confirmation et le
+ * patch optimiste du tableau de bord (lib/pilotagePatch) : deux écritures de la règle, ce serait deux
+ * réponses, donc une carte qui contredirait l'écran derrière elle.
+ */
+export function consumesVariableEnvelope(o: {
+  kind: PulseOp['kind'];
+  accountType?: string;
+  isRecurring?: boolean | null;
+  projectId?: string | null;
+  categoryId?: string | null;
+  /** Type de la catégorie ('expense' | 'income'), résolu par l'appelant. */
+  categoryType?: string | null;
+}): boolean {
+  return o.kind === 'expense'
+    && o.accountType === 'checking'
+    && !o.isRecurring
+    && !o.projectId
+    && (!o.categoryId || o.categoryType === 'expense');
 }
 
 /** Clé de mois `YYYY-MM` d'une date locale. */
@@ -230,6 +281,8 @@ export function computeOpFeedback(
     after?: number | null;
     margin: number;
     variableEnvelopeRemaining?: number;
+    /** Enveloppe variable TOTALE du mois (pour afficher « X restants sur Y »). */
+    variableEnvelopeInitial?: number;
     today?: Date;
   },
 ): PulseFeedback {
@@ -259,5 +312,22 @@ export function computeOpFeedback(
     };
   }
 
-  return { chips: chips.slice(0, MAX_CHIPS), endOfMonth: endOfMonthPreview };
+  /* BUDGET DU QUOTIDIEN — uniquement quand l'opération le consomme VRAIMENT : une dépense du
+     quotidien déjà échue (une dépense datée plus tard n'a encore rien consommé). Sans enveloppe
+     estimée, il n'y a rien à montrer — mieux vaut ne rien dire qu'inventer un budget. */
+  let envelope: EnvelopePreview | null = null;
+  const initial = endOfMonth?.variableEnvelopeInitial ?? 0;
+  if (op.kind === 'expense' && op.hitsVariableEnvelope && !op.isFuture && initial > 0) {
+    const before = Math.max(0, endOfMonth?.variableEnvelopeRemaining ?? 0);
+    const used = Math.abs(op.amount);
+    envelope = {
+      initial,
+      remaining: Math.max(0, before - used),
+      used,
+      absorbed: used <= before,
+      overflow: Math.max(0, used - before),
+    };
+  }
+
+  return { chips: chips.slice(0, MAX_CHIPS), endOfMonth: endOfMonthPreview, envelope };
 }
