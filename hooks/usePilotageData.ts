@@ -2,7 +2,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { weeklyVariableFromQ9, WEEKS_PER_MONTH } from '../lib/financialProfileEngine';
 import { convertAmount, type RatesMap } from '../lib/currency';
-import { fetchSharedContribution } from './useSharedContribution';
+import { fetchSharedContribution, buildSharedContribution } from './useSharedContribution';
 import { buildCreditPilotTxs } from './useCreditFlows';
 import { buildPerimeterCtx, splitPerimeterAccounts, transformFluxTransactions } from '../lib/perimeter';
 import { isRegul } from '../lib/regul';
@@ -167,33 +167,89 @@ export interface PilotageData {
 }
 
 // Fetch multiple data types
-async function fetchPilotageData(profileId: string): Promise<{
-  profile: Profile | null;
-  sharedFactor: Record<string, number>;
-  sharedModeById: Record<string, string | null>;
-  estimatedMonths: Set<string>;
-  accounts: Account[];
-  transactions: TransactionWithCategory[];
-  questionnaireAnswers: any | null;
-  projects: Project[];
-  monthOverrides: { transaction_id: string; year: number; month: number; override_amount: number | null }[];
-  rates: RatesMap;
-}> {
-  if (!supabase || !profileId) throw new Error('Not authenticated');
+/** Les lignes BRUTES dont le moteur a besoin, quelle que soit la façon dont on les a obtenues. */
+interface PilotageRaw {
+  profile: any | null;
+  accounts: any[];
+  transactions: any[];
+  projects: any[];
+  questionnaire: any | null;
+  rates: { code: string; rate: number }[];
+  overrides: { transaction_id: string; year: number; month: number; override_amount: number | null }[];
+  credits: any[];
+  creditEvents: any[];
+  closures: any[];
+  shared: Awaited<ReturnType<typeof fetchSharedContribution>>;
+}
 
-  // FENÊTRAGE des transactions : le moteur Pilotage ne regarde JAMAIS plus de 6 mois en arrière
-  // (revenu inféré 4 mois, revenu moyen 6 mois, net 3 mois, tendance/enveloppe variables 3-6 mois) ;
-  // le reste = mois courant + FUTUR + modèles récurrents. On borne donc le fetch à 8 mois glissants
-  // (marge) + toutes les récurrentes (quelle que soit leur date de départ) : un compte avec des
-  // années d'historique ne re-télécharge plus TOUT à chaque ouverture / après chaque saisie.
-  // (Le « 1ᵉʳ mois utilisateur » de computeAvgMonthlyIncome est sécurisé par profiles.created_at.)
-  const nowD = new Date();
-  const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
+/**
+ * Le RPC `pilotage_snapshot` n'est pas déployé sur cette base : on n'y retourne pas de la session.
+ *
+ * Une OTA arrive instantanément, une migration non — il existe donc une fenêtre pendant laquelle ce
+ * code tourne devant une base qui ne connaît pas encore la fonction. Sans ce drapeau, chaque refetch
+ * du tableau de bord paierait un aller-retour perdu avant de se replier : on aurait RALENTI l'app en
+ * cherchant à l'accélérer.
+ */
+let snapshotUnavailable = false;
 
+/** Clés que `pilotage_snapshot` DOIT renvoyer (cf. migration 174) — vérifiées à chaque réponse. */
+const SNAPSHOT_KEYS = [
+  'profile', 'accounts', 'transactions', 'projects', 'questionnaire', 'rates', 'overrides',
+  'credits', 'credit_events', 'closures', 'shared_accounts', 'shared_members', 'shared_transactions',
+] as const;
+
+/**
+ * UN SEUL ALLER-RETOUR pour toutes les entrées du Pilotage (cf. migration 174), ou `null` si le RPC
+ * n'est pas disponible — l'appelant se replie alors sur les onze requêtes historiques.
+ *
+ * ⚠️ Le repli est un FILET, pas un mode de fonctionnement silencieux : il ne doit jamais masquer des
+ * données absentes. Un profil vide vaut ici ce que valait `.single()` côté PostgREST — une erreur,
+ * pas un tableau de bord reconstruit sur du néant (cf. la règle « lecture en erreur ≠ liste vide »).
+ */
+async function fetchPilotageSnapshot(profileId: string, histStart: string): Promise<PilotageRaw | null> {
+  if (!supabase || snapshotUnavailable) return null;
+  const { data, error } = await supabase.rpc('pilotage_snapshot', {
+    p_profile: profileId,
+    p_hist_start: histStart,
+  });
+  if (error || !data) {
+    // Fonction absente / droits manquants : on ne réessaiera plus de la session.
+    snapshotUnavailable = true;
+    return null;
+  }
+  const s = data as any;
+  /* FORME ATTENDUE, VÉRIFIÉE. Une clé manquante deviendrait un `[]` par défaut, et le tableau de
+     bord se recalculerait tranquillement SANS les crédits, ou SANS les comptes partagés — faux,
+     mais crédible. C'est le seul risque sérieux de ce raccourci, alors on le ferme : à la moindre
+     clé absente, on considère le RPC inexploitable et on repasse par le chemin historique. */
+  const missing = SNAPSHOT_KEYS.filter((k) => !(k in s));
+  if (missing.length > 0) {
+    snapshotUnavailable = true;
+    return null;
+  }
+  if (!s.profile) throw new Error('Profil introuvable');
+  return {
+    profile: s.profile,
+    accounts: s.accounts ?? [],
+    transactions: s.transactions ?? [],
+    projects: s.projects ?? [],
+    questionnaire: s.questionnaire ?? null,
+    rates: s.rates ?? [],
+    overrides: s.overrides ?? [],
+    credits: s.credits ?? [],
+    creditEvents: s.credit_events ?? [],
+    closures: s.closures ?? [],
+    // La pondération par le % d'impact reste en TypeScript, écrite une seule fois.
+    shared: buildSharedContribution(profileId, s.shared_accounts ?? [], s.shared_members ?? [], s.shared_transactions ?? []),
+  };
+}
+
+/** Chemin HISTORIQUE : onze requêtes en quatre vagues. Conservé comme repli du RPC ci-dessus. */
+async function fetchPilotageLegacy(profileId: string, histStart: string): Promise<PilotageRaw> {
+  if (!supabase) throw new Error('Not authenticated');
   // PERF (latence) — la contribution des comptes PARTAGÉS ne dépend que du `profileId` : elle était
-  // pourtant attendue APRÈS la vague ci-dessous, ce qui ajoutait une vague réseau complète (et elle
-  // en enchaîne elle-même trois). Sur mobile, c'est ~300 ms de latence pure à CHAQUE refetch du
-  // Pilotage — donc après chaque saisie. On la lance ICI, en parallèle, et on l'attend plus bas.
+  // attendue APRÈS la vague ci-dessous, ce qui ajoutait une vague réseau complète (et elle en
+  // enchaîne elle-même trois). On la lance ICI, en parallèle, et on l'attend plus bas.
   const sharedPromise = fetchSharedContribution(profileId);
   // Si la vague ci-dessous échoue AVANT qu'on n'attende celle-ci, son rejet serait « non géré »
   // (avertissement bruyant, voire fatal). Ce catch ne fait que le marquer comme observé : l'`await`
@@ -221,38 +277,81 @@ async function fetchPilotageData(profileId: string): Promise<{
   if (transactionsRes.error) throw transactionsRes.error;
   if (projectsRes.error) throw projectsRes.error;
   if (qaRes.error) throw qaRes.error;
-  // Taux : non bloquant (si erreur → EUR seul ; la conversion laissera les montants tels quels).
+
+  return {
+    profile: profileRes.data ?? null,
+    accounts: accountsRes.data ?? [],
+    transactions: transactionsRes.data ?? [],
+    projects: projectsRes.data ?? [],
+    questionnaire: qaRes.data ?? null,
+    // Taux : non bloquant (si erreur → EUR seul ; la conversion laissera les montants tels quels).
+    rates: (ratesRes.data ?? []) as { code: string; rate: number }[],
+    overrides: (overridesRes.data ?? []) as PilotageRaw['overrides'],
+    credits: creditsRes.data ?? [],
+    creditEvents: creditEvtRes.data ?? [],
+    closures: closuresRes.data ?? [],
+    shared: await sharedPromise,
+  };
+}
+
+async function fetchPilotageData(profileId: string): Promise<{
+  profile: Profile | null;
+  sharedFactor: Record<string, number>;
+  sharedModeById: Record<string, string | null>;
+  estimatedMonths: Set<string>;
+  accounts: Account[];
+  transactions: TransactionWithCategory[];
+  questionnaireAnswers: any | null;
+  projects: Project[];
+  monthOverrides: { transaction_id: string; year: number; month: number; override_amount: number | null }[];
+  rates: RatesMap;
+}> {
+  if (!supabase || !profileId) throw new Error('Not authenticated');
+
+  // FENÊTRAGE des transactions : le moteur Pilotage ne regarde JAMAIS plus de 6 mois en arrière
+  // (revenu inféré 4 mois, revenu moyen 6 mois, net 3 mois, tendance/enveloppe variables 3-6 mois) ;
+  // le reste = mois courant + FUTUR + modèles récurrents. On borne donc le fetch à 8 mois glissants
+  // (marge) + toutes les récurrentes (quelle que soit leur date de départ) : un compte avec des
+  // années d'historique ne re-télécharge plus TOUT à chaque ouverture / après chaque saisie.
+  // (Le « 1ᵉʳ mois utilisateur » de computeAvgMonthlyIncome est sécurisé par profiles.created_at.)
+  const nowD = new Date();
+  const histStart = isoDay(new Date(nowD.getFullYear(), nowD.getMonth() - 7, 1));
+
+  // UN aller-retour (migration 174) au lieu de onze en quatre vagues. Repli automatique sur le
+  // chemin historique tant que la migration n'est pas déployée — une OTA arrive avant elle.
+  const raw = (await fetchPilotageSnapshot(profileId, histStart)) ?? (await fetchPilotageLegacy(profileId, histStart));
+
   const rates: RatesMap = { EUR: 1 };
-  for (const r of (ratesRes.data ?? []) as { code: string; rate: number }[]) rates[r.code] = Number(r.rate);
+  for (const r of raw.rates) rates[r.code] = Number(r.rate);
 
   // #5 — Comptes partagés/joints : PONDÉRÉS au % d'impact (au lieu d'être exclus). On prend les données
   // PERSO (hors comptes partagés) + la contribution des comptes partagés (toutes les tx de tous les
   // participants), soldes & montants ×facteur. Plus de doublon : on retire les comptes partagés du perso.
-  const allAccounts = (accountsRes.data ?? []) as Account[];
-  const shared = await sharedPromise;   // déjà en vol depuis le début (cf. plus haut)
+  const allAccounts = raw.accounts as Account[];
+  const shared = raw.shared;
   const sharedIdSet = new Set(Object.keys(shared.factorByAccount));
   const persoAccounts = allAccounts.filter((a) => !sharedIdSet.has(a.id) && !(a as any).is_joint);
   // Échéances de crédit MATÉRIALISÉES (credit_kind, migration 143) : exclues du Pilotage — la charge
   // crédit y est représentée par les récurrentes synthétiques (creditPilotTx) qui couvrent TOUS les
   // mois (passés + futurs) ; garder les deux compterait chaque mensualité deux fois.
-  const persoTransactions = (transactionsRes.data ?? []).filter((t: any) => !sharedIdSet.has(t.account_id) && !t.credit_kind);
+  const persoTransactions = raw.transactions.filter((t: any) => !sharedIdSet.has(t.account_id) && !t.credit_kind);
 
   // Crédit (Pilotage) — mensualités en récurrentes synthétiques (remboursement + assurance, catégorisées,
   // pondérées par le % d'impact du compte si partagé). Cohérent avec tréso/projection.
   const acctById: Record<string, any> = {};
   [...persoAccounts, ...shared.accounts].forEach((a: any) => { acctById[a.id] = a; });
   const evtByCredit: Record<string, any[]> = {};
-  for (const e of (creditEvtRes.data ?? []) as any[]) (evtByCredit[e.credit_id] ??= []).push(e);
-  const creditPilotTx = ((creditsRes.data ?? []) as any[])
+  for (const e of raw.creditEvents as any[]) (evtByCredit[e.credit_id] ??= []).push(e);
+  const creditPilotTx = (raw.credits as any[])
     .flatMap((c) => buildCreditPilotTxs(c as any, evtByCredit[c.id], acctById[c.account_id]));
 
   // Mois `estimated` (non confirmés) → exclus des baselines (moyennes variables, revenu moyen, σ).
   const estimatedMonths = new Set(
-    ((closuresRes.data ?? []) as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key as string),
+    (raw.closures as any[]).filter((c) => c.status === 'estimated').map((c) => c.month_key as string),
   );
 
   return {
-    profile: (profileRes.data as Profile) || null,
+    profile: (raw.profile as Profile) || null,
     sharedFactor: shared.factorByAccount,
     sharedModeById: shared.modeByAccount,
     estimatedMonths,
@@ -263,13 +362,13 @@ async function fetchPilotageData(profileId: string): Promise<{
       ...shared.transactions.filter((t: any) => !t.credit_kind),
       ...creditPilotTx,
     ] as TransactionWithCategory[],
-    projects: (projectsRes.data ?? []).map((p: any) => ({
+    projects: raw.projects.map((p: any) => ({
       ...p,
       target_amount: Number(p.target_amount),
       monthly_allocation: Number(p.monthly_allocation),
     })) as Project[],
-    questionnaireAnswers: qaRes.data ?? null,
-    monthOverrides: (overridesRes.data ?? []) as { transaction_id: string; year: number; month: number; override_amount: number | null }[],
+    questionnaireAnswers: raw.questionnaire,
+    monthOverrides: raw.overrides,
     rates,
   };
 }

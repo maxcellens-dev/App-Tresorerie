@@ -20,36 +20,23 @@ export interface SharedContribution {
   modeByAccount: Record<string, string | null>;
 }
 
-export async function fetchSharedContribution(profileId: string): Promise<SharedContribution> {
-  if (!supabase) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
-
-  // Comptes auxquels je participe : joints que JE possède + comptes où je suis membre.
-  const [ownJointsRes, myMemsRes] = await Promise.all([
-    supabase.from('accounts').select('*').eq('profile_id', profileId).eq('is_joint', true).eq('is_active', true),
-    supabase.from('account_members').select('account_id').eq('user_id', profileId),
-  ]);
-  const ownJoints = (ownJointsRes.data ?? []) as any[];
-  const memberAcctIds = ((myMemsRes.data ?? []) as any[]).map((m) => m.account_id);
-
-  let memberAccts: any[] = [];
-  if (memberAcctIds.length > 0) {
-    const { data } = await supabase.from('accounts').select('*').in('id', memberAcctIds).eq('is_active', true);
-    memberAccts = (data ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
-  }
-
-  const sharedAccounts = [...ownJoints, ...memberAccts];
+/**
+ * LE CALCUL, séparé de sa provenance.
+ *
+ * Les lignes brutes arrivent soit par quatre requêtes enchaînées (`fetchSharedContribution`), soit
+ * d'un seul bloc avec le reste du Pilotage (RPC `pilotage_snapshot`). La PONDÉRATION, elle, doit
+ * rester écrite une seule fois : deux versions du facteur d'impact, ce serait deux tableaux de bord
+ * qui ne racontent pas la même histoire selon le chemin emprunté.
+ */
+export function buildSharedContribution(
+  profileId: string,
+  sharedAccounts: any[],
+  allMems: any[] | null,
+  tx: any[] | null,
+): SharedContribution {
   const sharedIds = sharedAccounts.map((a) => a.id);
   if (sharedIds.length === 0) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
 
-  // Membres des comptes partagés + TOUTES leurs transactions : les deux ne dépendent que de
-  // sharedIds → EN PARALLÈLE (1 aller-retour économisé sur ce fetch, qui est dans le chemin
-  // critique du pilotage — donc de l'enrichissement de la carte Pouls après chaque saisie).
-  const [{ data: allMems }, { data: tx }] = await Promise.all([
-    supabase.from('account_members').select('account_id, user_id, impact_pct, shared_mode').in('account_id', sharedIds),
-    supabase.from('transactions')
-      .select('*, account:accounts!account_id(name, currency, is_joint, profile_id), category:categories!category_id(*)')
-      .in('account_id', sharedIds),
-  ]);
   const membersByAcct: Record<string, any[]> = {};
   for (const m of (allMems ?? []) as any[]) (membersByAcct[m.account_id] ??= []).push(m);
 
@@ -97,6 +84,40 @@ export async function fetchSharedContribution(profileId: string): Promise<Shared
     });
 
   return { accounts, transactions, factorByAccount, modeByAccount };
+}
+
+export async function fetchSharedContribution(profileId: string): Promise<SharedContribution> {
+  if (!supabase) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
+
+  // Comptes auxquels je participe : joints que JE possède + comptes où je suis membre.
+  const [ownJointsRes, myMemsRes] = await Promise.all([
+    supabase.from('accounts').select('*').eq('profile_id', profileId).eq('is_joint', true).eq('is_active', true),
+    supabase.from('account_members').select('account_id').eq('user_id', profileId),
+  ]);
+  const ownJoints = (ownJointsRes.data ?? []) as any[];
+  const memberAcctIds = ((myMemsRes.data ?? []) as any[]).map((m) => m.account_id);
+
+  let memberAccts: any[] = [];
+  if (memberAcctIds.length > 0) {
+    const { data } = await supabase.from('accounts').select('*').in('id', memberAcctIds).eq('is_active', true);
+    memberAccts = (data ?? []).filter((a: any) => a.profile_id !== profileId); // exclut mes propres comptes
+  }
+
+  const sharedAccounts = [...ownJoints, ...memberAccts];
+  const sharedIds = sharedAccounts.map((a) => a.id);
+  if (sharedIds.length === 0) return { accounts: [], transactions: [], factorByAccount: {}, modeByAccount: {} };
+
+  // Membres des comptes partagés + TOUTES leurs transactions : les deux ne dépendent que de
+  // sharedIds → EN PARALLÈLE (1 aller-retour économisé sur ce fetch, qui est dans le chemin
+  // critique du pilotage — donc de l'enrichissement de la carte Pouls après chaque saisie).
+  const [{ data: allMems }, { data: tx }] = await Promise.all([
+    supabase.from('account_members').select('account_id, user_id, impact_pct, shared_mode').in('account_id', sharedIds),
+    supabase.from('transactions')
+      .select('*, account:accounts!account_id(name, currency, is_joint, profile_id), category:categories!category_id(*)')
+      .in('account_id', sharedIds),
+  ]);
+
+  return buildSharedContribution(profileId, sharedAccounts, allMems as any[], tx as any[]);
 }
 
 export function useSharedContribution(profileId: string | undefined) {
