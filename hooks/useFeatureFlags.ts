@@ -28,6 +28,19 @@ export interface FeatureFlags {
   update_url_android?: string;
   update_url_ios?: string;
   /**
+   * Section « À propos » de la page Support. Réglages PERMANENTS (pas des interrupteurs) : ils
+   * vivent ici parce que les liens store de la mise à jour y sont déjà, et qu'une colonne dédiée
+   * dans `app_config` imposerait une migration pour trois URL. Édités dans Admin › Mise à jour.
+   *
+   * « Noter l'application » : lien volontairement SÉPARÉ de `update_url_*` — on peut vouloir
+   * envoyer vers la page d'avis (`?action=write-review` sur iOS) plutôt que vers la fiche.
+   * Vide sur Android/web → repli sur la fiche Play. Vide sur iOS → la ligne est masquée.
+   */
+  about_rate_url_android?: string;
+  about_rate_url_ios?: string;
+  /** « Nous suivre sur Instagram ». Vide → la ligne n'apparaît pas. */
+  about_instagram_url?: string;
+  /**
    * Partage de comptes PERSO (inviter un autre user en consultation/écriture sur un compte perso).
    * Ne concerne PAS les comptes joints dédiés (toujours actifs). Global, géré en admin.
    * OFF (Soft) : on masque le bouton « Partager » et le serveur refuse les NOUVELLES invitations sur

@@ -1,6 +1,6 @@
 ﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
 import PageLoader from '../../../components/PageLoader';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList, TextInput } from 'react-native';
 import ScreenGradient from '../../../components/ScreenGradient';
 import { useDeferredMount } from '../../../hooks/useDeferredMount';
 import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
@@ -18,6 +18,7 @@ import { useCreditFlows } from '../../../hooks/useCreditFlows';
 import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
 import { buildOverrideMap, overrideKey as ovrKey } from '../../../lib/txOverrides';
 import { useCategories } from '../../../hooks/useCategories';
+import { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
 import { useAllAccounts } from '../../../hooks/useAccounts';
 import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
@@ -32,7 +33,7 @@ import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { hoverRow } from '../../../lib/webLayout';
-import { iconForTransaction } from '../../../lib/categoryIcons';
+import { iconForTransaction, iconForCategory } from '../../../lib/categoryIcons';
 import { isProjectSpendTx } from '../../../lib/projectTx';
 import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
 
@@ -41,6 +42,11 @@ import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
 // cette constante à `true` les rétablit tels quels.
 const SHOW_TOP_ACTIONS = false;
 
+
+/** Normalise pour une recherche insensible à la casse et aux accents. */
+function normTxt(s: string): string {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -149,7 +155,11 @@ function TransactionsListBody() {
   const [accountFilterIds, setAccountFilterIds] = useState<string[]>([]);
   const [defaultCheckingIds, setDefaultCheckingIds] = useState<string[]>([]);
   const initializedAccountsSig = useRef<string | null>(null);
-  const [showAccountFilter, setShowAccountFilter] = useState(false);
+  /* Feuille « Filtres » : comptes ET sous-catégorie au même endroit. Les comptes s'affichaient
+     avant dans une rangée de puces qui poussait la liste vers le bas, et la sous-catégorie n'était
+     atteignable que par lien profond (depuis la Tréso) — impossible à choisir depuis cette page. */
+  const [showFilters, setShowFilters] = useState(false);
+  const [catQuery, setCatQuery] = useState('');
   const [showRecurring, setShowRecurring] = useState(false);
 
   /* ── Guide utilisateur (démarrage) ────────────────────────────────────────────────────────────
@@ -360,7 +370,33 @@ function TransactionsListBody() {
 
   // Récupérer les categories pour filtrer par parent/enfant
   const { data: categories = [] } = useCategories(user?.id);
-  
+  // Sous-catégories groupées par catégorie parente — même source et même ordre que les écrans de
+  // saisie (« Mouvements » exclu : ces virements internes ne se filtrent pas par catégorie).
+  const expenseGroups = useSubCategoriesGrouped(categories, 'expense');
+  const incomeGroups = useSubCategoriesGrouped(categories, 'income');
+  const catSections = useMemo(
+    () => [
+      { key: 'expense', label: 'Dépenses', groups: expenseGroups },
+      { key: 'income', label: 'Recettes', groups: incomeGroups },
+    ].filter((s) => s.groups.length > 0),
+    [expenseGroups, incomeGroups]
+  );
+  // Recherche dans la feuille de filtres : un parent reste visible si son nom correspond, sinon
+  // seuls ses enfants correspondants sont gardés.
+  const catSectionsFiltered = useMemo(() => {
+    const q = normTxt(catQuery);
+    if (!q) return catSections;
+    return catSections
+      .map((s) => ({
+        ...s,
+        groups: s.groups
+          .map((g) => (normTxt(g.parentName).includes(q) ? g : { ...g, children: g.children.filter((c) => normTxt(c.name).includes(q)) }))
+          .filter((g) => g.children.length > 0),
+      }))
+      .filter((s) => s.groups.length > 0);
+  }, [catSections, catQuery]);
+
+
   // Filtrer par catégorie si nécessaire (inclure enfants si parent est sélectionné)
   const filtered = useMemo(() => {
     let list = displayedTransactions;
@@ -486,6 +522,18 @@ function TransactionsListBody() {
     accountFilterIds.some((id) => !defaultCheckingIds.includes(id));
   const hasFilter = !!categoryFilterId || isManualFilter || regulFilter || mouvementsFilter || recettesFilter || depensesFilter;
   const selectedCategoryName = categoryFilterId ? categories.find(c => c.id === categoryFilterId)?.name : null;
+  // Pastille du bouton « Filtres » : ce que l'utilisateur a posé lui-même (la sélection de comptes
+  // par défaut n'est pas un filtre — sinon le bouton serait allumé en permanence).
+  const activeFilterCount = (isManualFilter ? 1 : 0) + (categoryFilterId ? 1 : 0);
+  /** Retour à l'état par défaut : mes comptes courants, aucune sous-catégorie. */
+  const resetFilters = () => {
+    setAccountFilterIds(defaultCheckingIds);
+    setCategoryFilterId(null);
+    setCatQuery('');
+  };
+  // La recherche n'est qu'une aide à la sélection : elle ne survit pas à la fermeture (sinon on
+  // rouvre la feuille sur une liste tronquée sans se souvenir pourquoi).
+  const closeFilters = () => { setShowFilters(false); setCatQuery(''); };
   
   // Afficher/cacher boutons nav si singleMonth
   const showPeriodNav = params.singleMonth !== '1';
@@ -848,41 +896,138 @@ function TransactionsListBody() {
                   la feuille qu'il ouvre (cf. GUIDE_TX_BUBBLES). */}
               <Ionicons name="repeat" size={18} color={COLORS.orange} />
             </TouchableOpacity>
+            {/* Un seul bouton pour les DEUX filtres (comptes + sous-catégorie). La pastille compte
+                les filtres réellement posés — la sélection de comptes par défaut n'en est pas un. */}
             <TouchableOpacity
               ref={filterBtnRef}
-              style={[styles.filterBtn, accountFilterIds.length > 0 && styles.filterBtnActive]}
-              onPress={() => setShowAccountFilter(!showAccountFilter)}
+              style={[styles.filterBtn, activeFilterCount > 0 && styles.filterBtnActive]}
+              onPress={() => (showFilters ? closeFilters() : setShowFilters(true))}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Filtrer les transactions"
             >
-              <Ionicons name="filter" size={18} color={accountFilterIds.length > 0 ? COLORS.bg : COLORS.textSecondary} />
+              <Ionicons name="filter" size={18} color={activeFilterCount > 0 ? COLORS.bg : COLORS.textSecondary} />
+              {/* Compteur DANS le bouton (et non en pastille débordante) : le bandeau de période a
+                  un rayon de bordure, une pastille qui dépasse se fait rogner sur Android. */}
+              {activeFilterCount > 0 && <Text style={styles.filterCountText}>{activeFilterCount}</Text>}
             </TouchableOpacity>
           </View>
         )}
-        {showAccountFilter && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountFilterScroll} contentContainerStyle={styles.accountFilterContent}>
-            <TouchableOpacity
-              style={[styles.accountFilterChip, accountFilterIds.length === 0 && styles.accountFilterChipActive]}
-              onPress={() => setAccountFilterIds([])}
-            >
-              <Text style={[styles.accountFilterChipText, accountFilterIds.length === 0 && styles.accountFilterChipTextActive]}>Tous</Text>
-            </TouchableOpacity>
-            {sortedAccounts.map((acc) => {
-              const selected = accountFilterIds.includes(acc.id);
-              return (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[styles.accountFilterChip, selected && styles.accountFilterChipActive]}
-                  onPress={() => {
-                    setAccountFilterIds((prev) =>
-                      prev.includes(acc.id) ? prev.filter((id) => id !== acc.id) : [...prev, acc.id]
-                    );
-                  }}
-                >
-                  <Text style={[styles.accountFilterChipText, selected && styles.accountFilterChipTextActive]}>{acc.name}</Text>
+
+        {/* ── Panneau « Filtres » : comptes (multi-sélection) + sous-catégorie (une seule) ──
+            Déplié SUR PLACE, juste sous la ligne de période — pas en feuille venue du bas : on
+            garde sous les yeux le mois affiché et la liste qu'on est en train de filtrer.
+            Les deux filtres se combinent : « Alimentation › Courses » sur « Tous » les comptes
+            donne bien toutes les courses, où qu'elles aient été payées. */}
+        {showFilters && (
+          <View style={styles.filterPanel}>
+            <View style={styles.filterPanelHead}>
+              <Text style={styles.filterPanelTitle}>Filtres</Text>
+              <View style={styles.filterPanelHeadActions}>
+                {activeFilterCount > 0 && (
+                  <TouchableOpacity onPress={resetFilters} hitSlop={8}>
+                    <Text style={styles.filterResetText}>Tout effacer</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={closeFilters} hitSlop={8} accessibilityRole="button" accessibilityLabel="Fermer les filtres">
+                  <Ionicons name="close" size={19} color={COLORS.textSecondary} />
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+              </View>
+            </View>
+
+            <Text style={styles.filterSectionTitle}>Comptes</Text>
+            <View style={styles.filterChipsWrap}>
+              <TouchableOpacity
+                style={[styles.accountFilterChip, accountFilterIds.length === 0 && styles.accountFilterChipActive]}
+                onPress={() => setAccountFilterIds([])}
+              >
+                <Text style={[styles.accountFilterChipText, accountFilterIds.length === 0 && styles.accountFilterChipTextActive]}>Tous</Text>
+              </TouchableOpacity>
+              {sortedAccounts.map((acc) => {
+                const selected = accountFilterIds.includes(acc.id);
+                return (
+                  <TouchableOpacity
+                    key={acc.id}
+                    style={[styles.accountFilterChip, selected && styles.accountFilterChipActive]}
+                    onPress={() => {
+                      setAccountFilterIds((prev) =>
+                        prev.includes(acc.id) ? prev.filter((id) => id !== acc.id) : [...prev, acc.id]
+                      );
+                    }}
+                  >
+                    <Text style={[styles.accountFilterChipText, selected && styles.accountFilterChipTextActive]}>{acc.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.filterSectionTitle}>Sous-catégorie</Text>
+            {catSections.length === 0 ? (
+              <Text style={styles.filterEmptyText}>Aucune sous-catégorie. Ajoutes-en dans Catégories.</Text>
+            ) : (
+              <>
+                <View style={styles.filterSearchRow}>
+                  <Ionicons name="search" size={15} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={styles.filterSearchInput}
+                    value={catQuery}
+                    onChangeText={setCatQuery}
+                    placeholder="Rechercher une sous-catégorie…"
+                    placeholderTextColor={COLORS.textSecondary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="search"
+                  />
+                  {catQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setCatQuery('')} hitSlop={8}>
+                      <Ionicons name="close-circle" size={17} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <ScrollView style={styles.filterCatList} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                  <TouchableOpacity
+                    style={[styles.filterCatRow, !categoryFilterId && styles.filterCatRowActive]}
+                    onPress={() => setCategoryFilterId(null)}
+                  >
+                    <Text style={[styles.filterCatText, !categoryFilterId && styles.filterCatTextActive]}>Toutes</Text>
+                  </TouchableOpacity>
+                  {catSectionsFiltered.length === 0 && (
+                    <Text style={styles.filterEmptyText}>Aucun résultat pour « {catQuery} ».</Text>
+                  )}
+                  {catSectionsFiltered.map((section) => (
+                    <View key={section.key}>
+                      <Text style={styles.filterCatKind}>{section.label}</Text>
+                      {section.groups.map((group) => (
+                        <View key={group.parentId}>
+                          <Text style={styles.filterCatParent}>{group.parentName}</Text>
+                          {group.children.map((cat) => {
+                            const active = categoryFilterId === cat.id;
+                            return (
+                              <TouchableOpacity
+                                key={cat.id}
+                                style={[styles.filterCatRow, styles.filterCatRowChild, active && styles.filterCatRowActive]}
+                                onPress={() => setCategoryFilterId(active ? null : cat.id)}
+                              >
+                                <Ionicons name={iconForCategory(cat) as any} size={15} color={active ? COLORS.emerald : COLORS.textSecondary} />
+                                <Text style={[styles.filterCatText, active && styles.filterCatTextActive]} numberOfLines={1}>{cat.name}</Text>
+                                {active && <Ionicons name="checkmark" size={16} color={COLORS.emerald} />}
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ))}
+                    </View>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            <TouchableOpacity style={styles.filterDoneBtn} onPress={closeFilters} activeOpacity={0.85}>
+              <Text style={styles.filterDoneText}>
+                {filtered.length === 0 ? 'Aucune transaction' : `Voir ${filtered.length} transaction${filtered.length > 1 ? 's' : ''}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
         {SHOW_TOP_ACTIONS && (
         <View style={[styles.header, onbRecurring ? onbGlow(COLORS, true) : null]} ref={actionsRef}>
@@ -1254,6 +1399,9 @@ function makeStyles(c: any) {
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
@@ -1265,14 +1413,44 @@ function makeStyles(c: any) {
     backgroundColor: c.emerald,
     borderColor: c.emerald,
   },
-  accountFilterScroll: {
+  filterCountText: { fontSize: 11.5, fontWeight: '800', color: c.bg, includeFontPadding: false },
+  // ── Panneau « Filtres » (déplié sur place, sous la ligne de période) ──
+  filterPanel: {
+    backgroundColor: c.card,
+    borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12,
     marginBottom: 12,
-    height: 44,
-    flexGrow: 0,
   },
-  accountFilterContent: {
-    alignItems: 'center',
+  filterPanelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  filterPanelHeadActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  filterPanelTitle: { fontSize: 15, fontWeight: '800', color: c.text },
+  filterResetText: { fontSize: 13, fontWeight: '600', color: c.emerald },
+  filterSectionTitle: { fontSize: 11, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  // Les puces de comptes s'enroulent (plutôt qu'un défilement horizontal) : dans une feuille, on
+  // voit ainsi d'un coup d'œil tous les comptes sélectionnés.
+  filterChipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  filterSearchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10,
+    paddingHorizontal: 12, height: 40, marginBottom: 8,
   },
+  filterSearchInput: {
+    flex: 1, fontSize: 13.5, color: c.text, paddingVertical: 0,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+  },
+  // Hauteur plafonnée + défilement interne : le panneau pousse la liste des transactions vers le
+  // bas, il ne doit jamais la chasser entièrement de l'écran.
+  filterCatList: { maxHeight: 220, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 10 },
+  filterCatKind: { fontSize: 11, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 4 },
+  filterCatParent: { fontSize: 12, fontWeight: '700', color: c.text, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  filterCatRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12 },
+  filterCatRowChild: { paddingLeft: 20 },
+  filterCatRowActive: { backgroundColor: c.emerald + '1A' },
+  filterCatText: { flex: 1, fontSize: 13.5, color: c.text },
+  filterCatTextActive: { color: c.emerald, fontWeight: '700' },
+  filterEmptyText: { fontSize: 12.5, color: c.textSecondary, paddingHorizontal: 12, paddingVertical: 10 },
+  filterDoneBtn: { backgroundColor: c.emerald, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
+  filterDoneText: { fontSize: 14.5, fontWeight: '800', color: c.bg },
   accountFilterChip: {
     height: 36,
     paddingHorizontal: 14,

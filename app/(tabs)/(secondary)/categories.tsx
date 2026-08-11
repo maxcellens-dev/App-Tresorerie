@@ -1,11 +1,9 @@
 ﻿import { useMemo, useEffect, useState, useRef } from 'react';
 import { withDeferredMount } from '../../../hooks/useDeferredMount';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   Alert,
@@ -41,6 +39,9 @@ import { supabase } from '../../../lib/supabase';
 import { useNavBack } from '../../../hooks/useNavBack';
 
 
+/** Clé du champ « nouvelle catégorie parente » (admin) — aucun id réel ne peut la valoir. */
+const ROOT_ADD = '__root__';
+
 function groupCategories(categories: Category[]) {
   const parents = categories.filter((c) => !c.parent_id);
   const byParent: Record<string, Category[]> = {};
@@ -71,9 +72,14 @@ function CategoriesScreen() {
   const bulkUpdateVariable = useBulkUpdateVariable(user?.id);
   const reorderCategories = useReorderCategories(user?.id);
 
+  /* Onglet global : on ne travaille QUE sur les dépenses ou QUE sur les recettes. Les deux
+     listes bout à bout faisaient une page interminable où l'on ne savait plus dans laquelle on
+     se trouvait — et on ajoutait une sous-catégorie du mauvais côté. */
+  const [activeType, setActiveType] = useState<'income' | 'expense'>('expense');
+  /* Création INLINE : l'id de la catégorie parente dont le champ « nouvelle sous-catégorie » est
+     ouvert (`ROOT_ADD` = nouvelle catégorie parente, admin). Un seul champ ouvert à la fois. */
+  const [addingIn, setAddingIn] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState<'income' | 'expense'>('expense');
-  const [newParentId, setNewParentId] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; parent_id?: string | null; is_variable?: boolean } | null>(null);
   // Sélecteur d'icône d'une sous-catégorie (§13)
   const [iconModal, setIconModal] = useState<{ id: string; name: string; type: 'income' | 'expense'; current?: string | null } | null>(null);
@@ -89,17 +95,40 @@ function CategoriesScreen() {
     seedDefaults.mutate();
   }, [user?.id, categories.length, isLoading]);
 
-  async function handleAdd() {
+  /** Ouvre (ou ferme) le champ de création, en repartant toujours d'un champ vide. */
+  function openAdd(parentId: string | null) {
+    setAddingIn((cur) => (cur === (parentId ?? ROOT_ADD) ? null : (parentId ?? ROOT_ADD)));
+    setNewName('');
+    setAddError(null);
+  }
+
+  function cancelAdd() {
+    setAddingIn(null);
+    setNewName('');
+    setAddError(null);
+  }
+
+  /**
+   * Enregistre la ligne saisie. `parentId` null = nouvelle catégorie parente (admin uniquement).
+   * L'icône est déduite du nom, comme à la création rapide depuis un écran de saisie : une
+   * sous-catégorie sans icône affiche une étiquette générique et n'aide personne à s'y retrouver.
+   */
+  async function handleAdd(parentId: string | null) {
     const trimmed = newName.trim();
     if (!trimmed) {
-      setAddError('Le nom de la catégorie est obligatoire.');
+      setAddError('Le nom est obligatoire.');
       return;
     }
     setAddError(null);
     try {
-      await addCategory.mutateAsync({ name: trimmed, type: newType, parent_id: newParentId });
+      await addCategory.mutateAsync({
+        name: trimmed,
+        type: activeType,
+        parent_id: parentId,
+        ...(parentId ? { icon: iconForCategory({ name: trimmed }) } : {}),
+      });
+      // On garde le champ OUVERT : on ajoute rarement une seule sous-catégorie à la suite.
       setNewName('');
-      setNewParentId(null);
     } catch (e: unknown) {
       setAddError(e instanceof Error ? e.message : "Impossible d'ajouter.");
     }
@@ -169,7 +198,16 @@ function CategoriesScreen() {
     }
   }
 
+  /**
+   * Qui peut supprimer quoi. Les catégories de base (`is_default`) sont le socle commun : elles se
+   * renomment et se réordonnent librement, mais elles ne se suppriment pas — sauf en admin.
+   * Le bouton correspondant n'est donc PAS affiché à l'utilisateur : proposer une action qui
+   * répond invariablement « impossible » n'est pas une protection, c'est une impasse.
+   */
+  const canDelete = (c: Category) => isAdmin || !c.is_default;
+
   async function handleDelete(c: Category) {
+    // Filet de sécurité : le bouton est masqué, mais la règle reste portée par la fonction.
     if (c.is_default && !isAdmin) {
       Alert.alert('Action impossible', 'Les catégories par défaut ne peuvent pas être supprimées. Tu peux les renommer.');
       return;
@@ -210,18 +248,109 @@ function CategoriesScreen() {
   );
   const hideForUser = (c: Category) => !isAdmin && (mouvementsIds.has(c.id) || (!!c.parent_id && mouvementsIds.has(c.parent_id)));
 
-  const income = categories.filter((c) => c.type === 'income');
-  const expense = categories.filter((c) => c.type === 'expense' && !hideForUser(c));
-  const incomeGrouped = groupCategories(income);
-  const expenseGrouped = groupCategories(expense);
+  // Seul le type de l'onglet actif est construit : la page ne montre qu'une liste à la fois.
+  const visible = categories.filter((c) => c.type === activeType && !hideForUser(c));
+  const grouped = groupCategories(visible);
 
-  const parentOptions = categories.filter((c) => c.type === newType && !c.parent_id && !hideForUser(c));
+  /**
+   * Une catégorie parente et ses sous-catégories, en UNE carte.
+   *
+   * L'ancienne mise en page empilait tout dans une seule carte, avec un gris codé en dur
+   * (`rgba(30,41,59,0.3)`) sur les lignes enfants : hors thème sombre, ce voile passait pour un
+   * « désactivé » et les sous-catégories — l'essentiel de la page — paraissaient inertes. Ici la
+   * hiérarchie est portée par la STRUCTURE (une carte = une catégorie, un en-tête, des lignes
+   * indentées), pas par un fond grisé.
+   */
+  const renderGroup = (parents: Category[], p: Category, idx: number, children: Category[]) => {
+    const adding = addingIn === p.id;
+    return (
+      <View key={p.id} style={styles.groupCard}>
+        <View style={styles.groupHead}>
+          <Text style={styles.groupTitle} numberOfLines={1}>{p.name}</Text>
+          <View style={styles.rowActions}>
+            <TouchableOpacity onPress={() => handleMove(parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={[styles.actionBtn, idx === 0 && styles.actionBtnDisabled]}>
+              <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleMove(parents, idx, 'down')} hitSlop={8} disabled={idx === parents.length - 1} style={[styles.actionBtn, idx === parents.length - 1 && styles.actionBtnDisabled]}>
+              <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Renommer ${p.name}`}>
+              <Ionicons name="pencil" size={17} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            {canDelete(p) && (
+              <TouchableOpacity onPress={() => handleDelete(p)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Supprimer ${p.name}`}>
+                <Ionicons name="trash-outline" size={17} color={COLORS.danger} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
-  // Non-admin : « Aucune » masqué → on force une catégorie parente par défaut.
-  useEffect(() => {
-    if (!isAdmin && newParentId === null && parentOptions.length > 0) setNewParentId(parentOptions[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, newType, parentOptions.length]);
+        {children.length === 0 && !adding && (
+          <Text style={styles.groupEmpty}>Aucune sous-catégorie pour l’instant.</Text>
+        )}
+        {children.map((c, ci, arr) => (
+          <View key={c.id} style={[styles.childRow, ci === arr.length - 1 && styles.childRowLast]}>
+            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7} accessibilityLabel={`Icône de ${c.name}`}>
+              <Ionicons name={iconForCategory(c) as any} size={17} color={COLORS.emerald} />
+            </TouchableOpacity>
+            <Text style={styles.childName} numberOfLines={1}>{c.name}</Text>
+            <View style={styles.rowActions}>
+              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={[styles.actionBtn, ci === 0 && styles.actionBtnDisabled]}>
+                <Ionicons name="chevron-up" size={15} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={[styles.actionBtn, ci === arr.length - 1 && styles.actionBtnDisabled]}>
+                <Ionicons name="chevron-down" size={15} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Renommer ${c.name}`}>
+                <Ionicons name="pencil" size={16} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+              {canDelete(c) && (
+                <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Supprimer ${c.name}`}>
+                  <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ))}
+
+        {/* Création SUR PLACE : la nouvelle ligne s'écrit là où elle va apparaître, dans sa
+            catégorie. Plus de formulaire en haut de page où il fallait re-choisir le type puis
+            la catégorie parente pour un simple « Boulangerie ». */}
+        {adding ? (
+          <View style={[styles.childRow, styles.addRow]}>
+            <View style={styles.catIconBtn}>
+              <Ionicons name={iconForCategory({ name: newName }) as any} size={17} color={COLORS.emerald} />
+            </View>
+            <TextInput
+              style={styles.addInput}
+              value={newName}
+              onChangeText={(v) => { setNewName(v); if (addError) setAddError(null); }}
+              placeholder="Nom de la sous-catégorie"
+              placeholderTextColor={COLORS.textSecondary}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={() => handleAdd(p.id)}
+              editable={!addCategory.isPending}
+            />
+            <TouchableOpacity onPress={cancelAdd} hitSlop={8} style={styles.actionBtn} accessibilityLabel="Annuler">
+              <Ionicons name="close" size={19} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleAdd(p.id)} hitSlop={8} style={styles.actionBtn} disabled={addCategory.isPending} accessibilityLabel="Enregistrer">
+              {addCategory.isPending
+                ? <ActivityIndicator size="small" color={COLORS.emerald} />
+                : <Ionicons name="checkmark" size={20} color={COLORS.emerald} />}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.addTrigger} onPress={() => openAdd(p.id)} activeOpacity={0.7}>
+            <Ionicons name="add" size={17} color={COLORS.emerald} />
+            <Text style={styles.addTriggerText}>Ajouter une sous-catégorie</Text>
+          </TouchableOpacity>
+        )}
+        {adding && addError && <Text style={styles.addRowError}>{addError}</Text>}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -239,7 +368,8 @@ function CategoriesScreen() {
           ) : undefined}
         />
         <Text style={styles.subtitle}>
-          Recettes et dépenses par défaut. Modifiez, ajoutez ou supprimez des postes.
+          Tes recettes et tes dépenses. Renomme, ajoute ou supprime des postes.
+          {!isAdmin && ' Les catégories de base ne se suppriment pas, mais tu peux les renommer.'}
         </Text>
 
         {!user ? (
@@ -260,177 +390,78 @@ function CategoriesScreen() {
               </TouchableOpacity>
             )}
 
-            <View style={styles.addCard}>
-              <Text style={styles.label}>Nouvelle catégorie</Text>
-              <View style={styles.toggle}>
-                <TouchableOpacity
-                  style={[styles.toggleBtn, newType === 'expense' && styles.toggleBtnActive]}
-                  onPress={() => setNewType('expense')}
-                >
-                  <Text style={[styles.toggleLabel, newType === 'expense' && styles.toggleLabelActive]}>Dépense</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.toggleBtn, newType === 'income' && styles.toggleBtnActive]}
-                  onPress={() => setNewType('income')}
-                >
-                  <Text style={[styles.toggleLabel, newType === 'income' && styles.toggleLabelActive]}>Recette</Text>
-                </TouchableOpacity>
-              </View>
-              {parentOptions.length > 0 && (
-                <>
-                  <Text style={styles.label}>Sous-catégorie de (optionnel)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-                    {isAdmin && (
-                      <TouchableOpacity
-                        style={[styles.chip, !newParentId && styles.chipActive]}
-                        onPress={() => setNewParentId(null)}
-                      >
-                        <Text style={[styles.chipText, !newParentId && styles.chipTextActive]}>Aucune</Text>
-                      </TouchableOpacity>
-                    )}
-                    {parentOptions.map((p) => (
-                      <TouchableOpacity
-                        key={p.id}
-                        style={[styles.chip, newParentId === p.id && styles.chipActive]}
-                        onPress={() => setNewParentId(p.id)}
-                      >
-                        <Text style={[styles.chipText, newParentId === p.id && styles.chipTextActive]}>{p.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </>
-              )}
-              <TextInput
-                style={[styles.input, addError ? { borderColor: COLORS.danger } : {}]}
-                value={newName}
-                onChangeText={(v) => { setNewName(v); if (addError) setAddError(null); }}
-                placeholder="Nom (ex. Salaires, Loyer)"
-                placeholderTextColor={COLORS.textSecondary}
-                returnKeyType="done"
-                onSubmitEditing={handleAdd}
-              />
-              {addError && (
-                <View style={styles.inlineError}>
-                  <Text style={styles.inlineErrorText}>{addError}</Text>
-                </View>
-              )}
-              <TouchableOpacity
-                style={[styles.addBtn, addCategory.isPending && styles.addBtnDisabled]}
-                onPress={handleAdd}
-                disabled={addCategory.isPending}
-              >
-                {addCategory.isPending ? (
-                  <ActivityIndicator color={COLORS.bg} size="small" />
-                ) : (
-                  <Text style={styles.addBtnLabel}>Ajouter</Text>
-                )}
-              </TouchableOpacity>
+            {/* Onglet global : dépenses OU recettes. Il commande aussi ce que l'on crée — plus
+                besoin de choisir un type à chaque ajout, on est déjà du bon côté. */}
+            <View style={styles.typeTabs}>
+              {([
+                { key: 'expense', label: 'Dépenses', icon: 'arrow-down' },
+                { key: 'income', label: 'Recettes', icon: 'arrow-up' },
+              ] as const).map((t) => {
+                const active = activeType === t.key;
+                return (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[styles.typeTab, active && styles.typeTabActive]}
+                    onPress={() => { setActiveType(t.key); cancelAdd(); }}
+                    activeOpacity={0.8}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Ionicons name={t.icon as any} size={15} color={active ? COLORS.bg : COLORS.textSecondary} />
+                    <Text style={[styles.typeTabText, active && styles.typeTabTextActive]}>{t.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {isLoading ? (
               <ActivityIndicator size="large" color={COLORS.emerald} style={styles.loader} />
             ) : (
               <>
-                <Text style={styles.sectionTitle}>Recettes</Text>
-                <View style={styles.card}>
-                  {income.length === 0 ? (
-                    <Text style={styles.empty}>Aucune catégorie recette.</Text>
+                {grouped.parents.length === 0 ? (
+                  <View style={styles.groupCard}>
+                    <Text style={styles.empty}>
+                      {activeType === 'expense' ? 'Aucune catégorie de dépense.' : 'Aucune catégorie de recette.'}
+                    </Text>
+                  </View>
+                ) : (
+                  grouped.parents.map((p, idx) =>
+                    renderGroup(grouped.parents, p, idx, grouped.byParent[p.id] ?? []))
+                )}
+
+                {/* Créer une catégorie PARENTE : réservé à l'admin, comme avant (l'option « Aucune »
+                    de l'ancien formulaire ne s'affichait que pour lui). */}
+                {isAdmin && (
+                  addingIn === ROOT_ADD ? (
+                    <View style={[styles.groupCard, styles.rootAddCard]}>
+                      <TextInput
+                        style={styles.addInput}
+                        value={newName}
+                        onChangeText={(v) => { setNewName(v); if (addError) setAddError(null); }}
+                        placeholder="Nom de la catégorie"
+                        placeholderTextColor={COLORS.textSecondary}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={() => handleAdd(null)}
+                        editable={!addCategory.isPending}
+                      />
+                      <TouchableOpacity onPress={cancelAdd} hitSlop={8} style={styles.actionBtn} accessibilityLabel="Annuler">
+                        <Ionicons name="close" size={19} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleAdd(null)} hitSlop={8} style={styles.actionBtn} disabled={addCategory.isPending} accessibilityLabel="Enregistrer">
+                        {addCategory.isPending
+                          ? <ActivityIndicator size="small" color={COLORS.emerald} />
+                          : <Ionicons name="checkmark" size={20} color={COLORS.emerald} />}
+                      </TouchableOpacity>
+                    </View>
                   ) : (
-                    incomeGrouped.parents.map((p, idx) => (
-                      <View key={p.id}>
-                        <View style={styles.row}>
-                          <Text style={styles.rowLabel}>{p.name}</Text>
-                          <View style={styles.rowActions}>
-                            <TouchableOpacity onPress={() => handleMove(incomeGrouped.parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={{ opacity: idx === 0 ? 0.3 : 1 }}>
-                              <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleMove(incomeGrouped.parents, idx, 'down')} hitSlop={8} disabled={idx === incomeGrouped.parents.length - 1} style={{ marginLeft: 4, opacity: idx === incomeGrouped.parents.length - 1 ? 0.3 : 1 }}>
-                              <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={{ marginLeft: 12 }}>
-                              <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleDelete(p)} hitSlop={8} style={{ marginLeft: 12 }}>
-                              <Ionicons name="trash-outline" size={18} color={p.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                        {(incomeGrouped.byParent[p.id] ?? []).map((c, ci, arr) => (
-                          <View key={c.id} style={[styles.row, styles.rowChild]}>
-                            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7}>
-                              <Ionicons name={iconForCategory(c) as any} size={18} color={COLORS.emerald} />
-                            </TouchableOpacity>
-                            <Text style={styles.rowLabelChild}>{c.name}</Text>
-                            <View style={styles.rowActions}>
-                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={{ opacity: ci === 0 ? 0.3 : 1 }}>
-                                <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={{ marginLeft: 4, opacity: ci === arr.length - 1 ? 0.3 : 1 }}>
-                                <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={{ marginLeft: 12 }}>
-                                <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={{ marginLeft: 12 }}>
-                                <Ionicons name="trash-outline" size={18} color={c.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    ))
-                  )}
-                </View>
-                <Text style={styles.sectionTitle}>Dépenses</Text>
-                <View style={styles.card}>
-                  {expense.length === 0 ? (
-                    <Text style={styles.empty}>Aucune catégorie dépense.</Text>
-                  ) : (
-                    expenseGrouped.parents.map((p, idx) => (
-                      <View key={p.id}>
-                        <View style={styles.row}>
-                          <Text style={styles.rowLabel}>{p.name}</Text>
-                          <View style={styles.rowActions}>
-                            <TouchableOpacity onPress={() => handleMove(expenseGrouped.parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={{ opacity: idx === 0 ? 0.3 : 1 }}>
-                              <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleMove(expenseGrouped.parents, idx, 'down')} hitSlop={8} disabled={idx === expenseGrouped.parents.length - 1} style={{ marginLeft: 4, opacity: idx === expenseGrouped.parents.length - 1 ? 0.3 : 1 }}>
-                              <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={{ marginLeft: 12 }}>
-                              <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleDelete(p)} hitSlop={8} style={{ marginLeft: 12 }}>
-                              <Ionicons name="trash-outline" size={18} color={p.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                        {(expenseGrouped.byParent[p.id] ?? []).map((c, ci, arr) => (
-                          <View key={c.id} style={[styles.row, styles.rowChild]}>
-                            <TouchableOpacity onPress={() => setIconModal({ id: c.id, name: c.name, type: c.type, current: c.icon ?? null })} hitSlop={6} style={styles.catIconBtn} activeOpacity={0.7}>
-                              <Ionicons name={iconForCategory(c) as any} size={18} color={COLORS.emerald} />
-                            </TouchableOpacity>
-                            <Text style={styles.rowLabelChild}>{c.name}</Text>
-                            <View style={styles.rowActions}>
-                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={{ opacity: ci === 0 ? 0.3 : 1 }}>
-                                <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={{ marginLeft: 4, opacity: ci === arr.length - 1 ? 0.3 : 1 }}>
-                                <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={{ marginLeft: 12 }}>
-                                <Ionicons name="pencil" size={18} color={COLORS.textSecondary} />
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleDelete(c)} hitSlop={8} style={{ marginLeft: 12 }}>
-                                <Ionicons name="trash-outline" size={18} color={c.is_default && !isAdmin ? COLORS.textSecondary : COLORS.danger} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    ))
-                  )}
-                </View>
+                    <TouchableOpacity style={styles.rootAddTrigger} onPress={() => openAdd(null)} activeOpacity={0.7}>
+                      <Ionicons name="add-circle-outline" size={18} color={COLORS.emerald} />
+                      <Text style={styles.addTriggerText}>Nouvelle catégorie (admin)</Text>
+                    </TouchableOpacity>
+                  )
+                )}
+                {addingIn === ROOT_ADD && addError && <Text style={styles.addRowError}>{addError}</Text>}
               </>
             )}
           </KeyboardAwareScrollView>
@@ -527,14 +558,13 @@ function makeStyles(c: any) {
     marginBottom: 24,
   },
   seedBtnLabel: { fontSize: 16, fontWeight: '700', color: c.bg },
-  addCard: {
-    backgroundColor: c.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    padding: 20,
-    marginBottom: 24,
-  },
+  // ── Onglets Dépenses / Recettes (filtre global de la page) ──
+  typeTabs: { flexDirection: 'row', gap: 6, padding: 4, marginBottom: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12 },
+  typeTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 9 },
+  typeTabActive: { backgroundColor: c.emerald },
+  typeTabText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+  typeTabTextActive: { color: c.bg, fontWeight: '800' },
+  // Styles du modal d'édition (renommer + choisir Fixe/Variable sur une catégorie de dépense).
   label: { fontSize: 14, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
   toggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   toggleBtn: {
@@ -548,18 +578,6 @@ function makeStyles(c: any) {
   toggleBtnActive: { backgroundColor: c.emerald, borderColor: c.emerald },
   toggleLabel: { fontSize: 14, color: c.textSecondary },
   toggleLabelActive: { color: c.bg, fontWeight: '600' },
-  chipRow: { marginBottom: 12, flexGrow: 0 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    marginRight: 8,
-  },
-  chipActive: { backgroundColor: c.emerald, borderColor: c.emerald },
-  chipText: { fontSize: 14, color: c.text },
-  chipTextActive: { color: c.bg, fontWeight: '600' },
   input: {
     backgroundColor: c.bg,
     borderWidth: 1,
@@ -571,34 +589,57 @@ function makeStyles(c: any) {
     color: c.text,
     marginBottom: 16,
   },
-  addBtn: { backgroundColor: c.emerald, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  addBtnDisabled: { opacity: 0.6 },
-  addBtnLabel: { fontSize: 15, fontWeight: '700', color: c.bg },
   inlineError: { backgroundColor: c.danger + '1F', borderWidth: 1, borderColor: c.danger + '66', borderRadius: 8, padding: 10, marginBottom: 10 },
   inlineErrorText: { fontSize: 13, color: c.danger, lineHeight: 18 },
   loader: { marginVertical: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 10 },
-  card: {
+  // Une carte = UNE catégorie parente et ses sous-catégories. C'est la carte qui porte la
+  // hiérarchie ; les lignes enfants gardent le fond de la carte (aucun voile gris).
+  groupCard: {
     backgroundColor: c.card,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: c.cardBorder,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 12,
   },
-  row: {
+  groupHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: c.emerald + '12',
     borderBottomWidth: 1,
     borderBottomColor: c.cardBorder,
   },
-  rowChild: { paddingLeft: 28, backgroundColor: 'rgba(30,41,59,0.3)' },
-  rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flex: 1 },
-  rowLabelChild: { fontSize: 14, color: c.textSecondary, flex: 1 },
-  rowActions: { flexDirection: 'row', alignItems: 'center' },
+  groupTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: c.text },
+  groupEmpty: { paddingHorizontal: 14, paddingVertical: 14, fontSize: 12.5, fontStyle: 'italic', color: c.textSecondary },
+  // ── Création sur place ──
+  addTrigger: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 11, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: c.cardBorder },
+  addTriggerText: { fontSize: 13.5, fontWeight: '700', color: c.emerald },
+  addRow: { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: c.cardBorder, backgroundColor: c.emerald + '0A' },
+  addInput: {
+    flex: 1, fontSize: 14, color: c.text, paddingVertical: 6, marginRight: 4,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as any : {}),
+  },
+  addRowError: { fontSize: 12, color: c.danger, paddingHorizontal: 14, paddingBottom: 10, lineHeight: 16 },
+  rootAddCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 },
+  rootAddTrigger: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: c.emerald + '80', marginTop: 4 },
+  childRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingLeft: 14,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: c.cardBorder,
+  },
+  childRowLast: { borderBottomWidth: 0 },
+  // Couleur de texte PLEINE : en secondaire, les sous-catégories passaient pour désactivées.
+  childName: { flex: 1, fontSize: 14, color: c.text },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionBtn: { padding: 6 },
+  actionBtnDisabled: { opacity: 0.25 },
   catIconBtn: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald + '14', marginRight: 10 },
   empty: { padding: 20, color: c.textSecondary, textAlign: 'center' },
   modalOverlay: {

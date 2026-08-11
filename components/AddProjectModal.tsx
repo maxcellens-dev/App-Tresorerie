@@ -7,6 +7,13 @@
  *   3. La planification    → mensuel / date cible / ponctuel, date de la 1ʳᵉ échéance
  *   4. Le(s) compte(s)     → 2 comptes (virements) ou 1 seul (conserver / dépenser)
  *
+ * Modification = les MÊMES blocs, en ONGLETS (Projet / Planification / Comptes). Tout tenait
+ * auparavant sur une seule page à dérouler : une trentaine de champs visibles d'un coup, on ne
+ * savait plus où regarder. Les onglets réutilisent le découpage de l'assistant — d'où `step`
+ * partagé entre les deux modes (2, 3, 4 = les trois onglets ; l'étape 1, le mode, n'existe pas
+ * en modification). Enregistrer reste possible depuis n'importe quel onglet : en cas de champ
+ * manquant, on ouvre automatiquement l'onglet fautif.
+ *
  * Le MODE est figé à la création : en modification, tout est éditable SAUF lui (changer de mode
  * reviendrait à réinterpréter des transactions déjà générées, voire déjà portées au solde).
  * Cf. lib/projectTx pour ce que chaque mode génère réellement dans Transactions.
@@ -127,6 +134,16 @@ const MODES: Record<ProjectMode, {
   },
 };
 
+/**
+ * Onglets de la MODIFICATION. `step` reprend la numérotation de l'assistant de création : un même
+ * bloc de champs est donc rendu par la même condition dans les deux modes.
+ */
+const EDIT_TABS = [
+  { step: 2, label: 'Projet', icon: 'document-text-outline' },
+  { step: 3, label: 'Planification', icon: 'calendar-outline' },
+  { step: 4, label: 'Comptes', icon: 'wallet-outline' },
+] as const;
+
 interface PonctuelEntry {
   enabled: boolean;
   amount: string;
@@ -231,9 +248,11 @@ export default function AddProjectModal() {
   const [showCalendar, setShowCalendar] = useState<'target' | 'payment' | false>(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
-  // Assistant en étapes (création uniquement) : 1) mode 2) projet 3) planification 4) comptes.
-  // En modification, tout reste sur un seul écran.
-  const [step, setStep] = useState(1);
+  // 1) mode 2) projet 3) planification 4) comptes. En création, ce sont les étapes de l'assistant ;
+  // en modification, les valeurs 2 à 4 sont les ONGLETS (l'étape 1 — le mode — est verrouillée).
+  // Initialisé directement sur le 1er onglet en modification : sinon la première image affichée
+  // serait un écran sans contenu (aucun bloc ne répond à `step === 1` hors assistant).
+  const [step, setStep] = useState(params.id ? EDIT_TABS[0].step : 1);
   const wizard = !isEdit;
   const LAST_STEP = 4;
 
@@ -430,6 +449,17 @@ export default function AddProjectModal() {
   const goNext = () => { if (validateStep(step)) setStep((s) => Math.min(LAST_STEP, s + 1)); };
   const goPrev = () => { setFormError(null); setErrorFields([]); setStep((s) => Math.max(1, s - 1)); };
 
+  /**
+   * Refuse l'enregistrement ET ramène sur l'étape/l'onglet qui porte le champ fautif. En
+   * modification, le bouton « Mettre à jour » est disponible depuis n'importe quel onglet : sans
+   * ce saut, le message d'erreur désignerait un champ resté sur un autre onglet.
+   */
+  const failOn = (targetStep: number, message: string, fields: string[] = []) => {
+    setFormError(message);
+    setErrorFields(fields);
+    setStep(targetStep);
+  };
+
   /** Choix du mode (étape 1) : sélectionne et enchaîne directement sur le projet. */
   const chooseMode = (m: ProjectMode) => {
     setMode(m);
@@ -445,34 +475,28 @@ export default function AddProjectModal() {
     if (!mode) { setFormError('Choisis ce que tu souhaites faire.'); setStep(1); return; }
 
     if (!form.name.trim()) {
-      setFormError('Le nom du projet est obligatoire.');
-      setErrorFields(['name']);
+      failOn(2, 'Le nom du projet est obligatoire.', ['name']);
       return;
     }
     if (!form.target_amount.trim() || isNaN(parseFloat(form.target_amount))) {
-      setFormError(`${M.amountLabel} : montant obligatoire.`);
-      setErrorFields(['target_amount']);
+      failOn(2, `${M.amountLabel} : montant obligatoire.`, ['target_amount']);
       return;
     }
     if (isSpend && !form.expense_category_id) {
-      setFormError('Choisis la catégorie des dépenses du projet.');
-      setErrorFields(['category']);
+      failOn(2, 'Choisis la catégorie des dépenses du projet.', ['category']);
       return;
     }
     if (!form.source_account_id) {
-      setFormError(isSpend ? 'Choisis le compte sur lequel tombent les dépenses.' : isReserve ? 'Choisis le compte sur lequel l’argent reste.' : 'Sélectionne un compte source.');
-      setErrorFields(['source_account']);
+      failOn(4, isSpend ? 'Choisis le compte sur lequel tombent les dépenses.' : isReserve ? 'Choisis le compte sur lequel l’argent reste.' : 'Sélectionne un compte source.', ['source_account']);
       return;
     }
     if (mode === 'transfer') {
       if (!form.linked_account_id) {
-        setFormError('Sélectionne un compte de destination.');
-        setErrorFields(['linked_account']);
+        failOn(4, 'Sélectionne un compte de destination.', ['linked_account']);
         return;
       }
       if (form.linked_account_id === form.source_account_id) {
-        setFormError('Le compte de destination doit être différent du compte source. Pour garder l’argent sur place, créez plutôt un projet « Conserver pour plus tard ».');
-        setErrorFields(['linked_account']);
+        failOn(4, 'Le compte de destination doit être différent du compte source. Pour garder l’argent sur place, crée plutôt un projet « Conserver pour plus tard ».', ['linked_account']);
         return;
       }
     }
@@ -482,15 +506,13 @@ export default function AddProjectModal() {
 
     if (form.allocation_type === 'monthly') {
       if (!form.monthly_allocation.trim()) {
-        setFormError(`${M.monthlyLabel} : montant obligatoire.`);
-        setErrorFields(['monthly_allocation']);
+        failOn(3, `${M.monthlyLabel} : montant obligatoire.`, ['monthly_allocation']);
         return;
       }
       monthlyAlloc = parseFloat(form.monthly_allocation);
     } else if (form.allocation_type === 'date') {
       if (!form.target_date || !calculatedAllocation) {
-        setFormError('Entre une date cible valide.');
-        setErrorFields(['target_date']);
+        failOn(3, 'Entre une date cible valide.', ['target_date']);
         return;
       }
       monthlyAlloc = calculatedAllocation;
@@ -504,7 +526,7 @@ export default function AddProjectModal() {
       // En édition, des échéances déjà figées suffisent : on autorise l'enregistrement même sans
       // nouvelle ligne éditable (ex. simple renommage d'un projet déjà actif).
       if (!anyEnabled && frozenTxns.length === 0) {
-        setFormError('Active au moins un mois avec un montant.');
+        failOn(3, 'Active au moins un mois avec un montant.');
         return;
       }
       monthlyAlloc = ponctuelList.length > 0 ? ponctuelList.reduce((s, e) => s + e.amount, 0) / ponctuelList.length : 0;
@@ -673,6 +695,30 @@ export default function AddProjectModal() {
         ) : (
           <View style={styles.pageBody}>
             {!showAccountPicker ? (
+              <>
+              {/* Onglets (modification) — HORS du défilement : ils restent atteignables quel que
+                  soit l'endroit où on se trouve dans un onglet long (la planification ponctuelle
+                  fait à elle seule douze lignes). */}
+              {isEdit && (
+                <View style={styles.tabBar}>
+                  {EDIT_TABS.map((t) => {
+                    const active = step === t.step;
+                    return (
+                      <TouchableOpacity
+                        key={t.step}
+                        style={[styles.tabBtn, active && styles.tabBtnActive]}
+                        onPress={() => { setStep(t.step); setFormError(null); setErrorFields([]); }}
+                        activeOpacity={0.8}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Ionicons name={t.icon as any} size={15} color={active ? COLORS.primary : COLORS.textSecondary} />
+                        <Text style={[styles.tabText, active && styles.tabTextActive]} numberOfLines={1}>{t.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined} style={{ flex: 1 }}>
               <KeyboardAwareScrollView style={styles.form} contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
                 {/* Bandeau erreur */}
@@ -733,7 +779,7 @@ export default function AddProjectModal() {
                 )}
 
                 {/* Rappel du mode choisi (étapes suivantes) — et, en édition, mention « non modifiable ». */}
-                {mode && (!wizard || step > 1) && (
+                {mode && step > 1 && (
                   <View style={[styles.modeBanner, { borderColor: COLORS.primary + '40', backgroundColor: COLORS.primary + '0E' }]}>
                     <Ionicons name={M.icon as any} size={16} color={COLORS.primary} />
                     <Text style={styles.modeBannerText}>
@@ -749,14 +795,15 @@ export default function AddProjectModal() {
                     )}
                   </View>
                 )}
-                {isEdit && (
+                {/* Explication du verrou : sur le seul onglet où on lit le mode, pas sur les trois. */}
+                {isEdit && step === 2 && (
                   <Text style={styles.modeLockedHint}>
-                    Le type de projet ne se change pas après coup : pour en changer, supprimez ce projet et créez-en un nouveau.
+                    Le type de projet ne se change pas après coup : pour en changer, supprime ce projet et crées-en un nouveau.
                   </Text>
                 )}
 
-                {/* ── Étape 2 : le projet ── */}
-                {(!wizard || step === 2) && (<>
+                {/* ── Étape 2 / onglet « Projet » ── */}
+                {step === 2 && (<>
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: COLORS.text }]}>Nom du projet *</Text>
                   <TextInput
@@ -820,8 +867,8 @@ export default function AddProjectModal() {
                 )}
                 </>)}
 
-                {/* ── Étape 3 : le rythme ── */}
-                {(!wizard || step === 3) && (<>
+                {/* ── Étape 3 / onglet « Planification » ── */}
+                {step === 3 && (<>
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: COLORS.text }]}>Planification</Text>
                   <View style={styles.toggleGroup}>
@@ -1064,8 +1111,8 @@ export default function AddProjectModal() {
                 )}
                 </>)}
 
-                {/* ── Étape 4 : le(s) compte(s) ── */}
-                {(!wizard || step === 4) && (<>
+                {/* ── Étape 4 / onglet « Comptes » ── */}
+                {step === 4 && (<>
                 {!editingProject && (
                   <View style={[styles.infoBox, { backgroundColor: COLORS.primary + '14', borderColor: COLORS.primary + '40' }]}>
                     <Text style={styles.infoIcon}>💡</Text>
@@ -1131,8 +1178,10 @@ export default function AddProjectModal() {
                 )}
                 </>)}
 
-                {/* Actions — placées sous les champs (comme les écrans Dépense/Recette/Virement) */}
-                {(!wizard || step > 1) && (
+                {/* Actions — placées sous les champs (comme les écrans Dépense/Recette/Virement).
+                    En modification, « Mettre à jour » est proposé depuis chaque onglet : on
+                    enregistre tout le projet, pas seulement l'onglet ouvert. */}
+                {step > 1 && (
                   <View style={styles.actions}>
                     <TouchableOpacity
                       style={[styles.button, styles.cancelButton, { borderColor: COLORS.border }]}
@@ -1165,8 +1214,9 @@ export default function AddProjectModal() {
                   </View>
                 )}
 
-                {/* Bouton Supprimer (seulement en édition) */}
-                {editingProject && (
+                {/* Bouton Supprimer — sur le seul onglet « Projet » : le répéter sous chaque onglet
+                    mettrait une action destructrice sous le doigt à trois endroits différents. */}
+                {editingProject && step === 2 && (
                   <TouchableOpacity
                     style={[styles.button, { backgroundColor: COLORS.danger + '20', marginTop: 12 }]}
                     onPress={() => { handleDelete(); }}
@@ -1185,6 +1235,7 @@ export default function AddProjectModal() {
                 <View style={{ height: 24 }} />
               </KeyboardAwareScrollView>
               </KeyboardAvoidingView>
+              </>
             ) : (
               /* Account Picker */
               <View style={styles.form}>
@@ -1339,6 +1390,12 @@ function makeStyles(c: any) {
   form: { flex: 1, marginBottom: 12 },
   field: { marginBottom: 12 },
   fieldHint: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 6 },
+  // Onglets de la modification (rendus hors défilement, sous l'en-tête).
+  tabBar: { flexDirection: 'row', gap: 4, marginBottom: 12, padding: 4, backgroundColor: c.background, borderRadius: 12, borderWidth: 1, borderColor: c.border },
+  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, paddingHorizontal: 4, borderRadius: 9 },
+  tabBtnActive: { backgroundColor: c.primary + '1F' },
+  tabText: { fontSize: 12.5, fontWeight: '600', color: c.textSecondary },
+  tabTextActive: { color: c.primary, fontWeight: '800' },
   stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, gap: 0 },
   stepDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background, borderWidth: 1, borderColor: c.border },
   stepDotActive: { backgroundColor: c.primary, borderColor: c.primary },
