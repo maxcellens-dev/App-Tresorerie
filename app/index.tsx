@@ -1,7 +1,8 @@
 import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
+import { getCachedUserTheme } from '../lib/themeBoot';
 import WelcomeScreen from './welcome';
 import AppLoading from '../components/AppLoading';
 
@@ -26,7 +27,7 @@ export default function Index() {
   // suppression du questionnaire d'accueil, aucune donnée du profil n'entre dans la décision. On
   // attendait donc un aller-retour réseau complet, écran de chargement à l'appui, pour rien —
   // exactement sur le chemin critique de l'ouverture, avant même que le Pilotage ne soit monté.
-  useProfile(user?.id);
+  const { isFetched: profileFetched } = useProfile(user?.id);
 
   // FILET GLOBAL : quoi qu'il arrive (hors-ligne, lenteur), on OUVRE l'app au bout de 5 s max au
   // lieu de rester bloqué sur le logo, même si la session initiale ne se résout jamais.
@@ -36,12 +37,30 @@ export default function Index() {
     return () => clearTimeout(t);
   }, []);
 
+  /* THÈME INCONNU (première connexion sur cet appareil) : ni thème mémorisé, ni profil chargé —
+     l'app s'ouvrirait dans le thème de repli puis basculerait sous les yeux de l'utilisateur. On
+     tient alors le LOGO (même image que le splash et que le boot-loader web) le temps que le profil
+     réponde : la connexion enchaîne sans écran intermédiaire. On ne fait cette pause QUE dans ce
+     cas — dès la 2ᵉ ouverture, le thème est en cache et l'ouverture reste immédiate (le retour du
+     profil n'est délibérément pas sur le chemin critique, cf. ci-dessus). Bornée à 1,2 s : un réseau
+     poussif ne doit jamais retenir l'app plus longtemps qu'un clignement. */
+  const themeUnknown = useRef(!getCachedUserTheme()).current;
+  const [themeWaitOver, setThemeWaitOver] = useState(false);
+  useEffect(() => {
+    if (!themeUnknown) return;
+    const t = setTimeout(() => setThemeWaitOver(true), 1200);
+    return () => clearTimeout(t);
+  }, [themeUnknown]);
+
   // Seule attente légitime : la session locale (lecture de stockage, pas de réseau).
   if (loading && !forceOpen) {
     return <AppLoading />;
   }
 
-  if (user) return <Redirect href="/(tabs)/pilotage" />;
+  if (user) {
+    if (themeUnknown && !profileFetched && !themeWaitOver && !forceOpen) return <AppLoading />;
+    return <Redirect href="/(tabs)/pilotage" />;
+  }
 
   return <WelcomeScreen />;
 }

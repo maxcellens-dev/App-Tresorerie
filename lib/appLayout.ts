@@ -23,6 +23,18 @@ export const sheetWidth: ViewStyle = {
   width: '100%',
   maxWidth: Platform.OS === 'web' ? SHEET_MAX_WIDTH_WEB : APP_MAX_WIDTH,
   alignSelf: 'center',
+  /* WEB : la feuille est aussi centrée VERTICALEMENT. Le plafond de largeur ci-dessus la faisait
+     déjà ressembler à une boîte de dialogue, mais elle restait collée au bas de la fenêtre — tous
+     les voiles de feuille sont en `justifyContent: 'flex-end'`, ce qui a un sens sur un téléphone
+     (le pouce est en bas) et aucun sur un écran d'ordinateur, où le regard est au centre.
+     On centre par MARGES AUTOMATIQUES : en flexbox elles priment sur le `justifyContent` du
+     parent, donc les 22 feuilles de l'app se recentrent sans toucher à leur voile.
+     Les coins BAS sont arrondis ici seulement : détachée du bord, une feuille à fond plat se lit
+     comme une boîte coupée. Les feuilles ne définissent que leurs coins HAUTS, ces deux règles ne
+     leur sont donc jamais retirées. */
+  ...(Platform.OS === 'web'
+    ? { marginTop: 'auto', marginBottom: 'auto', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }
+    : null),
 };
 
 /**

@@ -31,25 +31,41 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
+  /* L'issue de l'inscription se joue DANS l'écran, pas dans un dialogue : un modal par-dessus le
+     formulaire se lit comme une erreur alors que c'est l'étape suivante du parcours. */
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [existing, setExisting] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function handleRegister() {
+    setFormError(null);
+    setExisting(false);
     if (!email.trim() || !password) {
-      showAlert('Champs requis', 'Renseignez email et mot de passe.');
+      setFormError('Renseigne ton e-mail et un mot de passe.');
       return;
     }
     const pwEval = evaluatePassword(password);
     if (!pwEval.valid) {
-      showAlert('Mot de passe trop faible', pwEval.firstError ?? 'Choisis un mot de passe plus robuste.');
+      setFormError(pwEval.firstError ?? 'Choisis un mot de passe plus robuste.');
       return;
     }
     setLoading(true);
     try {
       if (supabase) {
-        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+        const addr = email.trim();
+        const { data, error } = await supabase.auth.signUp({ email: addr, password });
         if (error) throw error;
-        if (!data.session) {
-          showAlert('Inscription', 'Vérifie ton email pour confirmer le compte.');
+        /* Compte DÉJÀ EXISTANT : avec la protection contre l'énumération d'adresses (activée par
+           défaut côté Supabase), `signUp` ne renvoie AUCUNE erreur — il renvoie un utilisateur
+           factice sans identité rattachée. Sans ce test, on enchaînait sur « vérifie ton e-mail »
+           pour un e-mail qui n'en recevra jamais : l'utilisateur attendait un message fantôme. */
+        if (!data.session && data.user && (data.user.identities?.length ?? 0) === 0) {
+          setExisting(true);
+          setFormError('Un compte existe déjà avec cette adresse.');
+          return;
         }
+        if (!data.session) setSentTo(addr);
         // Si session active, onAuthStateChange met à jour le contexte
         // et le guard dans _layout redirigera automatiquement vers home
       } else {
@@ -57,7 +73,28 @@ export default function RegisterScreen() {
         router.back();
       }
     } catch (e: unknown) {
-      showAlert('Erreur', e instanceof Error ? e.message : 'Inscription impossible.');
+      const msg = e instanceof Error ? e.message : 'Inscription impossible.';
+      // Filet : certains projets renvoient malgré tout l'erreur explicite « already registered ».
+      if (/already registered|already exists|user already/i.test(msg)) {
+        setExisting(true);
+        setFormError('Un compte existe déjà avec cette adresse.');
+      } else {
+        setFormError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendEmail() {
+    if (!supabase || !sentTo) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email: sentTo });
+      if (error) throw error;
+      setResent(true);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : 'Envoi impossible.');
     } finally {
       setLoading(false);
     }
@@ -75,6 +112,30 @@ export default function RegisterScreen() {
           <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, authPage(isDesktop)]}>
           {/* Bureau : tout le formulaire vit dans une CARTE posée sur la page (cf. authCard). */}
           <View style={authCard(isDesktop, COLORS)}>
+          {sentTo ? (
+            /* Étape suivante du parcours, pas un incident : l'écran ENTIER devient la confirmation. */
+            <View>
+              <View style={styles.sentIcon}><Ionicons name="mail-open-outline" size={30} color={COLORS.emerald} /></View>
+              <Text style={styles.title}>Vérifie ta boîte mail</Text>
+              <Text style={styles.subtitle}>
+                On vient d'envoyer un lien de confirmation à <Text style={styles.sentMail}>{sentTo}</Text>.
+                Ouvre-le pour activer ton compte, puis reviens te connecter.
+              </Text>
+              <Text style={styles.emailNote}>
+                ℹ️ Rien reçu au bout de quelques minutes ? Regarde dans les indésirables — l'e-mail
+                arrive parfois là.
+              </Text>
+              {formError && <Text style={styles.errorText}>{formError}</Text>}
+              {resent && <Text style={styles.okText}>E-mail renvoyé.</Text>}
+              <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={resendEmail} disabled={loading || resent}>
+                <Text style={styles.btnLabel}>{loading ? 'Envoi…' : resent ? 'E-mail renvoyé' : 'Renvoyer l’e-mail'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.link} onPress={() => router.replace('/login')}>
+                <Text style={styles.linkText}>Aller à la connexion</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+          <>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Tes données seront synchronisées et sauvegardées.</Text>
 
@@ -129,6 +190,19 @@ export default function RegisterScreen() {
                   onSubmitEditing={handleRegister}
                 />
                 <PasswordStrength value={password} colors={COLORS} />
+                {formError && (
+                  <View style={styles.errorBox}>
+                    <Ionicons name="alert-circle-outline" size={16} color={COLORS.danger} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.errorText}>{formError}</Text>
+                      {existing && (
+                        <TouchableOpacity onPress={() => router.replace('/login')} style={{ marginTop: 6 }}>
+                          <Text style={styles.linkText}>Se connecter avec cette adresse</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={[styles.btn, loading && styles.btnDisabled]}
                   onPress={handleRegister}
@@ -146,6 +220,8 @@ export default function RegisterScreen() {
               <Text style={styles.linkText}>Déjà un compte ? Se connecter</Text>
             </TouchableOpacity>
           </View>
+          </>
+          )}
           </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -197,6 +273,11 @@ function makeStyles(c: any) {
     borderRadius: 14, paddingVertical: 14, marginTop: 4,
   },
   emailBtnLabel: { fontSize: 15, fontWeight: '700', color: c.text },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.danger + '14', borderWidth: 1, borderColor: c.danger + '55', borderRadius: 12, padding: 12, marginBottom: 14 },
+  errorText: { fontSize: 13, color: c.danger, lineHeight: 18, flexShrink: 1 },
+  okText: { fontSize: 13, color: c.emerald, marginTop: 10, fontWeight: '600' },
+  sentIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: c.emerald + '1e', marginBottom: 16 },
+  sentMail: { color: c.text, fontWeight: '700' },
   link: { alignItems: 'center', marginTop: 20 },
   linkText: { fontSize: 14, color: c.emerald, fontWeight: '500' },
 });

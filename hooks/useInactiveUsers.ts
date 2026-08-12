@@ -46,6 +46,29 @@ export function useAdminUserSearch(query: string, enabled: boolean) {
   });
 }
 
+export interface AuthOrphan { id: string; email: string | null; created_at: string; confirmed_at: string | null }
+
+/**
+ * Comptes d'authentification SANS ligne dans `profiles` (RPC admin_auth_orphans, migration 176).
+ *
+ * Ces comptes n'apparaissent dans AUCUN écran d'admin — tous partent de `profiles`. Sans ce
+ * diagnostic, une inscription restée en plan (e-mail de confirmation jamais ouvert) et un profil
+ * réellement manquant (déclencheur en échec) sont indiscernables : dans les deux cas, on constate
+ * seulement une absence.
+ */
+export function useAuthOrphans(enabled: boolean) {
+  return useQuery({
+    queryKey: ['admin_auth_orphans'],
+    enabled: enabled && !!supabase,
+    queryFn: async (): Promise<AuthOrphan[]> => {
+      const { data, error } = await supabase!.rpc('admin_auth_orphans');
+      if (error) throw new Error(error.message);
+      return (data ?? []) as AuthOrphan[];
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 /** Supprime en masse des utilisateurs (compte Auth + toutes leurs données) via l'Edge Function. */
 export function useDeleteUsers() {
   const qc = useQueryClient();

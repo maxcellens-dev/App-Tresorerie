@@ -241,12 +241,19 @@ function makeStyles(c: any) {
     marginBottom: 20,
     borderRadius: 22,
   },
+  /* Le « a » final disparaissait sur certains appareils : Android dessine un <Text> dans sa largeur
+     MESURÉE (somme des chasses), or les polices de marque arrondies/grasses chargées par le Style
+     Editor débordent de cette largeur sur la dernière lettre — et la chasse négative rognait encore
+     le compte. On rend donc la boîte plus large que le texte (bande pleine + centrage + marge
+     latérale) et on laisse la lettre finale respirer plutôt que d'être coupée au ras. */
   appName: {
     fontSize: 36,
     fontWeight: '800',
     color: c.text,
-    letterSpacing: -1,
+    letterSpacing: 0,
+    alignSelf: 'stretch',
     textAlign: 'center',
+    paddingHorizontal: 12,
     fontFamily: 'Arial Rounded MT Bold',
   },
   tagline: {

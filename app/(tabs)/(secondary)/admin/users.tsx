@@ -24,7 +24,7 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
 import { supabase } from '../../../../lib/supabase';
 import { sheetWidth } from '../../../../lib/appLayout';
-import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, type InactiveUser } from '../../../../hooks/useInactiveUsers';
+import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, type InactiveUser } from '../../../../hooks/useInactiveUsers';
 
 type Tab = 'users' | 'groups' | 'inactive';
 
@@ -107,6 +107,7 @@ function UsersPanel({ COLORS, s }: { COLORS: any; s: any }) {
         {query.length > 0 && <TouchableOpacity onPress={() => setQuery('')}><Ionicons name="close-circle" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
       </View>
       <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+        <AuthOrphans COLORS={COLORS} s={s} />
         {query.trim().length < 2 ? <Text style={s.hint}>Saisissez au moins 2 caractères pour rechercher.</Text>
           : search.isLoading ? <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 24 }} />
           : results.length === 0 ? <Text style={s.hint}>Aucun utilisateur trouvé.</Text>
@@ -129,6 +130,36 @@ function UsersPanel({ COLORS, s }: { COLORS: any; s: any }) {
           ))}
       </KeyboardAwareScrollView>
     </>
+  );
+}
+
+/**
+ * Comptes d'authentification SANS profil — invisibles partout ailleurs (tous les écrans d'admin
+ * partent de `profiles`). C'est ce qui rendait indéchiffrable « il a créé, supprimé, recréé son
+ * compte, et je ne le vois plus » : on ne pouvait pas distinguer un compte réellement supprimé
+ * d'une inscription restée en plan. Rien à signaler → le bloc ne s'affiche pas.
+ */
+function AuthOrphans({ COLORS, s }: { COLORS: any; s: any }) {
+  const { data: orphans = [] } = useAuthOrphans(true);
+  if (orphans.length === 0) return null;
+  const fmt = (d: string) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? '—' : t.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }); };
+  return (
+    <View style={[s.card, { flexDirection: 'column', alignItems: 'stretch', borderColor: COLORS.yellow + '66', backgroundColor: COLORS.yellow + '10' }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Ionicons name="warning-outline" size={18} color={COLORS.yellow} />
+        <Text style={[s.name, { color: COLORS.yellow }]}>{orphans.length} compte(s) sans profil</Text>
+      </View>
+      <Text style={[s.email, { marginBottom: 8 }]}>
+        Inscrits côté authentification, absents de « profiles ». « Non confirmé » = l’e-mail de
+        vérification n’a jamais été ouvert, l’inscription n’est pas allée au bout.
+      </Text>
+      {orphans.slice(0, 10).map((o) => (
+        <Text key={o.id} style={s.since} numberOfLines={1}>
+          • {o.email || o.id} — créé le {fmt(o.created_at)} — {o.confirmed_at ? 'confirmé' : 'NON confirmé'}
+        </Text>
+      ))}
+      {orphans.length > 10 && <Text style={s.since}>…et {orphans.length - 10} autre(s)</Text>}
+    </View>
   );
 }
 
@@ -268,18 +299,28 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
    PAS le pré-cochage : une liste d'inactifs arrive tout cochée (c'est son but), une recherche
    arrive vide (cocher d'office des comptes ACTIFS serait une invitation à l'accident). */
 const MONTH_OPTIONS = [1, 6, 12, 15];
+/* Tableau vide PARTAGÉ : `data = []` en valeur par défaut fabriquerait un nouveau tableau à chaque
+   rendu tant que la requête n'a pas répondu (chargement… ou erreur). Cette identité changeante
+   relançait l'effet de pré-cochage ci-dessous, qui pose un `new Set()` — toujours une nouvelle
+   valeur d'état — donc un nouveau rendu, donc un nouveau tableau : boucle infinie. Sur mobile,
+   où la RPC met plus longtemps à répondre, l'onglet figeait l'app jusqu'à la fermer. */
+const NO_USERS: InactiveUser[] = [];
 function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
   const [months, setMonths] = useState(6);
   const [query, setQuery] = useState('');
   const searching = query.trim().length >= 2;
 
-  const { data: inactiveList = [], isLoading: inactiveLoading } = useInactiveUsers(months, true);
-  const { data: found = [], isLoading: searchLoading } = useAdminUserSearch(query, searching);
+  const { data: inactiveData, isLoading: inactiveLoading, error: inactiveError } = useInactiveUsers(months, true);
+  const { data: foundData, isLoading: searchLoading, error: searchError } = useAdminUserSearch(query, searching);
+  const inactiveList = inactiveData ?? NO_USERS;
+  const found = foundData ?? NO_USERS;
   const del = useDeleteUsers();
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const list = searching ? found : inactiveList;
   const isLoading = searching ? searchLoading : inactiveLoading;
+  // Une RPC en échec renvoie une liste vide : sans ça, l'écran annonçait « aucun inactif 🎉 ».
+  const error = searching ? searchError : inactiveError;
 
   // Inactifs : tout coché (resynchronisé au changement de seuil / après purge). Recherche : rien.
   useEffect(() => {
@@ -359,6 +400,7 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
 
       <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {isLoading ? <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 24 }} />
+          : error ? <Text style={[s.hint, { color: COLORS.danger }]}>Impossible de charger la liste : {(error as any)?.message ?? 'erreur inconnue'}</Text>
           : list.length === 0 ? (
             <Text style={s.hint}>
               {searching ? `Aucun compte ne correspond à « ${query.trim()} ».` : `Aucun utilisateur inactif depuis +${months} mois. 🎉`}

@@ -258,6 +258,24 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
   // départ. Partout ailleurs il reste maître de sa navigation — l'étape l'attend sur la page
   // concernée dès qu'il y arrive.
 
+  /* ── CHANGEMENT D'UTILISATEUR : tout ce parcours est local, il doit repartir de zéro ───────────
+     `GuideProvider` est monté une seule fois à la racine et n'est JAMAIS démonté : se déconnecter
+     ne fait que naviguer et vider le cache des requêtes (cf. AuthContext.signOut). Les drapeaux
+     optimistes (`justSet`) et les verrous « une seule fois » ci-dessus survivaient donc au
+     changement de compte — sans purge, quelqu'un qui se connecte après un autre sur le même
+     appareil HÉRITAIT de son avancement : étapes sautées, et parcours entièrement escamoté si le
+     précédent portait `g2_done`. Exactement le symptôme « les modaux n'apparaissent pas dans
+     l'ordre ». On les remet à l'état neuf dès que l'identité change. */
+  const lastUserRef = useRef(user?.id);
+  useEffect(() => {
+    if (lastUserRef.current === user?.id) return;
+    lastUserRef.current = user?.id;
+    bootRef.current = false;
+    seededRef.current = false;
+    closedRef.current = false;
+    setJustSet((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+  }, [user?.id]);
+
   const value = useMemo<GuideCtx>(() => ({
     active, booting, stage, is: (s: GuideStage) => stage === s, done, hasChecking, hasSavings,
     tourJustFinished, inSetup,

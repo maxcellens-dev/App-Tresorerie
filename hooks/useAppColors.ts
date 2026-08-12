@@ -8,7 +8,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from './useProfile';
 import { useStyleConfig } from './useStyleConfig';
-import { getCachedUserTheme, setCachedUserTheme, subscribeThemeCache, themeCacheVersion } from '../lib/themeBoot';
+import { getCachedUserTheme, getCachedAdminTheme, setCachedUserTheme, subscribeThemeCache, themeCacheVersion } from '../lib/themeBoot';
 import {
   buildColors, DEFAULT_MODE, DEFAULT_PRESET,
   type AppColors, type ThemeMode,
@@ -70,7 +70,12 @@ export function useAppColors(): AppColors {
   // du défaut sombre. L'abonnement re-render quand le cache natif finit de s'hydrater au démarrage.
   useSyncExternalStore(subscribeThemeCache, themeCacheVersion, themeCacheVersion);
   const cachedUser = getCachedUserTheme();
-  const mode = (profile?.theme_mode ?? cachedUser?.mode ?? DEFAULT_MODE) as ThemeMode;
+  /* PREMIÈRE connexion sur un appareil : aucun thème utilisateur mémorisé et le profil n'est pas
+     encore revenu → on tombait sur le sombre en dur, alors que l'écran de connexion qu'on vient de
+     quitter affichait le thème de la VITRINE. D'où l'éclair sombre entre « Se connecter » et l'app.
+     On enchaîne donc sur ce même thème admin : la bascule ne se voit plus, et dès que le profil
+     arrive il est mémorisé (effet ci-dessous) pour toutes les ouvertures suivantes. */
+  const mode = (profile?.theme_mode ?? cachedUser?.mode ?? getCachedAdminTheme() ?? DEFAULT_MODE) as ThemeMode;
   const preset = (profile?.theme_preset ?? cachedUser?.preset ?? DEFAULT_PRESET) as string;
 
   // Mémorise le thème dès qu'il est réellement connu (profil chargé) pour le prochain démarrage.

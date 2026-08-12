@@ -85,7 +85,8 @@ function makeStyles(c: any) {
     backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.cardBorder,
     padding: 24, alignItems: 'center', gap: 8, marginBottom: 32,
   },
-  appName: { fontSize: 24, fontWeight: '800', color: c.text, fontFamily: 'Arial Rounded MT Bold' },
+  // paddingHorizontal : marge d'encre pour la dernière lettre des polices de marque (cf. welcome).
+  appName: { fontSize: 24, fontWeight: '800', color: c.text, fontFamily: 'Arial Rounded MT Bold', paddingHorizontal: 6 },
   tagline: { fontSize: 14, color: c.emerald, fontWeight: '500' },
   versionBadge: { backgroundColor: c.cardBorder, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
   versionText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
