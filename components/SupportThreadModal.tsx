@@ -92,7 +92,7 @@ export default function SupportThreadModal({ visible, requestId, subject, status
                 <Text style={styles.statusBtnText}>{isClosed ? 'Rouvrir' : 'Clôturer'}</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onClose} style={{ padding: 4, marginLeft: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={{ padding: 4, marginLeft: 8 }}>
               <Ionicons name="close" size={22} color={COLORS.text} />
             </TouchableOpacity>
           </View>

@@ -103,7 +103,7 @@ export default function ConseilsBanner({ userId, pilotage, transactions = [], pr
         )}
       </View>
       <Text style={styles.text}>{current.text}</Text>
-      <TouchableOpacity style={styles.closeBtn} onPress={() => apiRef.current.doDismiss()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.closeBtn} onPress={() => apiRef.current.doDismiss()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <Ionicons name="close" size={16} color={COLORS.textSecondary} />
       </TouchableOpacity>
       {/* Roue crantée → réglages « Affichage & aides » (activer/désactiver ces conseils, etc.). */}

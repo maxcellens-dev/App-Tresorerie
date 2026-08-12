@@ -59,7 +59,7 @@ export default function PreSavingsModal({
               <Ionicons name={isEpargne ? 'shield-outline' : 'trending-up-outline'} size={20} color={accent} />
               <Text style={styles.title}>{titre}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={COLORS.text} />
             </TouchableOpacity>
           </View>

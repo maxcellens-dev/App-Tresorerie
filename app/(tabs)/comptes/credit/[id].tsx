@@ -214,7 +214,7 @@ export default function CreditDetailScreen() {
                 <Text style={styles.evtLabel}>
                   {formatDateFrench(e.date)} · {e.kind === 'early_repayment' ? `Remb. anticipé ${fmt(Number(e.amount))}` : `Taux → ${e.new_rate}%`}
                 </Text>
-                <TouchableOpacity onPress={() => delEvent.mutate({ id: e.id, credit_id: id! })}><Ionicons name="close" size={16} color={COLORS.danger} /></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => delEvent.mutate({ id: e.id, credit_id: id! })}><Ionicons name="close" size={16} color={COLORS.danger} /></TouchableOpacity>
               </View>
             ))}
           </View>

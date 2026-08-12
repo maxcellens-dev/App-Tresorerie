@@ -53,7 +53,7 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
           <View style={[styles.sheet, { paddingBottom: sheetPad }]}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Choisir une devise</Text>
-              <TouchableOpacity onPress={() => setOpen(false)} style={styles.closeBtn}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setOpen(false)} style={styles.closeBtn}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

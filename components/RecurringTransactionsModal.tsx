@@ -53,7 +53,7 @@ export default function RecurringTransactionsModal({ visible, onClose, userId, p
           <View style={s.header}>
             <Ionicons name="repeat" size={20} color={c.text} />
             <Text style={s.title}>Transactions récurrentes</Text>
-            <Pressable onPress={onClose} hitSlop={12}><Ionicons name="close" size={22} color={c.textSecondary} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} hitSlop={12}><Ionicons name="close" size={22} color={c.textSecondary} /></Pressable>
           </View>
 
           {isLoading ? (

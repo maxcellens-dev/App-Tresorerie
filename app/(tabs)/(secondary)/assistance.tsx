@@ -146,7 +146,7 @@ export default function AssistanceScreen() {
           <View style={[styles.modalBox, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Contacter l'assistance</Text>
-              <TouchableOpacity onPress={() => setShowNew(false)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowNew(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

@@ -172,7 +172,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
                   />
                   <Text style={styles.unit}>{symbol}</Text>
                 </View>
-                <TouchableOpacity onPress={() => setRows((prev) => prev.filter((_, j) => j !== i))} hitSlop={8} style={{ padding: 2 }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setRows((prev) => prev.filter((_, j) => j !== i))} hitSlop={8} style={{ padding: 2 }}>
                   <Ionicons name="close-circle" size={19} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>

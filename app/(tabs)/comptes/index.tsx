@@ -298,7 +298,7 @@ function AccountsListScreen() {
                     Commence par ajouter tes comptes bancaires, d'épargne et d'investissement.
                   </Text>
                 </View>
-                <TouchableOpacity onPress={() => setWelcomeDismissed(true)} style={{ padding: 4 }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setWelcomeDismissed(true)} style={{ padding: 4 }}>
                   <Ionicons name="close" size={18} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
@@ -416,6 +416,7 @@ function AccountsListScreen() {
                     onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: false })}
                     disabled={respondInvite.isPending || isImpersonating}
                     accessibilityRole="button"
+                    accessibilityLabel={`Refuser l'invitation de ${inv.from_name}`}
                   >
                     <Ionicons name="close" size={18} color={COLORS.danger} />
                   </TouchableOpacity>
@@ -424,6 +425,7 @@ function AccountsListScreen() {
                     onPress={() => respondInvite.mutate({ inviteId: inv.invite_id, accept: true })}
                     disabled={respondInvite.isPending || isImpersonating}
                     accessibilityRole="button"
+                    accessibilityLabel={`Accepter l'invitation de ${inv.from_name}`}
                   >
                     <Ionicons name="checkmark" size={18} color="#fff" />
                   </TouchableOpacity>

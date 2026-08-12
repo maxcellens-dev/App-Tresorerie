@@ -554,7 +554,7 @@ function ConseilsIaScreen() {
           <Pressable style={s.convSheet} onPress={() => {}}>
             <View style={s.convHeader}>
               <Text style={s.convTitle}>Mes conversations</Text>
-              <TouchableOpacity onPress={() => setShowConvs(false)} style={s.convClose}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowConvs(false)} style={s.convClose}>
                 <Ionicons name="close" size={20} color={c.textSecondary} />
               </TouchableOpacity>
             </View>

@@ -313,7 +313,7 @@ export default function RelykaWorldDetail() {
           <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Participants</Text>
-              <TouchableOpacity onPress={() => setShowInvite(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowInvite(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -362,7 +362,7 @@ export default function RelykaWorldDetail() {
           <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Participant non inscrit</Text>
-              <TouchableOpacity onPress={() => setEditPart(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setEditPart(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -393,7 +393,7 @@ export default function RelykaWorldDetail() {
           <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Modifier le projet</Text>
-              <TouchableOpacity onPress={() => setShowEdit(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowEdit(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>

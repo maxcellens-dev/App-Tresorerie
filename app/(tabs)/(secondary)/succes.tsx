@@ -213,8 +213,8 @@ function SuccesScreen() {
             const date = badges.find((b) => b.badge_key === selected.key)?.unlocked_at;
             const dateStr = date ? new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
             return (
-              <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
-                <TouchableOpacity style={styles.modalClose} onPress={() => setSelected(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.modalClose} onPress={() => setSelected(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Ionicons name="close" size={22} color={COLORS.textSecondary} />
                 </TouchableOpacity>
                 <View style={[styles.modalIcon, { backgroundColor: tint + '22', opacity: unlocked ? 1 : 0.6 }]}>

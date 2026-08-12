@@ -73,7 +73,7 @@ export default function OnboardingChecklist() {
                 <Text style={styles.title}>Pour bien démarrer</Text>
                 <Text style={styles.subtitle}>Quelques actions rapides pour profiter pleinement de ton suivi · {ob.doneCount}/{ob.total}</Text>
               </View>
-              <TouchableOpacity onPress={closeOnboardingChecklist} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={closeOnboardingChecklist} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

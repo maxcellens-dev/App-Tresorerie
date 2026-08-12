@@ -979,7 +979,7 @@ function TransactionsListBody() {
                     returnKeyType="search"
                   />
                   {catQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setCatQuery('')} hitSlop={8}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setCatQuery('')} hitSlop={8}>
                       <Ionicons name="close-circle" size={17} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                   )}

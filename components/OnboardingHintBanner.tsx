@@ -72,7 +72,7 @@ export default function OnboardingHintBanner() {
                 <Ionicons name="arrow-forward" size={14} color={COLORS.bg} />
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
                 <Ionicons name="close" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}
@@ -94,7 +94,7 @@ export default function OnboardingHintBanner() {
           <Text style={styles.title}>{step.label}</Text>
           <Text style={styles.hint}>{step.hint}</Text>
         </View>
-        <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
           <Ionicons name="close" size={18} color={COLORS.textSecondary} />
         </TouchableOpacity>
       </View>

@@ -1127,7 +1127,7 @@ function PilotageScreen() {
           <Pressable style={styles.reservedSheet} onPress={() => {}}>
             <View style={styles.reservedHeader}>
               <Text style={styles.reservedTitle}>Montants réservés</Text>
-              <TouchableOpacity onPress={() => setShowReservedModal(false)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowReservedModal(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
@@ -1338,7 +1338,7 @@ function PilotageScreen() {
                         <Ionicons name="repeat" size={20} color={COLORS.emerald} />
                       </TouchableOpacity>
                     )}
-                    <TouchableOpacity onPress={() => setDetailKey(null)} style={{ padding: 4 }}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDetailKey(null)} style={{ padding: 4 }}>
                       <Ionicons name="close" size={22} color={COLORS.text} />
                     </TouchableOpacity>
                   </View>
@@ -1995,7 +1995,7 @@ function PilotageScreen() {
           <Pressable style={styles.detailBox} onPress={() => {}}>
             <View style={styles.detailHeader}>
               <Text style={styles.detailTitle}>Point bas de trésorerie</Text>
-              <TouchableOpacity onPress={() => setShowTroughInfo(false)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowTroughInfo(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

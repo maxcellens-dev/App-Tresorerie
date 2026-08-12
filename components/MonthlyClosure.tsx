@@ -6,6 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Platform, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppColors } from '../hooks/useAppColors';
@@ -104,21 +105,63 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   const openModal = () => { setClosedLocally([]); resetForm(); setOpen(true); };
   const closeModal = () => { setOpen(false); setClosedLocally([]); resetForm(); };
 
+  /* ── REPORT ────────────────────────────────────────────────────────────────────────────────────
+     La clôture s'ouvrait d'elle-même à CHAQUE ouverture de l'app tant qu'un mois restait en
+     attente. L'intention est bonne — un mois non clôturé dégrade les moyennes de tous les suivants,
+     et une bannière qu'on peut ignorer ne fait pas le travail — mais sans échappatoire, quelqu'un
+     qui n'a pas ses relevés sous la main se prend la même modale plusieurs fois par jour. Au mieux
+     il la referme sans lire, au pire il n'ouvre plus l'app.
+     On garde donc l'ouverture automatique, avec un report explicite de 24 h : l'invitation reste
+     insistante (elle revient le lendemain, et la bannière ne disparaît jamais), sans se répéter
+     dans la même journée. Le report est LOCAL à l'appareil et porte sur le mois concerné — un
+     nouveau mois à clôturer reprend la main immédiatement. */
+  const SNOOZE_KEY = 'closure_snooze_v1';
+  const SNOOZE_MS = 24 * 60 * 60 * 1000;
+  const [snoozeChecked, setSnoozeChecked] = React.useState(false);
+  const [snoozedMonth, setSnoozedMonth] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(SNOOZE_KEY);
+        if (cancelled) return;
+        const o = raw ? JSON.parse(raw) : null;
+        // Report périmé, ou posé sur un AUTRE mois → il ne protège plus rien.
+        if (o?.month && typeof o.until === 'number' && o.until > Date.now()) setSnoozedMonth(o.month);
+      } catch { /* stockage indisponible : on retombe sur le comportement d'origine */ }
+      if (!cancelled) setSnoozeChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const snoozeAndClose = () => {
+    const m = oldest;
+    if (m) {
+      setSnoozedMonth(m);
+      AsyncStorage.setItem(SNOOZE_KEY, JSON.stringify({ month: m, until: Date.now() + SNOOZE_MS })).catch(() => {});
+    }
+    closeModal();
+  };
+
   /* La clôture est la PREMIÈRE des sollicitations : tout ce qui suit (bilan mensuel, profil,
      succès) s'appuie sur des chiffres qu'elle vient consolider. Elle prend donc la main en premier,
      et ne la rend qu'une fois fermée (cf. lib/interruptQueue). */
   const myTurn = useInterruptSlot('closure', enabled && pendingMonths.length > 0 && !isImpersonating);
 
-  // Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage, et seulement
-  // quand c'est notre tour.
+  /* Ouverture automatique (arrivée dans l'app / deeplink) : une fois par montage, quand c'est notre
+     tour — et seulement si le mois le plus ancien n'a pas été REPORTÉ dans les 24 h.
+     On attend `snoozeChecked` : la lecture du report est asynchrone, et conclure avant sa réponse
+     rouvrirait la modale précisément à celui qui vient de demander à être laissé tranquille.
+     Un deeplink explicite (`?closure=1`) ou le bouton de la bannière passent outre : là,
+     l'utilisateur DEMANDE la clôture. */
   const autoOpened = React.useRef(false);
   React.useEffect(() => {
-    if (autoOpen && myTurn && !autoOpened.current) {
-      autoOpened.current = true;
-      openModal();
-    }
+    if (!autoOpen || !myTurn || autoOpened.current || !snoozeChecked) return;
+    if (oldest && snoozedMonth === oldest) return;
+    autoOpened.current = true;
+    openModal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpen, myTurn]);
+  }, [autoOpen, myTurn, snoozeChecked, snoozedMonth, oldest]);
 
   // Ouverture à la demande depuis le bandeau « prochain geste » — sans passer par le routeur.
   React.useEffect(() => {
@@ -336,7 +379,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
           <View style={styles.sheet}>
             <View style={styles.header}>
               <Text style={styles.title}>Clôture mensuelle</Text>
-              <TouchableOpacity onPress={closeModal} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={closeModal} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
@@ -629,6 +672,18 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
               >
                 {busy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.confirmText}>Clôturer{flash ? ' tout' : ''}</Text>}
               </TouchableOpacity>
+              {/* Échappatoire assumée : clôturer demande d'avoir ses relevés sous les yeux, ce qui
+                  n'est pas toujours le cas au moment où l'app s'ouvre. Sans elle, la seule sortie
+                  était la croix — qui ne mémorise rien et ramène la modale à l'ouverture suivante. */}
+              <TouchableOpacity
+                style={styles.laterBtn}
+                onPress={snoozeAndClose}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel="Me le rappeler demain"
+              >
+                <Text style={styles.laterText}>Me le rappeler demain</Text>
+              </TouchableOpacity>
             </SafeAreaView>
           </View>
         </View>
@@ -758,6 +813,9 @@ function makeStyles(c: any) {
     confirmHint: { fontSize: 11.5, color: c.textSecondary, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
     confirmBtn: { backgroundColor: c.emerald, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
     confirmText: { fontSize: 16, fontWeight: '700', color: c.bg },
+    // Volontairement discret : c'est une sortie, pas une action concurrente de la clôture.
+    laterBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
+    laterText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
     bilanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 28 },
     bilanCard: { width: '100%', maxWidth: 360, backgroundColor: c.cardSolid, borderRadius: 24, borderWidth: 1, borderColor: c.cardBorder, padding: 28, alignItems: 'center', gap: 12 },
     bilanEmoji: { fontSize: 52 },

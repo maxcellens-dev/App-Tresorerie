@@ -162,7 +162,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
                 returnKeyType="search"
               />
               {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               )}
@@ -218,7 +218,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
             <Pressable style={styles.createBox} onPress={() => {}}>
               <View style={styles.createHeader}>
                 <Text style={styles.createTitle}>Nouvelle sous-catégorie</Text>
-                <TouchableOpacity onPress={() => setShowCreate(false)} style={{ padding: 4 }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowCreate(false)} style={{ padding: 4 }}>
                   <Ionicons name="close" size={22} color={COLORS.text} />
                 </TouchableOpacity>
               </View>

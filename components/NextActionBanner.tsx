@@ -89,7 +89,7 @@ export function ActionBannerCard({ action, onPress, onDismiss }: {
         <Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} />
       )}
       {onDismiss && (
-        <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.close}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onDismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.close}>
           <Ionicons name="close" size={16} color={COLORS.textSecondary} />
         </TouchableOpacity>
       )}

@@ -91,7 +91,7 @@ export default function ProfileMenuModal({ visible, onClose }: { visible: boolea
                 ))}
               </View>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={22} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>

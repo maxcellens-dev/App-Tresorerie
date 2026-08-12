@@ -117,7 +117,7 @@ export default function AccountShareSection({ account }: { account: Account }) {
                 <Ionicons name="swap-horizontal" size={13} color={COLORS.text} />
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.removeBtn} onPress={() => confirmRemove(m.id, m.display_name)}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.removeBtn} onPress={() => confirmRemove(m.id, m.display_name)}>
               <Ionicons name="close" size={16} color={COLORS.danger} />
             </TouchableOpacity>
           </View>

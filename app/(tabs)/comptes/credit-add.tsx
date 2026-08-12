@@ -525,7 +525,7 @@ function CreditAddScreen() {
                         placeholder={paliers ? String(paliers.resolved[i] ?? '') + ' (auto)' : 'auto'} placeholderTextColor={COLORS.textSecondary}
                       />
                       {i > 0 && (
-                        <TouchableOpacity onPress={() => { setSegments((p) => p.filter((_, j) => j !== i)); setPaymentTouched(true); }}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => { setSegments((p) => p.filter((_, j) => j !== i)); setPaymentTouched(true); }}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
                       )}
                     </View>
                   ))}
@@ -664,7 +664,7 @@ function CreditAddScreen() {
                         placeholder={insurance || '0'} placeholderTextColor={COLORS.textSecondary}
                       />
                       {i > 0 && (
-                        <TouchableOpacity onPress={() => setInsSegments((p) => p.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setInsSegments((p) => p.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={20} color={COLORS.danger} /></TouchableOpacity>
                       )}
                     </View>
                   ))}

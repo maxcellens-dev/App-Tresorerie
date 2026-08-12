@@ -250,7 +250,7 @@ export default function CreditsTab({ userId, openCreateSignal }: { userId?: stri
           </View>
           {/* En consultation admin, les boutons restent visibles (harmonisé avec les comptes) mais
               l'acceptation se fait côté user (le serveur n'accepte qu'au nom de l'invité réel). */}
-          <TouchableOpacity style={styles.inviteDecline} onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: false })} disabled={respond.isPending || isImpersonating}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.inviteDecline} onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: false })} disabled={respond.isPending || isImpersonating}>
             <Ionicons name="close" size={18} color={COLORS.danger} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.inviteAccept} onPress={() => respond.mutate({ inviteId: inv.invite_id, accept: true })} disabled={respond.isPending || isImpersonating}>

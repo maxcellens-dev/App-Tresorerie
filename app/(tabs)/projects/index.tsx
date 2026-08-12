@@ -508,7 +508,7 @@ function ProjectsScreen() {
                         <Text style={styles.rwProjName} numberOfLines={1}>{inv.project_name}</Text>
                         <Text style={styles.rwProjSub} numberOfLines={1}>Invitation de {inv.from_name}</Text>
                       </View>
-                      <TouchableOpacity style={styles.rwInvDecline} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: false })}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.rwInvDecline} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: false })}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
                       <TouchableOpacity style={styles.rwInvAccept} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: true })}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
                     </View>
                   ))}
@@ -667,7 +667,7 @@ function ProjectsScreen() {
           <View style={styles.rwCreateCard}>
             <View style={styles.rwCreateHeader}>
               <Text style={styles.rwModalTitle}>Nouveau projet partagé</Text>
-              <TouchableOpacity onPress={() => setShowRwCreate(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowRwCreate(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="close" size={22} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>

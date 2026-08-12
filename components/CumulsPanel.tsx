@@ -32,7 +32,7 @@ export default function CumulsPanel({ visible, epargneTotal, investTotal, onClos
         <Pressable style={styles.sheet} onPress={() => {}}>
           <View style={styles.header}>
             <Text style={styles.title}>Mes cumuls</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={COLORS.text} />
             </TouchableOpacity>
           </View>

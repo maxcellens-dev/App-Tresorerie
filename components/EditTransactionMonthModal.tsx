@@ -110,7 +110,7 @@ export default function EditTransactionMonthModal({
                 {transactionLabel} • {MONTHS[month - 1]} {year}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose}>
               <Ionicons name="close" size={24} color="#94a3b8" />
             </TouchableOpacity>
           </View>

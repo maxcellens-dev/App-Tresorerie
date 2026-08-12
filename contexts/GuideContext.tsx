@@ -27,40 +27,16 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
 import { useUpdateOnboarding } from '../hooks/useOnboarding';
 
-/** Drapeaux du parcours (dans profiles.onboarding_state — aucune migration). */
-export type GuideFlag =
-  | 'g2_started'        // le parcours a démarré (fige l'éligibilité : plus de dépendance aux données)
-  | 'g2_intro'          // explication initiale lue (« J'ai compris »)
-  | 'g2_nudge_savings'  // invitation « ajoute une épargne » passée ou honorée
-  | 'g2_variable'       // estimation des dépenses variables saisie (> 0)
-  | 'g2_margin'         // marge de sécurité enregistrée (0 accepté)
-  | 'g2_done'           // parcours terminé
-  | 'g2_profile_shown'; // conclusion « ton profil financier » montrée (une seule fois, à la fin)
-
-/**
- * Étape active. Une seule à la fois, dans cet ordre — et CHACUNE demande une vraie action.
- *
- * Il n'existe plus aucune étape « présentation » : les tours en bulles ont été retirés (l'app se
- * découvre en s'en servant, pas en lisant des pop-up par-dessus). Ce qui reste est exactement la
- * liste des données SANS LESQUELLES le Relyka ne veut rien dire, dans l'ordre où elles se
- * conditionnent :
- *   comptes → ce qui rentre/sort chaque mois → dépenses variables → marge de sécurité.
- * Une fois les quatre réunies, le profil financier est calculable : c'est la conclusion du parcours
- * (cf. `tourJustFinished` et components/ProfileTourConclusion).
- */
-export type GuideStage =
-  | 'idle'
-  | 'intro'
-  | 'accounts'            // aucun compte : modal à 2 choix (création rapide / créer un compte)
-  | 'accounts_checking'   // des comptes, mais aucun compte courant (bloquant)
-  | 'accounts_savings'    // aucune épargne (recommandé, passable)
-  | 'tx_recurring'        // créer au moins une dépense/recette récurrente (bloquant)
-  | 'pilotage_variable'   // « Tu devrais encore dépenser » → estimation obligatoire
-  | 'pilotage_margin';    // « Tu veux garder au moins » → enregistrement obligatoire
-
-/** Étapes pendant lesquelles le tableau de bord n'a rien à montrer : le Relyka ne peut pas encore
- *  être calculé (ni comptes, ni flux mensuels). Le Pilotage affiche l'accueil à la place. */
-export const SETUP_STAGES: readonly GuideStage[] = ['accounts', 'accounts_checking', 'accounts_savings', 'tx_recurring'];
+/* La MACHINE À ÉTATS du parcours (ordre des étapes, éligibilité, conditions d'arrêt) vit
+   désormais dans lib/guideStages — logique pure, donc testable : voir __tests__/guideStages.test.ts.
+   Ce contexte ne fait plus que collecter l'état réel et le lui passer. Types et constantes sont
+   réexportés ici pour que rien de ce qui importait `GuideStage`/`SETUP_STAGES` n'ait à bouger. */
+import {
+  SETUP_STAGES, computeGuideStage, isGuideActive, isGuideInPlay, isTourJustFinished,
+  type GuideFlag, type GuideInput, type GuideStage,
+} from '../lib/guideStages';
+export type { GuideFlag, GuideStage } from '../lib/guideStages';
+export { SETUP_STAGES } from '../lib/guideStages';
 
 interface GuideCtx {
   /** Le parcours concerne-t-il cet utilisateur (et n'est-il pas terminé) ? */
@@ -143,16 +119,28 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isImpersonating, update.mutate]);
 
-  // ── Éligibilité ────────────────────────────────────────────────────────────────────────────────
-  // Un compte NEUF : aucun compte bancaire, et aucune trace des anciens parcours (tour ancré, vue de
-  // découverte). Les comptes existants ne doivent jamais voir ce guide — d'où ces deux garde-fous.
-  const fresh =
-    !!profile && !isImpersonating && dataReady
-    && accounts.length === 0
-    && !(profile as any).app_tour_done
-    && !state.discovery_intro_seen;
+  // ── État réel des données ──────────────────────────────────────────────────────────────────────
+  const hasChecking = accounts.some((a: any) => a.type === 'checking');
+  const hasSavings = accounts.some((a: any) => a.type === 'savings' || a.type === 'investment');
+  const hasRecurring = (transactions as any[]).some((t) => t.is_recurring && t.recurrence_rule);
+
+  /* Tout ce que la machine à états a besoin de savoir, et rien de plus. C'est le SEUL point de
+     contact entre le monde asynchrone (requêtes, mutations) et la décision : les règles d'ordre,
+     elles, sont pures et testées (lib/guideStages). */
+  const input: GuideInput = useMemo(() => ({
+    hasProfile: !!profile,
+    isImpersonating,
+    flags: { ...state, ...justSet } as GuideInput['flags'],
+    appTourDone: Boolean((profile as any)?.app_tour_done),
+    discoveryIntroSeen: Boolean(state.discovery_intro_seen),
+    dataReady, accountsSettled, txSettled,
+    accountsCount: accounts.length,
+    hasChecking, hasSavings, hasRecurring,
+  }), [profile, isImpersonating, state, justSet, dataReady, accountsSettled, txSettled,
+       accounts.length, hasChecking, hasSavings, hasRecurring]);
+
   const started = flag('g2_started');
-  const active = !flag('g2_done') && (started || fresh) && !isImpersonating;
+  const active = isGuideActive(input);
 
   /* ── Le guide est-il « en jeu » ? ──────────────────────────────────────────────────────────────
      Se lit sur le PROFIL SEUL (pas sur les comptes) : soit le parcours est commencé, soit il n'y a
@@ -160,8 +148,7 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
      transactions se chargent — sans ce voile, l'app s'affichait une seconde (tableau de bord vide)
      avant que le carrousel de présentation ne prenne la main. Un compte existant n'est jamais
      concerné : il porte `app_tour_done` ou `discovery_intro_seen`. */
-  const guideInPlay = !!profile && !isImpersonating && !flag('g2_done')
-    && (started || (!(profile as any).app_tour_done && !state.discovery_intro_seen));
+  const guideInPlay = isGuideInPlay(input);
   // ⚠️ Filet OBLIGATOIRE : hors-ligne, les requêtes restent « en pause » et `dataReady` ne vient
   // jamais. Sans borne, le voile ne se lèverait plus et l'app serait inutilisable.
   const [bootTimedOut, setBootTimedOut] = useState(false);
@@ -202,31 +189,9 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, isImpersonating, categoriesQuery.isSuccess, categoriesQuery.data?.length]);
 
-  // ── État réel ──────────────────────────────────────────────────────────────────────────────────
-  const hasChecking = accounts.some((a: any) => a.type === 'checking');
-  const hasSavings = accounts.some((a: any) => a.type === 'savings' || a.type === 'investment');
-  const hasRecurring = (transactions as any[]).some((t) => t.is_recurring && t.recurrence_rule);
-
-  const stage: GuideStage = useMemo(() => {
-    if (!active) return 'idle';
-    if (!flag('g2_intro')) return 'intro';
-    // Au-delà de l'explication initiale, chaque étape se déduit des données : on attend qu'elles
-    // soient réellement lues (un cache vide au démarrage renverrait l'utilisateur créer un compte
-    // qu'il possède déjà).
-    if (!dataReady) return 'idle';
-    // Liste vide : ce n'est « aucun compte » que si la lecture est POSÉE (cf. accountsSettled).
-    if (accounts.length === 0) return accountsSettled ? 'accounts' : 'idle';
-    if (!hasChecking) return 'accounts_checking';
-    if (!hasSavings && !flag('g2_nudge_savings')) return 'accounts_savings';
-    // Aucune récurrente : on ne le conclut que si la lecture est POSÉE (cf. txSettled).
-    if (!hasRecurring) return txSettled ? 'tx_recurring' : 'idle';
-    /* À partir d'ici le tableau de bord AFFICHE un Relyka : les deux dernières étapes se jouent
-       donc par-dessus lui, ligne à l'appui, pour qu'on voie ce qu'on renseigne et à quel endroit. */
-    if (!flag('g2_variable')) return 'pilotage_variable';
-    if (!flag('g2_margin')) return 'pilotage_margin';
-    return 'idle';
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, justSet, state, dataReady, accountsSettled, txSettled, accounts.length, hasChecking, hasSavings, hasRecurring]);
+  /* L'ORDRE des étapes (et les deux façons d'être « idle » : plus rien à faire, ou pas encore su)
+     est entièrement décrit par `computeGuideStage`, testé pas à pas. */
+  const stage: GuideStage = useMemo(() => computeGuideStage(input), [input]);
 
   /* Installation en cours : le Relyka n'a pas encore de quoi être calculé. Le Pilotage remplace
      alors tout son contenu par l'accueil, qui porte la PROCHAINE action — afficher une grille de
@@ -236,7 +201,7 @@ export function GuideProvider({ children }: { children: React.ReactNode }) {
   /* CONCLUSION : le parcours est fini (dernière étape franchie) mais le profil financier n'a pas
      encore été présenté. C'est le seul moment où on le montre — pas pendant l'installation, où il
      bouge à chaque saisie. */
-  const tourJustFinished = !!profile && !isImpersonating && flag('g2_done') && !flag('g2_profile_shown');
+  const tourJustFinished = isTourJustFinished(input);
 
   // Fin du parcours : toutes les étapes franchies → on referme définitivement.
   // La marge de sécurité (g2_margin) est désormais la DERNIÈRE étape réelle (cf. `stage` ci-dessus :

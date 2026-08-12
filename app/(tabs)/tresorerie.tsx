@@ -1428,7 +1428,7 @@ function TreasuryPlanBody() {
           <TouchableOpacity style={styles.helpSheet} activeOpacity={1} onPress={() => {}}>
             <View style={styles.helpHead}>
               <Text style={styles.helpTitle}>Comment lire ce tableau</Text>
-              <TouchableOpacity onPress={() => setShowHelp(false)} style={{ padding: 4 }} accessibilityRole="button">
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowHelp(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>
@@ -1470,7 +1470,7 @@ function TreasuryPlanBody() {
           >
             <View style={styles.menuHeader}>
               <Text style={styles.menuTitle}>Que veux-tu faire ?</Text>
-              <TouchableOpacity onPress={() => setMenuModalState({ visible: false })}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setMenuModalState({ visible: false })}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
@@ -1523,7 +1523,7 @@ function TreasuryPlanBody() {
           <TouchableOpacity style={styles.menuContainer} onPress={() => {}} activeOpacity={1}>
             <View style={styles.menuHeader}>
               <Text style={styles.menuTitle}>Transaction prévisionnelle</Text>
-              <TouchableOpacity onPress={() => setDraftChoiceModal(null)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDraftChoiceModal(null)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
@@ -1586,7 +1586,7 @@ function TreasuryPlanBody() {
                   </Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => setDraftModal(null)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDraftModal(null)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
@@ -1648,7 +1648,7 @@ function TreasuryPlanBody() {
           <TouchableOpacity style={styles.menuContainer} onPress={() => {}} activeOpacity={1}>
             <View style={styles.menuHeader}>
               <Text style={styles.menuTitle}>{virementChoiceModal?.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'}</Text>
-              <TouchableOpacity onPress={() => setVirementChoiceModal(null)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setVirementChoiceModal(null)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
@@ -1711,7 +1711,7 @@ function TreasuryPlanBody() {
                   </Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => setVirementDraftModal(null)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setVirementDraftModal(null)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>

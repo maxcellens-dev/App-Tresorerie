@@ -122,7 +122,7 @@ export default function ColorPickerModal({
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>Choisir une couleur</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>

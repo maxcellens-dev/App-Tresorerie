@@ -28,7 +28,7 @@ export default function IconPickerModal({ visible, value, title = 'Choisir une i
         <Pressable style={styles.box} onPress={() => {}}>
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
-            <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={{ padding: 4 }}>
               <Ionicons name="close" size={22} color={COLORS.text} />
             </TouchableOpacity>
           </View>

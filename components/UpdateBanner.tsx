@@ -150,7 +150,7 @@ export default function UpdateBanner() {
           <Text style={styles.updateText}>Mettre à jour</Text>
         </TouchableOpacity>
         {!required && (
-          <TouchableOpacity onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={dismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.close}>
             <Ionicons name="close" size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
         )}
