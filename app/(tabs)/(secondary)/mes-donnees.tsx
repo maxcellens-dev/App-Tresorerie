@@ -1,22 +1,22 @@
 import { useMemo, useState } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Share, ActivityIndicator } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { useAllAccounts } from '../../../hooks/useAccounts';
-import { useQuestionnaireAnswers } from '../../../hooks/useFinancialProfile';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
-import { supabase } from '../../../lib/supabase';
-import { effectiveSharedMode } from '../../../lib/perimeter';
+import { useProfile } from '../../../hooks/data/useProfile';
+import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { useQuestionnaireAnswers } from '../../../hooks/pilotage/useFinancialProfile';
+import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
+import { supabase } from '../../../lib/platform/supabase';
+import { effectiveSharedMode } from '../../../lib/finance/perimeter';
 
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {

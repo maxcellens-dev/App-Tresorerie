@@ -1,7 +1,7 @@
 import {
   futureMonthsWindow, projectRecurringFlux, buildForecastFlux, variableShareByAccount,
   type ReportTx, type MonthBucket,
-} from '../lib/reportingEngine';
+} from '../lib/finance/reportingEngine';
 
 const SALAIRE = 'cat-income';
 const COURSES = 'cat-expense';

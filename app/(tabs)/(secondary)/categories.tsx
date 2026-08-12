@@ -1,5 +1,5 @@
 ﻿import { useMemo, useEffect, useState, useRef } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View,
   Text,
@@ -11,15 +11,15 @@ import {
   Modal,
   Platform,
 } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import ScreenHeader from '../../../components/ScreenHeader';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
+import { useProfile } from '../../../hooks/data/useProfile';
 import {
   useCategories,
   useAddCategory,
@@ -28,15 +28,15 @@ import {
   useDeleteCategory,
   useBulkUpdateVariable,
   useReorderCategories,
-} from '../../../hooks/useCategories';
+} from '../../../hooks/data/useCategories';
 import type { Category } from '../../../types/database';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import IconPickerModal from '../../../components/IconPickerModal';
-import { iconForCategory } from '../../../lib/categoryIcons';
-import { supabase } from '../../../lib/supabase';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import IconPickerModal from '../../../components/ui/IconPickerModal';
+import { iconForCategory } from '../../../lib/ui/categoryIcons';
+import { supabase } from '../../../lib/platform/supabase';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 
 
 /** Clé du champ « nouvelle catégorie parente » (admin) — aucun id réel ne peut la valoir. */
@@ -268,10 +268,10 @@ function CategoriesScreen() {
         <View style={styles.groupHead}>
           <Text style={styles.groupTitle} numberOfLines={1}>{p.name}</Text>
           <View style={styles.rowActions}>
-            <TouchableOpacity onPress={() => handleMove(parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={[styles.actionBtn, idx === 0 && styles.actionBtnDisabled]}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter cette catégorie" onPress={() => handleMove(parents, idx, 'up')} hitSlop={8} disabled={idx === 0} style={[styles.actionBtn, idx === 0 && styles.actionBtnDisabled]}>
               <Ionicons name="chevron-up" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleMove(parents, idx, 'down')} hitSlop={8} disabled={idx === parents.length - 1} style={[styles.actionBtn, idx === parents.length - 1 && styles.actionBtnDisabled]}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre cette catégorie" onPress={() => handleMove(parents, idx, 'down')} hitSlop={8} disabled={idx === parents.length - 1} style={[styles.actionBtn, idx === parents.length - 1 && styles.actionBtnDisabled]}>
               <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openEdit(p)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Renommer ${p.name}`}>
@@ -295,10 +295,10 @@ function CategoriesScreen() {
             </TouchableOpacity>
             <Text style={styles.childName} numberOfLines={1}>{c.name}</Text>
             <View style={styles.rowActions}>
-              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={[styles.actionBtn, ci === 0 && styles.actionBtnDisabled]}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter cette sous-catégorie" onPress={() => handleMoveChild(arr, ci, 'up')} hitSlop={8} disabled={ci === 0} style={[styles.actionBtn, ci === 0 && styles.actionBtnDisabled]}>
                 <Ionicons name="chevron-up" size={15} color={COLORS.textSecondary} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={[styles.actionBtn, ci === arr.length - 1 && styles.actionBtnDisabled]}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre cette sous-catégorie" onPress={() => handleMoveChild(arr, ci, 'down')} hitSlop={8} disabled={ci === arr.length - 1} style={[styles.actionBtn, ci === arr.length - 1 && styles.actionBtnDisabled]}>
                 <Ionicons name="chevron-down" size={15} color={COLORS.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => openEdit(c)} hitSlop={8} style={styles.actionBtn} accessibilityLabel={`Renommer ${c.name}`}>

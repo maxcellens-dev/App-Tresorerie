@@ -7,12 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
-import { supabase } from '../../../lib/supabase';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import { supabase } from '../../../lib/platform/supabase';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)

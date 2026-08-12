@@ -6,18 +6,18 @@
  */
 import { useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useAllAccounts } from '../../../../hooks/useAccounts';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import AccountSettingsForm from '../../../../components/AccountSettingsForm';
-import PageLoader from '../../../../components/PageLoader';
+import { useAllAccounts } from '../../../../hooks/data/useAccounts';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import AccountSettingsForm from '../../../../components/account/AccountSettingsForm';
+import PageLoader from '../../../../components/layout/PageLoader';
 
 export default function EditAccountScreen() {
   const COLORS = useAppColors();

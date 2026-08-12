@@ -1,32 +1,41 @@
 ﻿import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl, TextInput } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import PageLoader from '../../components/PageLoader';
-import { useDeferredMount } from '../../hooks/useDeferredMount';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TouchableOpacity, Platform, Alert, Modal, RefreshControl } from 'react-native';
+import ScreenGradient from '../../components/layout/ScreenGradient';
+import PageLoader from '../../components/layout/PageLoader';
+import { useDeferredMount } from '../../hooks/platform/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { useNavBack } from '../../hooks/useNavBack';
+import { useNavBack } from '../../hooks/platform/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTransactions, useAddTransaction } from '../../hooks/useTransactions';
-import { isProjectSpendTx } from '../../lib/projectTx';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { useSharedContribution } from '../../hooks/useSharedContribution';
-import { useCreditFlows } from '../../hooks/useCreditFlows';
-import { useCategories, useSeedDefaultCategories } from '../../hooks/useCategories';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
-import EditTransactionMonthModal from '../../components/EditTransactionMonthModal';
+import { useTransactions, useAddTransaction } from '../../hooks/data/useTransactions';
+import { isProjectSpendTx } from '../../lib/finance/projectTx';
+import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
+import { useSharedContribution } from '../../hooks/data/useSharedContribution';
+import { useCreditFlows } from '../../hooks/data/useCreditFlows';
+import { useCategories, useSeedDefaultCategories } from '../../hooks/data/useCategories';
+import { useAccounts } from '../../hooks/data/useAccounts';
+import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMonthOverrides';
+import EditTransactionMonthModal from '../../components/transaction/EditTransactionMonthModal';
 import type { RecurrenceRule, TransactionWithDetails } from '../../types/database';
-import type { Category } from '../../types/database';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useResponsive } from '../../hooks/useResponsive';
-import { pageColumn } from '../../lib/webLayout';
-import { useProfile, useUpdateProfile } from '../../hooks/useProfile';
-import { CURRENCY_SYMBOL } from '../../lib/currency';
-import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useResponsive } from '../../hooks/theme/useResponsive';
+import { pageColumn } from '../../lib/ui/webLayout';
+import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
+import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
+/* Source UNIQUE du poids d'une récurrence sur un mois. Cette fonction était recopiée ici, en
+   parallèle de celle du moteur du Pilotage : deux réponses possibles à la même question, donc le
+   risque que le plan de trésorerie et le tableau de bord affichent des montants différents pour la
+   même ligne. Équivalence des deux versions prouvée avant regroupement (__tests__/recurrenceAmount). */
+import { addRecurrenceToMonth } from '../../lib/finance/recurrence';
+// Utilitaires PURS de cet écran, sortis du fichier pour être testables sans monter la page.
+import { getMonthKey, getMonthsFromOffset, groupCategories, createOverridesMap, getOverrideKey } from '../../lib/finance/treasuryTable';
+import { compositeOver } from '../../lib/ui/colorMix';
+import TreasuryHelpModal from '../../components/tresorerie/TreasuryHelpModal';
+import TreasuryMenuModal, { TreasuryMenuOption } from '../../components/tresorerie/TreasuryMenuModal';
+import TreasuryDraftModal from '../../components/tresorerie/TreasuryDraftModal';
 
 
 const TABLE_HEADER_HEIGHT = 52;
@@ -34,78 +43,11 @@ const TABLE_ROW_HEIGHT = 56;
 const TABLE_EXTRA_HEIGHT = 44;
 const SCROLL_BOTTOM_PADDING = 24;
 
-function getMonthKey(year: number, month: number): string {
-  return `${year}-${String(month).padStart(2, '0')}`;
-}
 
-function getMonthsFromOffset(monthOffset: number, count: number): { year: number; month: number; key: string }[] {
-  const now = new Date();
-  const out: { year: number; month: number; key: string }[] = [];
-  for (let i = 0; i < count; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + monthOffset + i, 1);
-    out.push({ year: d.getFullYear(), month: d.getMonth() + 1, key: getMonthKey(d.getFullYear(), d.getMonth() + 1) });
-  }
-  return out;
-}
 
-function addRecurrenceToMonth(year: number, month: number, amount: number, startDate: string, rule: RecurrenceRule, endDate: string | null, currentDate: Date): number {
-  const start = new Date(startDate);
-  // Limite à 24 mois maximum à partir de maintenant
-  const maxEndDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 24, 1);
-  const end = endDate ? new Date(Math.min(new Date(endDate).getTime(), maxEndDate.getTime())) : maxEndDate;
-  const thisMonthStart = new Date(year, month - 1, 1);
-  const thisMonthEnd = new Date(year, month, 0);
-  if (start > thisMonthEnd || end < thisMonthStart) return 0;
-  if (rule === 'monthly') return amount;
-  if (rule === 'quarterly') {
-    const startMonth = start.getFullYear() * 12 + start.getMonth();
-    const thisMonth = year * 12 + (month - 1);
-    if ((thisMonth - startMonth) % 3 === 0 && thisMonth >= startMonth) return amount;
-    return 0;
-  }
-  if (rule === 'yearly') {
-    if (start.getMonth() === month - 1 && year >= start.getFullYear()) return amount;
-    return 0;
-  }
-  if (rule === 'weekly') {
-    let count = 0;
-    let d = new Date(start);
-    while (d <= thisMonthEnd) {
-      if (d >= thisMonthStart) count++;
-      d.setDate(d.getDate() + 7);
-      if (d > end) break;
-    }
-    return count * amount;
-  }
-  return 0;
-}
 
-function groupCategories(categories: Category[]) {
-  const parents = categories.filter((c) => !c.parent_id);
-  const byParent: Record<string, Category[]> = {};
-  for (const c of categories) {
-    if (c.parent_id) {
-      byParent[c.parent_id] = byParent[c.parent_id] ?? [];
-      byParent[c.parent_id].push(c);
-    }
-  }
-  return { parents, byParent };
-}
 
-// Créer un map des overrides pour accès rapide
-function createOverridesMap(overrides: Array<{ transaction_id: string; year: number; month: number; override_amount: number | null }>) {
-  const map: Record<string, number> = {};
-  overrides.forEach((o) => {
-    if (o.override_amount == null) return; // override date-only (#2) → pas de montant à appliquer
-    const key = `${o.transaction_id}:${o.year}:${o.month}`;
-    map[key] = o.override_amount;
-  });
-  return map;
-}
 
-const getOverrideKey = (transactionId: string, year: number, month: number): string => {
-  return `${transactionId}:${year}:${month}`;
-};
 
 
 /** Montage différé (écran LOURD) : squelette 1 frame → l'onglet s'ouvre instantanément, le
@@ -155,37 +97,7 @@ function TableScrollHost({ desktop, deskStyle, scrollRef, style, contentContaine
 }
 
 /** Décompose une couleur CSS (#rgb, #rrggbb, #rrggbbaa, rgb(a)) en canaux 0-255 + alpha 0-1. */
-function parseColor(c: string | undefined): { r: number; g: number; b: number; a: number } | null {
-  if (!c) return null;
-  const s = c.trim();
-  const rgba = s.match(/^rgba?\(([^)]+)\)$/i);
-  if (rgba) {
-    const p = rgba[1].split(',').map((v) => parseFloat(v.trim()));
-    if (p.length < 3 || p.some((v) => Number.isNaN(v))) return null;
-    return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] };
-  }
-  const hex = s.match(/^#([0-9a-f]{3,8})$/i);
-  if (!hex) return null;
-  let h = hex[1];
-  if (h.length === 3) h = h.split('').map((x) => x + x).join('');
-  if (h.length !== 6 && h.length !== 8) return null;
-  return {
-    r: parseInt(h.slice(0, 2), 16),
-    g: parseInt(h.slice(2, 4), 16),
-    b: parseInt(h.slice(4, 6), 16),
-    a: h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1,
-  };
-}
 
-/** Compose `overlay` (éventuellement translucide) sur `base` et renvoie une couleur OPAQUE. */
-function compositeOver(overlay: string | undefined, base: string): string {
-  const o = parseColor(overlay);
-  const b = parseColor(base);
-  if (!o || !b) return base;           // teinte inconnue → au moins un fond opaque
-  if (o.a >= 1) return overlay!;
-  const mix = (x: number, y: number) => Math.round(x * o.a + y * (1 - o.a));
-  return `rgb(${mix(o.r, b.r)}, ${mix(o.g, b.g)}, ${mix(o.b, b.b)})`;
-}
 
 function MaybeHScroll({ enabled, innerRef, showBar, style, contentContainerStyle, onScrollX, children }: {
   enabled: boolean;
@@ -1135,14 +1047,14 @@ function TreasuryPlanBody() {
 
         <View style={styles.controls}>
           <View style={styles.navRow} ref={navRowRef}>
-            <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o - 1)} accessibilityRole="button">
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mois précédent" style={styles.navArrow} onPress={() => setMonthOffset((o) => o - 1)}>
               <Ionicons name="chevron-back" size={22} color="#94a3b8" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.navLabel} onPress={() => setMonthOffset(-1)} accessibilityRole="button">
               <Text style={styles.navLabelText}>{rangeLabel}</Text>
               {monthOffset !== -1 && <Text style={styles.navLabelHint}>Appuyer pour revenir</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navArrow} onPress={() => setMonthOffset((o) => o + 1)} accessibilityRole="button">
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mois suivant" style={styles.navArrow} onPress={() => setMonthOffset((o) => o + 1)}>
               <Ionicons name="chevron-forward" size={22} color="#94a3b8" />
             </TouchableOpacity>
           </View>
@@ -1412,44 +1324,12 @@ function TreasuryPlanBody() {
 
       {/* Fiche « Comment lire ce tableau » — le mode d'emploi et la légende, sortis de l'écran
           principal pour rendre la place au tableau. */}
-      <Modal visible={showHelp} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowHelp(false)}>
-        {/* Carte CENTRÉE et fermable en cliquant à côté. En feuille collée en bas, elle se retrouvait
-            hors champ sur un écran d'ordinateur — et une aide qu'on ouvre par curiosité doit pouvoir
-            se refermer d'un clic n'importe où, sans viser la croix.
-            Le `TouchableOpacity` intérieur absorbe le clic : sans lui, toucher la carte elle-même
-            remonterait jusqu'au fond et refermerait la fiche qu'on est en train de lire. */}
-        <TouchableOpacity
-          style={styles.helpOverlay}
-          activeOpacity={1}
-          onPress={() => setShowHelp(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Fermer"
-        >
-          <TouchableOpacity style={styles.helpSheet} activeOpacity={1} onPress={() => {}}>
-            <View style={styles.helpHead}>
-              <Text style={styles.helpTitle}>Comment lire ce tableau</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowHelp(false)} style={{ padding: 4 }}>
-                <Ionicons name="close" size={22} color={COLORS.text} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.helpScroll} showsVerticalScrollIndicator={false}>
-              <Text style={styles.helpText}>
-                Le plan est alimenté par tes transactions et tes récurrences : tu n'as rien à y saisir.
-              </Text>
-              <Text style={styles.helpText}>
-                <Text style={styles.helpStrong}>Appuie sur un montant</Text> pour voir le détail des
-                opérations qui le composent.
-              </Text>
-              <Text style={styles.helpText}>
-                <Text style={styles.helpStrong}>Simplifié / Détaillé</Text> replie ou déplie les
-                sous-catégories.
-              </Text>
-              <Text style={styles.helpSection}>Couleurs et styles</Text>
-              {renderLegend(true)}
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <TreasuryHelpModal
+        visible={showHelp}
+        onClose={() => setShowHelp(false)}
+        colors={COLORS}
+        renderLegend={() => renderLegend(true)}
+      />
 
       {/* Menu Modal */}
       <Modal
@@ -1513,256 +1393,102 @@ function TreasuryPlanBody() {
       />
 
       {/* Draft Choice Modal */}
-      <Modal
+      <TreasuryMenuModal
         visible={!!draftChoiceModal?.visible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDraftChoiceModal(null)}
+        title="Transaction prévisionnelle"
+        onClose={() => setDraftChoiceModal(null)}
+        colors={COLORS}
       >
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setDraftChoiceModal(null)} activeOpacity={1}>
-          <TouchableOpacity style={styles.menuContainer} onPress={() => {}} activeOpacity={1}>
-            <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>Transaction prévisionnelle</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDraftChoiceModal(null)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.menuOption}
-              onPress={() => {
-                const c = draftChoiceModal;
-                setDraftChoiceModal(null);
-                if (c) goToTransactions(c.monthKey, c.categoryId);
-              }}
-            >
-              <Ionicons name="eye-outline" size={20} color="#60a5fa" />
-              <Text style={styles.menuOptionText}>Voir transaction(s)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuOption}
-              onPress={() => {
-                const c = draftChoiceModal;
-                setDraftChoiceModal(null);
-                if (c) openDraftModal(c.monthKey, c.categoryId, c.rowType);
-              }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={COLORS.green} />
-              <Text style={styles.menuOptionText}>Créer une transaction prévisionnelle</Text>
-            </TouchableOpacity>
-            {draftChoiceModal?.existingDrafts.map((draft) => (
-              <TouchableOpacity
-                key={draft.id}
-                style={styles.menuOption}
-                onPress={() => {
-                  setDraftChoiceModal(null);
-                  router.push(`/(tabs)/transactions/edit/${draft.id}` as any);
-                }}
-              >
-                <Ionicons name="create-outline" size={20} color="#f59e0b" />
-                <Text style={styles.menuOptionText} numberOfLines={1}>
-                  Modifier · {draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        <TreasuryMenuOption
+          icon="eye-outline" color="#60a5fa" label="Voir transaction(s)" colors={COLORS}
+          onPress={() => { const c = draftChoiceModal; setDraftChoiceModal(null); if (c) goToTransactions(c.monthKey, c.categoryId); }}
+        />
+        <TreasuryMenuOption
+          icon="add-circle-outline" color={COLORS.green} label="Créer une transaction prévisionnelle" colors={COLORS}
+          onPress={() => { const c = draftChoiceModal; setDraftChoiceModal(null); if (c) openDraftModal(c.monthKey, c.categoryId, c.rowType); }}
+        />
+        {draftChoiceModal?.existingDrafts.map((draft) => (
+          <TreasuryMenuOption
+            key={draft.id}
+            icon="create-outline" color="#f59e0b" colors={COLORS}
+            label={`Modifier · ${draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}`}
+            onPress={() => { setDraftChoiceModal(null); router.push(`/(tabs)/transactions/edit/${draft.id}` as any); }}
+          />
+        ))}
+      </TreasuryMenuModal>
 
       {/* Draft Creation Modal */}
-      <Modal
+      <TreasuryDraftModal
         visible={!!draftModal?.visible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDraftModal(null)}
-      >
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setDraftModal(null)} activeOpacity={1}>
-          <TouchableOpacity style={styles.draftModalContainer} onPress={() => {}} activeOpacity={1}>
-            <View style={styles.menuHeader}>
-              <View>
-                <Text style={styles.menuTitle}>Transaction prévisionnelle</Text>
-                {draftModal && (
-                  <Text style={styles.draftModalSub}>
-                    {draftModal.categoryName} · {new Date(draftModal.monthKey + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDraftModal(null)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.draftModalLabel}>Montant ({CURRENCY_SYMBOL})</Text>
-            <TextInput
-              style={styles.draftModalInput}
-              value={draftAmount}
-              onChangeText={setDraftAmount}
-              placeholder="0,00"
-              placeholderTextColor="#64748b"
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={styles.draftModalLabel}>Libellé (optionnel)</Text>
-            <TextInput
-              style={styles.draftModalInput}
-              value={draftNote}
-              onChangeText={setDraftNote}
-              placeholder="Ex. Vacances, Prime..."
-              placeholderTextColor="#64748b"
-            />
-
-            <Text style={styles.draftModalLabel}>Compte</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-              {accounts.filter(a => a.type === 'checking').map((acc) => (
-                <TouchableOpacity
-                  key={acc.id}
-                  style={[styles.draftAccountChip, draftAccountId === acc.id && styles.draftAccountChipActive]}
-                  onPress={() => setDraftAccountId(acc.id)}
-                >
-                  <Text style={[styles.draftAccountChipText, draftAccountId === acc.id && styles.draftAccountChipTextActive]}>
-                    {acc.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.draftSubmitBtn, addTransaction.isPending && { opacity: 0.6 }]}
-              onPress={handleCreateDraft}
-              disabled={addTransaction.isPending}
-            >
-              <Ionicons name="time-outline" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
-              <Text style={styles.draftSubmitLabel}>Enregistrer en brouillon</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        onClose={() => setDraftModal(null)}
+        title="Transaction prévisionnelle"
+        subtitle={draftModal
+          ? `${draftModal.categoryName} · ${new Date(draftModal.monthKey + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`
+          : null}
+        amount={draftAmount}
+        onAmountChange={setDraftAmount}
+        note={draftNote}
+        onNoteChange={setDraftNote}
+        notePlaceholder="Ex. Vacances, Prime..."
+        accountLabel="Compte"
+        accounts={accounts.filter((a) => a.type === 'checking')}
+        selectedAccountId={draftAccountId}
+        onSelectAccount={setDraftAccountId}
+        submitIcon="time-outline"
+        submitLabel="Enregistrer en brouillon"
+        onSubmit={handleCreateDraft}
+        submitting={addTransaction.isPending}
+        colors={COLORS}
+      />
 
       {/* Virement Choice Modal (Épargne / Investissements — mois futur avec mouvements) */}
-      <Modal
+      <TreasuryMenuModal
         visible={!!virementChoiceModal?.visible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setVirementChoiceModal(null)}
+        title={virementChoiceModal?.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'}
+        onClose={() => setVirementChoiceModal(null)}
+        colors={COLORS}
       >
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setVirementChoiceModal(null)} activeOpacity={1}>
-          <TouchableOpacity style={styles.menuContainer} onPress={() => {}} activeOpacity={1}>
-            <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>{virementChoiceModal?.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'}</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setVirementChoiceModal(null)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.menuOption}
-              onPress={() => {
-                const c = virementChoiceModal;
-                setVirementChoiceModal(null);
-                if (c) router.push(`/(tabs)/transactions?focusMonth=${c.monthKey}&filterType=mouvements&singleMonth=1` as any);
-              }}
-            >
-              <Ionicons name="eye-outline" size={20} color="#60a5fa" />
-              <Text style={styles.menuOptionText}>Voir transaction(s)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuOption}
-              onPress={() => {
-                const c = virementChoiceModal;
-                setVirementChoiceModal(null);
-                if (c) openVirementDraft(c.monthKey, c.mouvementType);
-              }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color={COLORS.green} />
-              <Text style={styles.menuOptionText}>Créer un virement prévisionnel</Text>
-            </TouchableOpacity>
-            {virementChoiceModal?.existingDrafts.map((draft) => (
-              <TouchableOpacity
-                key={draft.id}
-                style={styles.menuOption}
-                onPress={() => {
-                  setVirementChoiceModal(null);
-                  router.push(`/(tabs)/transactions/edit/${draft.id}` as any);
-                }}
-              >
-                <Ionicons name="create-outline" size={20} color="#f59e0b" />
-                <Text style={styles.menuOptionText} numberOfLines={1}>
-                  Modifier · {draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        <TreasuryMenuOption
+          icon="eye-outline" color="#60a5fa" label="Voir transaction(s)" colors={COLORS}
+          onPress={() => { const c = virementChoiceModal; setVirementChoiceModal(null); if (c) router.push(`/(tabs)/transactions?focusMonth=${c.monthKey}&filterType=mouvements&singleMonth=1` as any); }}
+        />
+        <TreasuryMenuOption
+          icon="add-circle-outline" color={COLORS.green} label="Créer un virement prévisionnel" colors={COLORS}
+          onPress={() => { const c = virementChoiceModal; setVirementChoiceModal(null); if (c) openVirementDraft(c.monthKey, c.mouvementType); }}
+        />
+        {virementChoiceModal?.existingDrafts.map((draft) => (
+          <TreasuryMenuOption
+            key={draft.id}
+            icon="create-outline" color="#f59e0b" colors={COLORS}
+            label={`Modifier · ${draft.note || Math.abs(Number(draft.amount)).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' ' + CURRENCY_SYMBOL}`}
+            onPress={() => { setVirementChoiceModal(null); router.push(`/(tabs)/transactions/edit/${draft.id}` as any); }}
+          />
+        ))}
+      </TreasuryMenuModal>
 
       {/* Virement Draft Modal (Épargne / Investissements) */}
-      <Modal
+      <TreasuryDraftModal
         visible={!!virementDraftModal?.visible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setVirementDraftModal(null)}
-      >
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setVirementDraftModal(null)} activeOpacity={1}>
-          <TouchableOpacity style={styles.draftModalContainer} onPress={() => {}} activeOpacity={1}>
-            <View style={styles.menuHeader}>
-              <View>
-                <Text style={styles.menuTitle}>Virement prévisionnel</Text>
-                {virementDraftModal && (
-                  <Text style={styles.draftModalSub}>
-                    {virementDraftModal.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'} · {new Date(virementDraftModal.monthKey + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setVirementDraftModal(null)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.draftModalLabel}>Montant ({CURRENCY_SYMBOL})</Text>
-            <TextInput
-              style={styles.draftModalInput}
-              value={virementAmount}
-              onChangeText={setVirementAmount}
-              placeholder="0,00"
-              placeholderTextColor="#64748b"
-              keyboardType="decimal-pad"
-            />
-
-            <Text style={styles.draftModalLabel}>Libellé (optionnel)</Text>
-            <TextInput
-              style={styles.draftModalInput}
-              value={virementNote}
-              onChangeText={setVirementNote}
-              placeholder="Ex. Loyer, Épargne mensuelle..."
-              placeholderTextColor="#64748b"
-            />
-
-            <Text style={styles.draftModalLabel}>Compte de destination</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-              {accounts
-                .filter((a) => a.type === (virementDraftModal?.mouvementType === 'epargne' ? 'savings' : 'investment'))
-                .map((acc) => (
-                  <TouchableOpacity
-                    key={acc.id}
-                    style={[styles.draftAccountChip, virementDestAccountId === acc.id && styles.draftAccountChipActive]}
-                    onPress={() => setVirementDestAccountId(acc.id)}
-                  >
-                    <Text style={[styles.draftAccountChipText, virementDestAccountId === acc.id && styles.draftAccountChipTextActive]}>
-                      {acc.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.draftSubmitBtn, addTransaction.isPending && { opacity: 0.6 }]}
-              onPress={handleCreateVirementDraft}
-              disabled={addTransaction.isPending}
-            >
-              <Ionicons name="swap-horizontal-outline" size={18} color="#f59e0b" style={{ marginRight: 8 }} />
-              <Text style={styles.draftSubmitLabel}>Enregistrer le virement</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        onClose={() => setVirementDraftModal(null)}
+        title="Virement prévisionnel"
+        subtitle={virementDraftModal
+          ? `${virementDraftModal.mouvementType === 'epargne' ? 'Épargne' : 'Investissements'} · ${new Date(virementDraftModal.monthKey + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}`
+          : null}
+        amount={virementAmount}
+        onAmountChange={setVirementAmount}
+        note={virementNote}
+        onNoteChange={setVirementNote}
+        notePlaceholder="Ex. Loyer, Épargne mensuelle..."
+        accountLabel="Compte de destination"
+        accounts={accounts.filter((a) => a.type === (virementDraftModal?.mouvementType === 'epargne' ? 'savings' : 'investment'))}
+        selectedAccountId={virementDestAccountId}
+        onSelectAccount={setVirementDestAccountId}
+        submitIcon="swap-horizontal-outline"
+        submitLabel="Enregistrer le virement"
+        onSubmit={handleCreateVirementDraft}
+        submitting={addTransaction.isPending}
+        colors={COLORS}
+      />
 
     </View>
   );
@@ -2000,51 +1726,5 @@ function makeStyles(c: any) {
     fontWeight: '500',
     color: c.text,
   },
-  draftModalContainer: {
-    backgroundColor: c.cardSolid,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: c.orange + '44',
-    width: '90%',
-    maxWidth: 400,
-    padding: 20,
-  },
-  draftModalSub: { fontSize: 12, color: '#f59e0b', marginTop: 2 },
-  draftCategoryBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f59e0b18', borderWidth: 1, borderColor: '#f59e0b44', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16 },
-  draftCategoryBadgeText: { fontSize: 14, fontWeight: '600', color: '#f59e0b' },
-  draftModalLabel: { fontSize: 13, fontWeight: '600', color: c.textSecondary, marginBottom: 8 },
-  draftModalInput: {
-    backgroundColor: c.bg,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: c.text,
-    marginBottom: 16,
-  },
-  draftAccountChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    marginRight: 8,
-  },
-  draftAccountChipActive: { backgroundColor: '#f59e0b22', borderColor: '#f59e0b' },
-  draftAccountChipText: { fontSize: 13, color: c.text },
-  draftAccountChipTextActive: { color: '#f59e0b', fontWeight: '600' },
-  draftSubmitBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f59e0b',
-    backgroundColor: '#f59e0b11',
-  },
-  draftSubmitLabel: { fontSize: 15, fontWeight: '700', color: '#f59e0b' },
 });
 }

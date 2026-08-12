@@ -1,6 +1,6 @@
 import {
   setInterruptPending, currentInterrupt, canShowInterrupt, resetInterrupts, INTERRUPT_ORDER,
-} from '../lib/interruptQueue';
+} from '../lib/engagement/interruptQueue';
 
 /**
  * À l'ouverture après quelques jours d'absence, plusieurs choses veulent parler en même temps.
@@ -60,7 +60,7 @@ describe('file d’attente des sollicitations', () => {
 
   it('les abonnés sont prévenus à chaque changement', () => {
     const seen: (string | null)[] = [];
-    const { subscribeInterrupts } = require('../lib/interruptQueue');
+    const { subscribeInterrupts } = require('../lib/engagement/interruptQueue');
     const off = subscribeInterrupts(() => seen.push(currentInterrupt()));
     setInterruptPending('achievement', true);
     setInterruptPending('closure', true);

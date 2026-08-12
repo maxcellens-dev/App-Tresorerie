@@ -4,22 +4,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput, BackHandler, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useCredits, useDeleteCredit, useUpdateCredit } from '../../../../hooks/useCredits';
-import { useAllAccounts } from '../../../../hooks/useAccounts';
-import { useCreditEvents, useAddCreditEvent, useDeleteCreditEvent } from '../../../../hooks/useCreditEvents';
-import CreditShareSection from '../../../../components/CreditShareSection';
-import CreditCurve from '../../../../components/CreditCurve';
-import { computeAmortization } from '../../../../lib/amortization';
+import { useCredits, useDeleteCredit, useUpdateCredit } from '../../../../hooks/data/useCredits';
+import { useAllAccounts } from '../../../../hooks/data/useAccounts';
+import { useCreditEvents, useAddCreditEvent, useDeleteCreditEvent } from '../../../../hooks/data/useCreditEvents';
+import CreditShareSection from '../../../../components/credit/CreditShareSection';
+import CreditCurve from '../../../../components/charts/CreditCurve';
+import { computeAmortization } from '../../../../lib/finance/amortization';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
 
 export default function CreditDetailScreen() {

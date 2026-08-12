@@ -10,35 +10,35 @@
  * Le profil n'est plus figé : il se recalcule dès que les données bougent (useLiveProfileSync),
  * puis le bilan mensuel prend le relais.
  */
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import ScreenHeader from '../../../components/ScreenHeader';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import InfoDot from '../../../components/InfoDot';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import InfoDot from '../../../components/ui/InfoDot';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useFinancialProfile, useQuestionnaireAnswers } from '../../../hooks/useFinancialProfile';
-import { usePilotageData } from '../../../hooks/usePilotageData';
-import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
+import { useFinancialProfile, useQuestionnaireAnswers } from '../../../hooks/pilotage/useFinancialProfile';
+import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
+import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import {
   PROFILE_INFO, PROFILE_ALLOCATIONS,
   WEEKS_PER_MONTH,
-} from '../../../lib/financialProfileEngine';
-import { computeSecurityCushion, securityMonthsLabel } from '../../../lib/securityCushion';
-import type { QuestionnaireAnswers } from '../../../lib/financialProfileEngine';
+} from '../../../lib/finance/financialProfileEngine';
+import { computeSecurityCushion, securityMonthsLabel } from '../../../lib/finance/securityCushion';
+import type { QuestionnaireAnswers } from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useCurrencySymbol } from '../../../hooks/useCurrency';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useCurrencySymbol } from '../../../hooks/data/useCurrency';
 
 export default withDeferredMount(ProfilFinancierScreen);
 

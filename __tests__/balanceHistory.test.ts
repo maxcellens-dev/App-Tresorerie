@@ -1,4 +1,4 @@
-import { buildBalanceHistory, type BalanceHistoryTx } from '../lib/balanceHistory';
+import { buildBalanceHistory, type BalanceHistoryTx } from '../lib/finance/balanceHistory';
 
 /**
  * La courbe du compte remonte le temps depuis le solde D'AUJOURD'HUI (source de vérité, recalculée

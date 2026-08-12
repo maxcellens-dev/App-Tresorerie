@@ -2,24 +2,24 @@
  * Boutique — dépense les relyks gagnés (couleurs, cosmétiques, titres, thèmes, bons hors-app).
  * Les abonnés Premium bénéficient d'une remise globale (premium_discount_pct).
  */
-import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { useMemo, useState, useRef, useEffect } from 'react';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useGamification } from '../../../hooks/useGamification';
-import { usePlan } from '../../../hooks/usePlan';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, shopFinalPrice, type ShopItem, type ShopCategory } from '../../../lib/gamification';
-import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/purchases';
+import { useProfile } from '../../../hooks/data/useProfile';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useGamification } from '../../../hooks/engagement/useGamification';
+import { usePlan } from '../../../hooks/config/usePlan';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { isImageIcon, isUniqueItem, formatCurrency, SHOP_CATEGORY_ORDER, SHOP_CATEGORY_LABELS, SHOP_CATEGORY_ICONS, COSMETIC_DEFS, shopFinalPrice, type ShopItem, type ShopCategory } from '../../../lib/engagement/gamification';
+import { purchaseGemsPack, PURCHASES_SUPPORTED } from '../../../lib/platform/purchases';
 
 type ShopTab = 'app' | 'relyka';
 

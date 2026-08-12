@@ -55,5 +55,5 @@ export function RootPortal({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   // Au-dessus de TOUT (navigation, barre d'onglets) dans la fenêtre principale.
-  host: { ...StyleSheet.absoluteFillObject, zIndex: 100000, elevation: 100000 },
+  host: { ...StyleSheet.absoluteFill, zIndex: 100000, elevation: 100000 },
 });

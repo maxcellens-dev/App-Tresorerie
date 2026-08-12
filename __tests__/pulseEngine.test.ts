@@ -1,9 +1,9 @@
 import {
   computePulse, resolvePulseConfig, DEFAULT_PULSE_CONFIG, PULSE_SIGNAL_IDS,
   monthKey, type PulseInputs,
-} from '../lib/pulseEngine';
-import { computeSecurityCushion } from '../lib/securityCushion';
-import { computeOpFeedback } from '../lib/pulseDelta';
+} from '../lib/pulse/pulseEngine';
+import { computeSecurityCushion } from '../lib/finance/securityCushion';
+import { computeOpFeedback } from '../lib/pulse/pulseDelta';
 import type { FinancialProfileId } from '../types/database';
 
 /** Utilisateur « médian » : on dérive les cas depuis lui. */

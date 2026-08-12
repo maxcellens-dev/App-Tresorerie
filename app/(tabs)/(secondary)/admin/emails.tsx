@@ -15,24 +15,24 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import { useQuery } from '@tanstack/react-query';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import EmailDiagnostics from '../../../../components/admin/EmailDiagnostics';
 import EmailTemplatePicker from '../../../../components/admin/EmailTemplatePicker';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { supabase } from '../../../../lib/supabase';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { supabase } from '../../../../lib/platform/supabase';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../../lib/dateUtils';
 import {
   useEmailCampaigns, useEmailAudienceCount, useSaveEmailCampaign,
   useSendEmailCampaign, useDeleteEmailCampaign, useClearEmailHistory,
   type EmailAudience,
-} from '../../../../hooks/useEmailCampaigns';
+} from '../../../../hooks/admin/useEmailCampaigns';
 import EmailSchedulesSection from '../../../../components/admin/EmailSchedulesSection';
 // Le MÊME rendu que celui de l'Edge Function : l'aperçu montre donc l'e-mail réel, pas une imitation.
 import {
@@ -336,7 +336,7 @@ export default function AdminEmails() {
                 <View style={s.pausedTag}><Ionicons name="hourglass-outline" size={14} color={COLORS.orange} /></View>
               )}
               {c.status !== 'sent' && c.status !== 'sending' && c.status !== 'paused' && (
-                <TouchableOpacity onPress={() => deleteCampaign.mutate(c.id)} style={{ padding: 6 }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la campagne" onPress={() => deleteCampaign.mutate(c.id)} style={{ padding: 6 }}>
                   <Ionicons name="trash-outline" size={17} color={COLORS.danger} />
                 </TouchableOpacity>
               )}
@@ -354,7 +354,7 @@ export default function AdminEmails() {
           <View style={s.pvSheet}>
             <View style={s.pvHead}>
               <Text style={s.pvTitle}>Aperçu de l’e-mail</Text>
-              <TouchableOpacity onPress={() => setPreview(false)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer l'aperçu" onPress={() => setPreview(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

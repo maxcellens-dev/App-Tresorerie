@@ -4,15 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useAdminUnreadBreakdown } from '../../../../hooks/useUnreadBadges';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useAdminUnreadBreakdown } from '../../../../hooks/admin/useUnreadBadges';
 
 
 export default function AdminHub() {
@@ -118,7 +118,7 @@ export default function AdminHub() {
               autoCorrect={false}
             />
             {query.length > 0 && (
-              <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setQuery('')} hitSlop={8}>
                 <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}

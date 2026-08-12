@@ -9,7 +9,7 @@
  * issus d'un nommage historique.
  */
 
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/platform/supabase';
 
 const BUCKET = 'avatars';
 

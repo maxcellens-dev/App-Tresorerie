@@ -8,23 +8,23 @@
  * Rien de ceci n'est monté sur natif ni sur navigateur étroit : `app/(tabs)/_layout` ne rend ce
  * composant que si `useResponsive().isDesktop` est vrai.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useSegments } from 'expo-router';
-import { useAppColors } from '../../hooks/useAppColors';
+import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
-import { useProfile } from '../../hooks/useProfile';
-import { usePlan } from '../../hooks/usePlan';
-import { useFeatureFlags } from '../../hooks/useFeatureFlags';
-import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/useBrandFont';
-import { useRwInvitations } from '../../hooks/useRelykaWorld';
-import { useAccountInvitations, useSharedAccountsRealtime } from '../../hooks/useSharedAccounts';
-import { useCreditInvitations, useSharedCreditsRealtime } from '../../hooks/useSharedCredits';
-import { useAdminUnreadCount, useUserUnreadCount } from '../../hooks/useUnreadBadges';
-import { SIDEBAR_WIDTH, pointer, transition, shadow } from '../../lib/webLayout';
-import { APP_VERSION } from '../../lib/appVersion';
-import { UnreadBadge } from '../HeaderWithProfile';
+import { useProfile } from '../../hooks/data/useProfile';
+import { usePlan } from '../../hooks/config/usePlan';
+import { useFeatureFlags } from '../../hooks/config/useFeatureFlags';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useBrandFont';
+import { useRwInvitations } from '../../hooks/engagement/useRelykaWorld';
+import { useAccountInvitations, useSharedAccountsRealtime } from '../../hooks/data/useSharedAccounts';
+import { useCreditInvitations, useSharedCreditsRealtime } from '../../hooks/data/useSharedCredits';
+import { useAdminUnreadCount, useUserUnreadCount } from '../../hooks/admin/useUnreadBadges';
+import { SIDEBAR_WIDTH, pointer, transition, shadow } from '../../lib/ui/webLayout';
+import { APP_VERSION } from '../../lib/platform/appVersion';
+import { UnreadBadge } from '../layout/HeaderWithProfile';
 
 interface NavItem {
   key: string;

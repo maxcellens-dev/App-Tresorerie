@@ -5,20 +5,20 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform, Image } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { supabase } from '../../../../lib/supabase';
-import { useLandingConfig, useSaveLandingConfig, type LandingConfig, type LandingFeature, type LandingStat, type LandingLink, type LandingSocial } from '../../../../hooks/useLandingConfig';
-import SocialLinks from '../../../../components/SocialLinks';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useLandingConfig, useSaveLandingConfig, type LandingConfig, type LandingFeature, type LandingStat, type LandingLink, type LandingSocial } from '../../../../hooks/config/useLandingConfig';
+import SocialLinks from '../../../../components/marketing/SocialLinks';
 
 /**
  * RÉSEAUX PRÊTS À L'EMPLOI — un tap ajoute la ligne, il ne reste que l'URL à coller.
@@ -289,13 +289,13 @@ export default function AdminLanding() {
                     </View>
                   </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => moveSocial(i, -1)} disabled={i === 0}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter le réseau social" onPress={() => moveSocial(i, -1)} disabled={i === 0}>
                       <Ionicons name="arrow-up" size={17} color={i === 0 ? COLORS.cardBorder : COLORS.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => moveSocial(i, 1)} disabled={i === socials.items.length - 1}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre le réseau social" onPress={() => moveSocial(i, 1)} disabled={i === socials.items.length - 1}>
                       <Ionicons name="arrow-down" size={17} color={i === socials.items.length - 1 ? COLORS.cardBorder : COLORS.textSecondary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => removeSocial(i)}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le réseau social" onPress={() => removeSocial(i)}>
                       <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                     </TouchableOpacity>
                   </View>
@@ -315,11 +315,11 @@ export default function AdminLanding() {
                       autoCapitalize="none"
                       autoCorrect={false}
                     />
-                    <TouchableOpacity style={styles.uploadBtn} onPress={() => pickAndUpload((url) => setSocial(i, { image: url }))} disabled={uploading}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'image du réseau social" style={styles.uploadBtn} onPress={() => pickAndUpload((url) => setSocial(i, { image: url }))} disabled={uploading}>
                       {uploading ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
                     </TouchableOpacity>
                     {!!s.image && (
-                      <TouchableOpacity style={styles.uploadBtn} onPress={() => setSocial(i, { image: '' })}>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retirer l'image du réseau social" style={styles.uploadBtn} onPress={() => setSocial(i, { image: '' })}>
                         <Ionicons name="close" size={18} color={COLORS.danger} />
                       </TouchableOpacity>
                     )}
@@ -374,7 +374,7 @@ export default function AdminLanding() {
             <Text style={styles.fieldLabel}>Image du visuel (sinon maquette stylée)</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TextInput style={[styles.input, { flex: 1 }]} value={cfg.heroImage} onChangeText={(v) => set({ heroImage: v })} placeholder="URL image" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-              <TouchableOpacity style={styles.uploadBtn} onPress={uploadHero} disabled={uploading}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'image d'en-tête" style={styles.uploadBtn} onPress={uploadHero} disabled={uploading}>
                 {uploading ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
               </TouchableOpacity>
             </View>
@@ -397,7 +397,7 @@ export default function AdminLanding() {
               <View key={i} style={styles.subCard}>
                 <View style={styles.rowBetween}>
                   <Text style={styles.cardTitle}>Fonctionnalité {i + 1}</Text>
-                  <TouchableOpacity onPress={() => set({ features: cfg.features.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la fonctionnalité" onPress={() => set({ features: cfg.features.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
                 </View>
                 <Field label="Icône (Ionicons)" value={f.icon} onChange={(v) => setFeature(i, { icon: v })} styles={styles} c={COLORS} />
                 <Field label="Titre" value={f.title} onChange={(v) => setFeature(i, { title: v })} styles={styles} c={COLORS} />
@@ -416,7 +416,7 @@ export default function AdminLanding() {
               <View key={i} style={styles.rowItem}>
                 <TextInput style={[styles.input, { width: 90 }]} value={s.value} onChangeText={(v) => setStat(i, { value: v })} placeholder="100%" placeholderTextColor={COLORS.textSecondary} />
                 <TextInput style={[styles.input, { flex: 1 }]} value={s.label} onChangeText={(v) => setStat(i, { label: v })} placeholder="Libellé" placeholderTextColor={COLORS.textSecondary} />
-                <TouchableOpacity onPress={() => set({ stats: cfg.stats.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la statistique" onPress={() => set({ stats: cfg.stats.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
             ))}
           </View>
@@ -438,7 +438,7 @@ export default function AdminLanding() {
               <View key={i} style={styles.rowItem}>
                 <TextInput style={[styles.input, { flex: 1 }]} value={l.label} onChangeText={(v) => setFooter(i, { label: v })} placeholder="Libellé" placeholderTextColor={COLORS.textSecondary} />
                 <TextInput style={[styles.input, { width: 110 }]} value={l.anchor ?? l.url ?? ''} onChangeText={(v) => setFooter(i, /^https?:\/\//.test(v) ? { url: v, anchor: undefined } : { anchor: v, url: undefined })} placeholder="ancre / URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" />
-                <TouchableOpacity onPress={() => set({ footerLinks: cfg.footerLinks.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le lien de pied de page" onPress={() => set({ footerLinks: cfg.footerLinks.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
             ))}
             <Text style={styles.hint}>Ancres : confidentialite, legal (pages publiques), login, register, features, stats, final — ou une URL https://…</Text>
@@ -465,7 +465,7 @@ export default function AdminLanding() {
               <View key={i} style={styles.subCard}>
                 <View style={styles.rowBetween}>
                   <Text style={styles.cardTitle}>Fonctionnalité {i + 1}</Text>
-                  <TouchableOpacity onPress={() => set({ mobileFeatures: cfg.mobileFeatures.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la fonctionnalité mobile" onPress={() => set({ mobileFeatures: cfg.mobileFeatures.filter((_, idx) => idx !== i) })}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
                 </View>
                 <Field label="Icône (Ionicons)" value={f.icon} onChange={(v) => setMobileFeature(i, { icon: v })} styles={styles} c={COLORS} />
                 <Field label="Titre" value={f.title} onChange={(v) => setMobileFeature(i, { title: v })} styles={styles} c={COLORS} />

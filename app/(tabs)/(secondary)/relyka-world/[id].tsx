@@ -2,27 +2,27 @@
  * Relyka World — détail d'un projet partagé.
  * Onglets « Dépenses » et « Équilibres ». Ajout de dépense, invitation de participants.
  */
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { CURRENCY_SYMBOL } from '../../../../lib/currency';
-import { sheetWidth, useSheetBottomPadding } from '../../../../lib/appLayout';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
+import { sheetWidth, useSheetBottomPadding } from '../../../../lib/ui/appLayout';
 import { todayISO } from '../../../../lib/dateUtils';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
   useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime,
   useUpdateRwParticipant, useRwReinviteParticipant, computeBalances, settleUp, type RwExpense, type RwParticipant,
-} from '../../../../hooks/useRelykaWorld';
+} from '../../../../hooks/engagement/useRelykaWorld';
 
 const PROJ_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -194,7 +194,7 @@ export default function RelykaWorldDetail() {
               <Text style={styles.inviteBtnText}>Inviter / participants ({participants.length})</Text>
             </TouchableOpacity>
             {isOwner && (
-              <TouchableOpacity style={styles.editProjBtn} onPress={openEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Modifier" style={styles.editProjBtn} onPress={openEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name="create-outline" size={18} color={COLORS.text} />
               </TouchableOpacity>
             )}
@@ -329,7 +329,7 @@ export default function RelykaWorldDetail() {
             <Text style={styles.label}>Ou ajouter une personne non inscrit</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={freeName} onChangeText={setFreeName} placeholder="Ex. Julie" placeholderTextColor={COLORS.textSecondary} />
-              <TouchableOpacity style={styles.addNameBtn} onPress={onAddFreeName} disabled={!freeName.trim()}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter" style={styles.addNameBtn} onPress={onAddFreeName} disabled={!freeName.trim()}>
                 <Ionicons name="add" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
@@ -370,7 +370,7 @@ export default function RelykaWorldDetail() {
             <Text style={styles.label}>Nom</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={partName} onChangeText={setPartName} placeholder="Nom" placeholderTextColor={COLORS.textSecondary} />
-              <TouchableOpacity style={[styles.addNameBtn, (partBusy || !partName.trim() || partName.trim() === editPart?.display_name) && { opacity: 0.5 }]} onPress={savePartName} disabled={partBusy || !partName.trim() || partName.trim() === editPart?.display_name}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider le nom" style={[styles.addNameBtn, (partBusy || !partName.trim() || partName.trim() === editPart?.display_name) && { opacity: 0.5 }]} onPress={savePartName} disabled={partBusy || !partName.trim() || partName.trim() === editPart?.display_name}>
                 <Ionicons name="checkmark" size={22} color="#fff" />
               </TouchableOpacity>
             </View>

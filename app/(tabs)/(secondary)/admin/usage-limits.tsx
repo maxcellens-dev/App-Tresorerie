@@ -8,14 +8,14 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useUsageLimitsConfig, useSaveUsageLimitsConfig } from '../../../../hooks/useUsageLimits';
-import { USAGE_LIMIT_FIELDS, USAGE_LIMIT_DEFAULTS, type UsageLimitsConfig, type UsageTierLimits } from '../../../../lib/usageLimits';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useUsageLimitsConfig, useSaveUsageLimitsConfig } from '../../../../hooks/config/useUsageLimits';
+import { USAGE_LIMIT_FIELDS, USAGE_LIMIT_DEFAULTS, type UsageLimitsConfig, type UsageTierLimits } from '../../../../lib/finance/usageLimits';
 
 type Tier = 'free' | 'premium';
 

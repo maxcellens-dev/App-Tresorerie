@@ -1,6 +1,6 @@
-import { projectMode, isProjectSpendTx, buildProjectTransactions } from '../lib/projectTx';
-import { computeMonthlyForecast } from '../lib/forecast';
-import { computeTresoRows } from '../lib/tresoProjection';
+import { projectMode, isProjectSpendTx, buildProjectTransactions } from '../lib/finance/projectTx';
+import { computeMonthlyForecast } from '../lib/finance/forecast';
+import { computeTresoRows } from '../lib/finance/tresoProjection';
 
 /**
  * Projets personnels — les 3 modes (migration 139).

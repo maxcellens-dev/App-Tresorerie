@@ -7,16 +7,16 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useResponsive } from '../hooks/useResponsive';
-import { authPage, authCard } from '../lib/webLayout';
+import { useResponsive } from '../hooks/theme/useResponsive';
+import { authPage, authCard } from '../lib/ui/webLayout';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
-import { useBrandColors } from '../hooks/useBrandColors';
+import { supabase } from '../lib/platform/supabase';
+import { useBrandColors } from '../hooks/theme/useBrandColors';
 import { useAuth } from '../contexts/AuthContext';
-import PasswordStrength from '../components/PasswordStrength';
-import { evaluatePassword } from '../lib/passwordPolicy';
+import PasswordStrength from '../components/auth/PasswordStrength';
+import { evaluatePassword } from '../lib/auth/passwordPolicy';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)

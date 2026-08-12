@@ -1,4 +1,4 @@
-import { computeRecommendations } from '../lib/recommendationEngine';
+import { computeRecommendations } from '../lib/finance/recommendationEngine';
 
 /**
  * Garde-fou MARGE × PROJECTION 6 MOIS des recommandations :

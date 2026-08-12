@@ -1,5 +1,5 @@
-import { applyOpToPilotage, type PilotageBalances } from '../lib/pilotagePatch';
-import { computeRelyka } from '../lib/relyka';
+import { applyOpToPilotage, type PilotageBalances } from '../lib/finance/pilotagePatch';
+import { computeRelyka } from '../lib/finance/relyka';
 
 /**
  * Le patch optimiste doit donner EXACTEMENT ce que la carte de confirmation annonce (lib/pulseDelta) :

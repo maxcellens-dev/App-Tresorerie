@@ -1,12 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../components/ScreenHeader';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import {
   RECO_COLORS,
   RECO_TYPE_LABELS,
@@ -15,17 +15,17 @@ import {
   CONSUMPTION_MODE_LABELS,
   DEFAULT_CONSUMPTION_ORDERS,
   DEFAULT_AUTO_PROFILE_MAP,
-} from '../../../lib/recommendationEngine';
-import type { RecoType, SavingsTier, ConsumptionMode } from '../../../lib/recommendationEngine';
+} from '../../../lib/finance/recommendationEngine';
+import type { RecoType, SavingsTier, ConsumptionMode } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../../hooks/useRecommendationTiers';
-import type { TierAllocations } from '../../../hooks/useRecommendationTiers';
-import { useRecoThresholds, useUpdateRecoThresholds, useUpdateRecoConsumption } from '../../../hooks/useRecoThresholds';
+import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../../hooks/pilotage/useRecommendationTiers';
+import type { TierAllocations } from '../../../hooks/pilotage/useRecommendationTiers';
+import { useRecoThresholds, useUpdateRecoThresholds, useUpdateRecoConsumption } from '../../../hooks/pilotage/useRecoThresholds';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 
 
 const RECO_ICONS: Record<RecoType, string> = {
@@ -419,14 +419,14 @@ export default function RecommendationsAdmin() {
                   <View style={[styles.allocDot, { backgroundColor: RECO_COLORS[type] }]} />
                   <Text style={[styles.orderTypeLabel, { color: RECO_COLORS[type] }]}>{RECO_TYPE_LABELS[type]}</Text>
                   <View style={styles.orderArrows}>
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter dans l'ordre"
                       style={[styles.orderArrowBtn, i === 0 && styles.orderArrowDisabled]}
                       onPress={() => moveInOrder(mode, i, -1)}
                       disabled={i === 0}
                     >
                       <Ionicons name="chevron-up" size={16} color={i === 0 ? COLORS.cardBorder : COLORS.text} />
                     </TouchableOpacity>
-                    <TouchableOpacity
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre dans l'ordre"
                       style={[styles.orderArrowBtn, i === orders[mode].length - 1 && styles.orderArrowDisabled]}
                       onPress={() => moveInOrder(mode, i, 1)}
                       disabled={i === orders[mode].length - 1}

@@ -12,12 +12,12 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-import { sheetWidth } from '../../lib/appLayout';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { sheetWidth } from '../../lib/ui/appLayout';
 import {
   useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate, makeTemplateId,
   type AdminEmailTemplate,
-} from '../../hooks/useEmailTemplates';
+} from '../../hooks/admin/useEmailTemplates';
 
 interface Props {
   /** Recopie le modèle dans les champs Objet + Message de la campagne en cours. */
@@ -167,7 +167,7 @@ export default function EmailTemplatePicker({ onApply }: Props) {
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
               <Text style={styles.sheetTitle}>{draft?.isNew ? 'Nouveau modèle' : 'Modifier le modèle'}</Text>
-              <TouchableOpacity onPress={() => setDraft(null)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDraft(null)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

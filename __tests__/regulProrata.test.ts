@@ -1,4 +1,4 @@
-import { prorateClosureGap } from '../lib/regul';
+import { prorateClosureGap } from '../lib/finance/regul';
 
 describe('prorateClosureGap — répartition par jours calendaires', () => {
   it('intervalle entièrement DANS le mois qui se ferme → tout au mois', () => {

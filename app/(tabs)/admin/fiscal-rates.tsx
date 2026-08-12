@@ -1,16 +1,16 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import ScreenHeader from '../../../components/ScreenHeader';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../../hooks/useFiscalEnvelopes';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useFiscalEnvelopeRates, useUpdateFiscalRate, type FiscalEnvelope } from '../../../hooks/data/useFiscalEnvelopes';
 
 export default function FiscalRatesAdmin() {
   const COLORS = useAppColors();

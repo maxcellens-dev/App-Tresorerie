@@ -1,4 +1,4 @@
-import { isRegul, isInitialBalanceAnchor, findRegulCategoryId, INITIAL_BALANCE_NOTE } from '../lib/regul';
+import { isRegul, isInitialBalanceAnchor, findRegulCategoryId, INITIAL_BALANCE_NOTE } from '../lib/finance/regul';
 
 describe('isRegul — identification unifiée', () => {
   it('reconnaît une régul par regul_target', () => {

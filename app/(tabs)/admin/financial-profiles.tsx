@@ -3,13 +3,13 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, ActivityIndicator,
 } from 'react-native';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../components/ScreenHeader';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   useProfileMatrixConfig,
@@ -18,14 +18,14 @@ import {
   useUpdateMatrixConfig,
   useFinancialProfile,
   useSimulateProfileChange,
-} from '../../../hooks/useFinancialProfile';
-import { PROFILE_INFO } from '../../../lib/financialProfileEngine';
+} from '../../../hooks/pilotage/useFinancialProfile';
+import { PROFILE_INFO } from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useSavingsConfig, useSaveSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/useSavingsConfig';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useSavingsConfig, useSaveSavingsConfig, SAVINGS_DEFAULTS } from '../../../hooks/config/useSavingsConfig';
 
 
 type Tab = 'simulate' | 'messages' | 'matrix' | 'global';
@@ -260,7 +260,7 @@ function MessagesSection({ userId }: { userId: string }) {
                 </Text>
               </View>
               <Text style={styles.msgTransition}>{label}</Text>
-              <TouchableOpacity onPress={() => isEditing ? setEditing(null) : startEdit(transition, direction)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={isEditing ? 'Annuler la modification' : 'Modifier la transition'} onPress={() => isEditing ? setEditing(null) : startEdit(transition, direction)}>
                 <Ionicons name={isEditing ? 'close' : 'create-outline'} size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -371,7 +371,7 @@ function MatrixSection({ userId }: { userId: string }) {
               <Text style={styles.matrixLabel}>
                 {fromInfo.emoji} {fromInfo.name} → {toInfo.emoji} {toInfo.name}
               </Text>
-              <TouchableOpacity onPress={() => isEditing ? setEditingKey(null) : startEdit(transition)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={isEditing ? 'Annuler la modification' : 'Modifier la transition'} onPress={() => isEditing ? setEditingKey(null) : startEdit(transition)}>
                 <Ionicons name={isEditing ? 'close' : 'create-outline'} size={18} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>

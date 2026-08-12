@@ -1,4 +1,4 @@
-import { getCurrentAction, type AppStateInputs } from '../lib/appStateEngine';
+import { getCurrentAction, type AppStateInputs } from '../lib/engagement/appStateEngine';
 
 const base: AppStateInputs = {
   hasBalance: true, hasIncome: true, hasFixed: true,

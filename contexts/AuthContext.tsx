@@ -6,8 +6,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
-import { clearCachedUserTheme } from '../lib/themeBoot';
+import { supabase } from '../lib/platform/supabase';
+import { clearCachedUserTheme } from '../lib/platform/themeBoot';
 
 type AuthState = {
   user: User | null;

@@ -1,4 +1,4 @@
-import { getRecoContextText, type RecoFinancials } from '../lib/recoContext';
+import { getRecoContextText, type RecoFinancials } from '../lib/finance/recoContext';
 
 const fin: RecoFinancials = { currentChecking: 4000, projectedEndChecking: 4180 };
 

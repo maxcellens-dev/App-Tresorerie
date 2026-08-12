@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState, useEffect } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View,
   Text,
@@ -14,40 +14,40 @@ import {
   Pressable,
   useWindowDimensions,
 } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import ScreenHeader from '../../../components/ScreenHeader';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
-import { iconForCategory, VIREMENT_ICON } from '../../../lib/categoryIcons';
-import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
-import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
-import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/txOrder';
-import { findRegulCategoryId } from '../../../lib/regul';
-import { useCategories } from '../../../hooks/useCategories';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
+import { iconForCategory, VIREMENT_ICON } from '../../../lib/ui/categoryIcons';
+import { formatDateFrench, todayISO } from '../../../lib/dateUtils';
+import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
+import { compareTransactionsForDisplay, isRegulRow } from '../../../lib/finance/txOrder';
+import { findRegulCategoryId } from '../../../lib/finance/regul';
+import { useCategories } from '../../../hooks/data/useCategories';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAllAccounts, useUpdateAccount } from '../../../hooks/useAccounts';
-import { useAccountParticipants, useAccountMembers } from '../../../hooks/useSharedAccounts';
-import { useAllTransactions, useAddTransaction, TX_FETCH_LIMIT } from '../../../hooks/useTransactions';
-import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
-import { useCreditFlows } from '../../../hooks/useCreditFlows';
-import { buildOverrideMap, applyMonthOverrides, overrideKey } from '../../../lib/txOverrides';
-import { recurrenceOccurrencesInMonth } from '../../../lib/recurrenceMonth';
-import { computeContributed } from '../../../lib/contributed';
+import { useAllAccounts, useUpdateAccount } from '../../../hooks/data/useAccounts';
+import { useAccountParticipants, useAccountMembers } from '../../../hooks/data/useSharedAccounts';
+import { useAllTransactions, useAddTransaction, TX_FETCH_LIMIT } from '../../../hooks/data/useTransactions';
+import { useTransactionMonthOverrides } from '../../../hooks/data/useTransactionMonthOverrides';
+import { useCreditFlows } from '../../../hooks/data/useCreditFlows';
+import { buildOverrideMap, applyMonthOverrides, overrideKey } from '../../../lib/finance/txOverrides';
+import { recurrenceOccurrencesInMonth } from '../../../lib/finance/recurrenceMonth';
+import { computeContributed } from '../../../lib/finance/contributed';
 import type { TransactionWithDetails } from '../../../types/database';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { currencySymbolFor } from '../../../lib/currency';
-import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } from '../../../lib/investment';
-import { useRecalibrateReliability } from '../../../hooks/useReliability';
-import BalanceChart from '../../../components/BalanceChart';
-import AccountSettingsForm from '../../../components/AccountSettingsForm';
-import PageLoader from '../../../components/PageLoader';
-import { buildBalanceHistory } from '../../../lib/balanceHistory';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { currencySymbolFor } from '../../../lib/finance/currency';
+import { INVESTMENT_GAIN_NOTE, INVESTMENT_LOSS_NOTE, isInvestmentGainLossNote } from '../../../lib/finance/investment';
+import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
+import BalanceChart from '../../../components/charts/BalanceChart';
+import AccountSettingsForm from '../../../components/account/AccountSettingsForm';
+import PageLoader from '../../../components/layout/PageLoader';
+import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
 
 
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
@@ -770,7 +770,7 @@ function AccountDetailScreen() {
                 />
                 <Text style={styles.apportCur}>{CURRENCY_SYMBOL}</Text>
                 {apportBaseDirty && (
-                  <TouchableOpacity style={styles.apportSave} onPress={saveApportBase}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Valider l'apport" style={styles.apportSave} onPress={saveApportBase}>
                     <Ionicons name="checkmark" size={16} color={COLORS.bg} />
                   </TouchableOpacity>
                 )}

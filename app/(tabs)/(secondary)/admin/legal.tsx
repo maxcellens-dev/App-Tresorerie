@@ -4,16 +4,16 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useLegalContent, useSaveLegalContent } from '../../../../hooks/useLegalContent';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useLegalContent, useSaveLegalContent } from '../../../../hooks/config/useLegalContent';
 
 export default function AdminLegal() {
   const COLORS = useAppColors();

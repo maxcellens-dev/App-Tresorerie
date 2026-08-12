@@ -1,5 +1,5 @@
-import { monthlyIds } from '../lib/pulseEngine';
-import type { PulseSignalId } from '../lib/pulseEngine';
+import { monthlyIds } from '../lib/pulse/pulseEngine';
+import type { PulseSignalId } from '../lib/pulse/pulseEngine';
 
 /**
  * L'état des lieux se lit APRÈS la clôture, donc bien après la fin du mois concerné : il doit

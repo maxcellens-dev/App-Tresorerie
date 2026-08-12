@@ -5,34 +5,37 @@
  * L'instantané financier envoyé est ANONYMISÉ (montants + catégories uniquement).
  */
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, Platform, Modal, Pressable } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import CalculatorButton from '../../components/CalculatorButton';
-import { withDeferredMount } from '../../hooks/useDeferredMount';
+import ScreenGradient from '../../components/layout/ScreenGradient';
+import CalculatorButton from '../../components/transaction/CalculatorButton';
+import { withDeferredMount } from '../../hooks/platform/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useResponsive } from '../../hooks/useResponsive';
-import { pageColumn } from '../../lib/webLayout';
-import { useNavBack } from '../../hooks/useNavBack';
-import { useUsageGuard } from '../../hooks/useUsageLimits';
-import { parseUsageLimitError } from '../../lib/usageLimits';
-import { sheetWidth, useSheetBottomPadding } from '../../lib/appLayout';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useResponsive } from '../../hooks/theme/useResponsive';
+import { pageColumn } from '../../lib/ui/webLayout';
+import { useNavBack } from '../../hooks/platform/useNavBack';
+import { useUsageGuard } from '../../hooks/config/useUsageLimits';
+import { parseUsageLimitError } from '../../lib/finance/usageLimits';
+import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-import { usePlan } from '../../hooks/usePlan';
-import { useProfile } from '../../hooks/useProfile';
-import { useUserSnapshot } from '../../hooks/useUserSnapshot';
-import { useUiPrefs } from '../../hooks/useUiPrefs';
+import { usePlan } from '../../hooks/config/usePlan';
+import { useProfile } from '../../hooks/data/useProfile';
+import { useUserSnapshot } from '../../hooks/data/useUserSnapshot';
+import { useUiPrefs } from '../../hooks/config/useUiPrefs';
 import { KeyboardEvents, useKeyboardHandler } from 'react-native-keyboard-controller';
 import Reanimated, { useAnimatedStyle, useSharedValue, interpolate } from 'react-native-reanimated';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import AiRichText from '../../components/AiRichText';
-import AiReport from '../../components/AiReport';
-import { parseAiReport } from '../../lib/aiReport';
-import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/useAi';
+/* Depuis SDK 56, expo-router n'est plus compatible avec react-navigation : il embarque sa PROPRE
+   copie des onglets du bas. Le hook est le même, seul son chemin change. Pas de sous-export public
+   pour celui-ci — d'où l'import profond, à revérifier à chaque montée de version d'expo-router. */
+import { useBottomTabBarHeight } from 'expo-router/build/react-navigation/bottom-tabs';
+import AiRichText from '../../components/ai/AiRichText';
+import AiReport from '../../components/ai/AiReport';
+import { parseAiReport } from '../../lib/ai/aiReport';
+import { useAiConfig, useAiQuota, useAiPrompts, useAiMessages, useAiMessagesRealtime, useAiExtraCreditsRealtime, useAskAi, useSaveBilanMetrics, usePurchaseExtraCredits, useAiConversations, useCreateConversation, useRenameConversation, useDeleteConversation, type AiMessage, type AiCreditPack, type AiConversation } from '../../hooks/admin/useAi';
 
 export default withDeferredMount(ConseilsIaScreen);
 function ConseilsIaScreen() {
@@ -494,7 +497,7 @@ function ConseilsIaScreen() {
                 onSubmitEditing={sendChat}
                 onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 350)}
               />
-              <TouchableOpacity style={[s.sendBtn, (pending || !input.trim()) && { opacity: 0.5 }]} disabled={pending || !input.trim()} onPress={sendChat}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Envoyer" style={[s.sendBtn, (pending || !input.trim()) && { opacity: 0.5 }]} disabled={pending || !input.trim()} onPress={sendChat}>
                 <Ionicons name="send" size={18} color="#fff" />
               </TouchableOpacity>
             </View>

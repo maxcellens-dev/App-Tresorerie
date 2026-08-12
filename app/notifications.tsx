@@ -4,9 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../hooks/useAppColors';
+import { useAppColors } from '../hooks/theme/useAppColors';
 import { useAuth } from '../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../hooks/useProfile';
+import { useProfile, useUpdateProfile } from '../hooks/data/useProfile';
 
 
 export default function NotificationsScreen() {

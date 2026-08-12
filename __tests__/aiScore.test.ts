@@ -1,4 +1,4 @@
-import { computeHealthScore, deriveEngaged, type ScoreInput } from '../lib/aiScore';
+import { computeHealthScore, deriveEngaged, type ScoreInput } from '../lib/ai/aiScore';
 
 const base: ScoreInput = {
   income: 2333, realIncome: 4000, savings: 23000, invested: 95132,

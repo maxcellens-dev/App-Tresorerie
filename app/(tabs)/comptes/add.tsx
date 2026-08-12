@@ -1,22 +1,22 @@
 ﻿import { useMemo, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAddAccount } from '../../../hooks/useAccounts';
-import { useUsageGuard } from '../../../hooks/useUsageLimits';
-import { useProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useFiscalEnvelopeRates } from '../../../hooks/useFiscalEnvelopes';
-import CurrencyPicker from '../../../components/CurrencyPicker';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import { useAddAccount } from '../../../hooks/data/useAccounts';
+import { useUsageGuard } from '../../../hooks/config/useUsageLimits';
+import { useProfile } from '../../../hooks/data/useProfile';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useFiscalEnvelopeRates } from '../../../hooks/data/useFiscalEnvelopes';
+import CurrencyPicker from '../../../components/account/CurrencyPicker';
+import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
-import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
+import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
 
 
 const TYPES = [
@@ -310,7 +310,7 @@ export default function AddAccountScreen() {
               placeholder="jj-mm-aaaa"
               placeholderTextColor={COLORS.textSecondary}
             />
-            <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar(true)}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une date" style={styles.calendarBtn} onPress={() => setShowCalendar(true)}>
               <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
             </TouchableOpacity>
           </View>

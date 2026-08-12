@@ -1,20 +1,20 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import ScreenHeader from '../../../components/ScreenHeader';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile } from '../../../hooks/useProfile';
-import { useMySupportRequests, useCreateSupportRequest, type SupportRequest } from '../../../hooks/useSupport';
-import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
-import SupportThreadModal from '../../../components/SupportThreadModal';
+import { useProfile } from '../../../hooks/data/useProfile';
+import { useMySupportRequests, useCreateSupportRequest, type SupportRequest } from '../../../hooks/admin/useSupport';
+import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
+import SupportThreadModal from '../../../components/ui/SupportThreadModal';
 
 
 function formatDate(iso: string) {

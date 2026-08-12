@@ -1,7 +1,7 @@
 import {
   computeConfidence, toRange, computeCalibration, median, makeSubRanges,
   resolveReliabilityConfig, RELIABILITY_DEFAULTS, type DriftCalibration,
-} from '../lib/confidenceEngine';
+} from '../lib/finance/confidenceEngine';
 
 const cfg = RELIABILITY_DEFAULTS;
 const TODAY = new Date('2026-07-15T00:00:00');

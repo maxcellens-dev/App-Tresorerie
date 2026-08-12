@@ -1,34 +1,33 @@
 ﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Switch, Linking, Alert } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import { LinearGradient } from 'expo-linear-gradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
-import { currencySymbolFor } from '../../../lib/currency';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn, IS_WEB } from '../../../lib/webLayout';
-import { THEME_MODES, THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
-import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
-import { useFeatureFlags } from '../../../hooks/useFeatureFlags';
-import CurrencyPicker from '../../../components/CurrencyPicker';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
+import { currencySymbolFor } from '../../../lib/finance/currency';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn, IS_WEB } from '../../../lib/ui/webLayout';
+import { THEME_PRESETS, type AppColors, type ThemeMode, type ThemePreset } from '../../../theme/palette';
+import { useStyleConfig, orderPresetIds } from '../../../hooks/theme/useStyleConfig';
+import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
+import CurrencyPicker from '../../../components/account/CurrencyPicker';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useCalculator } from '../../../contexts/CalculatorContext';
-import { usePilotageTips, useRecoDismissals, CALCULATOR_PAGES } from '../../../hooks/useUiPrefs';
-import { useRecoThresholds } from '../../../hooks/useRecoThresholds';
-import { useFinancialProfile } from '../../../hooks/useFinancialProfile';
-import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/recommendationEngine';
+import { usePilotageTips, useRecoDismissals, CALCULATOR_PAGES } from '../../../hooks/config/useUiPrefs';
+import { useRecoThresholds } from '../../../hooks/pilotage/useRecoThresholds';
+import { useFinancialProfile } from '../../../hooks/pilotage/useFinancialProfile';
+import { resolveConsumptionMode, getConsumptionOrder, RECO_TYPE_LABELS, RECO_COLORS } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
-import { APP_VERSION } from '../../../lib/appVersion';
-import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/appLock';
-import { diagnosePushRegistration } from '../../../lib/pushNotifications';
-import { usePushPermission } from '../../../hooks/usePushPermission';
+import { APP_VERSION } from '../../../lib/platform/appVersion';
+import { APP_LOCK_SUPPORTED, getAppLockEnabled, setAppLockEnabled, isDeviceAuthAvailable, runDeviceAuth } from '../../../lib/auth/appLock';
+import { diagnosePushRegistration } from '../../../lib/platform/pushNotifications';
+import { usePushPermission } from '../../../hooks/platform/usePushPermission';
 
 const ANDROID_PACKAGE = 'com.relyka.myapp';
 
@@ -254,6 +253,8 @@ function SettingsScreen() {
                 <Text style={{ color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' }}>{currencySymbol}</Text>
                 {String(parseFloat(safetyAmountInput.replace(',', '.')) || 0) !== String(currentSafetyAmount) && (
                   <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Valider la marge de sécurité"
                     onPress={handleSafetyAmountSave}
                     style={{ backgroundColor: COLORS.emerald, borderRadius: 8, padding: 6 }}
                     activeOpacity={0.8}

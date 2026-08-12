@@ -1,26 +1,25 @@
 ﻿import { useMemo, useRef } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import ScreenHeader from '../../../components/ScreenHeader';
-import { LinearGradient } from 'expo-linear-gradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
-import { supabase } from '../../../lib/supabase';
-import { compressAvatarToWebP } from '../../../lib/avatarCompress';
+import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
+import { supabase } from '../../../lib/platform/supabase';
+import { compressAvatarToWebP } from '../../../lib/platform/avatarCompress';
 import { uploadAvatar, deleteAvatar } from '../../../services/avatarService';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useCosmetics } from '../../../hooks/useCosmetics';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useCosmetics } from '../../../hooks/theme/useCosmetics';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 
 
 function ProfileScreen() {

@@ -9,18 +9,18 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
-import { useClientErrors, useResolveClientError, useResolveAllClientErrors, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/useSecurity';
-import PasswordStrength from '../../../../components/PasswordStrength';
-import { evaluatePassword } from '../../../../lib/passwordPolicy';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
+import { useClientErrors, useResolveClientError, useResolveAllClientErrors, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/platform/useSecurity';
+import PasswordStrength from '../../../../components/auth/PasswordStrength';
+import { evaluatePassword } from '../../../../lib/auth/passwordPolicy';
 
 export default function AdminSecurity() {
   const COLORS = useAppColors();
@@ -234,7 +234,7 @@ function ErrorRow({ e, c, s, expanded, onToggle, onResolve }: { e: ClientError; 
         {!!e.route && <Text style={s.errRoute}>↳ {e.route}</Text>}
         {expanded && !!e.stack && <Text style={s.errStack}>{e.stack}</Text>}
       </TouchableOpacity>
-      <TouchableOpacity onPress={onResolve} hitSlop={8} style={s.resolveBtn}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={e.resolved ? 'Rouvrir l\'incident' : 'Marquer comme résolu'} onPress={onResolve} hitSlop={8} style={s.resolveBtn}>
         <Ionicons name={e.resolved ? 'refresh-outline' : 'checkmark-circle-outline'} size={22} color={e.resolved ? c.textSecondary : c.success} />
       </TouchableOpacity>
     </View>

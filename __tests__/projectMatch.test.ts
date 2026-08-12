@@ -1,4 +1,4 @@
-import { matchProjectsForTransaction, nextMonthlyAllocation } from '../lib/projectMatch';
+import { matchProjectsForTransaction, nextMonthlyAllocation } from '../lib/finance/projectMatch';
 import type { Project } from '../types/database';
 
 function project(over: Partial<Project> = {}): Project {

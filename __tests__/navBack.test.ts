@@ -1,4 +1,4 @@
-import { parentRoute } from '../lib/navHistory';
+import { parentRoute } from '../lib/ui/navHistory';
 
 /**
  * `parentRoute` n'est utilisé QUE lorsqu'il n'y a pas d'historique (ouverture par URL,

@@ -8,7 +8,7 @@
  */
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
-import { useCalculatorEnabledPref, useCalculatorPagesPref, type CalculatorPageId } from '../hooks/useUiPrefs';
+import { useCalculatorEnabledPref, useCalculatorPagesPref, type CalculatorPageId } from '../hooks/config/useUiPrefs';
 
 interface CalculatorContextValue {
   isOpen: boolean;

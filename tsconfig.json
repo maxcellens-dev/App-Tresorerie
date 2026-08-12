@@ -2,8 +2,16 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "baseUrl": ".",
+    // Pas de `baseUrl` : déprécié en TypeScript 6 (retiré en 7). Les `paths` se résolvent
+    // désormais relativement à CE fichier, ce qui donne exactement le même résultat ici.
     "paths": { "@/*": ["./app/*"] },
+    // Types globaux déclarés EXPLICITEMENT. Sans `baseUrl`, l'inclusion automatique de
+    // `node_modules/@types` ne se fait plus : les suites perdaient `describe` / `it` / `expect`
+    // (~4 000 erreurs). Les autres typages (React…) restent résolus par les imports.
+    "types": ["jest", "node"],
+    // Exigé depuis TypeScript 6 : sans lui, ts-jest déduit la racine du seul dossier compilé
+    // (`__tests__`) et refuse de continuer (TS5011). Sans effet sur `tsc`, qui est en `noEmit`.
+    "rootDir": ".",
     "module": "esnext",
     // Honore le champ `exports` des packages (react-query, etc.) — sinon résolution
     // « node » héritée d'expo/tsconfig.base → types perdus → flot d'implicit-any.

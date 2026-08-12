@@ -1,6 +1,6 @@
-import { computeRecommendations, type RecoType } from '../lib/recommendationEngine';
-import { isHidden } from '../lib/recoDismissals';
-import { formatRangeLabel } from '../lib/currency';
+import { computeRecommendations, type RecoType } from '../lib/finance/recommendationEngine';
+import { isHidden } from '../lib/finance/recoDismissals';
+import { formatRangeLabel } from '../lib/finance/currency';
 
 /**
  * Cas « le montant affiché n'est pas le montant proposé ».

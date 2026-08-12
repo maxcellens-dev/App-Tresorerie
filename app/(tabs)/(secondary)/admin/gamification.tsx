@@ -6,20 +6,20 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { supabase } from '../../../../lib/supabase';
-import { useGamificationConfig, useSaveGamificationConfig } from '../../../../hooks/useGamificationConfig';
-import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../../lib/gamification';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useGamificationConfig, useSaveGamificationConfig } from '../../../../hooks/engagement/useGamificationConfig';
+import { isImageIcon, currencyPlural, type GamificationConfig, type BadgeDef, type BadgeMetric } from '../../../../lib/engagement/gamification';
 
 const METRICS: { value: BadgeMetric; label: string }[] = [
   { value: 'streak_weeks', label: 'Semaines connectées (cumul)' },
@@ -215,7 +215,7 @@ export default function AdminGamification() {
                 <View style={[styles.badgePreview, { backgroundColor: COLORS.emerald + '22' }]}>
                   {isImageIcon(b.icon) ? <Text style={{ fontSize: 9, color: COLORS.textSecondary }}>IMG</Text> : <Ionicons name={(b.icon || 'trophy') as any} size={20} color={COLORS.emerald} />}
                 </View>
-                <TouchableOpacity onPress={() => removeBadge(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le succès" onPress={() => removeBadge(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
               </View>
               <Field label="Titre" value={b.label} onChange={(v) => updateBadge(i, { label: v })} styles={styles} c={COLORS} />
               <Field label="Description" value={b.description} onChange={(v) => updateBadge(i, { description: v })} styles={styles} c={COLORS} />
@@ -234,7 +234,7 @@ export default function AdminGamification() {
               <Text style={styles.fieldLabel}>Icône (Ionicons ou image)</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput style={[styles.input, { flex: 1 }]} value={b.icon} onChangeText={(v) => updateBadge(i, { icon: v })} placeholder="trophy ou URL" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-                <TouchableOpacity style={styles.uploadBtn} onPress={() => uploadIcon(i)} disabled={uploadingKey === b.key}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'icône du succès" style={styles.uploadBtn} onPress={() => uploadIcon(i)} disabled={uploadingKey === b.key}>
                   {uploadingKey === b.key ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
                 </TouchableOpacity>
               </View>
@@ -268,7 +268,7 @@ function IconField({ label, value, onChange, onUpload, uploading, styles, c }: {
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <TextInput style={[styles.input, { flex: 1 }]} value={value} onChangeText={onChange} placeholder="diamond, 🔥 ou URL" placeholderTextColor={c.textSecondary} autoCapitalize="none" autoCorrect={false} />
-        <TouchableOpacity style={styles.uploadBtn} onPress={onUpload} disabled={uploading}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'image" style={styles.uploadBtn} onPress={onUpload} disabled={uploading}>
           {uploading ? <ActivityIndicator size="small" color={c.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={c.emerald} />}
         </TouchableOpacity>
       </View>

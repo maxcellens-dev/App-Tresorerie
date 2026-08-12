@@ -13,21 +13,21 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useReliabilityConfig, deriveRelykaConfidence, type RelykaConfidence } from '../../../../hooks/useReliability';
-import { getCurrentAction, type AppStateInputs } from '../../../../lib/appStateEngine';
-import { unverifiedSincePhrase, verifiedAgoPhrase, RELIABILITY_DEFAULTS, type DriftCalibration } from '../../../../lib/confidenceEngine';
-import { computeRecommendations, type SmartRecommendation } from '../../../../lib/recommendationEngine';
-import { ActionBannerCard } from '../../../../components/NextActionBanner';
-import { ClosureBannerCard } from '../../../../components/MonthlyClosure';
-import RecommendationCard from '../../../../components/RecommendationCard';
-import { floorToTen } from '../../../../lib/currency';
-import type { PilotageData } from '../../../../hooks/usePilotageData';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useReliabilityConfig, deriveRelykaConfidence, type RelykaConfidence } from '../../../../hooks/pilotage/useReliability';
+import { getCurrentAction, type AppStateInputs } from '../../../../lib/engagement/appStateEngine';
+import { unverifiedSincePhrase, verifiedAgoPhrase, RELIABILITY_DEFAULTS, type DriftCalibration } from '../../../../lib/finance/confidenceEngine';
+import { computeRecommendations, type SmartRecommendation } from '../../../../lib/finance/recommendationEngine';
+import { ActionBannerCard } from '../../../../components/onboarding/NextActionBanner';
+import { ClosureBannerCard } from '../../../../components/closure/MonthlyClosure';
+import RecommendationCard from '../../../../components/pilotage/RecommendationCard';
+import { floorToTen } from '../../../../lib/finance/currency';
+import type { PilotageData } from '../../../../hooks/pilotage/usePilotageData';
 
 /* ── Données d'exemple (réalistes, sans lien avec le compte connecté) ── */
 

@@ -52,11 +52,21 @@ export function parseDateFromFrench(input: string, allowPast = true): string {
   }
 }
 
+/**
+ * Une date en ISO court (AAAA-MM-JJ), lue en heure LOCALE.
+ *
+ * Jamais `toISOString().slice(0, 10)` : celui-ci convertit en UTC, donc renvoie la veille pour tout
+ * ce qui se passe après 22 h en France — les opérations du jour disparaissaient des filtres
+ * « aujourd'hui » après minuit UTC.
+ */
+export function isoDay(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Get today's date as ISO string YYYY-MM-DD */
 export function todayISO(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return isoDay(new Date());
 }

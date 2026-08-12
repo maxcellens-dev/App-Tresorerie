@@ -1,7 +1,7 @@
 import {
   computeGuideStage, isGuideActive, isGuideInPlay, isInSetup, isTourJustFinished,
   type GuideInput,
-} from '../lib/guideStages';
+} from '../lib/engagement/guideStages';
 
 /** Compte neuf, données lues, rien de fait : le point de départ du parcours. */
 const base = (over: Partial<GuideInput> = {}): GuideInput => ({

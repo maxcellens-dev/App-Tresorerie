@@ -8,23 +8,23 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform, Alert, Modal, Pressable } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { supabase } from '../../../../lib/supabase';
-import { sheetWidth } from '../../../../lib/appLayout';
-import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, useRepairMissingProfiles, type InactiveUser } from '../../../../hooks/useInactiveUsers';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { supabase } from '../../../../lib/platform/supabase';
+import { sheetWidth } from '../../../../lib/ui/appLayout';
+import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, useRepairMissingProfiles, type InactiveUser } from '../../../../hooks/admin/useInactiveUsers';
 
 type Tab = 'users' | 'groups' | 'inactive';
 
@@ -111,7 +111,7 @@ function UsersPanel({ COLORS, s }: { COLORS: any; s: any }) {
       <View style={s.searchBox}>
         <Ionicons name="search" size={18} color={COLORS.textSecondary} />
         <TextInput style={s.searchInput} value={query} onChangeText={setQuery} placeholder="Rechercher par e-mail ou nom…" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-        {query.length > 0 && <TouchableOpacity onPress={() => setQuery('')}><Ionicons name="close-circle" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
+        {query.length > 0 && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setQuery('')}><Ionicons name="close-circle" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
       </View>
       <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
         <AuthOrphans COLORS={COLORS} s={s} />
@@ -265,7 +265,7 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
           <Text style={s.fieldLabel}>Nouveau groupe</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TextInput style={[s.input, { flex: 1 }]} value={newName} onChangeText={setNewName} placeholder="Ex. Bêta-testeurs" placeholderTextColor={COLORS.textSecondary} maxLength={40} />
-            <TouchableOpacity style={[s.createBtn, !newName.trim() && { opacity: 0.5 }]} onPress={() => createGroup.mutate()} disabled={!newName.trim() || createGroup.isPending}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Créer le groupe" style={[s.createBtn, !newName.trim() && { opacity: 0.5 }]} onPress={() => createGroup.mutate()} disabled={!newName.trim() || createGroup.isPending}>
               {createGroup.isPending ? <ActivityIndicator size="small" color={COLORS.bg} /> : <Ionicons name="add" size={20} color={COLORS.bg} />}
             </TouchableOpacity>
           </View>
@@ -278,7 +278,7 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
                 <Text style={s.groupName}>{g.name}</Text>
                 <Text style={s.groupMeta}>{g.count} membre{g.count > 1 ? 's' : ''} · appuyez pour gérer</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => confirmDeleteGroup(g)} hitSlop={8}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le groupe" onPress={() => confirmDeleteGroup(g)} hitSlop={8}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
             </View>
           ))}
       </KeyboardAwareScrollView>
@@ -288,7 +288,7 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
           <Pressable style={s.modalSheet} onPress={() => {}}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle} numberOfLines={1}>{membersOf?.name}</Text>
-              <TouchableOpacity onPress={() => setMembersOf(null)} style={{ padding: 4 }}><Ionicons name="close" size={22} color={COLORS.text} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setMembersOf(null)} style={{ padding: 4 }}><Ionicons name="close" size={22} color={COLORS.text} /></TouchableOpacity>
             </View>
             <TextInput style={s.input} value={search} onChangeText={setSearch} placeholder="Rechercher un utilisateur (nom / e-mail)" placeholderTextColor={COLORS.textSecondary} />
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }} style={{ maxHeight: '78%' }}>
@@ -394,7 +394,7 @@ function InactivePanel({ COLORS, s }: { COLORS: any; s: any }) {
           placeholder="Rechercher un compte à supprimer (nom ou e-mail)…"
           placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false}
         />
-        {query.length > 0 && <TouchableOpacity onPress={() => setQuery('')}><Ionicons name="close-circle" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
+        {query.length > 0 && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setQuery('')}><Ionicons name="close-circle" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
       </View>
 
       {/* Le seuil d'inactivité n'a plus de sens pendant une recherche : elle balaie tout le monde. */}

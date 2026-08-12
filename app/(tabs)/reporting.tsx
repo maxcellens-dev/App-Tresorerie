@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, useWindowDimensions, TouchableOpacity, Platform } from 'react-native';
-import ScreenGradient from '../../components/ScreenGradient';
-import CalculatorButton from '../../components/CalculatorButton';
-import PageLoader from '../../components/PageLoader';
-import { useDeferredMount } from '../../hooks/useDeferredMount';
+import ScreenGradient from '../../components/layout/ScreenGradient';
+import CalculatorButton from '../../components/transaction/CalculatorButton';
+import PageLoader from '../../components/layout/PageLoader';
+import { useDeferredMount } from '../../hooks/platform/useDeferredMount';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,30 +15,30 @@ import { Animated, Easing } from 'react-native';
 const svgPress = (handler: () => void): Record<string, unknown> =>
   Platform.OS === 'web' ? { onClick: handler } : { onPress: handler };
 import Svg, { Rect, Text as SvgText, Line, Path, G, Circle } from 'react-native-svg';
-import { useTransactions } from '../../hooks/useTransactions';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useCategories } from '../../hooks/useCategories';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { useSharedContribution } from '../../hooks/useSharedContribution';
-import { useProfile } from '../../hooks/useProfile';
-import { usePlan } from '../../hooks/usePlan';
-import { useNavBack } from '../../hooks/useNavBack';
+import { useTransactions } from '../../hooks/data/useTransactions';
+import { useAccounts } from '../../hooks/data/useAccounts';
+import { useCategories } from '../../hooks/data/useCategories';
+import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
+import { useSharedContribution } from '../../hooks/data/useSharedContribution';
+import { useProfile } from '../../hooks/data/useProfile';
+import { usePlan } from '../../hooks/config/usePlan';
+import { useNavBack } from '../../hooks/platform/useNavBack';
 import { ACCOUNT_COLORS } from '../../theme/colors';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useResponsive } from '../../hooks/useResponsive';
-import { pageColumn } from '../../lib/webLayout';
-import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
-import { useCurrencyRates } from '../../hooks/useCurrencyRates';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useResponsive } from '../../hooks/theme/useResponsive';
+import { pageColumn } from '../../lib/ui/webLayout';
+import { CURRENCY_SYMBOL, convertAmount } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
 import { todayISO } from '../../lib/dateUtils';
-import { computeSecurityCushion } from '../../lib/securityCushion';
-import { buildPerimeterCtx, transformFluxTransactions, fluxFactor, effectiveSharedMode } from '../../lib/perimeter';
-import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
+import { computeSecurityCushion } from '../../lib/finance/securityCushion';
+import { buildPerimeterCtx, transformFluxTransactions, fluxFactor, effectiveSharedMode } from '../../lib/finance/perimeter';
+import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMonthOverrides';
 import {
   monthsWindow, futureMonthsWindow, buildMonthlyFlux, buildForecastFlux, variableShareByAccount,
   buildSavingsSeries, buildCategoryBreakdown,
   buildTopCategoriesCompare, buildBalanceSeries, buildInsights,
   type ReportTx, type InsightTone, type MonthlyFlux,
-} from '../../lib/reportingEngine';
+} from '../../lib/finance/reportingEngine';
 
 /* ── Palette catégorielle VALIDÉE (dataviz) — light/dark, ordre fixe (jamais cyclé). ── */
 const CAT_LIGHT = ['#2a78d6', '#1baf7a', '#eda100', '#008300', '#4a3aa7', '#e34948', '#e87ba4', '#eb6834'];

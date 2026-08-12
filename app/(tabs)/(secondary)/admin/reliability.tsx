@@ -9,14 +9,14 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useReliabilityConfig, useSaveReliabilityConfig } from '../../../../hooks/useReliability';
-import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/confidenceEngine';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useReliabilityConfig, useSaveReliabilityConfig } from '../../../../hooks/pilotage/useReliability';
+import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/finance/confidenceEngine';
 
 // Champs dans l'ORDRE du calcul : base → ancienneté → dérive → seuils du ratio → fourchette.
 const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; pct?: boolean }[] = [

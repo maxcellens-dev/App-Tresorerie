@@ -1,22 +1,21 @@
 ﻿import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import ScreenHeader from '../../../components/ScreenHeader';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../../lib/platform/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRoadmapIdeas } from '../../../hooks/useRoadmapIdeas';
-import { notifyAdminsEvent } from '../../../lib/pushSend';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useRoadmapIdeas } from '../../../hooks/engagement/useRoadmapIdeas';
+import { notifyAdminsEvent } from '../../../lib/platform/pushSend';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 
 
 function useSuggestions(profileId: string | undefined) {

@@ -5,18 +5,18 @@
  */
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { pageColumn } from '../../../../lib/webLayout';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorderBaseCategories, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/useBaseCategories';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorderBaseCategories, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/data/useBaseCategories';
 
 export default function AdminCategoriesScreen() {
   const COLORS = useAppColors();
@@ -79,14 +79,14 @@ export default function AdminCategoriesScreen() {
       ) : (
         <Text style={[styles.name, !isChild && { fontWeight: '700' }]} numberOfLines={1}>{c.name}{!c.is_active ? ' (archivée)' : ''}</Text>
       )}
-      <TouchableOpacity onPress={() => move(c, -1)}><Ionicons name="chevron-up" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
-      <TouchableOpacity onPress={() => move(c, 1)}><Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter la catégorie" onPress={() => move(c, -1)}><Ionicons name="chevron-up" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre la catégorie" onPress={() => move(c, 1)}><Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
       {editingId === c.id ? (
-        <TouchableOpacity onPress={() => saveName(c)}><Ionicons name="checkmark" size={18} color={COLORS.emerald} /></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Enregistrer le nom" onPress={() => saveName(c)}><Ionicons name="checkmark" size={18} color={COLORS.emerald} /></TouchableOpacity>
       ) : (
-        <TouchableOpacity onPress={() => { setEditingId(c.id); setEditName(c.name); }}><Ionicons name="pencil" size={16} color={COLORS.blue} /></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Renommer la catégorie" onPress={() => { setEditingId(c.id); setEditName(c.name); }}><Ionicons name="pencil" size={16} color={COLORS.blue} /></TouchableOpacity>
       )}
-      <TouchableOpacity onPress={() => toggleArchive(c)}><Ionicons name={c.is_active ? 'archive-outline' : 'refresh-outline'} size={17} color={c.is_active ? COLORS.danger : COLORS.emerald} /></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={c.is_active ? 'Archiver la catégorie' : 'Restaurer la catégorie'} onPress={() => toggleArchive(c)}><Ionicons name={c.is_active ? 'archive-outline' : 'refresh-outline'} size={17} color={c.is_active ? COLORS.danger : COLORS.emerald} /></TouchableOpacity>
     </View>
   );
 
@@ -111,7 +111,7 @@ export default function AdminCategoriesScreen() {
               {addChildTo === p.id ? (
                 <View style={[styles.row, { paddingLeft: 26 }]}>
                   <TextInput style={styles.editInput} value={childName} onChangeText={setChildName} placeholder="Nouvelle sous-catégorie" placeholderTextColor={COLORS.textSecondary} autoFocus />
-                  <TouchableOpacity onPress={() => { if (childName.trim()) add.mutate({ name: childName.trim(), type, parent_id: p.id, is_variable: p.is_variable, sort_order: p.sort_order }); setChildName(''); setAddChildTo(null); }}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter la sous-catégorie" onPress={() => { if (childName.trim()) add.mutate({ name: childName.trim(), type, parent_id: p.id, is_variable: p.is_variable, sort_order: p.sort_order }); setChildName(''); setAddChildTo(null); }}>
                     <Ionicons name="checkmark" size={18} color={COLORS.emerald} />
                   </TouchableOpacity>
                 </View>
@@ -126,7 +126,7 @@ export default function AdminCategoriesScreen() {
           {/* Ajouter une catégorie parente */}
           <View style={styles.addParent}>
             <TextInput style={styles.editInput} value={newParent} onChangeText={setNewParent} placeholder="Nouvelle catégorie parente" placeholderTextColor={COLORS.textSecondary} />
-            <TouchableOpacity onPress={() => { if (newParent.trim()) { const maxSort = Math.max(0, ...parents.map((p) => p.sort_order ?? 0)); add.mutate({ name: newParent.trim(), type, sort_order: maxSort + 10 }); setNewParent(''); } }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter la catégorie parente" onPress={() => { if (newParent.trim()) { const maxSort = Math.max(0, ...parents.map((p) => p.sort_order ?? 0)); add.mutate({ name: newParent.trim(), type, sort_order: maxSort + 10 }); setNewParent(''); } }}>
               <Ionicons name="add-circle" size={26} color={COLORS.emerald} />
             </TouchableOpacity>
           </View>

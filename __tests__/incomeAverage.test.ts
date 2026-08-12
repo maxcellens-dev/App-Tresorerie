@@ -1,8 +1,8 @@
 import {
   computeAvgMonthlyIncome, computeMonthIncome, computeReferenceMonthlyIncome,
-} from '../lib/incomeAverage';
-import { computeProfileFromData } from '../lib/financialProfileEngine';
-import { computeSecurityCushion } from '../lib/securityCushion';
+} from '../lib/finance/incomeAverage';
+import { computeProfileFromData } from '../lib/finance/financialProfileEngine';
+import { computeSecurityCushion } from '../lib/finance/securityCushion';
 
 /**
  * Le revenu de référence décidait du PROFIL, et il en existait deux mesures divergentes : celle du

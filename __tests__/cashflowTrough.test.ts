@@ -1,4 +1,4 @@
-import { computeCashflowTrough, computeRelyka } from '../lib/relyka';
+import { computeCashflowTrough, computeRelyka } from '../lib/finance/relyka';
 
 const TODAY = '2026-07-25';
 

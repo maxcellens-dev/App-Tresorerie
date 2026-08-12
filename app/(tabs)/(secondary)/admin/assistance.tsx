@@ -4,16 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useAllSupportRequests, useDeleteSupportRequest, useDeleteClosedSupportRequests, type SupportRequest } from '../../../../hooks/useSupport';
-import SupportThreadModal from '../../../../components/SupportThreadModal';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useAllSupportRequests, useDeleteSupportRequest, useDeleteClosedSupportRequests, type SupportRequest } from '../../../../hooks/admin/useSupport';
+import SupportThreadModal from '../../../../components/ui/SupportThreadModal';
 
 function confirmThen(message: string, onYes: () => void) {
   // Confirmation in-app (§7)
@@ -125,7 +125,7 @@ export default function AdminAssistance() {
                   <Text style={styles.reqMeta}>{formatDate(r.last_message_at)}</Text>
                 </View>
                 {r.admin_unread && <View style={styles.unreadDot} />}
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la demande"
                   style={styles.cardDeleteBtn}
                   activeOpacity={0.7}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

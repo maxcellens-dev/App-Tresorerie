@@ -1,15 +1,15 @@
 ﻿import { useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../../hooks/useBrandFont';
-import { APP_VERSION } from '../../../lib/appVersion';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../../hooks/theme/useBrandFont';
+import { APP_VERSION } from '../../../lib/platform/appVersion';
 
 export default function AboutScreen() {
   const COLORS = useAppColors();

@@ -21,11 +21,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
-import { useProfile } from '../hooks/useProfile';
-import { useAccounts } from '../hooks/useAccounts';
-import { useTransactions } from '../hooks/useTransactions';
-import { useCategories, useSeedDefaultCategories } from '../hooks/useCategories';
-import { useUpdateOnboarding } from '../hooks/useOnboarding';
+import { useProfile } from '../hooks/data/useProfile';
+import { useAccounts } from '../hooks/data/useAccounts';
+import { useTransactions } from '../hooks/data/useTransactions';
+import { useCategories, useSeedDefaultCategories } from '../hooks/data/useCategories';
+import { useUpdateOnboarding } from '../hooks/engagement/useOnboarding';
 
 /* La MACHINE À ÉTATS du parcours (ordre des étapes, éligibilité, conditions d'arrêt) vit
    désormais dans lib/guideStages — logique pure, donc testable : voir __tests__/guideStages.test.ts.
@@ -34,9 +34,9 @@ import { useUpdateOnboarding } from '../hooks/useOnboarding';
 import {
   SETUP_STAGES, computeGuideStage, isGuideActive, isGuideInPlay, isTourJustFinished,
   type GuideFlag, type GuideInput, type GuideStage,
-} from '../lib/guideStages';
-export type { GuideFlag, GuideStage } from '../lib/guideStages';
-export { SETUP_STAGES } from '../lib/guideStages';
+} from '../lib/engagement/guideStages';
+export type { GuideFlag, GuideStage } from '../lib/engagement/guideStages';
+export { SETUP_STAGES } from '../lib/engagement/guideStages';
 
 interface GuideCtx {
   /** Le parcours concerne-t-il cet utilisateur (et n'est-il pas terminé) ? */

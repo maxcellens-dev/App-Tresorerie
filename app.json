@@ -3,11 +3,10 @@
     "name": "Relyka",
     "owner": "relykadevs-team",
     "slug": "relyka-app",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "scheme": "relyka-app",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
     "ios": {
       "icon": "./assets/icon.png"
     },
@@ -19,7 +18,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.relyka.myapp",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 40
+      "versionCode": 42
     },
     "plugins": [
       "./plugins/withJitpackAuth",
@@ -65,7 +64,10 @@
           "faceIDPermission": "Relyka utilise Face ID pour déverrouiller l'accès à tes données financières."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-asset",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -86,7 +88,7 @@
         "projectId": "fc209ff9-5d8b-4c7e-a83e-a3036f45930a"
       }
     },
-    "runtimeVersion": "1.0.4",
+    "runtimeVersion": "1.1.0",
     "updates": {
       "url": "https://u.expo.dev/fc209ff9-5d8b-4c7e-a83e-a3036f45930a",
       "checkAutomatically": "ON_LOAD",

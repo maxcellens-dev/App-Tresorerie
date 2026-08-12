@@ -1,4 +1,4 @@
-import { computeDueCreditOccurrences, computeCreditSchedule, creditScheduleHash } from '../lib/creditMaterialization';
+import { computeDueCreditOccurrences, computeCreditSchedule, creditScheduleHash } from '../lib/finance/creditMaterialization';
 import type { Credit } from '../types/database';
 
 /** Crédit simple et prévisible : 1200 € sur 12 mois à 0 % → 100 €/mois, assurance 10 €/mois. */

@@ -1,4 +1,4 @@
-import { computeEndOfMonthDelta, computeOpFeedback, consumesVariableEnvelope, touchesEndOfMonth } from '../lib/pulseDelta';
+import { computeEndOfMonthDelta, computeOpFeedback, consumesVariableEnvelope, touchesEndOfMonth } from '../lib/pulse/pulseDelta';
 const today = new Date(2026, 6, 15); // 15 juillet 2026
 const inMonth = '2026-07-20', nextMonth = '2026-08-03';
 const past = '2026-07-15'; // aujourd'hui (opération échue)

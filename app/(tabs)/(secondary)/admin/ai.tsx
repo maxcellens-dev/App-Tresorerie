@@ -8,23 +8,23 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
 import {
   useAiConfig, useUpdateAiConfig, useAiPrompts, useUpdateAiPrompt, useAiTickets,
   useResolveAiTicket, useAdminReplyAi, useAdminRelaunchAi, useCheckAiModels, useGrantExtraCredits,
   type AiModel, type AiModelStatus,
-} from '../../../../hooks/useAi';
+} from '../../../../hooks/admin/useAi';
 import * as Clipboard from 'expo-clipboard';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../../../lib/supabase';
-import { useUserSnapshot } from '../../../../hooks/useUserSnapshot';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useUserSnapshot } from '../../../../hooks/data/useUserSnapshot';
 
 type Tab = 'settings' | 'models' | 'prompts' | 'tickets' | 'snapshot';
 
@@ -238,8 +238,8 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
         <View key={i} style={s.promptCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View>
-              <TouchableOpacity onPress={() => move(i, -1)} disabled={i === 0}><Ionicons name="chevron-up" size={18} color={i === 0 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => move(i, 1)} disabled={i === list.length - 1}><Ionicons name="chevron-down" size={18} color={i === list.length - 1 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter le modèle" onPress={() => move(i, -1)} disabled={i === 0}><Ionicons name="chevron-up" size={18} color={i === 0 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre le modèle" onPress={() => move(i, 1)} disabled={i === list.length - 1}><Ionicons name="chevron-down" size={18} color={i === list.length - 1 ? c.cardBorder : c.textSecondary} /></TouchableOpacity>
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -250,7 +250,7 @@ function ModelsTab({ c, s, models, updateCfg }: { c: any; s: any; models: AiMode
             </View>
             <View style={{ alignItems: 'center', gap: 8 }}>
               <TouchableOpacity style={[s.switch, m.enabled && s.switchOn]} onPress={() => setField(i, 'enabled', !m.enabled)}><View style={[s.knob, m.enabled && s.knobOn]} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => remove(i)}><Ionicons name="trash-outline" size={18} color={c.danger} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer le modèle" onPress={() => remove(i)}><Ionicons name="trash-outline" size={18} color={c.danger} /></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -299,7 +299,7 @@ function QuestionsEditor({ c, s, cfg, updateCfg }: any) {
       {list.map((q, i) => (
         <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <TextInput style={[s.input, { flex: 1, marginBottom: 0 }]} value={q} onChangeText={(v) => set(i, v)} />
-          <TouchableOpacity onPress={() => setList((l) => l.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={22} color={c.danger} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la question rapide" onPress={() => setList((l) => l.filter((_, j) => j !== i))}><Ionicons name="close-circle" size={22} color={c.danger} /></TouchableOpacity>
         </View>
       ))}
       <TouchableOpacity style={s.addRow} onPress={() => setList((l) => [...l, ''])}><Ionicons name="add" size={18} color={c.emerald} /><Text style={{ color: c.emerald, fontWeight: '700' }}>Ajouter une question</Text></TouchableOpacity>
@@ -437,7 +437,7 @@ function SnapshotTab({ c, s }: { c: any; s: any }) {
         <>
           <View style={[s.card, { marginBottom: 10 }]}>
             <View style={{ flex: 1 }}><Text style={s.cardTitle}>{selected.label}</Text><Text style={s.cardDesc}>{selected.id}</Text></View>
-            <TouchableOpacity onPress={() => setSelected(null)}><Ionicons name="close-circle" size={22} color={c.danger} /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Changer d'utilisateur" onPress={() => setSelected(null)}><Ionicons name="close-circle" size={22} color={c.danger} /></TouchableOpacity>
           </View>
           {!ready ? <ActivityIndicator color={c.emerald} style={{ marginTop: 20 }} /> : (
             <>

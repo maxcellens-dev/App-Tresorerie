@@ -1,5 +1,5 @@
-import { daysLeftInPeriod, buildRecoOptions } from '../lib/recoInputs';
-import { computeRecommendations } from '../lib/recommendationEngine';
+import { daysLeftInPeriod, buildRecoOptions } from '../lib/finance/recoInputs';
+import { computeRecommendations } from '../lib/finance/recommendationEngine';
 
 /**
  * LE BUG : la bascule « Confort → Réserver » suivait le mois CALENDAIRE. Un utilisateur payé le 25

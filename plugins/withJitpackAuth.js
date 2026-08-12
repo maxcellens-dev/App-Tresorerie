@@ -9,7 +9,10 @@
  * d'environnement JITPACK_TOKEN) sur TOUTES les repositories jitpack — les requêtes
  * authentifiées ne sont pas rate-limitées. No-op si le token est absent (build inchangée).
  */
-const { withProjectBuildGradle } = require('@expo/config-plugins');
+/* Depuis SDK 57, `@expo/config-plugins` n'est plus remonté à la racine de node_modules : on passe
+   par le sous-export officiel du paquet `expo`, qui ne dépend pas de la façon dont npm a hissé les
+   dépendances. Importer le paquet directement faisait échouer `expo config` (module introuvable). */
+const { withProjectBuildGradle } = require('expo/config-plugins');
 
 const MARKER = 'withJitpackAuth';
 

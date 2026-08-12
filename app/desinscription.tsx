@@ -6,15 +6,15 @@
  * propre à chaque compte et ne donne accès à RIEN d'autre : la fonction serveur ne sait que
  * basculer `email_opt_in` à false.
  */
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../components/ScreenGradient';
-import { useBrandColors } from '../hooks/useBrandColors';
-import { supabase } from '../lib/supabase';
-import { signalAppReady } from '../lib/splashGate';
+import ScreenGradient from '../components/layout/ScreenGradient';
+import { useBrandColors } from '../hooks/theme/useBrandColors';
+import { supabase } from '../lib/platform/supabase';
+import { signalAppReady } from '../lib/platform/splashGate';
 
 export default function UnsubscribeScreen() {
   const COLORS = useBrandColors();

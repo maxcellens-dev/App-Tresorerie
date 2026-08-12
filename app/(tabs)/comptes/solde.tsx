@@ -11,8 +11,8 @@
  * il remplit ceux qu'il veut, et on n'écrit une régularisation que pour ceux réellement modifiés.
  */
 import React, { useMemo, useState } from 'react';
-import { findRegulCategoryId } from '../../../lib/regul';
-import { useCategories } from '../../../hooks/useCategories';
+import { findRegulCategoryId } from '../../../lib/finance/regul';
+import { useCategories } from '../../../hooks/data/useCategories';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, Platform, Modal, Pressable,
@@ -21,21 +21,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import ScreenGradient from '../../../components/ScreenGradient';
-import ScreenHeader from '../../../components/ScreenHeader';
-import InfoDot from '../../../components/InfoDot';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import InfoDot from '../../../components/ui/InfoDot';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useAccounts } from '../../../hooks/useAccounts';
-import { useAddTransaction, useTransactions } from '../../../hooks/useTransactions';
-import { useRecalibrateReliability } from '../../../hooks/useReliability';
-import { currencySymbolFor } from '../../../lib/currency';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useAccounts } from '../../../hooks/data/useAccounts';
+import { useAddTransaction, useTransactions } from '../../../hooks/data/useTransactions';
+import { useRecalibrateReliability } from '../../../hooks/pilotage/useReliability';
+import { currencySymbolFor } from '../../../lib/finance/currency';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
-import { sheetWidth } from '../../../lib/appLayout';
+import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
+import { sheetWidth } from '../../../lib/ui/appLayout';
 
 export default function BalanceUpdateScreen() {
   const COLORS = useAppColors();
@@ -173,7 +173,7 @@ export default function BalanceUpdateScreen() {
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="numbers-and-punctuation"
                 />
-                <TouchableOpacity style={styles.dateBtn} onPress={() => setShowCalendar(true)} accessibilityRole="button">
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une date" style={styles.dateBtn} onPress={() => setShowCalendar(true)}>
                   <Ionicons name="calendar-outline" size={18} color={COLORS.blue} />
                 </TouchableOpacity>
               </View>

@@ -2,29 +2,29 @@
  * Apparence — mode d'affichage (admin) + couleur d'accent. Déplacé depuis Paramètres.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import KeyboardAwareScrollView from '../../../components/KeyboardAwareScrollView';
-import ScreenHeader from '../../../components/ScreenHeader';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../../hooks/useProfile';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useGamification } from '../../../hooks/useGamification';
-import { usePlan } from '../../../hooks/usePlan';
-import { useCosmetics } from '../../../hooks/useCosmetics';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useGamification } from '../../../hooks/engagement/useGamification';
+import { usePlan } from '../../../hooks/config/usePlan';
+import { useCosmetics } from '../../../hooks/theme/useCosmetics';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { useLocalSearchParams } from 'expo-router';
-import { COSMETIC_DEFS, SHOP_CATEGORY_LABELS } from '../../../lib/gamification';
+import { COSMETIC_DEFS, SHOP_CATEGORY_LABELS } from '../../../lib/engagement/gamification';
 import { THEME_MODES, THEME_PRESETS, NATIVE_PRESET_IDS, resolveAccent, type ThemeMode, type ThemePreset } from '../../../theme/palette';
-import { useStyleConfig, orderPresetIds } from '../../../hooks/useStyleConfig';
-import ColorPickerModal from '../../../components/ColorPickerModal';
+import { useStyleConfig, orderPresetIds } from '../../../hooks/theme/useStyleConfig';
+import ColorPickerModal from '../../../components/ui/ColorPickerModal';
 
 export default withDeferredMount(AppearanceScreen);
 function AppearanceScreen() {

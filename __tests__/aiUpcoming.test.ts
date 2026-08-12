@@ -1,4 +1,4 @@
-import { detectUpcomingChanges, type UpcomingTx } from '../lib/aiUpcoming';
+import { detectUpcomingChanges, type UpcomingTx } from '../lib/ai/aiUpcoming';
 
 // Comptes : courant C, épargne S, investissement I, « autre » O.
 const acctTypeById = { C: 'checking', S: 'savings', I: 'investment', O: 'other' };

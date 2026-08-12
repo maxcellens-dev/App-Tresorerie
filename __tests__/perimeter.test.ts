@@ -1,7 +1,7 @@
 import {
   buildPerimeterCtx, fluxFactor, inPerimeter, transferLegFlux, effectiveSharedMode,
   transformFluxTransactions, splitPerimeterAccounts, SHARED_TRANSFER_EXPENSE_NOTE,
-} from '../lib/perimeter';
+} from '../lib/finance/perimeter';
 
 const PERSO = 'perso';
 const JOINT = 'joint';

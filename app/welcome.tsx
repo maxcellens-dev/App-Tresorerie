@@ -7,13 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWindowDimensions } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { useBrandColors } from '../hooks/useBrandColors';
-import { useAppNameFontStyle, useAppNameFontReady, APP_NAME_TEXT_PROPS } from '../hooks/useBrandFont';
-import { useLandingConfig, DEFAULT_LANDING } from '../hooks/useLandingConfig';
-import { signalAppReady } from '../lib/splashGate';
-import LandingPage from '../components/LandingPage';
-import PlayStoreBadge from '../components/PlayStoreBadge';
-import SocialLinks from '../components/SocialLinks';
+import { useBrandColors } from '../hooks/theme/useBrandColors';
+import { useAppNameFontStyle, useAppNameFontReady, APP_NAME_TEXT_PROPS } from '../hooks/theme/useBrandFont';
+import { useLandingConfig, DEFAULT_LANDING } from '../hooks/config/useLandingConfig';
+import { signalAppReady } from '../lib/platform/splashGate';
+import LandingPage from '../components/marketing/LandingPage';
+import PlayStoreBadge from '../components/marketing/PlayStoreBadge';
+import SocialLinks from '../components/marketing/SocialLinks';
 
 const { width } = Dimensions.get('window');
 
@@ -192,7 +192,7 @@ function makeStyles(c: any) {
   return StyleSheet.create({
   root: { flex: 1, backgroundColor: c.bg },
   background: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: -1,
   },
   glowTop: {

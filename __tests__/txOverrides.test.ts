@@ -1,4 +1,4 @@
-import { buildOverrideMap, applyMonthOverride, applyMonthOverrides } from '../lib/txOverrides';
+import { buildOverrideMap, applyMonthOverride, applyMonthOverrides } from '../lib/finance/txOverrides';
 import type { TransactionMonthOverride } from '../types/database';
 
 const ovr = (o: Partial<TransactionMonthOverride>): TransactionMonthOverride => ({

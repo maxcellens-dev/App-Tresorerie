@@ -1,4 +1,4 @@
-import { describeAuthError } from '../lib/authErrors';
+import { describeAuthError } from '../lib/auth/authErrors';
 
 /**
  * Le point critique : tout échec qui laisse l'utilisateur SANS COMPTE doit être signalé comme tel

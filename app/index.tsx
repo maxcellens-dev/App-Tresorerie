@@ -1,10 +1,10 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useProfile } from '../hooks/useProfile';
-import { getCachedUserTheme } from '../lib/themeBoot';
+import { useProfile } from '../hooks/data/useProfile';
+import { getCachedUserTheme } from '../lib/platform/themeBoot';
 import WelcomeScreen from './welcome';
-import AppLoading from '../components/AppLoading';
+import AppLoading from '../components/system/AppLoading';
 
 /**
  * Porte d'entrée de l'app.

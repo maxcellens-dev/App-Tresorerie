@@ -4,27 +4,27 @@
  * (assurance + mensualité qui peuvent évoluer chaque année). Prévisualise l'amortissement.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../components/ScreenHeader';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAllAccounts } from '../../../hooks/useAccounts';
-import { useCategories } from '../../../hooks/useCategories';
-import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
-import { useProjects } from '../../../hooks/useProjects';
-import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/useCredits';
-import { useUsageGuard } from '../../../hooks/useUsageLimits';
-import CreditCurve from '../../../components/CreditCurve';
-import { computeAmortization, resolvePaliers } from '../../../lib/amortization';
+import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { useCategories } from '../../../hooks/data/useCategories';
+import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/transaction/CategoryPicker';
+import { useProjects } from '../../../hooks/data/useProjects';
+import { useAddCredit, useCredits, useUpdateCredit } from '../../../hooks/data/useCredits';
+import { useUsageGuard } from '../../../hooks/config/useUsageLimits';
+import CreditCurve from '../../../components/charts/CreditCurve';
+import { computeAmortization, resolvePaliers } from '../../../lib/finance/amortization';
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
 

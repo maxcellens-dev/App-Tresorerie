@@ -1,4 +1,4 @@
-import { variablePacePercentage } from '../lib/spendingPace';
+import { variablePacePercentage } from '../lib/finance/spendingPace';
 
 /**
  * Le défaut corrigé : l'app comparait le CUMUL du mois à l'enveloppe ENTIÈRE. Le 3 du mois ce

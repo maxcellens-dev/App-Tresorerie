@@ -1,33 +1,33 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { withDeferredMount } from '../../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Modal, Pressable, Keyboard } from 'react-native';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import CalendarWithPicker from '../../../../components/CalendarWithPicker';
+import CalendarWithPicker from '../../../../components/transaction/CalendarWithPicker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useMonthlyClosure } from '../../../../hooks/useMonthlyClosure';
-import { useAllAccounts } from '../../../../hooks/useAccounts';
-import { useCategories, useAddCategory } from '../../../../hooks/useCategories';
-import { useAllTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../../hooks/useTransactions';
-import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../../hooks/useTransactionMonthOverrides';
-import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/CategoryPicker';
-import { isRegulRow } from '../../../../lib/txOrder';
+import { useMonthlyClosure } from '../../../../hooks/pilotage/useMonthlyClosure';
+import { useAllAccounts } from '../../../../hooks/data/useAccounts';
+import { useCategories, useAddCategory } from '../../../../hooks/data/useCategories';
+import { useAllTransactions, useUpdateTransaction, useDeleteTransaction } from '../../../../hooks/data/useTransactions';
+import { useTransactionMonthOverrides, useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../../../hooks/data/useTransactionMonthOverrides';
+import CategoryPicker, { useSubCategoriesGrouped } from '../../../../components/transaction/CategoryPicker';
+import { isRegulRow } from '../../../../lib/finance/txOrder';
 import type { RecurrenceRule } from '../../../../types/database';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
 import { accountColor } from '../../../../theme/colors';
-import { supabase } from '../../../../lib/supabase';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { CURRENCY_SYMBOL } from '../../../../lib/currency';
-import { useKeyboardAwareScroll } from '../../../../hooks/useKeyboardAwareScroll';
-import { notePlaceholder } from '../../../../lib/txPlaceholders';
-import { appAlert } from '../../../../lib/appDialog';
-import PageLoader from '../../../../components/PageLoader';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
+import { useKeyboardAwareScroll } from '../../../../hooks/platform/useKeyboardAwareScroll';
+import { notePlaceholder } from '../../../../lib/finance/txPlaceholders';
+import { appAlert } from '../../../../lib/ui/appDialog';
+import PageLoader from '../../../../components/layout/PageLoader';
 
 
 function EditTransactionScreen() {
@@ -793,7 +793,7 @@ function EditTransactionScreen() {
               placeholder="jj-mm-aaaa"
               placeholderTextColor={COLORS.textSecondary}
             />
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une date"
               style={styles.calendarBtn}
               onPress={() => setShowCalendar('date')}
             >
@@ -869,7 +869,7 @@ function EditTransactionScreen() {
                         returnKeyType="done"
                         onSubmitEditing={() => handleSubmitWithDraft(false)}
                       />
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir la date de fin"
                         style={styles.calendarBtn}
                         onPress={() => setShowCalendar('end')}
                       >
@@ -892,7 +892,7 @@ function EditTransactionScreen() {
                           placeholder="jj-mm-aaaa"
                           placeholderTextColor={COLORS.textSecondary}
                         />
-                        <TouchableOpacity
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir la date future"
                           style={styles.calendarBtn}
                           onPress={() => setShowCalendar('future')}
                         >

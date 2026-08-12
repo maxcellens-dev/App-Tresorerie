@@ -1,4 +1,4 @@
-﻿import { buildSnapshot, type SnapshotInput } from '../lib/aiSnapshot';
+﻿import { buildSnapshot, type SnapshotInput } from '../lib/ai/aiSnapshot';
 
 /** Pilotage minimal (tous les champs lus par buildSnapshot). */
 const pilotage: any = {

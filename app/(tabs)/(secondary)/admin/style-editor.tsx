@@ -1,25 +1,25 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Platform } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile, useUpdateProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { supabase } from '../../../../lib/supabase';
-import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../../hooks/useStyleConfig';
+import { useProfile, useUpdateProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useStyleConfig, useSaveStyleConfig, getGradientStops, orderPresetIds, type StyleConfig, type CustomPreset, type CustomFont, type ModeStyleConfig } from '../../../../hooks/theme/useStyleConfig';
 import { THEME_PRESETS, THEME_MODES, buildColors, SEMANTIC_KEYS, SEMANTIC_DEFAULTS, SEMANTIC_DEFAULTS_LIGHT, SEMANTIC_LABELS, DEFAULT_BG, DEFAULT_INK, DEFAULT_CARD } from '../../../../theme/palette';
 import type { ThemeMode, ThemePreset } from '../../../../theme/palette';
-import ColorPickerModal from '../../../../components/ColorPickerModal';
-import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/webFonts';
-import { ensureNativeFonts, useNativeFontsVersion } from '../../../../lib/nativeFonts';
+import ColorPickerModal from '../../../../components/ui/ColorPickerModal';
+import { GOOGLE_FONTS, injectGoogleFonts } from '../../../../lib/platform/webFonts';
+import { ensureNativeFonts, useNativeFontsVersion } from '../../../../lib/platform/nativeFonts';
 
 
 const FONTS = [
@@ -89,7 +89,7 @@ function FontSelect({
                   {selected && <Ionicons name="checkmark" size={16} color={COLORS.emerald} />}
                 </TouchableOpacity>
                 {opt.custom && onRemoveCustom && (
-                  <TouchableOpacity onPress={() => onRemoveCustom(opt.family)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 6 }}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la police" onPress={() => onRemoveCustom(opt.family)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ paddingHorizontal: 6 }}>
                     <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
                   </TouchableOpacity>
                 )}
@@ -433,7 +433,7 @@ export default function StyleEditor() {
       <LinearGradient
         colors={[COLORS.emerald + '4D', COLORS.emerald + '2E', COLORS.emerald + '14', COLORS.bg]}
         locations={[0, 0.28, 0.58, 1.0]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
@@ -452,7 +452,7 @@ export default function StyleEditor() {
                 ? curStops.map(s => previewColors.emerald + toHex(s)) as any
                 : [previewColors.bg, previewColors.bg]}
               locations={[0, 0.28, 0.58, 1]}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
             {/* Barre d'entête simulée — reflète le « surplus d'accent » en direct (comme l'app). */}
             <View style={[styles.previewHeaderBar, { backgroundColor: previewHeaderBg }]}>
@@ -466,7 +466,8 @@ export default function StyleEditor() {
               <Text style={[styles.previewLabel, { color: previewMode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }]}>APERÇU</Text>
               <View style={styles.previewModeSwitcher}>
                 {THEME_MODES.map(m => (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Aperçu ${m.label}`}
+                    accessibilityState={{ selected: previewMode === m.id }}
                     key={m.id}
                     style={[styles.previewModeBtn, previewMode === m.id && { backgroundColor: previewColors.emerald + '30' }]}
                     onPress={() => { setPreviewMode(m.id); setActiveMode(m.id); }}
@@ -542,15 +543,16 @@ export default function StyleEditor() {
                       {isFirstPack && <Text style={styles.packHeader}>Pack couleurs · teintes secondaires</Text>}
                       <View style={[styles.accentItem, active && { borderColor: col, borderWidth: 2 }, hidden && { opacity: 0.45 }]}>
                         <View style={styles.moveCol}>
-                          <TouchableOpacity onPress={() => movePreset(id, -1)} disabled={!canUp} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
+                          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Monter la teinte" onPress={() => movePreset(id, -1)} disabled={!canUp} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
                             <Ionicons name="chevron-up" size={16} color={!canUp ? COLORS.cardBorder : COLORS.textSecondary} />
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={() => movePreset(id, 1)} disabled={!canDown} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
+                          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Descendre la teinte" onPress={() => movePreset(id, 1)} disabled={!canDown} hitSlop={{ top: 4, bottom: 4, left: 6, right: 6 }}>
                             <Ionicons name="chevron-down" size={16} color={!canDown ? COLORS.cardBorder : COLORS.textSecondary} />
                           </TouchableOpacity>
                         </View>
                         {/* Pastille = ouvrir le sélecteur de couleur */}
-                        <TouchableOpacity
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir la couleur"
+                          accessibilityState={{ selected: active }}
                           style={[styles.swatch, { backgroundColor: col }]}
                           onPress={() => setColorPicker({ value: col, onPick: v => native
                             ? setAccentInputs(prev => ({ ...prev, [id]: v }))
@@ -575,7 +577,7 @@ export default function StyleEditor() {
                           maxLength={7} autoCapitalize="characters"
                         />
                         {/* Masquer (œil) — pour TOUS les presets (natifs et pack) */}
-                        <TouchableOpacity
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel={hidden ? 'Afficher la teinte' : 'Masquer la teinte'}
                           onPress={() => setHiddenPresets(prev => hidden ? prev.filter(x => x !== id) : [...prev, id])}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
@@ -583,7 +585,7 @@ export default function StyleEditor() {
                         </TouchableOpacity>
                         {/* Supprimer (✕) — uniquement les presets du Pack (les natifs ne se suppriment pas) */}
                         {!native && (
-                          <TouchableOpacity
+                          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la teinte"
                             onPress={() => { if (preset === id) setPreset('emerald'); setExtraPresets(prev => prev.filter(x => x.id !== id)); setPresetOrder(prev => prev.filter(x => x !== id)); }}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           >
@@ -660,7 +662,7 @@ export default function StyleEditor() {
                           placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
                           maxLength={7} autoCapitalize="characters"
                         />
-                        <TouchableOpacity
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur du texte"
                           onPress={() => setInk(inkDefault)}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           disabled={inkIsDefault}
@@ -688,7 +690,7 @@ export default function StyleEditor() {
                               placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
                               maxLength={7} autoCapitalize="characters"
                             />
-                            <TouchableOpacity
+                            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur"
                               onPress={() => setInputs(prev => ({ ...prev, [k]: defaults[k] }))}
                               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               disabled={isDefault}
@@ -737,7 +739,7 @@ export default function StyleEditor() {
                     placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
                     maxLength={7} autoCapitalize="characters"
                   />
-                  <TouchableOpacity onPress={() => setBg(DEFAULT_BG[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aBg.toUpperCase() === DEFAULT_BG[activeMode]}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur de fond" onPress={() => setBg(DEFAULT_BG[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aBg.toUpperCase() === DEFAULT_BG[activeMode]}>
                     <Ionicons name="refresh-outline" size={20} color={aBg.toUpperCase() === DEFAULT_BG[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
                   </TouchableOpacity>
                 </View>
@@ -808,7 +810,7 @@ export default function StyleEditor() {
                     placeholder="#RRGGBB" placeholderTextColor={COLORS.textSecondary}
                     maxLength={7} autoCapitalize="characters"
                   />
-                  <TouchableOpacity onPress={() => setCard(DEFAULT_CARD[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aCard.toUpperCase() === DEFAULT_CARD[activeMode]}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Réinitialiser la couleur des cartes" onPress={() => setCard(DEFAULT_CARD[activeMode])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} disabled={aCard.toUpperCase() === DEFAULT_CARD[activeMode]}>
                     <Ionicons name="refresh-outline" size={20} color={aCard.toUpperCase() === DEFAULT_CARD[activeMode] ? COLORS.cardBorder : COLORS.emerald} />
                   </TouchableOpacity>
                 </View>

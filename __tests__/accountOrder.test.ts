@@ -1,4 +1,4 @@
-import { sortAccounts, compareAccounts, accountTypeRank } from '../lib/accountOrder';
+import { sortAccounts, compareAccounts, accountTypeRank } from '../lib/finance/accountOrder';
 
 const acc = (name: string, type: string, is_default = false) => ({ name, type, is_default });
 

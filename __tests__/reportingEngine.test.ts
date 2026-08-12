@@ -1,7 +1,7 @@
 import {
   isRealFlux, buildMonthlyFlux, buildSavingsSeries, buildCategoryBreakdown,
   buildBalanceSeries, buildInsights, monthsWindow, type ReportTx, type MonthBucket,
-} from '../lib/reportingEngine';
+} from '../lib/finance/reportingEngine';
 
 const M = (ym: string, label = ym.slice(5)): MonthBucket => ({
   year: Number(ym.slice(0, 4)), month: Number(ym.slice(5, 7)), ym, label,

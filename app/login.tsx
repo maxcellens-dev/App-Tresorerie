@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Alert, ScrollView } from 'react-native';
 
 function showAlert(title: string, message: string) {
   // Dialogue in-app global (§7) — plus de pop-up navigateur.
@@ -9,13 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
-import { useBrandColors } from '../hooks/useBrandColors';
-import SocialAuthButtons from '../components/SocialAuthButtons';
-import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
-import { useResponsive } from '../hooks/useResponsive';
-import { authPage, authCard } from '../lib/webLayout';
-import { describeAuthError } from '../lib/authErrors';
+import { supabase } from '../lib/platform/supabase';
+import { useBrandColors } from '../hooks/theme/useBrandColors';
+import SocialAuthButtons from '../components/auth/SocialAuthButtons';
+import { useKeyboardAwareScroll } from '../hooks/platform/useKeyboardAwareScroll';
+import { useResponsive } from '../hooks/theme/useResponsive';
+import { authPage, authCard } from '../lib/ui/webLayout';
+import { describeAuthError } from '../lib/auth/authErrors';
 
 
 export default function LoginScreen() {

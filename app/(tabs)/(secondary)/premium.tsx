@@ -8,15 +8,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { usePlan, useSetPremium } from '../../../hooks/usePlan';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useGamificationConfig } from '../../../hooks/useGamificationConfig';
-import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/purchases';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { usePlan, useSetPremium } from '../../../hooks/config/usePlan';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useGamificationConfig } from '../../../hooks/engagement/useGamificationConfig';
+import { purchasePremium, restorePurchases, getSubscriptionInfo, PURCHASES_SUPPORTED, type SubscriptionInfo } from '../../../lib/platform/purchases';
 
 /** Avantages Premium. `route` = page concernée : la ligne devient cliquable et y renvoie. */
 const BENEFITS: { icon: string; title: string; desc: string; route?: string }[] = [

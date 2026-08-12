@@ -10,13 +10,13 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView, Switch, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-import { sheetWidth } from '../../lib/appLayout';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { sheetWidth } from '../../lib/ui/appLayout';
 import {
   useEmailSchedules, useSaveEmailSchedule, useDeleteEmailSchedule, useToggleEmailSchedule,
   describeEmailRecurrence,
   type EmailSchedule, type EmailAudience, type EmailRecurrence,
-} from '../../hooks/useEmailCampaigns';
+} from '../../hooks/admin/useEmailCampaigns';
 
 const AUDIENCES: [EmailAudience, string][] = [
   ['all', 'Tous'], ['premium', 'Premium'], ['free', 'Gratuits'], ['group', 'Un groupe'],
@@ -115,10 +115,10 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
             trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }}
             thumbColor="#ffffff"
           />
-          <TouchableOpacity onPress={() => openEdit(x)} style={s.iconBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Modifier la planification" onPress={() => openEdit(x)} style={s.iconBtn}>
             <Ionicons name="create-outline" size={18} color={COLORS.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => confirmDelete(x)} style={s.iconBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la planification" onPress={() => confirmDelete(x)} style={s.iconBtn}>
             <Ionicons name="trash-outline" size={17} color={COLORS.danger} />
           </TouchableOpacity>
         </View>
@@ -130,7 +130,7 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
           <View style={s.sheet}>
             <View style={s.sheetHead}>
               <Text style={s.sheetTitle}>{draft?.id ? 'Modifier l’envoi récurrent' : 'Nouvel envoi récurrent'}</Text>
-              <TouchableOpacity onPress={() => setDraft(null)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setDraft(null)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

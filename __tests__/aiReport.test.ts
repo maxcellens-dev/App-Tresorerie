@@ -1,4 +1,4 @@
-import { parseAiReport, signalMeta, scoreColor } from '../lib/aiReport';
+import { parseAiReport, signalMeta, scoreColor } from '../lib/ai/aiReport';
 
 const C = { success: '#0f0', warning: '#fa0', danger: '#f00' };
 

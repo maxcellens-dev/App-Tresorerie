@@ -9,10 +9,10 @@
  * ACTION (« J'ai compris », ou l'un des choix proposés), jamais par un tap au hasard. C'est ce qui
  * garantit que l'utilisateur a bien tous ses comptes et ses récurrences avant de voir des chiffres.
  */
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useInvertedColors } from '../../hooks/useInvertedColors';
+import { useInvertedColors } from '../../hooks/theme/useInvertedColors';
 
 export interface GuideStepItem {
   icon: string;

@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState, useEffect, useRef } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View,
   Text,
@@ -14,29 +14,27 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
-import CalculatorButton from '../../../components/CalculatorButton';
+import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
+import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAllAccounts } from '../../../hooks/useAccounts';
-import { createTransferLegs, useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/useTransactions';
-import { computeContributed } from '../../../lib/contributed';
-import { useResetPreSaving } from '../../../hooks/usePreSavings';
-import ScreenHeader from '../../../components/ScreenHeader';
+import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { createTransferLegs, useAddTransaction, useDeleteTransaction, useReleaseReservedByProject, useTransactions } from '../../../hooks/data/useTransactions';
+import { computeContributed } from '../../../lib/finance/contributed';
+import { useResetPreSaving } from '../../../hooks/data/usePreSavings';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import type { RecurrenceRule, PreSavingType } from '../../../types/database';
-import type { RecoType } from '../../../lib/recommendationEngine';
-import { useRecoDismissals } from '../../../hooks/useUiPrefs';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { currencySymbolFor, convertAmount } from '../../../lib/currency';
-import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
-import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
+import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
+import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
 
 
 function TransferScreen() {
@@ -412,7 +410,7 @@ function TransferScreen() {
               placeholder="jj-mm-aaaa"
               placeholderTextColor={COLORS.textSecondary}
             />
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une date"
               style={styles.calendarBtn}
               onPress={() => setShowCalendar('date')}
             >
@@ -465,7 +463,7 @@ function TransferScreen() {
                     placeholder="jj-mm-aaaa ou vide"
                     placeholderTextColor={COLORS.textSecondary}
                   />
-                  <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir la date de fin" style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
                     <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
                   </TouchableOpacity>
                 </View>

@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import {
   View,
   Text,
@@ -12,11 +12,11 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import CalculatorButton from '../../../components/CalculatorButton';
-import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
-import AdSlot from '../../../components/AdSlot';
-import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import CalculatorButton from '../../../components/transaction/CalculatorButton';
+import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
+import AdSlot from '../../../components/marketing/AdSlot';
+import { useOnbHighlight, onbGlow } from '../../../lib/engagement/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -28,19 +28,19 @@ import {
   useArchiveProject,
   useCheckProjectTransactions,
   useDeleteProjectFromDate,
-} from '../../../hooks/useProjects';
-import { usePilotageData } from '../../../hooks/usePilotageData';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { CURRENCY_SYMBOL } from '../../../lib/currency';
-import { useCredits } from '../../../hooks/useCredits';
-import { computeAmortization } from '../../../lib/amortization';
-import { projectMode, type ProjectMode } from '../../../lib/projectTx';
+} from '../../../hooks/data/useProjects';
+import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { CURRENCY_SYMBOL } from '../../../lib/finance/currency';
+import { useCredits } from '../../../hooks/data/useCredits';
+import { computeAmortization } from '../../../lib/finance/amortization';
+import { projectMode, type ProjectMode } from '../../../lib/finance/projectTx';
 import { todayISO } from '../../../lib/dateUtils';
-import { useProfile } from '../../../hooks/useProfile';
+import { useProfile } from '../../../hooks/data/useProfile';
 import { TextInput, Modal } from 'react-native';
-import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/useRelykaWorld';
+import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/engagement/useRelykaWorld';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -509,7 +509,7 @@ function ProjectsScreen() {
                         <Text style={styles.rwProjSub} numberOfLines={1}>Invitation de {inv.from_name}</Text>
                       </View>
                       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.rwInvDecline} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: false })}><Ionicons name="close" size={18} color={COLORS.danger} /></TouchableOpacity>
-                      <TouchableOpacity style={styles.rwInvAccept} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: true })}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Accepter l'invitation" style={styles.rwInvAccept} onPress={() => respondInvite.mutate({ inviteId: inv.id, accept: true })}><Ionicons name="checkmark" size={18} color="#fff" /></TouchableOpacity>
                     </View>
                   ))}
                   {/* Projets partagés (Relyka World) — actifs uniquement */}

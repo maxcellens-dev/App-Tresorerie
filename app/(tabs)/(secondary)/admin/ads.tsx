@@ -4,19 +4,19 @@
  */
 import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { supabase } from '../../../../lib/supabase';
-import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, AD_LINK_TARGETS, type AdBanner, type AdLinkTarget } from '../../../../hooks/useAdsConfig';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useAdsConfig, useSaveAdsConfig, bannerPlacements, AD_PLACEMENTS, AD_LINK_TARGETS, type AdBanner, type AdLinkTarget } from '../../../../hooks/config/useAdsConfig';
 
 // Emplacements regroupés par page (ordre stable) → sélection compacte.
 type Placement = (typeof AD_PLACEMENTS)[number];
@@ -206,10 +206,10 @@ export default function AdminAds() {
                   {b.hidden && <Text style={styles.hiddenTag}>Masquée</Text>}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <TouchableOpacity onPress={() => update(i, { hidden: !b.hidden })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={b.hidden ? 'Afficher la bannière' : 'Masquer la bannière'} onPress={() => update(i, { hidden: !b.hidden })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name={b.hidden ? 'eye-off-outline' : 'eye-outline'} size={18} color={b.hidden ? COLORS.danger : COLORS.emerald} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => remove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la bannière" onPress={() => remove(i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
                 </View>
               </View>
               {/* En-tête repliable : résumé des emplacements sur 1 ligne (compact). */}
@@ -315,7 +315,7 @@ export default function AdminAds() {
               <Text style={styles.label}>Image (optionnel)</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput style={[styles.input, { flex: 1 }]} value={b.image ?? ''} onChangeText={(v) => update(i, { image: v })} placeholder="URL image" placeholderTextColor={COLORS.textSecondary} autoCapitalize="none" autoCorrect={false} />
-                <TouchableOpacity style={styles.uploadBtn} onPress={() => uploadImage(i)} disabled={uploadingId === b.id}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Téléverser l'image de la bannière" style={styles.uploadBtn} onPress={() => uploadImage(i)} disabled={uploadingId === b.id}>
                   {uploadingId === b.id ? <ActivityIndicator size="small" color={COLORS.emerald} /> : <Ionicons name="cloud-upload-outline" size={18} color={COLORS.emerald} />}
                 </TouchableOpacity>
               </View>

@@ -18,20 +18,20 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
 import type { AppColors } from '../../../../theme/palette';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { usePulseConfig, useSavePulseConfig } from '../../../../hooks/usePulseConfig';
-import { openPulse } from '../../../../components/PulseHost';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { usePulseConfig, useSavePulseConfig } from '../../../../hooks/pulse/usePulseConfig';
+import { openPulse } from '../../../../components/pulse/PulseHost';
 import {
   PULSE_SIGNAL_IDS, PULSE_SIGNAL_LABELS, DEFAULT_PULSE_CONFIG,
   type PulseConfig, type PulseSignalId,
-} from '../../../../lib/pulseEngine';
-import { PROFILE_INFO } from '../../../../lib/financialProfileEngine';
+} from '../../../../lib/pulse/pulseEngine';
+import { PROFILE_INFO } from '../../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../../types/database';
 
 const PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];

@@ -1,4 +1,4 @@
-import { computeProfileFromData } from '../lib/financialProfileEngine';
+import { computeProfileFromData } from '../lib/finance/financialProfileEngine';
 
 /**
  * Le profil P1–P5 ne dépend plus d'AUCUNE réponse déclarée : il se déduit du revenu constaté, de

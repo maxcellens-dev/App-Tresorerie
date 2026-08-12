@@ -16,11 +16,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, Easing, ScrollView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/useBrandFont';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useAppNameFontStyle, APP_NAME_TEXT_PROPS } from '../../hooks/theme/useBrandFont';
 import { useGuide } from '../../contexts/GuideContext';
-import ScreenGradient from '../ScreenGradient';
-import GrowthChart from '../GrowthChart';
+import ScreenGradient from '../layout/ScreenGradient';
+import GrowthChart from '../charts/GrowthChart';
 
 interface Slide {
   key: string;
@@ -569,7 +569,7 @@ function makeStyles(c: any) {
     bootLogo: { width: 96, height: 96, borderRadius: 26 },
     // Logo de la transition de sortie : centré sur l'ÉCRAN entier (pas dans la mise en page, qui
     // est en train de s'en aller au même moment).
-    exitMark: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+    exitMark: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
     brand: { fontSize: 18, fontWeight: '800', color: c.text },
 
     /* Titre + illustration + texte : UN SEUL bloc, ALIGNÉ EN HAUT, avec le MÊME écart partout.

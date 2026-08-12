@@ -1,4 +1,4 @@
-import { buildMaterializedIndex, recurrenceForMonth, recurrenceOccurrencesInMonth, type RecurrenceTemplate } from '../lib/recurrenceMonth';
+import { buildMaterializedIndex, recurrenceForMonth, recurrenceOccurrencesInMonth, type RecurrenceTemplate } from '../lib/finance/recurrenceMonth';
 
 // On se place le 15 juillet 2026 : une échéance au 5 est passée, une au 28 est à venir.
 const NOW = new Date(2026, 6, 15);

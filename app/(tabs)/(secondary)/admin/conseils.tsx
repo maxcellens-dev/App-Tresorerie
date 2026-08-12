@@ -4,23 +4,23 @@
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Switch, ActivityIndicator } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { useAllConseils } from '../../../../hooks/useConseils';
-import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/useFeatureFlags';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { useAllConseils } from '../../../../hooks/pilotage/useConseils';
+import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/config/useFeatureFlags';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { supabase } from '../../../../lib/supabase';
-import { sheetWidth } from '../../../../lib/appLayout';
-import type { Conseil } from '../../../../hooks/useConseils';
+import { supabase } from '../../../../lib/platform/supabase';
+import { sheetWidth } from '../../../../lib/ui/appLayout';
+import type { Conseil } from '../../../../hooks/pilotage/useConseils';
 
 export default function AdminConseils() {
   const COLORS = useAppColors();
@@ -142,7 +142,7 @@ export default function AdminConseils() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editing?.id ? 'Modifier le conseil' : 'Nouveau conseil'}</Text>
-              <TouchableOpacity onPress={() => setEditing(null)}><Ionicons name="close" size={22} color={COLORS.text} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setEditing(null)}><Ionicons name="close" size={22} color={COLORS.text} /></TouchableOpacity>
             </View>
             {editing?.critere_key && (
               <Text style={styles.critereInfo}>Critère : <Text style={{ fontWeight: '700' }}>{editing.critere_key}</Text></Text>

@@ -3,48 +3,48 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   useWindowDimensions, Platform, findNodeHandle, Animated, Easing,
 } from 'react-native';
-import { CURRENCY_SYMBOL, convertAmount } from '../../lib/currency';
-import { useCurrencyRates } from '../../hooks/useCurrencyRates';
-import { useProfile } from '../../hooks/useProfile';
+import { CURRENCY_SYMBOL, convertAmount } from '../../lib/finance/currency';
+import { useCurrencyRates } from '../../hooks/data/useCurrencyRates';
+import { useProfile } from '../../hooks/data/useProfile';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../components/ScreenGradient';
-import PageLoader from '../../components/PageLoader';
-import { useDeferredMount } from '../../hooks/useDeferredMount';
-import CalculatorButton from '../../components/CalculatorButton';
-import OnboardingHintBanner from '../../components/OnboardingHintBanner';
-import AdSlot from '../../components/AdSlot';
-import { useUpdateOnboarding } from '../../hooks/useOnboarding';
-import { useOnbHighlight, onbGlow } from '../../lib/onbHighlight';
-import { computeContributed } from '../../lib/contributed';
-import { computeTresoRows } from '../../lib/tresoProjection';
+import ScreenGradient from '../../components/layout/ScreenGradient';
+import PageLoader from '../../components/layout/PageLoader';
+import { useDeferredMount } from '../../hooks/platform/useDeferredMount';
+import CalculatorButton from '../../components/transaction/CalculatorButton';
+import OnboardingHintBanner from '../../components/onboarding/OnboardingHintBanner';
+import AdSlot from '../../components/marketing/AdSlot';
+import { useUpdateOnboarding } from '../../hooks/engagement/useOnboarding';
+import { useOnbHighlight, onbGlow } from '../../lib/engagement/onbHighlight';
+import { computeContributed } from '../../lib/finance/contributed';
+import { computeTresoRows } from '../../lib/finance/tresoProjection';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Path, Line, Circle, Rect, Text as SvgText } from 'react-native-svg';
-import GrowthChart, { fmtK } from '../../components/GrowthChart';
+import GrowthChart, { fmtK } from '../../components/charts/GrowthChart';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePilotageData } from '../../hooks/usePilotageData';
-import { useTransactions } from '../../hooks/useTransactions';
-import { useSharedContribution } from '../../hooks/useSharedContribution';
-import { useCreditFlows } from '../../hooks/useCreditFlows';
-import { useTransactionMonthOverrides } from '../../hooks/useTransactionMonthOverrides';
-import { useAccounts } from '../../hooks/useAccounts';
-import { useQuestionnaireAnswers } from '../../hooks/useFinancialProfile';
-import { useAppColors } from '../../hooks/useAppColors';
-import { useResponsive } from '../../hooks/useResponsive';
-import { pageColumn } from '../../lib/webLayout';
-import { useProjectionHorizon } from '../../hooks/useUiPrefs';
-import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../../hooks/useFiscalEnvelopes';
-import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/useProjectionAssumptions';
+import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
+import { useTransactions } from '../../hooks/data/useTransactions';
+import { useSharedContribution } from '../../hooks/data/useSharedContribution';
+import { useCreditFlows } from '../../hooks/data/useCreditFlows';
+import { useTransactionMonthOverrides } from '../../hooks/data/useTransactionMonthOverrides';
+import { useAccounts } from '../../hooks/data/useAccounts';
+import { useQuestionnaireAnswers } from '../../hooks/pilotage/useFinancialProfile';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { useResponsive } from '../../hooks/theme/useResponsive';
+import { pageColumn } from '../../lib/ui/webLayout';
+import { useProjectionHorizon } from '../../hooks/config/useUiPrefs';
+import { useFiscalEnvelopeRates, taxRateFor, noteFor, depositCapFor } from '../../hooks/data/useFiscalEnvelopes';
+import { useProjectionAssumptions, useSaveProjectionAssumptions } from '../../hooks/pilotage/useProjectionAssumptions';
 import {
   projectInvestment, sumProjections, projectSavings, investCurve,
   estimateMonthlySavings, incomeFromQ3, savingsRateFromQ6,
   type InvestYearRow,
-} from '../../lib/projectionEngine';
+} from '../../lib/finance/projectionEngine';
 
 import { semanticText } from '../../theme/palette';
-import { computeConfidence, resolveReliabilityConfig } from '../../lib/confidenceEngine';
-import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/perimeter';
+import { computeConfidence, resolveReliabilityConfig } from '../../lib/finance/confidenceEngine';
+import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -842,7 +842,12 @@ function ProjectionBody() {
 }
 
 // Version animable du tracé + des points (révélation de la courbe mois par mois).
-const AnimatedPath = Animated.createAnimatedComponent(Path);
+/* `Animated.createAnimatedComponent` injecte `collapsable={false}` (prop INTERNE de React Native).
+   Le shim web de react-native-svg ne la filtre pas et la transmet au <path> du DOM, qui ne la
+   connaît pas — d'où l'avertissement React. On l'absorbe ici, au plus près de la cause. */
+const PathWeb = React.forwardRef<any, any>(({ collapsable, ...rest }, ref) => <Path ref={ref} {...rest} />);
+PathWeb.displayName = 'PathWeb';
+const AnimatedPath = Animated.createAnimatedComponent(PathWeb);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 // Ne jouer l'animation qu'UNE fois par session d'app (comme les colonnes Relyka).
 let projectionCurveAnimated = false;

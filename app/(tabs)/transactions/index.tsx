@@ -1,41 +1,40 @@
-﻿import React, { useMemo, useState, useEffect, useRef } from 'react';
-import PageLoader from '../../../components/PageLoader';
+﻿import { useMemo, useState, useEffect, useRef } from 'react';
+import PageLoader from '../../../components/layout/PageLoader';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform, RefreshControl, Modal, PanResponder, FlatList, TextInput } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
-import { useDeferredMount } from '../../../hooks/useDeferredMount';
-import OnboardingHintBanner from '../../../components/OnboardingHintBanner';
-import AdSlot from '../../../components/AdSlot';
-import { useOnbHighlight, onbGlow } from '../../../lib/onbHighlight';
-import { LinearGradient } from 'expo-linear-gradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
+import { useDeferredMount } from '../../../hooks/platform/useDeferredMount';
+import OnboardingHintBanner from '../../../components/onboarding/OnboardingHintBanner';
+import AdSlot from '../../../components/marketing/AdSlot';
+import { useOnbHighlight, onbGlow } from '../../../lib/engagement/onbHighlight';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useNavBack } from '../../../hooks/useNavBack';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/useTransactions';
-import { useCreditFlows } from '../../../hooks/useCreditFlows';
-import { useTransactionMonthOverrides } from '../../../hooks/useTransactionMonthOverrides';
-import { buildOverrideMap, overrideKey as ovrKey } from '../../../lib/txOverrides';
-import { useCategories } from '../../../hooks/useCategories';
-import { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
-import { useAllAccounts } from '../../../hooks/useAccounts';
-import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/useSharedAccounts';
+import { useAllTransactions, useUpdateTransaction, useDeleteTransaction, useValidateProjectDraft } from '../../../hooks/data/useTransactions';
+import { useCreditFlows } from '../../../hooks/data/useCreditFlows';
+import { useTransactionMonthOverrides } from '../../../hooks/data/useTransactionMonthOverrides';
+import { buildOverrideMap, overrideKey as ovrKey } from '../../../lib/finance/txOverrides';
+import { useCategories } from '../../../hooks/data/useCategories';
+import { useSubCategoriesGrouped } from '../../../components/transaction/CategoryPicker';
+import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { useAccountParticipants, useAllParticipants, useAllMemberNames } from '../../../hooks/data/useSharedAccounts';
 import { accountColor } from '../../../theme/colors';
 import type { TransactionWithDetails, RecurrenceRule } from '../../../types/database';
 import GuideModal from '../../../components/guide/GuideModal';
 import { useGuide } from '../../../contexts/GuideContext';
-import { useIsFocused } from '@react-navigation/native';
-import CalculatorButton from '../../../components/CalculatorButton';
-import RecurringTransactionsModal from '../../../components/RecurringTransactionsModal';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/currency';
-import { sheetWidth, useSheetBottomPadding } from '../../../lib/appLayout';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { hoverRow } from '../../../lib/webLayout';
-import { iconForTransaction, iconForCategory } from '../../../lib/categoryIcons';
-import { isProjectSpendTx } from '../../../lib/projectTx';
-import { useRwLinkedTransactionIds } from '../../../hooks/useRelykaWorld';
+import { useIsFocused } from 'expo-router';
+import CalculatorButton from '../../../components/transaction/CalculatorButton';
+import RecurringTransactionsModal from '../../../components/transaction/RecurringTransactionsModal';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { CURRENCY_SYMBOL, currencySymbolFor } from '../../../lib/finance/currency';
+import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { hoverRow } from '../../../lib/ui/webLayout';
+import { iconForTransaction, iconForCategory } from '../../../lib/ui/categoryIcons';
+import { isProjectSpendTx } from '../../../lib/finance/projectTx';
+import { useRwLinkedTransactionIds } from '../../../hooks/engagement/useRelykaWorld';
 
 // Les 3 boutons « Virement / Dépense / Recette » en haut de l'écran font doublon avec le bouton de
 // saisie rapide (« + »), désormais présent ici aussi. On les masque, mais on garde le code : passer
@@ -750,7 +749,7 @@ function TransactionsListBody() {
                     <Text style={styles.draftActionConserveText}>Conserver</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.draftActionDelete} onPress={() => confirmDeleteDraft(item)} activeOpacity={0.7}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer" style={styles.draftActionDelete} onPress={() => confirmDeleteDraft(item)} activeOpacity={0.7}>
                   <Ionicons name="trash-outline" size={14} color={COLORS.danger} />
                 </TouchableOpacity>
               </>
@@ -866,7 +865,7 @@ function TransactionsListBody() {
         )}
         {showPeriodNav && (
           <View style={styles.periodNav} ref={periodNavRef}>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Période précédente"
               style={styles.periodBtn}
               onPress={() => goPeriod(-1)}
               activeOpacity={0.7}
@@ -877,7 +876,7 @@ function TransactionsListBody() {
               <Text style={styles.periodText}>{monthRangeText}</Text>
               {periodOffset !== -2 && <Text style={styles.periodLabelHint}>Appuyer pour revenir</Text>}
             </TouchableOpacity>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Période suivante"
               style={styles.periodBtn}
               onPress={() => goPeriod(1)}
               activeOpacity={0.7}

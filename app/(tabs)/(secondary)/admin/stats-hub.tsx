@@ -10,15 +10,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { supabase } from '../../../../lib/supabase';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { supabase } from '../../../../lib/platform/supabase';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
 
 interface RawEvent { profile_id: string | null; event: string; screen: string | null; platform: string | null; session_id: string | null; created_at: string }
 
@@ -185,7 +185,7 @@ export default function StatsHub() {
             <View style={{ flex: 1 }}>
               <Text style={styles.subtitle}>Usage de l'app sur {days} jours{updatedAt ? ` · maj ${updatedAt}` : ''}.</Text>
             </View>
-            <TouchableOpacity style={styles.refreshIcon} onPress={() => loadStats(days)}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Actualiser les statistiques" style={styles.refreshIcon} onPress={() => loadStats(days)}>
               <Ionicons name="refresh" size={18} color={COLORS.emerald} />
             </TouchableOpacity>
           </View>

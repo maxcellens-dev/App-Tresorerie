@@ -4,18 +4,18 @@ import { useMemo } from 'react';
  * Déplacé depuis Paramètres.
  */
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useUserUnreadCount } from '../../../hooks/useUnreadBadges';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { useFeatureFlags } from '../../../hooks/useFeatureFlags';
+import { useUserUnreadCount } from '../../../hooks/admin/useUnreadBadges';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { useFeatureFlags } from '../../../hooks/config/useFeatureFlags';
 
 // Fiche Play par défaut, quand l'admin n'a pas saisi de lien « Noter » (cf. parametres.tsx,
 // UpdateBanner.tsx — même paquet).

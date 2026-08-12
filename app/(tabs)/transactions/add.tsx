@@ -1,37 +1,37 @@
 ﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, Platform, BackHandler, Keyboard } from 'react-native';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import CalendarWithPicker from '../../../components/CalendarWithPicker';
+import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAllAccounts } from '../../../hooks/useAccounts';
-import { useCategories, useAddCategory } from '../../../hooks/useCategories';
-import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions , useAskRegulCoverage } from '../../../hooks/useTransactions';
-import { parseUsageLimitError } from '../../../lib/usageLimits';
-import { appAlert } from '../../../lib/appDialog';
-import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
-import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/CategoryPicker';
+import { useAllAccounts } from '../../../hooks/data/useAccounts';
+import { useCategories, useAddCategory } from '../../../hooks/data/useCategories';
+import { createTransferLegs, useAddTransaction, useDeleteTransaction, useAllTransactions , useAskRegulCoverage } from '../../../hooks/data/useTransactions';
+import { parseUsageLimitError } from '../../../lib/finance/usageLimits';
+import { appAlert } from '../../../lib/ui/appDialog';
+import { useMonthlyClosure } from '../../../hooks/pilotage/useMonthlyClosure';
+import CategoryPicker, { useSubCategoriesGrouped } from '../../../components/transaction/CategoryPicker';
 import type { RecurrenceRule } from '../../../types/database';
-import ScreenHeader from '../../../components/ScreenHeader';
-import CalculatorButton from '../../../components/CalculatorButton';
+import ScreenHeader from '../../../components/layout/ScreenHeader';
+import CalculatorButton from '../../../components/transaction/CalculatorButton';
 import { useGuide } from '../../../contexts/GuideContext';
 import { formatDateFrench, parseDateFromFrench, todayISO } from '../../../lib/dateUtils';
 import { accountColor } from '../../../theme/colors';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useInvertedColors } from '../../../hooks/useInvertedColors';
-import { currencySymbolFor, convertAmount } from '../../../lib/currency';
-import { useCurrencyRates } from '../../../hooks/useCurrencyRates';
-import { useKeyboardAwareScroll } from '../../../hooks/useKeyboardAwareScroll';
-import { notePlaceholder } from '../../../lib/txPlaceholders';
-import { useProjects } from '../../../hooks/useProjects';
-import { useProjectAttach } from '../../../hooks/useProjectAttach';
-import { matchProjectsForTransaction } from '../../../lib/projectMatch';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useInvertedColors } from '../../../hooks/theme/useInvertedColors';
+import { currencySymbolFor, convertAmount } from '../../../lib/finance/currency';
+import { useCurrencyRates } from '../../../hooks/data/useCurrencyRates';
+import { useKeyboardAwareScroll } from '../../../hooks/platform/useKeyboardAwareScroll';
+import { notePlaceholder } from '../../../lib/finance/txPlaceholders';
+import { useProjects } from '../../../hooks/data/useProjects';
+import { useProjectAttach } from '../../../hooks/data/useProjectAttach';
+import { matchProjectsForTransaction } from '../../../lib/finance/projectMatch';
 
 
 type TransactionType = 'expense' | 'income' | 'transfer';
@@ -704,7 +704,7 @@ function AddTransactionScreen() {
                   placeholder="jj-mm-aaaa"
                   placeholderTextColor={COLORS.textSecondary}
                 />
-                <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('date')}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une date" style={styles.calendarBtn} onPress={() => setShowCalendar('date')}>
                   <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
                 </TouchableOpacity>
               </View>
@@ -744,7 +744,7 @@ function AddTransactionScreen() {
                     <Text style={styles.label}>Fin (optionnel, vide = sans fin)</Text>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                       <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} value={recurrenceEndDateInput} onChangeText={setRecurrenceEndDateInput} onFocus={handleFocus} placeholder="jj-mm-aaaa ou vide" placeholderTextColor={COLORS.textSecondary} returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
-                      <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir la date de fin" style={styles.calendarBtn} onPress={() => setShowCalendar('end')}>
                         <Ionicons name="calendar-outline" size={22} color={COLORS.emerald} />
                       </TouchableOpacity>
                     </View>

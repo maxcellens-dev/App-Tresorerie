@@ -8,28 +8,28 @@
  */
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, Switch, Modal, Pressable } from 'react-native';
-import KeyboardAwareScrollView from '../../../../components/KeyboardAwareScrollView';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenHeader from '../../../../components/ScreenHeader';
-import ScreenGradient from '../../../../components/ScreenGradient';
+import ScreenHeader from '../../../../components/layout/ScreenHeader';
+import ScreenGradient from '../../../../components/layout/ScreenGradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../../../lib/supabase';
+import { supabase } from '../../../../lib/platform/supabase';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useProfile } from '../../../../hooks/useProfile';
-import { useAppColors } from '../../../../hooks/useAppColors';
-import { useResponsive } from '../../../../hooks/useResponsive';
-import { pageColumn } from '../../../../lib/webLayout';
-import { useNavBack } from '../../../../hooks/useNavBack';
-import { sendPushToTarget, type NotifTarget, type PushSendResult } from '../../../../lib/pushSend';
+import { useProfile } from '../../../../hooks/data/useProfile';
+import { useAppColors } from '../../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../../lib/ui/webLayout';
+import { useNavBack } from '../../../../hooks/platform/useNavBack';
+import { sendPushToTarget, type NotifTarget, type PushSendResult } from '../../../../lib/platform/pushSend';
 import PushDiagnostics from '../../../../components/admin/PushDiagnostics';
 import { formatDateFrench, parseDateFromFrench } from '../../../../lib/dateUtils';
-import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/systemNotifications';
-import { sheetWidth } from '../../../../lib/appLayout';
-import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/useReliability';
-import { useCrashNotifyConfig, useSaveCrashNotifyConfig, useAdminNotifTemplates, useSaveAdminNotifTemplate, type AdminNotifTemplateKind } from '../../../../hooks/useSecurity';
-import { useAdminNotifPrefs, useSaveAdminNotifPref, type AdminNotifKind } from '../../../../hooks/useUnreadBadges';
+import { SYSTEM_NOTIFICATIONS, isSystemNotificationEnabled } from '../../../../lib/platform/systemNotifications';
+import { sheetWidth } from '../../../../lib/ui/appLayout';
+import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/pilotage/useReliability';
+import { useCrashNotifyConfig, useSaveCrashNotifyConfig, useAdminNotifTemplates, useSaveAdminNotifTemplate, type AdminNotifTemplateKind } from '../../../../hooks/platform/useSecurity';
+import { useAdminNotifPrefs, useSaveAdminNotifPref, type AdminNotifKind } from '../../../../hooks/admin/useUnreadBadges';
 
 interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null; target_label: string | null }
 interface GroupRow { id: string; name: string }
@@ -565,10 +565,10 @@ export default function AdminNotifications() {
                 <View style={{ alignItems: 'center', gap: 8 }}>
                   <Switch value={s.active} onValueChange={() => toggleActive.mutate(s)} trackColor={{ false: COLORS.cardBorder, true: COLORS.emerald }} thumbColor="#fff" />
                   <View style={{ flexDirection: 'row', gap: 14 }}>
-                    <TouchableOpacity onPress={() => confirmSendNow(s)} hitSlop={8} disabled={sendNow.isPending}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Envoyer maintenant" onPress={() => confirmSendNow(s)} hitSlop={8} disabled={sendNow.isPending}>
                       <Ionicons name="paper-plane-outline" size={18} color={COLORS.emerald} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => confirmDelete(s)} hitSlop={8}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer la planification" onPress={() => confirmDelete(s)} hitSlop={8}>
                       <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
                     </TouchableOpacity>
                   </View>
@@ -620,7 +620,7 @@ export default function AdminNotifications() {
           <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{form.id ? 'Modifier' : 'Nouvelle planification'}</Text>
-              <TouchableOpacity onPress={() => setShowForm(false)} style={{ padding: 4 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer le formulaire" onPress={() => setShowForm(false)} style={{ padding: 4 }}>
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </TouchableOpacity>
             </View>

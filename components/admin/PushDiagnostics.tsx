@@ -16,8 +16,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { useAppColors } from '../../hooks/useAppColors';
-import { fetchReachability, sendTestPush, type PushSendResult } from '../../lib/pushSend';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { fetchReachability, sendTestPush, type PushSendResult } from '../../lib/platform/pushSend';
 
 type ListKey = 'push_reachable' | 'unreachable';
 
@@ -102,7 +102,7 @@ export default function PushDiagnostics() {
           <Text style={styles.title}>Qui est joignable en push</Text>
           <Text style={styles.subtitle}>Si un envoi ne touche personne, la réponse est ici avant d'être dans les réglages.</Text>
         </View>
-        <TouchableOpacity onPress={() => refetch()} style={styles.refresh} disabled={isFetching}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Actualiser le diagnostic" onPress={() => refetch()} style={styles.refresh} disabled={isFetching}>
           {isFetching ? <ActivityIndicator size="small" color={COLORS.textSecondary} /> : <Ionicons name="refresh" size={18} color={COLORS.textSecondary} />}
         </TouchableOpacity>
       </View>
@@ -133,7 +133,7 @@ export default function PushDiagnostics() {
               {openList === 'push_reachable' ? 'Joignables en push' : 'Non joignables'}
               <Text style={styles.listCount}>  {list.length} utilisateur(s)</Text>
             </Text>
-            <TouchableOpacity onPress={() => setOpenList(null)}><Ionicons name="close" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setOpenList(null)}><Ionicons name="close" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
           </View>
           {selectable && <Text style={styles.listHint}>Touche quelqu'un pour lui envoyer le push de test.</Text>}
           <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>

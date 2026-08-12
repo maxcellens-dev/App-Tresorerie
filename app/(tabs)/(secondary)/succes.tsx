@@ -2,22 +2,22 @@
  * Écran Succès — grille de trophées débloquables (style Duolingo).
  * Chaque badge montre son icône/image, son niveau atteint (Bronze/Argent/Or) et sa description.
  */
-import React, { useMemo, useEffect, useState } from 'react';
-import { withDeferredMount } from '../../../hooks/useDeferredMount';
+import { useMemo, useEffect, useState } from 'react';
+import { withDeferredMount } from '../../../hooks/platform/useDeferredMount';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import ScreenGradient from '../../../components/ScreenGradient';
+import ScreenGradient from '../../../components/layout/ScreenGradient';
 import { useAuth } from '../../../contexts/AuthContext';
-import { useAppColors } from '../../../hooks/useAppColors';
-import { useResponsive } from '../../../hooks/useResponsive';
-import { pageColumn } from '../../../lib/webLayout';
-import { useGamification } from '../../../hooks/useGamification';
-import { useMonthlyClosure } from '../../../hooks/useMonthlyClosure';
-import { useNavBack } from '../../../hooks/useNavBack';
-import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/gamification';
+import { useAppColors } from '../../../hooks/theme/useAppColors';
+import { useResponsive } from '../../../hooks/theme/useResponsive';
+import { pageColumn } from '../../../lib/ui/webLayout';
+import { useGamification } from '../../../hooks/engagement/useGamification';
+import { useMonthlyClosure } from '../../../hooks/pilotage/useMonthlyClosure';
+import { useNavBack } from '../../../hooks/platform/useNavBack';
+import { UNLOCK_COLOR, WELCOME_BADGE_KEY, isImageIcon, currencyPlural, type BadgeDef } from '../../../lib/engagement/gamification';
 
 /** Mois suivant d'une clé YYYY-MM (pour la série de clôtures consécutives). */
 function nextMonthKey(key: string): string {
@@ -212,8 +212,12 @@ function SuccesScreen() {
             const tint = unlocked ? UNLOCK_COLOR : COLORS.textSecondary;
             const date = badges.find((b) => b.badge_key === selected.key)?.unlocked_at;
             const dateStr = date ? new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+            /* La carte absorbe le clic pour qu'un appui dessus ne referme pas la fiche. Ce n'est
+               PAS une commande : lui donner un rôle « bouton » posait un bouton AUTOUR du vrai
+               bouton de fermeture — imbrication interdite en HTML — et annonçait au lecteur
+               d'écran un « Fermer » qui ne ferme rien. */
             return (
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+              <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.modalClose} onPress={() => setSelected(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Ionicons name="close" size={22} color={COLORS.textSecondary} />
                 </TouchableOpacity>

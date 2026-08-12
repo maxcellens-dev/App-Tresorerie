@@ -2,17 +2,17 @@ import { Tabs, useSegments } from 'expo-router';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useEffect } from 'react';
-import TabBarBackground from '../../components/TabBarBackground';
-import HeaderWithProfile from '../../components/HeaderWithProfile';
-import CustomTabBar from '../../components/CustomTabBar';
-import OnboardingGate from '../../components/OnboardingGate';
-import QuickAddButton from '../../components/QuickAddButton';
-import NextActionBanner from '../../components/NextActionBanner';
-import { useAppColors } from '../../hooks/useAppColors';
+import TabBarBackground from '../../components/layout/TabBarBackground';
+import HeaderWithProfile from '../../components/layout/HeaderWithProfile';
+import CustomTabBar from '../../components/layout/CustomTabBar';
+import OnboardingGate from '../../components/onboarding/OnboardingGate';
+import QuickAddButton from '../../components/transaction/QuickAddButton';
+import NextActionBanner from '../../components/onboarding/NextActionBanner';
+import { useAppColors } from '../../hooks/theme/useAppColors';
 import { View } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePlan } from '../../hooks/usePlan';
-import { useResponsive } from '../../hooks/useResponsive';
+import { usePlan } from '../../hooks/config/usePlan';
+import { useResponsive } from '../../hooks/theme/useResponsive';
 import WebSideNav from '../../components/web/WebSideNav';
 
 /** Petite étoile « fonction Premium » — discrète, à droite d'un titre. */

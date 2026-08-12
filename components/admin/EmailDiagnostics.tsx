@@ -13,8 +13,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { useAppColors } from '../../hooks/useAppColors';
-import { fetchReachability } from '../../lib/pushSend';
+import { useAppColors } from '../../hooks/theme/useAppColors';
+import { fetchReachability } from '../../lib/platform/pushSend';
 
 interface Tile {
   key: string;
@@ -86,7 +86,7 @@ export default function EmailDiagnostics() {
           <Text style={styles.title}>Qui est joignable par e-mail</Text>
           <Text style={styles.subtitle}>Avant de lancer une campagne : combien de personnes, et combien d'envois il reste.</Text>
         </View>
-        <TouchableOpacity onPress={() => refetch()} style={styles.refresh} disabled={isFetching}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Actualiser le diagnostic" onPress={() => refetch()} style={styles.refresh} disabled={isFetching}>
           {isFetching ? <ActivityIndicator size="small" color={COLORS.textSecondary} /> : <Ionicons name="refresh" size={18} color={COLORS.textSecondary} />}
         </TouchableOpacity>
       </View>
@@ -112,7 +112,7 @@ export default function EmailDiagnostics() {
         <View style={styles.listBox}>
           <View style={styles.listHead}>
             <Text style={styles.listTitle}>Désinscrits<Text style={styles.listCount}>  {optedOut.length} utilisateur(s)</Text></Text>
-            <TouchableOpacity onPress={() => setShowUnsub(false)}><Ionicons name="close" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setShowUnsub(false)}><Ionicons name="close" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
             {optedOut.length === 0 ? (
