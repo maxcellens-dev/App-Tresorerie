@@ -17,6 +17,7 @@ import { useResponsive } from '../hooks/useResponsive';
 import { authPage, authCard } from '../lib/webLayout';
 import PasswordStrength from '../components/PasswordStrength';
 import { evaluatePassword } from '../lib/passwordPolicy';
+import { describeAuthError } from '../lib/authErrors';
 
 
 export default function RegisterScreen() {
@@ -65,6 +66,14 @@ export default function RegisterScreen() {
           setFormError('Un compte existe déjà avec cette adresse.');
           return;
         }
+        /* ⚠️ GARDE-FOU : on n'annonce « vérifie ton mail » QUE si le serveur a bien rendu un
+           utilisateur. Ni session ni utilisateur = rien n'a été créé ; annoncer la confirmation
+           dans ce cas, c'est envoyer quelqu'un attendre indéfiniment un e-mail qui n'existe pas —
+           avec, au bout, un compte introuvable partout (ni `auth.users`, ni `profiles`). */
+        if (!data.session && !data.user) {
+          setFormError("La création du compte n'a pas abouti : rien n'a été enregistré. Réessaie dans quelques instants.");
+          return;
+        }
         if (!data.session) setSentTo(addr);
         // Si session active, onAuthStateChange met à jour le contexte
         // et le guard dans _layout redirigera automatiquement vers home
@@ -73,14 +82,13 @@ export default function RegisterScreen() {
         router.back();
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Inscription impossible.';
-      // Filet : certains projets renvoient malgré tout l'erreur explicite « already registered ».
-      if (/already registered|already exists|user already/i.test(msg)) {
-        setExisting(true);
-        setFormError('Un compte existe déjà avec cette adresse.');
-      } else {
-        setFormError(msg);
-      }
+      /* Message TRADUIT et actionnable (cf. lib/authErrors) : une inscription annulée par le
+         serveur — quota d'envoi, e-mail non parti, échec de création — doit dire noir sur blanc
+         que le compte n'existe pas, sans quoi l'utilisateur repart en attendant un e-mail
+         fantôme. C'est ce silence qui a produit des comptes introuvables. */
+      const info = describeAuthError(e);
+      setExisting(!!info.alreadyExists);
+      setFormError(info.message);
     } finally {
       setLoading(false);
     }
@@ -94,7 +102,9 @@ export default function RegisterScreen() {
       if (error) throw error;
       setResent(true);
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : 'Envoi impossible.');
+      // Le renvoi retombe sur la même limite de débit que l'inscription : on l'annonce en clair
+      // (« attends N secondes ») plutôt que de laisser croire à une panne.
+      setFormError(describeAuthError(e).message);
     } finally {
       setLoading(false);
     }

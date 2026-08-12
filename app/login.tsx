@@ -15,6 +15,7 @@ import SocialAuthButtons from '../components/SocialAuthButtons';
 import { useKeyboardAwareScroll } from '../hooks/useKeyboardAwareScroll';
 import { useResponsive } from '../hooks/useResponsive';
 import { authPage, authCard } from '../lib/webLayout';
+import { describeAuthError } from '../lib/authErrors';
 
 
 export default function LoginScreen() {
@@ -46,12 +47,9 @@ export default function LoginScreen() {
         router.back();
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Connexion impossible.';
-      if (msg.includes('Email not confirmed')) {
-        showAlert('Email non confirmé', 'Vérifie ta boîte mail et clique sur le lien de confirmation avant de te connecter.');
-      } else {
-        showAlert('Erreur', msg);
-      }
+      // Messages traduits et partagés avec l'inscription (cf. lib/authErrors) : une adresse non
+      // confirmée, un débit dépassé ou une panne réseau ne doivent plus sortir en anglais brut.
+      showAlert('Connexion', describeAuthError(e).message);
     } finally {
       setLoading(false);
     }
