@@ -69,6 +69,30 @@ export function useAuthOrphans(enabled: boolean) {
   });
 }
 
+/**
+ * Recrée les lignes `profiles` manquantes (RPC admin_repair_missing_profiles, migration 177).
+ *
+ * Un compte sans profil est INJOIGNABLE depuis l'admin — recherche, Premium et « Consulter »
+ * partent tous de `profiles`. La réparation reconstruit la ligne depuis `auth.users`, sans jamais
+ * toucher aux données de l'utilisateur : il n'a rien à supprimer ni à recréer.
+ */
+export function useRepairMissingProfiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<number> => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { data, error } = await supabase.rpc('admin_repair_missing_profiles');
+      if (error) throw new Error(error.message);
+      return Number(data ?? 0);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin_auth_orphans'] });
+      qc.invalidateQueries({ queryKey: ['admin_user_search'] });
+      qc.invalidateQueries({ queryKey: ['admin_users_search'] });
+    },
+  });
+}
+
 /** Supprime en masse des utilisateurs (compte Auth + toutes leurs données) via l'Edge Function. */
 export function useDeleteUsers() {
   const qc = useQueryClient();

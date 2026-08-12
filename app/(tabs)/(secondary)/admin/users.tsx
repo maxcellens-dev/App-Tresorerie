@@ -24,7 +24,7 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 import { pageColumn } from '../../../../lib/webLayout';
 import { supabase } from '../../../../lib/supabase';
 import { sheetWidth } from '../../../../lib/appLayout';
-import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, type InactiveUser } from '../../../../hooks/useInactiveUsers';
+import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, useRepairMissingProfiles, type InactiveUser } from '../../../../hooks/useInactiveUsers';
 
 type Tab = 'users' | 'groups' | 'inactive';
 
@@ -78,8 +78,15 @@ function UsersPanel({ COLORS, s }: { COLORS: any; s: any }) {
     queryKey: ['admin_user_search', query],
     queryFn: async (): Promise<AdminUser[]> => {
       if (!supabase || query.trim().length < 2) return [];
-      const q = `%${query.trim()}%`;
-      const { data, error } = await supabase.from('profiles').select('id, full_name, email, is_premium').or(`email.ilike.${q},full_name.ilike.${q}`).limit(25);
+      const raw = query.trim();
+      const q = `%${raw}%`;
+      /* Recherche aussi par IDENTIFIANT. Le déclencheur de création écrit '' quand `auth.users`
+         n'a ni e-mail ni nom (connexion par fournisseur, profil réparé sans métadonnées) : un tel
+         compte n'était atteignable par AUCUNE recherche, donc impossible à « Consulter ». Coller
+         son UUID est le dernier recours qui marche toujours. */
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+      const filter = isUuid ? `id.eq.${raw},email.ilike.${q},full_name.ilike.${q}` : `email.ilike.${q},full_name.ilike.${q}`;
+      const { data, error } = await supabase.from('profiles').select('id, full_name, email, is_premium').or(filter).limit(25);
       if (error) throw error;
       return (data ?? []) as AdminUser[];
     },
@@ -141,6 +148,7 @@ function UsersPanel({ COLORS, s }: { COLORS: any; s: any }) {
  */
 function AuthOrphans({ COLORS, s }: { COLORS: any; s: any }) {
   const { data: orphans = [] } = useAuthOrphans(true);
+  const repair = useRepairMissingProfiles();
   if (orphans.length === 0) return null;
   const fmt = (d: string) => { const t = new Date(d); return Number.isNaN(t.getTime()) ? '—' : t.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }); };
   return (
@@ -159,6 +167,21 @@ function AuthOrphans({ COLORS, s }: { COLORS: any; s: any }) {
         </Text>
       ))}
       {orphans.length > 10 && <Text style={s.since}>…et {orphans.length - 10} autre(s)</Text>}
+      {/* Réparer = RECONSTRUIRE la ligne de profil depuis le compte d'authentification. Aucune
+          donnée de l'utilisateur n'est touchée : il n'a rien à supprimer ni à recréer de son côté.
+          Une fois réparé, il redevient trouvable par la recherche et « Consulter » fonctionne. */}
+      <TouchableOpacity
+        style={[s.toggleBtn, { marginTop: 12, borderColor: COLORS.emerald, backgroundColor: COLORS.emerald + '18' }, repair.isPending && { opacity: 0.5 }]}
+        onPress={() => repair.mutate(undefined, {
+          onSuccess: (n) => Alert.alert('Réparation', n > 0 ? `${n} profil(s) recréé(s). Ces comptes sont de nouveau visibles dans la recherche.` : 'Aucun profil à recréer.'),
+          onError: (e: any) => Alert.alert('Échec', e?.message ?? 'Erreur'),
+        })}
+        disabled={repair.isPending}
+      >
+        {repair.isPending
+          ? <ActivityIndicator size="small" color={COLORS.emerald} />
+          : <Text style={[s.toggleText, { color: COLORS.emerald }]}>Recréer les profils manquants</Text>}
+      </TouchableOpacity>
     </View>
   );
 }
