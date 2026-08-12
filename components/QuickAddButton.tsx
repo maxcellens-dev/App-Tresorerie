@@ -15,7 +15,7 @@
  * Rendu en overlay dans le layout (tabs) → flotte au-dessus de la barre. Le bouton fait partie de
  * l'app au même titre que la barre d'onglets : ni l'utilisateur ni l'admin ne peuvent le masquer.
  */
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable, useWindowDimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
@@ -43,7 +43,10 @@ function darkenHex(hex: string, f: number): string {
 
 export default function QuickAddButton() {
   const COLORS = useAppColors();
-  const styles = makeStyles(COLORS);
+  // Mémoïsé : le composant se rend à chaque frame d'animation pilotée par l'état (ouverture,
+  // fermeture, démontage) — reconstruire la feuille de styles à chaque fois est du travail pur
+  // perte sur le thread JS, précisément pendant l'animation qu'on veut fluide.
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const { width: winWidth } = useWindowDimensions();
   // Sur web bureau, l'app est confinée dans une colonne centrée de APP_MAX_WIDTH (cf. webColumn dans
@@ -82,12 +85,18 @@ export default function QuickAddButton() {
   const unmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (unmountTimer.current) clearTimeout(unmountTimer.current); }, []);
 
-  const run = (to: number, cb?: (result: { finished: boolean }) => void) =>
-    Animated.spring(anim, { toValue: to, useNativeDriver: true, friction: 6, tension: 90 }).start(cb);
+  /* OUVERTURE au ressort : le léger dépassement donne son ressenti au déploiement.
+     FERMETURE en durée CONSTANTE, surtout pas au ressort. Un ressort est sous-amorti : en
+     rejoignant 0 il passe SOUS zéro puis REBONDIT au-dessus avant de se stabiliser. Les
+     interpolations étant bornées, l'opacité faisait 0 (excursion négative) → ~0,05 (rebond) → 0 :
+     les pastilles et leur halo réapparaissaient une poignée de frames APRÈS avoir disparu, ce qui
+     se voyait comme un clignotement. Une décroissance monotone ne peut pas produire ce retour. */
+  const DURATION_OUT = 160;
   const openMenu = () => {
     if (unmountTimer.current) { clearTimeout(unmountTimer.current); unmountTimer.current = null; }
     openRef.current = true;
-    setMounted(true); setOpen(true); run(1);
+    setMounted(true); setOpen(true);
+    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 6, tension: 90 }).start();
   };
   const close = () => {
     openRef.current = false;
@@ -96,9 +105,9 @@ export default function QuickAddButton() {
     // callback n'arrive jamais → les boutons restaient montés, avec leur ombre native (elevation)
     // toujours visible à l'écran. Le timer garantit le démontage dans tous les cas.
     const unmountIfStillClosed = () => { if (!openRef.current) setMounted(false); };
-    run(0, unmountIfStillClosed);
+    Animated.timing(anim, { toValue: 0, duration: DURATION_OUT, useNativeDriver: true }).start(unmountIfStillClosed);
     if (unmountTimer.current) clearTimeout(unmountTimer.current);
-    unmountTimer.current = setTimeout(unmountIfStillClosed, 400);
+    unmountTimer.current = setTimeout(unmountIfStillClosed, DURATION_OUT + 120);
   };
   // On lit openRef, pas `open` : deux taps dans la MÊME frame capturent le même `open` périmé et
   // déclenchent deux fois la même branche → état désynchronisé de l'animation.
@@ -150,9 +159,13 @@ export default function QuickAddButton() {
 
   return (
     <>
-      {/* Backdrop plein écran : capte les taps extérieurs pour refermer */}
-      {open && (
-        <Pressable style={StyleSheet.absoluteFill} onPress={close}>
+      {/* Backdrop plein écran : capte les taps extérieurs pour refermer.
+          Monté tant que les actions le sont (`mounted`), pas seulement tant que le menu est ouvert :
+          accroché à `open`, il DISPARAISSAIT D'UN COUP à la fermeture — son opacité animée n'avait
+          jamais l'occasion de décroître — et le voile sombre sautait pendant que les boutons, eux,
+          s'effaçaient en douceur. Il ne capte plus les taps dès la fermeture engagée. */}
+      {mounted && (
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} pointerEvents={open ? 'auto' : 'none'}>
           <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#00000055', opacity: backdropOpacity }]} />
         </Pressable>
       )}
