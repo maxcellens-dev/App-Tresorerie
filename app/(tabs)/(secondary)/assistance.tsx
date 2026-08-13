@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, ActivityIndicator } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useProfile } from '../../../hooks/data/useProfile';
 import { useMySupportRequests, useCreateSupportRequest, type SupportRequest } from '../../../hooks/admin/useSupport';
 import { sheetWidth, useSheetBottomPadding } from '../../../lib/ui/appLayout';
 import SupportThreadModal from '../../../components/ui/SupportThreadModal';
+import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 
 
 function formatDate(iso: string) {
@@ -142,7 +143,7 @@ export default function AssistanceScreen() {
 
       {/* Nouvelle demande */}
       <Modal visible={showNew} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowNew(false)}>
-        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={[styles.modalBox, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Contacter l'assistance</Text>
@@ -176,7 +177,7 @@ export default function AssistanceScreen() {
               {createRequest.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.modalSendText}>Envoyer la demande</Text>}
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareOverlay>
       </Modal>
 
       <SupportThreadModal

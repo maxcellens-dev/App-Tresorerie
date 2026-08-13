@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, Platform, P
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 const SV_W = 248, SV_H = 188, HUE_W = 26;
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
@@ -118,7 +119,7 @@ export default function ColorPickerModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>Choisir une couleur</Text>
@@ -181,7 +182,7 @@ export default function ColorPickerModal({
             <Text style={styles.confirmText}>Valider</Text>
           </TouchableOpacity>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

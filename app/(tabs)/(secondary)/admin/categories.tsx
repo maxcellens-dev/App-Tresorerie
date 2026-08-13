@@ -17,6 +17,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useProfile } from '../../../../hooks/data/useProfile';
 import { useBaseCategories, useAddBaseCategory, useUpdateBaseCategory, useReorderBaseCategories, useApplyBaseCategories, type BaseCategory } from '../../../../hooks/data/useBaseCategories';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 export default function AdminCategoriesScreen() {
   const COLORS = useAppColors();
@@ -103,7 +104,7 @@ export default function AdminCategoriesScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
           {isLoading ? <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 30 }} /> : parents.map((p) => (
             <View key={p.id} style={styles.group}>
               {renderCat(p, false)}
@@ -130,7 +131,7 @@ export default function AdminCategoriesScreen() {
               <Ionicons name="add-circle" size={26} color={COLORS.emerald} />
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <TouchableOpacity style={[styles.applyBtn, apply.isPending && { opacity: 0.6 }]} onPress={doApply} disabled={apply.isPending}>
           {apply.isPending ? <ActivityIndicator color={COLORS.bg} /> : <><Ionicons name="cloud-upload-outline" size={18} color={COLORS.bg} /><Text style={styles.applyLabel}>Appliquer à tous les utilisateurs</Text></>}

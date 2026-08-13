@@ -25,6 +25,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { supabase } from '../../../../lib/platform/supabase';
 import { sheetWidth } from '../../../../lib/ui/appLayout';
 import { useInactiveUsers, useAdminUserSearch, useDeleteUsers, useAuthOrphans, useRepairMissingProfiles, type InactiveUser } from '../../../../hooks/admin/useInactiveUsers';
+import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 
 type Tab = 'users' | 'groups' | 'inactive';
 
@@ -284,7 +285,7 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
       </KeyboardAwareScrollView>
 
       <Modal visible={!!membersOf} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setMembersOf(null)}>
-        <Pressable style={s.modalOverlay} onPress={() => setMembersOf(null)}>
+        <KeyboardAwareOverlay style={s.modalOverlay} onBackdropPress={() => setMembersOf(null)} scroll={false}>
           <Pressable style={s.modalSheet} onPress={() => {}}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle} numberOfLines={1}>{membersOf?.name}</Text>
@@ -307,7 +308,7 @@ function GroupsPanel({ COLORS, s, userId }: { COLORS: any; s: any; userId: strin
               {filteredUsers.length === 0 && <Text style={s.empty}>Aucun utilisateur.</Text>}
             </KeyboardAwareScrollView>
           </Pressable>
-        </Pressable>
+        </KeyboardAwareOverlay>
       </Modal>
     </>
   );

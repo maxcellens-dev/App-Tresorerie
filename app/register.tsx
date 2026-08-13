@@ -26,7 +26,7 @@ export default function RegisterScreen() {
   // Bureau : formulaire centré verticalement (cf. app/login).
   const { isDesktop } = useResponsive();
   const router = useRouter();
-  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -119,7 +119,7 @@ export default function RegisterScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
           </TouchableOpacity>
-          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, authPage(isDesktop)]}>
+          <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={[{ paddingBottom: 32 }, authPage(isDesktop), keyboardPadding]}>
           {/* Bureau : tout le formulaire vit dans une CARTE posée sur la page (cf. authCard). */}
           <View style={authCard(isDesktop, COLORS)}>
           {sentTo ? (

@@ -37,6 +37,7 @@ import IconPickerModal from '../../../components/ui/IconPickerModal';
 import { iconForCategory } from '../../../lib/ui/categoryIcons';
 import { supabase } from '../../../lib/platform/supabase';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 
 
 /** Clé du champ « nouvelle catégorie parente » (admin) — aucun id réel ne peut la valoir. */
@@ -469,7 +470,7 @@ function CategoriesScreen() {
       </SafeAreaView>
 
       <Modal visible={!!editModal} transparent animationType="fade" onRequestClose={() => { setEditModal(null); setEditError(null); }}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Modifier la catégorie</Text>
             {editError && (
@@ -522,7 +523,7 @@ function CategoriesScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* Sélecteur d'icône de sous-catégorie (§13) — par utilisateur */}

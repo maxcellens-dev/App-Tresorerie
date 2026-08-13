@@ -14,6 +14,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView,
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { sheetWidth } from '../../lib/ui/appLayout';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import {
   useEmailTemplates, useSaveEmailTemplate, useDeleteEmailTemplate, makeTemplateId,
   type AdminEmailTemplate,
@@ -163,7 +164,7 @@ export default function EmailTemplatePicker({ onApply }: Props) {
 
       {/* ── Édition / création ── */}
       <Modal visible={!!draft} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDraft(null)}>
-        <View style={styles.overlay}>
+        <KeyboardAwareOverlay style={styles.overlay} scroll={false}>
           <View style={styles.sheet}>
             <View style={styles.sheetHead}>
               <Text style={styles.sheetTitle}>{draft?.isNew ? 'Nouveau modèle' : 'Modifier le modèle'}</Text>
@@ -210,7 +211,7 @@ export default function EmailTemplatePicker({ onApply }: Props) {
               {save.isPending ? <ActivityIndicator color={COLORS.bg} size="small" /> : <Text style={styles.saveTxt}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
     </View>
   );

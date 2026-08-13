@@ -13,6 +13,7 @@ import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../lib/ui/webLayout';
 import { useNavBack } from '../../../hooks/platform/useNavBack';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 
 function showAlert(title: string, message: string) {
   Alert.alert(title, message); // in-app global (§7)
@@ -52,6 +53,7 @@ export default function ChangePasswordScreen() {
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
           <Text style={styles.backText}>Retour</Text>
         </TouchableOpacity>
+        <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Changer de mot de passe</Text>
         <Text style={styles.sub}>Choisis un nouveau mot de passe pour ton compte.</Text>
 
@@ -63,6 +65,7 @@ export default function ChangePasswordScreen() {
         <TouchableOpacity style={[styles.btn, loading && { opacity: 0.6 }]} onPress={save} disabled={loading}>
           <Text style={styles.btnLabel}>{loading ? 'Mise à jour…' : 'Mettre à jour'}</Text>
         </TouchableOpacity>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

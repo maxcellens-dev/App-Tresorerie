@@ -22,6 +22,7 @@ import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { openPulse } from '../pulse/PulseHost';
 import ClosureBilanModal from './ClosureBilanModal';
 import { balanceAtEnd, lastVerifiedDate, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct } from '../../lib/finance/closureForm';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface Props {
   /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
@@ -319,7 +320,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
 
       {/* Modale de clôture */}
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={closeModal}>
-        <View style={styles.overlay}>
+        <KeyboardAwareOverlay style={styles.overlay} scroll={false}>
           {/* `maxHeight` porté par la FEUILLE elle-même (et non par un conteneur au-dessus) : une View
               a `flexShrink: 0` par défaut, donc une feuille enveloppée dans un parent plafonné ne se
               rétrécit PAS — elle débordait sous le bas de l'écran et emportait le bouton « Clôturer »
@@ -635,7 +636,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
               </TouchableOpacity>
             </SafeAreaView>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* Pop-up de bilan éphémère — masquée en consultation admin (ne pas consommer le bilan du compte cible) */}

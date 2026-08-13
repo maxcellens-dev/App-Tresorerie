@@ -5,7 +5,7 @@
  * - Avec session de récupération (arrivée via le lien e-mail) : saisie du nouveau mot de passe.
  */
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useResponsive } from '../hooks/theme/useResponsive';
 import { authPage, authCard } from '../lib/ui/webLayout';
@@ -16,6 +16,7 @@ import { supabase } from '../lib/platform/supabase';
 import { useBrandColors } from '../hooks/theme/useBrandColors';
 import { useAuth } from '../contexts/AuthContext';
 import PasswordStrength from '../components/auth/PasswordStrength';
+import KeyboardAwareScrollView from '../components/layout/KeyboardAwareScrollView';
 import { evaluatePassword } from '../lib/auth/passwordPolicy';
 
 function showAlert(title: string, message: string) {
@@ -76,9 +77,10 @@ export default function ResetPasswordScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           <Text style={{ color: COLORS.text, marginLeft: 8, fontSize: 14, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={[styles.keyboard, authPage(isDesktop)]}
+        <KeyboardAwareScrollView
+          style={styles.keyboard}
+          contentContainerStyle={[{ flexGrow: 1, justifyContent: 'center' }, authPage(isDesktop)]}
+          showsVerticalScrollIndicator={false}
         >
           {/* Bureau : le contenu vit dans une CARTE posée sur la page (cf. authCard). */}
           <View style={authCard(isDesktop, COLORS)}>
@@ -123,7 +125,7 @@ export default function ResetPasswordScreen() {
             </>
           )}
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

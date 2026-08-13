@@ -41,6 +41,7 @@ import { todayISO } from '../../../lib/dateUtils';
 import { useProfile } from '../../../hooks/data/useProfile';
 import { TextInput, Modal } from 'react-native';
 import { useRwProjects, useCreateRwProject, useRwInvitations, useRwRespondInvitation, useRwProjectsStats } from '../../../hooks/engagement/useRelykaWorld';
+import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 
 const RW_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
 
@@ -663,7 +664,7 @@ function ProjectsScreen() {
 
       {/* Création projet partagé */}
       <Modal visible={showRwCreate} transparent animationType="slide" onRequestClose={() => setShowRwCreate(false)}>
-        <View style={styles.rwModalOverlay}>
+        <KeyboardAwareOverlay style={styles.rwModalOverlay}>
           <View style={styles.rwCreateCard}>
             <View style={styles.rwCreateHeader}>
               <Text style={styles.rwModalTitle}>Nouveau projet partagé</Text>
@@ -688,7 +689,7 @@ function ProjectsScreen() {
               {rwBusy ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.rwCreateCtaText}>Créer le projet</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
 

@@ -39,6 +39,7 @@ import {
   renderRelykaEmail, looksLikeHtml,
 } from '../../../../supabase/functions/_shared/emailTemplate';
 import { applyEmailVars, EMAIL_VAR_NAMES } from '../../../../supabase/functions/_shared/emailVars';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 const AUDIENCES: [EmailAudience, string][] = [
   ['all', 'Tous'], ['premium', 'Premium'], ['free', 'Gratuits'], ['group', 'Un groupe'],
@@ -188,7 +189,7 @@ export default function AdminEmails() {
       <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="E-mails" onBack={goBack} />
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
           {/* Diagnostic E-MAIL — placé avant la rédaction : savoir combien de personnes sont
               joignables et combien d'envois il reste évite d'écrire une campagne qui s'arrêtera au
               milieu. Le pendant push vit dans l'écran Notifications : deux canaux, deux pannes. */}
@@ -342,7 +343,7 @@ export default function AdminEmails() {
               )}
             </View>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       {/* APERÇU — rendu dans une iframe isolée sur le web : les styles de l'e-mail ne peuvent alors

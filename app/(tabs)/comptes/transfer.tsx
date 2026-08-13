@@ -41,7 +41,7 @@ function TransferScreen() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { isDesktop } = useResponsive(); // web bureau : colonne de formulaire étroite
-  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
   const router = useRouter();
   const params = useLocalSearchParams<{
     from?: string; to?: string; amount?: string; label?: string; date?: string;
@@ -278,7 +278,7 @@ function TransferScreen() {
         <Text style={styles.subtitle}>Débit sur un compte, crédit sur un autre. Les soldes sont mis à jour.</Text>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={[styles.scrollContent, keyboardPadding]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
           {/* Fil d'étapes */}
           <View style={styles.stepsRow}>
             <View style={[styles.stepDot, styles.stepDotActive]}><Text style={styles.stepDotText}>1</Text></View>

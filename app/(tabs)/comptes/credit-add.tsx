@@ -27,6 +27,7 @@ import CreditCurve from '../../../components/charts/CreditCurve';
 import { computeAmortization, resolvePaliers } from '../../../lib/finance/amortization';
 import { todayISO, formatDateFrench } from '../../../lib/dateUtils';
 import type { CreditType } from '../../../types/database';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 
 const TYPES: { key: CreditType; label: string; icon: string }[] = [
   { key: 'immobilier', label: 'Immobilier', icon: 'home-outline' },
@@ -337,7 +338,7 @@ function CreditAddScreen() {
       <StatusBar style={COLORS.mode === 'light' ? 'dark' : 'light'} />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title={editId ? 'Modifier le crédit' : 'Nouveau crédit'} onBack={() => router.back()} />
-        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {error && <View style={styles.errorBanner}><Ionicons name="alert-circle" size={16} color={COLORS.danger} /><Text style={styles.errorText}>{error}</Text></View>}
 
           <Text style={styles.label}>Type</Text>
@@ -749,7 +750,7 @@ function CreditAddScreen() {
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving}>
             {saving ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveLabel}>{editId ? 'Enregistrer les modifications' : 'Enregistrer le crédit'}</Text>}
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       {/* Calendrier (date de déblocage) */}

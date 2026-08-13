@@ -36,6 +36,7 @@ import { currencySymbolFor } from '../../../lib/finance/currency';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../../../lib/dateUtils';
 import CalendarWithPicker from '../../../components/transaction/CalendarWithPicker';
 import { sheetWidth } from '../../../lib/ui/appLayout';
+import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
 
 export default function BalanceUpdateScreen() {
   const COLORS = useAppColors();
@@ -150,7 +151,7 @@ export default function BalanceUpdateScreen() {
           <ScreenHeader title="Mettre à jour mon solde" onBack={goBack} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.lede}>
             Ouvre ton appli bancaire et recopie le solde affiché. On s’occupe du reste.
             <InfoDot term="maj_solde" size={14} />
@@ -255,7 +256,7 @@ export default function BalanceUpdateScreen() {
           )}
 
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity

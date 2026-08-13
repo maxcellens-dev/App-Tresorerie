@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { Category } from '../../types/database';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CATEGORY_ICON_GLOSSARY, iconForCategory } from '../../lib/ui/categoryIcons';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 /** Normalise pour une recherche insensible à la casse et aux accents. */
 function norm(s: string): string {
@@ -214,7 +215,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
       {/* Modal de création rapide d'une sous-catégorie (§12) */}
       {canCreate && (
         <Modal visible={showCreate} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setShowCreate(false)}>
-          <Pressable style={styles.createOverlay} onPress={() => setShowCreate(false)}>
+          <KeyboardAwareOverlay style={styles.createOverlay} onBackdropPress={() => setShowCreate(false)}>
             <Pressable style={styles.createBox} onPress={() => {}}>
               <View style={styles.createHeader}>
                 <Text style={styles.createTitle}>Nouvelle sous-catégorie</Text>
@@ -276,7 +277,7 @@ export default function CategoryPicker({ groups, selectedCategoryId, onSelect, l
                 {creating ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.createSubmitText}>Ajouter</Text>}
               </TouchableOpacity>
             </Pressable>
-          </Pressable>
+          </KeyboardAwareOverlay>
         </Modal>
       )}
     </View>

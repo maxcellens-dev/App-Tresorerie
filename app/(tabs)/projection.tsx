@@ -45,6 +45,7 @@ import {
 import { semanticText } from '../../theme/palette';
 import { computeConfidence, resolveReliabilityConfig } from '../../lib/finance/confidenceEngine';
 import { buildPerimeterCtx, transformFluxTransactions, splitPerimeterAccounts } from '../../lib/finance/perimeter';
+import KeyboardAwareScrollView from '../../components/layout/KeyboardAwareScrollView';
 
 const INVEST_COLOR = '#a78bfa';
 const SAVINGS_COLOR = '#34d399';
@@ -533,7 +534,7 @@ function ProjectionBody() {
       <ScreenGradient />
       <OnboardingHintBanner />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right']}>
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Onglets */}
           <View style={styles.tabs} ref={tabsRef}>
@@ -833,7 +834,7 @@ function ProjectionBody() {
           <AdSlot placement="projection" />
 
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       <CalculatorButton page="projection" />

@@ -12,6 +12,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, Modal, Pressable, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import type { AppColors } from '../../theme/palette';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface Props {
   visible: boolean;
@@ -43,7 +44,7 @@ export default function PilotageInputModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={dismiss}>
-      <Pressable style={s.varModalOverlay} onPress={dismiss}>
+      <KeyboardAwareOverlay style={s.varModalOverlay} onBackdropPress={dismiss}>
         <Pressable style={s.varModalBox} onPress={() => {}}>
           <Text style={s.varModalTitle}>{title}</Text>
           <Text style={s.varModalHint}>{hint}</Text>
@@ -78,7 +79,7 @@ export default function PilotageInputModal({
             </TouchableOpacity>
           </View>
         </Pressable>
-      </Pressable>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

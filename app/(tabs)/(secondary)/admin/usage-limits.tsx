@@ -16,6 +16,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useUsageLimitsConfig, useSaveUsageLimitsConfig } from '../../../../hooks/config/useUsageLimits';
 import { USAGE_LIMIT_FIELDS, USAGE_LIMIT_DEFAULTS, type UsageLimitsConfig, type UsageTierLimits } from '../../../../lib/finance/usageLimits';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 type Tier = 'free' | 'premium';
 
@@ -63,7 +64,7 @@ export default function AdminUsageLimits() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Limites d'usage" onBack={goBack} />
-        <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={styles.p}>
             Nombre maximal d'éléments par utilisateur. Au-delà, la création est bloquée et l'utilisateur
             est invité à passer Premium (ou à faire de la place). Les transactions sont comptées par
@@ -106,7 +107,7 @@ export default function AdminUsageLimits() {
           </TouchableOpacity>
           {!dirty && savedAt != null && !save.isPending && <Text style={styles.savedTxt}>Modifications enregistrées ✓</Text>}
           {save.isError && <Text style={styles.errorTxt}>Échec de l'enregistrement — réessaie.</Text>}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

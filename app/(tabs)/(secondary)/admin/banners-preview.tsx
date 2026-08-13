@@ -28,6 +28,7 @@ import { ClosureBannerCard } from '../../../../components/closure/MonthlyClosure
 import RecommendationCard from '../../../../components/pilotage/RecommendationCard';
 import { floorToTen } from '../../../../lib/finance/currency';
 import type { PilotageData } from '../../../../hooks/pilotage/usePilotageData';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 /* ── Données d'exemple (réalistes, sans lien avec le compte connecté) ── */
 
@@ -132,7 +133,7 @@ export default function AdminBannersPreview() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Aperçu bandeaux" onBack={goBack} />
-        <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <Text style={styles.p}>
             Rendu de PRODUCTION avec des états forcés et des données d'exemple — rien n'est écrit
             (Ignorer/Réserver sans effet). Le flux complet de clôture (modale, régularisations,
@@ -234,7 +235,7 @@ export default function AdminBannersPreview() {
               </View>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

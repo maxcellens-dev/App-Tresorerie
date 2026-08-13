@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSetTransactionMonthOverride, useDeleteTransactionMonthOverride } from '../../hooks/data/useTransactionMonthOverrides';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface EditTransactionMonthModalProps {
   visible: boolean;
@@ -100,7 +101,7 @@ export default function EditTransactionMonthModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <KeyboardAwareOverlay style={styles.overlay}>
         <View style={styles.modal}>
           {/* Header */}
           <View style={styles.header}>
@@ -185,7 +186,7 @@ export default function EditTransactionMonthModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

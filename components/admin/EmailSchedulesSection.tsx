@@ -12,6 +12,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView,
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { sheetWidth } from '../../lib/ui/appLayout';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import {
   useEmailSchedules, useSaveEmailSchedule, useDeleteEmailSchedule, useToggleEmailSchedule,
   describeEmailRecurrence,
@@ -126,7 +127,7 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
 
       {/* ── Création / édition ── */}
       <Modal visible={!!draft} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDraft(null)}>
-        <View style={s.overlay}>
+        <KeyboardAwareOverlay style={s.overlay} scroll={false}>
           <View style={s.sheet}>
             <View style={s.sheetHead}>
               <Text style={s.sheetTitle}>{draft?.id ? 'Modifier l’envoi récurrent' : 'Nouvel envoi récurrent'}</Text>
@@ -238,7 +239,7 @@ export default function EmailSchedulesSection({ groups }: { groups: { id: string
               {save.isPending ? <ActivityIndicator color={COLORS.bg} size="small" /> : <Text style={s.saveTxt}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
     </>
   );

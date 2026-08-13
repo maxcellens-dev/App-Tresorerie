@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import type { PreSavingType } from '../../types/database';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface Props {
   visible: boolean;
@@ -52,7 +53,7 @@ export default function PreSavingsModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -124,7 +125,7 @@ export default function PreSavingsModal({
             </TouchableOpacity>
           )}
         </Pressable>
-      </Pressable>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

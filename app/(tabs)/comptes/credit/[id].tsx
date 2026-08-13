@@ -21,6 +21,8 @@ import CreditShareSection from '../../../../components/credit/CreditShareSection
 import CreditCurve from '../../../../components/charts/CreditCurve';
 import { computeAmortization } from '../../../../lib/finance/amortization';
 import { todayISO, formatDateFrench } from '../../../../lib/dateUtils';
+import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 export default function CreditDetailScreen() {
   const COLORS = useAppColors();
@@ -137,7 +139,7 @@ export default function CreditDetailScreen() {
             </TouchableOpacity>
           ) : undefined}
         />
-        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Synthèse */}
           <View style={styles.card}>
             <Text style={styles.crdLabel}>Capital restant dû</Text>
@@ -301,12 +303,12 @@ export default function CreditDetailScreen() {
               <Text style={styles.delLabel}>Supprimer ce crédit</Text>
             </TouchableOpacity>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
 
       {/* Modal ajout d'événement */}
       <Modal visible={showEvt} transparent animationType="fade" onRequestClose={() => setShowEvt(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Ajouter un événement</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
@@ -325,7 +327,7 @@ export default function CreditDetailScreen() {
               <TouchableOpacity style={[styles.mBtn, { backgroundColor: COLORS.emerald }]} onPress={saveEvent}><Text style={{ color: COLORS.bg, fontWeight: '700' }}>Ajouter</Text></TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* Modal édition d'UNE échéance du tableau d'amortissement (saisie directe + ligne suivante). */}

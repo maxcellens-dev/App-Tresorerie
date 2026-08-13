@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Image, Platform, Modal } from 'react-native';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import KeyboardAwareScrollView from '../../../components/layout/KeyboardAwareScrollView';
+import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -297,7 +298,9 @@ function ProfileScreen() {
                   </>
                 )}
               </TouchableOpacity>
-              {avatarUrl && (
+              {/* `!!` obligatoire : `avatarUrl` est une chaîne, et `'' && …` rend '' — un nœud
+                  texte interdit comme enfant d'une View (erreur bruyante sur le web). */}
+              {!!avatarUrl && (
                 <TouchableOpacity
                   style={[styles.avatarBtnDanger, avatarLoading && styles.avatarBtnDisabled]}
                   onPress={handleRemoveAvatar}
@@ -385,7 +388,7 @@ function ProfileScreen() {
 
         {/* ── Modale de double confirmation ── */}
         <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
-          <View style={styles.modalOverlay}>
+          <KeyboardAwareOverlay style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <View style={styles.modalIconCircle}>
                 <Ionicons name="warning" size={28} color={COLORS.danger} />
@@ -428,7 +431,7 @@ function ProfileScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardAwareOverlay>
         </Modal>
       </SafeAreaView>
 

@@ -30,6 +30,7 @@ import { sheetWidth } from '../../../../lib/ui/appLayout';
 import { useSystemNotificationsConfig, useSaveSystemNotificationsConfig } from '../../../../hooks/pilotage/useReliability';
 import { useCrashNotifyConfig, useSaveCrashNotifyConfig, useAdminNotifTemplates, useSaveAdminNotifTemplate, type AdminNotifTemplateKind } from '../../../../hooks/platform/useSecurity';
 import { useAdminNotifPrefs, useSaveAdminNotifPref, type AdminNotifKind } from '../../../../hooks/admin/useUnreadBadges';
+import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 
 interface AdminNotification { id: string; title: string; body: string; sent_count: number; created_at: string; source: string | null; target_label: string | null }
 interface GroupRow { id: string; name: string }
@@ -616,7 +617,7 @@ export default function AdminNotifications() {
 
       {/* ── Formulaire de planification ── */}
       <Modal visible={showForm} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowForm(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowForm(false)}>
+        <KeyboardAwareOverlay style={styles.modalOverlay} onBackdropPress={() => setShowForm(false)} scroll={false}>
           <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{form.id ? 'Modifier' : 'Nouvelle planification'}</Text>
@@ -702,7 +703,7 @@ export default function AdminNotifications() {
               </Text>
             </KeyboardAwareScrollView>
           </Pressable>
-        </Pressable>
+        </KeyboardAwareOverlay>
       </Modal>
     </View>
   );

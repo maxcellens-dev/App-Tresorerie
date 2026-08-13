@@ -18,6 +18,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useSeoConfig, useSaveSeoConfig } from '../../../../hooks/config/useSeo';
 import { SEO_DEFAULTS, resolveSeoConfig, seoTitleFor, seoDescriptionFor, type SeoConfig } from '../../../../lib/platform/seo';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 type TextField = { kind: 'text'; path: string; label: string; placeholder?: string; multiline?: boolean; help?: string };
 type SwitchField = { kind: 'switch'; path: string; label: string; help?: string };
@@ -127,7 +128,7 @@ export default function AdminSeoCenter() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="SEO Center" onBack={goBack} />
-        <ScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 80 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Text style={styles.p}>Configuration du référencement, appliquée au site web. Sur mobile, ces réglages n'ont aucun effet.</Text>
 
           {/* Aperçu résultat Google */}
@@ -193,7 +194,7 @@ export default function AdminSeoCenter() {
           </TouchableOpacity>
           {!dirty && savedAt != null && !save.isPending && <Text style={styles.savedTxt}>Modifications enregistrées ✓</Text>}
           {save.isError && <Text style={styles.errorTxt}>Échec de l'enregistrement — réessaie.</Text>}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

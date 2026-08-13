@@ -4,8 +4,9 @@
  * dans l'arbre (au-dessus des écrans).
  */
 import { useMemo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { registerDialogHost, alertCompat, type DialogRequest, type DialogButton } from '../../lib/ui/appDialog';
 
@@ -42,8 +43,7 @@ export default function AppDialogHost() {
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => onPress(cancelBtn ?? { text: 'OK' })}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Pressable style={styles.overlay} onPress={() => onPress(cancelBtn ?? { text: 'OK' })}>
+      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={() => onPress(cancelBtn ?? { text: 'OK' })}>
         <Pressable style={styles.box} onPress={() => {}}>
           {!!req.title && <Text style={styles.title}>{req.title}</Text>}
           {!!req.message && <Text style={styles.message}>{req.message}</Text>}
@@ -107,8 +107,7 @@ export default function AppDialogHost() {
             </View>
           )}
         </Pressable>
-      </Pressable>
-      </KeyboardAvoidingView>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

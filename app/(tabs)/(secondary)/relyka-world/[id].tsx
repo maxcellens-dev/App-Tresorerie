@@ -18,6 +18,7 @@ import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
 import { sheetWidth, useSheetBottomPadding } from '../../../../lib/ui/appLayout';
 import { todayISO } from '../../../../lib/dateUtils';
+import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
   useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime,
@@ -309,7 +310,7 @@ export default function RelykaWorldDetail() {
 
       {/* Modal inviter */}
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Participants</Text>
@@ -353,12 +354,12 @@ export default function RelykaWorldDetail() {
               );
             })}
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* Modal édition d'un participant non inscrit (renommer / inviter par ID) */}
       <Modal visible={!!editPart} transparent animationType="slide" onRequestClose={() => setEditPart(null)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Participant non inscrit</Text>
@@ -384,12 +385,12 @@ export default function RelykaWorldDetail() {
               {partBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalCtaText}>Envoyer l'invitation</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* Modal édition projet */}
       <Modal visible={showEdit} transparent animationType="slide" onRequestClose={() => setShowEdit(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Modifier le projet</Text>
@@ -413,7 +414,7 @@ export default function RelykaWorldDetail() {
               <Text style={styles.modalCtaText}>Enregistrer</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
     </View>
   );

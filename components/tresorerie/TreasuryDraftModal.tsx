@@ -15,6 +15,7 @@ import { View, Text, Modal, ScrollView, TextInput, TouchableOpacity, StyleSheet 
 import { Ionicons } from '@expo/vector-icons';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import type { AppColors } from '../../theme/palette';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface Props {
   visible: boolean;
@@ -51,7 +52,7 @@ export default function TreasuryDraftModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       {/* Le TouchableOpacity intérieur absorbe le clic : sans lui, toucher la carte remonterait
           jusqu'au fond et refermerait le formulaire qu'on est en train de remplir. */}
-      <TouchableOpacity style={styles.overlay} onPress={onClose} activeOpacity={1}>
+      <KeyboardAwareOverlay style={styles.overlay} onBackdropPress={onClose}>
         <TouchableOpacity style={styles.container} onPress={() => {}} activeOpacity={1}>
           <View style={styles.header}>
             <View>
@@ -109,7 +110,7 @@ export default function TreasuryDraftModal({
             <Text style={styles.submitLabel}>{submitLabel}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

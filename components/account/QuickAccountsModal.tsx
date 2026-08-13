@@ -20,6 +20,7 @@ import { useAccounts, useAddAccount } from '../../hooks/data/useAccounts';
 import { useProfile } from '../../hooks/data/useProfile';
 import { currencySymbolFor } from '../../lib/finance/currency';
 import { appAlert } from '../../lib/ui/appDialog';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 /** Propositions ajoutables en un tap (mêmes intitulés que le démarrage). */
 const PRESETS: { key: string; label: string; type: string; hint: string; icon: string }[] = [
@@ -127,7 +128,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAwareOverlay style={styles.overlay} scroll={false}>
         <View style={styles.card}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -212,7 +213,7 @@ export default function QuickAccountsModal({ visible, userId, onClose, onCreated
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAwareOverlay>
     </Modal>
   );
 }

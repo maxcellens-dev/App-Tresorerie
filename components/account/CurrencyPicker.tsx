@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { CURRENCIES, currencySymbolFor } from '../../lib/finance/currency';
 import { sheetWidth, useSheetBottomPadding } from '../../lib/ui/appLayout';
+import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface Props {
   value: string;                       // code ISO sélectionné
@@ -49,7 +50,7 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setOpen(false)}>
-        <View style={styles.overlay}>
+        <KeyboardAwareOverlay style={styles.overlay} scroll={false}>
           <View style={[styles.sheet, { paddingBottom: sheetPad }]}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Choisir une devise</Text>
@@ -93,7 +94,7 @@ export default function CurrencyPicker({ value, onChange, label }: Props) {
               }}
             />
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
     </View>
   );

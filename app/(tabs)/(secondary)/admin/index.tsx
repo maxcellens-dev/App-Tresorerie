@@ -13,6 +13,7 @@ import { useResponsive } from '../../../../hooks/theme/useResponsive';
 import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useAdminUnreadBreakdown } from '../../../../hooks/admin/useUnreadBadges';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 
 export default function AdminHub() {
@@ -103,7 +104,7 @@ export default function AdminHub() {
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Panneau Admin" onBack={goBack} />
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.subtitle}>Configuration dynamique et reporting. Les changements sont appliqués au prochain sync.</Text>
 
           <View style={styles.searchRow}>
@@ -162,7 +163,7 @@ export default function AdminHub() {
               </View>
             </View>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

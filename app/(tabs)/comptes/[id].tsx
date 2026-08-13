@@ -48,6 +48,7 @@ import BalanceChart from '../../../components/charts/BalanceChart';
 import AccountSettingsForm from '../../../components/account/AccountSettingsForm';
 import PageLoader from '../../../components/layout/PageLoader';
 import { buildBalanceHistory } from '../../../lib/finance/balanceHistory';
+import KeyboardAwareOverlay from '../../../components/layout/KeyboardAwareOverlay';
 
 
 /** Les trois façons de regarder un compte. Une seule à la fois : la fiche empilait tout. */
@@ -913,7 +914,7 @@ function AccountDetailScreen() {
 
       {/* ── Solde modal ── */}
       <Modal visible={showBalance} transparent animationType="fade" onRequestClose={() => setShowBalance(false)}>
-        <View style={modalStyles.overlay}>
+        <KeyboardAwareOverlay style={modalStyles.overlay}>
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Ajuster le solde</Text>
 
@@ -992,7 +993,7 @@ function AccountDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* ── Calendrier pour le solde ── */}
@@ -1025,7 +1026,7 @@ function AccountDetailScreen() {
 
       {/* ── Apport modal ── */}
       <Modal visible={showApport} transparent animationType="fade" onRequestClose={() => setShowApport(false)}>
-        <View style={modalStyles.overlay}>
+        <KeyboardAwareOverlay style={modalStyles.overlay}>
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Apport</Text>
 
@@ -1077,7 +1078,7 @@ function AccountDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* #4bis — picker : choisir le membre non-user au nom duquel saisir l'opération sur le compte joint. */}
@@ -1108,7 +1109,7 @@ function AccountDetailScreen() {
         setShowGainLoss(false);
         setShowMethodPicker(false);
       }}>
-        <View style={modalStyles.overlay}>
+        <KeyboardAwareOverlay style={modalStyles.overlay}>
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Plus / moins-value</Text>
 
@@ -1249,7 +1250,7 @@ function AccountDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* ── Calendrier Apport ── */}
@@ -1310,7 +1311,7 @@ function AccountDetailScreen() {
 
       {/* ── Intérêts modal (comptes épargne) ── */}
       <Modal visible={showInterest} transparent animationType="fade" onRequestClose={() => { setShowInterest(false); setShowInterestMethodPicker(false); }}>
-        <View style={modalStyles.overlay}>
+        <KeyboardAwareOverlay style={modalStyles.overlay}>
           <View style={modalStyles.container}>
             <Text style={modalStyles.title}>Intérêts</Text>
 
@@ -1405,7 +1406,7 @@ function AccountDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
 
       {/* ── Calendrier Intérêts ── */}

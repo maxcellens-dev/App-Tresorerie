@@ -21,6 +21,7 @@ import { useFeatureFlags, useSaveFeatureFlags } from '../../../../hooks/config/u
 import { useClientErrors, useResolveClientError, useResolveAllClientErrors, usePurgeClientErrors, useAdminSetPassword, useClientErrorsRealtime, type ClientError } from '../../../../hooks/platform/useSecurity';
 import PasswordStrength from '../../../../components/auth/PasswordStrength';
 import { evaluatePassword } from '../../../../lib/auth/passwordPolicy';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 export default function AdminSecurity() {
   const COLORS = useAppColors();
@@ -46,13 +47,13 @@ export default function AdminSecurity() {
       <ScreenGradient />
       <SafeAreaView style={[s.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Centre de sécurité" onBack={goBack} />
-        <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={s.subtitle}>Coupure globale, détection des erreurs et gestion des mots de passe.</Text>
 
           <LockdownCard c={COLORS} s={s} />
           <ErrorsCard c={COLORS} s={s} />
           <PasswordResetCard c={COLORS} s={s} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );

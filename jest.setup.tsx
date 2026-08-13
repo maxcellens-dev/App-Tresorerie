@@ -48,7 +48,49 @@ jest.mock('expo-router', () => ({
 }));
 
 /* ── Modules natifs sans équivalent JS ────────────────────────────────────────────────────────── */
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// Doublure ÉCRITE À LA MAIN : depuis Reanimated 4, `react-native-reanimated/mock` charge le vrai
+// `react-native-worklets` (module natif) et lève « Cannot read properties of undefined ».
+jest.mock('react-native-reanimated', () => {
+  const { View } = require('react-native');
+  const noop = () => {};
+  const identity = (v: any) => v;
+  const shared = (value: any) => ({ value });
+  const easing = Object.assign(identity, { factory: () => identity });
+  return {
+    __esModule: true,
+    default: { View, ScrollView: View, Text: View, Image: View, createAnimatedComponent: identity },
+    View,
+    ScrollView: View,
+    useSharedValue: shared,
+    useDerivedValue: (fn: any) => shared(typeof fn === 'function' ? fn() : fn),
+    useAnimatedStyle: (fn: any) => (typeof fn === 'function' ? fn() : {}),
+    useAnimatedReaction: noop,
+    useAnimatedRef: () => ({ current: null }),
+    useAnimatedScrollHandler: () => noop,
+    useHandler: () => ({ context: {}, doDependenciesDiffer: false }),
+    useEvent: () => noop,
+    withTiming: identity,
+    withSpring: identity,
+    withDecay: identity,
+    withDelay: (_d: number, v: any) => v,
+    withRepeat: identity,
+    withSequence: (...v: any[]) => v[0],
+    cancelAnimation: noop,
+    interpolate: () => 0,
+    interpolateColor: () => 'transparent',
+    // Un worklet exécuté en test l'est directement sur le thread JS.
+    runOnJS: identity,
+    runOnUI: identity,
+    Easing: { linear: easing, ease: easing, quad: easing, cubic: easing, bezier: () => easing, in: identity, out: identity, inOut: identity },
+    Extrapolation: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
+    FadeIn: { duration: () => ({}) },
+    FadeOut: { duration: () => ({}) },
+  };
+});
+
+// Doublure fournie par la lib : sans elle, le simple import lève « doesn't seem to be linked »
+// (useKeyboardHeight, utilisé par tous les écrans de saisie, l'importe).
+jest.mock('react-native-keyboard-controller', () => require('react-native-keyboard-controller/jest'));
 
 // Insets FIXES : à zéro, toute mise en page dépendant de la zone sûre serait testée dans un cas
 // qui n'existe sur aucun téléphone.

@@ -58,7 +58,7 @@ function EditTransactionScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [errorFields, setErrorFields] = useState<string[]>([]);
   const [showRecDelete, setShowRecDelete] = useState(false);
-  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
 
   function showConfirm(opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) {
     setConfirmModal(opts);
@@ -655,7 +655,7 @@ function EditTransactionScreen() {
           </View>
         )}
 
-        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={[styles.scrollContent, keyboardPadding]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
               <Ionicons name="alert-circle" size={16} color={COLORS.danger} />

@@ -25,6 +25,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/platform/supabase';
 import { useUserSnapshot } from '../../../../hooks/data/useUserSnapshot';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 type Tab = 'settings' | 'models' | 'prompts' | 'tickets' | 'snapshot';
 
@@ -71,13 +72,13 @@ export default function AdminAi() {
         {isLoading || !cfg ? (
           <ActivityIndicator color={c.emerald} style={{ marginTop: 32 }} />
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
             {tab === 'settings' && <SettingsTab c={c} s={s} cfg={cfg} updateCfg={updateCfg} />}
             {tab === 'models' && <ModelsTab c={c} s={s} models={cfg.models} updateCfg={updateCfg} />}
             {tab === 'prompts' && <PromptsTab c={c} s={s} cfg={cfg} prompts={prompts ?? []} updatePrompt={updatePrompt} updateCfg={updateCfg} />}
             {tab === 'tickets' && <TicketsTab c={c} s={s} tickets={tickets ?? []} prompts={prompts ?? []} resolveTicket={resolveTicket} adminReply={adminReply} relaunch={relaunch} />}
             {tab === 'snapshot' && <SnapshotTab c={c} s={s} />}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </View>

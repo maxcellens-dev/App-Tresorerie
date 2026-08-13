@@ -138,7 +138,7 @@ function AddTransactionScreen() {
   const [errorFields, setErrorFields] = useState<string[]>([]);
   // Saisie en 2 étapes (style banque) : étape 1 = qui/quoi, étape 2 = quand/récurrence.
   const [step, setStep] = useState<1 | 2>(1);
-  const { scrollRef, handleFocus, onScroll } = useKeyboardAwareScroll();
+  const { scrollRef, handleFocus, onScroll, keyboardPadding } = useKeyboardAwareScroll();
   // Projet sélectionné pour rattacher la saisie (null = pas de rattachement).
   const [attachProjectId, setAttachProjectId] = useState<string | null>(null);
 
@@ -564,7 +564,7 @@ function AddTransactionScreen() {
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'form')]} edges={[]}>
         <ScreenHeader title="Nouvelle transaction" onBack={handleBack} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} onScroll={onScroll} scrollEventThrottle={16} style={styles.scroll} contentContainerStyle={[styles.scrollContent, keyboardPadding]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {formError && (
             <View style={styles.errorBanner}>
               <Ionicons name="alert-circle" size={16} color={COLORS.danger} />

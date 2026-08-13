@@ -21,6 +21,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '../../../../lib/platform/supabase';
 import { sheetWidth } from '../../../../lib/ui/appLayout';
 import type { Conseil } from '../../../../hooks/pilotage/useConseils';
+import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
 
 export default function AdminConseils() {
   const COLORS = useAppColors();
@@ -138,7 +139,7 @@ export default function AdminConseils() {
 
       {/* Modal d'édition */}
       <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editing?.id ? 'Modifier le conseil' : 'Nouveau conseil'}</Text>
@@ -170,7 +171,7 @@ export default function AdminConseils() {
               {save.isPending ? <ActivityIndicator color={COLORS.bg} /> : <Text style={styles.saveBtnText}>Enregistrer</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAwareOverlay>
       </Modal>
     </View>
   );

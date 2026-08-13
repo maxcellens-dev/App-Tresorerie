@@ -17,6 +17,7 @@ import { pageColumn } from '../../../../lib/ui/webLayout';
 import { useNavBack } from '../../../../hooks/platform/useNavBack';
 import { useReliabilityConfig, useSaveReliabilityConfig } from '../../../../hooks/pilotage/useReliability';
 import { RELIABILITY_DEFAULTS, type ReliabilityConfig } from '../../../../lib/finance/confidenceEngine';
+import KeyboardAwareScrollView from '../../../../components/layout/KeyboardAwareScrollView';
 
 // Champs dans l'ORDRE du calcul : base → ancienneté → dérive → seuils du ratio → fourchette.
 const NUM_FIELDS: { key: keyof ReliabilityConfig; label: string; help: string; pct?: boolean }[] = [
@@ -72,7 +73,7 @@ export default function AdminReliability() {
       <ScreenGradient />
       <SafeAreaView style={[styles.safe, pageColumn(isDesktop, 'dashboard')]} edges={['left', 'right', 'bottom']}>
         <ScreenHeader title="Fiabilité & confiance" onBack={goBack} />
-        <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
           <TouchableOpacity style={styles.helpToggle} onPress={() => setShowHelp((v) => !v)}>
             <Ionicons name={showHelp ? 'chevron-down' : 'chevron-forward'} size={16} color={COLORS.emerald} />
             <Text style={styles.helpToggleTxt}>Comment ça marche ?</Text>
@@ -172,7 +173,7 @@ export default function AdminReliability() {
             Le catalogue des notifications automatiques (soft_close, confidence_low, …) se gère désormais
             dans Admin → Notifications, section « Notifications automatiques (système) ».
           </Text>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </View>
   );
