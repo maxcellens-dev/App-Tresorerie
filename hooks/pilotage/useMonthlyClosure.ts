@@ -30,6 +30,45 @@ export const CLOSURE_REGUL_NOTES = [
 ];
 export interface ClosureBilan { month_key: string; surplus: number; seen?: boolean; }
 
+/** Clôture d'UN compte pour UN mois — partagée entre tous ceux qui voient le compte (migration 179). */
+export interface AccountClosure { account_id: string; month_key: string; closed_by: string; balance: number | null; closed_at: string; }
+
+/**
+ * Comptes DÉJÀ clôturés, tous mois confondus, sur le périmètre visible de l'utilisateur.
+ *
+ * Sert au cas des comptes JOINTS : plusieurs personnes voient le même compte, et sans trace
+ * partagée chacune le clôturerait de son côté — donc autant de régularisations empilées sur le même
+ * compte que de participants. Une clôture par compte et par mois, quel que soit son auteur.
+ */
+export function useAccountClosures(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['account_closures', userId],
+    enabled: !!userId,
+    queryFn: async (): Promise<AccountClosure[]> => {
+      if (!supabase || !userId) return [];
+      /* ⚠️ LA RLS N'EST PAS UN FILTRE DE LISTE. La policy de lecture s'appuie sur `acct_can_access`,
+         qui contient une branche `is_app_admin()` : un `select('*')` nu renverrait les clôtures de
+         TOUS les comptes de TOUS les utilisateurs chez un administrateur — et, en « connecté en tant
+         que », le jeton reste celui de l'admin. On résout donc explicitement les comptes du profil
+         VISITÉ, comme partout ailleurs (useAllTransactions, useAllAccounts). */
+      const [ownRes, memRes] = await Promise.all([
+        supabase.from('accounts').select('id').eq('profile_id', userId),
+        supabase.from('account_members').select('account_id').eq('user_id', userId),
+      ]);
+      const ids = [...new Set([
+        ...((ownRes.data ?? []) as any[]).map((a) => a.id),
+        ...((memRes.data ?? []) as any[]).map((m) => m.account_id),
+      ])];
+      if (ids.length === 0) return [];
+      const { data, error } = await supabase.from('account_closures').select('*').in('account_id', ids);
+      // Table absente (migration 179 pas encore déployée) → on se comporte comme avant : aucune
+      // trace de clôture par compte, la clôture reste proposée. Jamais d'échec bloquant.
+      if (error) return [];
+      return (data ?? []) as AccountClosure[];
+    },
+  });
+}
+
 /* Arithmétique des clés de mois : PURE, donc sortie dans lib/monthKeys (ce fichier-ci tire
    react-query et Supabase, ce qui la rendait intestable en Node). Réexportée pour ne casser
    aucun des chemins d'import existants.
@@ -65,6 +104,20 @@ export function useMonthlyClosure(userId: string | undefined) {
   const bilanRaw = (profile as any)?.last_closure_bilan as ClosureBilan | null | undefined;
   const bilan = bilanRaw && !bilanRaw.seen ? bilanRaw : null;
 
+  /**
+   * Mois RÉELLEMENT clôturés — c'est-à-dire CONFIRMÉS par l'utilisateur.
+   *
+   * `closures` contient aussi les mois marqués `estimated` : ceux qu'on a auto-marqués faute de
+   * réponse passé le délai de grâce. Un mois estimé n'est PAS clôturé — il reste proposé à la
+   * clôture. Les quatre écrans qui lisent ces données refaisaient chacun ce filtre de leur côté ;
+   * l'écran Clôture, lui, l'avait oublié, et affichait donc le même mois à la fois en « en attente »
+   * et en « clôturé ». La définition vit ici, une seule fois.
+   */
+  const confirmedClosures = useMemo(
+    () => closures.filter((c) => (c.status ?? 'confirmed') === 'confirmed'),
+    [closures],
+  );
+
   const pendingMonths = useMemo(() => {
     /* ⚠️ Tant que les clôtures ne sont pas CHARGÉES, on ne conclut rien. `closures = []` se lit
        « aucun mois n'a jamais été clôturé » et fait remonter tout l'historique comme en attente :
@@ -74,7 +127,7 @@ export function useMonthlyClosure(userId: string | undefined) {
     if (!enabled || !closuresLoaded || !transactions.length) return [];
     // Seuls les mois CONFIRMÉS sont réellement clos : un mois `estimated` reste proposé à la clôture
     // (le user peut toujours répondre plus tard) mais est déjà exclu des baselines.
-    const confirmed = closures.filter((c) => (c.status ?? 'confirmed') === 'confirmed');
+    const confirmed = confirmedClosures;
     const closedSet = new Set(confirmed.map((c) => c.month_key));
     const cur = ym(new Date());
     const firstTx = (transactions as any[]).reduce((min, t) => (t.date < min ? t.date : min), (transactions as any[])[0].date) as string;
@@ -91,11 +144,18 @@ export function useMonthlyClosure(userId: string | undefined) {
       guard++;
     }
     return res; // du plus ancien au plus récent
-  }, [enabled, closuresLoaded, transactions, closures]);
+  }, [enabled, closuresLoaded, transactions, confirmedClosures]);
 
   // ── Marquage AUTO `estimated` : un mois pendant ignoré au-delà du délai de grâce (8 jours dans
   // le mois suivant) est marqué estimated (jamais bloquant, silencieux, rétro-corrigeable). ──
   const estimatedRunFor = useRef<string | null>(null);
+  /* Mois ROUVERTS pendant cette session. Sans cette mémoire, l'automatisme ci-dessous réinscrivait
+     aussitôt en base le mois que l'utilisateur venait explicitement de rouvrir (le délai de grâce
+     est écoulé depuis longtemps sur un mois passé) : la ligne `month_closures` réapparaissait dans
+     la seconde, en `estimated`. Rouvrir semblait alors n'avoir servi à rien — c'est précisément ce
+     qu'on voyait à l'écran. Rouvrir un mois, c'est annoncer qu'on va s'en occuper : on ne le
+     re-marque pas dans son dos. */
+  const reopenedThisSession = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!enabled || !userId || !supabase || pendingMonths.length === 0) return;
     const now = new Date();
@@ -103,7 +163,8 @@ export function useMonthlyClosure(userId: string | undefined) {
     const graceOver = now.getDate() >= 8;
     const alreadyMarked = new Set(closures.map((c) => c.month_key)); // confirmed OU estimated
     const toEstimate = pendingMonths.filter((mk) =>
-      !alreadyMarked.has(mk) && (mk < prevMonth || (mk === prevMonth && graceOver)),
+      !alreadyMarked.has(mk) && !reopenedThisSession.current.has(mk)
+      && (mk < prevMonth || (mk === prevMonth && graceOver)),
     );
     if (toEstimate.length === 0) return;
     const sig = `${userId}:${toEstimate.join(',')}`;
@@ -154,10 +215,9 @@ export function useMonthlyClosure(userId: string | undefined) {
    * PAR RAPPORT à ce solde — restent en place et deviennent fausses. On dépile donc dans l'ordre.
    */
   const reopenableMonth = useMemo(() => {
-    const confirmed = closures.filter((c) => (c.status ?? 'confirmed') === 'confirmed');
-    if (confirmed.length === 0) return null;
-    return confirmed.reduce((a, b) => (a.month_key > b.month_key ? a : b)).month_key;
-  }, [closures]);
+    if (confirmedClosures.length === 0) return null;
+    return confirmedClosures.reduce((a, b) => (a.month_key > b.month_key ? a : b)).month_key;
+  }, [confirmedClosures]);
 
   const reopenMonth = useMutation({
     mutationFn: async (monthKey: string) => {
@@ -168,48 +228,53 @@ export function useMonthlyClosure(userId: string | undefined) {
       /* ROUVRIR = DÉFAIRE. Les régularisations créées PAR la clôture n'ont plus lieu d'être : les
          laisser, c'est garder un ajustement de solde qui ne correspond plus à aucune vérification —
          et il serait recréé à la clôture suivante, en double. On ne touche QU'À CELLES-LÀ : les
-         régularisations saisies à la main par l'utilisateur (« Régularisation solde ») restent. */
-      const from = `${monthKey}-01`;
-      const to = lastDayOfMonthKey(monthKey);
-      const { error: delErr } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('profile_id', userId)
-        .is('category_id', null)
-        .in('note', CLOSURE_REGUL_NOTES)
-        .gte('date', from)
-        .lte('date', to);
-      if (delErr) throw new Error(delErr.message);
-      /* La part « mois courant » d'une clôture au prorata est datée APRÈS le mois clos : elle
-         appartient pourtant à la même opération, et doit partir avec. */
-      const { error: delErr2 } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('profile_id', userId)
-        .is('category_id', null)
-        .eq('note', 'Régularisation clôture (mois courant)')
-        .gt('date', to);
-      if (delErr2) throw new Error(delErr2.message);
-      /* Mode « solde réel » sur le mois le plus récent : la clôture écrit une « Régularisation
-         solde » — le MÊME libellé qu'une mise à jour manuelle. On ne peut donc pas les distinguer
-         par le texte : on ne supprime que celles datées EXACTEMENT du dernier jour du mois clos,
-         la date que la clôture leur donne toujours. */
-      const { error: delErr3 } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('profile_id', userId)
-        .is('category_id', null)
-        .eq('note', 'Régularisation solde')
-        .eq('date', to);
-      if (delErr3) throw new Error(delErr3.message);
+         régularisations saisies à la main par l'utilisateur (« Régularisation solde ») restent.
+
+         ⚠️ Cette suppression se faisait ici, en SQL généré côté client, sur le critère
+         « pas de catégorie ET libellé dans cette liste ». Depuis la migration 175, une
+         régularisation PORTE une catégorie : le filtre ne correspondait plus à rien, et rouvrir un
+         mois ne défaisait plus RIEN — il retirait la ligne `month_closures` en laissant toutes les
+         régularisations en place. D'où le symptôme « je rouvre un mois et il me propose des montants
+         différents de ceux de la validation ».
+         La règle vit désormais en base (`reopen_month_regularisations`, migration 179), sur une
+         marque explicite posée par la clôture (`closure_month`), avec repli sur l'ancien critère
+         pour les lignes écrites avant. Elle nettoie aussi les clôtures par compte (comptes joints).
+
+         `p_profile` (migration 190) : la fonction se limitait au profil de `auth.uid()`. En
+         « connecté en tant que », le jeton reste celui de l'administrateur — elle ne trouvait donc
+         RIEN à supprimer chez la personne dépannée, et la réouverture repartait en annonçant un
+         succès. On lui dit désormais sur quel profil travailler ; elle vérifie elle-même le droit. */
+      const { error: rpcErr } = await supabase.rpc('reopen_month_regularisations', { p_month: monthKey, p_profile: userId });
+      if (rpcErr) throw new Error(rpcErr.message);
+
+      /* ON VÉRIFIE QUE ÇA A BIEN EFFACÉ. Toute cette histoire tient à une suppression qui ne
+         supprimait rien sans que personne ne s'en aperçoive : le mois disparaissait de la liste, les
+         régularisations restaient, et les soldes gardaient une correction qui ne correspondait plus
+         à aucune vérification. Une réouverture qui laisse une ligne marquée derrière elle est un
+         échec — on le dit, et on n'efface pas la clôture (l'état reste cohérent, réessayable). */
+      const { data: leftovers, error: leftErr } = await supabase
+        .from('transactions').select('id').eq('profile_id', userId).eq('closure_month', monthKey).limit(1);
+      if (leftErr) throw new Error(leftErr.message);
+      if (leftovers && leftovers.length > 0) {
+        throw new Error("Les régularisations de ce mois n'ont pas pu être supprimées : le mois reste clôturé pour ne pas laisser tes soldes dans un état bâtard. Réessaie.");
+      }
 
       const { error } = await supabase.from('month_closures').delete().eq('profile_id', userId).eq('month_key', monthKey);
       if (error) throw new Error(error.message);
+      reopenedThisSession.current.add(monthKey);
       // Recalcule le verrou = dernier jour du mois clôturé le plus récent restant (sinon null).
       /* Les soldes ont bougé (régularisations supprimées) : on les RECALCULE depuis les faits, comme
-         partout ailleurs — sinon les comptes garderaient la valeur qu'ils avaient avec les réguls. */
-      const { data: accs } = await supabase.from('accounts').select('id').eq('profile_id', userId);
-      await recomputeBalances((accs ?? []).map((a: any) => a.id));
+         partout ailleurs — sinon les comptes garderaient la valeur qu'ils avaient avec les réguls.
+         Comptes JOINTS compris : ils portent désormais eux aussi des régularisations de clôture. */
+      const [{ data: accs }, { data: mem }] = await Promise.all([
+        supabase.from('accounts').select('id').eq('profile_id', userId),
+        supabase.from('account_members').select('account_id').eq('user_id', userId),
+      ]);
+      const ids = [...new Set([
+        ...((accs ?? []) as any[]).map((a) => a.id),
+        ...((mem ?? []) as any[]).map((m) => m.account_id),
+      ])];
+      await recomputeBalances(ids);
 
       const remaining = closures.filter((c) => c.month_key !== monthKey).map((c) => c.month_key);
       const newLock = remaining.length ? lastDayOfMonthKey(remaining.reduce((a, b) => (a > b ? a : b))) : null;
@@ -224,8 +289,9 @@ export function useMonthlyClosure(userId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['transactions', userId] });
       qc.invalidateQueries({ queryKey: ['accounts', userId] });
       qc.invalidateQueries({ queryKey: ['pilotage_data', userId] });
+      qc.invalidateQueries({ queryKey: ['account_closures', userId] });
     },
   });
 
-  return { enabled, pendingMonths, lockDate, bilan, closures, closeMonths, markBilanSeen, reopenMonth, reopenableMonth };
+  return { enabled, pendingMonths, lockDate, bilan, closures, confirmedClosures, closeMonths, markBilanSeen, reopenMonth, reopenableMonth };
 }

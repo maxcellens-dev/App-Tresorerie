@@ -364,8 +364,29 @@ WHERE uc.base_id = bc.id
   AND fv.id = bc.parent_id AND fv.name = 'Frais variables'
   AND upfv.profile_id = uc.profile_id AND upfv.base_id = fv.id;
 
--- Propagation de ce qui manque encore (même RPC que « Appliquer à tous » en admin : il n'ajoute
--- que l'absent, réaligne le placement, et ne touche à aucun renommage utilisateur).
-SELECT public.apply_base_categories();
+/* Propagation de ce qui manque encore (même RPC que « Appliquer à tous » en admin : il n'ajoute
+   que l'absent, réaligne le placement, et ne touche à aucun renommage utilisateur).
+
+   ⚠️ APPEL RENDU NON BLOQUANT — et c'est capital.
+   `apply_base_categories()` commence par `IF NOT is_app_admin() THEN RAISE EXCEPTION 'Réservé à
+   l'administrateur'`. Exécutée depuis l'éditeur SQL, la migration tourne SANS session applicative :
+   `auth.uid()` vaut NULL, donc `is_app_admin()` est faux, et l'appel lève. Comme le script s'exécute
+   dans UNE transaction, cet échec de la DERNIÈRE instruction annulait TOUT ce qui précède —
+   `is_regul_tx` comprise.
+
+   Conséquence observée : la migration paraissait passée, elle ne l'était pas, et la fonction
+   `recompute_account_balance` (réécrite plus tard pour appeler `is_regul_tx`) échouait à chaque
+   appel. Plus aucun solde n'était recalculé, sans le moindre signal.
+
+   Une migration ne doit jamais faire dépendre sa réussite d'un contrôle de rôle APPLICATIF. On tente
+   donc la propagation, et on se contente de le signaler si elle n'est pas possible : c'est une
+   commodité (les catégories manquantes se propagent aussi depuis l'écran d'administration, bouton
+   « Appliquer à tous »), pas une condition de validité de ce qui précède. */
+DO $$
+BEGIN
+  PERFORM public.apply_base_categories();
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Propagation des catégories non effectuée ici (%). Lance « Appliquer à tous » depuis l''administration.', SQLERRM;
+END $$;
 
 NOTIFY pgrst, 'reload schema';

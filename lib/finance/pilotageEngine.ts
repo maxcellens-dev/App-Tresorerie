@@ -119,6 +119,14 @@ export interface PilotageData {
    */
   variable_real_months: number;
   variable_envelope_months_used: number; // nb de mois d'historique utilisés (si source = history)
+  /** Charges RÉCURRENTES du mois (hors virements d'épargne, hors projets). */
+  monthly_recurring_expenses: number;
+  /**
+   * DÉPENSES ESSENTIELLES du mois = charges récurrentes + enveloppe variable retenue.
+   * Base du matelas de sécurité : ce qu'il faut couvrir chaque mois si le revenu s'arrête
+   * (cf. lib/securityCushion — la base était le REVENU, ce qui n'a jamais mesuré la bonne chose).
+   */
+  monthly_essential_expenses: number;
 
   // Step 3: Surplus & Recommendation
   projected_surplus: number;
@@ -922,6 +930,35 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
 
   const variable_envelope_remaining = Math.max(0, variable_envelope_initial - variable_envelope_spent);
 
+  /* ── DÉPENSES ESSENTIELLES DU MOIS : ce qu'il faut couvrir pour continuer à vivre ─────────────
+     Charges RÉCURRENTES du mois (loyer, abonnements, crédits, assurances…) + enveloppe variable
+     retenue. C'est la base du matelas de sécurité (cf. lib/securityCushion) : « combien de temps
+     je tiens sans rentrée d'argent » se mesure sur ce qui SORT, pas sur ce qui rentrait.
+
+     Périmètre volontairement identique à celui du point bas : comptes courants, hors brouillons,
+     hors projets, et hors VIREMENTS vers l'épargne ou l'investissement — mettre de côté n'est pas
+     une dépense qu'on doit continuer d'assumer si le revenu s'arrête, c'est la première chose
+     qu'on suspend. Les compter aurait fait fondre le matelas de ceux qui épargnent le plus. */
+  let monthly_recurring_expenses = 0;
+  {
+    const monthStart = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+    for (const t of transactions) {
+      if (!checkingIds.has(t.account_id) || (t as any).is_draft || (t as any).is_reserved) continue;
+      if ((t as any).project_id) continue;
+      if (!(t.is_recurring && t.recurrence_rule)) continue;
+      // Virement sortant vers un compte à soi (épargne/invest) → pas une charge à couvrir.
+      if (t.linked_account_id) continue;
+      for (const occ of recurrenceOccurrencesBetween(
+        t.date, t.recurrence_rule as RecurrenceRule, (t as any).recurrence_end_date ?? null,
+        monthStart, curMonthEnd,
+      )) {
+        const amt = realSignedAt(t, occ);
+        if (amt < 0) monthly_recurring_expenses += -amt;
+      }
+    }
+  }
+  const monthly_essential_expenses = monthly_recurring_expenses + variable_envelope_initial;
+
   // ── Référence de variable UNIFIÉE (Pilotage ET Reporting) ────────────────────────────────────
   // C'est L'ENVELOPPE elle-même : le questionnaire tant qu'on n'a pas 2 mois de données réelles,
   // puis la moyenne réelle sur jusqu'à 6 mois d'historique (plus l'historique grandit, plus la
@@ -1061,6 +1098,8 @@ export function computePilotageData(data: PilotageInput, now: Date = new Date())
     variable_real_available: realAvailable,
     variable_real_months: monthsWithData.length,
     variable_envelope_months_used,
+    monthly_recurring_expenses,
+    monthly_essential_expenses,
     projected_surplus,
     recommendation,
     safety_margin_percent,

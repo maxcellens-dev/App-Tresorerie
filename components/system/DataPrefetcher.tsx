@@ -36,6 +36,12 @@ function Warm({ userId }: { userId: string }) {
   useTransactionMonthOverrides(userId);
   useSharedContribution(userId);     // tréso / projection / reporting
   useCurrencyRates();
+  /* Projets PARTAGÉS : remontés de la 2ᵉ vague à la 1ʳᵉ. La page Projets affiche ses projets perso
+     immédiatement (ils viennent du cache du Pilotage) : attendre 3,5 s pour lancer la requête des
+     projets partagés garantissait que la page arrive en deux temps sous les yeux de l'utilisateur.
+     Depuis la migration 178 c'est UN seul aller-retour (rw_my_projects), donc le coût de la
+     remonter est négligeable. Les stats, plus lourdes, restent en 2ᵉ vague. */
+  useRwProjects(userId);
   return null;
 }
 

@@ -234,7 +234,8 @@ export default function PulseHost() {
   if (!open_ || !pulse) return null;
 
   const result = pulse.monthly;
-  const info = PROFILE_INFO[pulse.profileId];
+  // Filet : `usePulse` résout déjà l'identifiant, mais aucun écran ne doit tomber sur un profil inconnu.
+  const info = PROFILE_INFO[pulse.profileId] ?? PROFILE_INFO.P0;
   /** Mois écoulé, en toutes lettres — celui que raconte le bilan. */
   const periodLabel = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     .toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });

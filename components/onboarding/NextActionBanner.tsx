@@ -134,6 +134,13 @@ export default function NextActionBanner() {
 
   const visible = (() => {
     if (!action || !onPilotage) return false;
+    /* CLÔTURE : c'est la BANNIÈRE INTÉGRÉE au Pilotage qui porte cette invitation, pas ce bandeau
+       flottant. Les deux disaient la même chose et ouvraient la même modale — mais celui-ci se
+       superpose au tableau de bord, et sur l'écran qui compte le plus il masque justement les
+       chiffres qu'on vient consulter. La bannière intégrée, elle, prend sa place dans le flux :
+       elle pousse le contenu vers le bas au lieu de le recouvrir. Une seule invitation, et c'est
+       celle qui ne gêne pas la lecture. */
+    if (action.type === 'soft_close') return false;
     if (dismissedThisSession.has(action.dismissKey)) return false;
     // « Tout est à jour » déjà vu ce mois-ci (session précédente) → pas de ré-affichage.
     if (action.positive && flagGet(okSeenKey()) && !memoryFlags.has(`shown_${okSeenKey()}`)) return false;

@@ -92,7 +92,8 @@ const EXCEPTIONAL_MONTH_FACTOR = 3;
  * LES MOIS RETENUS POUR LA MOYENNE — sans les rentrées EXCEPTIONNELLES.
  *
  * Le revenu de référence répond à « combien gagne-t-il par mois, d'habitude ? ». Il sert de
- * DIVISEUR au matelas de sécurité (épargne ÷ revenu) et donc au profil financier. Une rentrée
+ * DIVISEUR de REPLI du matelas de sécurité (quand les dépenses ne sont pas encore connues) et base
+ * du taux d'épargne, donc du profil financier. Une rentrée
  * ponctuelle très élevée le faisait bondir, et le matelas — donc le profil — CHUTAIT : encaisser
  * 20 000 € faisait passer de P5 à P3, et supprimer la ligne le remettait en P5. Recevoir de
  * l'argent doit améliorer la situation, jamais la dégrader.

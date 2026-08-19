@@ -290,11 +290,11 @@ function AppChrome() {
   const { user, loading, passwordRecovery, signingOut } = useAuth();
   const root = segments[0] ?? 'index';
   const isAuthPage = root === 'index' || root === 'welcome' || root === 'login' || root === 'register' || root === 'reset-password';
-  // Pendant le questionnaire, on masque l'en-tête (profil) : l'utilisateur doit le terminer.
   // Les pages légales gardent l'en-tête de l'app quand l'utilisateur est connecté (sinon : en-tête « site »).
   // Le socle de démarrage porte sa propre progression et n'a rien à faire d'un en-tête « Bonjour X »
   // avec la série et le compteur de guide : l'utilisateur n'est pas encore *dans* l'app.
-  const hideChrome = isAuthPage || root === 'questionnaire' || root === 'onboarding';
+  // (`questionnaire` et `onboarding` ont disparu avec la refonte du démarrage — cf. plus bas.)
+  const hideChrome = isAuthPage || root === 'setup';
   const isTabs = root === '(tabs)';
   // Sur web bureau : on limite la largeur de l'app (colonne centrée ~840 px), comme une app mobile.
   // Exceptions pleine largeur : page d'accueil marketing (welcome/index).
@@ -397,8 +397,13 @@ function AppChrome() {
           <Stack.Screen name="welcome" options={{ title: 'Relyka' }} />
           <Stack.Screen name="login" options={{ title: 'Connexion' }} />
           <Stack.Screen name="register" options={{ title: 'Inscription' }} />
-          <Stack.Screen name="onboarding" options={{ title: 'Démarrage' }} />
-          <Stack.Screen name="questionnaire" options={{ title: 'Profil financier' }} />
+          {/* `onboarding` et `questionnaire` déclarés ici n'existaient plus dans app/ : les écrans
+              ont été retirés avec la refonte du démarrage (plus de questionnaire, le profil se
+              déduit des données). Expo Router criait donc « No route named … » à CHAQUE rendu de la
+              navigation — un flot d'erreurs console qui noyait les vraies, en production comme en
+              développement. Une déclaration de route est une promesse : sans fichier en face, elle
+              ne coûte rien à l'exécution mais rend la console inexploitable. */}
+          <Stack.Screen name="setup" options={{ title: 'Démarrage' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
           <Stack.Screen name="confidentialite" options={{ title: 'Confidentialité' }} />
           <Stack.Screen name="legal" options={{ title: 'Mentions légales' }} />

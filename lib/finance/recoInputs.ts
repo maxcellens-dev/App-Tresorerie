@@ -110,7 +110,7 @@ export function buildRecoOptions(data: PilotageData, x: RecoBuildExtras): Comput
        computeProfileFromData) : tant qu'il manque une donnée pour le calculer, on n'invente pas un
        palier depuis le seul montant d'épargne — un compte neuf avec 20 000 € dormants passait ainsi
        pour « confortable » alors qu'on ne connaissait ni son revenu ni son rythme. */
-    financialProfileId: x.financialProfileId ?? 'P1',
+    financialProfileId: x.financialProfileId ?? 'P0',
     // Budget « enveloppe juste atteinte » : le dépassement est rajouté (le moteur le re-déduit en cascade).
     budget: recoGrossBudget + variableOverspend + savingsExecuted + investExecuted,
     thresholds: x.thresholds ?? undefined,

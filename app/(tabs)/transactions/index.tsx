@@ -653,7 +653,17 @@ function TransactionsListBody() {
   ) => {
     const effectiveDate = getEffectiveDate(item);
     const isFuture = effectiveDate > todayStr;
-    const isProject = !!item.project_id || (rwTxIds?.has(item.id) ?? false);
+    /* TROIS SIGNES, PAS UN SEUL.
+       Ne reconnaître une transaction de projet qu'au `project_id` (projets perso) ou au set
+       `rwTxIds` (projets partagés) laissait la moitié des dépenses partagées en noir : ce set vient
+       d'une requête SÉPARÉE, qui n'a pas encore répondu au premier rendu — et qui ne couvre que les
+       lignes dont on est l'auteur. La CATÉGORIE, elle, est déjà là, chargée avec la transaction :
+       c'est d'ailleurs sur elle que se fonde le détail d'un compte, qui n'a jamais eu ce défaut.
+       On garde les trois : le project_id est le plus sûr, la catégorie couvre tout de suite le
+       reste, et rwTxIds rattrape les projets partagés sans catégorie « Projets ». */
+    const isProject = !!item.project_id
+      || (rwTxIds?.has(item.id) ?? false)
+      || item.category?.name === 'Projets';
     // Compte partagé/joint (vs mon compte perso) + rôle consultation.
     const acctMeta = accountById[item.account_id];
     const isSharedAcct = !!acctMeta?.is_joint || (!!acctMeta?.profile_id && acctMeta.profile_id !== user?.id);
@@ -704,8 +714,12 @@ function TransactionsListBody() {
             <TouchableOpacity style={styles.rowLeft} onPress={navigateToEdit} activeOpacity={0.7}>
               <View style={styles.rowLabelRow}>
                 <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-                {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
-                <Text style={[styles.rowLabel, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
+                {/* Transaction de PROJET (perso ou partagé) = libellé écrit en BLEU, comme dans
+                    l'onglet Transactions d'une page de compte. La pastille qui tenait ce rôle
+                    manquait sur une partie des dépenses de projets partagés (elle dépendait d'un
+                    second chargement), et deux signalétiques pour la même notion à deux endroits de
+                    l'app, c'en était une de trop. */}
+                <Text style={[styles.rowLabel, isProject && styles.rowLabelProject, isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft]} numberOfLines={1}>
                   {item.note || item.category?.name || 'Sans libellé'}
                 </Text>
                 {isReserved ? (
@@ -772,9 +786,8 @@ function TransactionsListBody() {
         <View style={styles.rowLeft}>
           <View style={styles.rowLabelRow}>
             <Ionicons name={iconForTransaction(item) as any} size={15} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
-            {isProject && <View style={[styles.projectDot, { backgroundColor: COLORS.teal }]} />}
             {isSharedAcct && <View style={[styles.projectDot, { backgroundColor: COLORS.textSecondary }]} />}
-            <Text style={[styles.rowLabel, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
+            <Text style={[styles.rowLabel, isProject && styles.rowLabelProject, isDraft && (isProjectDraft ? styles.rowLabelDraftProject : styles.rowLabelDraft)]} numberOfLines={1}>
               {item.note || item.category?.name || 'Sans libellé'}
             </Text>
             {isDraft && (
@@ -1360,6 +1373,9 @@ function makeStyles(c: any) {
     marginRight: 6,
   },
   rowLabel: { fontSize: 15, fontWeight: '600', color: c.text, flexShrink: 1 },
+  /* Transaction de PROJET (personnel ou partagé) : le libellé passe en bleu — même signalétique que
+     l'onglet Transactions d'une page de compte, où une écriture « Projets » est déjà écrite ainsi. */
+  rowLabelProject: { color: c.blue },
   rowMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
   rowAmount: { fontSize: 15, fontWeight: '700', color: c.green },
   rowAmountNeg: { color: c.text },

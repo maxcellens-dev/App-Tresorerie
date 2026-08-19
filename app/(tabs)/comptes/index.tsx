@@ -497,7 +497,7 @@ function AccountsListScreen() {
             ? "Ajoute tes comptes avec le montant affiché aujourd'hui par ta banque."
           : guide.is('accounts_checking')
             ? "C'est le compte sur lequel ton argent arrive et tes charges partent : sans lui, impossible de savoir ce qu'il te reste."
-            : "Livret A, LDDS, PEA… c'est ce qui permet de calculer ton matelas de sécurité : combien de mois tu tiendrais sans rentrée d'argent."
+            : "Livret A, LDDS, PEA… c'est ce qui permet de calculer ton matelas de sécurité : combien de mois de dépenses ton épargne couvrirait sans rentrée d'argent."
         }
         choices={[
           {

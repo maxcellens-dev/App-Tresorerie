@@ -20,6 +20,11 @@ const WHITELIST = new Set([
   // Réglages de fiabilité (minuscules) : indispensables dès la 1ʳᵉ frame, sinon la carte Relyka
   // affiche un montant sec puis bascule en fourchette quand la config arrive du réseau.
   'reliability_config',
+  // Projets PARTAGÉS : la page Projets sort ses projets perso du cache (ils viennent du Pilotage,
+  // déjà persisté) puis attendait le réseau pour la moitié partagée — une page qui arrive en deux
+  // temps, d'autant plus visible que la connexion est mauvaise. Volume négligeable (quelques
+  // lignes), même durée de vie que le reste.
+  'rw_projects', 'rw_projects_stats',
 ]);
 // Au-delà, on ne persiste pas (évite les erreurs de taille d'AsyncStorage sur gros historiques).
 const MAX_BYTES = 1_500_000;

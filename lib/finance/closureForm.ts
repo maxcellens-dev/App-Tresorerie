@@ -13,6 +13,7 @@
  */
 import { lastDayOfMonthKey } from './monthKeys';
 import { isRegul, prorateClosureGap } from './regul';
+import { balanceAtDate } from './balanceAt';
 import { isoDay } from '../dateUtils';
 
 /** Ligne de transaction, réduite à ce dont ces calculs ont besoin. */
@@ -20,9 +21,12 @@ export interface ClosureTx {
   account_id: string;
   date: string;
   amount: number | string;
+  /** Instant de saisie : départage deux écritures du même jour face à une ancre (cf. balanceAt). */
+  created_at?: string | null;
   is_draft?: boolean | null;
   is_recurring?: boolean | null;
   regul_target?: number | null;
+  regul_covered?: boolean | null;
   note?: string | null;
   category?: { name?: string | null } | null;
 }
@@ -34,19 +38,34 @@ export interface ClosureAccount { id: string; balance: number }
  *
  * Même logique que le « solde à date » du détail de compte : on exclut les brouillons et les lignes
  * récurrentes (qui sont des occurrences PROJETÉES, pas de l'argent réellement sorti).
+ *
+ * ⚠️ LA BORNE HAUTE EST « AUJOURD'HUI », ET C'EST ESSENTIEL.
+ * `accounts.balance` est le solde À DATE : la fonction SQL qui le calcule ne somme que les
+ * transactions `date <= aujourd'hui` (cf. recompute_account_balance). Retrancher « tout ce qui est
+ * daté après la fin du mois » y incluait donc les opérations PLANIFIÉES — un loyer saisi pour le
+ * mois prochain, une échéance à venir — qui ne sont pas dans le solde qu'on décompte. Deux
+ * conséquences, toutes deux constatées :
+ *   • le solde de fin de mois proposé était trop bas du montant du futur saisi, donc l'écart et la
+ *     régularisation écrits en base étaient faux d'autant ;
+ *   • ce montant BOUGE avec le temps (le futur devient du passé, on saisit de nouvelles échéances) :
+ *     rouvrir un mois puis le reclôturer proposait un chiffre différent de celui de la première
+ *     fois, sans qu'aucune transaction du mois clos n'ait changé.
+ * Avec la borne, le résultat ne dépend plus que des faits antérieurs : il est reproductible.
  */
 export function balanceAtEnd(
   allTx: ClosureTx[],
   accountId: string,
   accountBalance: number,
   targetKey: string | null | undefined,
+  now: Date = new Date(),
 ): number {
   if (!targetKey) return accountBalance;
-  const cutoff = lastDayOfMonthKey(targetKey);
-  const after = allTx
-    .filter((t) => t.account_id === accountId && !t.is_draft && !t.is_recurring && t.date > cutoff)
-    .reduce((s, t) => s + Number(t.amount), 0);
-  return accountBalance - after;
+  /* Le calcul vit dans lib/balanceAt : il reproduit EXACTEMENT le modèle d'ancre du serveur.
+     La soustraction naïve qui se trouvait ici (« solde d'aujourd'hui moins ce qui est arrivé
+     depuis ») retirait aussi les opérations situées avant une régularisation — or celles-là ne sont
+     déjà plus dans le solde, l'ancre les a absorbées. Chaque « Mettre à jour mon solde » faussait
+     donc le solde de fin de mois proposé, et avec lui l'écart et la régularisation écrite en base. */
+  return balanceAtDate(allTx as any[], accountId, accountBalance, lastDayOfMonthKey(targetKey), now);
 }
 
 /**
@@ -95,11 +114,8 @@ export function unknownGap(
 ): number {
   const stated = parseTypedAmount(typedBalance);
   if (stated == null) return 0;
-  const t0 = isoDay(now);
-  const after = allTx
-    .filter((t) => t.account_id === account.id && !t.is_draft && !t.is_recurring && t.date > unknownDate && t.date <= t0)
-    .reduce((s, t) => s + Number(t.amount), 0);
-  return stated - (account.balance - after);
+  // Même reconstruction que partout ailleurs (modèle d'ancre du serveur) — cf. balanceAtEnd.
+  return stated - balanceAtDate(allTx as any[], account.id, account.balance, unknownDate, now);
 }
 
 /** Somme des écarts « je ne sais pas », tous comptes renseignés confondus. */

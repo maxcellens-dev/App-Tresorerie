@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/platform/supabase';
 import type { RecommendationSettings } from '../../types/database';
+import { DEFAULT_AUTO_PROFILE_MAP } from '../../lib/finance/recommendationEngine';
 
 const KEY = 'recommendation_settings';
 
@@ -16,7 +17,8 @@ export const DEFAULT_RECO_THRESHOLDS: RecommendationSettings = {
     equilibre: ['enjoy', 'invest', 'keep', 'save'],
     dynamique: ['enjoy', 'save', 'keep', 'invest'],
   },
-  auto_profile_map: { P1: 'prudent', P2: 'prudent', P3: 'equilibre', P4: 'equilibre', P5: 'dynamique' },
+  // Défaut du mode « Auto » : une seule table, celle du moteur de recos (P0–P9).
+  auto_profile_map: DEFAULT_AUTO_PROFILE_MAP,
 };
 
 export function useRecoThresholds() {

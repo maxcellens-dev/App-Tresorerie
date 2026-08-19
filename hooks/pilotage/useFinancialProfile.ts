@@ -208,7 +208,7 @@ export function useSaveQuestionnaire(userId: string | undefined) {
       answers: QuestionnaireAnswers;
       isUpdate?: boolean;
       /**
-       * Profil « vivant » : issu du nouveau démarrage, où q5 est MESURÉE (épargne ÷ revenu) et où
+       * Profil « vivant » : issu du nouveau démarrage, où q5 est MESURÉE (épargne ÷ dépenses) et où
        * q4/q6 arrivent plus tard. Il se recalcule à chaque changement de données réelles
        * (useLiveProfileSync) au lieu d'attendre le bilan mensuel, et n'est pas gelé.
        */
@@ -471,10 +471,18 @@ export function useLiveProfileSync(userId: string | undefined) {
       const real = await loadRealMetrics(userId);
       if (!real) return null;
 
-      // Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
-      // Données incomplètes → P1, le plus prudent (cf. computeProfileFromData).
+      /* Le profil DÉCOULE des mesures — aucune réponse déclarée n'entre dans le calcul.
+         Données incomplètes → P0 « Découverte » : on dit qu'on ne sait pas encore, au lieu de
+         classer d'office en « épargne critique » quelqu'un qui vient d'arriver. */
       const next = computeProfileFromData({
         availableSavings: real.savingsBalance,
+        /* Le DÉCOUVERT chronique est le seul signal que les ratios ne voient pas : quelqu'un dans
+           le rouge n'a pas « un peu moins d'un mois de réserve », il a un problème d'une autre
+           nature — c'est ce qui sépare P1 de P2. */
+        checkingBalance: real.checkingBalance,
+        /* Patrimoine BANCAIRE (le seul que l'app connaisse) : il gouverne les paliers hauts, où le
+           nombre de mois de réserve ne distingue plus rien. */
+        totalLiquidWealth: real.checkingBalance + real.savingsBalance + real.investedBalance,
         // ⚠️ PAS `metrics.avg_income_6m` : celui-là divise par 6 des mois RÉVOLUS et renvoie donc 0
         // pour un compte neuf, dont la seule paie est dans le mois courant → « aucun revenu
         // constaté » → P1 à vie, alors que l'app affiche par ailleurs 2 000 € et 7,5 mois.

@@ -9,7 +9,7 @@
  * LEXIQUE FIGÉ — trois notions distinctes qu'on ne mélange plus jamais :
  *   • marge de sécurité → le minimum que tu veux garder sur tes comptes courants ;
  *   • réservé           → l'argent de ton Relyka que tu mets de côté via « Conserver » ;
- *   • matelas de sécurité → ton épargne, exprimée en mois de revenus qu'elle couvre.
+ *   • matelas de sécurité → ton épargne, exprimée en mois de DÉPENSES qu'elle couvre.
  * Le mot « réserve » employé seul est banni : il a longtemps désigné les deux dernières.
  */
 
@@ -68,8 +68,8 @@ export const GLOSSARY: Record<GlossaryTerm, GlossaryEntry> = {
   },
   matelas: {
     title: 'Ton matelas de sécurité',
-    text: "C'est le nombre de mois que ton épargne te permettrait de tenir si tes rentrées d'argent s'arrêtaient. On le calcule en divisant ton épargne par ton revenu mensuel.",
-    hint: "Rien à voir avec la marge de sécurité : le matelas, c'est ton épargne ; la marge, c'est le minimum sur ton compte courant.",
+    text: "C'est le nombre de mois que ton épargne te permettrait de tenir si tes rentrées d'argent s'arrêtaient. On divise ton épargne par tes dépenses d'un mois : tes charges récurrentes (loyer, abonnements, crédits) et ton budget de dépenses variables.",
+    hint: "Rien à voir avec la marge de sécurité : le matelas, c'est ton épargne ; la marge, c'est le minimum que tu gardes sur ton compte courant.",
     color: 'green',
     icon: 'shield-checkmark-outline',
   },

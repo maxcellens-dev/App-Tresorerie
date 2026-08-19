@@ -45,7 +45,7 @@ const STEP_COPY: Record<WelcomeStep, { title: string; text: string; cta: string;
   },
   savings: {
     title: 'Et ton épargne ?',
-    text: 'Livret A, LDDS, PEA… c’est ce qui permet de calculer ton matelas de sécurité : combien de mois tu tiendrais sans rentrée d’argent.',
+    text: 'Livret A, LDDS, PEA… c’est ce qui permet de calculer ton matelas de sécurité : combien de mois de dépenses ton épargne couvrirait sans rentrée d’argent.',
     cta: 'Ajouter mon épargne',
     icon: 'leaf-outline',
   },

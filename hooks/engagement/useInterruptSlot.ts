@@ -9,6 +9,7 @@ import {
   setInterruptPending, canShowInterrupt, subscribeInterrupts, currentInterrupt,
   type InterruptId,
 } from '../../lib/engagement/interruptQueue';
+import { useAppLocked } from '../../lib/auth/appLockState';
 
 /**
  * @param id      qui demande la parole
@@ -16,11 +17,20 @@ import {
  * @returns       true seulement si c'est son tour (personne de plus prioritaire n'attend)
  */
 export function useInterruptSlot(id: InterruptId, wants: boolean): boolean {
+  /* APP VERROUILLÉE = PERSONNE NE PARLE.
+     Le voile de verrouillage (AppLockGate) cache l'app, il ne l'arrête pas : les sollicitations
+     continuaient de s'ouvrir derrière lui — et de se CONSOMMER, l'état des lieux se marquant « vu »
+     et archivant son bilan à la fermeture. D'où un bilan mensuel aperçu, ou perdu, sans avoir
+     déverrouillé. On retient donc la file entière à la source : dès le déverrouillage, chacun
+     reprend son tour dans l'ordre habituel, rien n'est sauté. */
+  const appLocked = useAppLocked();
+  const effectiveWants = wants && !appLocked;
+
   // Déclaré pendant l'effet, pas pendant le rendu : muter un module partagé en plein rendu
   // provoquerait des mises à jour croisées entre composants.
   useEffect(() => {
-    setInterruptPending(id, wants);
-  }, [id, wants]);
+    setInterruptPending(id, effectiveWants);
+  }, [id, effectiveWants]);
 
   // Libère la place au démontage — sinon un écran disparu garderait la main pour toujours.
   useEffect(() => () => { setInterruptPending(id, false); }, [id]);
@@ -30,5 +40,5 @@ export function useInterruptSlot(id: InterruptId, wants: boolean): boolean {
     () => currentInterrupt(),
     () => null,
   );
-  return wants && active === id && canShowInterrupt(id);
+  return effectiveWants && active === id && canShowInterrupt(id);
 }

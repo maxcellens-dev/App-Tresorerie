@@ -10,10 +10,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
-import { useAddTransaction, useTransactions } from '../../hooks/data/useTransactions';
-import { useMonthlyClosure, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
+import { useAddTransaction, useAllTransactions } from '../../hooks/data/useTransactions';
+import { useMonthlyClosure, useAccountClosures, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
+import { supabase } from '../../lib/platform/supabase';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
-import { prorateClosureGap, findRegulCategoryId } from '../../lib/finance/regul';
+import { findRegulCategoryId } from '../../lib/finance/regul';
 import { useCategories } from '../../hooks/data/useCategories';
 import { todayISO, formatDateFrench, parseDateFromFrench } from '../../lib/dateUtils';
 import { sheetWidth } from '../../lib/ui/appLayout';
@@ -21,14 +22,29 @@ import { useRecalibrateReliability } from '../../hooks/pilotage/useReliability';
 import { useInterruptSlot } from '../../hooks/engagement/useInterruptSlot';
 import { openPulse } from '../pulse/PulseHost';
 import ClosureBilanModal from './ClosureBilanModal';
-import { balanceAtEnd, lastVerifiedDate, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct } from '../../lib/finance/closureForm';
+import { balanceAtEnd, unknownGap, unknownTotalGap as totalGap, hasAnyTypedBalance, closingSharePct } from '../../lib/finance/closureForm';
+import { laterVerification } from '../../lib/finance/balanceAt';
 import KeyboardAwareOverlay from '../layout/KeyboardAwareOverlay';
 
 interface Props {
-  /** Estimation du surplus du mois (enveloppe variable restante + budget libre). */
-  surplusEstimate: number;
-  /** Tous les comptes courants (clôture du solde réel possible compte par compte). */
-  checkingAccounts?: { id: string; name: string; balance: number }[];
+  /**
+   * Enveloppe de dépenses variables du mois (`variable_envelope_initial`).
+   *
+   * ⚠️ C'était auparavant un `surplusEstimate` calculé sur le MOIS EN COURS, et le bilan de clôture
+   * l'annonçait ensuite comme « il te restait X € le MOIS DERNIER ». On félicitait donc l'utilisateur
+   * pour un reliquat qui n'était pas celui du mois qu'il venait de clôturer — un chiffre juste, mais
+   * rattaché au mauvais mois, ce qui en fait un chiffre faux. Le reliquat réel du mois clos est
+   * recalculé ici, depuis ses propres dépenses.
+   */
+  variableEnvelope: number;
+  /**
+   * Comptes courants à clôturer — les miens ET les comptes JOINTS auxquels je peux écrire.
+   *
+   * `joint` distingue les seconds : ils appartiennent à plusieurs personnes, donc (a) ils ne sont
+   * OBLIGATOIRES que pour le propriétaire, (b) ils sont retirés de la liste dès que QUELQU'UN les a
+   * clôturés pour ce mois — une clôture par compte, pas une par participant.
+   */
+  checkingAccounts?: { id: string; name: string; balance: number; joint?: boolean; isOwner?: boolean }[];
   /** Ouvre directement la modale (deeplink « Clôture ton mois » du bandeau prochain geste). */
   autoOpen?: boolean;
 }
@@ -70,15 +86,19 @@ export function openClosureModal(): boolean {
   return true;
 }
 
-export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [], autoOpen = false }: Props) {
+export default function MonthlyClosure({ variableEnvelope, checkingAccounts: allCheckingAccounts = [], autoOpen = false }: Props) {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user, isImpersonating } = useAuth();
   // Catégories du profil : la régularisation de clôture est rangée selon son sens (cf. lib/regul).
   const { data: categories = [] } = useCategories(user?.id);
   const { enabled, pendingMonths, bilan, closeMonths, markBilanSeen } = useMonthlyClosure(user?.id);
+  const { data: accountClosures = [] } = useAccountClosures(user?.id);
   const addTransaction = useAddTransaction(user?.id);
-  const { data: allTx = [] } = useTransactions(user?.id);
+  /* Les comptes JOINTS ne sont pas dans `useTransactions` (vue perso, volontairement) : sans leurs
+     lignes, le solde de fin de mois d'un compte joint serait reconstitué à partir de rien — donc
+     égal au solde du jour. On travaille ici sur la vue COMPLÈTE. */
+  const { data: allTx = [] } = useAllTransactions(user?.id);
 
   const [open, setOpen] = useState(false);
   /* 'unknown' — « je ne sais pas ce que valait mon compte à la fin du mois ». L'utilisateur donne
@@ -101,8 +121,60 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
   const oldest = effectivePending[0];
   const multiple = effectivePending.length > 1;
   const monthsToClose = flash ? effectivePending : (oldest ? [oldest] : []);
+  const targetKeyRaw = monthsToClose[monthsToClose.length - 1] ?? oldest;
+
+  /* ── COMPTES À CLÔTURER ─────────────────────────────────────────────────────────────────────
+     Règle produit, pour les comptes JOINTS :
+       • le PROPRIÉTAIRE les voit dans sa liste comme ses comptes perso — c'est lui qui répond du
+         solde ;
+       • un membre en ÉCRITURE (ou avec une part) peut les clôturer aussi : il a la même vue du
+         relevé, et attendre le propriétaire fige tout le monde. La liste les lui propose donc, mais
+         il peut les laisser vides — rien ne l'y oblige (un mode qui réclame un solde ne clôture
+         que les comptes renseignés) ;
+       • un accès en CONSULTATION ne clôture rien : il regarde, il n'engage pas le compte.
+         (Le filtrage se fait à la source, dans le Pilotage, qui connaît les rôles.)
+       • et surtout : UNE clôture par compte et par mois. Dès que quelqu'un l'a faite, le compte
+         disparaît de la liste des autres — sans ça, chaque participant empilerait sa propre
+         régularisation sur le même compte, et le solde partirait en vrille à trois personnes. */
+  const closedAccountKeys = useMemo(
+    () => new Set(accountClosures.map((c) => `${c.account_id}|${c.month_key}`)),
+    [accountClosures],
+  );
+  const checkingAccounts = useMemo(
+    () => allCheckingAccounts.filter((a) => !targetKeyRaw || !closedAccountKeys.has(`${a.id}|${targetKeyRaw}`)),
+    [allCheckingAccounts, closedAccountKeys, targetKeyRaw],
+  );
+  /** Comptes joints déjà clôturés par quelqu'un d'autre pour ce mois — on le DIT, on ne l'escamote pas. */
+  const alreadyClosedJoint = useMemo(
+    () => allCheckingAccounts.filter((a) => a.joint && targetKeyRaw && closedAccountKeys.has(`${a.id}|${targetKeyRaw}`)),
+    [allCheckingAccounts, closedAccountKeys, targetKeyRaw],
+  );
   const hasChecking = checkingAccounts.length > 0;
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
+
+  /**
+   * Ce qu'il RESTAIT sur l'enveloppe variable du mois qu'on clôture — le seul chiffre que le bilan
+   * ait le droit d'annoncer, puisqu'il parle de ce mois-là.
+   *
+   * Dépense variable = sortie du quotidien : compte courant, non récurrente (une occurrence
+   * matérialisée porte `materialized_from`), hors virement et hors projet. Même définition que le
+   * « dépensé variable » du Pilotage et de l'état des lieux — trois écritures de la règle, ce
+   * seraient trois totaux différents pour le même mois.
+   */
+  const closedMonthLeftover = (monthKey: string): number => {
+    if (!(variableEnvelope > 0)) return 0;
+    const ids = new Set(allCheckingAccounts.map((a) => a.id));
+    let spent = 0;
+    for (const t of allTx as any[]) {
+      if (!ids.has(t.account_id) || t.is_draft) continue;
+      if (String(t.date ?? '').slice(0, 7) !== monthKey) continue;
+      if (t.linked_account_id || t.project_id) continue;
+      if (t.is_recurring || t.materialized_from) continue;
+      const amt = Number(t.amount) || 0;
+      if (amt < 0) spent += -amt;
+    }
+    return Math.max(0, variableEnvelope - spent);
+  };
 
   const resetForm = () => { setMode('direct'); setFlash(false); setBalances({}); setUnknownShare(null); setUnknownDate(todayISO()); setError(null); };
   const openModal = () => { setClosedLocally([]); resetForm(); setOpen(true); };
@@ -179,9 +251,8 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
      mois reconstitué, écart constaté, répartition entre deux mois), donc il est testé — une erreur
      y écrit une régularisation fausse en base. Ici on ne fait plus que le brancher à l'état.
      Cf. docs/PLAN_REFACTOR_TESTS.md, phase D. */
-  const targetKey = monthsToClose[monthsToClose.length - 1] ?? oldest;
+  const targetKey = targetKeyRaw;
   const balanceAtEndFor = (accId: string, accBalance: number) => balanceAtEnd(allTx as any[], accId, accBalance, targetKey);
-  const lastVerifiedFor = (accId: string, closeKey: string) => lastVerifiedDate(allTx as any[], accId, closeKey);
   const unknownGapOf = (acc: { id: string; balance: number }) => unknownGap(allTx as any[], acc, balances[acc.id], unknownDate);
   const unknownTotalGap = () => totalGap(allTx as any[], checkingAccounts, balances, unknownDate);
   const hasAnyAmount = hasAnyTypedBalance(checkingAccounts, balances);
@@ -194,10 +265,12 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
     setBusy(true);
     try {
       const closeKey = monthsToClose[monthsToClose.length - 1];
-      const prevMonth = addMonthKey(ym(new Date()), -1);
-      const isLatest = closeKey >= prevMonth; // clôture qui atteint le mois précédent (solde réel = solde actuel)
       const monthEnd = lastDayOfMonthKey(closeKey);
-      const t0 = todayISO();
+      /* MARQUE D'ORIGINE (migration 179) posée sur CHAQUE écriture de la clôture : c'est elle, et
+         plus le libellé, que la réouverture cherche pour défaire exactement ce qu'on écrit ici. */
+      const stamp = { closure_month: closeKey };
+      /** Comptes réellement clôturés dans cette passe → trace partagée `account_closures`. */
+      const closedAccounts: { account_id: string; balance: number }[] = [];
       if (hasChecking) {
         for (const acc of checkingAccounts) {
           const balAtEnd = balanceAtEndFor(acc.id, acc.balance);
@@ -206,8 +279,9 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             // Calibre la dérive vers 0 et compte comme une vérification récente.
             await addTransaction.mutateAsync({
               account_id: acc.id, category_id: null, amount: 0, date: monthEnd,
-              note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false,
+              note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false, ...stamp,
             } as any);
+            closedAccounts.push({ account_id: acc.id, balance: balAtEnd });
             continue;
           }
           if (mode === 'unknown') {
@@ -218,6 +292,7 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             const raw = balances[acc.id];
             if (raw == null || raw.trim() === '') continue;
             const gap = unknownGapOf(acc);
+            closedAccounts.push({ account_id: acc.id, balance: balAtEnd + gap * (unknownSharePct(acc.id) / 100) });
             if (Math.abs(gap) <= 0.005) continue;
             const pct = unknownSharePct(acc.id) / 100;
             const closingPart = gap * pct;
@@ -225,13 +300,13 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
             if (Math.abs(closingPart) > 0.005) {
               await addTransaction.mutateAsync({
                 account_id: acc.id, category_id: findRegulCategoryId(categories, closingPart), amount: closingPart, date: monthEnd,
-                note: 'Régularisation clôture (mois)', is_recurring: false,
+                note: 'Régularisation clôture (mois)', is_recurring: false, ...stamp,
               } as any);
             }
             if (Math.abs(currentPart) > 0.005) {
               await addTransaction.mutateAsync({
                 account_id: acc.id, category_id: findRegulCategoryId(categories, currentPart), amount: currentPart, date: unknownDate,
-                note: 'Régularisation clôture (mois courant)', is_recurring: false,
+                note: 'Régularisation clôture (mois courant)', is_recurring: false, ...stamp,
               } as any);
             }
             continue;
@@ -243,39 +318,52 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
           const newBalance = parseFloat(raw.replace(',', '.'));
           if (Number.isNaN(newBalance)) continue;
           const diff = newBalance - balAtEnd;
+          closedAccounts.push({ account_id: acc.id, balance: newBalance });
           if (Math.abs(diff) <= 0.005) {
             await addTransaction.mutateAsync({
               account_id: acc.id, category_id: null, amount: 0, date: monthEnd,
-              note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false,
+              note: 'Régularisation (à jour)', regul_target: balAtEnd, is_recurring: false, ...stamp,
             } as any);
             continue;
           }
-          if (isLatest) {
-            // Option B — solde réel constaté = solde ACTUEL → régul ancre datée de la fin du mois.
-            await addTransaction.mutateAsync({
-              account_id: acc.id, category_id: findRegulCategoryId(categories, diff), amount: diff, date: monthEnd,
-              note: 'Régularisation solde', regul_target: newBalance, is_recurring: false,
-            } as any);
-          } else {
-            // Option C — mois passé, solde saisi = AUJOURD'HUI → PRORATA par jours entre la dernière
-            // vérification et aujourd'hui : la part du mois clos reste sur ce mois, le reste sur le courant.
-            const pr = prorateClosureGap(diff, lastVerifiedFor(acc.id, closeKey), t0, closeKey);
-            if (Math.abs(pr.closingShare) > 0.005) {
-              await addTransaction.mutateAsync({
-                account_id: acc.id, category_id: findRegulCategoryId(categories, pr.closingShare), amount: pr.closingShare, date: pr.closingDate,
-                note: 'Régularisation clôture (mois)', is_recurring: false,
-              } as any);
-            }
-            if (Math.abs(pr.currentShare) > 0.005) {
-              await addTransaction.mutateAsync({
-                account_id: acc.id, category_id: findRegulCategoryId(categories, pr.currentShare), amount: pr.currentShare, date: t0,
-                note: 'Régularisation clôture (mois courant)', is_recurring: false,
-              } as any);
-            }
-          }
+          /* SOLDE RÉEL = LE SOLDE DE FIN DE MOIS, ET LA RÉGULARISATION EST DATÉE DE CE JOUR-LÀ.
+             Le champ demande explicitement « solde réel à fin <mois> » : l'écart se mesure donc
+             contre le solde reconstitué à cette date, et il appartient ENTIÈREMENT à ce mois. Il
+             n'y a rien à répartir.
+
+             Ce code répartissait pourtant l'écart au prorata des jours dès que le mois clôturé
+             n'était pas le dernier — c'est-à-dire qu'il traitait le montant saisi comme s'il valait
+             AUJOURD'HUI, en contradiction avec l'étiquette du champ. Conséquences : la
+             régularisation du mois clos était amputée d'une part arbitraire, et une seconde
+             régularisation apparaissait à la date du jour, que l'utilisateur n'avait jamais
+             demandée. Le mode « Je ne sais pas » existe précisément pour le cas où l'on ne connaît
+             que le solde d'aujourd'hui — c'est LUI qui répartit, et sur un curseur que
+             l'utilisateur contrôle.
+
+             `regul_target` fait de cette écriture l'ANCRE du moteur de solde : le compte vaut
+             désormais ce montant à la fin du mois, plus tout ce qui est arrivé après. */
+          await addTransaction.mutateAsync({
+            account_id: acc.id, category_id: findRegulCategoryId(categories, diff), amount: diff, date: monthEnd,
+            note: 'Régularisation solde', regul_target: newBalance, is_recurring: false, ...stamp,
+          } as any);
         }
       }
-      await closeMonths.mutateAsync({ monthKeys: monthsToClose, surplus: Math.max(0, surplusEstimate), status: 'confirmed' });
+      /* TRACE PARTAGÉE : ce compte est clôturé pour ce mois, quel que soit celui qui l'a fait. Un
+         compte joint disparaît ainsi de la liste des AUTRES participants (une clôture par compte).
+         `ignoreDuplicates` : deux personnes qui valident en même temps ne se marchent pas dessus.
+         Best-effort — la table peut ne pas exister si la migration 179 n'est pas déployée, et un
+         échec ici ne doit pas annuler une clôture par ailleurs réussie. */
+      if (supabase && closedAccounts.length) {
+        try {
+          await supabase.from('account_closures').upsert(
+            closedAccounts.map((a) => ({ account_id: a.account_id, month_key: closeKey, closed_by: user?.id, balance: a.balance })),
+            { onConflict: 'account_id,month_key', ignoreDuplicates: true },
+          );
+        } catch { /* trace indisponible : la clôture reste valide */ }
+      }
+      // Reliquat du mois RÉELLEMENT clôturé (cf. closedMonthLeftover) — c'est ce chiffre que le
+      // bilan annonce ensuite, et il doit donc parler du bon mois.
+      await closeMonths.mutateAsync({ monthKeys: monthsToClose, surplus: closedMonthLeftover(closeKey), status: 'confirmed' });
       // Clôture confirmée = vérification → recalibrer la dérive du user (silencieux).
       recalibrate.mutate();
       // Mois par mois : s'il reste des mois en attente, on enchaîne directement sur le suivant.
@@ -315,7 +403,11 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
 
   return (
     <>
-      {/* Bannière d'invitation */}
+      {/* UNE SEULE invitation à clôturer, et c'est celle-ci.
+          Le bandeau flottant « prochain geste » disait exactement la même chose et ouvrait la même
+          modale — mais il se SUPERPOSE au Pilotage, donc il masque les chiffres qu'on vient
+          justement consulter. Celle-ci prend sa place dans le flux : elle décale le contenu au lieu
+          de le recouvrir. Le cas `soft_close` est donc écarté côté NextActionBanner. */}
       <ClosureBannerCard pendingMonths={effectivePending} onPress={openModal} />
 
       {/* Modale de clôture */}
@@ -344,6 +436,19 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                 {flash ? monthLabel(effectivePending[effectivePending.length - 1] ?? oldest ?? '') : (oldest ? monthLabel(oldest) : '—')}
               </Text>
             </View>
+
+            {/* Compte joint déjà clôturé par quelqu'un d'autre : on l'ANNONCE plutôt que de le faire
+                disparaître sans explication — sinon on cherche son compte dans la liste. */}
+            {alreadyClosedJoint.length > 0 && (
+              <View style={styles.jointNote}>
+                <Ionicons name="people-outline" size={15} color={COLORS.emerald} />
+                <Text style={styles.jointNoteText}>
+                  {alreadyClosedJoint.length === 1
+                    ? `« ${alreadyClosedJoint[0].name} » a déjà été clôturé pour ce mois par un autre participant : rien à refaire de ton côté.`
+                    : `${alreadyClosedJoint.length} comptes joints ont déjà été clôturés pour ce mois par d'autres participants.`}
+                </Text>
+              </View>
+            )}
 
             {multiple && (
               <View style={styles.segRow}>
@@ -516,12 +621,46 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
               </>
             )}
 
+            {/* ── CE QUE ÇA FAIT À TON SOLDE D'AUJOURD'HUI ─────────────────────────────────────
+                La question que se pose vraiment l'utilisateur après avoir validé, et à laquelle
+                rien ne répondait : « mon compte affiche-t-il autre chose maintenant ? »
+
+                La réponse dépend d'un point non évident : une régularisation est une ANCRE. Elle
+                dit « à cette date, le compte valait exactement ça », et le solde d'aujourd'hui se
+                déduit de la PLUS RÉCENTE d'entre elles. Corriger le 31 juillet alors qu'on a déjà
+                confirmé son solde le 5 août ne peut donc rien déplacer — l'écart est déjà compris
+                dans la vérification du 5. C'est juste, mais totalement invisible : on validait, le
+                solde ne bougeait pas d'un centime, et on en concluait que la clôture était cassée.
+                On l'annonce donc AVANT, chiffre à l'appui. */}
+            {(() => {
+              if (!targetKey || mode === 'direct') return null;
+              const monthEnd = lastDayOfMonthKey(targetKey);
+              const blocked = checkingAccounts
+                .filter((acc) => {
+                  const raw = balances[acc.id];
+                  if (raw == null || raw.trim() === '') return false;
+                  return !!laterVerification(allTx as any[], acc.id, mode === 'unknown' ? unknownDate : monthEnd);
+                })
+                .map((acc) => ({
+                  name: acc.name,
+                  at: laterVerification(allTx as any[], acc.id, mode === 'unknown' ? unknownDate : monthEnd)!.date,
+                }));
+              if (blocked.length === 0) return null;
+              return (
+                <View style={styles.laterNote}>
+                  <Ionicons name="time-outline" size={15} color={COLORS.blue} />
+                  <Text style={styles.laterNoteText}>
+                    {blocked.length === 1
+                      ? `Tu as déjà vérifié « ${blocked[0].name} » le ${formatDateFrench(blocked[0].at)} : cette correction range le passé, mais ton solde d'aujourd'hui ne bougera pas — l'écart est déjà compris dans cette vérification-là.`
+                      : `Tu as déjà vérifié ${blocked.length} de ces comptes après la période clôturée : la correction range le passé, mais tes soldes d'aujourd'hui ne bougeront pas.`}
+                  </Text>
+                </View>
+              );
+            })()}
+
             {/* ── Aperçu AVANT validation : impact exact par mois (bloc structuré, pas de surprise) ── */}
             {(() => {
               if (!targetKey) return null;
-              const prevMonth = addMonthKey(ym(new Date()), -1);
-              const isLatest = targetKey >= prevMonth;
-              const t0 = todayISO();
               type Row = { label: string; regul: number; closed?: boolean };
               const rows: Row[] = [];
               if (mode === 'direct') {
@@ -549,24 +688,21 @@ export default function MonthlyClosure({ surplusEstimate, checkingAccounts = [],
                 rows.push({ label: monthLabel(targetKey), regul: closingTotal, closed: true });
                 if (Math.abs(currentTotal) > 0.005) rows.push({ label: monthLabel(ym(new Date())), regul: currentTotal });
               } else {
-                let closingTotal = 0, currentTotal = 0, any = false;
+                /* Mode « solde réel » : le montant saisi EST celui de la fin du mois, donc l'écart
+                   appartient entièrement à ce mois — aucune ligne sur le mois courant. L'aperçu
+                   reproduisait ici la répartition au prorata que `confirm()` appliquait aux mois
+                   anciens ; les deux ont été retirés ensemble (cf. le commentaire de `confirm`). */
+                let closingTotal = 0, any = false;
                 for (const acc of checkingAccounts) {
                   const raw = balances[acc.id];
                   if (raw == null || raw.trim() === '') continue;
                   const nb = parseFloat(raw.replace(',', '.'));
                   if (Number.isNaN(nb)) continue;
                   any = true;
-                  const diff = nb - balanceAtEndFor(acc.id, acc.balance);
-                  if (isLatest) closingTotal += diff;
-                  else {
-                    const pr = prorateClosureGap(diff, lastVerifiedFor(acc.id, targetKey), t0, targetKey);
-                    closingTotal += pr.closingShare;
-                    currentTotal += pr.currentShare;
-                  }
+                  closingTotal += nb - balanceAtEndFor(acc.id, acc.balance);
                 }
                 if (!any) return null;
                 rows.push({ label: monthLabel(targetKey), regul: closingTotal, closed: true });
-                if (Math.abs(currentTotal) > 0.005) rows.push({ label: monthLabel(ym(new Date())), regul: currentTotal });
               }
               return (
                 <View style={styles.previewBox}>
@@ -683,6 +819,20 @@ function makeStyles(c: any) {
     balanceValue: { fontSize: 17, fontWeight: '800', color: c.text },
     acctInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
     acctName: { fontSize: 13, fontWeight: '600', color: c.text, width: 110 },
+    // Comptes joints : ce qu'un autre participant a déjà fait — dit, jamais escamoté.
+    jointNote: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 4, marginBottom: 4,
+      backgroundColor: c.emerald + '12', borderWidth: 1, borderColor: c.emerald + '3A',
+      borderRadius: 12, padding: 11,
+    },
+    jointNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
+    // « Tu as déjà vérifié ce compte plus tard » : ce qui explique un solde qui ne bouge pas.
+    laterNote: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12,
+      backgroundColor: c.blue + '12', borderWidth: 1, borderColor: c.blue + '3A',
+      borderRadius: 12, padding: 11,
+    },
+    laterNoteText: { flex: 1, fontSize: 12, color: c.textSecondary, lineHeight: 17 },
 
     /* Mode « je ne sais pas » — le parcours annoncé d'avance, puis chaque étape numérotée. */
     stepsPreview: {

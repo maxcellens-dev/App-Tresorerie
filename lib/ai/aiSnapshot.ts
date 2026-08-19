@@ -152,13 +152,15 @@ export function buildSnapshot(input: SnapshotInput): string {
 
   L.push('=== INSTANTANÉ FINANCIER (anonymisé : montants + catégories uniquement) ===');
 
-  // Profil financier de l'app : cadre TOUS les conseils (un P1 fragile ne doit pas se voir
-  // conseiller d'investir ; un P5 n'a pas besoin qu'on lui rappelle de constituer un matelas).
+  // Profil financier de l'app : cadre TOUS les conseils (quelqu'un dans le rouge ne doit pas se
+  // voir conseiller d'investir ; quelqu'un avec 300 000 € n'a pas besoin qu'on lui rappelle de
+  // constituer un matelas). L'échelle est passée à dix paliers — le prompt doit suivre, sinon
+  // l'IA raisonne sur des repères qui n'existent plus.
   if (input.financialProfile) {
     const fp = input.financialProfile;
     L.push('\nPROFIL FINANCIER (déterminé par l\'app — RESPECTE-LE dans tes conseils)');
-    L.push(`- Profil : ${fp.id} — ${fp.name} (échelle P1 fragile → P5 confortable).`);
-    L.push('- Adapte tes recommandations à ce profil : P1-P2 → priorité au matelas de sécurité et à la stabilisation, PAS de conseil d\'investissement ; P3 → équilibre épargne/projets, investissement prudent seulement si le matelas est solide ; P4-P5 → optimisation et investissement pertinents.');
+    L.push(`- Profil : ${fp.id} — ${fp.name} (échelle P0 découverte → P1 déficitaire → P9 patrimoine d'exception).`);
+    L.push('- Adapte tes recommandations à ce profil : P0 → ne présume RIEN, invite simplement à compléter les données ; P1 → sortir du découvert, aucun conseil d\'épargne ambitieux ni d\'investissement ; P2-P3 → priorité absolue au matelas de sécurité, PAS d\'investissement ; P4-P5 → équilibre épargne/projets, investissement prudent une fois le matelas solide ; P6-P7 → l\'investissement régulier est le sujet principal ; P8-P9 → optimisation, fiscalité et allocation ; rappeler qu\'un liquide important qui dort a un coût.');
   }
 
   L.push('\nCONTEXTE TEMPOREL (important pour interpréter les chiffres)');
@@ -196,9 +198,14 @@ export function buildSnapshot(input: SnapshotInput): string {
       L.push(`- En parallèle : virements entrants sur les comptes courants depuis un compte « autre » ≈ ${m(incomeRef.transfersAvg)}/mois (rentrées encaissées ailleurs puis rapatriées — à considérer comme du revenu complémentaire, pas comme une anomalie).`);
     }
     L.push(`- Taux de mise de côté planifié (épargne + investissement) : ${Math.round((plannedSetAside / income) * 100)} % du revenu.`);
-    // Réserve de sécurité en MOIS DE REVENUS : combien de temps tenir si les revenus s'arrêtent
-    // (et pas « mois de dépenses », moins parlant pour l'utilisateur).
-    L.push(`- Réserve de sécurité : l'épargne (${m(p.total_savings)}) représente ~${(p.total_savings / income).toFixed(1)} mois de revenus (à citer ainsi : « de quoi tenir ~X mois sans revenus »).`);
+    /* Réserve de sécurité en MOIS DE DÉPENSES ESSENTIELLES. La base était le REVENU : c'était la
+       formulation du questionnaire, mais pas la bonne mesure — ce qu'il faut couvrir quand le revenu
+       s'arrête, c'est ce qu'on DÉPENSE pour vivre. Quelqu'un qui gagne 4 000 € et vit avec 2 000 €
+       « tenait 3 mois » avec 12 000 € de côté : il en tient six (cf. lib/securityCushion). */
+    const essential = (p as any).monthly_essential_expenses || 0;
+    const cushionBase = essential > 0 ? essential : income;
+    const cushionWhat = essential > 0 ? 'dépenses' : 'revenus (charges non renseignées)';
+    L.push(`- Réserve de sécurité : l'épargne (${m(p.total_savings)}) couvre ~${(p.total_savings / cushionBase).toFixed(1)} mois de ${cushionWhat}. Dépenses essentielles mensuelles = ${m(essential)} (charges récurrentes + budget variable). À citer ainsi : « de quoi tenir ~X mois sans rentrée d'argent ».`);
     // Indépendance financière : le patrimoine investi couvre combien d'années de train de vie.
     if (p.total_invested > 0) L.push(`- Indépendance : le patrimoine investi (${m(p.total_invested)}) représente ~${(p.total_invested / (income * 12)).toFixed(1)} an(s) de revenu de référence.`);
     // Plus-value latente d'investissement (si les versements sont connus) — dit si le patrimoine
@@ -247,6 +254,8 @@ export function buildSnapshot(input: SnapshotInput): string {
       margin: p.safety_margin_amount || 0,
       avgNet,
       reliableMonths: reliable.length,
+      // Base du matelas partout dans l'app : les DÉPENSES (cf. lib/securityCushion).
+      essentialMonthly: (p as any).monthly_essential_expenses || 0,
     });
     L.push('\nSCORE DE SANTÉ FINANCIÈRE (pré-calculé — RECOPIE ce score et ces sous-scores, ne les recalcule pas)');
     L.push(`- Score global : ${sc.global}/100 (moyenne pondérée des sous-scores disponibles).`);
@@ -341,8 +350,10 @@ export function buildSnapshot(input: SnapshotInput): string {
       ready.push(`Si le surplus projeté de ${m(surplus)}/mois était investi chaque mois à 5 %/an (hypothèse indicative) : ≈ ${m(fv(5))} au bout de 5 ans (dont ${m(surplus * 60)} de versements), ≈ ${m(fv(10))} au bout de 10 ans (dont ${m(surplus * 120)} de versements).`);
     }
     if (income > 0) {
-      const cushion6 = (p.total_savings + 6 * (p.monthly_savings_planned || 0)) / income;
-      ready.push(`Réserve de sécurité dans 6 mois au rythme d'épargne planifié : ≈ ${cushion6.toFixed(1)} mois de revenus (aujourd'hui : ${(p.total_savings / income).toFixed(1)}).`);
+      // Même base que ci-dessus : les DÉPENSES à couvrir, avec repli sur le revenu.
+      const base6 = ((p as any).monthly_essential_expenses || 0) > 0 ? (p as any).monthly_essential_expenses : income;
+      const cushion6 = (p.total_savings + 6 * (p.monthly_savings_planned || 0)) / base6;
+      ready.push(`Réserve de sécurité dans 6 mois au rythme d'épargne planifié : ≈ ${cushion6.toFixed(1)} mois de dépenses (aujourd'hui : ${(p.total_savings / base6).toFixed(1)}).`);
     }
     if (ready.length) {
       L.push('\nPROJECTIONS PRÊTES À CITER (pré-calculées — recopie ces chiffres TELS QUELS, n\'en recalcule aucun)');

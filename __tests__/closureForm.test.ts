@@ -36,33 +36,45 @@ describe('balanceAtEnd — reconstituer le solde de fin de mois', () => {
       tx({ date: '2026-05-28', amount: -999 }), // dans le mois clôturé → déjà pris en compte
     ];
     // 1000 − (−500) = 1500 : le compte valait 1500 fin mai
-    expect(balanceAtEnd(allTx, 'acc-1', 1000, CLOSE)).toBe(1500);
+    expect(balanceAtEnd(allTx, 'acc-1', 1000, CLOSE, NOW)).toBe(1500);
   });
 
   it('ignore les brouillons : ce n\'est pas de l\'argent sorti', () => {
-    expect(balanceAtEnd([tx({ amount: -500, is_draft: true })], 'acc-1', 1000, CLOSE)).toBe(1000);
+    expect(balanceAtEnd([tx({ amount: -500, is_draft: true })], 'acc-1', 1000, CLOSE, NOW)).toBe(1000);
   });
 
   it('ignore les lignes récurrentes : ce sont des occurrences PROJETÉES', () => {
-    expect(balanceAtEnd([tx({ amount: -500, is_recurring: true })], 'acc-1', 1000, CLOSE)).toBe(1000);
+    expect(balanceAtEnd([tx({ amount: -500, is_recurring: true })], 'acc-1', 1000, CLOSE, NOW)).toBe(1000);
   });
 
   it('ne mélange pas les comptes', () => {
-    expect(balanceAtEnd([tx({ account_id: 'acc-2', amount: -500 })], 'acc-1', 1000, CLOSE)).toBe(1000);
+    expect(balanceAtEnd([tx({ account_id: 'acc-2', amount: -500 })], 'acc-1', 1000, CLOSE, NOW)).toBe(1000);
   });
 
   it('exclut la fin de mois elle-même — le dernier jour appartient au mois clôturé', () => {
-    expect(balanceAtEnd([tx({ date: '2026-05-31', amount: -500 })], 'acc-1', 1000, CLOSE)).toBe(1000);
-    expect(balanceAtEnd([tx({ date: '2026-06-01', amount: -500 })], 'acc-1', 1000, CLOSE)).toBe(1500);
+    expect(balanceAtEnd([tx({ date: '2026-05-31', amount: -500 })], 'acc-1', 1000, CLOSE, NOW)).toBe(1000);
+    expect(balanceAtEnd([tx({ date: '2026-06-01', amount: -500 })], 'acc-1', 1000, CLOSE, NOW)).toBe(1500);
+  });
+
+  /* LE BUG QUI FAISAIT « BOUGER » UN MOIS DÉJÀ CLÔTURÉ.
+     `accounts.balance` est le solde À DATE (la fonction SQL ne somme que `date <= aujourd'hui`).
+     Retrancher les opérations PLANIFIÉES revenait donc à retirer du solde ce qui n'y était pas :
+     le chiffre proposé était faux, et il changeait à chaque nouvelle saisie de futur — d'où deux
+     propositions différentes pour le même mois entre la première clôture et une réouverture. */
+  it('ignore le FUTUR : il n\'est pas dans le solde à date qu\'on décompte', () => {
+    const planned = tx({ date: '2026-07-05', amount: -800 }); // après NOW (15 juin)
+    expect(balanceAtEnd([planned], 'acc-1', 1000, CLOSE, NOW)).toBe(1000);
+    // …et une opération passée du mois suivant, elle, compte bien.
+    expect(balanceAtEnd([planned, tx({ date: '2026-06-02', amount: -300 })], 'acc-1', 1000, CLOSE, NOW)).toBe(1300);
   });
 
   it('rend le solde tel quel quand aucun mois n\'est visé', () => {
-    expect(balanceAtEnd([tx({ amount: -500 })], 'acc-1', 1000, null)).toBe(1000);
+    expect(balanceAtEnd([tx({ amount: -500 })], 'acc-1', 1000, null, NOW)).toBe(1000);
   });
 
   it('gère un février (dernier jour au 28)', () => {
-    expect(balanceAtEnd([tx({ date: '2026-02-28', amount: -500 })], 'acc-1', 1000, '2026-02')).toBe(1000);
-    expect(balanceAtEnd([tx({ date: '2026-03-01', amount: -500 })], 'acc-1', 1000, '2026-02')).toBe(1500);
+    expect(balanceAtEnd([tx({ date: '2026-02-28', amount: -500 })], 'acc-1', 1000, '2026-02', NOW)).toBe(1000);
+    expect(balanceAtEnd([tx({ date: '2026-03-01', amount: -500 })], 'acc-1', 1000, '2026-02', NOW)).toBe(1500);
   });
 });
 

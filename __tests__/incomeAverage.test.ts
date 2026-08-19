@@ -192,7 +192,7 @@ describe('démarrage — le TOTAL du mois, pas seulement ce qui est déjà tomb�
     expect(cushion.months).toBe(7.5);   // au lieu de `null` (« — » à l'écran)
     expect(computeProfileFromData({
       availableSavings: 15000, avgMonthlyIncome: income, monthlySetAside: 0, totalInvested: 0,
-    })).toBe('P4');                     // au lieu de P1
+    })).toBe('P5');                     // au lieu de P1 : 7,5 mois de réserve, tout en liquide
   });
 
   // ── Une fois un mois complet vécu, la déclaration ne sert plus à rien ──
@@ -217,7 +217,7 @@ describe('démarrage — le TOTAL du mois, pas seulement ce qui est déjà tomb�
 });
 
 describe('le profil suit enfin les données du compte neuf', () => {
-  it('7,5 mois de sécurité ne peut plus donner P1', () => {
+  it('7,5 mois de sécurité ne peut plus donner le profil le plus bas', () => {
     const income = computeAvgMonthlyIncome([salary(dayOfThisMonth(1))], CHECKING, iso(new Date()));
     const profile = computeProfileFromData({
       availableSavings: 15000,
@@ -226,15 +226,15 @@ describe('le profil suit enfin les données du compte neuf', () => {
       totalInvested: 0,
     });
     expect(income).toBe(2000);
-    expect(profile).toBe('P4');
+    expect(profile).toBe('P5');
   });
 
-  it('sans la mesure partagée, le même utilisateur retombait sur P1', () => {
+  it('sans la mesure partagée, le même utilisateur retombait au plus bas — désormais P0 « Découverte »', () => {
     // Reproduction de l'ancien calcul : un seul mois de recette, divisé par 6 mois révolus → 0.
     const ancien = 0;
     expect(computeProfileFromData({
       availableSavings: 15000, avgMonthlyIncome: ancien, monthlySetAside: 0, totalInvested: 0,
-    })).toBe('P1');
+    })).toBe('P0');
   });
 });
 
@@ -269,8 +269,8 @@ describe('une rentrée exceptionnelle ne fait pas chuter le revenu de référenc
       monthlySetAside: 500,
       totalInvested: 3000,
     });
-    expect(profileFor(2000)).toBe('P5');    // 7,5 mois de sécurité + il investit
-    expect(profileFor(22000)).toBe('P5');   // encaisser 20 000 € de plus ne peut pas faire redescendre
+    expect(profileFor(2000)).toBe('P6');    // 7,5 mois de sécurité + il investit
+    expect(profileFor(22000)).toBe('P6');   // encaisser 20 000 € de plus ne peut pas faire redescendre
   });
 
   it('une vraie hausse de revenu passe (elle n’est pas « hors norme »)', () => {

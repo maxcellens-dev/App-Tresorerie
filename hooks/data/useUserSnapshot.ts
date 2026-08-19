@@ -83,7 +83,7 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
   const { data: sharedContrib } = useSharedContribution(userId);
   // Dernier bilan global persisté → section ÉVOLUTION (« je vais dans le bon sens ? »).
   const { data: previousBilan } = usePreviousBilanMetrics(userId);
-  // Profil financier P1-P5 : cadre les conseils (pas d'invest à un P1, etc.).
+  // Profil financier P0-P9 : cadre les conseils (pas d'invest à un P1, etc.).
   const { data: financialProfile } = useFinancialProfile(userId);
   const snapshotProfile = useMemo(() => {
     const pid = financialProfile?.profile_id as FinancialProfileId | undefined;
@@ -579,6 +579,8 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
       margin: pilotage.safety_margin_amount || 0,
       avgNet,
       reliableMonths: reliable.length,
+      // Base du matelas partout dans l'app : les DÉPENSES (cf. lib/securityCushion).
+      essentialMonthly: (pilotage as any).monthly_essential_expenses || 0,
     }).global : 0;
     return {
       patrimoine: Math.round(pilotage.total_checking + pilotage.total_savings + pilotage.total_invested),

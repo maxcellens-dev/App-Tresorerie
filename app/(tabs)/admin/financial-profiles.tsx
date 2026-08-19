@@ -19,7 +19,7 @@ import {
   useFinancialProfile,
   useSimulateProfileChange,
 } from '../../../hooks/pilotage/useFinancialProfile';
-import { PROFILE_INFO } from '../../../lib/finance/financialProfileEngine';
+import { PROFILE_INFO, FINANCIAL_PROFILE_IDS, PROFILE_TRANSITION_KEYS } from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
 import { useResponsive } from '../../../hooks/theme/useResponsive';
@@ -37,23 +37,22 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'global',   label: 'Paramètres' },
 ];
 
-const ALL_PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
+/* Listes DÉRIVÉES du référentiel (lib/financialProfileEngine) : écrites à la main, elles
+   restaient à cinq paliers pendant que le reste de l'app en comptait dix — l'écran d'admin
+   devenait le seul endroit à ignorer la moitié des profils. */
+const ALL_PROFILES: FinancialProfileId[] = FINANCIAL_PROFILE_IDS;
 
-const TRANSITIONS = [
-  { key: 'P1_P2', label: 'P1 → P2', from: 'P1' as FinancialProfileId, to: 'P2' as FinancialProfileId },
-  { key: 'P2_P3', label: 'P2 → P3', from: 'P2' as FinancialProfileId, to: 'P3' as FinancialProfileId },
-  { key: 'P3_P4', label: 'P3 → P4', from: 'P3' as FinancialProfileId, to: 'P4' as FinancialProfileId },
-  { key: 'P4_P5', label: 'P4 → P5', from: 'P4' as FinancialProfileId, to: 'P5' as FinancialProfileId },
-];
+const TRANSITIONS = PROFILE_TRANSITION_KEYS.map((key) => {
+  const [from, to] = key.split('_') as [FinancialProfileId, FinancialProfileId];
+  return { key, label: `${from} → ${to}`, from, to };
+});
 
 // Clés = convention du modal (ProfileChangeModal) : 'P<bas>_P<haut>', la DIRECTION distingue
 // montée/descente. Les anciennes clés 'P2_P1'… étaient stockées mais jamais lues (migration 145).
-const DOWNGRADE_TRANSITIONS = [
-  { key: 'P1_P2', label: 'P2 → P1' },
-  { key: 'P2_P3', label: 'P3 → P2' },
-  { key: 'P3_P4', label: 'P4 → P3' },
-  { key: 'P4_P5', label: 'P5 → P4' },
-];
+const DOWNGRADE_TRANSITIONS = PROFILE_TRANSITION_KEYS.map((key) => {
+  const [from, to] = key.split('_');
+  return { key, label: `${to} → ${from}` };
+});
 
 const EXCEPTIONAL_TRANSITIONS = [
   { key: 'exceptional_one', label: 'Baisse de revenus (−1 niveau)' },
@@ -379,11 +378,12 @@ function MatrixSection({ userId }: { userId: string }) {
             {isEditing ? (
               <View style={styles.editForm}>
                 {[
-                  // « Mois de sécurité » = épargne ÷ revenu mensuel moyen (lib/securityCushion) —
-                  // MÊME définition partout dans l'app (Pouls, Reporting, recommandations).
-                  { field: 'upgrade_months_threshold',   label: 'Montée — mois de revenus couverts ≥' },
+                  // « Mois de sécurité » = épargne ÷ DÉPENSES essentielles mensuelles, c'est-à-dire
+                  // charges récurrentes + budget variable (lib/securityCushion) — MÊME définition
+                  // partout dans l'app (Pouls, Reporting, recommandations).
+                  { field: 'upgrade_months_threshold',   label: 'Montée — mois de DÉPENSES couverts ≥' },
                   { field: 'upgrade_flux_threshold',     label: 'Montée — flux total ≥ (%)' },
-                  { field: 'downgrade_months_threshold', label: 'Descente — mois de revenus couverts <' },
+                  { field: 'downgrade_months_threshold', label: 'Descente — mois de DÉPENSES couverts <' },
                   { field: 'downgrade_flux_threshold',   label: 'Descente — flux total < (%)' },
 
                   { field: 'anti_yoyo_months',           label: 'Mois consécutifs requis (montée)' },
@@ -611,7 +611,7 @@ export default function FinancialProfilesAdmin() {
 
         <ScreenHeader title="Profils financiers" onBack={goBack} />
 
-        <Text style={styles.subtitle}>Configuration des profils P1-P5, seuils et messages.</Text>
+        <Text style={styles.subtitle}>Configuration des profils P0-P9, seuils et messages.</Text>
 
         {/* Tabs */}
         <View style={styles.tabs}>

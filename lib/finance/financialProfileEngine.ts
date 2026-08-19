@@ -1,7 +1,7 @@
 /**
- * Moteur de profils financiers P1-P5
+ * Moteur de profils financiers P0-P9
  * ────────────────────────────────────
- * • Calcul du profil initial via le questionnaire
+ * • Calcul du profil à partir des données réelles
  * • Évaluation automatique mensuelle (montée/descente)
  * • Règles exceptionnelles (chute de revenus)
  */
@@ -10,6 +10,61 @@ import type { FinancialProfileId } from '../../types/database';
 import { computeSecurityCushion } from './securityCushion';
 
 // ── Référentiel des profils ────────────────────────────────────
+//
+// DIX PALIERS PLUTÔT QUE CINQ, ET POURQUOI
+// ────────────────────────────────────────
+// Cinq paliers ne décrivaient personne correctement aux deux extrémités :
+//   • en bas, il n'existait aucun profil pour quelqu'un de STRUCTURELLEMENT déficitaire — il
+//     recevait les mêmes conseils que quelqu'un qui commence tout juste à épargner ;
+//   • en haut, un seul « P5 » devait couvrir de 20 000 € à plusieurs millions, avec les mêmes
+//     pourcentages de répartition ;
+//   • et au milieu — là où se trouve la grande majorité des gens — trois paliers seulement pour
+//     tout l'écart entre « un mois de réserve » et « six mois plus un portefeuille ».
+// La granularité suit donc la réalité : resserrée là où la population est dense (P2–P5), plus
+// large là où elle se raréfie (P7–P9).
+//
+// LES DEUX AXES
+// ─────────────
+//   1. le MATELAS DE SÉCURITÉ (épargne disponible ÷ DÉPENSES essentielles) — il gouverne P1 à P6 ;
+//   2. le PATRIMOINE BANCAIRE (courant + épargne + investissement) — il gouverne P7 à P9.
+// L'app ne connaît ni l'immobilier, ni l'assurance-vie hors app, ni les parts d'entreprise : on ne
+// parle donc jamais de « patrimoine » tout court, mais de ce qui est sur les comptes suivis.
+//
+// P0 (Découverte) N'EST PAS UN JUGEMENT : c'est l'absence de données. Avant lui, tout nouvel
+// arrivant tombait en « épargne critique » faute de revenu constaté — on lui annonçait une
+// situation préoccupante alors qu'on ne savait rien de lui.
+
+/** Ordre canonique. Toute liste de profils dans l'app doit partir d'ici, jamais d'un littéral. */
+export const FINANCIAL_PROFILE_IDS: FinancialProfileId[] = [
+  'P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9',
+];
+
+/** Profils réellement « classants » (P0 exclu : il dit qu'on ne sait pas encore). */
+export const RANKED_PROFILE_IDS: FinancialProfileId[] = FINANCIAL_PROFILE_IDS.filter((p) => p !== 'P0');
+
+const KNOWN_PROFILE_IDS = new Set<string>(FINANCIAL_PROFILE_IDS);
+
+/**
+ * Ramène une valeur lue en base sur le référentiel COURANT.
+ *
+ * ⚠️ Un identifiant de profil vient de la base, donc d'un monde que le code ne contrôle pas : une
+ * migration s'applique à la base AVANT que la nouvelle version n'atteigne les appareils, et un
+ * client encore sur l'ancien bundle lit alors un palier qu'il ne connaît pas. Les tables indexées
+ * par profil (`PROFILE_INFO`, `PROFILE_ALLOCATIONS`, `DEFAULT_PULSE_SIGNALS`…) rendaient `undefined`
+ * pour ces valeurs, et l'écran tombait — l'état des lieux plantait sur un `.filter` de `undefined`,
+ * chez tout le monde en même temps.
+ *
+ * On CLAMPE donc plutôt que de faire confiance : `P12` devient le palier le plus haut connu, une
+ * valeur illisible devient `P0` (« on ne sait pas »), ce qui est exactement ce qu'elle signifie.
+ * Aucun écran ne peut plus être mis à terre par un identifiant inattendu.
+ */
+export function resolveProfileId(raw: string | null | undefined): FinancialProfileId {
+  if (raw && KNOWN_PROFILE_IDS.has(raw)) return raw as FinancialProfileId;
+  const n = Number(String(raw ?? '').replace(/^P/i, ''));
+  if (!Number.isFinite(n)) return 'P0';
+  const clamped = Math.max(0, Math.min(RANKED_PROFILE_IDS.length, Math.round(n)));
+  return `P${clamped}` as FinancialProfileId;
+}
 
 export const PROFILE_INFO: Record<FinancialProfileId, {
   name: string;
@@ -18,60 +73,124 @@ export const PROFILE_INFO: Record<FinancialProfileId, {
   description: string;
   color: string;
 }> = {
+  P0: {
+    name: 'Découverte',
+    emoji: '🧭',
+    tier: 'Découverte',
+    description: 'On apprend à te connaître. Ajoute tes comptes et tes rentrées d\'argent : ton profil se calculera tout seul, sans questionnaire.',
+    color: '#94a3b8',
+  },
   P1: {
+    name: 'Sortir du rouge',
+    emoji: '🌧️',
+    tier: 'Déficitaire',
+    description: 'Les mois se terminent trop souvent à découvert. Une seule priorité : arrêter l\'hémorragie et repasser au-dessus de zéro à la fin du mois.',
+    color: '#dc2626',
+  },
+  P2: {
     name: 'Premiers repères',
     emoji: '🌱',
     tier: 'Épargne critique',
-    description: 'Structure tes finances. L\'objectif prioritaire est de constituer un premier matelas de sécurité.',
+    description: 'Tu tiens le mois, mais sans filet : moins d\'un mois de revenu de côté. L\'objectif est d\'en constituer un premier.',
     color: '#ef4444',
   },
-  P2: {
+  P3: {
     name: 'Réserve à construire',
     emoji: '🌿',
     tier: 'Épargne à renforcer',
-    description: 'Les bases sont posées. Renforce ta réserve de sécurité pour couvrir 3 mois de revenus.',
+    description: 'Un à trois mois de dépenses de côté : le filet existe. Renforce-le jusqu\'à trois mois avant toute autre ambition.',
     color: '#f59e0b',
   },
-  P3: {
-    name: 'Stabilité à améliorer',
+  P4: {
+    name: 'Équilibre trouvé',
     emoji: '⚖️',
-    tier: 'Stabilité à améliorer',
-    description: 'Ta situation est stable. Commence à faire travailler ton argent au-delà de l\'épargne pure.',
+    tier: 'Stabilité',
+    description: 'Trois à six mois de réserve et une épargne régulière. Tu peux commencer à faire travailler ce qui dépasse.',
     color: '#3b82f6',
   },
-  P4: {
-    name: 'Bonne dynamique',
-    emoji: '🚀',
-    tier: 'Bonne dynamique',
-    description: 'Ta réserve est solide et tu investisses régulièrement. L\'investissement prend une place croissante.',
+  P5: {
+    name: 'Sécurité acquise',
+    emoji: '🛡️',
+    tier: 'Sécurité acquise',
+    description: 'Plus de six mois de dépenses couverts : ton matelas est fait. Continuer à empiler du liquide ne rapporte plus rien.',
+    color: '#0ea5e9',
+  },
+  P6: {
+    name: 'Premiers placements',
+    emoji: '🌍',
+    tier: 'Investisseur débutant',
+    description: 'Réserve solide ET premiers investissements en place. L\'enjeu devient la régularité des versements, pas leur montant.',
     color: '#8b5cf6',
   },
-  P5: {
-    name: 'Patrimoine en développement',
-    emoji: '🎯',
-    tier: 'Confortable',
-    description: 'Maturité financière remarquable. L\'objectif est d\'optimiser et faire croître ton patrimoine.',
-    color: '#34d399',
+  P7: {
+    name: 'Patrimoine en construction',
+    emoji: '🚀',
+    tier: 'Patrimoine en construction',
+    description: 'Le patrimoine sur tes comptes dépasse 30 000 €. L\'investissement prend le pas sur l\'épargne de précaution, déjà pleine.',
+    color: '#a855f7',
+  },
+  P8: {
+    name: 'Patrimoine établi',
+    emoji: '🏛️',
+    tier: 'Patrimoine établi',
+    description: 'Au-delà de 100 000 € sur tes comptes : une minorité de la population. L\'objectif n\'est plus d\'accumuler mais de faire fructifier.',
+    color: '#22c55e',
+  },
+  P9: {
+    name: 'Patrimoine d\'exception',
+    emoji: '💎',
+    tier: 'Patrimoine d\'exception',
+    description: 'Plus de 300 000 € sur tes comptes bancaires — et au-delà du million, une fraction de pour cent des ménages. Presque tout doit travailler ; le liquide immobilisé coûte cher.',
+    color: '#14b8a6',
   },
 };
 
+/**
+ * RÉPARTITION DU RELYKA entre les quatre décisions (Épargner / Investir / Confort / Conserver).
+ * Somme = 100 pour chaque profil — c'est un invariant, vérifié en test.
+ *
+ * La courbe est lisible d'un bloc : l'épargne de précaution s'efface à mesure que le matelas se
+ * remplit, l'investissement prend sa place, le confort progresse doucement (on ne « mérite » pas
+ * de dépenser plus parce qu'on est riche : on se le permet plus sereinement), et « Conserver »
+ * reste haut aux deux extrémités — par nécessité en bas (le mois est tendu), par choix en haut
+ * (le patrimoine se pilote, il ne se dépense pas).
+ */
 export const PROFILE_ALLOCATIONS: Record<FinancialProfileId, {
   save: number; invest: number; enjoy: number; keep: number;
 }> = {
-  P1: { save: 60, invest:  0, enjoy: 10, keep: 30 },
-  P2: { save: 40, invest: 10, enjoy: 20, keep: 30 },
-  P3: { save: 25, invest: 25, enjoy: 20, keep: 30 },
-  P4: { save: 10, invest: 40, enjoy: 25, keep: 25 },
-  P5: { save:  0, invest: 65, enjoy: 25, keep: 10 },
+  // Rien n'est mesuré : on ne pousse ni à épargner ni à investir, on garde.
+  P0: { save: 25, invest:  0, enjoy: 20, keep: 55 },
+  // Déficitaire : le liquide est vital. Épargner un peu quand même — sinon on ne sort jamais du cycle.
+  P1: { save: 30, invest:  0, enjoy:  5, keep: 65 },
+  P2: { save: 55, invest:  0, enjoy: 10, keep: 35 },
+  P3: { save: 45, invest:  5, enjoy: 15, keep: 35 },
+  P4: { save: 30, invest: 20, enjoy: 20, keep: 30 },
+  P5: { save: 20, invest: 30, enjoy: 22, keep: 28 },
+  P6: { save: 12, invest: 40, enjoy: 25, keep: 23 },
+  P7: { save:  8, invest: 47, enjoy: 25, keep: 20 },
+  P8: { save:  5, invest: 55, enjoy: 25, keep: 15 },
+  P9: { save:  0, invest: 62, enjoy: 28, keep: 10 },
 };
 
-// Correspondance profil → tier (pour les paliers d'allocation en DB)
+/**
+ * Correspondance profil → palier d'allocation historique (table `recommendation_tier_allocations`).
+ *
+ * Les cinq paliers de la base sont conservés : ils portent les réglages admin et les libellés du
+ * moteur de recommandations. Dix profils s'y projettent, deux ou trois par palier — ce qui n'ôte
+ * rien à la finesse, puisque les POURCENTAGES viennent de PROFILE_ALLOCATIONS, profil par profil.
+ * Le palier ne sert plus qu'à choisir le VOCABULAIRE des conseils.
+ */
 export const PROFILE_TO_TIER: Record<FinancialProfileId, 'critical' | 'below_optimal' | 'healthy' | 'p4_dynamic' | 'comfortable'> = {
+  P0: 'below_optimal',   // on ne sait pas : ton neutre, jamais alarmiste
   P1: 'critical',
-  P2: 'below_optimal',
-  P3: 'healthy',
-  P4: 'p4_dynamic',
-  P5: 'comfortable',
+  P2: 'critical',
+  P3: 'below_optimal',
+  P4: 'healthy',
+  P5: 'healthy',
+  P6: 'p4_dynamic',
+  P7: 'p4_dynamic',
+  P8: 'comfortable',
+  P9: 'comfortable',
 };
 
 // ── Questionnaire — options ───────────────────────────────────
@@ -192,7 +311,7 @@ export function monthlyVariableFromQ9(q9: string): number {
 // ── q5 DÉRIVÉE DES DONNÉES RÉELLES ────────────────────────────
 //
 // q5 (« si tes revenus s'arrêtaient demain, combien de temps tiendrais-tu ? ») est EXACTEMENT la
-// définition du matelas de sécurité : épargne disponible ÷ revenu mensuel (lib/securityCushion).
+// définition du matelas de sécurité : épargne disponible ÷ dépenses essentielles (lib/securityCushion).
 // Dès que l'utilisateur a saisi ses comptes, l'app le SAIT — plus fiable qu'une auto-évaluation.
 // On ne modifie pas le moteur de profils : on lui fournit la même réponse, mesurée au lieu d'être
 // déclarée, et on la recalcule à chaque fois que les données bougent (cf. useLiveProfileSync).
@@ -289,7 +408,7 @@ const Q4_MINIMAL = new Set([
 // ── Calcul du profil initial ──────────────────────────────────
 
 /**
- * Retourne le profil P1-P5 selon la matrice du questionnaire.
+ * Retourne le profil P1-P6 selon la matrice du questionnaire (repli historique).
  * Évaluation du plus élevé (P5) au plus bas (P1).
  */
 /* ── LE PROFIL, À PARTIR DES SEULES DONNÉES RÉELLES ────────────────────────────────────────────
@@ -301,83 +420,152 @@ const Q4_MINIMAL = new Set([
  *
  * La matrice reprend EXACTEMENT les paliers de l'ancienne (mois de sécurité × taux d'épargne ×
  * comportement d'investissement), en remplaçant chaque réponse par sa mesure :
- *   q5 « combien de temps tiendrais-tu ? »  → mois de sécurité (épargne ÷ revenu)
+ *   q5 « combien de temps tiendrais-tu ? »  → mois de sécurité (épargne ÷ dépenses essentielles)
  *   q6 « quelle part mets-tu de côté ? »    → taux d'épargne constaté (mis de côté ÷ revenu)
  *   q4 « que fais-tu de ce qui reste ? »    → épargne-t-il / investit-il vraiment ?
  */
 export interface ProfileDataInputs {
   /** Épargne disponible (comptes d'épargne). */
   availableSavings: number;
-  /** Revenu mensuel moyen CONSTATÉ. 0/absent = donnée manquante → P1. */
+  /** Revenu mensuel moyen CONSTATÉ. 0/absent = donnée manquante → P0 (Découverte). */
   avgMonthlyIncome: number;
   /** Mis de côté chaque mois en moyenne (épargne + investissement). */
   monthlySetAside: number;
   /** Total réellement placé sur des comptes d'investissement. */
   totalInvested: number;
+  /**
+   * Solde des comptes COURANTS. Sert au seul cas que les ratios ne voient pas : le découvert
+   * chronique. Quelqu'un dans le rouge à la fin de chaque mois n'a pas « un peu moins d'un mois de
+   * réserve », il a un problème d'une autre nature — et il recevait pourtant les mêmes conseils.
+   */
+  checkingBalance?: number;
+  /**
+   * Patrimoine BANCAIRE total (courant + épargne + investissement). Il gouverne les paliers hauts :
+   * au-delà d'un certain montant, le nombre de mois de réserve ne dit plus rien d'utile (quelqu'un
+   * avec 400 000 € a « 200 mois de réserve », ce qui ne le distingue pas de quelqu'un avec 80 000 €
+   * et un petit revenu). À défaut, reconstitué depuis l'épargne et l'investissement.
+   */
+  totalLiquidWealth?: number;
+  /**
+   * Dépenses ESSENTIELLES mensuelles (charges récurrentes + enveloppe variable). C'est la base du
+   * matelas de sécurité : « combien de temps je tiens » se mesure sur ce qui SORT, pas sur ce qui
+   * rentrait (cf. lib/securityCushion). Absent → repli sur le revenu.
+   */
+  monthlyEssentialExpenses?: number;
 }
 
 /** Seuils du taux d'épargne, alignés sur les anciennes tranches déclarées (10 % / 20 %). */
 const RATE_MID = 0.10;
 const RATE_HIGH = 0.20;
 
+/**
+ * Seuils de PATRIMOINE BANCAIRE des paliers hauts (€ sur les comptes suivis par l'app).
+ *
+ * Calés sur la réalité de la distribution du patrimoine financier des ménages : au-delà de
+ * 30 000 € de placements bancaires on quitte déjà la moitié inférieure, 100 000 € correspond
+ * grossièrement au dernier quart, et 300 000 € aux quelques pour cent du haut — le million étant
+ * une fraction de pour cent. Volontairement ronds : ce sont des repères, pas des mesures.
+ */
+export const WEALTH_THRESHOLDS = { P7: 30_000, P8: 100_000, P9: 300_000 } as const;
+
+/** Au-delà, on le NOMME : c'est le seul palier où le mot a un sens. */
+export const MILLIONAIRE_THRESHOLD = 1_000_000;
+
+/** Mois de réserve exigés pour prétendre à un palier de patrimoine (P7+). */
+const WEALTH_MIN_MONTHS = 3;
+
 export function computeProfileFromData(i: ProfileDataInputs): FinancialProfileId {
-  // Sans revenu constaté, aucun ratio n'a de sens : on ne devine pas, on reste au plus prudent.
-  if (!(i.avgMonthlyIncome > 0)) return 'P1';
+  /* Sans revenu constaté, aucun ratio n'a de sens. On ne devine pas — et surtout on ne classe plus
+     au profil le plus prudent : « épargne critique » est un DIAGNOSTIC, et il était servi à tout
+     nouvel arrivant avant même qu'il ait saisi quoi que ce soit. P0 dit ce qui est vrai : on ne
+     sait pas encore. */
+  if (!(i.avgMonthlyIncome > 0)) return 'P0';
 
   const months = computeSecurityCushion({
     availableSavings: Math.max(0, i.availableSavings),
+    // Base = ce qu'il faut COUVRIR chaque mois, plus le revenu (cf. lib/securityCushion).
+    monthlyEssentialExpenses: i.monthlyEssentialExpenses,
     avgMonthlyIncome: i.avgMonthlyIncome,
   }).months;
-  if (months == null) return 'P1';
+  if (months == null) return 'P0';
 
   const rate = Math.max(0, i.monthlySetAside) / i.avgMonthlyIncome;
   const rateHigh = rate >= RATE_HIGH;
   const rateMid = rate >= RATE_MID;
-  // « Investit » = il a réellement placé de l'argent (équivalent des deux dernières options de q4).
+  // « Investit » = il a réellement placé de l'argent sur un compte d'investissement.
   const invests = i.totalInvested > 0;
-  // « Épargne régulièrement » = il met effectivement de côté (équivalent des options épargne de q4).
+  // « Épargne régulièrement » = il met effectivement de côté, mois après mois.
   const saves = i.monthlySetAside > 0;
+  const wealth = i.totalLiquidWealth
+    ?? (Math.max(0, i.availableSavings) + Math.max(0, i.totalInvested));
 
-  // P5 : plus de 6 mois de sécurité ET (il investit OU il met beaucoup de côté).
-  if (months > 6 && (invests || rateHigh)) return 'P5';
-  // P4 : plus de 6 mois, ou 3–6 mois avec un fort taux d'épargne.
-  if (months > 6) return 'P4';
-  if (months >= 3 && rateHigh) return 'P4';
-  // P3 : 3–6 mois avec un comportement d'épargne, ou 1–3 mois avec un fort taux.
-  if (months >= 3 && saves) return 'P3';
-  if (months >= 1 && rateHigh) return 'P3';
-  // P2 : 1–3 mois, ou 3–6 mois sans rien mettre de côté, ou moins d'un mois mais un taux correct.
-  if (months >= 1) return 'P2';
-  if (months >= 3) return 'P2';
-  if (rateMid) return 'P2';
-  // P1 : tout le reste.
-  return 'P1';
+  /* ── Paliers de PATRIMOINE (P7 → P9) ────────────────────────────────────────────────────────
+     LE MONTANT SEUL NE SUFFIT PAS, et c'est délibéré. Un capital hérité, posé sur un livret, chez
+     quelqu'un qui finit ses mois à découvert, n'est pas une « maturité financière » — lui servir
+     des conseils d'optimisation patrimoniale serait à côté du sujet, et vaguement insultant.
+     Trois conditions cumulatives, en plus du montant :
+       • une RÉSERVE réelle (le seuil monte avec le palier : plus le patrimoine est important, plus
+         l'absence de liquidité est anormale) ;
+       • de l'argent RÉELLEMENT PLACÉ — c'est le geste qui distingue un patrimoine piloté d'un
+         capital qui dort ;
+       • pas de découvert : on ne « construit » pas un patrimoine en étant dans le rouge.
+     À défaut, on redescend sur l'échelle du matelas — exactement le conseil dont cette personne a
+     besoin. Le patrimoine reste donc un indicateur, jamais un laissez-passer. */
+  const noOverdraft = (i.checkingBalance ?? 0) >= 0;
+  if (invests && noOverdraft) {
+    if (months >= 6 && wealth >= WEALTH_THRESHOLDS.P9) return 'P9';
+    if (months >= 6 && wealth >= WEALTH_THRESHOLDS.P8) return 'P8';
+    if (months >= WEALTH_MIN_MONTHS && wealth >= WEALTH_THRESHOLDS.P7) return 'P7';
+  }
+
+  // ── Paliers de MATELAS (P1 → P6) ───────────────────────────────────────────────────────────
+  // P6 : réserve faite ET argent réellement placé — le passage à l'investissement est acquis.
+  if (months >= 6 && invests) return 'P6';
+  // P5 : réserve faite (plus de six mois), mais encore tout en liquide.
+  if (months >= 6) return 'P5';
+  // P4 : trois à six mois, avec un comportement d'épargne — ou moins, mais un taux d'épargne fort.
+  if (months >= 3 && (saves || rateHigh)) return 'P4';
+  if (months >= 1 && rateHigh) return 'P4';
+  // P3 : un à trois mois de réserve — ou trois à six sans rien mettre de côté (la réserve stagne).
+  if (months >= 1 || months >= 3) return 'P3';
+  // P2 : moins d'un mois, mais le mois se termine dans le vert et/ou on épargne un peu.
+  if (rateMid || saves) return 'P2';
+  /* P1 : déficitaire. Le découvert est le signal décisif — pas le montant de l'épargne. Sans
+     information sur le compte courant, on reste à P2 : accuser quelqu'un d'être dans le rouge
+     sur une absence de donnée serait pire que de ne rien dire. */
+  if ((i.checkingBalance ?? 0) < 0) return 'P1';
+  return 'P2';
+}
+
+/** L'utilisateur dépasse-t-il le million sur ses comptes suivis ? (pour le NOMMER, cf. P9) */
+export function isMillionaire(totalLiquidWealth: number): boolean {
+  return totalLiquidWealth >= MILLIONAIRE_THRESHOLD;
 }
 
 export function computeInitialProfile(answers: QuestionnaireAnswers): FinancialProfileId {
   const { q4, q5, q6 } = answers;
 
-  // Cas immédiat P1 : découvert
+  // Cas immédiat : découvert déclaré.
   if (q4 === 'Rien, je finis souvent le mois à découvert') return 'P1';
 
-  // P5 : > 6 mois ET (investit OU Q6 ≥ 20 %)
-  if (q5 === 'Plus de 6 mois' && (Q4_INVEST.has(q4) || Q6_HIGH.has(q6))) return 'P5';
+  // Réserve faite (> 6 mois) ET argent placé / fort taux d'épargne → premiers placements.
+  if (q5 === 'Plus de 6 mois' && (Q4_INVEST.has(q4) || Q6_HIGH.has(q6))) return 'P6';
 
-  // P4 : > 6 mois (reste) OU (3-6 mois ET Q6 ≥ 20 %)
-  if (q5 === 'Plus de 6 mois') return 'P4';
-  if (q5 === '3 à 6 mois' && Q6_HIGH.has(q6)) return 'P4';
+  // Réserve faite, mais tout en liquide.
+  if (q5 === 'Plus de 6 mois') return 'P5';
+  if (q5 === '3 à 6 mois' && Q6_HIGH.has(q6)) return 'P5';
 
-  // P3 : 3-6 mois ET comportement d'épargne/invest OU (1-3 mois ET Q6 ≥ 20 %)
-  if (q5 === '3 à 6 mois' && Q4_SAVING.has(q4)) return 'P3';
-  if (q5 === '1 à 3 mois' && Q6_HIGH.has(q6)) return 'P3';
+  // Trois à six mois avec un comportement d'épargne → équilibre trouvé.
+  if (q5 === '3 à 6 mois' && Q4_SAVING.has(q4)) return 'P4';
+  if (q5 === '1 à 3 mois' && Q6_HIGH.has(q6)) return 'P4';
 
-  // P2 : 1-3 mois (reste) OU 3-6 mois minimal OU < 1 mois ET Q6 ≥ 10 %
-  if (q5 === '1 à 3 mois') return 'P2';
-  if (q5 === '3 à 6 mois' && Q4_MINIMAL.has(q4)) return 'P2';
-  if (q5 === "Moins d'un mois" && Q6_MID.has(q6)) return 'P2';
+  // Un à trois mois → réserve à construire.
+  if (q5 === '1 à 3 mois') return 'P3';
+  if (q5 === '3 à 6 mois' && Q4_MINIMAL.has(q4)) return 'P3';
+  if (q5 === "Moins d'un mois" && Q6_MID.has(q6)) return 'P3';
 
-  // P1 : tous les cas restants
-  return 'P1';
+  // Moins d'un mois de réserve, sans découvert déclaré.
+  return 'P2';
 }
 
 // ── Moteur automatique ────────────────────────────────────────
@@ -413,13 +601,31 @@ export interface AutoEvalResult {
   consecutiveDowngrade: number;
 }
 
-const TRANSITION_MAP: Record<string, { up: string; down: string }> = {
-  P1: { up: 'P1_P2', down: '' },
-  P2: { up: 'P2_P3', down: 'P1_P2' },
-  P3: { up: 'P3_P4', down: 'P2_P3' },
-  P4: { up: 'P4_P5', down: 'P3_P4' },
-  P5: { up: '',      down: 'P4_P5' },
-};
+/**
+ * Clé de transition entre deux paliers voisins : toujours « P<bas>_P<haut> », la DIRECTION étant
+ * portée par le champ `direction` des messages (cf. migration 145). Générée plutôt qu'écrite à la
+ * main : à dix paliers, une table littérale de dix-huit clés se serait désynchronisée au premier
+ * ajout de profil.
+ *
+ * P0 (Découverte) n'a pas de transition automatique : on n'en « monte » pas, on en SORT dès qu'une
+ * donnée réelle arrive (le profil est alors recalculé de zéro), et on n'y redescend jamais.
+ */
+const TRANSITION_MAP: Record<string, { up: string; down: string }> = Object.fromEntries(
+  RANKED_PROFILE_IDS.map((id, idx) => ({
+    id,
+    up: idx < RANKED_PROFILE_IDS.length - 1 ? `${id}_${RANKED_PROFILE_IDS[idx + 1]}` : '',
+    down: idx > 0 ? `${RANKED_PROFILE_IDS[idx - 1]}_${id}` : '',
+  })).map(({ id, up, down }) => [id, { up, down }]),
+);
+
+/** Toutes les clés de transition, du bas vers le haut (P1_P2 … P8_P9). Sert à l'admin et aux seeds. */
+export const PROFILE_TRANSITION_KEYS: string[] = RANKED_PROFILE_IDS
+  .slice(0, -1)
+  .map((id, idx) => `${id}_${RANKED_PROFILE_IDS[idx + 1]}`);
+
+/** Palier le plus bas / le plus haut de l'échelle classante (P0 n'en fait pas partie). */
+const LOWEST_RANK = 1;
+const HIGHEST_RANK = RANKED_PROFILE_IDS.length; // P9 → 9
 
 export function evaluateAutoTransition(
   currentProfile: FinancialProfileId,
@@ -429,8 +635,13 @@ export function evaluateAutoTransition(
   configs: Record<string, MatrixConfig>,
   isIrregularIncome: boolean,
 ): AutoEvalResult {
+  /* P0 (Découverte) ne se déplace pas d'un cran : il n'a pas de voisin, il n'a pas de mesure. On
+     en sort par un recalcul complet dès qu'un revenu est constaté (cf. computeProfileFromData). */
+  if (currentProfile === 'P0') {
+    return { newProfileId: 'P0', changed: false, reason: null, consecutiveUpgrade: 0, consecutiveDowngrade: 0 };
+  }
   const num = parseInt(currentProfile.replace('P', ''));
-  const { up, down } = TRANSITION_MAP[currentProfile];
+  const { up, down } = TRANSITION_MAP[currentProfile] ?? { up: '', down: '' };
 
   // ── Règles exceptionnelles (priorité absolue) ─────────────
 
@@ -440,14 +651,14 @@ export function evaluateAutoTransition(
 
   // Revenus nuls : descente de 2 niveaux
   if (metrics.avg_income_2m === 0 && metrics.avg_income_6m > 0) {
-    const newNum = Math.max(1, num - 2);
+    const newNum = Math.max(LOWEST_RANK, num - 2);
     const newProfile = `P${newNum}` as FinancialProfileId;
     return { newProfileId: newProfile, changed: newProfile !== currentProfile, reason: 'exceptional_revenue_drop', consecutiveUpgrade: 0, consecutiveDowngrade: 0 };
   }
 
   // Revenus < seuil de chute : descente d'1 niveau
   if (metrics.avg_income_6m > 0 && metrics.avg_income_2m < metrics.avg_income_6m * dropThreshold) {
-    const newNum = Math.max(1, num - 1);
+    const newNum = Math.max(LOWEST_RANK, num - 1);
     const newProfile = `P${newNum}` as FinancialProfileId;
     return { newProfileId: newProfile, changed: newProfile !== currentProfile, reason: 'exceptional_revenue_drop', consecutiveUpgrade: 0, consecutiveDowngrade: 0 };
   }
@@ -461,7 +672,7 @@ export function evaluateAutoTransition(
       metrics.flux_total < cfg.downgrade_flux_threshold
     ) {
       const newConsecutive = consecutiveDowngrade + 1;
-      const newNum = Math.max(1, num - 1);
+      const newNum = Math.max(LOWEST_RANK, num - 1);
       const newProfile = `P${newNum}` as FinancialProfileId;
       return {
         newProfileId: newProfile,
@@ -483,7 +694,7 @@ export function evaluateAutoTransition(
     ) {
       const newConsecutive = consecutiveUpgrade + 1;
       if (newConsecutive >= cfg.anti_yoyo_months) {
-        const newNum = Math.min(5, num + 1);
+        const newNum = Math.min(HIGHEST_RANK, num + 1);
         const newProfile = `P${newNum}` as FinancialProfileId;
         return {
           newProfileId: newProfile,

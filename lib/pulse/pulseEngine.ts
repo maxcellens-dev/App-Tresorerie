@@ -26,6 +26,7 @@
 
 import type { FinancialProfileId } from '../../types/database';
 import { computeSecurityCushion, securityMonthsLabel, type SecurityCushionBase } from '../finance/securityCushion';
+import { FINANCIAL_PROFILE_IDS, resolveProfileId } from '../finance/financialProfileEngine';
 
 /* ── Signaux ─────────────────────────────────────────────────── */
 
@@ -36,7 +37,7 @@ import { computeSecurityCushion, securityMonthsLabel, type SecurityCushionBase }
 export type PulseSignalId =
   | 'end_of_month'    // « Fin de mois » : ce qu'il restera au 1er, vs la marge de sécurité
   | 'spending'        // « Dépenses variables » : dépensé vs budget variable habituel
-  | 'cushion'         // « Matelas de sécurité » : combien de temps tenir sans revenus
+  | 'cushion'         // « Matelas de sécurité » : combien de MOIS DE DÉPENSES l'épargne couvre
   | 'no_overdraft'    // « Jamais dans le rouge » : mois consécutifs sans découvert
   | 'wealth'          // « Ton patrimoine » : total + évolution sur 3 mois
   | 'projects';       // « Tes projets » : le projet perso le plus avancé
@@ -89,11 +90,19 @@ export interface PulseConfig {
  * qui en ont un (P4/P5). Les PROJETS PERSO sont présents pour TOUS les profils (décision produit).
  */
 export const DEFAULT_PULSE_SIGNALS: Record<FinancialProfileId, PulseSignalId[]> = {
+  // Découverte : on ne sait presque rien encore — on s'en tient au concret du mois.
+  P0: ['spending', 'end_of_month', 'no_overdraft', 'projects'],
+  // Tant que la réserve n'est pas faite, c'est la fin de mois qui compte, pas le patrimoine.
   P1: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
   P2: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
   P3: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
-  P4: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
+  P4: ['spending', 'cushion', 'end_of_month', 'no_overdraft', 'projects'],
+  // Réserve constituée : le patrimoine devient le sujet, la fin de mois cesse d'être un enjeu.
   P5: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
+  P6: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
+  P7: ['spending', 'cushion', 'wealth', 'no_overdraft', 'projects'],
+  P8: ['spending', 'wealth', 'cushion', 'no_overdraft', 'projects'],
+  P9: ['spending', 'wealth', 'cushion', 'no_overdraft', 'projects'],
 };
 
 export const DEFAULT_PULSE_CONFIG: PulseConfig = {
@@ -106,7 +115,7 @@ export const DEFAULT_PULSE_CONFIG: PulseConfig = {
 /** Fusionne la config stockée (admin) avec les défauts — une config partielle reste valide. */
 export function resolvePulseConfig(stored: Partial<PulseConfig> | null | undefined): PulseConfig {
   if (!stored) return DEFAULT_PULSE_CONFIG;
-  const profiles: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
+  const profiles = FINANCIAL_PROFILE_IDS;
   const signalsByProfile = {} as Record<FinancialProfileId, PulseSignalId[]>;
   for (const p of profiles) {
     const raw = stored.signalsByProfile?.[p];
@@ -148,8 +157,10 @@ export interface PulseInputs {
   // Épargne / matelas
   /** Total sur les comptes d'épargne. */
   savingsBalance: number;
-  /** Revenu mensuel moyen constaté (0 = non détecté). */
+  /** Revenu mensuel moyen constaté (0 = non détecté) — repli du matelas seulement. */
   avgMonthlyIncome: number;
+  /** Dépenses ESSENTIELLES mensuelles (charges récurrentes + enveloppe variable) : la base du matelas. */
+  monthlyEssentialExpenses?: number;
   /** Tranche de revenu du questionnaire (repli du matelas tant qu'aucune recette n'est constatée). */
   questionnaireQ3?: string | null;
 
@@ -259,7 +270,8 @@ function buildSpending(i: PulseInputs): PulseSignal {
 }
 
 /**
- * Paliers du matelas de sécurité : 1 mois (le coup dur encaissé), 3 mois (le trou d'air),
+ * Paliers du matelas de sécurité, en MOIS DE DÉPENSES : 1 mois (le coup dur encaissé), 3 mois
+ * (le trou d'air),
  * 6 mois (la vraie tranquillité). Au-delà du dernier palier, on n'affiche PLUS d'objectif :
  * « il faudrait X » n'aurait aucun sens pour quelqu'un qui a déjà largement de quoi tenir.
  */
@@ -273,28 +285,32 @@ function nextCushionMilestone(months: number): number | null {
 function buildCushion(i: PulseInputs): PulseSignal {
   const cushion = computeSecurityCushion({
     availableSavings: i.savingsBalance,
+    // Base = les DÉPENSES à couvrir, pas le revenu (cf. lib/securityCushion).
+    monthlyEssentialExpenses: i.monthlyEssentialExpenses,
     avgMonthlyIncome: i.avgMonthlyIncome,
     questionnaireQ3: i.questionnaireQ3,
   });
 
-  // Aucune base de revenu : on montre le montant épargné, sans le convertir en « mois ».
+  // Aucune base exploitable : on montre le montant épargné, sans le convertir en « mois ».
   if (cushion.months == null) {
     return {
       id: 'cushion', label: 'Matelas de sécurité', emoji: '🛟',
       headline: `${eur(i.savingsBalance)} d’épargne de côté`,
-      detail: 'Ajoute ton revenu pour savoir combien de temps tu tiendrais sans rentrée d’argent.',
+      detail: 'Ajoute tes charges récurrentes pour savoir combien de temps tu tiendrais sans rentrée d’argent.',
     };
   }
 
   const months = cushion.months;
-  const base: SecurityCushionBase = cushion.base ?? 'income';
+  const base: SecurityCushionBase = cushion.base ?? 'expenses';
 
-  // Prochain palier chiffré : « 6 mois (12 723 € / ~15 237 €) » — épargne actuelle / épargne visée.
-  // La cible est le nb de mois × le revenu de référence (reference = épargne ÷ mois couverts).
+  /* Prochain palier chiffré : « 6 mois (12 723 € / ~15 237 €) » — épargne actuelle / épargne visée.
+     La cible est le nb de mois × la référence mensuelle, c'est-à-dire les DÉPENSES essentielles
+     (charges + budget variable). « (estimation) » signale les deux replis : quand on n'a pas encore
+     les dépenses, on divise par le revenu — ce qui SOUS-ESTIME le matelas, jamais l'inverse. */
   const next = nextCushionMilestone(months);
-  const approx = base === 'income' ? '' : ' (estimation)';
+  const approx = base === 'expenses' ? '' : ' (estimation)';
   const detail = next
-    ? `Prochain palier : ${next} mois${approx} (${eur(i.savingsBalance)} / ~${eur(next * cushion.reference)}).`
+    ? `Prochain palier : ${next} mois de dépenses${approx} (${eur(i.savingsBalance)} / ~${eur(next * cushion.reference)}).`
     : `Tu as de quoi voir venir (${eur(i.savingsBalance)} d'épargne)${approx}.`;
 
   return {
@@ -391,12 +407,17 @@ const BUILDERS: Record<PulseSignalId, (i: PulseInputs) => PulseSignal | null> = 
  */
 const MONTHLY_LEAD: PulseSignalId[] = ['spending', 'cushion'];
 
-export function monthlyIds(profileIds: PulseSignalId[]): PulseSignalId[] {
-  const rest = profileIds.filter(
+export function monthlyIds(profileIds: PulseSignalId[] | null | undefined): PulseSignalId[] {
+  /* La liste vient d'une table indexée PAR PROFIL, donc d'une clé lue en base : une valeur que ce
+     bundle ne connaît pas (migration déployée avant la mise à jour du code) rendait `undefined`, et
+     ce `.filter` faisait tomber tout l'état des lieux. On repart alors des deux repères toujours
+     présents plutôt que de casser l'écran. */
+  const ids = Array.isArray(profileIds) ? profileIds : [];
+  const rest = ids.filter(
     (id) => !MONTHLY_LEAD.includes(id) && id !== 'projects' && id !== 'end_of_month',
   );
-  const projects = profileIds.includes('projects') ? (['projects'] as PulseSignalId[]) : [];
-  const endOfMonth = profileIds.includes('end_of_month') ? (['end_of_month'] as PulseSignalId[]) : [];
+  const projects = ids.includes('projects') ? (['projects'] as PulseSignalId[]) : [];
+  const endOfMonth = ids.includes('end_of_month') ? (['end_of_month'] as PulseSignalId[]) : [];
   return [...new Set<PulseSignalId>([...MONTHLY_LEAD, ...projects, ...endOfMonth, ...rest])];
 }
 
@@ -404,7 +425,10 @@ export function computePulse(
   inputs: PulseInputs,
   config: PulseConfig = DEFAULT_PULSE_CONFIG,
 ): PulseResult {
-  const profileIds = config.signalsByProfile[inputs.profileId] ?? DEFAULT_PULSE_SIGNALS[inputs.profileId];
+  // Profil inconnu de CE bundle (cf. resolveProfileId) → on ramène l'identifiant sur le référentiel
+  // courant plutôt que de chercher une clé qui n'existe pas.
+  const pid = resolveProfileId(inputs.profileId);
+  const profileIds = config.signalsByProfile?.[pid] ?? DEFAULT_PULSE_SIGNALS[pid];
 
   const signals: PulseSignal[] = [];
   for (const id of monthlyIds(profileIds)) {

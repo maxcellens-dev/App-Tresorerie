@@ -91,7 +91,7 @@ function eurSigned(n: number, withSign: boolean): string {
 /** Empreinte du contenu AFFICHÉ → évite les re-rendus quand rien de visible n'a changé. */
 function feedbackSignature(f: PulseFeedback): string {
   const eom = f.endOfMonth ? `eom:${f.endOfMonth.amount}:${f.endOfMonth.delta}` : '';
-  const env = f.envelope ? `env:${f.envelope.remaining}:${f.envelope.initial}:${f.envelope.used}` : '';
+  const env = f.envelope ? `env:${f.envelope.remaining}:${f.envelope.initial}:${f.envelope.used}:${f.envelope.monthOverflow}` : '';
   return f.chips.map((c) => `${c.key}:${c.text}:${c.tone}`).join('|') + '#' + eom + '#' + env;
 }
 
@@ -193,6 +193,7 @@ export default function PulseDeltaHost() {
             // prendre. Reprendre le restant recalculé ferait disparaître la soustraction sous les yeux.
             variableEnvelopeRemaining: p.before.variableEnvelopeRemaining,
             variableEnvelopeInitial: p.before.variableEnvelopeInitial,
+            variableEnvelopeSpent: p.before.variableEnvelopeSpent,
           }
         : undefined,
     );
@@ -286,6 +287,9 @@ export default function PulseDeltaHost() {
 
   if (!feedback) return null;
 
+  // D'où vient l'enveloppe variable (moyenne constatée / estimation donnée) — décide du mot employé.
+  const envSource = pulse?.variableEnvelopeSource ?? 'none';
+
   return (
     <View style={styles.root} pointerEvents="box-none">
       {/* AUCUN attrape-taps plein écran : la carte reste tant qu'on ne la ferme pas, elle ne doit
@@ -330,6 +334,13 @@ export default function PulseDeltaHost() {
             devient la conséquence lisible d'un budget respecté plutôt qu'un doute sur la saisie. */}
         {!!feedback.envelope && (() => {
           const env = feedback.envelope;
+          /* « Ton estimation » ou « ta moyenne » : l'enveloppe vient soit du chiffre que
+             l'utilisateur a donné, soit de ses dépenses réellement constatées. Lui parler
+             d'« estimation » alors qu'on lui oppose ses propres relevés (ou l'inverse) rendrait le
+             message contestable — et un message contestable ne fait pas changer d'avis. */
+          const envelopeSourceLabel = envSource === 'history'
+            ? 'ta moyenne de dépenses variables'
+            : 'ton estimation de dépenses variables';
           const pct = Math.max(0, Math.min(1, env.remaining / Math.max(1, env.initial)));
           const color = env.overflow > 0 ? toneColor(COLORS, 'caution') : toneColor(COLORS, 'positive');
           return (
@@ -341,10 +352,16 @@ export default function PulseDeltaHost() {
               <View style={styles.envTrack}>
                 <View style={[styles.envFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
               </View>
+              {/* LE DÉPASSEMENT SE LIT SUR LE MOIS, PAS SUR L'OPÉRATION.
+                  Une fois l'enveloppe épuisée, `remaining` vaut 0 : la part « hors enveloppe » de
+                  chaque nouvelle dépense valait donc son montant entier, et la carte annonçait
+                  « ces 40 € dépassent de 40 € », puis « ces 12 € dépassent de 12 € »… On croyait le
+                  compteur remis à zéro à chaque saisie alors qu'il s'accumule. On dit maintenant où
+                  l'on en est SUR LE MOIS — la seule information qui aide à décider. */}
               <Text style={styles.envHint}>
                 {env.absorbed
                   ? `Ces ${eurSigned(env.used, false)} y étaient déjà prévus : ton Relyka ne bouge pas.`
-                  : `Ces ${eurSigned(env.used, false)} dépassent de ${eurSigned(env.overflow, false)} ce qu’il te restait — c’est cette part qui creuse ta fin de mois.`}
+                  : `Avec cette dépense, tu dépasses ${envelopeSourceLabel} de ${eurSigned(env.monthOverflow, false)} ce mois-ci (${eurSigned(env.spentTotal, false)} dépensés sur ${eurSigned(env.initial, false)}).`}
               </Text>
             </View>
           );

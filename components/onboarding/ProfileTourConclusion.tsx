@@ -28,7 +28,7 @@ import { useGuide } from '../../contexts/GuideContext';
 import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { useProfile } from '../../hooks/data/useProfile';
-import { PROFILE_INFO, PROFILE_ALLOCATIONS } from '../../lib/finance/financialProfileEngine';
+import { PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from '../../lib/finance/securityCushion';
 import type { FinancialProfileId } from '../../types/database';
 import { sheetWidth } from '../../lib/ui/appLayout';
@@ -101,7 +101,9 @@ export default function ProfileTourConclusion() {
 
   if (!visible) return null;
 
-  const profileId = (fp as any).profile_id as FinancialProfileId;
+  // Ramené sur le référentiel de ce bundle : un identifiant plus récent (migration déployée avant
+  // la mise à jour du code) faisait disparaître l'écran au lieu de montrer le profil.
+  const profileId = resolveProfileId((fp as any).profile_id);
   const info = PROFILE_INFO[profileId];
   const alloc = PROFILE_ALLOCATIONS[profileId];
   if (!info || !alloc) return null;
@@ -123,6 +125,7 @@ export default function ProfileTourConclusion() {
 
   const cushionMonths = computeSecurityCushion({
     availableSavings: savings,
+    monthlyEssentialExpenses: pilotage?.monthly_essential_expenses ?? 0,
     avgMonthlyIncome: income,
   }).months;
 

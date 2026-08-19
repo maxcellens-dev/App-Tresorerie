@@ -9,7 +9,20 @@ export type FinancialProfile = 'economiser' | 'suivi' | 'optimiser' | 'investir'
 
 // ── Nouveau système de profils financiers P1-P5 ───────────────
 
-export type FinancialProfileId = 'P1' | 'P2' | 'P3' | 'P4' | 'P5';
+/**
+ * Dix profils, de la découverte au patrimoine d'exception.
+ *
+ * Cinq paliers ne représentaient pas grand monde : ils écrasaient dans un même « P3 » quelqu'un
+ * qui vient de constituer deux mois de réserve et quelqu'un qui en a cinq, et surtout ils
+ * s'arrêtaient à un « P5 » qui devait tenir de 20 000 € à plusieurs millions. À l'image du monde
+ * réel : beaucoup de monde au milieu (P3 à P5), très peu au-delà d'un certain montant sur les
+ * comptes d'épargne et d'investissement.
+ *
+ * `P0` = DÉCOUVERTE : l'état d'un compte qui n'a pas encore de données. Il n'était pas représenté,
+ * et tout nouvel arrivant se retrouvait donc classé au profil le plus prudent (« épargne
+ * critique ») — un jugement, alors qu'on ne savait simplement rien de lui.
+ */
+export type FinancialProfileId = 'P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'P8' | 'P9';
 export type ProfileSource = 'questionnaire' | 'automatic';
 export type ChangeReason =
   | 'questionnaire_update'
@@ -376,7 +389,7 @@ export interface RecommendationSettings {
   /** Ordre de consommation des recos par mode de prudence (cascade de dépassement). */
   consumption_orders?: Record<'prudent' | 'equilibre' | 'dynamique', Array<'save' | 'invest' | 'enjoy' | 'keep'>>;
   /** Mode « Auto » : profil financier P1–P5 → mode de prudence. */
-  auto_profile_map?: Record<'P1' | 'P2' | 'P3' | 'P4' | 'P5', 'prudent' | 'equilibre' | 'dynamique'>;
+  auto_profile_map?: Partial<Record<FinancialProfileId, 'prudent' | 'equilibre' | 'dynamique'>>;
   updated_at?: string;
 }
 

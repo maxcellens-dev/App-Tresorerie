@@ -422,8 +422,8 @@ function SafetyGauge({ value, min, optimal, comfort, monthsCovered }: { value: n
       <Text style={{ fontSize: 12.5, color: C.textSecondary, marginTop: 9, lineHeight: 18 }}>
         {monthsCovered != null && monthsCovered > 0
           ? (monthsCovered < 0.75
-              ? 'Tu tiendrais moins d’1 mois sans rentrée d’argent. '
-              : `Tu peux tenir environ ${Math.round(monthsCovered)} mois sans rentrée d’argent. `)
+              ? 'Ton épargne couvre moins d’1 mois de dépenses. '
+              : `Ton épargne couvre environ ${Math.round(monthsCovered)} mois de dépenses. `)
           : ''}
         {target > value ? `Objectif conseillé : ${fmtFull(target)} — encore ${fmtFull(target - value)}.` : 'Objectif atteint 🎉'}
       </Text>
@@ -872,8 +872,8 @@ function ReportingBody() {
                 <Text style={s.sectionSub}>Ton matelas en cas de coup dur</Text>
                 <View style={s.chartCard} onLayout={onChartCardLayout}>
                   {/* « Mois de sécurité » : UNE seule définition dans toute l'app (lib/securityCushion) —
-                      épargne ÷ revenu mensuel moyen. Partagée avec le Pouls, les recommandations et le
-                      moteur de profils P1–P5. */}
+                      épargne ÷ DÉPENSES essentielles mensuelles (charges récurrentes + budget variable).
+                      Partagée avec le Pouls, les recommandations et le moteur de profils P0–P9. */}
                   <SafetyGauge
                     value={pilotage.current_savings}
                     min={pilotage.safety_threshold_min}
@@ -881,6 +881,7 @@ function ReportingBody() {
                     comfort={pilotage.safety_threshold_comfort}
                     monthsCovered={computeSecurityCushion({
                       availableSavings: pilotage.current_savings,
+                      monthlyEssentialExpenses: pilotage.monthly_essential_expenses,
                       avgMonthlyIncome: pilotage.avg_monthly_income,
                     }).months}
                   />

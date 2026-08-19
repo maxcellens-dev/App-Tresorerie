@@ -13,13 +13,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAuth } from '../../contexts/AuthContext';
 import { APP_LOCK_SUPPORTED, getAppLockEnabled, runDeviceAuth } from '../../lib/auth/appLock';
+import { setAppLocked } from '../../lib/auth/appLockState';
 
 export default function AppLockGate() {
   const COLORS = useAppColors();
   const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuth();
   const [enabled, setEnabled] = useState(false);
-  const [locked, setLocked] = useState(false);
+  /* On démarre VERROUILLÉ sur les plateformes concernées : la lecture du réglage est asynchrone,
+     et pendant ce laps de temps le voile n'existe pas encore. Les sollicitations montées à la
+     racine (état des lieux, clôture, succès) en profitaient pour s'ouvrir — et se CONSOMMER —
+     avant que l'invite d'empreinte n'apparaisse. On ne relâche donc qu'une fois la réponse connue.
+     Sans verrouillage supporté (web), rien ne change : on n'entre jamais dans cet état. */
+  const [locked, setLocked] = useState(APP_LOCK_SUPPORTED);
   const authing = useRef(false);
 
   // Lit le réglage local + verrouille d'emblée si actif. UNIQUE point de verrouillage : ce montage
@@ -31,7 +37,7 @@ export default function AppLockGate() {
     getAppLockEnabled().then((on) => {
       if (cancelled) return;
       setEnabled(on);
-      if (on) setLocked(true);
+      setLocked(on);
     });
     return () => { cancelled = true; };
   }, []);
@@ -49,6 +55,18 @@ export default function AppLockGate() {
   useEffect(() => {
     if (shouldLock) unlock();
   }, [shouldLock, unlock]);
+
+  /* Le verrou est PUBLIÉ : un voile plein écran cache ce qu'il y a derrière, il ne l'empêche pas de
+     vivre. Les sollicitations racine s'y abonnent pour ne rien ouvrir (ni consommer) tant qu'on n'a
+     pas déverrouillé — cf. lib/appLockState et hooks/useInterruptSlot.
+     On publie sur `locked` (et pas sur `shouldLock`) tant que le réglage n'est pas lu : à cet
+     instant on ne sait pas encore si l'app doit se verrouiller, et présumer que non, c'est laisser
+     passer précisément ce qu'on veut retenir. */
+  const pendingSetting = APP_LOCK_SUPPORTED && locked && !enabled;
+  useEffect(() => {
+    setAppLocked(shouldLock || pendingSetting);
+    return () => setAppLocked(false);
+  }, [shouldLock, pendingSetting]);
 
   if (!shouldLock) return null;
 

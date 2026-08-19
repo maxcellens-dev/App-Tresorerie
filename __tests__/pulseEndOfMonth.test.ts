@@ -121,12 +121,34 @@ describe('computeOpFeedback — budget du quotidien', () => {
 
   it('dépense absorbée : ce qui reste, sur combien, et pourquoi le Relyka ne bouge pas', () => {
     const f = computeOpFeedback(courses, 800, 800, { ...eom, variableEnvelopeRemaining: 300 });
-    expect(f.envelope).toEqual({ initial: 600, remaining: 200, used: 100, absorbed: true, overflow: 0 });
+    expect(f.envelope).toEqual({
+      initial: 600, remaining: 200, used: 100, absorbed: true, overflow: 0,
+      monthOverflow: 0, spentTotal: 400,
+    });
   });
 
   it('dépassement : la part hors enveloppe est isolée (c’est elle qui creuse la fin de mois)', () => {
     const f = computeOpFeedback(courses, 800, 800, { ...eom, variableEnvelopeRemaining: 40 });
     expect(f.envelope).toMatchObject({ remaining: 0, used: 100, absorbed: false, overflow: 60 });
+  });
+
+  /* LE DÉPASSEMENT SE COMPTE SUR LE MOIS, PAS SUR L'OPÉRATION.
+     Enveloppe épuisée → `remaining` vaut 0, donc la part « hors enveloppe » d'une nouvelle dépense
+     vaut son montant entier : la carte annonçait « ces 100 € dépassent de 100 € » à CHAQUE saisie,
+     comme si le compteur repartait de zéro. `monthOverflow` dit où l'on en est réellement. */
+  it('enveloppe déjà épuisée : le dépassement annoncé est CUMULÉ, pas celui de la dépense seule', () => {
+    const f = computeOpFeedback(courses, 800, 800, {
+      ...eom, variableEnvelopeRemaining: 0, variableEnvelopeSpent: 750,
+    });
+    expect(f.envelope).toMatchObject({
+      used: 100, overflow: 100,       // cette dépense sort entièrement de l'enveloppe…
+      spentTotal: 850, monthOverflow: 250, // …mais le mois dépasse de 250 €, pas de 100 €.
+    });
+  });
+
+  it('sans « déjà dépensé » fourni, le cumul se reconstitue depuis le restant', () => {
+    const f = computeOpFeedback(courses, 800, 800, { ...eom, variableEnvelopeRemaining: 40 });
+    expect(f.envelope).toMatchObject({ spentTotal: 660, monthOverflow: 60 });
   });
 
   it('rien à montrer sans enveloppe estimée, ni pour une dépense à venir, ni hors quotidien', () => {

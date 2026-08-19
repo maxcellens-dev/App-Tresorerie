@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { RootPortal } from '../../../lib/rootPortal';
 import ScreenGradient from '../../../components/layout/ScreenGradient';
 import ScreenHeader from '../../../components/layout/ScreenHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,12 +19,46 @@ export default function ClotureScreen() {
   const { isDesktop } = useResponsive(); // web bureau : colonne centrée
   const goBack = useNavBack();
   const { user } = useAuth();
-  const { enabled, closures, pendingMonths, closeMonths, reopenMonth, reopenableMonth } = useMonthlyClosure(user?.id);
+  const { enabled, confirmedClosures, pendingMonths, closeMonths, reopenMonth, reopenableMonth } = useMonthlyClosure(user?.id);
 
-  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void } | null>(null);
-  const askConfirm = (opts: { title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }) => setConfirmModal(opts);
+  /* ── PLUS AUCUN `<Modal>` SUR CET ÉCRAN ─────────────────────────────────────────────────────
+     Le voile résiduel après une réouverture venait du composant `Modal` lui-même : sur le web il
+     démonte son contenu avant la fin du fondu, et sur Android il ouvre une FENÊTRE séparée. Passer
+     de la confirmation à l'attente dans cette fenêtre-là revenait à la fermer et la rouvrir, et
+     c'est ce cycle qui laissait un calque orphelin à l'écran. Deux essais successifs pour le régler
+     par l'état ont échoué : c'était le mauvais outil.
 
-  const closedSorted = [...closures].sort((a, b) => b.month_key.localeCompare(a.month_key));
+     Les deux calques sont donc rendus par `RootPortal` — la même fenêtre que le reste de l'app,
+     au-dessus de la navigation, sans aucune animation. Ils apparaissent au montage et disparaissent
+     entièrement au démontage : il n'y a plus rien qui puisse survivre à leur fermeture.
+
+     Un seul état gouverne les deux : on passe de `confirm` à `busy` sans jamais repasser par
+     « rien », et l'attente se termine par une disparition — pas par une étape « terminé ». */
+  type Dialog =
+    | { kind: 'confirm'; title: string; message: string; confirmLabel: string; confirmColor: string; onConfirm: () => void }
+    | { kind: 'busy'; label: string };
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const askConfirm = (opts: Omit<Extract<Dialog, { kind: 'confirm' }>, 'kind'>) => setDialog({ kind: 'confirm', ...opts });
+  const [error, setError] = useState<string | null>(null);
+
+  const busy = dialog?.kind === 'busy';
+  /* Rouvrir supprime les régularisations du mois PUIS recalcule le solde de chaque compte, un
+     aller-retour serveur par compte : plusieurs secondes sur une connexion moyenne. Sans retour
+     visible, on retape « Rouvrir » — sur une opération qui écrit en base. */
+  const runReopen = (monthKey: string) => {
+    setError(null);
+    setDialog({ kind: 'busy', label: 'Réouverture en cours…' });
+    reopenMonth.mutate(monthKey, {
+      onSettled: () => setDialog(null),
+      onError: (e: any) => setError(e?.message ?? "La réouverture n'a pas abouti. Réessaie."),
+    });
+  };
+
+  /* Uniquement les mois CONFIRMÉS : un mois `estimated` (auto-marqué faute de réponse) n'est pas
+     clôturé, il reste à clôturer. Cet écran lisait `closures` en entier — d'où le même mois affiché
+     à la fois en « en attente » et en « clôturé ». Le filtre vit maintenant dans le hook, avec les
+     trois autres écrans qui le faisaient déjà chacun de leur côté. */
+  const closedSorted = [...confirmedClosures].sort((a, b) => b.month_key.localeCompare(a.month_key));
   const pendingDesc = [...pendingMonths].sort((a, b) => b.localeCompare(a)); // plus récent en haut
 
   return (
@@ -41,7 +76,13 @@ export default function ClotureScreen() {
             <Text style={styles.subtitle}>La clôture mensuelle n'est pas activée.</Text>
           ) : (
             <>
-              <Text style={styles.subtitle}>Rouvrez une période pour pouvoir y saisir/modifier des transactions, ou clôturez un mois en attente.</Text>
+              <Text style={styles.subtitle}>Rouvre une période pour pouvoir y saisir ou modifier des transactions, ou clôture un mois en attente.</Text>
+              {!!error && (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle-outline" size={16} color={COLORS.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
 
               <Text style={styles.sectionTitle}>Mois en attente</Text>
               <View style={styles.card}>
@@ -54,7 +95,21 @@ export default function ClotureScreen() {
                       <Text style={styles.rowLabel}>{monthLabel(mk)}</Text>
                       <TouchableOpacity
                         style={styles.actionBtn}
-                        onPress={() => askConfirm({ title: 'Clôturer le mois', message: `Clôturer ${monthLabel(mk)} ? Les transactions de cette période seront verrouillées.`, confirmLabel: 'Clôturer', confirmColor: COLORS.emerald, onConfirm: () => closeMonths.mutate({ monthKeys: [mk], surplus: 0 }) })}
+                        onPress={() => askConfirm({
+                          title: 'Clôturer le mois',
+                          message: `Clôturer ${monthLabel(mk)} ? Les transactions de cette période seront verrouillées.`,
+                          confirmLabel: 'Clôturer',
+                          confirmColor: COLORS.emerald,
+                          // Même fenêtre du début à la fin : elle passe en attente, puis se ferme.
+                          onConfirm: () => {
+                            setError(null);
+                            setDialog({ kind: 'busy', label: 'Clôture en cours…' });
+                            closeMonths.mutate({ monthKeys: [mk], surplus: 0 }, {
+                              onSettled: () => setDialog(null),
+                              onError: (e: any) => setError(e?.message ?? "La clôture n'a pas abouti. Réessaie."),
+                            });
+                          },
+                        })}
                       >
                         <Ionicons name="lock-closed-outline" size={14} color={COLORS.emerald} />
                         <Text style={[styles.actionText, { color: COLORS.emerald }]}>Clôturer</Text>
@@ -86,7 +141,7 @@ export default function ClotureScreen() {
                             message: `Rouvrir ${monthLabel(c.month_key)} ?\n\nLes régularisations créées par cette clôture seront supprimées et tes soldes recalculés. Tes transactions, elles, ne bougent pas.`,
                             confirmLabel: 'Rouvrir',
                             confirmColor: COLORS.blue,
-                            onConfirm: () => reopenMonth.mutate(c.month_key),
+                            onConfirm: () => runReopen(c.month_key),
                           })}
                         >
                           <Ionicons name="lock-open-outline" size={14} color={COLORS.blue} />
@@ -108,26 +163,49 @@ export default function ClotureScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Confirmation in-app */}
-      <Modal visible={!!confirmModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setConfirmModal(null)}>
-        <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setConfirmModal(null)}>
-          <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
-            <Text style={styles.confirmTitle}>{confirmModal?.title}</Text>
-            <Text style={styles.confirmMessage}>{confirmModal?.message}</Text>
-            <View style={styles.confirmBtns}>
-              <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmModal(null)}>
-                <Text style={styles.confirmCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmOk, { borderColor: confirmModal?.confirmColor ?? COLORS.emerald, backgroundColor: (confirmModal?.confirmColor ?? COLORS.emerald) + '18' }]}
-                onPress={() => { const cb = confirmModal?.onConfirm; setConfirmModal(null); cb?.(); }}
-              >
-                <Text style={[styles.confirmOkText, { color: confirmModal?.confirmColor ?? COLORS.emerald }]}>{confirmModal?.confirmLabel}</Text>
-              </TouchableOpacity>
+
+      {/* UN SEUL CALQUE, un seul état (cf. `Dialog` plus haut) : du choix à l'attente sans jamais
+          se fermer entre les deux, puis une seule disparition à la fin. Aucune étape « terminé » —
+          la disparition EST la confirmation. Rendu au sommet de l'arbre, dans la MÊME fenêtre :
+          quand `dialog` repasse à null, l'arbre entier est démonté, il ne peut rien rester. */}
+      {dialog && (
+        <RootPortal>
+          <View style={styles.overlay}>
+            {/* Fermeture au clic à côté — jamais pendant une écriture en base. */}
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => { if (!busy) setDialog(null); }}
+            />
+            <View style={styles.box}>
+              {dialog.kind === 'busy' ? (
+                <View style={styles.busyRow}>
+                  <ActivityIndicator size="small" color={COLORS.blue} />
+                  <Text style={styles.busyLabel}>{dialog.label}</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.confirmTitle}>{dialog.title}</Text>
+                  <Text style={styles.confirmMessage}>{dialog.message}</Text>
+                  <View style={styles.confirmBtns}>
+                    <TouchableOpacity style={styles.confirmCancel} onPress={() => setDialog(null)}>
+                      <Text style={styles.confirmCancelText}>Annuler</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.confirmOk, { borderColor: dialog.confirmColor, backgroundColor: dialog.confirmColor + '18' }]}
+                      /* On NE ferme PAS avant d'agir : `onConfirm` pose lui-même l'état suivant
+                         (attente), ce qui garde le calque affiché d'un bout à l'autre. */
+                      onPress={() => dialog.onConfirm()}
+                    >
+                      <Text style={[styles.confirmOkText, { color: dialog.confirmColor }]}>{dialog.confirmLabel}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
             </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+          </View>
+        </RootPortal>
+      )}
     </View>
   );
 }
@@ -147,8 +225,13 @@ function makeStyles(c: any) {
     empty: { fontSize: 13, color: c.textSecondary, paddingVertical: 14, textAlign: 'center' },
     note: { fontSize: 12, color: c.textSecondary, lineHeight: 17, fontStyle: 'italic' },
     lockedHint: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic', maxWidth: 170, textAlign: 'right' },
-    confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-    confirmBox: { backgroundColor: c.cardSolid, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
+    errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 11, marginBottom: 16 },
+    errorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
+    // Attente affichée DANS le calque de confirmation (jamais un second calque).
+    busyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+    busyLabel: { fontSize: 15, fontWeight: '700', color: c.text },
+    overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    box: { backgroundColor: c.cardSolid, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: c.cardBorder },
     confirmTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 10 },
     confirmMessage: { fontSize: 14, color: c.textSecondary, marginBottom: 24, lineHeight: 20 },
     confirmBtns: { flexDirection: 'row', gap: 12 },

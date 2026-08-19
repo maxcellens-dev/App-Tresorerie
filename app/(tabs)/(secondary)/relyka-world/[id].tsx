@@ -2,7 +2,7 @@
  * Relyka World — détail d'un projet partagé.
  * Onglets « Dépenses » et « Équilibres ». Ajout de dépense, invitation de participants.
  */
-import { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -19,10 +19,14 @@ import { CURRENCY_SYMBOL } from '../../../../lib/finance/currency';
 import { sheetWidth, useSheetBottomPadding } from '../../../../lib/ui/appLayout';
 import { todayISO } from '../../../../lib/dateUtils';
 import KeyboardAwareOverlay from '../../../../components/layout/KeyboardAwareOverlay';
+import { useAccounts } from '../../../../hooks/data/useAccounts';
+import { useCategories } from '../../../../hooks/data/useCategories';
 import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
   useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime,
-  useUpdateRwParticipant, useRwReinviteParticipant, computeBalances, settleUp, type RwExpense, type RwParticipant,
+  useUpdateRwParticipant, useRwReinviteParticipant, useRemoveRwParticipant, useRwCancelInvitation,
+  useRwBulkReassignAccount, countParticipantRefs, countParticipantRealTx,
+  computeBalances, settleUp, paidByParticipant, type RwExpense, type RwParticipant,
 } from '../../../../hooks/engagement/useRelykaWorld';
 
 const PROJ_EMOJIS = ['💸', '🏖️', '✈️', '🍽️', '🎉', '🏠', '🚗', '⛰️', '🛒', '🎲'];
@@ -48,14 +52,26 @@ export default function RelykaWorldDetail() {
   const addParticipant = useAddRwParticipant(projectId);
   const updateParticipant = useUpdateRwParticipant(projectId);
   const reinviteParticipant = useRwReinviteParticipant(projectId);
+  const removeParticipant = useRemoveRwParticipant(projectId);
+  const cancelInvitation = useRwCancelInvitation(projectId);
+  const bulkReassign = useRwBulkReassignAccount(projectId, user?.id);
   const deleteProject = useDeleteRwProject(user?.id);
   const setArchived = useSetRwProjectArchived(user?.id);
   const updateProject = useUpdateRwProject(projectId);
+  const { data: myAccounts = [] } = useAccounts(user?.id);
+  const { data: categories = [] } = useCategories(user?.id);
+  const projetsCategoryId = useMemo(
+    () => (categories as any[]).find((c) => c.name === 'Projets' && c.type === 'expense')?.id ?? null,
+    [categories],
+  );
+  const checkingAccounts = useMemo(() => myAccounts.filter((a: any) => a.type === 'checking'), [myAccounts]);
 
   const project = projData?.project;
   const participants = projData?.participants ?? [];
   const expenses = expData?.expenses ?? [];
   const shares = expData?.shares ?? [];
+  const expenseAccounts = expData?.accounts ?? [];
+  const payers = expData?.payers ?? [];
   const isOwner = project?.owner_id === user?.id;
   const isArchived = !!project?.archived_at;
   // On ne connaît la réponse qu'une fois les dépenses chargées : tant qu'elles ne le sont pas,
@@ -65,10 +81,11 @@ export default function RelykaWorldDetail() {
   // (date ≤ aujourd'hui). Visible pour tous les payeurs (RLS). Si ≥1 → suppression interdite.
   const hasPostedRealTx = useMemo(() => {
     const today = todayISO();
-    return expenses.some((e) => e.account_id != null && e.date <= today);
-  }, [expenses]);
+    const splitByExpense = new Set(expenseAccounts.map((a) => a.expense_id));
+    return expenses.some((e) => (e.account_id != null || splitByExpense.has(e.id)) && e.date <= today);
+  }, [expenses, expenseAccounts]);
 
-  const [tab, setTab] = useState<'expenses' | 'balances'>('expenses');
+  const [tab, setTab] = useState<'expenses' | 'balances' | 'accounts'>('expenses');
   const [showInvite, setShowInvite] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [freeName, setFreeName] = useState('');
@@ -88,22 +105,116 @@ export default function RelykaWorldDetail() {
   const nameOf = (pid: string) => participants.find((p) => p.id === pid)?.display_name ?? '?';
   const myParticipantId = participants.find((p) => p.user_id === user?.id)?.id;
 
+  /** Ce que J'AI avancé sur une dépense (0 si je n'en suis pas payeur) — cf. migration 184. */
+  const myPaidOn = useCallback((e: RwExpense): number => {
+    if (!myParticipantId) return 0;
+    return paidByParticipant(e, payers)
+      .filter((p) => p.participant_id === myParticipantId)
+      .reduce((s, p) => s + p.amount, 0);
+  }, [payers, myParticipantId]);
+
   const total = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
   // Ma part = somme de mes quotes-parts (ce que je dois payer au final).
   const myShare = useMemo(() => shares.filter((s) => s.participant_id === myParticipantId).reduce((sum, s) => sum + s.amount, 0), [shares, myParticipantId]);
-  // Ce que j'ai avancé = somme des dépenses dont je suis le payeur (sorties de ma poche).
-  const myPaid = useMemo(() => expenses.filter((e) => e.paid_by === myParticipantId).reduce((sum, e) => sum + e.amount, 0), [expenses, myParticipantId]);
+  // Somme de MES avances (une dépense réglée à deux ne compte que pour ma part) — cf. migration 184.
+  const myPaid = useMemo(() => expenses.reduce((sum, e) => sum + myPaidOn(e), 0), [expenses, myPaidOn]);
 
-  const balances = useMemo(() => computeBalances(participants, expenses, shares), [participants, expenses, shares]);
+  const balances = useMemo(() => computeBalances(participants, expenses, shares, payers), [participants, expenses, shares, payers]);
   const settlements = useMemo(() => settleUp(participants.map((p) => ({ id: p.id, amount: balances.get(p.id) ?? 0 }))), [participants, balances]);
   const myBalance = myParticipantId ? (balances.get(myParticipantId) ?? 0) : 0;
 
-  // Dépenses groupées par date.
+  // Dépenses groupées par date. L'ORDRE vient de la requête (date d'événement décroissante, puis
+  // instant de saisie) : `Map` conserve l'ordre d'insertion, donc il traverse intact ce regroupement.
   const grouped = useMemo(() => {
     const m = new Map<string, RwExpense[]>();
     for (const e of expenses) { const k = e.date; if (!m.has(k)) m.set(k, []); m.get(k)!.push(e); }
     return [...m.entries()];
   }, [expenses]);
+
+  /* ── MES dépenses, rangées PAR COMPTE ────────────────────────────────────────────────────────
+     Le geste de fin de projet : on a tout saisi au fil de l'eau, souvent en « cash » ou sur le
+     compte proposé par défaut, et on veut vérifier — puis corriger d'un coup — ce qui a réellement
+     impacté chaque compte. La clé `cash` regroupe ce qui n'a touché aucun compte.
+     On ne montre QUE ses propres dépenses : le compte d'un autre participant ne nous regarde pas
+     (et on ne pourrait de toute façon pas le modifier). */
+  const myAccountName = (id: string) => (myAccounts as any[]).find((a) => a.id === id)?.name ?? 'Compte';
+
+
+  const byAccount = useMemo(() => {
+    const m = new Map<string, { rows: Array<{ expense: RwExpense; myAmount: number }>; total: number }>();
+    const push = (key: string, e: RwExpense, amount: number, myAmount: number) => {
+      const cur = m.get(key) ?? { rows: [], total: 0 };
+      if (!cur.rows.some((x) => x.expense.id === e.id)) cur.rows.push({ expense: e, myAmount });
+      cur.total += amount;
+      m.set(key, cur);
+    };
+    for (const e of expenses) {
+      /* ── CE QUE MOI J'AI SORTI DE MA POCHE, ET RIEN D'AUTRE ────────────────────────────────
+         Le filtre portait sur `created_by` — c'est-à-dire sur qui a SAISI la dépense, pas sur qui
+         l'a payée. Saisir la note d'un ami faisait donc apparaître SON règlement dans mon relevé
+         par compte, et le proposait au changement en masse. Le bon critère est le paiement : je
+         suis payeur, et seulement à hauteur de ce que j'ai avancé (une dépense réglée à deux ne
+         me concerne que pour ma part). */
+      const mine = myPaidOn(e);
+      if (mine <= 0) continue;
+      // Mes lignes de comptes uniquement : celles d'un autre payeur ne me regardent pas.
+      const lines = expenseAccounts.filter((a) => a.expense_id === e.id && a.created_by === user?.id);
+      if (lines.length === 0) {
+        // Aucune répartition : soit la colonne historique (une dépense = un compte), soit du cash.
+        push(e.created_by === user?.id ? (e.account_id ?? 'cash') : 'cash', e, mine, mine);
+        continue;
+      }
+      for (const l of lines) push(l.account_id, e, l.amount, mine);
+      const covered = lines.reduce((s, l) => s + l.amount, 0);
+      if (mine - covered > 0.02) push('cash', e, mine - covered, mine);
+    }
+    return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
+  }, [expenses, expenseAccounts, payers, myPaidOn, user?.id, myAccounts]);
+
+  /** Reventilation en masse : compte source sélectionné, puis compte cible. */
+  const [reassignFrom, setReassignFrom] = useState<string | null>(null);
+  const [reassignBusy, setReassignBusy] = useState(false);
+  const runReassign = async (toAccountId: string | null) => {
+    if (!reassignFrom) return;
+    const group = byAccount.find(([k]) => k === reassignFrom);
+    if (!group) { setReassignFrom(null); return; }
+    setReassignBusy(true);
+    try {
+      await bulkReassign.mutateAsync({
+        expenses: group[1].rows,
+        toAccountId,
+        projectName: project?.name ?? 'Projet',
+        categoryId: projetsCategoryId,
+      });
+      setReassignFrom(null);
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message ?? 'Impossible de déplacer ces dépenses.');
+    } finally { setReassignBusy(false); }
+  };
+
+  // ── Retrait d'un participant (avec repreneur si besoin) ──
+  const [removing, setRemoving] = useState<RwParticipant | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeErr, setRemoveErr] = useState<string | null>(null);
+  /* DOUBLE CONFIRMATION. Retirer quelqu'un touche les équilibres de TOUS les participants et n'a
+     pas d'annulation : le repreneur hérite des dépenses avancées et des quotes-parts, et rien ne
+     permet de revenir en arrière d'un tap. Le choix du repreneur ne suffit donc pas — il se fait
+     dans une liste, du bout du doigt. On redemande, en nommant les deux personnes et ce qui bouge. */
+  const [removePending, setRemovePending] = useState<{ reassignTo: string | null } | null>(null);
+  const removeRefs = removing ? countParticipantRefs(removing.id, expenses, shares, payers) : 0;
+  /* Dépenses de cette personne qui ont touché un VRAI compte : on ne peut ni les réattribuer, ni la
+     retirer tant qu'elles existent (cf. migration 185). Le message le dit AVANT le geste plutôt que
+     de laisser le serveur refuser après coup. */
+  const removeRealTx = removing ? countParticipantRealTx(removing.id, expenses, payers, expenseAccounts) : 0;
+  const runRemove = async (reassignTo: string | null) => {
+    if (!removing) return;
+    setRemoveBusy(true); setRemoveErr(null);
+    try {
+      await removeParticipant.mutateAsync({ participantId: removing.id, reassignTo });
+      setRemoving(null); setRemovePending(null);
+    } catch (e: any) { setRemoveErr(e?.message ?? 'Retrait impossible.'); setRemovePending(null); }
+    finally { setRemoveBusy(false); }
+  };
 
   const onInviteByCode = async () => {
     if (!inviteCode.trim()) return;
@@ -239,9 +350,46 @@ export default function RelykaWorldDetail() {
             <TouchableOpacity style={[styles.tab, tab === 'balances' && styles.tabActive]} onPress={() => setTab('balances')}>
               <Text style={[styles.tabText, tab === 'balances' && styles.tabTextActive]}>Équilibres</Text>
             </TouchableOpacity>
+            {/* « Par compte » : la vue de fin de projet — ce que chaque compte a réellement encaissé,
+                et de quoi tout basculer d'un coup sur le bon. */}
+            <TouchableOpacity style={[styles.tab, tab === 'accounts' && styles.tabActive]} onPress={() => setTab('accounts')}>
+              <Text style={[styles.tabText, tab === 'accounts' && styles.tabTextActive]}>Par compte</Text>
+            </TouchableOpacity>
           </View>
 
-          {tab === 'expenses' ? (
+          {tab === 'accounts' ? (
+            <>
+              <Text style={styles.accHint}>
+                Tes dépenses de ce projet, rangées par compte réellement impacté. Tu peux tout
+                basculer d'un compte à l'autre en une fois — pratique au retour, pour que ces
+                dépenses tombent enfin au bon endroit.
+              </Text>
+              {byAccount.length === 0 ? (
+                <Text style={styles.empty}>Tu n'as encore saisi aucune dépense sur ce projet.</Text>
+              ) : byAccount.map(([key, g]) => (
+                <View key={key} style={styles.accCard}>
+                  <View style={styles.accHead}>
+                    <Ionicons name={key === 'cash' ? 'cash-outline' : 'card-outline'} size={17} color={key === 'cash' ? COLORS.textSecondary : COLORS.blue} />
+                    <Text style={styles.accName} numberOfLines={1}>{key === 'cash' ? 'Cash (aucun compte impacté)' : myAccountName(key)}</Text>
+                    <Text style={styles.accTotal}>{fmt(g.total)}</Text>
+                  </View>
+                  <Text style={styles.accCount}>{g.rows.length} dépense{g.rows.length > 1 ? 's' : ''}</Text>
+                  {g.rows.slice(0, 4).map(({ expense: e }) => (
+                    <TouchableOpacity key={e.id} style={styles.accLine} activeOpacity={0.75}
+                      onPress={() => router.push(`/(tabs)/(secondary)/relyka-world/add-expense?projectId=${projectId}&expenseId=${e.id}` as any)}>
+                      <Text style={styles.accLineText} numberOfLines={1}>{e.emoji || '🧾'} {e.title || 'Dépense'}</Text>
+                      <Text style={styles.accLineAmount}>{fmt(e.amount)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  {g.rows.length > 4 && <Text style={styles.accMore}>+ {g.rows.length - 4} autre{g.rows.length - 4 > 1 ? 's' : ''}</Text>}
+                  <TouchableOpacity style={styles.accMoveBtn} onPress={() => setReassignFrom(key)} activeOpacity={0.85}>
+                    <Ionicons name="swap-horizontal-outline" size={15} color={COLORS.emerald} />
+                    <Text style={styles.accMoveText}>Déplacer ces {g.rows.length} dépenses</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </>
+          ) : tab === 'expenses' ? (
             <>
               <View style={styles.totalsRow}>
                 <View style={styles.totalCol}><Text style={styles.totalLabel}>J'ai avancé</Text><Text style={styles.totalValue}>{fmt(myPaid)}</Text></View>
@@ -259,7 +407,18 @@ export default function RelykaWorldDetail() {
                       <Text style={styles.expEmoji}>{e.emoji || '🧾'}</Text>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.expTitle} numberOfLines={1}>{e.title || 'Dépense'}</Text>
-                        <Text style={styles.expSub}>Payé par {nameOf(e.paid_by)}{e.account_id ? '' : ' · cash'}</Text>
+                        {/* Plusieurs payeurs : on les NOMME avec leurs montants. Afficher le seul
+                            payeur principal donnerait une addition qui ne tombe pas juste sous les
+                            yeux de celui qui a réglé l'autre moitié. */}
+                        <Text style={styles.expSub}>
+                          {(() => {
+                            const paid = paidByParticipant(e, payers);
+                            return paid.length > 1
+                              ? `Payé par ${paid.map((p) => `${nameOf(p.participant_id)} (${fmt(p.amount)})`).join(' et ')}`
+                              : `Payé par ${nameOf(paid[0]?.participant_id ?? e.paid_by)}`;
+                          })()}
+                          {e.account_id ? '' : ' · cash'}
+                        </Text>
                       </View>
                       <Text style={styles.expAmount}>{fmt(e.amount)}</Text>
                     </TouchableOpacity>
@@ -340,17 +499,47 @@ export default function RelykaWorldDetail() {
             {participants.map((p) => {
               // Non inscrit (pas de compte lié, pas en attente) → modifiable (renommer / inviter par ID).
               const editable = !p.user_id && !p.pending;
+              const isProjectOwner = p.user_id === project?.owner_id;
+              /* Retirer : réservé au créateur du projet ; chacun peut en revanche se retirer
+                 lui-même. Le créateur, lui, ne se retire pas — il supprime ou archive le projet
+                 (sinon on obtiendrait un projet sans personne pour l'administrer). */
+              const canRemove = !isProjectOwner && (isOwner || p.user_id === user?.id);
               return (
-                <TouchableOpacity
-                  key={p.id}
-                  style={styles.partRow}
-                  activeOpacity={editable ? 0.6 : 1}
-                  disabled={!editable}
-                  onPress={() => editable && openPartEdit(p)}
-                >
-                  <Text style={styles.partItem}>• {p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}{p.pending ? ' · en attente' : ''}{editable ? ' · non inscrit' : ''}</Text>
-                  {editable && <Ionicons name="create-outline" size={18} color={COLORS.emerald} />}
-                </TouchableOpacity>
+                <View key={p.id} style={styles.partRow}>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    activeOpacity={editable ? 0.6 : 1}
+                    disabled={!editable}
+                    onPress={() => editable && openPartEdit(p)}
+                  >
+                    <Text style={styles.partItem}>• {p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}{p.pending ? ' · en attente' : ''}{editable ? ' · non inscrit' : ''}</Text>
+                  </TouchableOpacity>
+                  {editable && (
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Modifier ${p.display_name}`} onPress={() => openPartEdit(p)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="create-outline" size={18} color={COLORS.emerald} />
+                    </TouchableOpacity>
+                  )}
+                  {p.pending && isOwner && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`Annuler l'invitation de ${p.display_name}`}
+                      onPress={() => cancelInvitation.mutate(p.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="close-circle-outline" size={19} color={COLORS.orange} />
+                    </TouchableOpacity>
+                  )}
+                  {canRemove && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`Retirer ${p.display_name}`}
+                      onPress={() => { setShowInvite(false); setRemoveErr(null); setRemoving(p); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="person-remove-outline" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               );
             })}
           </View>
@@ -384,6 +573,130 @@ export default function RelykaWorldDetail() {
             <TouchableOpacity style={[styles.modalCta, (!partCode.trim() || partBusy) && { opacity: 0.5 }]} onPress={reinvitePart} disabled={!partCode.trim() || partBusy}>
               {partBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalCtaText}>Envoyer l'invitation</Text>}
             </TouchableOpacity>
+          </View>
+        </KeyboardAwareOverlay>
+      </Modal>
+
+      {/* Modal — retirer un participant (avec repreneur de ce qu'il laisse) */}
+      <Modal visible={!!removing} transparent animationType="slide" onRequestClose={() => { setRemoving(null); setRemovePending(null); }}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Retirer {removing?.display_name}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => { setRemoving(null); setRemovePending(null); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* ARGENT RÉEL EN JEU → on ne propose même pas le retrait.
+                Ses dépenses ont une transaction en face, sur SON compte bancaire : la réattribuer
+                ferait diverger le projet et son Relyka. Seul son propriétaire peut y toucher. */}
+            {removeRealTx > 0 ? (
+              <>
+                <View style={styles.blockNote}>
+                  <Ionicons name="lock-closed-outline" size={16} color={COLORS.orange} />
+                  <Text style={styles.blockNoteText}>
+                    {removeRealTx} dépense{removeRealTx > 1 ? 's' : ''} de {removing?.display_name} {removeRealTx > 1 ? 'ont' : 'a'} été
+                    réglée{removeRealTx > 1 ? 's' : ''} depuis un vrai compte bancaire. Impossible de les
+                    transférer à quelqu'un d'autre : la transaction reste sur SON compte, et le projet
+                    dirait le contraire.
+                  </Text>
+                </View>
+                <Text style={styles.partHint}>
+                  Pour pouvoir la retirer, ces dépenses doivent d'abord être supprimées, ou repassées
+                  en « cash » depuis l'onglet « Par compte » — par leur propriétaire, lui seul y a droit.
+                </Text>
+                <TouchableOpacity style={styles.modalCta} onPress={() => setRemoving(null)} activeOpacity={0.85}>
+                  <Text style={styles.modalCtaText}>J'ai compris</Text>
+                </TouchableOpacity>
+              </>
+            ) : removePending ? (
+              <>
+                <Text style={styles.partHint}>
+                  {removePending.reassignTo
+                    ? `${removing?.display_name} sera retiré du projet. ${nameOf(removePending.reassignTo)} reprend ses ${removeRefs} ligne${removeRefs > 1 ? 's' : ''} (dépenses avancées et quotes-parts) : les équilibres restent exacts, mais ce transfert ne s'annule pas.`
+                    : `${removing?.display_name} sera retiré du projet. Cette action ne s'annule pas.`}
+                </Text>
+                {!!removeErr && <Text style={styles.errText}>{removeErr}</Text>}
+                <TouchableOpacity
+                  style={[styles.removeCta, removeBusy && { opacity: 0.5 }]}
+                  onPress={() => runRemove(removePending.reassignTo)}
+                  disabled={removeBusy}
+                >
+                  {removeBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalCtaText}>Oui, retirer définitivement</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.removeBack} onPress={() => setRemovePending(null)} disabled={removeBusy}>
+                  <Text style={styles.removeBackText}>Revenir en arrière</Text>
+                </TouchableOpacity>
+              </>
+            ) : removeRefs === 0 ? (
+              <>
+                <Text style={styles.partHint}>
+                  {removing?.display_name} n'apparaît dans aucune dépense : le retrait est sans conséquence
+                  sur les comptes du projet.
+                </Text>
+                {!!removeErr && <Text style={styles.errText}>{removeErr}</Text>}
+                <TouchableOpacity style={styles.removeCta} onPress={() => setRemovePending({ reassignTo: null })}>
+                  <Text style={styles.modalCtaText}>Retirer du projet</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                {/* On ne peut pas se contenter de supprimer la ligne : `paid_by` est en cascade,
+                    retirer quelqu'un effacerait les dépenses qu'il a avancées — chez TOUS les
+                    participants. Il faut donc quelqu'un pour reprendre ce qu'il laisse. */}
+                <Text style={styles.partHint}>
+                  {removing?.display_name} apparaît dans {removeRefs} ligne{removeRefs > 1 ? 's' : ''} du projet
+                  (dépenses avancées et/ou quotes-parts). Choisis qui les reprend : rien ne sera perdu, les
+                  équilibres resteront exacts.
+                </Text>
+                {!!removeErr && <Text style={styles.errText}>{removeErr}</Text>}
+                {participants.filter((p) => p.id !== removing?.id).map((p) => (
+                  <TouchableOpacity key={p.id} style={styles.reassignRow} onPress={() => setRemovePending({ reassignTo: p.id })} disabled={removeBusy} activeOpacity={0.8}>
+                    <Ionicons name="person-outline" size={17} color={COLORS.emerald} />
+                    <Text style={styles.reassignName}>{p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}</Text>
+                    <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                ))}
+                {removeBusy && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 10 }} />}
+              </>
+            )}
+          </View>
+        </KeyboardAwareOverlay>
+      </Modal>
+
+      {/* Modal — déplacer en masse les dépenses d'un compte vers un autre */}
+      <Modal visible={!!reassignFrom} transparent animationType="slide" onRequestClose={() => setReassignFrom(null)}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Déplacer vers…</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setReassignFrom(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.partHint}>
+              Les transactions actuelles sont supprimées (les soldes sont rétablis) et recréées sur le
+              compte choisi, à la même date et pour le même montant. Les dépenses du projet, elles,
+              ne bougent pas.
+            </Text>
+            <ScrollView style={{ maxHeight: 320 }}>
+              {checkingAccounts.filter((a: any) => a.id !== reassignFrom).map((a: any) => (
+                <TouchableOpacity key={a.id} style={styles.reassignRow} onPress={() => runReassign(a.id)} disabled={reassignBusy} activeOpacity={0.8}>
+                  <Ionicons name="card-outline" size={17} color={COLORS.blue} />
+                  <Text style={styles.reassignName}>{a.name}</Text>
+                  <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              ))}
+              {reassignFrom !== 'cash' && (
+                <TouchableOpacity style={styles.reassignRow} onPress={() => runReassign(null)} disabled={reassignBusy} activeOpacity={0.8}>
+                  <Ionicons name="cash-outline" size={17} color={COLORS.textSecondary} />
+                  <Text style={styles.reassignName}>Cash — n'impacter aucun compte</Text>
+                  <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+            {reassignBusy && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 10 }} />}
           </View>
         </KeyboardAwareOverlay>
       </Modal>
@@ -475,8 +788,29 @@ function makeStyles(c: any) {
     addNameBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: c.emerald, alignItems: 'center', justifyContent: 'center' },
     sep: { height: 1, backgroundColor: c.cardBorder, marginVertical: 16 },
     partItem: { fontSize: 13, color: c.text, marginBottom: 4 },
-    partRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingVertical: 2 },
-    partHint: { fontSize: 12, color: c.textSecondary, lineHeight: 16, marginBottom: 8, marginTop: -2 },
+    partRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 4 },
+    partHint: { fontSize: 12, color: c.textSecondary, lineHeight: 17, marginBottom: 10, marginTop: -2 },
+    removeCta: { backgroundColor: c.danger, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
+    blockNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: c.orange + '14', borderWidth: 1, borderColor: c.orange + '4D', borderRadius: 12, padding: 12, marginBottom: 10 },
+    blockNoteText: { flex: 1, fontSize: 12.5, color: c.text, lineHeight: 18 },
+    removeBack: { alignItems: 'center', paddingVertical: 12, marginTop: 2 },
+    removeBackText: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
+    reassignRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.bg, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8 },
+    reassignName: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text },
+
+    // Onglet « Par compte »
+    accHint: { fontSize: 12.5, color: c.textSecondary, lineHeight: 18, marginBottom: 14 },
+    accCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 14, padding: 14, marginBottom: 10, gap: 6 },
+    accHead: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    accName: { flex: 1, fontSize: 14.5, fontWeight: '800', color: c.text },
+    accTotal: { fontSize: 14.5, fontWeight: '800', color: c.text },
+    accCount: { fontSize: 11.5, color: c.textSecondary },
+    accLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 5 },
+    accLineText: { flex: 1, fontSize: 13, color: c.textSecondary },
+    accLineAmount: { fontSize: 13, fontWeight: '700', color: c.textSecondary },
+    accMore: { fontSize: 11.5, color: c.textSecondary, fontStyle: 'italic' },
+    accMoveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: c.emerald + '55', backgroundColor: c.emerald + '14' },
+    accMoveText: { fontSize: 13, fontWeight: '800', color: c.emerald },
     detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 28 },
     detailCard: { width: '100%', maxWidth: 360, backgroundColor: c.cardSolid ?? c.card, borderRadius: 20, borderWidth: 1, borderColor: c.cardBorder, padding: 22, alignItems: 'center' },
     detailEmoji: { fontSize: 36 },

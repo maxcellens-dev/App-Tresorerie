@@ -3,17 +3,30 @@
  * ──────────────────────────────────────────────
  * Combien de temps l'utilisateur peut-il tenir SANS RENTRÉE D'ARGENT, avec son épargne disponible ?
  *
- * BASE = LES RECETTES (revenu mensuel moyen), JAMAIS les dépenses. C'est la question du
- * questionnaire (Q5 : « si tes revenus s'arrêtaient demain… ») et la définition partagée par le
- * Reporting, les recommandations, les conseils, le snapshot IA, le Pouls et le moteur de profils :
+ *     mois_de_sécurité = épargne_disponible ÷ dépenses_essentielles_mensuelles
  *
- *     mois_de_sécurité = épargne_disponible ÷ revenu_mensuel_de_référence
+ * ── POURQUOI LES DÉPENSES, ET PLUS LE REVENU ────────────────────────────────────────────────────
+ * La base était le REVENU. C'est la formulation du questionnaire (« si tes revenus s'arrêtaient
+ * demain… »), mais c'est une mauvaise mesure de la réalité : ce qu'il faut couvrir quand le revenu
+ * s'arrête, ce n'est pas le revenu — c'est ce qu'on DÉPENSE pour vivre.
  *
- * Revenu de référence (le premier disponible gagne) :
- *   1. revenu mensuel moyen constaté (recettes réelles, hors virements/régul) ;
- *   2. estimation du questionnaire (tranche de revenu Q3), tant qu'il n'y a pas d'historique.
- * Aucune base exploitable → `null` : les écrans MASQUENT la mention (jamais « 0 mois », et
- * surtout jamais un calcul sur les dépenses — base subjective et incohérente avec le reste).
+ * L'écart n'est pas théorique. Quelqu'un qui gagne 4 000 € et vit avec 2 000 € tenait « 3 mois »
+ * avec 12 000 € de côté ; il en tient en réalité 6. À l'inverse, quelqu'un qui gagne 1 800 € et en
+ * dépense 1 750 € était crédité du même « 3 mois » qu'un autre bien plus à l'aise. Le matelas
+ * gouverne le profil financier, les recommandations et la moitié des messages de l'app : cette
+ * base-là décidait donc, en silence, de conseils opposés pour deux situations identiques.
+ *
+ * DÉPENSES ESSENTIELLES = charges récurrentes (loyer, abonnements, crédits, assurances…)
+ *                       + enveloppe de dépenses variables du mois.
+ * L'enveloppe variable suit le choix de l'utilisateur (estimation déclarée ou moyenne réellement
+ * constatée — cf. `variable_envelope_mode`) : la même référence que celle qu'il voit dans son
+ * budget du quotidien, jamais une seconde définition parallèle.
+ *
+ * ── LES REPLIS, DANS L'ORDRE ────────────────────────────────────────────────────────────────────
+ *   1. dépenses essentielles mensuelles (la vraie mesure) ;
+ *   2. à défaut, le revenu mensuel constaté — approximation prudente, mieux que rien ;
+ *   3. à défaut, l'estimation de revenu du questionnaire (tranche Q3) ;
+ *   4. rien d'exploitable → `null`, et les écrans MASQUENT la mention (jamais « 0 mois »).
  */
 
 /** Bornes basses (prudentes) des tranches de revenu du questionnaire (Q3). */
@@ -33,13 +46,19 @@ export function incomeFromQ3(q3: string | null | undefined): number {
 export interface SecurityCushionInputs {
   /** Épargne disponible (épargne + éventuellement le courant, selon l'appelant). */
   availableSavings: number;
-  /** Revenu mensuel moyen constaté (0 = non détecté). */
+  /**
+   * Dépenses ESSENTIELLES mensuelles : charges récurrentes + enveloppe variable retenue.
+   * C'est la base de référence. 0/absent → on retombe sur le revenu.
+   */
+  monthlyEssentialExpenses?: number;
+  /** Revenu mensuel moyen constaté (0 = non détecté). Repli quand les dépenses sont inconnues. */
   avgMonthlyIncome: number;
-  /** Tranche de revenu du questionnaire (repli quand l'historique est vide). */
+  /** Tranche de revenu du questionnaire (dernier repli, quand tout le reste est vide). */
   questionnaireQ3?: string | null;
 }
 
-export type SecurityCushionBase = 'income' | 'questionnaire';
+/** D'où vient le diviseur — sert à nommer la mesure honnêtement à l'écran. */
+export type SecurityCushionBase = 'expenses' | 'income' | 'questionnaire';
 
 export interface SecurityCushion {
   /** Nombre de mois couverts, ou null si aucune base exploitable (→ ne rien afficher). */
@@ -53,6 +72,16 @@ export interface SecurityCushion {
 export function computeSecurityCushion(i: SecurityCushionInputs): SecurityCushion {
   const savings = Math.max(0, i.availableSavings);
 
+  // 1. LA vraie mesure : ce qu'il faut couvrir chaque mois pour continuer à vivre.
+  const essential = Math.max(0, i.monthlyEssentialExpenses ?? 0);
+  if (essential > 0) {
+    return { months: savings / essential, reference: essential, base: 'expenses' };
+  }
+
+  /* 2. Repli : le revenu. Sur un compte neuf, aucune charge récurrente n'est encore saisie — le
+        matelas serait « infini », ce qui est bien pire que légèrement pessimiste. Le revenu étant
+        toujours ≥ aux dépenses chez quelqu'un qui n'est pas en déficit, ce repli SOUS-ESTIME le
+        matelas : il ne peut pas faire croire à une sécurité qui n'existe pas. */
   if (i.avgMonthlyIncome > 0) {
     return { months: savings / i.avgMonthlyIncome, reference: i.avgMonthlyIncome, base: 'income' };
   }
@@ -63,6 +92,14 @@ export function computeSecurityCushion(i: SecurityCushionInputs): SecurityCushio
   }
 
   return { months: null, reference: 0, base: null };
+}
+
+/** Phrase de provenance, à accoler au nombre de mois — l'utilisateur doit savoir ce qu'on divise. */
+export function securityBaseLabel(base: SecurityCushionBase | null): string {
+  if (base === 'expenses') return 'épargne ÷ tes dépenses mensuelles (charges + variables)';
+  if (base === 'income') return 'épargne ÷ ton revenu mensuel, en attendant tes charges';
+  if (base === 'questionnaire') return 'épargne ÷ ton revenu estimé';
+  return '';
 }
 
 /** Libellé générique et lisible : « moins d'1 mois », « 2,3 mois ». */

@@ -18,6 +18,7 @@ import {
 } from '../../../lib/finance/recommendationEngine';
 import type { RecoType, SavingsTier, ConsumptionMode } from '../../../lib/finance/recommendationEngine';
 import type { FinancialProfileId } from '../../../types/database';
+import { FINANCIAL_PROFILE_IDS, PROFILE_INFO } from '../../../lib/finance/financialProfileEngine';
 import { useRecommendationTiers, useUpdateRecommendationTiers } from '../../../hooks/pilotage/useRecommendationTiers';
 import type { TierAllocations } from '../../../hooks/pilotage/useRecommendationTiers';
 import { useRecoThresholds, useUpdateRecoThresholds, useUpdateRecoConsumption } from '../../../hooks/pilotage/useRecoThresholds';
@@ -43,14 +44,13 @@ const RECO_DESC: Record<RecoType, string> = {
 };
 
 const CONSUMPTION_MODES: ConsumptionMode[] = ['prudent', 'equilibre', 'dynamique'];
-const PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
-const PROFILE_LABELS_SHORT: Record<FinancialProfileId, string> = {
-  P1: 'P1 — Premiers repères',
-  P2: 'P2 — Réserve à construire',
-  P3: 'P3 — Stabilité à améliorer',
-  P4: 'P4 — Bonne dynamique',
-  P5: 'P5 — Patrimoine en dév.',
-};
+/* Liste et libellés DÉRIVÉS du référentiel (lib/financialProfileEngine) : recopiés ici, ils
+   divergeaient au premier profil ajouté — et l'écran d'administration devenait alors le seul
+   endroit de l'app à afficher d'anciens noms. */
+const PROFILES: FinancialProfileId[] = FINANCIAL_PROFILE_IDS;
+const PROFILE_LABELS_SHORT: Record<FinancialProfileId, string> = Object.fromEntries(
+  FINANCIAL_PROFILE_IDS.map((p) => [p, `${p} — ${PROFILE_INFO[p].name}`]),
+) as Record<FinancialProfileId, string>;
 
 type AdminTab = 'paliers' | 'seuils' | 'ordre' | 'infos';
 const ADMIN_TABS: { key: AdminTab; label: string }[] = [

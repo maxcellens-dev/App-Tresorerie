@@ -34,7 +34,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useProfile, useUpdateProfile } from '../../hooks/data/useProfile';
 import { usePilotageData } from '../../hooks/pilotage/usePilotageData';
 import { signalAppReady } from '../../lib/platform/splashGate';
-import { useAccounts } from '../../hooks/data/useAccounts';
+import { useAccounts, useAllAccounts } from '../../hooks/data/useAccounts';
 import { useSharedContribution } from '../../hooks/data/useSharedContribution';
 import { useCreditPilotTemplates } from '../../hooks/data/useCreditFlows';
 import { usePreSavings, useAddPreSavingEntry, useResetPreSaving, useSetPreSavingStatus } from '../../hooks/data/usePreSavings';
@@ -161,6 +161,23 @@ function PilotageScreen() {
   }, [categoriesList]);
   const { enabled: closureEnabled, pendingMonths } = useMonthlyClosure(user?.id);
   const showClosure = closureEnabled && pendingMonths.length > 0;
+  /* COMPTES À CLÔTURER — mes comptes courants perso ET les comptes JOINTS sur lesquels j'ai le
+     droit d'écrire. Un compte joint n'était jamais proposé (useAccounts écarte is_joint) : son
+     solde n'était donc jamais vérifié ni régularisé, et il dérivait en silence.
+     La consultation seule (`_role === 'read'`) est exclue : regarder un compte n'autorise pas à
+     engager son solde. Le doublon éventuel entre plusieurs participants est arbitré par la trace
+     partagée `account_closures` (cf. MonthlyClosure). */
+  const allAccountsQuery = useAllAccounts(user?.id);
+  const closureAccounts = useMemo(() => {
+    const rows = (allAccountsQuery.data ?? []) as any[];
+    return rows
+      .filter((a) => a.type === 'checking' && (a._role === 'owner' || a._role === 'write'))
+      .map((a) => ({
+        id: a.id, name: a.name, balance: Number(a.balance),
+        joint: !!a.is_joint || a._role !== 'owner',
+        isOwner: a._role === 'owner',
+      }));
+  }, [allAccountsQuery.data]);
   /* « Ouverture de l'app » = ce MONTAGE de l'écran (le Pilotage est la porte d'entrée). Un simple
      changement d'onglet ne le remonte pas, donc la clôture ne se rouvre pas en boucle pendant la
      session — elle revient à la prochaine ouverture, tant qu'un mois reste dû. */
@@ -589,8 +606,8 @@ function PilotageScreen() {
           {/* Zone conseils / clôture (priorité à la clôture si mois en attente) */}
           {showClosure ? (
             <MonthlyClosure
-              surplusEstimate={Math.max(0, variableEnvelopeRemaining) + Math.max(0, resteDisponible)}
-              checkingAccounts={accounts.filter((a) => a.type === 'checking').map((a) => ({ id: a.id, name: a.name, balance: Number(a.balance) }))}
+              variableEnvelope={pilotageData.variable_envelope_initial ?? 0}
+              checkingAccounts={closureAccounts}
               /* La clôture s'ouvre d'elle-même À CHAQUE OUVERTURE de l'app tant qu'un mois reste à
                  clôturer : une bannière qu'on peut ignorer indéfiniment ne fait pas le travail, et
                  chaque mois non clôturé dégrade les moyennes de tous les suivants. Elle reste

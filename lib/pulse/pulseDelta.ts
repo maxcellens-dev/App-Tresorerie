@@ -79,8 +79,20 @@ export interface EnvelopePreview {
   used: number;
   /** Elle tenait ENTIÈREMENT dans ce qui restait → le Relyka ne bouge pas, et on le dit. */
   absorbed: boolean;
-  /** Ce qui dépasse l'enveloppe (0 si elle tenait dedans) — ça, ça creuse vraiment la fin de mois. */
+  /** Part de CETTE opération qui sort de l'enveloppe (0 si elle tenait dedans). */
   overflow: number;
+  /**
+   * DÉPASSEMENT CUMULÉ DU MOIS après cette opération : (déjà dépensé + cette opération) − enveloppe.
+   *
+   * ⚠️ C'est ce chiffre-là qu'il faut annoncer, et pas `overflow`. Une fois l'enveloppe épuisée,
+   * `remaining` vaut 0 : la part « hors enveloppe » de chaque nouvelle dépense valait donc son
+   * montant entier, et la carte répétait « ces 40 € dépassent de 40 € », « ces 12 € dépassent de
+   * 12 € »… à chaque saisie. Le lecteur en concluait que le dépassement RECOMMENÇAIT à zéro à
+   * chaque fois, alors qu'il s'accumule. On dit maintenant où on en est sur le MOIS.
+   */
+  monthOverflow: number;
+  /** Ce qui a été dépensé sur l'enveloppe depuis le début du mois, cette opération comprise. */
+  spentTotal: number;
 }
 
 export interface EndOfMonthPreview {
@@ -291,6 +303,12 @@ export function computeOpFeedback(
     variableEnvelopeRemaining?: number;
     /** Enveloppe variable TOTALE du mois (pour afficher « X restants sur Y »). */
     variableEnvelopeInitial?: number;
+    /**
+     * Ce qui a DÉJÀ été dépensé sur l'enveloppe ce mois-ci, avant cette opération. Nécessaire pour
+     * annoncer un dépassement CUMULÉ : `remaining` est plafonné à 0, il ne dit rien de ce qui a
+     * déjà débordé (cf. EnvelopePreview.monthOverflow).
+     */
+    variableEnvelopeSpent?: number;
     today?: Date;
   },
 ): PulseFeedback {
@@ -328,12 +346,19 @@ export function computeOpFeedback(
   if (op.kind === 'expense' && op.hitsVariableEnvelope && !op.isFuture && initial > 0) {
     const before = Math.max(0, endOfMonth?.variableEnvelopeRemaining ?? 0);
     const used = Math.abs(op.amount);
+    /* Le « déjà dépensé » est fourni par le tableau de bord. À défaut, on le reconstitue depuis le
+       restant — juste tant que l'enveloppe n'a pas débordé, ce qui est précisément le cas où le
+       dépassement cumulé vaut 0 : aucune information inventée. */
+    const spentBefore = Math.max(0, endOfMonth?.variableEnvelopeSpent ?? (initial - before));
+    const spentTotal = spentBefore + used;
     envelope = {
       initial,
       remaining: Math.max(0, before - used),
       used,
       absorbed: used <= before,
       overflow: Math.max(0, used - before),
+      monthOverflow: Math.max(0, spentTotal - initial),
+      spentTotal,
     };
   }
 

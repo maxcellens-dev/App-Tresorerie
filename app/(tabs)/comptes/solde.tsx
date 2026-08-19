@@ -12,6 +12,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { findRegulCategoryId } from '../../../lib/finance/regul';
+import { balanceAtDate } from '../../../lib/finance/balanceAt';
 import { useCategories } from '../../../hooks/data/useCategories';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
@@ -72,14 +73,18 @@ export default function BalanceUpdateScreen() {
   const [showCalendar, setShowCalendar] = useState(false);
   const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayISO();
 
-  /** Solde d'un compte À LA DATE choisie = solde actuel − ce qui est passé depuis (hors brouillons/modèles). */
-  const balanceAtDate = React.useCallback((accountId: string, balance: number) => {
+  /**
+   * Solde d'un compte À LA DATE choisie.
+   *
+   * ⚠️ Calcul PARTAGÉ avec le serveur (lib/balanceAt) : il repart de la dernière régularisation
+   * ancrée. La soustraction naïve qui vivait ici — solde d'aujourd'hui moins tout ce qui est passé
+   * depuis — retirait aussi les opérations ANTÉRIEURES à une régularisation, alors qu'elles ne sont
+   * plus dans le solde (l'ancre les a absorbées). Autrement dit : dès la deuxième mise à jour de
+   * solde, le « connu par Relyka » affiché ici était faux, et l'écart proposé avec lui.
+   */
+  const balanceAtDateFor = React.useCallback((accountId: string, balance: number) => {
     if (!dateValid) return balance;
-    const t0 = todayISO();
-    const after = (transactions as any[])
-      .filter((t) => t.account_id === accountId && !t.is_draft && !t.is_recurring && t.date > date && t.date <= t0)
-      .reduce((s, t) => s + Number(t.amount), 0);
-    return balance - after;
+    return balanceAtDate(transactions as any[], accountId, balance, date);
   }, [transactions, date, dateValid]);
 
   /** Comptes courants actifs, dans l'ordre unique de l'app (principal → type → nom). */
@@ -100,11 +105,11 @@ export default function BalanceUpdateScreen() {
         const typed = num(inputs[a.id] ?? '');
         if (typed === null) return null;
         // Écart mesuré contre le solde À LA DATE du relevé, pas contre le solde d'aujourd'hui.
-        const known = balanceAtDate(a.id, Number(a.balance));
+        const known = balanceAtDateFor(a.id, Number(a.balance));
         return { account: a, target: typed, gap: typed - known, known };
       })
       .filter(Boolean) as { account: any; target: number; gap: number; known: number }[];
-  }, [checking, inputs, balanceAtDate]);
+  }, [checking, inputs, balanceAtDateFor]);
 
   const totalGap = gaps.reduce((s, g) => s + g.gap, 0);
   const touched = gaps.length > 0;
@@ -208,7 +213,7 @@ export default function BalanceUpdateScreen() {
                 </View>
 
                 <Text style={styles.known}>
-                  Connu par Relyka {date !== todayISO() && dateValid ? `au ${dateDisplay}` : ''} : {balanceAtDate(a.id, Number(a.balance)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {sym}
+                  Connu par Relyka {date !== todayISO() && dateValid ? `au ${dateDisplay}` : ''} : {balanceAtDateFor(a.id, Number(a.balance)).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} {sym}
                 </Text>
 
                 <View style={styles.inputRow}>

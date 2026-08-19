@@ -51,6 +51,7 @@ export function useMaterializeCredits(profileId: string | undefined) {
     (async () => {
       try {
         // ── 1. Publier/rafraîchir le cache serveur du tableau (si changé). ──
+        let resynced = 0;
         for (const c of own) {
           const occ = computeCreditSchedule(c, eventsByCredit[c.id]);
           const hash = creditScheduleHash(occ);
@@ -68,6 +69,22 @@ export function useMaterializeCredits(profileId: string | undefined) {
           }
           const { error: hashErr } = await supabase!.from('credits').update({ schedule_hash: hash }).eq('id', c.id);
           if (hashErr) throw hashErr;
+
+          /* ── 1bis. RÉALIGNER LES ÉCHÉANCES DÉJÀ MATÉRIALISÉES ──────────────────────────────
+             Le tableau vient de changer (mensualité corrigée, palier, remboursement anticipé,
+             changement de compte de prélèvement). Or la matérialisation n'INSÈRE que ce qui manque
+             (`ON CONFLICT DO NOTHING`) : les échéances déjà écrites gardaient leurs anciens
+             montants POUR TOUJOURS. Le futur, lui, se corrigeait tout seul (flux virtuels
+             recalculés à l'affichage) — d'où une app qui semblait ne se mettre à jour qu'à moitié,
+             et un solde faux du delta accumulé.
+             La RPC (migration 180) remet les lignes échues en accord avec le tableau, supprime
+             celles qui n'existent plus ou qui sont repoussées après aujourd'hui, et recalcule les
+             soldes des comptes touchés. On ne la lance QUE quand le tableau a réellement changé
+             (on est dans la branche `hash différent`). */
+          const { data: n } = await supabase!.rpc('resync_credit_materialized', {
+            p_credit: c.id, p_today: todayISO(),
+          });
+          resynced += Number(n ?? 0);
         }
 
         // ── 2. Matérialiser les échéances échues depuis le cache (mes crédits + ceux des autres
@@ -76,7 +93,7 @@ export function useMaterializeCredits(profileId: string | undefined) {
           .rpc('materialize_credit_from_schedule', { p_today: todayISO() });
         if (rpcErr) throw rpcErr;
 
-        if ((inserted ?? 0) > 0) {
+        if ((inserted ?? 0) > 0 || resynced > 0) {
           client.invalidateQueries({ queryKey: ['transactions', profileId] });
           client.invalidateQueries({ queryKey: ['accounts', profileId] });
           client.invalidateQueries({ queryKey: ['credits', profileId] });

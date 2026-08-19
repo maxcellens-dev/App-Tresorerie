@@ -63,7 +63,7 @@ function ProjectsScreen() {
   const { data: profile } = useProfile(user?.id);
   // Relyka World (projets partagés) — affichés dans cette même page.
   const { data: rwProjects = [] } = useRwProjects(user?.id);
-  const { data: rwInvitations = [] } = useRwInvitations(user?.id);
+  const { data: rwInvitations = [], error: rwInvitesError } = useRwInvitations(user?.id);
   const respondInvite = useRwRespondInvitation(user?.id);
   const createRwProject = useCreateRwProject(user?.id);
   // Projets partagés actifs vs archivés (les archivés sont masqués de la liste active et
@@ -501,6 +501,19 @@ function ProjectsScreen() {
             ListHeaderComponent={
               !showArchived ? (
                 <>
+                  {/* ÉCHEC DE LECTURE DES INVITATIONS : on le DIT.
+                      Cette liste vide se confond avec « aucune invitation », et c'est précisément
+                      ce qui a fait chercher longtemps : en consultation admin, la requête échouait
+                      (fonction serveur absente) et l'écran affichait sereinement… rien. Une absence
+                      de données et une erreur ne doivent jamais se ressembler. */}
+                  {rwInvitesError && (
+                    <View style={styles.rwInvError}>
+                      <Ionicons name="alert-circle-outline" size={16} color={COLORS.danger} />
+                      <Text style={styles.rwInvErrorText}>
+                        Impossible de lire les invitations : {(rwInvitesError as any)?.message ?? 'erreur inconnue'}
+                      </Text>
+                    </View>
+                  )}
                   {/* Invitations Relyka World en attente */}
                   {rwInvitations.map((inv) => (
                     <View key={inv.id} style={styles.rwInvCard}>
@@ -927,6 +940,9 @@ function makeStyles(c: any) {
   },
   addBtnLabel: { fontSize: 14, fontWeight: '700', color: c.primary },
   rwSectionLabel: { fontSize: 12, fontWeight: '800', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 8 },
+  // Échec de lecture des invitations : une absence de données ne doit pas ressembler à une erreur.
+  rwInvError: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderColor: c.danger + '55', backgroundColor: c.danger + '12', borderRadius: 12, padding: 11, marginBottom: 10 },
+  rwInvErrorText: { flex: 1, fontSize: 12.5, color: c.danger, lineHeight: 17 },
   rwInvCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.primary + '55', borderRadius: 14, padding: 12, marginBottom: 8 },
   rwInvDecline: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.danger + '1A' },
   rwInvAccept: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: c.primary },

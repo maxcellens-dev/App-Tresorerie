@@ -52,6 +52,11 @@ export interface ScoreInput {
   avgNet: number | null;
   /** Nombre de mois complets fiables ayant servi à avgNet. */
   reliableMonths: number;
+  /**
+   * Dépenses ESSENTIELLES mensuelles (charges récurrentes + budget variable) : la base du matelas
+   * de sécurité partout dans l'app (cf. lib/securityCushion). Absente → repli sur le revenu.
+   */
+  essentialMonthly?: number;
 }
 
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
@@ -60,11 +65,17 @@ export function computeHealthScore(inp: ScoreInput): HealthScore {
   const income = inp.income > 0 ? inp.income : 0;
   const parts: ScorePart[] = [];
 
-  // SÉCURITÉ (25 %) — mois de revenus couverts par l'épargne.
-  if (income > 0) {
-    const r = inp.savings / income;
+  /* SÉCURITÉ (25 %) — mois de DÉPENSES couverts par l'épargne.
+     La base était le revenu : le score de sécurité disait donc autre chose que le matelas affiché
+     partout ailleurs dans l'app, pour la même personne et le même mois. Un bilan qui se contredit
+     lui-même ne vaut rien. Même base que lib/securityCushion, mêmes paliers (1 / 3 / 6 mois), avec
+     repli sur le revenu quand les dépenses ne sont pas encore connues. */
+  const securityBase = (inp.essentialMonthly ?? 0) > 0 ? inp.essentialMonthly! : income;
+  if (securityBase > 0) {
+    const r = inp.savings / securityBase;
     const s = r >= 6 ? 100 : r >= 3 ? 70 + ((r - 3) / 3) * 30 : r >= 1 ? 40 + ((r - 1) / 2) * 30 : r * 40;
-    parts.push({ label: 'Sécurité', score: Math.round(clamp(s)), weight: 25, why: `épargne ≈ ${r.toFixed(1)} mois de revenus` });
+    const what = (inp.essentialMonthly ?? 0) > 0 ? 'mois de dépenses' : 'mois de revenus (charges non renseignées)';
+    parts.push({ label: 'Sécurité', score: Math.round(clamp(s)), weight: 25, why: `épargne ≈ ${r.toFixed(1)} ${what}` });
   }
 
   // ENDETTEMENT (20 %) — engagements / capacité RÉELLE à payer (revenus récurrents réels).

@@ -112,6 +112,18 @@ export async function recomputeBalances(
   const results = await Promise.all(
     ids.map((id) => supabase!.rpc('recompute_account_balance', { p_account: id, p_today: today })),
   );
+  /* ⚠️ NE PLUS AVALER L'ÉCHEC. C'est l'écriture la plus importante de l'app — le solde EST le
+     produit de cet appel — et son erreur était ignorée : si le RPC échouait (fonction absente,
+     droit manquant, réseau), la transaction restait en base et le solde gardait son ancienne
+     valeur, sans que rien ne le signale. À l'écran, on voyait une régularisation de −450 € posée
+     sur un compte dont le solde n'avait pas bougé d'un centime, et il n'existait aucun moyen de
+     savoir pourquoi. Un solde faux est le pire de ce que cette application puisse produire : il
+     doit échouer bruyamment, pas discrètement. */
+  const failed = results.find((r) => (r as any)?.error);
+  if (failed) {
+    const msg = (failed as any).error?.message ?? 'inconnue';
+    throw new Error(`Le solde n'a pas pu être recalculé (${msg}). Ton opération est enregistrée, mais le solde affiché n'est pas à jour.`);
+  }
   // Le serveur vient de CALCULER le solde : il le renvoie (migration 173). L'attendre du refetch de
   // `accounts` était un aller-retour de plus, pendant lequel l'écran affichait l'ANCIEN solde comme
   // s'il était définitif. `data` vaut null tant que la migration 173 n'est pas déployée : on ignore
@@ -480,6 +492,13 @@ export function useAddTransaction(profileId: string | undefined) {
       regulCoveredAnswer?: boolean;
       /** Pour une ligne de régularisation : solde cible saisi (affichage). */
       regul_target?: number | null;
+      /**
+       * Régularisation ÉCRITE PAR LA CLÔTURE : le mois clôturé qui l'a produite (YYYY-MM).
+       * C'est la marque que la réouverture de ce mois cherche pour défaire exactement ce que la
+       * clôture avait fait — et rien d'autre. Réservé à la clôture (cf. migration 179) : une
+       * régularisation saisie à la main n'en porte jamais, et n'est donc jamais effacée.
+       */
+      closure_month?: string | null;
       /** #4bis — compte joint : opération saisie « au nom de » ce membre (non-user) pour simuler sa participation. */
       on_behalf_member_id?: string | null;
       /** Virement : ne pas recalculer le solde ICI — la 2ᵉ jambe fait UN SEUL recalcul groupé
@@ -567,6 +586,7 @@ export function useAddTransaction(profileId: string | undefined) {
           posted: contribution !== 0,
           regul_covered: regulCovered,
           regul_target: input.regul_target ?? null,
+          ...(input.closure_month ? { closure_month: input.closure_month } : {}),
           ...(input.on_behalf_member_id ? { on_behalf_member_id: input.on_behalf_member_id } : {}),
         })
         .select()

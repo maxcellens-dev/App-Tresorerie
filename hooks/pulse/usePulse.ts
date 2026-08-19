@@ -1,7 +1,7 @@
 /**
  * L'ÉTAT DES LIEUX — assemblage des données réelles → moteur pur (lib/pulseEngine).
  *
- * Ne calcule rien de neuf : tout vient de sources qui existent déjà (usePilotageData, profil P1–P5,
+ * Ne calcule rien de neuf : tout vient de sources qui existent déjà (usePilotageData, profil P0–P9,
  * comptes, projets, moteur de confiance). Une seule règle : ce hook LIT, le moteur MET EN FORME.
  */
 import { useMemo } from 'react';
@@ -18,6 +18,7 @@ import { useReliabilityConfig, deriveRelykaConfidence } from '../pilotage/useRel
 import { usePulseSnapshots } from './usePulseState';
 import { computePulse, monthKey, type PulseInputs, type PulseResult } from '../../lib/pulse/pulseEngine';
 import { computeRelyka } from '../../lib/finance/relyka';
+import { resolveProfileId } from '../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../types/database';
 
 /** Dernier jour du mois « YYYY-MM » au format ISO. */
@@ -101,6 +102,16 @@ export interface PulseData {
    * quotidien qui, par construction, ne déplace ni le Relyka ni la fin de mois.
    */
   variableEnvelopeInitial: number;
+  /**
+   * Ce qui a DÉJÀ été consommé sur l'enveloppe ce mois-ci. `variableEnvelopeRemaining` est plafonné
+   * à 0 : passé le dépassement, il ne dit plus rien de l'ampleur du débordement. Sans ce chiffre,
+   * la carte de confirmation ne pouvait annoncer qu'un dépassement « de cette dépense-ci » — soit
+   * son montant entier, à chaque saisie (cf. lib/pulseDelta, EnvelopePreview.monthOverflow).
+   */
+  variableEnvelopeSpent: number;
+  /** D'où vient l'enveloppe : moyenne CONSTATÉE ou estimation donnée par l'utilisateur. Décide du
+   *  mot employé dans les messages (« ta moyenne » vs « ton estimation »). */
+  variableEnvelopeSource: 'history' | 'onboarding' | 'none';
 }
 
 /**
@@ -187,7 +198,11 @@ function buildPulse(deps: PulseDeps): PulseData | null {
   } = deps;
 
   if (!pilotage || !config?.enabled) return null;
-  const profileId = (financialProfile?.profile_id as FinancialProfileId) ?? 'P3';
+  /* L'identifiant vient de la base : il peut appartenir à un référentiel plus récent que celui de
+     ce bundle (une migration précède toujours la mise à jour du code). `resolveProfileId` le ramène
+     sur l'échelle connue — sans lui, chaque table indexée par profil rendait `undefined` et l'écran
+     tombait. */
+  const profileId = resolveProfileId(financialProfile?.profile_id as string | undefined);
   const today = new Date();
 
   // ── Relyka (budget réellement libre) : même formule que la carte du Pilotage.
@@ -302,6 +317,8 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     spendingSoFar: lastMonthVariable,
     savingsBalance: pilotage.total_savings,
     avgMonthlyIncome: pilotage.avg_monthly_income ?? 0,
+    // Base du matelas = ce qu'il faut couvrir chaque mois (cf. lib/securityCushion).
+    monthlyEssentialExpenses: pilotage.monthly_essential_expenses ?? 0,
     questionnaireQ3: (answers as any)?.q3 ?? null,
     totalWealth: wealth,
     wealth3mAgo,
@@ -321,5 +338,7 @@ function buildPulse(deps: PulseDeps): PulseData | null {
     safetyMargin,
     variableEnvelopeRemaining: relykaInputs.variableEnvelopeRemaining,
     variableEnvelopeInitial: pilotage.variable_envelope_initial ?? 0,
+    variableEnvelopeSpent: pilotage.variable_envelope_spent ?? 0,
+    variableEnvelopeSource: pilotage.variable_envelope_source ?? 'none',
   };
 }

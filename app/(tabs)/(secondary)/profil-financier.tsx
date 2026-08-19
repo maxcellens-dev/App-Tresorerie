@@ -2,7 +2,7 @@
  * PROFIL FINANCIER — ce qui décide de la RÉPARTITION de ton Relyka (jamais des montants).
  *
  * L'écran ne présente plus un questionnaire de neuf questions : la plupart des réponses sont
- * désormais MESURÉES sur les données réelles (matelas de sécurité = épargne ÷ revenu, revenu de
+ * désormais MESURÉES sur les données réelles (matelas de sécurité = épargne ÷ DÉPENSES, revenu de
  * référence = recettes constatées). Seules restent modifiables les rares choses que l'app ne peut
  * pas deviner : ta marge de sécurité et ton enveloppe de dépenses variables. Toutes deux vivent
  * dans `profiles`, la MÊME source que le reste de l'app — jamais dans d'anciennes réponses.
@@ -28,10 +28,10 @@ import { useFinancialProfile, useQuestionnaireAnswers } from '../../../hooks/pil
 import { usePilotageData } from '../../../hooks/pilotage/usePilotageData';
 import { useProfile, useUpdateProfile } from '../../../hooks/data/useProfile';
 import {
-  PROFILE_INFO, PROFILE_ALLOCATIONS,
+  PROFILE_INFO, PROFILE_ALLOCATIONS, resolveProfileId,
   WEEKS_PER_MONTH,
 } from '../../../lib/finance/financialProfileEngine';
-import { computeSecurityCushion, securityMonthsLabel } from '../../../lib/finance/securityCushion';
+import { computeSecurityCushion, securityMonthsLabel, securityBaseLabel } from '../../../lib/finance/securityCushion';
 import type { QuestionnaireAnswers } from '../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../types/database';
 import { useAppColors } from '../../../hooks/theme/useAppColors';
@@ -70,6 +70,21 @@ function ProfilFinancierScreen() {
   const [amountDraft, setAmountDraft] = useState('');
   const [saving, setSaving] = useState(false);
 
+  /* FOCUS SANS SAUT DE DÉFILEMENT (cf. le commentaire de `amountPanel`).
+     `preventScroll` est une option du DOM : sur le web, `.focus({ preventScroll: true })` empêche
+     le navigateur de faire remonter la page de son côté. Sur natif, `focus()` ne prend pas
+     d'options et les ignore — le repli couvre les deux mondes sans branche par plateforme. */
+  const amountInputRef = useRef<any>(null);
+  useEffect(() => {
+    if (!editing) return;
+    const t = setTimeout(() => {
+      const node = amountInputRef.current;
+      if (!node?.focus) return;
+      try { node.focus({ preventScroll: true }); } catch { node.focus(); }
+    }, 60);
+    return () => clearTimeout(t);
+  }, [editing]);
+
   // Renvoi « complète ton profil » (ex. enveloppe variable manquante depuis le Pilotage).
   const params = useLocalSearchParams<{ edit?: string }>();
   const autoOpened = useRef(false);
@@ -88,7 +103,9 @@ function ProfilFinancierScreen() {
     );
   }
 
-  const profileId = fp?.profile_id as FinancialProfileId | undefined;
+  // Ramené sur le référentiel de ce bundle (cf. resolveProfileId) : sinon un identifiant inconnu
+  // renvoyait l'utilisateur sur l'écran « ton profil se calcule tout seul », profil à l'appui.
+  const profileId = fp?.profile_id ? resolveProfileId(fp.profile_id) : undefined;
   const info = profileId ? PROFILE_INFO[profileId] : null;
   const alloc = profileId ? PROFILE_ALLOCATIONS[profileId] : null;
   const a = (saved ?? {}) as Partial<QuestionnaireAnswers>;
@@ -96,6 +113,7 @@ function ProfilFinancierScreen() {
   /** Matelas MESURÉ sur les données réelles — c'est lui qui remplace l'ancienne question q5. */
   const cushion = computeSecurityCushion({
     availableSavings: pilotage?.current_savings ?? 0,
+    monthlyEssentialExpenses: pilotage?.monthly_essential_expenses ?? 0,
     avgMonthlyIncome: pilotage?.avg_monthly_income ?? 0,
     questionnaireQ3: a.q3 ?? null,
   });
@@ -204,14 +222,21 @@ function ProfilFinancierScreen() {
   const amountPanel = (unit: string, hint: string, onSave: (v: string) => void) => (
     <View style={styles.panel}>
       <View style={styles.amountRow}>
+        {/* PAS d'`autoFocus` ICI — c'est lui qui provoquait l'aller-retour à l'ouverture du panneau.
+            Le focus automatique déclenche la mise en vue NATIVE du champ (le navigateur ou la
+            plateforme scrolle de son côté), puis notre KeyboardAwareScrollView le remonte à sa
+            propre position quand le clavier s'ouvre : deux défilements concurrents, d'où le saut
+            vers le haut suivi d'un retour. On garde le focus (personne n'a envie de retaper sur le
+            champ), mais on le pose nous-mêmes juste après le montage, en demandant explicitement à
+            la plateforme de NE PAS scroller — un seul défilement, celui du clavier. */}
         <TextInput
+          ref={amountInputRef}
           style={styles.amountInput}
           value={amountDraft}
           onChangeText={(v) => setAmountDraft(v.replace(/[^0-9.,]/g, ''))}
           keyboardType="decimal-pad"
           placeholder="0"
           placeholderTextColor={COLORS.textSecondary}
-          autoFocus
         />
         <Text style={styles.amountUnit}>{unit}</Text>
       </View>
@@ -272,7 +297,7 @@ function ProfilFinancierScreen() {
               'Ton matelas de sécurité',
               cushion.months != null ? securityMonthsLabel(cushion.months) : '—',
               cushion.months != null
-                ? `épargne ÷ revenu mensuel${cushion.base === 'questionnaire' ? ' (revenu encore estimé)' : ''}`
+                ? securityBaseLabel(cushion.base)
                 : 'ajoute un compte d’épargne pour le calculer',
               'matelas',
             )}
@@ -389,7 +414,12 @@ function makeStyles(c: any) {
       paddingVertical: 11, borderTopWidth: 1, borderTopColor: c.cardBorder,
     },
     rowLabelLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    rowLabel: { fontSize: 13.5, fontWeight: '600', color: c.text },
+    /* `flexShrink: 1` — sans lui, un Text en ligne garde sa largeur INTRINSÈQUE (flexShrink vaut 0
+       par défaut en React Native) : un libellé long comme « Ton estimation de dépenses variables »
+       débordait de sa colonne et poussait la pastille « ? » par-dessus le montant, à droite. Il se
+       rétrécit désormais dans l'espace disponible, et la pastille reste dans la colonne du libellé,
+       alignée comme sur les autres lignes. */
+    rowLabel: { fontSize: 13.5, fontWeight: '600', color: c.text, flexShrink: 1 },
     rowSource: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
     rowValue: { fontSize: 13.5, fontWeight: '800', color: c.text },
 

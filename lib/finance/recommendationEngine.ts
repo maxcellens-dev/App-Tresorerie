@@ -13,8 +13,9 @@
 
 import type { PilotageData } from '../../hooks/pilotage/usePilotageData';
 import type { FinancialProfile, FinancialProfileId } from '../../types/database';
-import { PROFILE_ALLOCATIONS } from './financialProfileEngine';
+import { PROFILE_ALLOCATIONS, PROFILE_TO_TIER, resolveProfileId } from './financialProfileEngine';
 import { computeSecurityCushion, securityMonthsLabel } from './securityCushion';
+import { computeFinancialPriority, applyPriorityBounds } from './financialPriorities';
 import { floorToTen } from './currency';
 
 /* ── Types ───────────────────────────────────────────────── */
@@ -120,9 +121,16 @@ export const DEFAULT_CONSUMPTION_ORDERS: Record<ConsumptionMode, RecoType[]> = {
   dynamique: ['enjoy', 'save', 'keep', 'invest'],
 };
 
-/** Mode « Auto » : le mode est dérivé du profil financier P1–P5. */
+/**
+ * Mode « Auto » : le mode de consommation du budget est dérivé du profil financier (P0–P9).
+ * Prudent tant que le matelas n'est pas fait, équilibré une fois la réserve constituée, dynamique
+ * quand l'investissement est en place. P0 (Découverte) reste prudent : on ne sait rien.
+ */
 export const DEFAULT_AUTO_PROFILE_MAP: Record<FinancialProfileId, ConsumptionMode> = {
-  P1: 'prudent', P2: 'prudent', P3: 'equilibre', P4: 'equilibre', P5: 'dynamique',
+  P0: 'prudent',
+  P1: 'prudent', P2: 'prudent', P3: 'prudent',
+  P4: 'equilibre', P5: 'equilibre', P6: 'equilibre',
+  P7: 'dynamique', P8: 'dynamique', P9: 'dynamique',
 };
 
 /**
@@ -133,9 +141,15 @@ export const DEFAULT_AUTO_PROFILE_MAP: Record<FinancialProfileId, ConsumptionMod
 export function resolveConsumptionMode(
   prudenceLevel: number | null | undefined,
   profileId: FinancialProfileId | undefined,
-  autoMap: Record<FinancialProfileId, ConsumptionMode> = DEFAULT_AUTO_PROFILE_MAP,
+  /* PARTIEL exprès : la table vient de la base (réglage admin) et a été écrite quand il n'existait
+     que cinq profils. Un profil ajouté depuis n'y figure pas — on retombe alors sur le défaut du
+     code, jamais sur `undefined`. */
+  autoMap: Partial<Record<FinancialProfileId, ConsumptionMode>> = DEFAULT_AUTO_PROFILE_MAP,
 ): ConsumptionMode {
-  if (prudenceLevel == null) return autoMap[profileId ?? 'P3'] ?? 'equilibre';
+  if (prudenceLevel == null) {
+    const id = resolveProfileId(profileId);
+    return autoMap[id] ?? DEFAULT_AUTO_PROFILE_MAP[id] ?? 'equilibre';
+  }
   if (prudenceLevel >= 63) return 'prudent';
   if (prudenceLevel >= 38) return 'equilibre';
   return 'dynamique';
@@ -252,7 +266,7 @@ function clamp(value: number, min: number, max: number): number {
 
 /**
  * Allocation (%) par poste — LA source unique des pourcentages de répartition, partagée entre le
- * moteur de recos et le Pouls (capacité d'investissement) : profil P1-P5 (ou paliers d'épargne +
+ * moteur de recos et le Pouls (capacité d'investissement) : profil P0-P9 (ou paliers d'épargne +
  * préférences custom en legacy), puis modificateurs contextuels, normalisation à 100 %.
  * Sans ça, deux écrans peuvent annoncer des montants « plaçables » différents pour le même mois.
  */
@@ -269,16 +283,33 @@ export function deriveRecoAllocations(
   let alloc: Record<RecoType, number>;
 
   if (opts.financialProfileId) {
-    // Nouveau système : profil P1-P5 détermine directement les allocations
-    alloc = { ...PROFILE_ALLOCATIONS[opts.financialProfileId] };
-    const tierMap: Record<FinancialProfileId, SavingsTier> = {
-      P1: 'critical',
-      P2: 'below_optimal',
-      P3: 'healthy',
-      P4: 'p4_dynamic',
-      P5: 'comfortable',
-    };
-    tier = tierMap[opts.financialProfileId];
+    /* ── DEUX NIVEAUX : le profil pose le CONTEXTE, la situation décide du MOIS ────────────────
+       Le profil donnait seul les pourcentages : deux personnes au même palier recevaient le même
+       conseil, que l'une finisse le mois à découvert ou avec 800 € d'avance. Et un palier bouge
+       lentement — c'est sa raison d'être — donc il ne pouvait pas réagir à un mois qui dérape.
+
+       La PRIORITÉ (lib/financialPriorities) regarde les faits du moment et pose des bornes que le
+       profil ne peut pas franchir : investissement à 0 % tant qu'il n'y a pas un mois de réserve,
+       épargne plancher tant qu'elle n'est pas constituée, remboursement avant placement… Le profil
+       garde toute son influence À L'INTÉRIEUR de ces bornes — c'est lui qui distingue deux
+       personnes en même priorité. Le PALIER, lui, ne sert plus qu'au vocabulaire des conseils. */
+    // Identifiant venu de la base : ramené sur le référentiel de CE bundle (cf. resolveProfileId).
+    const pid = resolveProfileId(opts.financialProfileId);
+    const priority = computeFinancialPriority({
+      monthsOfReserve: computeSecurityCushion({
+        availableSavings: data.current_savings,
+        monthlyEssentialExpenses: data.monthly_essential_expenses,
+        avgMonthlyIncome: data.avg_monthly_income,
+      }).months,
+      monthlySurplus: data.safe_to_spend ?? 0,
+      avgMonthlyIncome: data.avg_monthly_income ?? 0,
+      monthlyEssentialExpenses: data.monthly_essential_expenses ?? 0,
+      checkingBalance: data.current_checking_balance ?? 0,
+      savingsBalance: data.current_savings ?? 0,
+      investedBalance: data.total_invested ?? 0,
+    });
+    alloc = applyPriorityBounds({ ...PROFILE_ALLOCATIONS[pid] }, priority);
+    tier = PROFILE_TO_TIER[pid];
   } else {
     // Ancien système : palier déterminé par le montant d'épargne
     tier = determineTier(
@@ -898,12 +929,13 @@ const SAVE_LEVEL_LABEL: Record<SavingsTier, string> = {
 };
 
 function getSaveDescription(tier: SavingsTier, action: ActionAmount, data: PilotageData): string {
-  // Approche générique : épargne de sécurité totale + nb de mois de sécurité (= mois de REVENUS
+  // Approche générique : épargne de sécurité totale + nb de mois de sécurité (= mois de DÉPENSES
   // couverts par l'épargne) + appréciation de niveau. Plus parlant qu'un écart à un « seuil » abstrait.
   const savings = Math.max(0, data.current_savings);
-  // Mois de sécurité — MÊME définition que partout (lib/securityCushion) : base = revenus.
+  // Mois de sécurité — MÊME définition que partout (lib/securityCushion) : base = les DÉPENSES.
   const months = computeSecurityCushion({
     availableSavings: savings,
+    monthlyEssentialExpenses: data.monthly_essential_expenses,
     avgMonthlyIncome: data.avg_monthly_income,
   }).months;
 
@@ -921,6 +953,7 @@ function getSaveStateNote(tier: SavingsTier, data: PilotageData): string {
   const savings = Math.max(0, data.current_savings);
   const months = computeSecurityCushion({
     availableSavings: savings,
+    monthlyEssentialExpenses: data.monthly_essential_expenses,
     avgMonthlyIncome: data.avg_monthly_income,
   }).months;
   const coverage = months != null ? ` (≈ ${securityMonthsLabel(months)} de sécurité)` : '';

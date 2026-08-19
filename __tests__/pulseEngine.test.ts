@@ -179,9 +179,13 @@ describe('resolvePulseConfig', () => {
     expect(resolvePulseConfig(null)).toEqual(DEFAULT_PULSE_CONFIG);
   });
 
-  it('chaque profil affiche 5 signaux par défaut', () => {
-    for (const ids of Object.values(DEFAULT_PULSE_CONFIG.signalsByProfile)) {
-      expect(ids).toHaveLength(5);
+  /* Cinq signaux pour tous les profils CLASSANTS. P0 (Découverte) en a quatre : le matelas de
+     sécurité n'y figure pas, faute de revenu constaté pour le calculer — annoncer « 0 mois de
+     réserve » à quelqu'un qui n'a encore rien saisi serait un chiffre faux présenté comme un
+     diagnostic. */
+  it('chaque profil classant affiche 5 signaux par défaut ; « Découverte » en a 4', () => {
+    for (const [id, ids] of Object.entries(DEFAULT_PULSE_CONFIG.signalsByProfile)) {
+      expect(`${id}:${ids.length}`).toBe(`${id}:${id === 'P0' ? 4 : 5}`);
     }
   });
 

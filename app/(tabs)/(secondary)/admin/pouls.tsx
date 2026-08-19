@@ -1,7 +1,7 @@
 /**
  * Admin — L'ÉTAT DES LIEUX.
  *  • Activation globale + les deux temps (live / mensuel).
- *  • Signaux retenus PAR PROFIL P1–P5 (l'ordre de sélection est l'ordre d'affichage).
+ *  • Signaux retenus PAR PROFIL P0–P9 (l'ordre de sélection est l'ordre d'affichage).
  *  • Aperçu du rendu réel (ouvre le vrai bilan, sans consommer le mois de l'utilisateur).
  *
  * ⚠️ PLUS AUCUN JUGEMENT. Il n'y a plus ni « repères » par profil (matelas visé, taux d'épargne,
@@ -31,10 +31,11 @@ import {
   PULSE_SIGNAL_IDS, PULSE_SIGNAL_LABELS, DEFAULT_PULSE_CONFIG,
   type PulseConfig, type PulseSignalId,
 } from '../../../../lib/pulse/pulseEngine';
-import { PROFILE_INFO } from '../../../../lib/finance/financialProfileEngine';
+import { PROFILE_INFO, FINANCIAL_PROFILE_IDS } from '../../../../lib/finance/financialProfileEngine';
 import type { FinancialProfileId } from '../../../../types/database';
 
-const PROFILES: FinancialProfileId[] = ['P1', 'P2', 'P3', 'P4', 'P5'];
+// Liste DÉRIVÉE du référentiel : un profil ajouté doit apparaître ici sans qu'on y pense.
+const PROFILES: FinancialProfileId[] = FINANCIAL_PROFILE_IDS;
 
 /** Signaux TOUJOURS présents en tête du bilan (ils composent la carte de récapitulatif). */
 const ALWAYS_ON: PulseSignalId[] = ['spending', 'cushion'];
