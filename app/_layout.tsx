@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider, MutationCache, useQueryClient, online
 import NetInfo from '@react-native-community/netinfo';
 import { prefetchPilotageData } from '../hooks/pilotage/usePilotageData';
 import { hydrateThemeCache } from '../lib/platform/themeBoot';
-import { hydrateQueryCache, startQueryPersist } from '../lib/platform/queryPersist';
+import { hydrateQueryCache, startQueryPersist, getHydratedKeys } from '../lib/platform/queryPersist';
 import { View, StyleSheet, Platform, useWindowDimensions, LogBox, BackHandler, AppState } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -167,12 +167,22 @@ function ForegroundRefetch() {
      plus haut pour éviter le churn de navigation) signifie qu'une donnée périmée réhydratée ne se
      rafraîchirait JAMAIS toute seule : l'app afficherait sans broncher les montants du dernier
      démarrage. C'est pire qu'un chargement.
-     On relance donc UNE fois, une fois l'arbre monté, les requêtes actives réellement périmées :
-     affichage immédiat, mise à jour en fond. Ce qui est encore frais n'est pas retouché. */
+
+     DEUX PRÉCAUTIONS, apprises en écrivant ce bloc :
+       • on ne revalide QUE les clés réellement réhydratées. Un `refetchQueries` en bloc relancerait
+         aussi les requêtes qui viennent d'arriver du réseau — un aller-retour complet pour rien, au
+         démarrage, c'est-à-dire au pire moment ;
+       • on attend que l'arbre soit monté. Déclenché à `t = 0`, ce balayage ne trouvait AUCUNE
+         requête « active » (la racine se monte avant les écrans) : il ne faisait rien, et la donnée
+         périmée restait affichée indéfiniment. Un correctif silencieusement inopérant. */
   useEffect(() => {
+    const keys = getHydratedKeys();
+    if (keys.length === 0) return;
     const t = setTimeout(() => {
-      qc.refetchQueries({ type: 'active', stale: true }).catch(() => {});
-    }, 0);
+      for (const key of keys) {
+        qc.refetchQueries({ queryKey: [key], type: 'active', stale: true }).catch(() => {});
+      }
+    }, 1500);
     return () => clearTimeout(t);
   }, [qc]);
   return null;

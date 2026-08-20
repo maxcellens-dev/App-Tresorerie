@@ -17,11 +17,14 @@
  *   <InfoDot term="relyka" size={18} color={COLORS.emerald} />
  */
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { glossaryEntry, type GlossaryTerm } from '../../lib/ui/glossary';
 import { sheetWidth } from '../../lib/ui/appLayout';
+import { useAuth } from '../../contexts/AuthContext';
+import { useFinancialProfile } from '../../hooks/pilotage/useFinancialProfile';
+import { FINANCIAL_PROFILE_IDS, PROFILE_INFO, resolveProfileId } from '../../lib/finance/financialProfileEngine';
 
 interface Props {
   term: GlossaryTerm;
@@ -106,12 +109,67 @@ export function GlossarySheet({ term, onClose }: { term: GlossaryTerm; onClose: 
           <Text style={styles.text}>{entry.text}</Text>
           {!!entry.hint && <Text style={styles.hint}>{entry.hint}</Text>}
 
+          {/* Le profil est la seule notion de l'app qui SITUE : dire « tu es Premiers placements »
+              n'apprend rien sans l'échelle qui le précède et celle qui le suit. */}
+          {term === 'profil_financier' && <ProfileScale styles={styles} />}
+
           <TouchableOpacity style={[styles.btn, { backgroundColor: accent }]} onPress={onClose} activeOpacity={0.85}>
             <Text style={[styles.btnLabel, { color: COLORS.bg }]}>J'ai compris</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/**
+ * L'ÉCHELLE COMPLÈTE DES PROFILS, avec le sien mis en évidence.
+ *
+ * La fiche disait ce que fait le profil, jamais où l'on se situe. « Premiers placements » ne veut
+ * rien dire tout seul : c'est un rang, et un rang ne s'entend que dans une suite. Voir les dix
+ * paliers, et le sien au milieu, répond à la seule question qu'on se pose vraiment — d'où je viens,
+ * et qu'est-ce qui vient après.
+ *
+ * P0 (Découverte) est écarté quand on n'y est pas : il ne classe rien, il dit qu'il manque des
+ * données. L'afficher comme un barreau de l'échelle laisserait croire à un palier « en dessous du
+ * plus bas ».
+ */
+function ProfileScale({ styles }: { styles: any }) {
+  const COLORS = useAppColors();
+  const { user } = useAuth();
+  const { data: fp } = useFinancialProfile(user?.id);
+  const currentRaw = (fp as any)?.profile_id as string | undefined;
+  const current = currentRaw ? resolveProfileId(currentRaw) : null;
+
+  const ladder = FINANCIAL_PROFILE_IDS.filter((id) => id !== 'P0' || current === 'P0');
+  const currentRank = current ? ladder.indexOf(current) : -1;
+
+  return (
+    <View style={styles.scale}>
+      <Text style={styles.scaleTitle}>Les paliers, du plus fragile au plus solide</Text>
+      <ScrollView style={styles.scaleList} showsVerticalScrollIndicator={false}>
+        {ladder.map((id, i) => {
+          const info = PROFILE_INFO[id];
+          if (!info) return null;
+          const isCurrent = id === current;
+          const passed = currentRank >= 0 && i < currentRank;
+          const tint = (COLORS as any)[info.color] ?? info.color ?? COLORS.textSecondary;
+          return (
+            <View key={id} style={[styles.scaleRow, isCurrent && { backgroundColor: tint + '1A', borderColor: tint + '59' }]}>
+              <Text style={styles.scaleEmoji}>{info.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.scaleName, isCurrent && { color: tint, fontWeight: '800' }]}>
+                  {info.name}{isCurrent ? ' — toi' : ''}
+                </Text>
+                {isCurrent && <Text style={styles.scaleDesc}>{info.description}</Text>}
+              </View>
+              {/* Repère discret : ce qui est derrière soi, et ce qui reste devant. */}
+              {passed && <Ionicons name="checkmark" size={14} color={COLORS.textSecondary} />}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -136,5 +194,19 @@ function makeStyles(c: any) {
     hint: { fontSize: 12.5, lineHeight: 18, color: c.textSecondary },
     btn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
     btnLabel: { fontSize: 15, fontWeight: '700' },
+    // Échelle des profils (fiche « Ton profil financier » uniquement).
+    scale: { gap: 8 },
+    scaleTitle: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    /* Hauteur BORNÉE et liste défilante : dix paliers ne tiennent pas dans une fiche, et une carte
+       plus haute que l'écran sortirait du cadre sans qu'on puisse la refermer. */
+    scaleList: { maxHeight: 232 },
+    scaleRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 7, paddingHorizontal: 9,
+      borderRadius: 11, borderWidth: 1, borderColor: 'transparent', marginBottom: 3,
+    },
+    scaleEmoji: { fontSize: 15, width: 20, textAlign: 'center' },
+    scaleName: { fontSize: 13.5, color: c.text },
+    scaleDesc: { fontSize: 11.5, lineHeight: 16, color: c.textSecondary, marginTop: 2 },
   });
 }

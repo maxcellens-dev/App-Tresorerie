@@ -74,6 +74,20 @@ function webStore(): Storage | null {
   } catch { return null; }
 }
 
+/** Clés de premier niveau réellement réhydratées — celles, et uniquement celles, à revalider. */
+let hydratedKeys: string[] = [];
+
+/**
+ * Ce qui a été restauré depuis le disque au démarrage.
+ *
+ * Sert à cibler la revalidation de fond : seules les données VENUES DU CACHE peuvent être périmées
+ * sans que rien ne le signale. Tout revalider en bloc relancerait aussi des requêtes qui viennent
+ * d'arriver du réseau — un aller-retour complet pour rien, au pire moment.
+ */
+export function getHydratedKeys(): string[] {
+  return hydratedKeys;
+}
+
 function applyRaw(qc: QueryClient, raw: string | null): void {
   if (!raw) return;
   try {
@@ -83,6 +97,10 @@ function applyRaw(qc: QueryClient, raw: string | null): void {
     if (!parsed || typeof parsed.savedAt !== 'number' || !parsed.state) return;
     if (Date.now() - parsed.savedAt > MAX_AGE_MS) return;
     hydrate(qc, parsed.state);
+    const queries = (parsed.state as any)?.queries;
+    hydratedKeys = Array.isArray(queries)
+      ? [...new Set(queries.map((q: any) => String(q?.queryKey?.[0])).filter(Boolean))]
+      : [];
   } catch { /* cache corrompu / incompatible : on l'ignore */ }
 }
 
