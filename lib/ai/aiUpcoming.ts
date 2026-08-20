@@ -6,6 +6,7 @@
 // template vers le futur. Une série vivante a donc TOUJOURS une ancre future → on ne peut pas la
 // juger « nouvelle » sur sa seule date. On la compare aux occurrences PASSÉES (matérialisées).
 import type { SnapshotUpcoming, SnapshotUpcomingChange } from './aiSnapshot';
+import { isRegul } from '../finance/regul';
 
 export interface UpcomingTx {
   id: string;
@@ -15,6 +16,10 @@ export interface UpcomingTx {
   linked_account_id?: string | null;
   is_draft?: boolean;
   regul_target?: number | null;
+  /* Une régularisation ANCIENNE n'a pas de `regul_target` : elle ne se reconnaît qu'à sa note
+     (cf. `isRegul`). Sans elle, un écart de solde était présenté à l'IA comme un engagement à
+     venir ou une nouveauté du mois. */
+  note?: string | null;
   is_recurring?: boolean;
   recurrence_rule?: string | null;
   recurrence_end_date?: string | null;
@@ -78,7 +83,7 @@ export function detectUpcomingChanges(txs: UpcomingTx[], opts: UpcomingOptions):
   const establishedTplIds = new Set<string>();
   const pastRecurringCatSigs = new Set<string>();
   for (const t of txs) {
-    if (t.is_draft || t.regul_target != null || t.date > today) continue;
+    if (t.is_draft || isRegul(t) || t.date > today) continue;
     if (!isRecurringTpl(t) && t.materialized_from == null) continue;
     if (t.materialized_from) establishedTplIds.add(t.materialized_from);
     const kind = kindOf(t);
@@ -93,7 +98,7 @@ export function detectUpcomingChanges(txs: UpcomingTx[], opts: UpcomingOptions):
   const seenEnd = new Set<string>();
   const seenStart = new Set<string>();
   for (const t of txs) {
-    if (t.is_draft || t.regul_target != null) continue;
+    if (t.is_draft || isRegul(t)) continue;
     if (isRecurringTpl(t)) {
       if (!isLiveSeries(t)) continue; // série tronquée → ni fin ni nouveauté
       const kind = kindOf(t);

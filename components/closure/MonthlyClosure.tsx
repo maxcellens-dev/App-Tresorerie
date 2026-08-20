@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppColors } from '../../hooks/theme/useAppColors';
 import { useAddTransaction, useAllTransactions } from '../../hooks/data/useTransactions';
-import { useMonthlyClosure, useAccountClosures, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
+import { useMonthlyClosure, useAccountClosures, wasReopenedThisSession, monthLabel, lastDayOfMonthKey, addMonthKey, ym } from '../../hooks/pilotage/useMonthlyClosure';
 import { supabase } from '../../lib/platform/supabase';
 import { CURRENCY_SYMBOL } from '../../lib/finance/currency';
 import { findRegulCategoryId } from '../../lib/finance/regul';
@@ -144,12 +144,30 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
     () => allCheckingAccounts.filter((a) => !targetKeyRaw || !closedAccountKeys.has(`${a.id}|${targetKeyRaw}`)),
     [allCheckingAccounts, closedAccountKeys, targetKeyRaw],
   );
-  /** Comptes joints déjà clôturés par quelqu'un d'autre pour ce mois — on le DIT, on ne l'escamote pas. */
-  const alreadyClosedJoint = useMemo(
-    () => allCheckingAccounts.filter((a) => a.joint && targetKeyRaw && closedAccountKeys.has(`${a.id}|${targetKeyRaw}`)),
+  /**
+   * Comptes RETIRÉS de la liste parce qu'ils portent déjà une clôture pour ce mois — on le DIT.
+   *
+   * Ce message ne concernait que les comptes JOINTS. Un compte PERSO écarté par la même règle
+   * disparaissait donc en silence : il suffisait qu'une ligne `account_closures` survive à une
+   * réouverture (cf. migration 192) pour qu'un compte courant s'évapore de l'écran de clôture, sans
+   * la moindre explication — et on ne pouvait plus vérifier son solde. Tout compte écarté est
+   * nommé : c'est la seule façon de distinguer « déjà fait » de « l'app a perdu mon compte ».
+   */
+  const alreadyClosed = useMemo(
+    () => allCheckingAccounts.filter((a) => targetKeyRaw && closedAccountKeys.has(`${a.id}|${targetKeyRaw}`)),
     [allCheckingAccounts, closedAccountKeys, targetKeyRaw],
   );
   const hasChecking = checkingAccounts.length > 0;
+  /* RIEN À VÉRIFIER : aucun compte courant à clôturer pour ce mois — soit ils ont tous déjà été
+     clôturés par un autre participant (comptes joints), soit il n'y en a pas.
+     L'écran continuait pourtant d'afficher le choix du mode, un aperçu « écart 0 — solde confirmé »
+     et la mention « la clôture enregistre une régularisation ». Les trois étaient faux : sans
+     compte, `confirm()` n'écrit AUCUNE régularisation et ne confirme aucun solde — il ne fait que
+     marquer le mois comme traité. On ne propose donc plus une vérification qui n'a pas lieu. */
+  const nothingToVerify = !hasChecking;
+  React.useEffect(() => {
+    if (nothingToVerify) setMode('direct');
+  }, [nothingToVerify]);
   const fmt = (n: number) => Math.round(n).toLocaleString('fr-FR') + ' ' + CURRENCY_SYMBOL;
 
   /**
@@ -233,6 +251,12 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
   React.useEffect(() => {
     if (!autoOpen || !myTurn || autoOpened.current || !snoozeChecked) return;
     if (oldest && snoozedMonth === oldest) return;
+    /* Mois ROUVERT dans cette session : on ne le réclame pas. Rouvrir juillet fait justement
+       revenir juillet dans les mois en attente — l'ouverture automatique se déclenchait donc dans
+       la foulée du geste, et la modale de clôture surgissait par-dessus l'écran Clôture, à peine
+       la réouverture terminée. Vu de l'utilisateur, c'est la réouverture qui « ouvre n'importe
+       quelle fenêtre ». Il vient de dire qu'il s'en occupe : on le laisse faire. */
+    if (wasReopenedThisSession(oldest)) return;
     autoOpened.current = true;
     openModal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -439,13 +463,13 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
 
             {/* Compte joint déjà clôturé par quelqu'un d'autre : on l'ANNONCE plutôt que de le faire
                 disparaître sans explication — sinon on cherche son compte dans la liste. */}
-            {alreadyClosedJoint.length > 0 && (
+            {alreadyClosed.length > 0 && (
               <View style={styles.jointNote}>
                 <Ionicons name="people-outline" size={15} color={COLORS.emerald} />
                 <Text style={styles.jointNoteText}>
-                  {alreadyClosedJoint.length === 1
-                    ? `« ${alreadyClosedJoint[0].name} » a déjà été clôturé pour ce mois par un autre participant : rien à refaire de ton côté.`
-                    : `${alreadyClosedJoint.length} comptes joints ont déjà été clôturés pour ce mois par d'autres participants.`}
+                  {alreadyClosed.length === 1
+                    ? `« ${alreadyClosed[0].name} » porte déjà une clôture pour ce mois${alreadyClosed[0].joint ? ' (faite par un autre participant)' : ''} : rien à refaire de ton côté.`
+                    : `${alreadyClosed.length} comptes portent déjà une clôture pour ce mois : ${alreadyClosed.map((a) => a.name).join(', ')}.`}
                 </Text>
               </View>
             )}
@@ -461,17 +485,22 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
               </View>
             )}
 
-            <View style={styles.segRow}>
-              <TouchableOpacity style={[styles.seg, mode === 'direct' && styles.segActive]} onPress={() => setMode('direct')}>
-                <Text style={[styles.segText, mode === 'direct' && styles.segTextActive]}>Validation directe</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.seg, mode === 'balance' && styles.segActive]} onPress={() => setMode('balance')} disabled={!hasChecking}>
-                <Text style={[styles.segText, mode === 'balance' && styles.segTextActive]}>Solde réel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.seg, mode === 'unknown' && styles.segActive]} onPress={() => setMode('unknown')} disabled={!hasChecking}>
-                <Text style={[styles.segText, mode === 'unknown' && styles.segTextActive]}>Je ne sais pas</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Le choix du mode n'a de sens que s'il reste un compte à vérifier. Sans ça, deux
+                options sur trois étaient grisées et la troisième ne faisait rien de ce qu'elle
+                annonçait. */}
+            {!nothingToVerify && (
+              <View style={styles.segRow}>
+                <TouchableOpacity style={[styles.seg, mode === 'direct' && styles.segActive]} onPress={() => setMode('direct')}>
+                  <Text style={[styles.segText, mode === 'direct' && styles.segTextActive]}>Validation directe</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.seg, mode === 'balance' && styles.segActive]} onPress={() => setMode('balance')}>
+                  <Text style={[styles.segText, mode === 'balance' && styles.segTextActive]}>Solde réel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.seg, mode === 'unknown' && styles.segActive]} onPress={() => setMode('unknown')}>
+                  <Text style={[styles.segText, mode === 'unknown' && styles.segTextActive]}>Je ne sais pas</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {mode === 'unknown' ? (
               <>
@@ -587,7 +616,11 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
               </>
             ) : mode === 'direct' ? (
               <>
-                <Text style={styles.hint}>Tu as saisi toutes tes transactions ? Valide simplement la clôture.</Text>
+                <Text style={styles.hint}>
+                  {nothingToVerify
+                    ? "Il n'y a aucun solde à vérifier de ton côté pour ce mois. Valide simplement pour le marquer comme traité."
+                    : 'Tu as saisi toutes tes transactions ? Valide simplement la clôture.'}
+                </Text>
                 {hasChecking && targetKey && (
                   <View style={styles.balanceList}>
                     {checkingAccounts.map((acc) => (
@@ -661,6 +694,24 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
             {/* ── Aperçu AVANT validation : impact exact par mois (bloc structuré, pas de surprise) ── */}
             {(() => {
               if (!targetKey) return null;
+              /* Aucun compte à vérifier → on n'annonce ni écart, ni solde confirmé : il n'y a
+                 rien à confirmer. Le mois est simplement marqué comme traité, et le badge
+                 « mois fermé » de la ligne suffit à le dire. */
+              if (nothingToVerify) {
+                return (
+                  <View style={styles.previewBox}>
+                    <Text style={styles.previewTitle}>Si tu valides :</Text>
+                    <View style={styles.previewRow}>
+                      <Text style={styles.previewMonth}>{monthLabel(targetKey)}</Text>
+                      <Text style={[styles.previewValue, { color: COLORS.textSecondary }]}>aucune écriture</Text>
+                      <View style={styles.previewBadge}>
+                        <Ionicons name="checkmark" size={10} color={COLORS.emerald} />
+                        <Text style={styles.previewBadgeText}>mois fermé</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              }
               type Row = { label: string; regul: number; closed?: boolean };
               const rows: Row[] = [];
               if (mode === 'direct') {
@@ -727,7 +778,11 @@ export default function MonthlyClosure({ variableEnvelope, checkingAccounts: all
 
             <View style={styles.lockNote}>
               <Ionicons name="information-circle-outline" size={15} color={COLORS.textSecondary} />
-              <Text style={styles.lockNoteText}>La clôture enregistre une régularisation datée pour fiabiliser tes calculs. Rien n'est verrouillé : tu pourras toujours corriger plus tard.</Text>
+              <Text style={styles.lockNoteText}>
+                {nothingToVerify
+                  ? "Aucune écriture ne sera enregistrée : ce mois est déjà vérifié sur tes comptes. Rien n'est verrouillé, tu pourras toujours corriger plus tard."
+                  : "La clôture enregistre une régularisation datée pour fiabiliser tes calculs. Rien n'est verrouillé : tu pourras toujours corriger plus tard."}
+              </Text>
             </View>
 
             {!!error && (

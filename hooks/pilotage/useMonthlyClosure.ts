@@ -30,6 +30,26 @@ export const CLOSURE_REGUL_NOTES = [
 ];
 export interface ClosureBilan { month_key: string; surplus: number; seen?: boolean; }
 
+/**
+ * Mois ROUVERTS pendant cette session — au niveau du MODULE, et pas dans un `useRef`.
+ *
+ * `useMonthlyClosure` est appelé par neuf écrans à la fois (Pilotage, Pouls, la modale de clôture,
+ * l'écran Clôture, Succès, la gamification, la saisie…). Une mémoire portée par un `useRef` est
+ * propre à CHAQUE instance : celle qui exécute la réouverture la remplit, les huit autres l'ignorent
+ * — et continuent d'appliquer les automatismes qu'elle devait justement suspendre. C'est un fait de
+ * session, pas un état de composant : il vit donc au module, comme la file d'interruptions.
+ *
+ * Ce que cette mémoire suspend, jusqu'au prochain démarrage :
+ *   • le re-marquage automatique en `estimated` — sinon la ligne `month_closures` réapparaît dans la
+ *     seconde et rouvrir semble n'avoir servi à rien ;
+ *   • l'ouverture automatique de la modale de clôture — se voir réclamer la clôture du mois qu'on
+ *     vient délibérément de rouvrir n'a aucun sens.
+ */
+const reopenedThisSession = new Set<string>();
+export function wasReopenedThisSession(monthKey: string | null | undefined): boolean {
+  return !!monthKey && reopenedThisSession.has(monthKey);
+}
+
 /** Clôture d'UN compte pour UN mois — partagée entre tous ceux qui voient le compte (migration 179). */
 export interface AccountClosure { account_id: string; month_key: string; closed_by: string; balance: number | null; closed_at: string; }
 
@@ -102,7 +122,10 @@ export function useMonthlyClosure(userId: string | undefined) {
   const rawLock: string | null = (profile as any)?.closure_lock_date ?? null;
   const lockDate: string | null = enabled ? rawLock : null;
   const bilanRaw = (profile as any)?.last_closure_bilan as ClosureBilan | null | undefined;
-  const bilan = bilanRaw && !bilanRaw.seen ? bilanRaw : null;
+  /* `surplus > 0` : un bilan sans reliquat n'a rien à annoncer. La condition est ici, et pas
+     seulement à l'affichage, pour que les bilans vides DÉJÀ enregistrés dans les profils cessent
+     de remonter — sinon la pop-up continuerait d'apparaître chez ceux qui en portent un. */
+  const bilan = bilanRaw && !bilanRaw.seen && Number(bilanRaw.surplus) > 0 ? bilanRaw : null;
 
   /**
    * Mois RÉELLEMENT clôturés — c'est-à-dire CONFIRMÉS par l'utilisateur.
@@ -149,13 +172,6 @@ export function useMonthlyClosure(userId: string | undefined) {
   // ── Marquage AUTO `estimated` : un mois pendant ignoré au-delà du délai de grâce (8 jours dans
   // le mois suivant) est marqué estimated (jamais bloquant, silencieux, rétro-corrigeable). ──
   const estimatedRunFor = useRef<string | null>(null);
-  /* Mois ROUVERTS pendant cette session. Sans cette mémoire, l'automatisme ci-dessous réinscrivait
-     aussitôt en base le mois que l'utilisateur venait explicitement de rouvrir (le délai de grâce
-     est écoulé depuis longtemps sur un mois passé) : la ligne `month_closures` réapparaissait dans
-     la seconde, en `estimated`. Rouvrir semblait alors n'avoir servi à rien — c'est précisément ce
-     qu'on voyait à l'écran. Rouvrir un mois, c'est annoncer qu'on va s'en occuper : on ne le
-     re-marque pas dans son dos. */
-  const reopenedThisSession = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!enabled || !userId || !supabase || pendingMonths.length === 0) return;
     const now = new Date();
@@ -163,7 +179,7 @@ export function useMonthlyClosure(userId: string | undefined) {
     const graceOver = now.getDate() >= 8;
     const alreadyMarked = new Set(closures.map((c) => c.month_key)); // confirmed OU estimated
     const toEstimate = pendingMonths.filter((mk) =>
-      !alreadyMarked.has(mk) && !reopenedThisSession.current.has(mk)
+      !alreadyMarked.has(mk) && !reopenedThisSession.has(mk)
       && (mk < prevMonth || (mk === prevMonth && graceOver)),
     );
     if (toEstimate.length === 0) return;
@@ -190,7 +206,14 @@ export function useMonthlyClosure(userId: string | undefined) {
       // le statut confirmed/estimated suffit à la fiabilité. On efface un éventuel verrou hérité.
       const prevMonth = addMonthKey(ym(new Date()), -1);
       const patch: Record<string, any> = { closure_lock_date: null };
-      patch.last_closure_bilan = (status === 'confirmed' && maxKey === prevMonth) ? { month_key: maxKey, surplus, seen: false } : null;
+      /* On n'enregistre un bilan QUE s'il a un montant à annoncer. Sans reliquat d'enveloppe, la
+         pop-up se contentait de dire « période clôturée » — ce que l'écran venait de montrer. Et
+         comme elle est rendue depuis le Pilotage, elle réapparaissait par-dessus n'importe quel
+         écran ouvert ensuite, jusqu'à ce qu'on la ferme. Rien à dire ⇒ rien à stocker. */
+      patch.last_closure_bilan =
+        (status === 'confirmed' && maxKey === prevMonth && surplus > 0)
+          ? { month_key: maxKey, surplus, seen: false }
+          : null;
       await supabase.from('profiles').update(patch).eq('id', userId);
     },
     onSuccess: () => {
@@ -256,12 +279,12 @@ export function useMonthlyClosure(userId: string | undefined) {
         .from('transactions').select('id').eq('profile_id', userId).eq('closure_month', monthKey).limit(1);
       if (leftErr) throw new Error(leftErr.message);
       if (leftovers && leftovers.length > 0) {
-        throw new Error("Les régularisations de ce mois n'ont pas pu être supprimées : le mois reste clôturé pour ne pas laisser tes soldes dans un état bâtard. Réessaie.");
+        throw new Error("Les régularisations de ce mois n'ont pas pu être supprimées. Le mois reste donc clôturé : c'est plus sûr que de le rouvrir en laissant tes soldes corrigés par une vérification qui n'existe plus. Réessaie.");
       }
 
       const { error } = await supabase.from('month_closures').delete().eq('profile_id', userId).eq('month_key', monthKey);
       if (error) throw new Error(error.message);
-      reopenedThisSession.current.add(monthKey);
+      reopenedThisSession.add(monthKey);
       // Recalcule le verrou = dernier jour du mois clôturé le plus récent restant (sinon null).
       /* Les soldes ont bougé (régularisations supprimées) : on les RECALCULE depuis les faits, comme
          partout ailleurs — sinon les comptes garderaient la valeur qu'ils avaient avec les réguls.

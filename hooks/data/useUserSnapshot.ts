@@ -27,6 +27,7 @@ import { useProjects } from './useProjects';
 import { useSharedContribution } from './useSharedContribution';
 import { computeAmortization, addMonthsISO } from '../../lib/finance/amortization';
 import { projectMode } from '../../lib/finance/projectTx';
+import { isRegul } from '../../lib/finance/regul';
 import { todayISO } from '../../lib/dateUtils';
 import { buildSnapshot, type SnapshotMonth, type SnapshotCategoryTrend, type SnapshotRecurring, type SnapshotRecurringTransfer, type SnapshotOneOff, type SnapshotForecastMonth, type SnapshotVariableDetail, type SnapshotSharedAccount, type SnapshotIncomeRef, type SnapshotUpcoming } from '../../lib/ai/aiSnapshot';
 import { detectUpcomingChanges, type UpcomingTx } from '../../lib/ai/aiUpcoming';
@@ -119,8 +120,13 @@ export function useUserSnapshot(userId: string | undefined): UserSnapshot {
     return parent && parent !== cat.name ? `${parent} > ${cat.name}` : cat.name;
   };
 
-  // Transaction « réelle » à considérer (ni virement interne, ni brouillon, ni régularisation de solde).
-  const isReal = (t: any) => !t.linked_account_id && !t.is_draft && t.regul_target == null;
+  /* Transaction « réelle » à considérer (ni virement interne, ni brouillon, ni régularisation).
+     `isRegul` et non `regul_target == null` : une régularisation ANCIENNE (écrite avant que la
+     colonne existe) n'a pas de solde cible, elle ne se reconnaît qu'à sa note. Le test étroit la
+     laissait entrer dans le snapshot envoyé à l'IA comme une vraie dépense ou une vraie recette —
+     un écart de solde devenait un « revenu » du mois, et les conseils raisonnaient dessus, alors
+     que le Pilotage et le Reporting l'excluaient. La note est bien lue plus haut (`select`). */
+  const isReal = (t: any) => !t.linked_account_id && !t.is_draft && !isRegul(t);
   // Train de vie = flux des comptes COURANTS uniquement (les mouvements épargne/invest ne sont ni des
   // revenus ni des dépenses de vie courante).
   const isCashflow = (t: any) => isReal(t) && t.account?.type === 'checking';

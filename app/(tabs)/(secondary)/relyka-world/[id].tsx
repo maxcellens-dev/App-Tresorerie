@@ -25,7 +25,7 @@ import {
   useRwProject, useRwExpenses, useRwInviteByCode, useAddRwParticipant, useDeleteRwExpense,
   useDeleteRwProject, useSetRwProjectArchived, useUpdateRwProject, useRwRealtime,
   useUpdateRwParticipant, useRwReinviteParticipant, useRemoveRwParticipant, useRwCancelInvitation,
-  useRwBulkReassignAccount, countParticipantRefs, countParticipantRealTx,
+  useRwBulkReassignAccount, useRwMergeParticipant, countParticipantRefs, countParticipantRealTx,
   computeBalances, settleUp, paidByParticipant, type RwExpense, type RwParticipant,
 } from '../../../../hooks/engagement/useRelykaWorld';
 
@@ -205,7 +205,7 @@ export default function RelykaWorldDetail() {
   /* Dépenses de cette personne qui ont touché un VRAI compte : on ne peut ni les réattribuer, ni la
      retirer tant qu'elles existent (cf. migration 185). Le message le dit AVANT le geste plutôt que
      de laisser le serveur refuser après coup. */
-  const removeRealTx = removing ? countParticipantRealTx(removing.id, expenses, payers, expenseAccounts) : 0;
+  const removeRealTx = removing ? countParticipantRealTx(removing.id, expenses, payers, expenseAccounts, user?.id) : 0;
   const runRemove = async (reassignTo: string | null) => {
     if (!removing) return;
     setRemoveBusy(true); setRemoveErr(null);
@@ -214,6 +214,26 @@ export default function RelykaWorldDetail() {
       setRemoving(null); setRemovePending(null);
     } catch (e: any) { setRemoveErr(e?.message ?? 'Retrait impossible.'); setRemovePending(null); }
     finally { setRemoveBusy(false); }
+  };
+
+  /* ── FUSIONNER DEUX LIGNES QUI SONT LA MÊME PERSONNE ──────────────────────────────────────
+     Un participant non inscrit peut se retrouver à côté du compte Relyka de la même personne (ce
+     que les défauts d'invitation ont produit), chacun portant une partie des dépenses. Retirer avec
+     repreneur n'est pas le bon geste : ce serait donner l'argent de l'un à l'autre, et le garde-fou
+     le refuse à juste titre. Fusionner dit autre chose — ces deux lignes n'ont jamais désigné qu'une
+     personne — et ne touche à AUCUNE transaction. */
+  const [merging, setMerging] = useState<RwParticipant | null>(null);
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeErr, setMergeErr] = useState<string | null>(null);
+  const mergeParticipant = useRwMergeParticipant(projectId);
+  const runMerge = async (into: string) => {
+    if (!merging) return;
+    setMergeBusy(true); setMergeErr(null);
+    try {
+      await mergeParticipant.mutateAsync({ from: merging.id, into });
+      setMerging(null);
+    } catch (e: any) { setMergeErr(e?.message ?? 'Fusion impossible.'); }
+    finally { setMergeBusy(false); }
   };
 
   const onInviteByCode = async () => {
@@ -529,6 +549,19 @@ export default function RelykaWorldDetail() {
                       <Ionicons name="close-circle-outline" size={19} color={COLORS.orange} />
                     </TouchableOpacity>
                   )}
+                  {/* Deux lignes pour une seule personne → fusionner. Proposé uniquement sur une
+                      ligne NON INSCRITE : absorber un compte Relyka reviendrait à donner ses
+                      dépenses à quelqu'un d'autre. */}
+                  {!p.user_id && isOwner && participants.length > 1 && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`Fusionner ${p.display_name} avec un autre participant`}
+                      onPress={() => { setShowInvite(false); setMergeErr(null); setMerging(p); }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="git-merge-outline" size={18} color={COLORS.blue} />
+                    </TouchableOpacity>
+                  )}
                   {canRemove && (
                     <TouchableOpacity
                       accessibilityRole="button"
@@ -597,8 +630,8 @@ export default function RelykaWorldDetail() {
                   <Ionicons name="lock-closed-outline" size={16} color={COLORS.orange} />
                   <Text style={styles.blockNoteText}>
                     {removeRealTx} dépense{removeRealTx > 1 ? 's' : ''} de {removing?.display_name} {removeRealTx > 1 ? 'ont' : 'a'} été
-                    réglée{removeRealTx > 1 ? 's' : ''} depuis un vrai compte bancaire. Impossible de les
-                    transférer à quelqu'un d'autre : la transaction reste sur SON compte, et le projet
+                    réglée{removeRealTx > 1 ? 's' : ''} depuis le compte bancaire de quelqu'un d'autre.
+                    Impossible de les transférer : la transaction reste sur SON compte, et le projet
                     dirait le contraire.
                   </Text>
                 </View>
@@ -606,8 +639,29 @@ export default function RelykaWorldDetail() {
                   Pour pouvoir la retirer, ces dépenses doivent d'abord être supprimées, ou repassées
                   en « cash » depuis l'onglet « Par compte » — par leur propriétaire, lui seul y a droit.
                 </Text>
-                <TouchableOpacity style={styles.modalCta} onPress={() => setRemoving(null)} activeOpacity={0.85}>
-                  <Text style={styles.modalCtaText}>J'ai compris</Text>
+                {/* SORTIE DE SECOURS. Le refus était un cul-de-sac : il expliquait pourquoi c'était
+                    impossible sans donner le geste qui, lui, l'est. Quand la ligne bloquée n'est
+                    PAS un compte Relyka, le cas de loin le plus fréquent est qu'elle double une
+                    personne déjà présente — et fusionner ne transfère rien, donc rien ne s'oppose
+                    à le proposer ici. */}
+                {!removing?.user_id && participants.length > 1 && (
+                  <>
+                    <Text style={styles.partHint}>
+                      Si cette ligne et un autre participant sont en réalité la même personne, c'est
+                      une fusion qu'il te faut : rien n'est transféré, aucune transaction ne bouge,
+                      les deux lignes n'en font qu'une.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.modalCta}
+                      activeOpacity={0.85}
+                      onPress={() => { const p = removing; setRemoving(null); setRemovePending(null); setMergeErr(null); setMerging(p); }}
+                    >
+                      <Text style={styles.modalCtaText}>Fusionner avec un autre participant</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+                <TouchableOpacity style={styles.removeBack} onPress={() => setRemoving(null)} activeOpacity={0.85}>
+                  <Text style={styles.removeBackText}>Fermer</Text>
                 </TouchableOpacity>
               </>
             ) : removePending ? (
@@ -661,6 +715,40 @@ export default function RelykaWorldDetail() {
                 {removeBusy && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 10 }} />}
               </>
             )}
+          </View>
+        </KeyboardAwareOverlay>
+      </Modal>
+
+      {/* Modal — fusionner deux lignes qui désignent la même personne */}
+      <Modal visible={!!merging} transparent animationType="slide" onRequestClose={() => setMerging(null)}>
+        <KeyboardAwareOverlay style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: sheetPad }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Fusionner {merging?.display_name}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setMerging(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.partHint}>
+              À utiliser quand deux lignes désignent la même personne. Tout ce que porte
+              « {merging?.display_name} » — dépenses avancées et quotes-parts — est repris par celle que
+              tu choisis, et cette ligne disparaît.
+            </Text>
+            <Text style={styles.partHint}>
+              Aucune transaction n'est touchée : chaque dépense garde la sienne, sur le compte de son
+              propriétaire. Aucun solde ne bouge. En revanche, la fusion ne s'annule pas.
+            </Text>
+            {!!mergeErr && <Text style={styles.errText}>{mergeErr}</Text>}
+            <ScrollView style={{ maxHeight: 300 }}>
+              {participants.filter((p) => p.id !== merging?.id).map((p) => (
+                <TouchableOpacity key={p.id} style={styles.reassignRow} onPress={() => runMerge(p.id)} disabled={mergeBusy} activeOpacity={0.8}>
+                  <Ionicons name="person-outline" size={17} color={COLORS.blue} />
+                  <Text style={styles.reassignName}>{p.display_name}{p.user_id === user?.id ? ' (moi)' : ''}</Text>
+                  <Ionicons name="arrow-forward" size={16} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {mergeBusy && <ActivityIndicator color={COLORS.emerald} style={{ marginTop: 10 }} />}
           </View>
         </KeyboardAwareOverlay>
       </Modal>

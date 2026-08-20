@@ -441,26 +441,60 @@ export function countParticipantRefs(
 }
 
 /**
- * Combien de ses dépenses ont touché un VRAI compte bancaire ?
+ * Combien de ses dépenses ont été réglées depuis le compte bancaire de QUELQU'UN D'AUTRE ?
  *
- * Ces dépenses-là ont une transaction en face, dans le Relyka de leur auteur : elle porte son
- * solde, son budget du mois, ses recommandations. Les réattribuer à quelqu'un d'autre ferait
- * diverger les deux — le projet dirait « c'est Paul qui a payé », le compte de Marie continuerait
- * d'être débité. On refuse donc le retrait tant qu'il en reste (garde-fou aussi côté serveur,
- * migration 185 : la règle protège de l'argent réel, elle ne peut pas vivre uniquement à l'écran).
+ * Ces dépenses-là ont une transaction en face, dans le Relyka de son auteur : elle porte son solde,
+ * son budget du mois, ses recommandations. Les réattribuer ferait diverger les deux — le projet
+ * dirait « c'est Paul qui a payé », le compte de Marie continuerait d'être débité. On refuse donc le
+ * retrait tant qu'il en reste (garde-fou aussi côté serveur, migration 191 : la règle protège de
+ * l'argent réel, elle ne peut pas vivre uniquement à l'écran).
+ *
+ * ⚠️ On ne compte QUE les transactions d'autrui. Ce garde-fou regardait la simple existence d'une
+ * transaction, sans se demander à qui elle appartient : il bloquait donc aussi sur des lignes que
+ * l'utilisateur avait saisies LUI-MÊME, sur SES comptes — c'est-à-dire qu'il l'empêchait de réparer
+ * ses propres saisies, sans jamais lui dire comment s'en sortir.
  */
 export function countParticipantRealTx(
   participantId: string,
   expenses: RwExpense[],
   payers: RwPayer[],
   expenseAccounts: RwExpenseAccount[],
+  userId?: string,
 ): number {
-  const withRealTx = new Set(
-    expenseAccounts.filter((a) => a.transaction_id).map((a) => a.expense_id),
+  const othersTx = new Set(
+    expenseAccounts.filter((a) => a.transaction_id && a.created_by !== userId).map((a) => a.expense_id),
   );
-  return expenses.filter((e) =>
-    paidByParticipant(e, payers).some((p) => p.participant_id === participantId)
-    && (e.transaction_id != null || withRealTx.has(e.id))).length;
+  const hasSplitRow = new Set(expenseAccounts.map((a) => a.expense_id));
+  return expenses.filter((e) => {
+    if (!paidByParticipant(e, payers).some((p) => p.participant_id === participantId)) return false;
+    if (othersTx.has(e.id)) return true;
+    // Colonne historique (dépense d'avant la répartition multi-comptes) : elle ne vaut que s'il
+    // n'existe aucune ligne de répartition, sinon on compterait deux fois la même dépense.
+    return !hasSplitRow.has(e.id) && e.transaction_id != null && e.created_by !== userId;
+  }).length;
+}
+
+/**
+ * FUSIONNER deux lignes qui désignent la même personne (migration 191).
+ *
+ * Les défauts d'invitation ont pu laisser un participant « non inscrit » à côté du compte Relyka de
+ * la même personne, chacun portant une partie des dépenses. Fusionner consolide l'attribution sur
+ * une seule ligne — et NE TOUCHE À AUCUNE TRANSACTION : chaque dépense garde la sienne, sur le
+ * compte de son propriétaire. Aucun solde ne bouge, rien n'est débité deux fois.
+ */
+export function useRwMergeParticipant(projectId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { from: string; into: string }) => {
+      if (!supabase) throw new Error('Backend indisponible');
+      const { error } = await supabase.rpc('rw_merge_participants', { p_from: input.from, p_into: input.into });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rw_project', projectId] });
+      qc.invalidateQueries({ queryKey: ['rw_expenses', projectId] });
+    },
+  });
 }
 
 /** Entrée commune aux deux écritures d'une dépense (création / modification). */

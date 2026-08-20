@@ -8,6 +8,7 @@
  * (épargne / invest / projets), et le solde prévu de fin de mois (cumulatif).
  */
 import { isProjectSpendTx } from './projectTx';
+import { isRegul as isRegulTx } from './regul';
 
 export interface ForecastMonth {
   year: number;
@@ -52,7 +53,13 @@ export function computeMonthlyForecast(params: ForecastParams): ForecastMonth[] 
 
   const onChecking = (t: any) => checkingIds.has(t.account_id);
   const isTransfer = (t: any) => !!t.linked_account_id;
-  const isRegul = (t: any) => typeof t.note === 'string' && /r[ée]gul/i.test(t.note);
+  /* Définition CANONIQUE (lib/finance/regul), pas une regex locale sur la note.
+     Celle qui vivait ici ne reconnaissait une régularisation qu'à son libellé : une régul écrite
+     par la clôture porte bien un libellé parlant, mais une régul saisie à la main peut n'avoir
+     AUCUNE note — elle n'est alors identifiée que par `regul_target`. Le plan de trésorerie la
+     comptait donc comme une vraie recette ou une vraie dépense, et annonçait un mois différent de
+     celui du Pilotage et du Reporting, qui utilisent tous deux `isRegul`. */
+  const isRegul = isRegulTx;
   const usable = (t: any) => onChecking(t) && !isTransfer(t) && !t.is_draft;
   // RENTRÉE réelle sur le courant depuis un compte NON courant (épargne, invest, externe) → à compter
   // comme une entrée (ex. virement d'épargne pour couvrir une grosse dépense). Entre courants = exclu.
